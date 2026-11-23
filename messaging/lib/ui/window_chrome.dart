@@ -65,6 +65,8 @@ class MacChrome {
     _channel.invokeMethod('chrome', {'height': height, 'x': lightsX, 'dark': dark}).catchError((_) => null);
   }
 
+  /// Asks the window to start being dragged, and to zoom as a double click on a title bar does; nothing where the
+  /// window has no such half.
   static void drag() => _channel.invokeMethod('drag').catchError((_) => null);
   static void zoom() => _channel.invokeMethod('zoom').catchError((_) => null);
 }

@@ -66,6 +66,8 @@ void openCircleNewSpace(BuildContext context, Circle c, {String? section}) {
   shell.show(NewCircleSpaceScreen(key: ValueKey('circle-new-${c.seed}-${section ?? ''}'), circle: c, section: section), showing: 'circle-new');
 }
 
+/// A circle's own page: its list of spaces, drawn again whenever the circle, a call, the space open or a Files
+/// space's list changes; a line saying so where the circle was left meanwhile.
 class CircleScreen extends StatelessWidget {
   const CircleScreen({super.key, required this.seed, this.onBack});
 

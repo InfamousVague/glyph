@@ -58,8 +58,6 @@ import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
 
-/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
-/// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
 /// What goes wrong on the screens' side goes in the app's own log (Settings › Developer; Matt, 2026-11-13: "a
 /// developer setting with copying errors and reporting"): what it was and where, never what a message said.
 void _logErrors() {
@@ -83,6 +81,12 @@ void _logErrors() {
   };
 }
 
+/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
+/// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
+///
+/// Where the app starts on every platform. A computer goes off to lib/desktop; a phone reads what must be read
+/// before the first frame (the stylesheets, the choices, the plugins) and draws [GhostMessagingApp]. What needs the
+/// app to be usable (its network, friends, the inbox) starts later, in [_HomeState._check].
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
@@ -137,6 +141,7 @@ Future<void> main() async {
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
+/// The app's one navigator, for what opens pages from outside the tree: a notification pressed, a file shared in.
 final _navigator = GlobalKey<NavigatorState>();
 
 /// With `adb shell setprop log.tag.GhostPerf VERBOSE` set before the app starts, how long frames take is written to
@@ -185,6 +190,8 @@ GlacierTypography _typography(String emoji) {
   );
 }
 
+/// The phone's app: the choices over everything ([AppScope]), then the theme made from them (stylesheet, look,
+/// emoji set), then [_Home]. Built again whenever a choice changes.
 class GhostMessagingApp extends StatelessWidget {
   const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents});
   final TokenSheet sheet;
@@ -235,6 +242,7 @@ class _Home extends StatefulWidget {
 }
 
 class _HomeState extends State<_Home> with WidgetsBindingObserver {
+  /// The frame (the list and the pane beside it), for opening what a notification asks for in it.
   final _shell = GlobalKey<AppShellState>();
 
   /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
@@ -283,6 +291,10 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     });
   }
 
+  /// Asks whether the app can run (the texting app, beside Google Messages, or texts passed by), as it opens and
+  /// each time it comes back to the screen. With [first], and where it can, everything that runs behind the screens
+  /// is started, once: sounds, keys, the app's network and friends, files, the inbox, alerts, a paired computer's
+  /// answers; and what the app was opened to show is opened.
   Future<void> _check({bool first = false}) async {
     final s = await Sms.instance.status();
     // Whether the phone's contacts can be read, before the list is drawn: without them plugins from other developers
@@ -370,6 +382,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     }
   }
 
+  /// Opens what was asked for from outside the app, in the frame: a circle, a space, a network's chat, a pairing,
+  /// a conversation by its thread or its people, or a new message.
   Future<void> _open(OpenRequest req) async {
     // A circle's link opened before the app is set up: held, and the circle opened once it is (lib/circles/pending_link.dart).
     if (req.circle != null && (_isDefault != true || _walking || (Sms.standalone && Me.instance.username == null))) {

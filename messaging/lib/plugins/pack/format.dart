@@ -26,6 +26,8 @@ const String packExtension = '.ghostplugin';
 /// storefront of other developers' features reads against the App Store's rules however its packs are made.
 const bool packAppStoreBuild = String.fromEnvironment('GHOST_STORE') == 'appstore';
 
+/// Every size and count the format caps, in one place: bytes for files, pixels for a picture's side, UTF-16 units for
+/// text, and how many of each thing a pack, or a device, may hold.
 abstract final class PackLimits {
   static const int packageBytes = 262144, depth = 8;
   static const int iconChars = 48000, iconBytes = 36000, iconMin = 64, iconMax = 512;
@@ -79,6 +81,7 @@ enum PackPermission {
   const PackPermission(this.wire);
   final String wire;
 
+  /// The permission a pack's file writes as [wire]; null for a word that is none.
   static PackPermission? byWire(String wire) {
     for (final p in values) {
       if (p.wire == wire) return p;
@@ -177,6 +180,7 @@ final RegExp _packBadChar = RegExp(r'[\p{Cf}\p{Co}\p{Zl}\p{Zp}\x00-\x09\x0B-\x1F
 /// and a newline only where [newlines] (a description, what's new, a setting's hint).
 bool packTextOk(String s, {bool newlines = false}) => s == s.trim() && !_packBadChar.hasMatch(s) && (newlines || !s.contains('\n')) && !_hasLoneSurrogate(s);
 
+// A half of a surrogate pair without its other half: not valid UTF-16, and not something UTF-8 can carry.
 bool _hasLoneSurrogate(String s) {
   for (var i = 0; i < s.length; i++) {
     final c = s.codeUnitAt(i);
@@ -210,6 +214,8 @@ String? packAddressIssue(String address, {bool email = false}) {
   return _httpsOk(address) ? null : 'bad_url';
 }
 
+// https alone, no longer than an address may be, with no spaces, braces, fragment, user or port, to a host [_hostOk]
+// lets through.
 bool _httpsOk(String address) {
   if (address.length > PackLimits.address || !address.startsWith('https://')) return false;
   if (address.contains(RegExp(r'\s')) || address.contains('{') || address.contains('}') || address.contains('#')) return false;
@@ -254,6 +260,7 @@ String packFold(String s) {
 
 final RegExp _notLetterOrDigit = RegExp(r'[^\p{L}\p{N}]', unicode: true);
 
+// [s] with each character [packConfusables] knows replaced by what it passes for.
 String _confuse(String s) {
   final out = StringBuffer();
   for (final rune in s.runes) {

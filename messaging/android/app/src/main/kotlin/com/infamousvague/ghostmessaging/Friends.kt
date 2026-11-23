@@ -43,6 +43,7 @@ object Friends {
 
     fun isNet(context: Context, id: Long): Boolean = id in netIds(context)
 
+    /** Notes that the text in row [id] came or went by the routes; the newest [KEEP] are remembered. */
     @Synchronized
     private fun mark(context: Context, id: Long) {
         val all = (prefs(context).getString("net", "") ?: "").split(',').filter { it.isNotEmpty() }.toMutableList()

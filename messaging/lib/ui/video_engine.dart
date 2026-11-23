@@ -34,6 +34,7 @@ class VideoNow {
   /// The sounds and subtitles it carries, and which are on (lib/ui/video_tracks.dart).
   final VideoTracks tracks;
 
+  /// It played to its end and stopped there.
   bool get ended => ready && !playing && duration > Duration.zero && position >= duration;
 
   VideoNow copyWith({bool? ready, bool? playing, Duration? position, Duration? duration, double? aspect, String? error, Duration? buffered, bool? buffering, VideoTracks? tracks}) => VideoNow(
@@ -92,6 +93,7 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
   /// once it is ready [value] says so, or says why not in [VideoNow.error]. Never throws.
   Future<void> open(String path);
 
+  /// Whether [path] is an http(s) address to stream from, not a file on this device.
   static bool isAddress(String path) => path.startsWith('http://') || path.startsWith('https://');
   Future<void> play();
   Future<void> pause();
@@ -190,6 +192,7 @@ class VideoPlayerEngine extends VideoEngine {
       if (id == null) {
         await video.setClosedCaptionFile(null);
       } else {
+        // Here a subtitle track's id is its file's path: read whole, as WebVTT or SubRip by its ending.
         final text = await File(id).readAsString();
         await video.setClosedCaptionFile(Future.value(id.toLowerCase().endsWith('.vtt') ? WebVTTCaptionFile(text) : SubRipCaptionFile(text)));
       }
@@ -199,6 +202,7 @@ class VideoPlayerEngine extends VideoEngine {
     }
   }
 
+  /// The controller changed: its state again as a [VideoNow]. The tracks are read apart ([_readTracks]).
   void _changed() {
     final v = _video?.value;
     if (v == null) return;
@@ -264,8 +268,8 @@ class VideoPlayerEngine extends VideoEngine {
   }
 }
 
-/// libmpv under the controls, by way of media_kit: the computers. It draws through a texture (media_kit_video) the
-/// controls lie over as they do over ExoPlayer's.
+/// libmpv under the controls, by way of media_kit: the computers and Android ([VideoEngine.usesMediaKit]). It draws
+/// through a texture (media_kit_video) the controls lie over as they do over ExoPlayer's.
 class MediaKitEngine extends VideoEngine {
   mk.Player? _player;
   mkv.VideoController? _controller;

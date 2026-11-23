@@ -54,6 +54,7 @@ class GlacierTheme extends StatefulWidget {
 }
 
 class _GlacierThemeState extends State<GlacierTheme> {
+  /// The tokens last made, and a hash of everything they were made from: made again only when that changes.
   Tokens? _tokens;
   Object? _key;
 
@@ -126,6 +127,7 @@ class GlacierRootScope extends StatelessWidget {
   Widget build(BuildContext context) => _TokensScope(tokens: GlacierTheme.of(context).rootTokens, child: child);
 }
 
+/// Carries the tokens down the tree; dependents rebuild only when the [Tokens] object itself is another.
 class _TokensScope extends InheritedWidget {
   const _TokensScope({required this.tokens, required super.child});
   final Tokens tokens;

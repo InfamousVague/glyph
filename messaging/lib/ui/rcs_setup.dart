@@ -65,6 +65,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _look();
   }
 
+  /// Reads from Android how far the steps have got; once Ghost is beside Google Messages the setup is over.
   Future<void> _look() async {
     try {
       final s = await Sms.instance.status();
@@ -205,6 +206,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
   }
 }
 
+/// A small rounded button on a step: [filled] for the one that carries the step on, outlined for a second choice.
 class _Pill extends StatelessWidget {
   const _Pill({required this.label, required this.filled, required this.onPressed});
   final String label;

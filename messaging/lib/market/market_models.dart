@@ -474,6 +474,7 @@ class AskedBefore {
   /// 'changes_requested' or 'rejected'.
   final String status;
 
+  /// Null where [j] isn't one: it must carry the earlier package at least.
   static AskedBefore? fromJson(Object? j) {
     if (j is! Map || j['package'] is! String) return null;
     return AskedBefore(sid: _text(j['sid']), version: _text(j['version']), sha256: _text(j['sha256']), package: j['package'] as String, note: _text(j['note']), status: _text(j['status'], 'changes_requested'));

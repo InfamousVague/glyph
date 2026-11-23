@@ -36,11 +36,14 @@ class Received {
 
   /// The route that brought it first.
   final String via;
+
+  /// Whether it came sealed with the pair's key; nothing unsealed is passed on from someone a key is held for.
   final bool sealed;
 }
 
 /// Who the routes can reach: the app's list of the installs it has exchanged keys with.
 abstract class PeerBook {
+  /// Someone by their install's name; and by their phone number, however it is written.
   Peer? byId(String id);
   Peer? byAddress(String address);
 }
@@ -86,7 +89,11 @@ class Switchboard {
   final _received = StreamController<Received>.broadcast();
   final _strangers = StreamController<({String from, Envelope envelope, String via, String? address})>.broadcast();
   final _acks = StreamController<String>.broadcast();
+
+  /// The names of what has come already, oldest first ([_fresh]).
   final LinkedHashSet<String> _seen = LinkedHashSet();
+
+  /// Envelopes sent and waiting for the other install's answer, by id.
   final Map<String, Completer<void>> _waiting = {};
 
   /// Told whenever a route is added, taken out, or changes state: Settings draws from it.
@@ -101,6 +108,7 @@ class Switchboard {
   /// The name of each thing sent as the other install says it has it, however late.
   Stream<String> get acked => _acks.stream;
 
+  /// The routes, in the order they are tried.
   List<Carrier> get carriers {
     final list = _carriers.values.toList();
     int at(Carrier c) {
@@ -134,6 +142,7 @@ class Switchboard {
 
   void _bump() => changed.value++;
 
+  /// Starts every route not switched off; none is waited for.
   Future<void> start() async {
     for (final c in carriers) {
       if (!off.contains(c.id)) unawaited(c.start().catchError((_) {}));
@@ -225,6 +234,8 @@ class Switchboard {
     return kept == null ? Delivery(envelope.id, tried: tried) : Delivery(envelope.id, via: kept.via, handed: kept.handed, tried: tried);
   }
 
+  /// A packet a route brought: put together from its pieces, opened, answered, told apart from its copies, and
+  /// passed on.
   void _arrived(Arrived a) {
     final parsed = Packet.parse(a.bytes);
     if (parsed == null || parsed.from == me) return;

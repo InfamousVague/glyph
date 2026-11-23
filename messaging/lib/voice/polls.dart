@@ -18,6 +18,7 @@ class PollSpec {
   /// Whether more than one answer may be chosen.
   final bool multi;
 
+  // How many answers a poll may have, and the most characters in an answer and in the question.
   static const least = 2;
   static const most = 10;
   static const optionMost = 80;
@@ -62,6 +63,7 @@ class PollVote {
 
   List<Object> toJson() => [choices, at];
 
+  /// From `[choices, at]`; null where it is not that. The choices are not yet checked against a poll ([valid]).
   static PollVote? fromJson(Object? j) {
     if (j is! List || j.length != 2 || j[0] is! List || j[1] is! int) return null;
     return PollVote([for (final c in j[0] as List) if (c is int) c], j[1] as int);

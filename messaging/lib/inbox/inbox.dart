@@ -96,6 +96,7 @@ class InboxChat {
   /// Muted on the network itself (Telegram's own mute): no notification from Ghost either (lib/inbox/alerts.dart).
   final bool muted;
 
+  /// With what a new message or a read changes; the rest (pinned, muted, the stranger marks) as it is.
   InboxChat copyWith({String? title, DateTime? date, String? snippet, int? unread, String? avatar, bool? lastFromMe}) => InboxChat(
         network: network,
         id: id,
@@ -115,7 +116,6 @@ class InboxChat {
       );
 }
 
-/// A message in an [InboxChat].
 /// A picture, video, sound or file in an [InboxMessage] (Matt, 2026-11-15: "Is it possible to send and receive
 /// attachments through telegram too?"). [path] is the file on this device once the network has brought it down
 /// ([InboxNetwork.fileOf]); [thumbPath] a small picture of a video, where it has one.
@@ -135,6 +135,8 @@ class InboxMedia {
   final int? thumbId;
   final String? thumbPath;
 
+  /// With [path] as where the file [file] is on this device: the media itself or its small picture, whichever has
+  /// that id; unchanged where neither does.
   InboxMedia withPath(int file, String path) => InboxMedia(
         kind: kind, fileId: fileId, path: file == fileId ? path : this.path, name: name, size: size, width: width, height: height,
         duration: duration, thumbId: thumbId, thumbPath: file == thumbId ? path : thumbPath);
@@ -210,6 +212,8 @@ class InboxProfile {
   final String seen;
 }
 
+/// One message in an [InboxChat], as every network's messages are shown: its words, who and when, and what the
+/// network says besides (files, reactions, the message it answers, edits).
 @immutable
 class InboxMessage {
   const InboxMessage({
@@ -271,7 +275,6 @@ class InboxMessage {
   final String state;
 }
 
-/// A network's client: signing in, its chats, a chat's messages, and sending.
 /// Someone in a network's own contacts (Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to
 /// show which each is and filters, where contacts can be messages on multiple platforms as which you like to use when
 /// stating a conversation"). lib/inbox/people.dart puts them together with the phone's contacts, by number or name.
@@ -368,6 +371,7 @@ class GroupDetails {
   /// What this person may do here, by the group's rules and their role.
   final bool canEditInfo, canAddPeople, canRemovePeople, canSetAdmins, canChangeRules;
 
+  /// Whether the network has [f] for groups at all; whether this person may use it is the `can…` fields'.
   bool can(GroupFeature f) => supports.contains(f);
 }
 
@@ -400,6 +404,7 @@ class GroupChange {
   final bool? announcementsOnly, editInfoAdminsOnly, addPeopleAdminsOnly;
   final bool leave;
 
+  /// Whether it changes nothing.
   bool get isEmpty =>
       title == null && description == null && photo == null && timer == null && add.isEmpty && remove.isEmpty && admin.isEmpty && unadmin.isEmpty && announcementsOnly == null && editInfoAdminsOnly == null && addPeopleAdminsOnly == null && !leave;
 }
@@ -445,11 +450,17 @@ class PresenceChanges extends ChangeNotifier {
   void changed() => notifyListeners();
 }
 
+/// One network's client: signing in, its chats, a chat's messages, and sending. Each network extends this and
+/// overrides what it can do itself; what it leaves alone falls back to lists Ghost keeps on this device (archived,
+/// deleted, blocked, pinned) or to "not supported". Tells its listeners whenever what it shows changes.
 abstract class InboxNetwork extends ChangeNotifier {
+  /// Its short name in keys and addresses ("telegram"), and its name as shown ("Telegram").
   String get id;
   String get name;
 
   InboxState get state;
+
+  /// What a sign-in under way waits for; none for a network that signs in all at once.
   InboxStep get step => InboxStep.none;
 
   /// Why the last thing asked of it failed, to show; null once something works.
@@ -519,6 +530,7 @@ abstract class InboxNetwork extends ChangeNotifier {
     return [for (final id in localList('blocked')) (id: id, name: names[id] ?? id)]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
 
+  /// The name each blocked person had when blocked, by chat id: kept apart, since a blocked chat is no longer listed.
   Map<String, String> get _blockedNames {
     try {
       return (jsonDecode(listStore?.choice('inbox_${id}_blocked_names', '{}') ?? '{}') as Map).map((k, v) => MapEntry('$k', '$v'));
@@ -597,6 +609,8 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// One of Ghost's own lists for this network ("archived", "deleted", "deleted_msg_<chat>").
   Set<String> localList(String what) => (listStore?.choice('inbox_${id}_$what', '') ?? '').split('\u001f').where((x) => x.isNotEmpty).toSet();
 
+  /// Puts [item] in the list [what], or takes it out, and saves. The items are kept as one string, joined by the unit
+  /// separator (U+001F), which no id holds.
   void setLocal(String what, String item, bool on) {
     final s = localList(what);
     on ? s.add(item) : s.remove(item);
@@ -687,6 +701,7 @@ class Inbox {
 
   final List<InboxNetwork> networks;
 
+  /// The network whose [InboxNetwork.id] is [id]; null for none.
   InboxNetwork? named(String id) {
     for (final n in networks) {
       if (n.id == id) return n;
@@ -720,8 +735,10 @@ class Inbox {
   /// The networks signed in, whose chats the list shows.
   List<InboxNetwork> get ready => [for (final n in networks) if (!n.soon && n.state == InboxState.ready) n];
 
+  /// Told whenever any network changes.
   Listenable get changes => Listenable.merge(networks);
 
+  /// Starts every network that is offered, one after another; one that fails to start doesn't stop the rest.
   Future<void> start(AppState app) async {
     for (final n in networks) {
       if (n.soon) continue;

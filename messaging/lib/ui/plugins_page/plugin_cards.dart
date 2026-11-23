@@ -269,6 +269,7 @@ class FeaturedPluginCard extends StatelessWidget {
     );
   }
 
+  /// Dial-Up's featured card: a small window, the plugin's name on its title bar.
   Widget _window(BuildContext context, Tokens t) {
     final c = DialupColors.of(t);
     return GlacierPressable(

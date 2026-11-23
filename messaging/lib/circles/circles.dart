@@ -85,6 +85,7 @@ class CircleInvite {
   CircleInvite copyWith({Circle? circle, String? from, bool? later, bool? link, bool? fresh}) =>
       CircleInvite(circle ?? this.circle, from ?? this.from, at, later: later ?? this.later, link: link ?? this.link, fresh: fresh ?? this.fresh);
 
+  /// As kept in `circle_invites`. [fresh] is left out, so no invite is new again after a restart.
   Map<String, Object?> toJson() => {'c': circle.toJson(), 'f': from, 'at': at.millisecondsSinceEpoch, if (later) 'l': 1, if (link) 'k': 1};
 
   static CircleInvite? fromJson(Object? j) {
@@ -103,6 +104,8 @@ String? capName(String? words) {
   return w.substring(0, 100).trim();
 }
 
+/// The app's circles: those held, the invites waiting, each circle's room, and every change made to one (the top of
+/// this file says how they are kept, gossiped and shared). Listeners are told when any of it changes.
 class Circles extends ChangeNotifier {
   Circles._();
   static final Circles instance = Circles._();
@@ -150,8 +153,10 @@ class Circles extends ChangeNotifier {
 
   NetSigner? get signer => signerOverride ?? Voice.instance.signer;
 
+  /// Whether the circle with [seed] was left, here or on the paired device: a sync doesn't hand it back.
   bool removed(String seed) => _gone.contains(seed);
 
+  /// Reads what was kept, listens for friends' invites and follows Voice's relay. Once: later calls do nothing.
   Future<void> start(AppState app) async {
     if (_app != null) return;
     _app = app;
@@ -164,6 +169,8 @@ class Circles extends ChangeNotifier {
     _follow();
   }
 
+  /// Reads the device's choices: the circles, those left, who was seen, the joins, the system notes and the invites.
+  /// Each group is read on its own, so one that can't be read doesn't lose the rest.
   void _load(AppState app) {
     try {
       all = [for (final j in jsonDecode(app.choice('circles', '[]')) as List) ?Circle.fromJson(j)];
@@ -476,6 +483,7 @@ class Circles extends ChangeNotifier {
   final Map<String, List<CircleSystemNote>> _notes = {};
   static const _notesKept = 200;
 
+  /// Writes [notes] in [seed]'s system space, each once, in order of time; the newest [_notesKept] are kept.
   void _note(String seed, Iterable<CircleSystemNote> notes) {
     final list = _notes.putIfAbsent(seed, () => []);
     var added = false;
@@ -551,6 +559,7 @@ class Circles extends ChangeNotifier {
     return id == null ? const {} : (bySeed(c.seed) ?? c).manifest.permsOf(id);
   }
 
+  /// Whether this install may do [p] in [c] as its roles say ([allows] asks of one space, with its overrides).
   bool can(Circle c, CirclePerm p) => myPerms(c).contains(p);
 
   /// Whether this install may do [p] in [space]: always outside a circle; inside one, as its roles say and then as the
@@ -666,7 +675,6 @@ class Circles extends ChangeNotifier {
     });
   }
 
-  /// What everyone in [c] may do. Changing the circle, its spaces or roles is never everyone's.
   /// Turns the plugin [id] on or off for everyone in [c], with [choices] for the circle: only whoever may change the
   /// circle (its owner, or an admin with Change the circle).
   Future<bool> setPlugin(Circle c, String id, {required bool on, Map<String, Object?> choices = const {}}) {
@@ -678,6 +686,8 @@ class Circles extends ChangeNotifier {
   /// What [space]'s circle says of the plugin [id]: null outside a circle, or where it has said nothing.
   bool? pluginOnIn(VoiceChannel space, String id) => circleOf(space)?.manifest.pluginOn(id);
 
+  /// Sets what everyone in [c] may do to [perms], less any that change the circle, its spaces or its roles; for
+  /// whoever may manage roles.
   Future<bool> setEveryone(Circle c, Set<CirclePerm> perms) {
     final have = bySeed(c.seed) ?? c;
     if (!can(have, CirclePerm.roles)) return Future.value(false);
@@ -885,12 +895,14 @@ class Circles extends ChangeNotifier {
     if (invites.any((i) => i.seed == seed)) _setInvites([for (final i in invites) if (i.seed != seed) i]);
   }
 
+  /// Puts [next] in place of [invites] and keeps them; [tell] is false where the caller tells listeners itself.
   void _setInvites(List<CircleInvite> next, {bool tell = true}) {
     invites = next;
     _app?.set('circle_invites', jsonEncode([for (final i in invites) i.toJson()]));
     if (tell) notifyListeners();
   }
 
+  /// Notes [seed] as left, newest last, so the paired phone or computer doesn't hand the circle back.
   void _markGone(String seed) {
     _gone.remove(seed);
     _gone.add(seed);
@@ -898,6 +910,7 @@ class Circles extends ChangeNotifier {
     _app?.set('circles_gone', jsonEncode(_gone));
   }
 
+  /// Takes [seed] off those left: the circle was joined again.
   void _unmarkGone(String seed) {
     if (_gone.remove(seed)) _app?.set('circles_gone', jsonEncode(_gone));
   }
@@ -962,6 +975,7 @@ class Circles extends ChangeNotifier {
   /// Join times this run, before or without the device's choices to keep them in.
   final Map<String, int> _joinTimes = {};
 
+  /// Notes now as when this device came into [seed] (`circles_joined`): a kick counts only if it is later ([_put]).
   void _setJoined(String seed) {
     _joinTimes[seed] = DateTime.now().millisecondsSinceEpoch;
     final app = _app;
@@ -1027,6 +1041,7 @@ class Circles extends ChangeNotifier {
     return Circle(seed: seed, owner: owner, manifest: m != null && m.trustedFor(owner) ? m : CircleManifest.placeholder(owner: owner, name: name, hue: hueOfSeed(seed)));
   }
 
+  /// An envelope from the network: a friend's circle invite is put among [invites]; anything else is passed over.
   void _received(Received r) {
     if (r.envelope.kind != 'voice' || r.envelope.body['t'] != 'circle') return;
     // Only from a friend.
@@ -1149,6 +1164,7 @@ class Circles extends ChangeNotifier {
     if (route != null) unawaited(Voice.instance.carryOver());
   }
 
+  /// Opens a room on the relay for each circle that has none, and closes the rooms of circles no longer held.
   void _openRooms() {
     // A circle no longer here: its room left.
     for (final seed in [..._rooms.keys]) {
@@ -1196,6 +1212,7 @@ class Circles extends ChangeNotifier {
   /// Who has joined [c] since this device was in it, with when (ms), newest last.
   Map<String, int> joinsIn(Circle c) => Map.unmodifiable(_joins[c.seed] ?? const <String, int>{});
 
+  /// Notes when this device came into [seed], and that it has still to say so in the circle's room ([_sayJoined]).
   void _cameInto(String seed) {
     _joinedAt[seed] = DateTime.now().millisecondsSinceEpoch;
     _announce.add(seed);
@@ -1302,10 +1319,15 @@ class CircleRoom {
   /// True once this device is in the room (what is said goes nowhere before); false if it is closed first.
   Future<bool> get joined => _in.future;
 
+  /// Who else is in the room now, by id.
   final Set<String> present = {};
   final List<StreamSubscription<Object?>> _subs = [];
+
+  /// Answers to a `sync?` waiting their turn to be said, by who asked.
   final Map<String, Timer> _answering = {};
   bool opened = false;
+
+  /// Out of the room (the relay dropped it, or the join failed) until the relay says who is there again.
   bool _dropped = false;
 
   String get me => route.me;
@@ -1313,6 +1335,8 @@ class CircleRoom {
   /// How long each device after the first waits before answering, so one answer usually does.
   static const step = Duration(milliseconds: 250);
 
+  /// Joins the room on the relay and asks for a newer manifest. Where the relay can't be reached, [_event] finishes
+  /// the join when it says who is there.
   Future<void> open() async {
     if (opened) return;
     opened = true;
@@ -1332,6 +1356,7 @@ class CircleRoom {
     _ask();
   }
 
+  /// Leaves the room and drops every answer waiting to be said; [joined] says false if it never got in.
   Future<void> close() async {
     if (!opened) return;
     opened = false;
@@ -1352,6 +1377,7 @@ class CircleRoom {
   /// Says [m] to everyone in the room.
   void say(CircleManifest m) => _say({'t': 'circle', 'm': m.toJson()}, keep: true);
 
+  /// Asks the room for a manifest newer than this device's, saying the version and admin list generation it has.
   void _ask() => _say({'t': 'sync?', 'v': circle.manifest.version, 'gv': circle.manifest.grantsVersion});
 
   /// Whether this device's manifest is newer than one at [gv] and [v], as CircleManifest.follows orders them: the admin
@@ -1386,6 +1412,7 @@ class CircleRoom {
     } catch (_) {}
   }
 
+  /// The relay's word of who came and went: keeps [present], and asks for a newer manifest once back in after a drop.
   void _event(RoomEvent e) {
     if (e.closed) {
       _dropped = true;
@@ -1406,6 +1433,7 @@ class CircleRoom {
     }
   }
 
+  /// Opens what [from] said with the circle's key and acts on its kind: `sync?`, `circle`, `joined` or `was`.
   void _heard(String from, Uint8List bytes) {
     final clear = NetCrypto.open(circle.key, bytes);
     if (clear == null) return;

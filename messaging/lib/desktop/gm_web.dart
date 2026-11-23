@@ -22,16 +22,23 @@ class GmWeb extends ChangeNotifier {
   /// Where its conversations' thread numbers start, downwards: far from the phone's and from the bridge's.
   static const threadBase = -2000000000;
 
+  /// The sidecar while it runs, and what has been asked of it and not answered yet, by the id each ask went under.
   Process? _process;
   final _waiting = <int, Completer<Object?>>{};
   var _next = 1;
+
+  /// Where the sidecar keeps its session, and where the sidecar itself is; null where this copy has none.
   Directory? _dir;
   String? _binary;
+
+  /// The start after a stop, and how many stops there have been since it last said it was ready.
   Timer? _restart;
   var _restarts = 0;
 
   /// The sidecar is on this computer (built with the app); without it there is nothing to pair.
   bool get available => _binary != null;
+
+  /// Paired with the phone's Google Messages, and connected to it now, as the sidecar last said.
   bool paired = false;
   bool connected = false;
 
@@ -54,6 +61,8 @@ class GmWeb extends ChangeNotifier {
   /// Google Messages' conversations as last read, by its own id.
   final conversations = <String, Map<String, dynamic>>{};
 
+
+  /// The thread number each of its conversations is shown under, and back ([threadOf], [convOf]).
   final _thread = <String, int>{};
   final _conv = <int, String>{};
 
@@ -87,6 +96,7 @@ class GmWeb extends ChangeNotifier {
     await _spawn();
   }
 
+  /// Runs the sidecar and listens to what it writes, a line at a time. Where it cannot be run, [problem] says so.
   Future<void> _spawn() async {
     final binary = _binary, dir = _dir;
     if (binary == null || dir == null) return;
@@ -102,6 +112,7 @@ class GmWeb extends ChangeNotifier {
     }
   }
 
+  /// The sidecar stopped: whatever was waiting on it fails, and it is started again after a wait.
   void _ended(Process p, int code) {
     if (_process != p) return;
     _process = null;
@@ -118,6 +129,7 @@ class GmWeb extends ChangeNotifier {
     _restart = Timer(wait, _spawn);
   }
 
+  /// Stops the sidecar for good: its input is closed, and it is killed where it has not gone in three seconds.
   Future<void> stop() async {
     _restart?.cancel();
     final p = _process;
@@ -159,6 +171,7 @@ class GmWeb extends ChangeNotifier {
     return (answer as Map?)?.cast<String, dynamic>() ?? const {};
   }
 
+  /// One line from the sidecar: with an `id`, the answer to an ask; with an `ev`, something that happened.
   void _heard(String line) {
     final Object? said;
     try {
@@ -259,6 +272,7 @@ class GmWeb extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Starts pairing by QR code: the code comes as [qr], then "paired" or why not.
   Future<void> pair() async {
     problem = null;
     notifyListeners();
@@ -298,16 +312,20 @@ class GmWeb extends ChangeNotifier {
     return h & 0x3fffffff;
   }
 
+  /// The thread number a conversation of Google Messages' is shown under: [threadBase] less a number made from
+  /// its id, so it is the same on every run.
   int threadOf(String conv) => _thread.putIfAbsent(conv, () {
         final t = threadBase - _hash(conv);
         _conv[t] = conv;
         return t;
       });
 
+  /// Whether a thread number is one of these, and not the phone's.
   bool owns(int thread) => _conv.containsKey(thread) || thread <= threadBase;
 
   String? convOf(int thread) => _conv[thread];
 
+  /// An address as two writings of it are compared: a number's last ten digits, anything else in lower case.
   static String _digits(String address) {
     final d = address.replaceAll(RegExp(r'[^0-9]'), '');
     return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
@@ -327,6 +345,7 @@ class GmWeb extends ChangeNotifier {
     ];
   }
 
+  /// [peopleKey] for one of Google Messages' conversations.
   String keyOf(Map<String, dynamic> c) => peopleKey(_others(c).map((p) => '${p['number'] ?? ''}'));
 
   /// A conversation of Google Messages' as the desktop's list draws one (Sms Conversation.from).
@@ -437,6 +456,8 @@ class GmWeb extends ChangeNotifier {
         _ => null,
       };
 
+  /// Google Messages' status for a message as one of the states the screens know ([Message.state]). The order
+  /// matters: a failure is asked first, since its status may name sending too.
   static String _state(String status, bool mine) {
     if (!mine) return 'received';
     if (status.contains('fail') || status.contains('error') || status.contains('canceled')) return 'failed';
@@ -445,6 +466,7 @@ class GmWeb extends ChangeNotifier {
     return 'sent';
   }
 
+  /// Whether a picture's number is one given out here, for a picture of Google Messages'.
   bool ownsPart(int id) => _part.containsKey(id);
 
   /// A picture's bytes, brought down once and kept beside the session.
@@ -473,6 +495,7 @@ class GmWeb extends ChangeNotifier {
     return null;
   }
 
+  /// Sends words into one of Google Messages' conversations; answers the thread it is shown under.
   Future<int> send(String conv, String body) async {
     await ask('send', {'conv': conv, 'text': body});
     final t = threadOf(conv);
@@ -495,6 +518,7 @@ class GmWeb extends ChangeNotifier {
   }
 }
 
+/// The sidecar answered an ask with an error: its words.
 class GmWebError implements Exception {
   const GmWebError(this.message);
   final String message;

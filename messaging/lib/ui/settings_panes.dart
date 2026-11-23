@@ -50,6 +50,7 @@ import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
 
+/// A row's icon at the size every settings row uses.
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
 String _onOff(bool on) => on ? 'On' : 'Off';
@@ -76,6 +77,8 @@ String settingsGroupLabel(String group) => switch (group) {
 /// The same for one kind of device, whichever this is: what a phone's Settings has, or a computer's.
 List<SettingsSection> settingsSectionsOn(SettingsWhere here) => SettingsSources.around(_ownSections(), here: here);
 
+/// The app's own sections, in the list's order: each with its group, its state line and the function below that
+/// builds its page.
 List<SettingsSection> _ownSections() => [
   // Plugins (lib/plugins/settings.dart), first of all (Matt, 2026-11-17: "move plugins to the very top of settings list";
   // SettingsSources.around keeps them above a computer's own sections too): the band to the Plugins page, and each
@@ -380,6 +383,7 @@ const appVersion = '0.10.6';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
+/// Settings › Appearance: the look, the theme, your bubbles' colour and the size of a message's words.
 List<Widget> _appearance(BuildContext context, SettingsModel m) {
   final app = m.app;
   final palette = PhonePalette.current != null;
@@ -455,6 +459,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
 
 // --- Emoji ------------------------------------------------------------------------------------------------------------
 
+/// Settings › Emoji: which set emoji are drawn in, and whether a message of emoji alone is drawn large.
 List<Widget> _emoji(BuildContext context, SettingsModel m) {
   final t = context.tokens;
   final app = m.app;
@@ -495,6 +500,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
 
 // --- Effects ----------------------------------------------------------------------------------------------------------
 
+/// Settings › Effects: the switch for message effects, and every effect listed.
 List<Widget> _effects(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
@@ -524,6 +530,7 @@ List<Widget> _effects(BuildContext context, SettingsModel m) {
 
 // --- Sounds -----------------------------------------------------------------------------------------------------------
 
+/// The name of the sound chosen; the first one's where [id] is none of them.
 String _choiceName(List<SoundChoice> choices, String id) => choices.firstWhere((c) => c.id == id, orElse: () => choices.first).label;
 
 /// The app's sounds (lib/sounds.dart; Matt, 2026-11-16: "give me the options to pick from for the calling and
@@ -586,6 +593,8 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
 
 // --- Messages ---------------------------------------------------------------------------------------------------------
 
+/// Settings › Messages: RCS where it is offered, how writing behaves, summaries of unread conversations, and
+/// whether reaction texts are hung on their messages.
 List<Widget> _messages(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
@@ -668,6 +677,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
 
 // --- Receipts ---------------------------------------------------------------------------------------------------------
 
+/// Settings › Receipts: delivery reports and read receipts, and what each tick beside a message means.
 List<Widget> _receipts(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
@@ -700,6 +710,8 @@ List<Widget> _receipts(BuildContext context, SettingsModel m) {
 
 // --- Notifications ----------------------------------------------------------------------------------------------------
 
+/// Settings › Notifications: Android's own switches, what a notification shows, and, beside Google Messages, whose
+/// notifications are heard.
 List<Widget> _notifications(BuildContext context, SettingsModel m) {
   final app = m.app;
   final s = m.status;
@@ -782,6 +794,8 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
 
 // --- Encryption -------------------------------------------------------------------------------------------------------
 
+/// Settings › Encryption: what it is and isn't, finding people who have the app, where it stands with each person,
+/// and this phone's key.
 List<Widget> _encryption(BuildContext context, SettingsModel m) {
   String stateLine(E2eState e) => switch (e.state) {
         'on' => e.verified ? 'On · verified' : 'On · not verified yet',
@@ -878,6 +892,7 @@ List<Widget> _blocked(BuildContext context, SettingsModel m) => const [BlockedLi
 
 // --- Android ----------------------------------------------------------------------------------------------------------
 
+/// 12345 as 12,345.
 String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'(?<=\d)(?=(\d{3})+$)'), (_) => ',');
 
 /// Texts off: what Ghost does without them, and the same step as the walkthrough's to turn them on.
@@ -903,6 +918,8 @@ List<Widget> _texts(BuildContext context, SettingsModel m) => [
       ),
     ];
 
+/// Settings › Android: how texts reach this phone (beside Google Messages, or coming from another app), picture
+/// messages and a report on them, Android's store of texts, and what Android has allowed.
 List<Widget> _android(BuildContext context, SettingsModel m) {
   final s = m.status;
   final a = m.arriving;
@@ -1078,6 +1095,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
 
 // --- Ghost Keyboard ---------------------------------------------------------------------------------------------------
 
+/// Settings › Ghost Keyboard: offering sign-in codes from texts to Ghost Keyboard, and why that is needed.
 List<Widget> _keyboard(BuildContext context, SettingsModel m) {
   final app = m.app;
   return [
@@ -1150,6 +1168,7 @@ String updateSummary(UpdateState u) => switch (u.phase) {
       _ => u.auto ? 'Automatic' : 'Automatic updates off',
     };
 
+/// Settings › Updates: automatic updates, and checking for or installing one now.
 List<Widget> _updates(BuildContext context, SettingsModel m) {
   final u = m.update;
   return [
@@ -1325,6 +1344,8 @@ void versionTapped(BuildContext context, AppState app, {DateTime? now}) {
   }
 }
 
+/// Settings › About: the version (tapped several times for developer mode), what's new, the docs, and how texts
+/// and sealed messages travel.
 List<Widget> _about(BuildContext context, SettingsModel m) {
   return [
     PaneSection(

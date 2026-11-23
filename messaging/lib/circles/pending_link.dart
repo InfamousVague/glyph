@@ -17,9 +17,11 @@ import 'package:flutter/services.dart';
 import '../sms.dart';
 import 'circles.dart';
 
+/// The one link held, kept in the app's prefs so it outlasts the app being closed mid-setup: [hold] it, [take] it.
 class PendingCircleLink {
   PendingCircleLink._();
 
+  /// The pref the held link is under; '' once taken.
   static const _key = 'pending_circle_link';
 
   /// Set once the clipboard has been looked at, so it is looked at only on a new install's first setup.

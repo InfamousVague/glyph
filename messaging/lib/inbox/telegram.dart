@@ -25,6 +25,8 @@ class Telegram extends InboxNetwork {
 
   /// A stand-in for TDLib, in tests. Null: TDLib itself, once [start] finds it.
   final Future<TdTransport?> Function()? transport;
+
+  /// The app's own id and hash on Telegram, given at build time; 0 and empty in a build made without them.
   final int apiId;
   final String apiHash;
 
@@ -45,6 +47,8 @@ class Telegram extends InboxNetwork {
 
   /// This account's own user id, from getMe.
   int? _meId;
+
+  /// Requests to TDLib are numbered (`q<n>`, sent as "@extra"); each waits here for the answer that carries its key.
   int _asked = 0;
   final Map<String, Completer<Map<String, Object?>>> _waiting = {};
 
@@ -157,6 +161,7 @@ class Telegram extends InboxNetwork {
     }
   }
 
+  /// Starts TDLib (or the test's stand-in) and listens to it, once. Unavailable where the library isn't in the build.
   Future<void> _open() async {
     if (_td != null) return;
     final td = await (transport ?? TdJson.start)();
@@ -176,10 +181,13 @@ class Telegram extends InboxNetwork {
 
   // --- signing in ----------------------------------------------------------------------------------------------------
 
+  // What the sign-in page gives for each step ([step]): the number, the code Telegram sent, the two-step password.
+  // A refusal shows as [error]; the next step comes as TDLib's authorization state changes.
   Future<void> sendPhone(String phone) => _auth({'@type': 'setAuthenticationPhoneNumber', 'phone_number': phone.trim()});
   Future<void> sendCode(String code) => _auth({'@type': 'checkAuthenticationCode', 'code': code.trim()});
   Future<void> sendPassword(String password) => _auth({'@type': 'checkAuthenticationPassword', 'password': password});
 
+  /// Sends one sign-in step to TDLib, and shows its reason where it refuses.
   Future<void> _auth(Map<String, Object?> request) async {
     _error = null;
     notifyListeners();
@@ -203,6 +211,7 @@ class Telegram extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Forgets everything held of the account in memory.
   void _forget() {
     _chatsById.clear();
     _order.clear();
@@ -214,6 +223,7 @@ class Telegram extends InboxNetwork {
     _contactIds.clear();
   }
 
+  /// TDLib's authorization state changed: sets [state] and what the sign-in waits for next ([step]).
   void _authState(Map<String, Object?> s) {
     _step = InboxStep.none;
     switch (s['@type']) {
@@ -269,6 +279,7 @@ class Telegram extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Answers TDLib's first question: where its database and files go, and which app this is.
   void _parameters() {
     final dir = folder ?? _folder();
     _td?.send({
@@ -296,6 +307,7 @@ class Telegram extends InboxNetwork {
     return '${DeskStore.defaultDir().path}/tdlib';
   }
 
+  /// Signed in: asks who this account is (shown as its @username, else its name) and loads its chats.
   void _ready() {
     _ask({'@type': 'getMe'}).then((me) {
       if (me['@type'] != 'user') return;
@@ -429,6 +441,7 @@ class Telegram extends InboxNetwork {
 
   // --- chats and messages --------------------------------------------------------------------------------------------
 
+  /// Everything TDLib says: an answer goes to whoever asked (by its "@extra"); an update changes what is held.
   void _received(Map<String, Object?> m) {
     final extra = m['@extra'];
     if (extra is String && _waiting.containsKey(extra)) {
@@ -535,6 +548,7 @@ class Telegram extends InboxNetwork {
     }
   }
 
+  /// Sets [fields] on the chat an update [m] is about (its `chat_id`), where it is held, and makes the list again.
   void _patch(Map<String, Object?> m, Map<String, Object?> fields) {
     final id = (m['chat_id'] as num).toInt();
     final c = _chatsById[id];
@@ -543,6 +557,8 @@ class Telegram extends InboxNetwork {
     _rebuild();
   }
 
+  /// Takes a chat's place in the main list or the archive, as TDLib orders them; an order of 0 takes it out of that
+  /// list. Other lists (folders) are passed over.
   void _position(int chat, Map p) {
     final list = (p['list'] as Map?)?['@type'];
     final orders = switch (list) { 'chatListMain' => _order, 'chatListArchive' => _archOrder, _ => null };
@@ -595,6 +611,7 @@ class Telegram extends InboxNetwork {
   @override
   List<InboxChat> get archivedChats => _archived;
 
+  /// Whether [id] is a chat to write in: anything held but a channel.
   bool _writable(int id) {
     final type = (_chatsById[id]?['type'] as Map?);
     if (type == null) return false;
@@ -692,6 +709,7 @@ class Telegram extends InboxNetwork {
     notifyListeners();
   }
 
+  /// A chat as TDLib holds it, as the list shows it.
   InboxChat _chat(Map<String, Object?> c) {
     final last = c['last_message'] as Map?;
     final type = (c['type'] as Map?)?['@type'];
@@ -720,8 +738,10 @@ class Telegram extends InboxNetwork {
     );
   }
 
+  /// Whether a chat's own notification settings mute it (a chat left on the account's default counts as not muted).
   static bool _muted(Map? settings) => settings != null && settings['use_default_mute_for'] != true && ((settings['mute_for'] as num?) ?? 0) > 0;
 
+  /// A message as TDLib gives it, as the screens show it. Notes on the way whether it can be deleted for everyone.
   InboxMessage _message(Map<String, Object?> m) {
     if (m['can_be_deleted_for_all_users'] == true) _forAll.add('${m['chat_id']}/${m['id']}');
     final sender = m['sender_id'] as Map?;
@@ -793,8 +813,11 @@ class Telegram extends InboxNetwork {
 
   Map<String, List<String>>? _versionsHeld;
 
+  /// Where edited messages' earlier words are kept; null with no folder given, when they last only as long as the app
+  /// runs.
   File? get _versionsFile => folder == null ? null : File('$folder/ghost-edits.json');
 
+  /// The earlier words of edited messages, read from the file on first use.
   Map<String, List<String>> get _versions {
     if (_versionsHeld != null) return _versionsHeld!;
     try {
@@ -837,6 +860,7 @@ class Telegram extends InboxNetwork {
   /// Each person's status as Telegram last said it (userStatusOnline and the rest).
   final Map<int, Map> _statuses = {};
 
+  /// Takes [user]'s presence as TDLib says it, and tells the avatars where it changed.
   void _setStatus(int user, Map? status) {
     if (status == null) return;
     final was = _statuses[user];
@@ -907,6 +931,7 @@ class Telegram extends InboxNetwork {
     return me == null ? null : _profileOfUser(me);
   }
 
+  /// What Telegram says of the user [id], for a profile card; null where it knows no such user.
   Future<InboxProfile?> _profileOfUser(int id) async {
     var u = _people[id];
     if (u == null) {
@@ -1259,6 +1284,7 @@ class Telegram extends InboxNetwork {
     };
   }
 
+  /// Puts [got] among [chat]'s messages, each replacing the one held under its id, in order of time.
   void _add(String chat, List<InboxMessage> got) {
     final held = {for (final m in messagesOf(chat)) m.id: m};
     for (final m in got) {
@@ -1447,6 +1473,8 @@ class Telegram extends InboxNetwork {
     if (chatId != null && chatId != was) _td?.send({'@type': 'openChat', 'chat_id': int.parse(chatId)});
   }
 
+  /// Asks TDLib and waits for its answer. Never throws: a failure, TDLib not running or no answer within [wait] comes
+  /// back as an `error` object, as TDLib's own errors do.
   Future<Map<String, Object?>> _ask(Map<String, Object?> request, {Duration wait = const Duration(seconds: 30)}) {
     final td = _td;
     if (td == null) return Future.value(const {'@type': 'error', 'message': 'Telegram isn\'t running'});
@@ -1493,6 +1521,7 @@ class Telegram extends InboxNetwork {
   }
 }
 
+/// [Telegram._plain], for a test of its words.
 @visibleForTesting
 String telegramPlain(Map e) => Telegram._plain(e);
 

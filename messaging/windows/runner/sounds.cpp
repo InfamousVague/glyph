@@ -19,6 +19,7 @@ std::vector<uint8_t> g_playing;
 
 }  // namespace
 
+// The "ghost/sound" channel: play (a WAV's bytes, once or looped) and stop.
 void RegisterSounds(flutter::BinaryMessenger* messenger) {
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(messenger, "ghost/sound", &flutter::StandardMethodCodec::GetInstance());
   g_channel->SetMethodCallHandler([](const flutter::MethodCall<flutter::EncodableValue>& call, std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -34,6 +35,7 @@ void RegisterSounds(flutter::BinaryMessenger* messenger) {
         }
       }
       if (bytes && !bytes->empty()) {
+        // The one playing is stopped before its memory is written over.
         PlaySoundW(nullptr, nullptr, 0);
         g_playing = *bytes;
         PlaySoundW(reinterpret_cast<LPCWSTR>(g_playing.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT | (loop ? SND_LOOP : 0));

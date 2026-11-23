@@ -54,6 +54,7 @@ class _ComposerBoxState extends State<ComposerBox> {
   /// How wide the buttons beside the words are, as last laid out: the room the words leave them on one line.
   double _plusWidth = 0, _endsWidth = 0;
 
+  /// Keeps the width just measured of the + ([plus]) or of the buttons at the end, and draws again where it changed.
   void _measured(bool plus, Size size) {
     final w = size.width;
     if (plus ? _plusWidth == w : _endsWidth == w) return;
@@ -170,6 +171,7 @@ class _Measure extends SingleChildRenderObjectWidget {
   void updateRenderObject(BuildContext context, _RenderMeasure renderObject) => renderObject.onSize = onSize;
 }
 
+/// Lays its child out as usual and calls [onSize] with the size, on every layout.
 class _RenderMeasure extends RenderProxyBox {
   _RenderMeasure(this.onSize);
   ValueChanged<Size> onSize;
@@ -181,7 +183,8 @@ class _RenderMeasure extends RenderProxyBox {
   }
 }
 
-/// The words' line of a [ComposerBox]: [hint] while it is empty, the words centred on the buttons' middle.
+/// What the words' line of a [ComposerBox] is set in (type, strut, leading), shared by every field put in one, so the
+/// words sit centred on the buttons' middle.
 TextStyle composerTextStyle(Tokens t) => pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
 StrutStyle composerStrutStyle(Tokens t) => StrutStyle.fromTextStyle(composerTextStyle(t), forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
 const composerLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
@@ -206,6 +209,7 @@ class ComposerField extends StatefulWidget {
 /// out and into thr app doesnt clear the focus on the signal convo so the keyboard can't be toggled open").
 class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserver {
   final _field = GlobalKey<EditableTextState>();
+  // Where a finger went down on the field; lifted close by, it is a press that asks for the keyboard.
   Offset? _down;
 
   @override

@@ -113,6 +113,8 @@ class CleanerSheetState extends State<CleanerSheet> {
 
   static String _count(int n) => n == 1 ? '1 conversation' : '$n conversations';
 
+  /// Deletes the ticked groups' conversations one at a time, each once though two groups hold it, counting what went
+  /// and what failed; stops where the person says so or the sheet closes.
   Future<void> _run() async {
     final threads = _threads.toSet().toList();
     final label = {for (final g in widget.groups) for (final t in g.threads) t: g.label};

@@ -104,6 +104,7 @@ class _BlockedListState extends State<BlockedList> {
     _load();
   }
 
+  /// Reads who is blocked: each network asked for its own list, and the phone for its blocked numbers.
   Future<void> _load() async {
     // The networks' own lists first come in (someone blocked in Telegram's app shows here too).
     for (final n in Inbox.instance.ready) {
@@ -166,6 +167,7 @@ class _BlockedListState extends State<BlockedList> {
     );
   }
 
+  /// One blocked person's row: their face, with the network's mark at its corner where [badge] is given.
   Widget _row(BuildContext context, BlockTarget who, {required List<Person> people, Widget? badge, String? detail}) => SettingRow(
         icon: SizedBox.square(
           dimension: 30,

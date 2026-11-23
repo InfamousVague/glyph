@@ -51,12 +51,14 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
 
   /// Sharing what a conversation wears is the phone's to do: a computer's choice is its own.
   bool get _canSync => widget.thread != null && widget.people.isNotEmpty && !Sms.remote;
+  // The choices kept for this conversation: whether it syncs, and the background its people were last sent.
   String get _syncKey => 'chat_bg_sync_${widget.thread}';
   String get _syncedKey => 'chat_bg_synced_${widget.thread}';
 
   /// Syncing: as the person set it for this conversation, else on where everyone is known to have the app.
   bool _syncOn(AppState app) => _canSync && app.flag(_syncKey, fallback: _known ?? false);
 
+  /// Who the background is shared with, as the toast names them.
   String get _them => widget.people.length > 1 ? 'everyone here' : widget.people.first.label;
 
   @override
@@ -69,6 +71,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
     }
   }
 
+  // Kept for dispose, which sends the background and toasts after the context can no longer be asked.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -96,6 +99,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
     super.dispose();
   }
 
+  /// The choice this page writes: every chat's background, or this conversation's own.
   String get _key => widget.thread == null ? 'chat_bg' : ChatBackground.threadKey(widget.thread!);
 
   /// The name the app keeps this one's picture under.
@@ -111,6 +115,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
     if (before.kind == 'image' && next?.kind != 'image' && !Sms.remote) Sms.instance.deleteBackground(_file);
   }
 
+  /// A picture from the phone as the background: the first one picked is copied into the app's own files and worn.
   Future<void> _pickPicture() async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -353,6 +358,8 @@ class BackgroundPreview extends StatelessWidget {
   }
 }
 
+/// One background to choose: a rounded square in its two colours, top to bottom, ringed and ticked when chosen, with
+/// its name under it where it has one.
 class _Swatch extends StatelessWidget {
   const _Swatch({required this.top, required this.bottom, required this.chosen, required this.onPress, this.label, this.semanticLabel});
   final Color top;

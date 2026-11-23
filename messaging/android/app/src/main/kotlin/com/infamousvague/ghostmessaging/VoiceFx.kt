@@ -23,6 +23,7 @@ object VoiceFx : AudioProcessingAdapter.ExternalAudioFrameProcessing {
     @Volatile private var rate = 48000
     private var attached: AudioProcessingAdapter? = null
 
+    /** The `ghost/voicefx` channel: modes (what this build can do) and configure (the mode and the gain). */
     fun register(messenger: BinaryMessenger) {
         MethodChannel(messenger, "ghost/voicefx").setMethodCallHandler { call, result ->
             try {

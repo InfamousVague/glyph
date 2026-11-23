@@ -61,12 +61,14 @@ const fail = (why) => {
   console.error(`x ${why}`);
   process.exit(1);
 };
+// Runs a command with its output shown, and stops the release if it fails.
 const run = (cmd, cmdArgs, options = {}) => {
   const result = spawnSync(cmd, cmdArgs, { stdio: 'inherit', ...options });
   if (result.error) fail(`${cmd} could not run: ${result.error.message}`);
   if (result.status !== 0) fail(`${cmd} ${cmdArgs.join(' ')} failed (${result.status}).`);
   return result;
 };
+// Runs a command for what it prints, and stops the release if it fails.
 const capture = (cmd, cmdArgs) => {
   const result = spawnSync(cmd, cmdArgs, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (result.error) fail(`${cmd} could not run: ${result.error.message}`);
@@ -76,6 +78,8 @@ const capture = (cmd, cmdArgs) => {
 
 // --- Ghost.md, for the box and its credentials ----------------------------------------------------------------------
 
+// The Ghost.md checkout, known by two of its scripts: --glyph, GLYPH_ROOT, beside this repository, or the usual
+// folders under the home directory.
 function findGlyph() {
   const candidates = [
     flag('glyph'),
@@ -94,6 +98,7 @@ function findGlyph() {
 // --- the Android SDK's tools --------------------------------------------------------------------------------------
 
 const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || join(homedir(), 'Library/Android/sdk');
+// The path of a tool in the newest build-tools the SDK has.
 function buildTool(name) {
   const tools = join(sdk, 'build-tools');
   const newest = existsSync(tools) ? readdirSync(tools).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop() : null;
@@ -101,6 +106,7 @@ function buildTool(name) {
   return join(tools, newest, name);
 }
 
+// Java's keytool: JAVA_HOME's, Android Studio's, the system Java's, or whatever the PATH has.
 function keytool() {
   const candidates = [
     process.env.JAVA_HOME && join(process.env.JAVA_HOME, 'bin', 'keytool'),
@@ -115,6 +121,8 @@ function keytool() {
 
 // --- the release key ----------------------------------------------------------------------------------------------
 
+// Makes the release keystore and its signing.properties the first time, readable by this user only. Every later
+// release is signed with the same key, which is what lets a phone install it over the one before.
 function ensureSigningKey() {
   const props = join(CONFIG, 'signing.properties');
   if (existsSync(props)) return;
@@ -136,6 +144,7 @@ function ensureSigningKey() {
 
 // --- versions -----------------------------------------------------------------------------------------------------
 
+// What the site says is out now (apk.json), or null where nothing has been released yet.
 async function liveRelease() {
   try {
     const res = await fetch(`${HOST_URL}/apk.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -147,6 +156,7 @@ async function liveRelease() {
   }
 }
 
+// pubspec.yaml's `version: name+build`; the build is 1 where it is left off.
 function pubspecVersion() {
   const match = /^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+([0-9]+))?/m.exec(readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8'));
   if (!match) fail('pubspec.yaml has no version.');

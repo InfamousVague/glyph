@@ -17,6 +17,7 @@ class DeskStore implements LinkStore {
   final Directory dir;
   final bool keychain;
 
+  /// The name the pairing's key is kept under in the Keychain.
   static const _account = 'pairing-key';
 
   /// The app's own folder: inside its sandbox container on a Mac, the person's AppData on Windows.
@@ -28,9 +29,11 @@ class DeskStore implements LinkStore {
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 
+  /// The two files: the paired phone, and this computer's choices.
   File get _pairing => File('${dir.path}/pairing.json');
   File get _prefs => File('${dir.path}/prefs.json');
 
+  /// The write before the next one, and how many there have been: each temporary file has a name of its own.
   Future<void> _last = Future.value();
   int _writes = 0;
 
@@ -125,6 +128,7 @@ class DeskStore implements LinkStore {
     }
   }
 
+  /// Keeps the choices, all of them: the newest map given is what the next write holds.
   Future<void> savePrefs(Map<String, String> prefs) {
     _prefsNext = Map.of(prefs);
     return _prefsGoing ??= Future<void>.delayed(_prefsEvery).then((_) {

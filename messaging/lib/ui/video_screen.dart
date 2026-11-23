@@ -272,6 +272,7 @@ class _VideoScreenState extends State<VideoScreen> {
     } catch (_) {}
   }
 
+  /// The engine reported something (several times a second while it plays).
   void _changed() {
     if (!mounted) return;
     final v = _now;
@@ -334,6 +335,7 @@ class _VideoScreenState extends State<VideoScreen> {
     });
   }
 
+  /// Brings the controls back and starts the wait to hide them again.
   void _show() {
     if (!_controls) setState(() => _controls = true);
     _soon();
@@ -349,6 +351,7 @@ class _VideoScreenState extends State<VideoScreen> {
     if (_controls) _soon();
   }
 
+  /// Plays or pauses, and tells whoever is watching together what the person did.
   void _playPause() {
     final engine = _engine;
     if (engine == null || !_now.ready) return;
@@ -362,6 +365,7 @@ class _VideoScreenState extends State<VideoScreen> {
     _show();
   }
 
+  /// Ten seconds on ([right]) or back, kept inside the video, with "+10 s" or "−10 s" shown for a moment.
   void _skip(bool right) {
     final engine = _engine;
     if (engine == null || !_now.ready) return;
@@ -409,6 +413,8 @@ class _VideoScreenState extends State<VideoScreen> {
     if (mounted) await Navigator.of(context).maybePop();
   }
 
+  /// Hands the video to another app, for one this player can't play. A file handed on is not removed when the player
+  /// goes, since the other app is reading it.
   void _openElsewhere() {
     final stream = widget.stream;
     if (stream != null) {
@@ -756,6 +762,7 @@ class _Dock extends StatelessWidget {
   /// Room under it for the phone's own bar (Dial-Up's panel runs to the foot of the screen).
   final double foot;
 
+  /// This dock again with [foot] of room under it.
   _Dock withFoot(double foot) => _Dock(look: look, desk: desk, playing: playing, at: at, total: total, part: part, held: held, muted: muted, volume: volume, fullscreen: fullscreen, onPlayPause: onPlayPause, onHold: onHold, onLet: onLet, onMute: onMute, onVolume: onVolume, onFullscreen: onFullscreen, onTracks: onTracks, tracksOpen: tracksOpen, foot: foot);
 
   @override

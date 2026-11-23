@@ -18,8 +18,13 @@ object DartAsk {
     @Volatile var channel: MethodChannel? = null
     private val main = Handler(Looper.getMainLooper())
 
+    /** There is no engine to ask: its message is the computer's to show. */
     class NotOpen : IllegalStateException("Open Ghost Messaging on your phone, then try again.")
 
+    /**
+     * Calls [method] in Dart on the main thread and waits here for its answer, [seconds] at most. Throws, in words for
+     * the computer, where Dart said no, does not know the method (an older app) or did not answer in time.
+     */
     fun ask(method: String, args: Any?, seconds: Long = 40): Any? {
         val ch = channel ?: throw NotOpen()
         val done = CountDownLatch(1)

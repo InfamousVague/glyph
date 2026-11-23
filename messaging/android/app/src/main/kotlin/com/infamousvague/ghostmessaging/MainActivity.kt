@@ -23,6 +23,7 @@ import java.util.concurrent.Executors
  */
 class MainActivity : FlutterActivity() {
     companion object {
+        /** The conversation open on the screen (-1 for none) and whether the app is in front, for notifications. */
         @Volatile var openThread: Long = -1
         @Volatile var inFront = false
 
@@ -34,6 +35,7 @@ class MainActivity : FlutterActivity() {
          * not listened to afresh, so it speaks through the sink the first one was given.
          */
         @Volatile private var sharedEvents: EventChannel.EventSink? = null
+        // Request codes: which of Android's screens an answer in onActivityResult or a permission result is from.
         private const val ROLE_REQUEST = 41
         private const val PERMS_REQUEST = 42
         private const val PICK_REQUEST = 43
@@ -643,6 +645,7 @@ class MainActivity : FlutterActivity() {
         Voice.pause()
     }
 
+    /** Starts recording a voice message, and answers how many seconds one may run on this carrier. */
     private fun startVoice(result: MethodChannel.Result) {
         try { result.success(mapOf("ok" to true, "seconds" to Voice.start(applicationContext, Sender.voiceBudget(applicationContext)))) }
         catch (e: Exception) { result.error("failed", e.message ?: "The microphone could not be started", null) }
@@ -734,6 +737,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** A query parameter of an address of any scheme: Android's own reading throws on one that is not hierarchical. */
     private fun Uri.getQueryParameterSafe(name: String): String? = try {
         Uri.parse("x://h?" + (toString().substringAfter('?', ""))).getQueryParameter(name)
     } catch (_: Exception) { null }
@@ -756,6 +760,7 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) { null }
     }
 
+    /** The chat background files kept under [name] (its letters and digits; "all" for none). */
     private fun backgroundFiles(name: String): List<java.io.File> {
         val safe = name.filter { it.isLetterOrDigit() }.ifEmpty { "all" }
         return java.io.File(filesDir, "backgrounds").listFiles { f -> f.name.startsWith("$safe-") }?.toList() ?: emptyList()
@@ -804,6 +809,7 @@ class MainActivity : FlutterActivity() {
 
     private fun granted(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
 
+    /** Where the app stands with Android, for the screens: whether it is the default SMS app, and what it may do. */
     private fun status(): Map<String, Any?> {
         val role = getSystemService(RoleManager::class.java)
         return mapOf(
@@ -820,6 +826,7 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    /** Asks Android to make this the default SMS app; [result] is answered when its screen closes (ROLE_REQUEST). */
     private fun requestDefault(result: MethodChannel.Result) {
         val role = getSystemService(RoleManager::class.java)
         if (role.isRoleHeld(RoleManager.ROLE_SMS)) { result.success(true); return }
@@ -836,6 +843,7 @@ class MainActivity : FlutterActivity() {
         requestPermissions(missing.toTypedArray(), PERMS_REQUEST)
     }
 
+    /** Contacts, this phone's number and, from Android 13, notifications: asked together, answered with [status]. */
     private fun requestPermissions(result: MethodChannel.Result) {
         val want = mutableListOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_PHONE_NUMBERS)
         if (android.os.Build.VERSION.SDK_INT >= 33) want += Manifest.permission.POST_NOTIFICATIONS
@@ -994,6 +1002,7 @@ class MainActivity : FlutterActivity() {
         runOnUiThread { try { startActivity(Intent.createChooser(i, name ?: "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { DevLog.add(this, "files", "share: ${e.message}") } }
     }
 
+    /** Android's chooser for pictures, or with [any] for any files, several at once; answered in PICK_REQUEST. */
     private fun pickImages(result: MethodChannel.Result, any: Boolean = false) {
         pickResult = result
         val i = Intent(Intent.ACTION_GET_CONTENT).apply {

@@ -218,7 +218,11 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
   /// `useId()`: what the field says it controls.
   late final String _listId = 'glacier-command-palette-${shortHash(this)}';
 
+  /// The query where the palette keeps its own (no `query` given).
   late String _ownQuery = widget.defaultQuery;
+
+  /// The commands the query leaves, best first; the same under their group headings; and a key a row, in the
+  /// order of [_matches], by which the cursor's row is found and scrolled to.
   List<CommandMatch<CommandDescriptor>> _matches = const [];
   List<CommandGroup<CommandDescriptor>> _groups = const [];
   List<GlobalKey> _rows = const [];
@@ -227,12 +231,15 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
   /// for every row at every letter took every row out of the tree and made it again, its words laid out from
   /// nothing, whether or not the letter had changed it.
   Map<String, GlobalKey> _keyOf = const {};
+
+  /// The highlighted row, as an index into [_matches]; -1 where there is none to run.
   int _cursor = -1;
 
   /// The page behind the palette as it was when the palette opened, blurred once: what the scrim fades in while it
   /// opens ([_takeBehind]). Null where there is none to be had, and once the scrim is all there.
   ui.Image? _behind;
 
+  /// What had the focus when the palette opened, to hand it back on closing.
   FocusNode? _opener;
   bool _started = false;
   bool _watchingBack = false;
@@ -288,6 +295,8 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     super.dispose();
   }
 
+  /// Works the list out again for the query and the commands as they stand, and puts the cursor on the first row
+  /// that can be run.
   void _rematch() {
     _matches = matchCommands(widget.commands, _query);
     _groups = groupCommands(_matches);
@@ -315,6 +324,8 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
 
   // --- the dialog layer (internal/useDialogLayer.ts) ---
 
+  /// The palette has been opened: the query and cursor start over, the entrance plays, back is watched, and the
+  /// field takes the focus.
   void _opened() {
     // Opening is the palette's reset point: a stale query from last time would hide most of the list behind a
     // search the user has already forgotten.
@@ -388,6 +399,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     });
   }
 
+  /// Drops the blurred picture of the page, once the real backdrop blur has taken over or the palette has closed.
   void _letBehindGo() {
     final behind = _behind;
     if (behind == null) return;
@@ -396,6 +408,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     WidgetsBinding.instance.addPostFrameCallback((_) => behind.dispose());
   }
 
+  /// The palette has been closed: its animations stop and the focus goes back where it came from.
   void _closed() {
     _letBehindGo();
     _fade.stop();
@@ -410,6 +423,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
 
   void _close() => widget.onOpenChange(false);
 
+  /// Listens for the system's back gesture while the palette is open ([didPopRoute]).
   void _watchBack(bool on) {
     if (on == _watchingBack) return;
     _watchingBack = on;
@@ -424,6 +438,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     return true;
   }
 
+  /// Listens to every key of the hardware keyboard for the opening chord, where the palette has one.
   void _watchKeys(bool on) {
     if (on == _watchingKeys) return;
     _watchingKeys = on;
@@ -463,6 +478,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
 
   // --- the cursor ---
 
+  /// Moves the highlight; [reveal] (the keyboard, not the pointer) also scrolls its row into view.
   void _setCursor(int next, {bool reveal = false}) {
     if (next != _cursor) setState(() => _cursor = next);
     if (reveal) _reveal();
@@ -496,6 +512,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     });
   }
 
+  /// Runs the command at [index] of the list, unless it is disabled: asks to close, then tells the listener its id.
   void _run(int index) {
     if (index < 0 || index >= _matches.length) return;
     final match = _matches[index];
@@ -506,6 +523,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     widget.onRun(match.item.id);
   }
 
+  /// The list's keys, heard on the field, which keeps the focus: arrows, Home and End move the cursor, Enter runs.
   KeyEventResult _onFieldKey(KeyEvent event) {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowUp) {
@@ -543,6 +561,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     );
   }
 
+  /// A colour at a share of its own alpha: how the scrim and the panel's paint come in, in place of an [Opacity].
   static Color _faded(Color color, double by) => color.withValues(alpha: color.a * by);
 
   Widget _layer(BuildContext context) {

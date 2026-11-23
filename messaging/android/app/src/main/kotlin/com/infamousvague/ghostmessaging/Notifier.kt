@@ -47,6 +47,7 @@ object Notifier {
         return if (silent) "$CHANNEL-sound-off" else "$CHANNEL-sound-$take"
     }
 
+    /** Android's notification manager, with the app's channels made (and message channels of other sounds removed). */
     private fun manager(context: Context): NotificationManager {
         val nm = context.getSystemService(NotificationManager::class.java)
         val id = channel(context)
@@ -110,6 +111,7 @@ object Notifier {
         return Icon.createWithAdaptiveBitmap(bitmap)
     }
 
+    /** The middle square of [src], half as large again as [side]: an adaptive icon shows only the middle two thirds. */
     private fun squareOf(src: Bitmap, side: Int): Bitmap {
         val big = (side * 1.5).toInt()
         val cut = minOf(src.width, src.height)
@@ -117,6 +119,10 @@ object Notifier {
         return Bitmap.createScaledBitmap(square, big, big, true)
     }
 
+    /**
+     * A conversation's long-lived shortcut, which is what lets Android show its notification as a conversation: the
+     * shortcut's id, or null where it could not be made and the notification is an ordinary one.
+     */
     private fun shortcut(context: Context, thread: Long, title: String, people: List<Person>, icon: Icon): String? = try {
         val id = "thread-$thread"
         val info = ShortcutInfo.Builder(context, id)
@@ -140,6 +146,7 @@ object Notifier {
         null
     }
 
+    /** A press that opens the app at [thread]. */
     private fun open(context: Context, thread: Long): PendingIntent =
         PendingIntent.getActivity(context, thread.toInt(), Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
@@ -355,6 +362,7 @@ object Notifier {
         context.getSystemService(NotificationManager::class.java).cancel(INBOX_TAG, key.hashCode())
     }
 
+    /** Takes down the notification of [thread]'s new messages. */
     fun cancel(context: Context, thread: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
     }
@@ -381,6 +389,7 @@ object Notifier {
         try { manager(context).notify(5200 + (thread % 1000).toInt(), n) } catch (_: SecurityException) {}
     }
 
+    /** A message in [thread] did not go: says to whom, and opens the conversation to try again. */
     fun failed(context: Context, thread: Long) {
         if (thread < 0) return
         val people = Store(context).threadPeople(thread)
@@ -469,6 +478,7 @@ class HeadlessSmsSendService : IntentService("HeadlessSmsSendService") {
  */
 class MmsFileProvider : ContentProvider() {
     companion object {
+        /** Where a picture message's bytes wait, in the app's cache; and the content address of a file there. */
         fun dir(context: Context): File = File(context.cacheDir, "mms").apply { mkdirs() }
         fun uriFor(context: Context, file: File): Uri = Uri.Builder().scheme("content").authority("${context.packageName}.mmsfiles").path(file.name).build()
     }

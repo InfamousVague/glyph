@@ -67,6 +67,8 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
   bool _sending = false;
   late bool _qr = widget.qr;
 
+  /// Sends the circle to the friends ticked and says who was invited and who couldn't be reached. The sheet closes
+  /// once at least one was reached, and stays open to try again where none was.
   Future<void> _send(List<Buddy> friends) async {
     final chosen = [for (final f in friends) if (_chosen.contains(f.id)) f];
     if (chosen.isEmpty || _sending) return;

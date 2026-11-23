@@ -177,6 +177,7 @@ class SpaceKindBadge extends StatelessWidget {
   /// Someone is in its call now.
   final bool live;
 
+  /// The name of the app hue a kind is drawn in.
   static String hueOf(SpaceKind kind) => switch (kind) {
         SpaceKind.voice => 'green',
         SpaceKind.text => 'blue',

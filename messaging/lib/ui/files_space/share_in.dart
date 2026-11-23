@@ -88,6 +88,7 @@ List<VoiceChannel> addableFilesSpaces({Iterable<VoiceChannel>? from, bool Functi
   final allowed = may ?? FilesStore.instance.canUpload;
   final circleFor = circleOf ?? Circles.instance.circleOf;
   final spaces = [for (final c in from ?? Voice.instance.channels) if (c.kind == SpaceKind.files && allowed(c)) c];
+  // What a space is sorted by: the device's own first, then each circle's by the circle's name.
   String key(VoiceChannel c) => c.circle == null ? '' : '1${(circleFor(c)?.name ?? '').toLowerCase()}\u0000${c.circle}';
   // A stable sort: within one circle the spaces keep the circle's own order.
   final order = {for (final (i, c) in spaces.indexed) c.seed: i};
@@ -214,6 +215,8 @@ class IncomingFilesList extends StatelessWidget {
   }
 }
 
+/// Takes files as they are brought in from outside and asks which Files space they go to. All static: one for the
+/// app.
 class FilesShareIn {
   FilesShareIn._();
   static StreamSubscription<List<String>>? _sub;
@@ -246,6 +249,8 @@ class FilesShareIn {
 
   // --- a phone: shared in from another app -------------------------------------------------------------------------
 
+  /// Files another app shared, by their content addresses: described (name, size, type) and offered to a Files
+  /// space, each copied into the app's own folder once one is chosen.
   static Future<void> _shared(List<String> uris) async {
     List<IncomingFile> files;
     try {
@@ -283,6 +288,7 @@ class FilesShareIn {
   /// is unaffected.
   static bool _taking = false;
 
+  /// Turns the window's taking of drops on or off as the first Files space comes or the last goes.
   static void _followSpaces() {
     final want = Voice.instance.channels.any((c) => c.kind == SpaceKind.files);
     if (want == _taking) return;
@@ -330,6 +336,7 @@ class FilesShareIn {
   @visibleForTesting
   static bool Function() filesShowing = _filesShowing;
 
+  /// Walks the whole widget tree for a FilesSpaceScreen.
   static bool _filesShowing() {
     var found = false;
     void visit(Element e) {
@@ -373,6 +380,8 @@ class FilesShareIn {
     await showAddToSheet(context, files: files, spaces: to, circleOf: circleOf, onChoose: (c) => unawaited(_add(context, c, files, keep: keep, owned: owned, upload: upload, open: open)));
   }
 
+  /// Adds [files] to [c], the space chosen: each kept first where [keep] is given (a copy in the app's folder), the
+  /// ones that could be read uploaded, the count said, and the space opened.
   static Future<void> _add(
     BuildContext context,
     VoiceChannel c,

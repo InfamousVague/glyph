@@ -44,6 +44,7 @@ class VoiceRing {
 
   Map<String, Object> toJson() => {'c': channel.toJson(), 'f': from, 'at': at.millisecondsSinceEpoch};
 
+  /// A kept offer read back ([Voice.offers]); always an invite and an offer.
   static VoiceRing? offerFromJson(Object? j) {
     if (j is! Map || j['f'] is! String || j['at'] is! int) return null;
     final c = VoiceChannel.fromJson(j['c']);
@@ -71,9 +72,12 @@ class Voice extends ChangeNotifier {
 
   /// The person's choices, once the app has started Voice: for what a call's plugins read.
   AppState? get app => _app;
+  /// A paired computer's own connection to the hub, while it speaks under a key of its own ([separateKey]).
   HubCarrier? _ownHub;
   VoiceRoute? _route;
   final List<StreamSubscription<Object?>> _subs = [];
+
+  /// Who is in each call room, by room, as the hub last said ([inChannel]).
   final Map<String, List<String>> _in = {};
 
   /// The channel this device is in, while it is.
@@ -113,6 +117,7 @@ class Voice extends ChangeNotifier {
   final List<String> _gone = [];
   static const _goneKept = 300;
 
+  /// Whether the space with [seed] was removed here (or on this device's phone or computer).
   bool removed(String seed) => _gone.contains(seed);
 
   /// Spaces offered by invites that waited on the relay for this phone's number (lib/invites/pending_invites.dart),
@@ -167,6 +172,7 @@ class Voice extends ChangeNotifier {
     _raiseOffer();
   }
 
+  /// Notes [seed] as removed, newest last, and saves the list.
   void _markGone(String seed) {
     _gone.remove(seed);
     _gone.add(seed);
@@ -184,6 +190,7 @@ class Voice extends ChangeNotifier {
 
   bool archived(VoiceChannel c) => _archived.contains(c.seed);
 
+  /// Archives [c] here, or brings it back to Messages.
   void archive(VoiceChannel c, bool on) {
     if (on ? !_archived.add(c.seed) : !_archived.remove(c.seed)) return;
     _app?.set('voice_archived', jsonEncode([..._archived]));
@@ -198,12 +205,14 @@ class Voice extends ChangeNotifier {
   double volumeOf(String id) => _volumes[id] ?? 1.0;
   bool silenced(String id) => _silenced.contains(id);
 
+  /// Sets how loud [id] is played here, 0 to 2 (1 as they send it): kept, and used at once in a call there is.
   void setVolume(String id, double v) {
     _volumes[id] = v.clamp(0.0, 2.0);
     media?.setPeerVolume(id, _volumes[id]!);
     _keepPeople();
   }
 
+  /// Silences [id] for this device alone, or hears them again.
   void setSilenced(String id, bool on) {
     on ? _silenced.add(id) : _silenced.remove(id);
     media?.setPeerMuted(id, on);
@@ -231,11 +240,14 @@ class Voice extends ChangeNotifier {
     return at == null ? null : DateTime.fromMillisecondsSinceEpoch(at);
   }
 
+  /// Notes that [room] has someone in it now.
   void _saw(String room) {
     _seen[room] = DateTime.now().millisecondsSinceEpoch;
     _app?.keep('voice_seen', jsonEncode(_seen));
   }
 
+  /// Loads what was kept in [app]'s choices (spaces, read marks, removals, offers, volumes) and begins following the
+  /// relay, the groups and incoming `voice` envelopes. Only the first call loads anything.
   Future<void> start(AppState app) async {
     // The call notification's Leave (android CallService.kt).
     _leaveCall ??= Sms.instance.leaveCall.stream.listen((_) => unawaited(leave()));
@@ -254,6 +266,7 @@ class Voice extends ChangeNotifier {
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
     } catch (_) {}
     Net.instance.addListener(_follow);
+    // A computer paired with a phone asks it for its spaces now and every 8 seconds.
     if (Sms.paired) {
       unawaited(syncNow());
       _sync?.cancel();
@@ -421,6 +434,8 @@ class Voice extends ChangeNotifier {
     return 'Someone';
   }
 
+  /// Takes up the hub there is now (the install's, or a paired computer's own): a route over it, and who is in each
+  /// channel followed. Does nothing while the hub is the one already in use.
   void _follow() {
     final HubCarrier? hub;
     if (separateKey) {
@@ -460,6 +475,7 @@ class Voice extends ChangeNotifier {
     return HubCarrier(url: Net.defaultHub, signer: KeysSigner(keys));
   }
 
+  /// [carryOver] is running: a second asking meanwhile does nothing.
   bool _carrying = false;
 
   /// What this install was under another key is this identity's (Matt, 2026-11-19: "I should have the same identity
@@ -515,6 +531,7 @@ class Voice extends ChangeNotifier {
     return done;
   }
 
+  /// The channels changed: asks the hub who is in each one with a call, and holds each space's chat ([_listenAll]).
   void _look() {
     if (separateKey && _ownHub == null && channels.isNotEmpty) return _follow();
     final route = _route;
@@ -538,6 +555,7 @@ class Voice extends ChangeNotifier {
   /// When this device last read each space's chat, by its seed (ms): what its unread count counts from.
   final Map<String, int> _readAt = {};
 
+  /// Holds the chat of every space there is and lets go of those that are gone.
   void _listenAll() {
     if (_route == null) return;
     final want = {for (final c in channels) if (c.hangout) c.seed: c};
@@ -598,6 +616,7 @@ class Voice extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Saves [own] and looks again at what is held.
   Future<void> _keep() async {
     _app?.set('voice_channels', jsonEncode([for (final c in own) c.toJson()]));
     _look();
@@ -614,6 +633,8 @@ class Voice extends ChangeNotifier {
     return c;
   }
 
+  /// Removes [c] from this device (leaving its call first) and tells a paired phone to remove it too; marked gone so
+  /// neither hands it back.
   Future<void> forget(VoiceChannel c) async {
     if (session?.channel.room == c.room) await leave();
     _markGone(c.seed);
@@ -679,6 +700,7 @@ class Voice extends ChangeNotifier {
     _ringInEnds = Timer(_ringTime, () => Sounds.instance.stopLoop(UiSound.ringIn));
   }
 
+  /// A `voice` envelope from someone: a space a friend shared (`channel`), or a group calling (`ring`).
   void _received(Received r) {
     if (r.envelope.kind != 'voice') return;
     final b = r.envelope.body;
@@ -716,6 +738,7 @@ class Voice extends ChangeNotifier {
     }
   }
 
+  /// Puts away what is ringing (Not now, or unanswered).
   void dismissRing() {
     _ringClears?.cancel();
     // An offer put off is kept, and raised again when the app next opens; the next one waiting comes up now.
@@ -729,7 +752,10 @@ class Voice extends ChangeNotifier {
 
   // --- hangouts: chat and roles (lib/voice/hangout.dart, lib/voice/roles.dart) -----------------------------------
 
+  /// Each space's chat and roles, by its seed, once made ([hangoutFor]).
   final Map<String, HangoutRoom> _hangouts = {};
+
+  /// How many holders each space's chat room has ([hold], [release]): it closes when the last lets go.
   final Map<String, int> _holds = {};
 
   /// Says who this device is again in every space's chat it holds: its game began or ended (lib/games/game_activity.dart).
@@ -816,6 +842,7 @@ class Voice extends ChangeNotifier {
     return room;
   }
 
+  /// Lets go of one [hold] on [c]'s chat room; the room closes with the last.
   Future<void> release(VoiceChannel c) async {
     final n = (_holds[c.seed] ?? 1) - 1;
     if (n > 0) {
@@ -925,6 +952,7 @@ class Voice extends ChangeNotifier {
     if (m is RtcMedia) await m.applyLive(settings);
   }
 
+  // The microphone and the speaker chosen in Settings: kept, and switched to at once in a call there is.
   Future<void> useInput(String deviceId) async {
     _app?.set('voice_input', deviceId);
     await media?.setInput(deviceId);
@@ -937,6 +965,8 @@ class Voice extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Leaves the call this device is in, if any: ends the phone's call service, the captions and watching together,
+  /// and lets go of the hangout's chat held for the call.
   Future<void> leave() async {
     final s = session;
     session = null;

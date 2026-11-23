@@ -63,6 +63,7 @@ class Transcript {
     return [for (final (i, l) in lines.indexed) '${i + 1}\n${t(l.start)} --> ${t(l.end)}\n${l.who}: ${l.text}\n'].join('\n');
   }
 
+  /// A time into the recording as m:ss, or h:mm:ss from an hour on.
   static String clock(Duration d) {
     final m = d.inMinutes, s = d.inSeconds % 60;
     return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
@@ -83,6 +84,8 @@ List<SaidLine> mergeLines(List<List<SaidLine>> perTrack) {
   return [for (final x in all) x.$1];
 }
 
+/// Writes recordings out through the platform's speech recognition (channel 'ghost/scribe') and keeps the result in
+/// files beside each recording.
 class CallScribe extends ChangeNotifier {
   CallScribe._();
   static final CallScribe instance = CallScribe._();
@@ -104,6 +107,7 @@ class CallScribe extends ChangeNotifier {
   /// The recordings being written out now, by id, and how far each is (0 to 1).
   final Map<String, double> working = {};
 
+  /// The file beside [r]'s MP4 with [ext] in place of `mp4`.
   static File _file(Recording r, String ext) => File(r.path.replaceFirst(RegExp(r'\.mp4$'), '.$ext'));
 
   /// [r]'s words, where they were written out already.
@@ -141,6 +145,7 @@ class CallScribe extends ChangeNotifier {
         notifyListeners();
       }
       final lines = mergeLines(per);
+      // Only the Android phone has a summary model of its own.
       String? summary;
       if (lines.isNotEmpty && !kIsWeb && Platform.isAndroid) {
         summary = await Sms.instance.summarize([for (final l in lines) '${l.who}: ${l.text}'].join('\n'));

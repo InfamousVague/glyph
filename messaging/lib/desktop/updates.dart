@@ -44,6 +44,8 @@ class MacRelease {
 
   /// The app's `CFBundleVersion`: what newer is asked of.
   final int build;
+
+  /// What the download must be to be taken: its SHA-256, in lower-case hex, and its size.
   final String sha256;
   final int bytes;
   final Uri url;
@@ -106,6 +108,8 @@ abstract class UpdateHost {
   Future<String> restart();
 }
 
+/// The Mac's half, asked over its method channel. Where there is none (a test, another platform) nothing is
+/// installed, so nothing is looked for.
 class ChannelUpdateHost implements UpdateHost {
   const ChannelUpdateHost();
   static const _channel = MethodChannel('ghost_desktop/updates');
@@ -147,6 +151,7 @@ class ChannelUpdateHost implements UpdateHost {
   }
 }
 
+/// Where the app's own update stands.
 enum MacUpdatePhase {
   /// Nothing newer, as far as is known.
   idle,
@@ -200,6 +205,7 @@ class MacUpdates extends ChangeNotifier {
     return MacUpdates(feed: feed, host: windows ? WindowsUpdateHost(env: env) : null, restartWhenReady: env['GHOST_DESK_UPDATE_RESTART'] == 'now');
   }
 
+  /// Where the newest release's description is read from, and how often it is read again.
   final Uri feed;
   final Duration every;
 
@@ -208,6 +214,8 @@ class MacUpdates extends ChangeNotifier {
   final UpdateHost _host;
   final HttpClient Function() _client;
   Timer? _timer;
+
+  /// A look is under way: another asked for meanwhile does nothing.
   bool _busy = false;
 
   InstalledMac? get installed => _installed;
@@ -256,6 +264,7 @@ class MacUpdates extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Moves to [phase] and tells the listeners; the last problem is forgotten unless a new one is given.
   void _set(MacUpdatePhase phase, {String? problem}) {
     _phase = phase;
     _problem = problem;
@@ -405,6 +414,8 @@ class WindowsUpdateHost implements UpdateHost {
         _exe = exe ?? Platform.resolvedExecutable,
         _build = build ?? windowsBuild,
         _version = version ?? const String.fromEnvironment('GHOST_VERSION');
+
+  /// The environment, this app's own path, and the build and version it was made with: given by a test, else real.
   final Map<String, String> _env;
   final String _exe;
   final int _build;
@@ -414,6 +425,7 @@ class WindowsUpdateHost implements UpdateHost {
   final Future<void> Function(String path) launch;
   final void Function() quit;
 
+  /// The installer downloaded and checked, waiting for [restart] to run it.
   String? _installer;
 
   static Future<void> _launch(String path) async {

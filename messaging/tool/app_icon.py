@@ -36,6 +36,8 @@ SMALL = {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96}
 LANCZOS = Image.Resampling.LANCZOS
 
 
+# The picture at SCALE in the middle of a square of `size`, for Android's adaptive icon: as 'foreground' on the
+# black background, otherwise (monochrome) white whose alpha is the picture's brightness.
 def shrunk(picture, size, mode):
     inner = round(size * SCALE)
     small = picture.resize((inner, inner), LANCZOS)
@@ -153,6 +155,8 @@ def silhouette(picture, size):
     return out
 
 
+# With --check and a built app, checks its icon; otherwise writes every icon from the art (first copying in the
+# picture given, if one is): Android's launcher and notification icons, the site's, the app's mark, the Mac's.
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == '--check':
         return check_built(sys.argv[2])

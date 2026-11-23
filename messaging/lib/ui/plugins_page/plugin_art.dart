@@ -93,6 +93,7 @@ Color onColour(Color light, Color dark, List<Color> on, {double least = 3}) {
   return worst(dark) > l ? dark : light;
 }
 
+/// WCAG's contrast ratio between two colours, 1 (the same) to 21 (black on white).
 double _contrast(Color a, Color b) {
   final x = a.computeLuminance(), y = b.computeLuminance();
   return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);

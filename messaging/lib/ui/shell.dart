@@ -159,24 +159,28 @@ class AppShell extends StatefulWidget {
 const double pillScrolledScale = 0.8;
 const double pillTopSlack = 4;
 
+/// The frame's state, public so pages can reach it ([AppShell.maybeOf], [live]): what is open in the pane and in the
+/// list's place, and the ways to open and close them.
 class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin {
   /// The frame on the screen, for what has no context of its own to find it by (the API, lib/api/methods.dart).
   static AppShellState? live;
 
-  /// The pill as Ghost.md's dock is (Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top of the
-  /// page and make it get smaller when we scroll down just like ghost markdown does match the sizes"): its whole size
-  /// at the list's top, four fifths once the person scrolls it down, and whole again only when the list is back at
-  /// its top, whoever took it there. A scroll the app makes (a jump back to where it was) leaves it as it is; so does
-  /// one across the page or inside something in it. Shrinks in the kit's fast duration, grows in its normal one, both
-  /// easing out; at once under reduced motion. On a computer, as Ghost.md's desktop dock, it rests at the smaller size.
-  /// 0 whole, 1 small.
   /// The list's width as dragged, kept between runs (PaneWidth 'list'); null for the width it is made with.
   double? _dragged;
 
+  /// The pill, sized as Ghost.md's dock is (Matt, 2026-11-15: "Make the dock slightly larger when scrolled to the top
+  /// of the page and make it get smaller when we scroll down just like ghost markdown does match the sizes"): its
+  /// whole size at the list's top, four fifths once the person scrolls it down, and whole again only when the list is
+  /// back at its top, whoever took it there. A scroll the app makes (a jump back to where it was) leaves it as it is;
+  /// so does one across the page or inside something in it. Shrinks in the kit's fast duration, grows in its normal
+  /// one, both easing out; at once under reduced motion. On a computer, as Ghost.md's desktop dock, it rests at the
+  /// smaller size. 0 whole, 1 small.
   late final AnimationController _small = AnimationController(vsync: this, value: Sms.computer ? 1 : 0);
   late final Animation<double> _pillScale = _small.drive(Tween<double>(begin: 1, end: pillScrolledScale));
   double _smallGoal = Sms.computer ? 1 : 0;
 
+  /// Every scroll under the frame: the page's own list back at its top makes the pill whole, the person scrolling it
+  /// down makes it small. Never claims the notification.
   bool _pillHeard(ScrollNotification n) {
     if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
     final m = n.metrics;
@@ -194,6 +198,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     return false;
   }
 
+  /// Moves the pill towards whole (0) or small (1); always small on a computer.
   void _pillGo(double goal) {
     if (Sms.computer) goal = 1;
     if (_smallGoal == goal || !mounted) return;
@@ -206,6 +211,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     _small.animateTo(goal, duration: t.duration(goal == 1 ? 'glacier-duration-fast' : 'glacier-duration-normal'), curve: t.curve('glacier-ease-out'));
   }
 
+  /// The frame's two navigators: the pane's pages, and what stands in the list's place.
   final _pane = GlobalKey<NavigatorState>();
   final _side = GlobalKey<NavigatorState>();
 
@@ -271,6 +277,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The hangout whose call this device is in, as last drawn: the list's place and the pill's change with it.
   String? _inHangout;
 
+  /// Draws the frame again when this device comes into or leaves a hangout's call, and for nothing else of a call's.
   void _voiceChanged() {
     final s = Voice.instance.session;
     final now = s != null && s.channel.hangout ? s.channel.room : null;
@@ -376,6 +383,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     return true;
   }
 
+  /// Word about a plugin pack from the installed plugins or the Marketplace, said in a toast; one withdrawn comes
+  /// with a way to its page.
   void _notice(PackNotice n) {
     if (!mounted) return;
     if (n.kind == 'withdrawn') {
@@ -414,6 +423,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     }));
   }
 
+  /// Joins and opens the circle whose link was held from before the frame was up (lib/circles/pending_link.dart).
   Future<void> _takeHeldLink() async {
     final link = await PendingCircleLink.take(fresh: Circles.instance.all.isEmpty);
     if (link == null || !mounted) return;
@@ -443,6 +453,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     super.dispose();
   }
 
+  /// The pane's route for [page], arriving as [_arrive] says.
   PageRouteBuilder<void> _route(Widget page) => PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 220),
@@ -1084,6 +1095,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   static Widget _lightsIf(bool on, Widget child) => on ? TopBarLights(child: child) : child;
 
+  /// [child] told its own box is the screen's size, so the list and the pane each lay out for their share.
   Widget _sized(Widget child) => LayoutBuilder(
         // The screens measure themselves against the screen they are on: here that is their share of the window.
         builder: (context, box) => MediaQuery(data: MediaQuery.of(context).copyWith(size: Size(box.maxWidth, box.maxHeight)), child: child),
@@ -1341,6 +1353,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   }
 }
 
+/// What the frame tells the pages under it, and tells again only when one of these changes: found by [AppShell]'s
+/// static lookups.
 class _ShellScope extends InheritedWidget {
   const _ShellScope({required this.shell, required this.wide, required this.rail, required this.docked, required this.thread, this.showing, this.rings = 5, required super.child});
 

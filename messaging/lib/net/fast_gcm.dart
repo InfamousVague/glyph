@@ -18,10 +18,14 @@ class FastGcm {
   }
 
   final AESEngine _aes;
+
+  /// GHASH's table: the hash key H times each of the sixteen 4-bit values, as low and high 64-bit halves.
   final _hl = List<int>.filled(16, 0), _hh = List<int>.filled(16, 0);
 
+  /// The reduction for the four bits that fall off the end of each shift, by their value.
   static const _last4 = [0x0000, 0x1c20, 0x3840, 0x2460, 0x7080, 0x6ca0, 0x48c0, 0x54e0, 0xe100, 0xfd20, 0xd940, 0xc560, 0x9180, 0x8da0, 0xa9c0, 0xb5e0];
 
+  // Eight bytes at [at] as a big-endian number, and a number written back as eight.
   static int _u64(Uint8List b, int at) {
     var v = 0;
     for (var i = 0; i < 8; i++) {
@@ -37,6 +41,7 @@ class FastGcm {
     }
   }
 
+  /// Fills the table from H, given as its two halves.
   void _table(int vh, int vl) {
     _hl[8] = vl;
     _hh[8] = vh;
@@ -102,6 +107,7 @@ class FastGcm {
     _zl = zl;
   }
 
+  /// Folds [length] bytes of [data] into the hash, sixteen at a time; a short last block counts as padded with zeros.
   void _hash(Uint8List data, int from, int length) {
     var at = from;
     final end = from + length;
@@ -131,6 +137,7 @@ class FastGcm {
     }
   }
 
+  /// The tag: the hash of [aad], the sealed bytes and their two lengths in bits, masked with AES of J0.
   Uint8List _tag(Uint8List j0, Uint8List aad, Uint8List cipher, int cipherLength) {
     _zh = 0;
     _zl = 0;
@@ -151,6 +158,7 @@ class FastGcm {
     return s;
   }
 
+  /// The first counter block for a 96-bit nonce: the nonce, then the number 1.
   static Uint8List _j0(Uint8List nonce) {
     if (nonce.length != 12) throw ArgumentError('a 96-bit nonce');
     return Uint8List(16)

@@ -57,6 +57,7 @@ class Network {
       };
 }
 
+/// Every network the app knows, in the order they are listed.
 const networks = [
   Network('discord', 'Discord', 'indigo', 'D', signIn: true),
   Network('telegram', 'Telegram', 'cyan', 'T', signIn: true),
@@ -69,6 +70,7 @@ const networks = [
 /// The networks that can be linked and watched for now.
 List<Network> get openNetworks => [for (final n in networks) if (!n.soon) n];
 
+/// The network with [id]; the first of [networks] where there is none, so a caller always has one to draw.
 Network networkOf(String id) => networks.firstWhere((n) => n.id == id, orElse: () => networks.first);
 
 
@@ -81,6 +83,7 @@ String tidyHandle(String handle) {
   return h;
 }
 
+// A plain username; and a domain name, which a Bluesky handle and a Mastodon handle's server are.
 final _plain = RegExp(r'^[a-z0-9._-]{1,64}$');
 final _host = RegExp(r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,24}$');
 
@@ -110,6 +113,7 @@ String tidyNumber(String typed) {
   return digits;
 }
 
+// "+" and 8 to 15 digits; a North American one is "+1" and ten digits, the first of them 2 to 9.
 final _number = RegExp(r'^\+[1-9][0-9]{7,14}$');
 final _northAmerican = RegExp(r'^\+1[2-9][0-9]{9}$');
 
@@ -135,6 +139,7 @@ class Watched {
   final String network;
   final String handle;
 
+  /// What the server knows it by ([handleKey]), and what it is kept under on the phone.
   String get key => handleKey(network, handle);
   String get id => '$network:$handle';
 
@@ -149,6 +154,8 @@ class Joined {
   const Joined(this.network, this.handle, this.at, {this.seen = false});
   final String network;
   final String handle;
+
+  /// When this phone heard they were here, and whether the person has looked since ([Me.markSeen]).
   final DateTime at;
   final bool seen;
 }
@@ -161,6 +168,7 @@ abstract class MeStore {
   void setFlag(String key, bool on);
 }
 
+/// The app's own preferences, as a [MeStore].
 class AppMeStore implements MeStore {
   AppMeStore(this.app);
   final AppState app;
@@ -174,6 +182,7 @@ class AppMeStore implements MeStore {
   void setFlag(String key, bool on) => app.setFlag(key, on);
 }
 
+/// A [MeStore] in a map, for a test: nothing is written anywhere.
 class MemoryMeStore implements MeStore {
   final Map<String, String> kept = {};
   @override
@@ -186,6 +195,7 @@ class MemoryMeStore implements MeStore {
   void setFlag(String key, bool on) => kept[key] = on ? 'on' : 'off';
 }
 
+/// Why something asked of [Me] did not work, in words a person can be shown.
 class MeError implements Exception {
   MeError(this.message);
   final String message;
@@ -206,12 +216,16 @@ class Me extends ChangeNotifier {
   @visibleForTesting
   factory Me.forTest() => Me._();
 
+  // What [start] was given: where things are kept, which relay the app is on now, and how to ask for it to be kept
+  // connected.
   MeStore? _app;
   HubCarrier? Function()? _hubNow;
   void Function(bool yes)? _needHub;
 
   /// Settings › Me has been opened since the app started: the server is said hello to as soon as it can be.
   bool _woken = false;
+
+  // The relay being spoken to, and what listens to it ([_attach]).
   HubCarrier? _hub;
   StreamSubscription<Map<String, dynamic>>? _sub;
   VoidCallback? _stateListener;
@@ -234,6 +248,8 @@ class Me extends ChangeNotifier {
 
   /// Whether friends who watch for one of [links] are told. Off until switched on.
   bool listed = false;
+
+  /// The handles asked to be told about, newest first, and those of them found to be here.
   List<Watched> watch = [];
   List<Joined> joined = [];
 
@@ -243,11 +259,13 @@ class Me extends ChangeNotifier {
   /// The relay server has answered: linking and watching work.
   bool ready = false;
 
+  /// How many of [joined] the person has not looked at yet.
   int get unseen => joined.where((j) => !j.seen).length;
 
   /// Whether anything has ever been said to the server about this install: only then is it spoken to as the app opens.
   bool get _inUse => links.isNotEmpty || watch.isNotEmpty || listed || (_app?.flag('me_used', fallback: false) ?? false);
 
+  /// Answers being waited for ([_ask]), by the answer's `dir` and its network: "linked:discord", "claim:".
   final Map<String, Completer<Map<String, dynamic>>> _waiting = {};
 
   /// Networks unlinked while the server could not be told.
@@ -255,6 +273,7 @@ class Me extends ChangeNotifier {
 
   // --- kept on the phone --------------------------------------------------------------------------------------------
 
+  /// Reads what is kept on the phone. Where something can't be read, what was read before it stands.
   void _read() {
     final app = _app;
     if (app == null) return;
@@ -268,6 +287,7 @@ class Me extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Keeps the links, the watch list, who joined and the switch on the phone, and tells listeners.
   void _write() {
     final app = _app;
     if (app == null) return;
@@ -308,6 +328,8 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Moves to the relay the app is on now: listens to what it says of handles, says hello each time it comes up
+  /// (where this install speaks to the server at all), and is not [ready] while it is down.
   void _attach() {
     final hub = _hubNow?.call();
     if (identical(hub, _hub)) return;
@@ -344,8 +366,11 @@ class Me extends ChangeNotifier {
     _hello();
   }
 
+  /// Whether the relay server is connected now.
   bool get reachable => _hub != null && _hub!.state.value == CarrierState.up;
 
+  /// What the relay says, by its `dir`: an answer goes to whoever waits for it ([_waiting]); the rest change what is
+  /// kept here.
   void _heard(Map<String, dynamic> m) {
     final network = m['p'] as String?;
     switch (m['dir']) {
@@ -436,13 +461,14 @@ class Me extends ChangeNotifier {
   /// page is drawn with no server (test/number_screen_test.dart). Its answer, or its [MeError].
   Future<Map<String, dynamic>> Function(Map<String, Object?> what)? asking;
 
-  /// On a paired computer: Settings › Me as the phone has it, and the number verified through the phone (Matt,
-  /// 2026-11-14: "on desktop the phone number reads as unknown and is not proxying the verification process"). The
-  /// computer has no conversation with the relay server of its own; the phone's install is the one a number belongs
-  /// to, so the code is texted to it and checked as its. [phone] is how the phone is asked (Sms.me).
   /// Why the phone could not be asked, on a computer ([followPhone]); null once it answered.
   String? phoneSaid;
 
+  /// On a paired computer: makes [phone] who is asked ([asking]; Sms.me) and reads how things stand there, so
+  /// Settings › Me is as the phone has it and the number is verified through the phone (Matt, 2026-11-14: "on desktop
+  /// the phone number reads as unknown and is not proxying the verification process"). The computer has no
+  /// conversation with the relay server of its own; the phone's install is the one a number belongs to, so the code
+  /// is texted to it and checked as its.
   Future<void> followPhone(Future<Map<String, dynamic>> Function(Map<String, Object?> what) phone) async {
     asking = (what) async {
       try {
@@ -510,6 +536,8 @@ class Me extends ChangeNotifier {
     throw MeError('The phone does not do that for a computer.');
   }
 
+  /// Says [what] to the relay (or to [asking]) and waits for the answer whose `dir` is [answer], for the same network.
+  /// A [MeError] where it can't be said, or isn't answered within [wait].
   Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
     final stand = asking;
     if (stand != null) return stand(what);
@@ -577,6 +605,8 @@ class Me extends ChangeNotifier {
   /// The name this person goes by to others: their display name, else their username, never with an "@" ([bareName]);
   /// '' where they have neither.
   String get shownName => displayName.isNotEmpty ? bareName(displayName) : bareName(username ?? '');
+
+  /// The line about this person on their profile; '' for none.
   String get bio => _app?.choice('me_bio', '') ?? '';
 
   /// This person's picture: a square base64 PNG (lib/me/pictures.dart), sent to friends with the name and line, and
@@ -615,6 +645,8 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Changes whichever of these is given. A picture too big for older builds is dropped; a status is put on one
+  /// line and cut to [statusMost] characters.
   void setProfile({String? displayName, String? bio, String? picture, String? status}) {
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());
@@ -643,6 +675,7 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Gives this install's username up on the relay server.
   Future<void> releaseUsername() async {
     await _ask({'dir': 'release'}, 'released');
     _app?.set('me_username', '');
@@ -720,6 +753,7 @@ class Me extends ChangeNotifier {
     }
   }
 
+  /// Unlinks [network] here at once and tells the server; where it can't be told, it is told as it next answers.
   Future<void> unlink(String network) async {
     links.remove(network);
     _write();
@@ -757,6 +791,7 @@ class Me extends ChangeNotifier {
     _list(on);
   }
 
+  /// Sets [listed], keeps it and tells the server.
   void _list(bool on) {
     listed = on;
     _app?.setFlag('me_used', true);
@@ -767,6 +802,7 @@ class Me extends ChangeNotifier {
   /// Splits what was typed or pasted into handles: by spaces, commas, semicolons and new lines.
   static List<String> split(String text) => text.split(RegExp(r'[\s,;]+')).map(tidyHandle).where((h) => h.isNotEmpty).toSet().toList();
 
+  /// The most handles watched for at once.
   static const maxWatch = 5000;
 
   /// Adds [handles] on [network] to the watch list; how many were new. Ones that could not be a handle there are
@@ -792,6 +828,7 @@ class Me extends ChangeNotifier {
     return fresh.length;
   }
 
+  /// Stops watching for [w], here and on the server, and forgets that they joined.
   void removeWatch(Watched w) {
     watch = [for (final x in watch) if (x != w) x];
     joined = [for (final j in joined) if (!(j.network == w.network && j.handle == w.handle)) j];
@@ -807,13 +844,13 @@ class Me extends ChangeNotifier {
     return addWatch(network, (got['handles'] as List? ?? const []).cast<String>());
   }
 
+  /// Marks everyone in [joined] as looked at.
   void markSeen() {
     if (unseen == 0) return;
     joined = [for (final j in joined) Joined(j.network, j.handle, j.at, seen: true)];
     _write();
   }
 
-  /// What the pages show, set by hand: a picture of them with no server (test/screens_test.dart).
   // --- souls (Matt, 2026-11-19: "Build a new points system into the app called souls, right now they will not have
   // any use but I want to be able to give them out as rewards to people who submit bugs") ---------------------------
 
@@ -843,6 +880,7 @@ class Me extends ChangeNotifier {
   /// Souls or a badge just given, for the app to say so (lib/ui/souls.dart).
   final gifts = ValueNotifier<SoulsGift?>(null);
 
+  /// Takes the souls, the special badges and the badge shown from what the relay said, keeping whatever changed.
   void _takeSouls(Map<String, dynamic> m) {
     final n = m['n'] ?? m['souls'];
     final list = m['special'];
@@ -884,6 +922,7 @@ class Me extends ChangeNotifier {
   @visibleForTesting
   void hear(Map<String, dynamic> m) => _heard(m);
 
+  /// For a test or a picture of the pages (test/screens_test.dart): what they show, set by hand with no server.
   @visibleForTesting
   void seed({Map<String, String>? links, bool? listed, List<Watched>? watch, List<Joined>? joined, Map<String, String>? ways, bool? ready}) {
     this.links = links ?? this.links;

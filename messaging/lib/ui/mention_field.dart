@@ -111,6 +111,7 @@ class MentionController extends TextEditingController {
     pick(q, p);
   }
 
+  /// The field's words with each mention still standing drawn in the mention's style.
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final shown = this.style;

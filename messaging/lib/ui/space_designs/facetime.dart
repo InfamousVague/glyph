@@ -89,6 +89,7 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
     super.dispose();
   }
 
+  /// The id of whoever is talking loudest now, if it is someone else; null while nobody is, or it is you.
   String? _loudestOther() {
     final loud = widget.call.loudest(widget.call.levels.value);
     return loud == null || loud.me ? null : loud.id;
@@ -189,6 +190,8 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
     });
   }
 
+  /// The call's picture by how many others there are: none, the waiting screen; one, them over the whole stage;
+  /// more, the featured one big with the rest as tiles.
   Widget _stage(BuildContext context, Map<String, double> now, bool wide, EdgeInsets pad, Size pip) {
     final call = widget.call;
     final others = call.others;

@@ -44,6 +44,7 @@ bool adminOfferedFor(AppState app) => app.flag('dev_mode', fallback: false) && a
 /// The Ghost usernames the admin page is offered to (the relay's GHOST_ADMIN_NAMES says who it answers).
 const adminNames = {'matt'};
 
+/// Settings › Admin's pane, as Settings lists its panes.
 List<Widget> adminPane(BuildContext context, SettingsModel m) => const [AdminPanel()];
 
 /// Someone as the admin page lists them.
@@ -81,6 +82,7 @@ class AdminUser {
   /// Whether [q] (lower case, no @) finds them: a username now or before, the start of their id or of their account.
   bool matches(String q) => q.isEmpty || (name ?? '').contains(q) || was.any((n) => n.contains(q)) || id.startsWith(q) || (account?.toLowerCase().startsWith(q) ?? false);
 
+  /// What they are called in a row: their username, or that they have none the relay has told.
   String get shown => name != null ? '@$name' : (named ? 'A username from before (not said yet)' : 'No username');
 }
 
@@ -114,6 +116,7 @@ class _AdminSignInState extends State<AdminSignIn> {
     super.dispose();
   }
 
+  /// Sends the admin username and password; once the relay says yes the password is cleared and [onDone] runs.
   Future<void> _signIn() async {
     if (_busy) return;
     setState(() {
@@ -171,6 +174,8 @@ Widget adminSameYou(BuildContext context) => PaneSection(
       ],
     );
 
+/// Settings › Admin: the sign-in, and once signed in the review rows, everyone who signed up (searched), and the last
+/// of what was given.
 class AdminPanel extends StatefulWidget {
   const AdminPanel({super.key, this.ask, this.market});
 
@@ -236,6 +241,8 @@ class _AdminPanelState extends State<AdminPanel> {
     if (mounted) setState(() => _queue = line);
   }
 
+  /// Reads everyone who signed up and the log of what was given. Throws, and shows the sign-in again, where the relay
+  /// no longer counts this connection as signed in.
   Future<void> _load() async {
     final users = await _ask({'dir': 'admin-users'});
     if (users['ok'] != true) {
@@ -260,6 +267,7 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
+  /// Opens one person's page, and reads the lists again when it closes: their souls and badges may have changed.
   Future<void> _open(AdminUser u) async {
     await push<void>(context, (_) => AdminPersonScreen(user: u, ask: _ask));
     if (mounted) setState(() {});
@@ -383,6 +391,7 @@ class _AdminPanelState extends State<AdminPanel> {
     ]);
   }
 
+  /// One line of the log in words: a badge given or taken, or souls given or taken (a negative count), and to whom.
   String _grantLine(Map g) {
     final who = _users?.where((u) => u.id == g['to']).firstOrNull?.shown ?? '${g['to']}'.substring(0, 8);
     final badge = g['badge'] is String ? specialBadge(g['badge'] as String)?.name ?? '${g['badge']}' : null;
@@ -418,6 +427,8 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
     super.dispose();
   }
 
+  /// Gives ([sign] 1) or takes ([sign] -1) the souls typed, with the reason typed; the relay answers with their new
+  /// count.
   Future<void> _give(int sign) async {
     final n = int.tryParse(_amount.text.trim());
     if (n == null || n <= 0) return toast(context, 'Say how many souls');
@@ -435,6 +446,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
     }
   }
 
+  /// Switches one special badge on or off for them; the relay answers with the badges they now hold.
   Future<void> _badge(SpecialBadge b, bool on) async {
     setState(() => _busy = true);
     try {

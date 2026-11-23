@@ -41,8 +41,11 @@ class Watching {
   /// Where it is now, by the clock.
   Duration now([DateTime? when]) => playing ? position + (when ?? DateTime.now()).difference(at) : position;
 
+  /// The same watch at a new place, stamped with now.
   Watching moved({required Duration position, required bool playing}) => Watching(file: file, space: space, by: by, position: position, playing: playing, at: DateTime.now());
 
+  /// As said in the call ('wt'): the file, its space, the place in milliseconds and whether it plays. Who and when
+  /// are not sent; the listener takes them from the sender and its own clock.
   Map<String, Object?> toWire() => {'f': file.toJson(), 's': space, 'p': position.inMilliseconds, 'g': playing};
 
   static Watching? fromWire(String from, Map<String, dynamic> m, {DateTime? at}) {
@@ -55,6 +58,8 @@ class Watching {
 /// How far a player may be from where it should be before it is moved.
 const watchSlack = Duration(milliseconds: 1500);
 
+/// What the call this device is in is watching, and the player's link to it: says what this device's person does to
+/// the player, and moves the player to what others say.
 class WatchTogether extends ChangeNotifier implements VideoSync {
   WatchTogether._();
   static final WatchTogether instance = WatchTogether._();
@@ -109,6 +114,8 @@ class WatchTogether extends ChangeNotifier implements VideoSync {
     notifyListeners();
   }
 
+  /// Every five seconds on the device that started it: says where its player is while it plays, and stops itself once
+  /// the watch is over or someone else's.
   void _heartbeat() {
     final w = watching, e = _engine, s = _session;
     if (w == null || s == null || w.by != 'me') {
@@ -120,6 +127,7 @@ class WatchTogether extends ChangeNotifier implements VideoSync {
     s.sayWatch(watching!.toWire());
   }
 
+  /// Something said about the watch by [from]: `e` ends it; anything else is a file with where it is.
   void _heard(String from, Map<String, dynamic> m) {
     if (m['e'] == true) {
       watching = null;
@@ -151,6 +159,7 @@ class WatchTogether extends ChangeNotifier implements VideoSync {
   void attach(VideoEngine engine) {
     _engine = engine;
     _apply();
+    // A player opened with nothing being watched together just plays.
     if (watching == null) unawaited(engine.play());
     notifyListeners();
   }

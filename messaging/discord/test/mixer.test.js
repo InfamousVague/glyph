@@ -6,6 +6,7 @@ import { AudioEngine } from '../src/bridge/audio.js';
 import { FRAME_LEN, Gate, PcmQueue, clipTo16, int16, mix, mixMinusSelf, rms, sum } from '../src/bridge/mixer.js';
 import { SILENCE, opusCodec } from '../src/bridge/opus.js';
 
+// A frame of one value throughout, and a frame of a sine (the same in both channels) starting [offset] samples in.
 const frame = (v) => new Int16Array(FRAME_LEN).fill(v);
 const sine = (hz, amp, offset = 0) => {
   const f = new Int16Array(FRAME_LEN);

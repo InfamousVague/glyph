@@ -53,6 +53,8 @@ class WhatsApp extends InboxNetwork {
   AppState? _app;
   InboxState _state = InboxState.unavailable;
   String? _error, _account, _qr, _pairCode;
+
+  /// Requests to the helper are numbered; each waits here, by its number, for the helper's answer ([_ask], [_heard]).
   int _asked = 0;
   final Map<int, Completer<Object?>> _waiting = {};
 
@@ -91,6 +93,8 @@ class WhatsApp extends InboxNetwork {
   /// The eight-letter code to type on the phone instead, once asked for ([pairWithPhone]).
   String? get pairCode => _pairCode;
 
+  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
+  // the chats seen are kept in there.
   String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/whatsapp' : '${DeskStore.defaultDir().path}/whatsapp');
   File get _file => File('$_dir/chats.json');
 
@@ -188,6 +192,7 @@ class WhatsApp extends InboxNetwork {
     return _pairCode;
   }
 
+  /// The helper says this device is linked, and to whom: ready. The account is shown by its number, else its name.
   void _signedIn(Map s) {
     final number = (s['number'] as String?)?.trim() ?? '';
     final name = (s['name'] as String?)?.trim() ?? '';
@@ -230,6 +235,7 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
   }
 
+  /// Takes what the helper says of a group: that it is one, its title and its picture.
   void _takeGroup(Map m) {
     final gid = m['id'] as String?;
     if (gid == null) return;
@@ -239,6 +245,7 @@ class WhatsApp extends InboxNetwork {
     if (m['avatar'] is String) _avatars[gid] = m['avatar'] as String;
   }
 
+  /// Takes the account's contacts as the helper lists them: each one's name, and their number where there is one.
   void _takeContacts(List list) {
     for (final c in list) {
       final m = c as Map;
@@ -283,6 +290,7 @@ class WhatsApp extends InboxNetwork {
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 
+  /// One line from the helper: an answer to a numbered request (`id` with `ok`), or an event (`ev`) of its own.
   void _heard(Map<String, Object?> m) {
     final id = m['id'];
     if (id is num && m.containsKey('ok')) {
@@ -417,6 +425,7 @@ class WhatsApp extends InboxNetwork {
     return true;
   }
 
+  /// The kept message [messageId] of [chatId]; null where it isn't held.
   Map<String, Object?>? _find(String chatId, String messageId) => (_messages[chatId] ?? const []).where((x) => x['id'] == messageId).firstOrNull;
 
   /// A reaction put on a message or taken off: one a person, kept on the message as who gave which.
@@ -461,6 +470,8 @@ class WhatsApp extends InboxNetwork {
   @override
   Future<void> send(String chatId, String text) => _send(chatId, text);
 
+  /// Sends [text], quoting [quote] where it is a reply: kept at once as "sending" under an id of its own (`local-`
+  /// and the time), which WhatsApp's id replaces once the helper answers.
   Future<void> _send(String chatId, String text, {Map<String, Object?>? quote}) async {
     text = text.trim();
     if (text.isEmpty || _state != InboxState.ready) return;
@@ -523,6 +534,7 @@ class WhatsApp extends InboxNetwork {
     return out;
   }
 
+  /// A message in a line, for the list: its words, else what kind of file came.
   static String _snippet(Map<String, Object?> m) {
     final text = '${m['text'] ?? ''}'.trim();
     if (text.isNotEmpty) return text;
@@ -550,12 +562,15 @@ class WhatsApp extends InboxNetwork {
           ),
       ];
 
+  /// Who a quoted message was by, to show over the quote: "You", their name, else their number.
   String? _quoteName(String? jid) {
     if (jid == null || jid.isEmpty) return null;
     if (jid == _jid) return 'You';
     return _names[jid] ?? _numbers[jid] ?? _contacts[jid] ?? _numberOf(jid);
   }
 
+  /// An attachment as the screens show it. The number it goes by is its pointer's hash, kept to 30 bits so it is
+  /// never negative; what the helper said of it is kept under that number, to bring it down by.
   InboxMedia _media(Map a) {
     final key = jsonEncode(a['pointer']).hashCode & 0x3fffffff;
     _pointers[key] = a.cast<String, Object?>();
@@ -617,6 +632,8 @@ class WhatsApp extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Copies a file being sent into this network's own folder, so its bubble still has it after the place it was
+  /// picked from is gone; the copy's path, or [path] itself where it can't be copied.
   Future<String> _keepSent(String path, int ts, int i, String name) async {
     try {
       final ext = name.contains('.') ? '.${name.split('.').last}' : '';
@@ -743,6 +760,7 @@ class WhatsApp extends InboxNetwork {
 
   // --- keeping ------------------------------------------------------------------------------------------------------
 
+  /// Reads the file back, to show what was seen before the helper has said anything.
   void _read() {
     try {
       if (!_file.existsSync()) return;
@@ -757,8 +775,11 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
   }
 
+  /// Everything kept, as the file holds it.
   String _kept() => jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()});
 
+  // Saving waits 400 ms for more changes, so a burst of them is written once: to a temporary file, then renamed
+  // over the real one, so a crash never leaves half a file.
   Timer? _saving;
   void _save() {
     _saving?.cancel();
@@ -785,6 +806,7 @@ class WhatsApp extends InboxNetwork {
     }
   }
 
+  /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;
     if (link == null) return Future.error(StateError('WhatsApp isn\'t running'));
@@ -820,6 +842,7 @@ class WhatsApp extends InboxNetwork {
   AppState? get app => _app;
 }
 
+/// The helper as a process: a line of JSON each way on its stdin and stdout, and its log on stderr.
 class _ProcessLink implements WhatsAppLink {
   _ProcessLink(this.p) {
     p.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {

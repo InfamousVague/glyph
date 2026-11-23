@@ -46,10 +46,12 @@ class VoiceSettings {
   /// The tallest picture sent: 2160 (4K), 1080, 720 or 480.
   final int video;
 
+  // What Settings offers: Opus's bit rate in kb/s, the picture's height, and the top of both volume sliders (percent).
   static const kbpsChoices = [510, 256, 128, 64, 32];
   static const videoChoices = [2160, 1080, 720, 480];
   static const maxVolume = 200;
 
+  /// The settings as kept in [app]'s choices, each with its default where never set.
   factory VoiceSettings.of(AppState app) => VoiceSettings(
         input: app.choice('voice_input', ''),
         output: app.choice('voice_output', ''),
@@ -65,6 +67,7 @@ class VoiceSettings {
         video: int.tryParse(app.choice('voice_video', '1080')) ?? 1080,
       );
 
+  /// With another device or volume; everything else as it is.
   VoiceSettings copyWith({String? input, String? output, int? inputVolume, int? outputVolume}) => VoiceSettings(
         input: input ?? this.input,
         output: output ?? this.output,
@@ -115,6 +118,7 @@ class VoiceSettings {
     return (scale: base.scale * extra, bitrate: base.bitrate < videoCap ? base.bitrate : videoCap);
   }
 
+  // How a bit rate and a picture height are written in Settings.
   static String kbpsLabel(int k) => k >= 510 ? '510 kb/s · the most Opus carries' : '$k kb/s';
   static String videoLabel(int q) => q >= 2160 ? '4K' : '${q}p';
 }
@@ -137,6 +141,7 @@ enum NoiseMode {
   final String label;
   final String hint;
 
+  /// The mode kept or said under [name]; null for none or one this build doesn't know.
   static NoiseMode? named(String name) {
     for (final m in values) {
       if (m.name == name) return m;

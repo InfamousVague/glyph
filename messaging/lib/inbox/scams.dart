@@ -27,10 +27,13 @@ class ScamSign {
   final String says;
   final String pattern;
 
+  /// Whether [text] shows this sign, whatever its case. Each pattern is compiled once and kept, since a sign is const
+  /// and can hold no RegExp of its own.
   bool matches(String text) => (_compiled[pattern] ??= RegExp(pattern, caseSensitive: false)).hasMatch(text);
   static final _compiled = <String, RegExp>{};
 }
 
+// A word's start and end in a pattern: no letter or digit just before, or just after.
 const _b = r'(?<![a-z0-9])';
 const _e = r'(?![a-z0-9])';
 

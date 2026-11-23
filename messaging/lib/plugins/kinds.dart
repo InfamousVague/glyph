@@ -436,6 +436,7 @@ class KindsPlugin extends GhostPlugin {
     SettingOption('strict', 'Strict', 'Any one sign, sure or lesser. Sorts the most; a text now and then lands in a kind it is not.'),
   ];
 
+  /// How many lesser signs sort a text at the level chosen: 0 means none ever do (relaxed), 1 strict, 2 balanced.
   static int _weakNeeded(PluginPrefs prefs) => switch (prefs.get('level')) {
         'relaxed' => 0,
         'strict' => 1,

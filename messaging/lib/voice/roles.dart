@@ -44,6 +44,7 @@ enum Perm {
   /// The permissions a space of [kind] has.
   static Set<Perm> of(SpaceKind kind) => kind == SpaceKind.files ? values.toSet() : values.where((p) => !files.contains(p)).toSet();
 
+  /// The permission with this name on the wire; null for one this build doesn't know.
   static Perm? named(String name) {
     for (final p in values) {
       if (p.name == name) return p;
@@ -86,9 +87,12 @@ class Role {
   /// The colour its people's names are drawn in; null for the text's own.
   String? get shownColor => color ?? defaultColor(id);
 
+  /// [noColor] takes a chosen colour away, which a null [color] can't.
   Role copyWith({String? name, Set<Perm>? perms, int? rank, String? color, bool noColor = false}) =>
       Role(id: id, name: name ?? this.name, perms: perms ?? this.perms, rank: rank ?? this.rank, extra: extra, color: noColor ? null : (color ?? this.color), rest: rest);
 
+  /// As written into a roster. The order is fixed (unknown fields first, permissions in the enum's order, then the
+  /// unknown ones), since a roster's signature covers these bytes.
   Map<String, Object> toJson() => {
         for (final e in rest.entries)
           if (e.value != null) e.key: e.value!,
@@ -101,6 +105,8 @@ class Role {
 
   static final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
+  /// A role from a roster's JSON; null where a field it needs is missing. Unknown permissions and fields are kept in
+  /// [extra] and [rest]; a colour that isn't `#rrggbb` is dropped.
   static Role? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['n'] is! String || j['r'] is! int || j['p'] is! List) return null;
     final names = [for (final p in j['p'] as List) '$p'];
@@ -181,10 +187,12 @@ class Roster {
   /// A hangout's first roster: the three roles (a Files space's with its own permissions), the owner alone.
   factory Roster.first(String owner, {SpaceKind kind = SpaceKind.voice}) => Roster(owner: owner, roles: Role.defaultsFor(kind));
 
+  /// The owner's id on the hub, from their key; empty where there is no owner.
   String get ownerId => owner.isEmpty ? '' : NetCrypto.idOf(NetCrypto.unhex(owner));
 
   bool get hasOwner => owner.isNotEmpty;
 
+  /// The roles in force: a roster that names none has the three defaults.
   List<Role> get _roles => roles.isEmpty ? Role.defaults : roles;
 
   Role? roleById(String id) {
@@ -201,6 +209,7 @@ class Roster {
   Role roleOf(String id) {
     if (hasOwner && id == ownerId) return roleById(Role.admin) ?? Role.defaults.first;
     var named = assigned[id] ?? newcomer;
+    // Named admin without the owner's grant: the newcomer's role instead.
     if (named == Role.admin && !_granted(id)) named = newcomer == Role.admin ? Role.member : newcomer;
     return roleById(named) ?? roleById(Role.member) ?? Role.defaults.last;
   }
@@ -232,12 +241,14 @@ class Roster {
   /// What the owner signs to make [id] an admin of the hangout whose owner key this is.
   static List<int> grantMessage(String owner, String id) => utf8.encode('ghost-hangout admin|$owner|$id');
 
+  /// Whether [id] holds the owner's signature making them an admin.
   bool _granted(String id) {
     final g = adminGrants[id];
     if (g == null || !hasOwner) return false;
     return NetCrypto.verify(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
   }
 
+  /// Everything but who signed it, with maps and sets sorted so the same roster always encodes to the same bytes.
   Map<String, Object?> _body() => {
         'o': owner,
         'v': version,
@@ -254,6 +265,8 @@ class Roster {
 
   Map<String, Object?> toJson() => {..._body(), 'by': by, 'k': byKey, 's': sig};
 
+  /// A roster as it was sent or kept; null where the owner or version is missing. Reading it proves nothing: check
+  /// [trustedFor] before believing it.
   static Roster? fromJson(Object? j) {
     if (j is! Map || j['o'] is! String || j['v'] is! int) return null;
     final roles = <Role>[for (final r in (j['roles'] as List? ?? const [])) ?Role.fromJson(r)];

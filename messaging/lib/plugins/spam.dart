@@ -45,6 +45,7 @@ class SpamRule {
   /// a pattern for the address it came from.
   final String? sender;
 
+  /// Whether the sign is in [facts]: its words in the text, or its pattern in any address the text came from.
   bool matches(MessageFacts facts) {
     final words = this.words;
     final sender = this.sender;
@@ -373,6 +374,8 @@ class SpamPlugin extends GhostPlugin {
         },
       );
 
+  /// Adds [senders] to the list kept under [keep] and takes them out of the one under [drop]: a sender is always
+  /// spam or never spam, not both.
   static void _learn(PluginPrefs prefs, List<String> senders, {required String keep, required String drop}) {
     final kept = wordsOf(prefs, keep);
     final dropped = wordsOf(prefs, drop);

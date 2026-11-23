@@ -105,6 +105,7 @@ Widget _accountSection(BuildContext context) {
     );
 }
 
+/// The copy mark at the end of the Address row: puts the whole address on the clipboard and says so.
 class _CopyButton extends StatelessWidget {
   const _CopyButton({required this.text});
   final String text;
@@ -143,6 +144,8 @@ class _AccountPage extends StatelessWidget {
   }
 }
 
+/// A text field as a settings row: never corrected or capitalised, dotted out when [secret], and with the autofill
+/// hint that lets a password manager fill it.
 Widget _field(TextEditingController c, String placeholder, String label, {bool secret = false, ValueChanged<String>? onSubmitted, TextInputType? keyboard, String? autofill}) => SettingRowBox(
       child: GlacierInput(
         controller: c,
@@ -158,6 +161,7 @@ Widget _field(TextEditingController c, String placeholder, String label, {bool s
       ),
     );
 
+/// What went wrong, in the danger colour, for a section's footer; nothing where there is no problem.
 Widget _problemText(BuildContext context, String? problem) => problem == null ? const SizedBox.shrink() : Text(problem, style: TextStyle(color: context.tokens.danger));
 
 Widget _gap(BuildContext context, [int n = 6]) => SizedBox(height: context.tokens.space(n));
@@ -246,6 +250,7 @@ class _WordChip extends StatelessWidget {
 
 // --- making an account -------------------------------------------------------------------------------------------------
 
+/// The pages of making an account, in the order they are walked.
 enum CreateStep { password, words, confirm, working, done }
 
 /// Making an account: a password, the words to write down, the words confirmed (tapped in order, or three of them
@@ -272,11 +277,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   late CreateStep _step = widget.step;
   late final AccountDraft _draft = widget.draft ?? Account.instance.draft();
   late bool _typed = widget.typed;
+  // The words in a mixed order to tap from, and the places in [_shuffled] tapped so far, in the order tapped.
   late final List<String> _shuffled = [..._draft.words]..shuffle(Random());
   final List<int> _tapped = [];
+  // For the typed check: three places among the twelve, in rising order, and a field for each.
   late final List<int> _asked = (List.generate(12, (i) => i)..shuffle(Random())).take(3).toList()..sort();
   late final _three = [for (var i = 0; i < 3; i++) TextEditingController()];
   String? _problem;
+  // What making the account answered: the app has to start again to become the account.
   bool _restart = false;
 
   @override
@@ -289,6 +297,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     super.dispose();
   }
 
+  /// From the password page to the words: only with a password long enough, typed the same twice.
   void _toWords() {
     if (_password.text.length < minPassword) return setState(() => _problem = 'A password is at least $minPassword characters.');
     if (_password.text != _again.text) return setState(() => _problem = 'The two passwords are not the same.');
@@ -298,11 +307,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     });
   }
 
+  /// The words are shown to be written down: the three asked for typed right, or all twelve tapped in order.
   bool get _confirmed {
     if (_typed) return [for (var i = 0; i < 3; i++) _three[i].text.trim().toLowerCase() == _draft.words[_asked[i]]].every((ok) => ok);
     return _tapped.length == 12 && [for (var i = 0; i < 12; i++) _shuffled[_tapped[i]] == _draft.words[i]].every((ok) => ok);
   }
 
+  /// A word tapped: kept if it is the next of the twelve, and otherwise said to be wrong and not counted.
   void _tap(int i) {
     setState(() {
       _problem = null;
@@ -319,6 +330,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   /// again any time in Settings › Me, after the password.
   void _skipCheck() => widget.made ? Navigator.of(context).pop() : _make(checked: false);
 
+  /// Makes the account from the draft and the password, then shows its address; a failure goes back to the check
+  /// with what went wrong. Where the account is made already this only closes the screen.
   Future<void> _make({bool checked = true}) async {
     if (widget.made) return Navigator.of(context).pop();
     if (checked && !_confirmed) return setState(() => _problem = _typed ? 'Those aren\'t the words in those places. Look at what you wrote down.' : 'Tap all twelve in order.');
@@ -478,8 +491,10 @@ class _SignInScreenState extends State<SignInScreen> {
   final _number = TextEditingController();
   final _code = TextEditingController();
   final _typedWords = TextEditingController();
+  // The account has a verified number, so a texted code is asked for too; and whether one has been sent yet.
   late bool _needsCode = widget.needsCode;
   bool _sent = false;
+  // An account opened by its words with no backup on the server: held here while a new password is chosen.
   AccountRestore? _restored;
   late bool _needsPassword = widget.needsPassword;
   final _newPassword = TextEditingController();
@@ -494,6 +509,8 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
+  /// Runs one step of signing in with the buttons off: what it throws is shown as the problem, and an account that
+  /// wants a texted code opens the number's section instead.
   Future<void> _run(Future<void> Function() work) async {
     setState(() {
       _busy = true;
@@ -510,6 +527,7 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  /// Username and password, with the number and its code once they have been asked for.
   Future<void> _withPassword() => _run(() async {
         final name = tidyHandle(_username.text);
         if (!Me.goodUsername(name)) throw AccountError('That isn\'t a username.');
@@ -519,11 +537,14 @@ class _SignInScreenState extends State<SignInScreen> {
         await _finish(restore);
       });
 
+  /// Asks for a code to be texted to the number typed.
   Future<void> _text() => _run(() async {
         await Account.instance.textCode(tidyHandle(_username.text), _number.text);
         if (mounted) setState(() => _sent = true);
       });
 
+  /// The recovery words: each checked against the word list before anything is asked of the server. An account with
+  /// no backup kept goes on to choosing a password, so one is kept again.
   Future<void> _withWords() => _run(() async {
         final words = AccountCrypto.tidyWords(_typedWords.text);
         final strange = words.where((w) => !AccountCrypto.isWord(w)).toList();
@@ -545,6 +566,7 @@ class _SignInScreenState extends State<SignInScreen> {
         await _finish(_restored!, password: _newPassword.text);
       });
 
+  /// Makes this device the account found, and starts the app again (or shows how to, where it can't itself).
   Future<void> _finish(AccountRestore restore, {String? password}) async {
     // On a computer paired with a phone this computer is the phone's identity; an account with another one splits
     // them, to everyone who writes, into two people (Matt, 2026-11-18: "messages from desktop are coming through
@@ -738,6 +760,7 @@ class _ShowWordsScreenState extends State<ShowWordsScreen> {
   }
 }
 
+/// A new password, after the one now: the backup is sealed again with it and the recovery words stay as they are.
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -822,6 +845,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     if (_list == null) _load(Account.instance.devices);
   }
 
+  /// Shows the list [ask] answers with: the account's devices as asked for, or as left after removing one.
   Future<void> _load(Future<List<AccountDevice>> Function() ask) async {
     try {
       final list = await ask();

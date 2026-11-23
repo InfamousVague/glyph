@@ -59,6 +59,7 @@ class FeedbackReport {
     return 'linux';
   }
 
+  /// The request's body: the words trimmed, the username without its @, each screenshot's bytes as base64.
   Map<String, Object?> toJson() {
     final name = username?.trim().replaceFirst(RegExp(r'^@'), '');
     return {

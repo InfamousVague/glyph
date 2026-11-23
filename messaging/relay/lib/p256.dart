@@ -6,8 +6,10 @@ import 'sha256.dart';
 /// test/p256_test.dart holds it to that.
 ///
 /// A public key is 33 bytes, as the apps send them: 02 or 03 for y's parity, then x. A signature is 64 bytes: r,
-/// then s. Not constant-time: it handles nothing secret but in [sign], which is here for the tests.
+/// then s. Not constant-time: it handles nothing secret but in [sign], which the tests use and pushes.dart signs
+/// Apple's provider token with.
 class P256 {
+  /// The curve: the field's prime [p], the group's order [n], b of y² = x³ − 3x + b, and the base point.
   static final BigInt p = BigInt.parse('ffffffff00000001000000000000000000000000ffffffffffffffffffffffff', radix: 16);
   static final BigInt n = BigInt.parse('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551', radix: 16);
   static final BigInt _b = BigInt.parse('5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b', radix: 16);
@@ -15,6 +17,7 @@ class P256 {
   static final BigInt _gy = BigInt.parse('4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5', radix: 16);
   static final BigInt _three = BigInt.from(3);
 
+  // Big-endian bytes as a number, and a number as 32 big-endian bytes.
   static BigInt _int(List<int> bytes) => bytes.fold(BigInt.zero, (v, b) => (v << 8) | BigInt.from(b & 0xff));
 
   static List<int> _bytes(BigInt v) => [for (var i = 31; i >= 0; i--) ((v >> (8 * i)) & BigInt.from(0xff)).toInt()];
@@ -33,6 +36,7 @@ class P256 {
     return [x3, y3, z3];
   }
 
+  // The sum of two points; the same point twice is doubled, a point and its opposite is the point at infinity.
   static List<BigInt> _add(List<BigInt> a, List<BigInt> b) {
     if (a[2] == BigInt.zero) return b;
     if (b[2] == BigInt.zero) return a;
@@ -54,6 +58,7 @@ class P256 {
     return [x3, y3, z3];
   }
 
+  // [point] added to itself [k] times, by doubling and adding from k's highest bit down.
   static List<BigInt> _times(List<BigInt> point, BigInt k) {
     var out = [BigInt.one, BigInt.one, BigInt.zero];
     for (var i = k.bitLength - 1; i >= 0; i--) {
@@ -107,7 +112,7 @@ class P256 {
   }
 
   /// A signature over [message] with the private key [scalar], using [nonce] (32 bytes, never used twice with one
-  /// key) as its secret number: for the tests.
+  /// key) as its secret number: for the tests, and for the token Apple's pushes are sent with (pushes.dart).
   static List<int> sign(List<int> scalar, List<int> message, List<int> nonce) {
     final d = _int(scalar);
     final k = _int(nonce) % n;

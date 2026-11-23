@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+/// One release's entry: its version, its day, and a line for each thing it brought.
 @immutable
 class ReleaseNotes {
   const ReleaseNotes(this.version, this.date, this.notes);
@@ -22,6 +23,7 @@ class ReleaseNotes {
   final List<String> notes;
 }
 
+/// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.10.6', '2026-11-20', [
     'Spaces and circles: react to messages. Press and hold a message (or right-click on a computer) and pick an emoji; tap a reaction in a circle to add yours or take it off. Everyone can react in read-only spaces.',

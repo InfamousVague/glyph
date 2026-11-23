@@ -96,6 +96,8 @@ class _Ghost {
   bool get friend => buddy?.state == 'yes';
 }
 
+/// Gathers what is known of [who]: found among friends by id or username, among those present in the space it was
+/// opened from, or as oneself.
 _Ghost _ghostOf(ProfileSubject who) {
   final buddies = Buddies.instance;
   final user = who.username.startsWith('@') ? who.username.substring(1) : who.username;
@@ -115,6 +117,7 @@ _Ghost _ghostOf(ProfileSubject who) {
   );
 }
 
+/// The name to call them by: what is known here, else the name given, else their username, else "them".
 String _nameOf(ProfileSubject who, _Ghost? g) => (g?.name.isNotEmpty == true ? g!.name : (who.name.isNotEmpty ? who.name : (who.username.isNotEmpty ? who.username : 'them')));
 
 /// What can be done with [who] from here, under the card.
@@ -161,6 +164,7 @@ Future<void> _addFriend(BuildContext context, String username) async {
   }
 }
 
+/// Opens the conversation with a friend on Ghost, addressed by their username.
 Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   final address = UsernameChats.addressOf(g.username);
   final person = Person(address: address, name: g.name);
@@ -171,6 +175,7 @@ Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   push<void>(context, (_) => ThreadScreen(thread: thread, people: [person]));
 }
 
+/// Opens the conversation of texts with [number].
 Future<void> _openNumber(BuildContext context, String number, String name) async {
   try {
     final person = Person(address: number, name: name);
@@ -184,6 +189,7 @@ Future<void> _openNumber(BuildContext context, String number, String name) async
   }
 }
 
+/// Opens the chat with [who] on their network, asking the network who a username is where only that is known.
 Future<void> _openNetworkChat(BuildContext context, ProfileSubject who) async {
   final network = who.network!;
   try {
@@ -237,6 +243,8 @@ class _ProfileCardState extends State<_ProfileCard> {
     super.dispose();
   }
 
+  /// Fetches what the card shows beyond what was handed in: a network's profile (ten seconds at most), or the
+  /// picture of someone on Ghost.
   Future<void> _look() async {
     final who = widget.who, g = widget.ghost;
     try {
@@ -547,6 +555,8 @@ List<Mention> handleMentions(String text) {
   return Mention.checked(out, text);
 }
 
+/// An "@username" written in a message: 3 to 20 letters, numbers, dots or underscores, not inside a word or an email
+/// address.
 final _handle = RegExp(r'(^|[^A-Za-z0-9_.@])@([A-Za-z0-9][A-Za-z0-9._]{2,19})(?![A-Za-z0-9_@])');
 
 /// [m]'s mentions as the message lines carry them: `n:<id>` where the network named the person, `u:<username>` where

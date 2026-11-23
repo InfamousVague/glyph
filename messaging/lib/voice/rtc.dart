@@ -12,9 +12,9 @@ import 'voice_settings.dart';
 /// The microphone, the camera and a WebRTC connection to each other member (lib/voice/voice.dart says what goes
 /// between them and how).
 ///
-/// Sound is taken at 48 kHz in stereo with automatic gain and noise suppression off, so what is sent is the
-/// microphone as it is (echo cancellation stays on: without it a speaker feeds back into the call), and sent as Opus
-/// at 510 kb/s. Each connection carries one sound and one picture both ways from its start; turning video on or off
+/// Sound is taken at 48 kHz, in stereo or mono, with echo cancellation, automatic gain and noise suppression each as
+/// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
+/// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
 class RtcMedia implements VoiceMedia {
   RtcMedia({this.iceServers = defaultIce, this.settings = const VoiceSettings()});
@@ -22,6 +22,7 @@ class RtcMedia implements VoiceMedia {
   /// The devices, Opus and processing, and the picture's quality, as Settings › Voice has them.
   VoiceSettings settings;
 
+  /// The servers a connection asks for its own public address where no others are given: public STUN only, no relay.
   static const defaultIce = [
     {
       'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
@@ -39,6 +40,8 @@ class RtcMedia implements VoiceMedia {
   final ValueNotifier<Map<String, MediaStream>> remote = ValueNotifier(const {});
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
+
+  // This device's own choices for each other member: how loud they are played (0 to 2) and who is silenced here.
   final Map<String, double> _volume = {};
   final Set<String> _silenced = {};
 
@@ -46,7 +49,7 @@ class RtcMedia implements VoiceMedia {
   void _apply(String id, MediaStream stream) {
     for (final t in stream.getAudioTracks()) {
       t.enabled = !_deaf && !_silenced.contains(id);
-      // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most.
+      // Each person's own volume times the output volume (Settings › Voice and video): each to twice, so four times at most.
       final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100).clamp(0.0, 4.0);
       unawaited(Helper.setVolume(v, t).catchError((_) {}));
     }
@@ -81,6 +84,9 @@ class RtcMedia implements VoiceMedia {
   /// voice activity of ourselves"). A sender that never connects is never started on Android's and the Mac's WebRTC,
   /// and gave no level at all. What arrives here is silenced: nobody hears themselves.
   RTCPeerConnection? _meterSink;
+
+  /// The microphone's total energy and the seconds it covers, as last read: a level is worked out from how much each
+  /// grew ([_micLevel]).
   double? _energy, _energyTime;
 
   /// How loud the microphone is from a media source's numbers: its own level where it gives one, else from the
@@ -148,6 +154,7 @@ class RtcMedia implements VoiceMedia {
     levels.value = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
   }
 
+  /// The meter is being opened: a second reading in the meantime doesn't open another.
   bool _opening = false;
 
   /// What the ids of the meter partner's copy of the microphone start with ([_openMeter]).
@@ -239,14 +246,17 @@ class RtcMedia implements VoiceMedia {
     } catch (_) {}
   }
 
+  /// A level moved toward a new reading: 0.6 of the way when rising, 0.25 when falling, so it jumps up and sinks back.
   static double _ease(double from, double to) => to > from ? from + (to - from) * 0.6 : from + (to - from) * 0.25;
 
+  /// The most sound is sent at, in bits a second, as the settings ask.
   int get audioBitrate => settings.sendKbps * 1000;
 
   /// Stands in for the system's list of devices (a test, with no WebRTC underneath).
   @visibleForTesting
   static Future<List<MediaDeviceInfo>> Function()? enumerate;
 
+  /// What the microphone is asked for (getUserMedia's audio constraints), from the settings.
   Map<String, Object> get _audioAsked => {
         if (settings.input.isNotEmpty) 'deviceId': settings.input,
         'echoCancellation': settings.useEcho,
@@ -312,6 +322,7 @@ class RtcMedia implements VoiceMedia {
     unawaited(VoiceFx.apply(settings));
     if (settings.output.isNotEmpty) {
       await Helper.selectAudioOutput(settings.output).catchError((_) {});
+    // With no output chosen a phone plays the call through its loudspeaker, not the earpiece.
     } else if (!kIsWeb && Platform.isAndroid) {
       await Helper.setSpeakerphoneOn(true);
     }
@@ -416,35 +427,42 @@ class RtcMedia implements VoiceMedia {
     }
   }
 
+  /// [id]'s sound or picture arrived: played at this device's volume for them, and listed in [remote].
   void _heard(String id, MediaStream stream) {
     _apply(id, stream);
     remote.value = {...remote.value, id: stream};
   }
 
+  /// [id]'s connection failed or closed: forgotten, and the others' pictures sized again.
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
   }
 }
 
+/// The WebRTC connection to one other person in the call, made when first needed.
 class _RtcPeer implements VoicePeer {
   _RtcPeer(this.media, this.id, this.onCandidate);
   final RtcMedia media;
   final String id;
   final void Function(Map<String, dynamic> candidate) onCandidate;
   Future<RTCPeerConnection>? _pc;
+  /// Ways to connect that came before the other side's description was set; added once it is ([_settled]).
   final List<RTCIceCandidate> _early = [];
   bool _described = false;
   MediaStream? _stream;
 
   Future<RTCPeerConnection> get pc => _pc ??= _make();
 
+  /// Makes the connection and wires what it finds to the session (candidates) and to [media] (their stream, their
+  /// going).
   Future<RTCPeerConnection> _make() async {
     final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan'});
     pc.onIceCandidate = (c) {
       if (c.candidate != null) onCandidate({'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
     pc.onTrack = (e) async {
+      // A track that comes with no stream is put in one of this connection's own, so sound and picture stay together.
       var stream = e.streams.isNotEmpty ? e.streams.first : _stream;
       if (stream == null) {
         stream = await createLocalMediaStream('from-$id');
@@ -487,7 +505,7 @@ class _RtcPeer implements VoicePeer {
     }
   }
 
-  /// Sound at 510 kb/s; the picture as big as the number of others allows ([videoFor]).
+  /// Sound at the rate Settings › Voice chose ([audioBitrate]); the picture as big as the number of others allows ([videoFor]).
   Future<void> _highest(RTCPeerConnection pc) async {
     final v = media.settings.sendTo(media._peers.length, videoFor(media._peers.length));
     for (final s in await pc.getSenders()) {
@@ -506,6 +524,7 @@ class _RtcPeer implements VoicePeer {
     }
   }
 
+  /// Sends [track] as this device's picture on this connection; null stops sending one.
   Future<void> showCamera(MediaStreamTrack? track) async {
     final c = await pc;
     for (final t in await c.getTransceivers()) {
@@ -545,6 +564,7 @@ class _RtcPeer implements VoicePeer {
     await _settled(c);
   }
 
+  /// The other side's description is set: the candidates held back until now are added.
   Future<void> _settled(RTCPeerConnection c) async {
     _described = true;
     for (final cand in _early) {

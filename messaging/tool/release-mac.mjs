@@ -80,6 +80,7 @@ const fail = (why) => {
   console.error(`x ${why}`);
   process.exit(1);
 };
+/** Runs a tool with its output shown, and stops the release if it fails. */
 const run = (cmd, cmdArgs, options = {}) => {
   const result = spawnSync(cmd, cmdArgs, { stdio: 'inherit', ...options });
   if (result.error) fail(`${cmd} could not run: ${result.error.message}`);
@@ -96,6 +97,7 @@ if (process.platform !== 'darwin') fail('The Mac app is built and signed on a Ma
 
 // --- the version ----------------------------------------------------------------------------------------------------
 
+/** The version's name in pubspec.yaml, without its build number: the Mac's build number is made below. */
 function pubspecVersion() {
   const match = /^version:\s*([0-9]+\.[0-9]+\.[0-9]+)/m.exec(readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8'));
   if (!match) fail('pubspec.yaml has no version.');
@@ -117,6 +119,8 @@ async function liveRelease() {
 const live = await liveRelease();
 const versionName = flag('version') ?? pubspecVersion();
 requireNotes(ROOT, versionName, args, fail);
+// The build number is the minutes since the start of 2026 (UTC) unless --build gives one: it only ever goes up,
+// and is always above the live release's.
 const minutes = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 60000);
 const versionCode = flag('build') ? Number(flag('build')) : Math.max(minutes, (live?.versionCode ?? 0) + 1);
 if (!Number.isInteger(versionCode) || versionCode <= 0) fail(`--build ${flag('build')} is not a number.`);
@@ -213,6 +217,7 @@ if (existsSync(matrixSource)) {
 mkdirSync(join(app, 'Contents/Frameworks'), { recursive: true });
 run('ditto', [join(ROOT, 'build/tdlib/mac/libtdjson.dylib'), join(app, 'Contents/Frameworks/libtdjson.dylib')]);
 
+// The built app is checked before it is signed: its id, its version, the local network's reason, Apple silicon.
 const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
 if (plist.CFBundleIdentifier !== BUNDLE_ID) fail(`The app's id is ${plist.CFBundleIdentifier}, not ${BUNDLE_ID}.`);
 if (plist.CFBundleShortVersionString !== versionName || String(plist.CFBundleVersion) !== String(versionCode)) {
@@ -225,6 +230,7 @@ if (!archs.includes('arm64')) fail(`The app is built for ${archs.join(', ') || '
 
 // --- signing --------------------------------------------------------------------------------------------------------
 
+/** Everything under [dir], a folder's contents before the folder itself, so the innermost code is signed first. */
 function walk(dir) {
   const found = [];
   for (const name of readdirSync(dir, { withFileTypes: true })) {
@@ -238,6 +244,7 @@ function walk(dir) {
 
 say('> Signing the app, inside out');
 const entitlements = join(ROOT, 'macos/Runner/Release.entitlements');
+// Developer ID, a secure timestamp and the hardened runtime: what notarisation asks of every piece of code.
 const sign = (target, more = []) => run('codesign', ['--force', '--timestamp', '--options', 'runtime', '--sign', IDENTITY, ...more, target], { stdio: ['ignore', 'ignore', 'inherit'] });
 const frameworks = join(app, 'Contents/Frameworks');
 if (existsSync(frameworks)) {
@@ -266,6 +273,10 @@ say(`ok signed by team ${TEAM} (Developer ID, hardened runtime), ${archs.join(' 
 
 // --- notarising, when asked -----------------------------------------------------------------------------------------
 
+/**
+ * The App Store Connect API key notarytool signs in with: from the environment, or the file the other apps share.
+ * Null where any of the three parts is missing or the key file is not there.
+ */
 function notaryCredentials() {
   let issuer = process.env.APPLE_API_ISSUER;
   let keyId = process.env.APPLE_API_KEY;

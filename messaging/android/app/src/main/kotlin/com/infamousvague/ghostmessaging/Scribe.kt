@@ -34,9 +34,11 @@ object Scribe {
     private const val RATE = 16000
     private val main = Handler(Looper.getMainLooper())
 
+    /** Whether this phone can do it: Android 13 and an on-device recognizer. Live captions ask the same question. */
     fun available(context: Context): Boolean =
         Build.VERSION.SDK_INT >= 33 && runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }.getOrDefault(false)
 
+    /** The `ghost/scribe` channel: available, and transcribe (one track of a file, on a thread of its own). */
     fun register(context: Context, messenger: BinaryMessenger) {
         MethodChannel(messenger, "ghost/scribe").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -118,6 +120,7 @@ object Scribe {
         codec.stop()
         codec.release()
         ex.release()
+        // To 16 kHz mono: the nearest earlier frame for each sample, its channels averaged.
         val all = raw.toByteArray()
         val frames = all.size / 2 / channels.coerceAtLeast(1)
         val n = (frames.toLong() * RATE / rate).toInt()
@@ -146,6 +149,7 @@ object Scribe {
             Math.sqrt(sum / block)
         }
         if (levels.isEmpty()) return emptyList()
+        // The track's quiet is its tenth-quietest block in a hundred; talking is three times that, and never under 300.
         val quiet = levels.sorted()[levels.size / 10]
         val loud = maxOf(300.0, quiet * 3)
         val out = ArrayList<Pair<Int, Int>>()
@@ -160,6 +164,7 @@ object Scribe {
             }
             if (start >= 0 && (b - lastLoud > gap || b - start >= most || b == levels.lastIndex)) {
                 val end = lastLoud + 1
+                // Kept from ten blocks (0.3 s) up, with five blocks (0.15 s) of room either side.
                 if (end - start >= 10) out.add(maxOf(0, start - 5) * block to minOf(levels.size, end + 5) * block)
                 start = -1
             }
@@ -230,6 +235,7 @@ object Scribe {
             runCatching { out.write(bytes) }
         }
         runCatching { pipe[1].close() }
+        // A recognizer that never answers is given up on after a minute, with whatever it had said.
         latch.await(60, TimeUnit.SECONDS)
         main.post { recognizer?.destroy() }
         runCatching { pipe[0].close() }

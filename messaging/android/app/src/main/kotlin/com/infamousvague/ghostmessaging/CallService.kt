@@ -33,6 +33,7 @@ class CallService : Service() {
         /** Told when the notification's Leave is pressed: the app leaves the call (MainActivity). */
         @Volatile var onLeave: (() -> Unit)? = null
 
+        /** Starts the service, or brings its notification up to date, for a call in the space called [name]. */
         fun start(context: Context, name: String, video: Boolean) {
             val i = Intent(context, CallService::class.java).putExtra("name", name).putExtra("video", video)
             try {
@@ -76,6 +77,7 @@ class CallService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Six hours at most, so a call that never ends cannot hold the processor awake for good.
         if (wake == null) {
             wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GhostMessaging:call").apply {
                 setReferenceCounted(false)
@@ -93,6 +95,7 @@ class CallService : Service() {
         return START_NOT_STICKY
     }
 
+    /** The ongoing notification: the kind of call, the space's name, a press to open the app and Leave. */
     private fun notification(name: String, video: Boolean): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null) {

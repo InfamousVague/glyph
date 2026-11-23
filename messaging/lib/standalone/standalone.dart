@@ -33,13 +33,17 @@ class StandaloneCalls implements SmsCalls {
     chats = UsernameChats(save: _save, buddies: () => _buddyList);
   }
 
+  /// The folder everything of this install's is kept in ([defaultDir] on an iPhone).
   final Directory dir;
 
   /// Whether the identity is kept in the Keychain (a build for a device) or in the folder (a test).
   final bool keychain;
 
+  /// The name the identity is kept under in the Keychain.
   static const _account = 'standalone-identity';
 
+  /// Who this iPhone is, once [load] has run; the person's choices; and the friends by username, as the JSON
+  /// [Buddies] gave to be kept.
   NetKeys? _keys;
   Map<String, String> _prefs = {};
   String _buddies = '[]';
@@ -47,6 +51,8 @@ class StandaloneCalls implements SmsCalls {
   /// The conversations: every one an iPhone has is with a friend by username.
   late final UsernameChats chats;
 
+  /// The files in [dir]: everything kept, the identity where the Keychain does not hold it, and a secret by its
+  /// name (cut down to lower-case letters, digits and _, so a name cannot reach outside the folder).
   File get _file => File('${dir.path}/standalone.json');
   File get _keyFile => File('${dir.path}/identity.key');
   File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
@@ -77,6 +83,7 @@ class StandaloneCalls implements SmsCalls {
   /// Where the first builds kept it by mistake: inside tmp, which iOS may empty. Moved from once, if it is there.
   static Directory get _misplaced => Directory('${Directory.systemTemp.path}/Library/Application Support/Ghost Messaging');
 
+  /// Reads what is kept and the identity, making one where there is none. Before anything is drawn.
   Future<void> load() async {
     // What a first build left in tmp is carried over: who this iPhone is (its username is held by that key) and
     // what was written.
@@ -98,6 +105,7 @@ class StandaloneCalls implements SmsCalls {
     _keys = await _identity();
   }
 
+  /// The key kept (32 bytes as 64 hex digits), from the Keychain or the folder; a new one, kept, where none is.
   Future<NetKeys> _identity() async {
     String? kept = keychain ? await MacPlatform.keyRead(_account) : null;
     if (kept == null && _keyFile.existsSync()) kept = _keyFile.readAsStringSync().trim();
@@ -113,8 +121,11 @@ class StandaloneCalls implements SmsCalls {
     return made;
   }
 
+  /// The write before this one: each waits for the last, so the file is never written by two at once.
   Future<void> _last = Future.value();
 
+  /// Writes everything kept, as it is now, to a new file that then takes the old one's place: a write cut short
+  /// leaves the old file whole.
   void _save() {
     final text = jsonEncode({'prefs': _prefs, 'buddies': _buddies, ...chats.toJson()});
     _last = _last.catchError((_) {}).then((_) async {
@@ -144,6 +155,7 @@ class StandaloneCalls implements SmsCalls {
     return (await _answer(method, a)) as T?;
   }
 
+  /// Answers one of the phone's calls by its name, in the shape the phone answers in.
   Future<Object?> _answer(String method, Map a) async {
     int thread() => (a['thread'] as num).toInt();
     switch (method) {

@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+/// Static only: [apply] for a file, [rename] for a movie box in memory.
 class Mp4Names {
   Mp4Names._();
 
@@ -29,6 +30,8 @@ class Mp4Names {
       if (moov == null) throw const FormatException('no movie box');
       await raf.setPosition(moov.start);
       final old = await raf.read(moov.size);
+      // With the media after the movie box, a longer movie box pushes the media along: the box is made once to learn
+      // how much it grows, then again with every chunk offset moved by that much.
       final before = boxes.any((b) => b.type == 'mdat' && b.start > moov.start);
       var made = rename(old, names, shift: 0);
       if (before) made = rename(old, names, shift: made.length - old.length);
@@ -103,6 +106,7 @@ class Mp4Names {
           }
           if (!hadUdta && name != null) out.add(_udta(const [], name));
           return _box('trak', out);
+        // Chunk offsets, 32-bit (stco) or 64-bit (co64): a count at byte 12, then the offsets from byte 16.
         case 'stco':
           if (shift == 0) return box;
           final b = Uint8List.fromList(box);
@@ -139,6 +143,8 @@ class Mp4Names {
     b[9] = 0;
     b[10] = 0;
     b[11] = flags;
+    // Where alternate_group is: after the header, the times and ids (64-bit in version 1), the reserved bytes and the
+    // layer.
     final group = version == 1 ? 8 + 4 + 8 + 8 + 4 + 4 + 8 + 8 + 2 : 8 + 4 + 4 + 4 + 4 + 4 + 4 + 8 + 2;
     if (group + 2 <= b.length) d.setUint16(group, 1);
     return b;
@@ -163,8 +169,10 @@ class Mp4Names {
     return _box('udta', [...keep, _box('name', [Uint8List.fromList(words)]), _box('©nam', [nam.toBytes()])]);
   }
 
+  /// [v] as two bytes, big-endian as everything in an MP4 is.
   static Uint8List _u16(int v) => Uint8List(2)..buffer.asByteData().setUint16(0, v);
 
+  /// A box's four-letter type, which follows its four-byte size.
   static String _type(Uint8List box) => latin1.decode(box.sublist(4, 8));
 
   /// The boxes inside [box], from [from] (after its header and, for a full box, its version and flags).
@@ -174,6 +182,7 @@ class Mp4Names {
     while (at + 8 <= box.length) {
       var size = d.getUint32(at);
       var header = 8;
+      // A size of 1 means the real size follows the type as 64 bits; 0 means the box runs to its parent's end.
       if (size == 1) {
         size = d.getUint64(at + 8);
         header = 16;
@@ -186,6 +195,7 @@ class Mp4Names {
     }
   }
 
+  /// A box of [type] holding [body]: its size, its type, then the parts in order.
   static Uint8List _box(String type, List<Uint8List> body) {
     final size = 8 + body.fold<int>(0, (n, b) => n + b.length);
     final out = BytesBuilder(copy: false)
@@ -197,6 +207,7 @@ class Mp4Names {
     return out.toBytes();
   }
 
+  /// The file's outermost boxes, by their headers alone: each one's type, where it starts and how long it is.
   static Future<List<({String type, int start, int size})>> _topLevel(RandomAccessFile raf, int length) async {
     final out = <({String type, int start, int size})>[];
     var at = 0;

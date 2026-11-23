@@ -28,6 +28,7 @@ class Store(private val context: Context) {
      */
     private val nameCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, Any?>>()
 
+    /** The phone's contacts changed: who a number is is read afresh the next time it is asked. */
     fun contactsChanged() { known = null; nameCache.clear() }
 
     /** One of the phone's contacts' numbers, as the contacts keep it. */
@@ -108,6 +109,7 @@ class Store(private val context: Context) {
         return out
     }
 
+    /** A contact's picture, by the address the contacts gave for it; null where it cannot be read. */
     fun photo(uri: String): ByteArray? = try {
         resolver.openInputStream(Uri.parse(uri))?.use { it.readBytes() }
     } catch (_: Exception) { null }
@@ -154,6 +156,7 @@ class Store(private val context: Context) {
         canonicalRead = true
     }
 
+    /** The number behind one of Android's recipient ids (a conversation lists its people by these), remembered. */
     private fun canonicalAddress(id: Long): String? {
         canonical[id]?.let { return it }
         // One that is not in the list read at the start: a conversation begun since, or a store that lists none.
@@ -163,6 +166,7 @@ class Store(private val context: Context) {
         return null
     }
 
+    /** A conversation's `recipient_ids` ("12 40 7") as numbers; an id Android no longer knows is left out. */
     private fun recipientsOf(ids: String?): List<String> =
         (ids ?: "").split(' ').mapNotNull { it.toLongOrNull() }.mapNotNull { canonicalAddress(it) }
 
@@ -481,6 +485,7 @@ class Store(private val context: Context) {
         return words
     }
 
+    /** The words of the newest message received in [thread], a text or a picture message's, opened where sealed. */
     private fun readLatestHeard(thread: Long): String {
         val which = arrayOf(thread.toString())
         var mms: Long? = null
@@ -495,6 +500,7 @@ class Store(private val context: Context) {
         return (mmsPartsOf(listOf(id))[id] ?: emptyList()).filter { it["type"] == "text/plain" }.joinToString("\n") { it["text"] as String? ?: "" }
     }
 
+    /** [readLatestSnippet], read once for a conversation and a [stamp]: read again only when the stamp has changed. */
     private fun latestSnippet(thread: Long, stamp: String): String {
         snippets[thread]?.let { if (it.first == stamp) return it.second }
         val words = try { readLatestSnippet(thread) } catch (_: Exception) { "" }
@@ -532,6 +538,7 @@ class Store(private val context: Context) {
         }
     }
 
+    /** Who [thread] is with, each as [contact] gives them; empty for a conversation nothing knows. */
     fun threadPeople(thread: Long): List<Map<String, Any?>> {
         // A group of friends' conversation is with its members, as its record has them (Groups.kt).
         Groups.ofThread(context, thread)?.let { return Groups.people(context, it).map { a -> contact(a) } }
@@ -547,6 +554,7 @@ class Store(private val context: Context) {
         return emptyList()
     }
 
+    /** The conversation with exactly these people, made in Android's database where there is none yet. */
     fun threadFor(addresses: List<String>): Long = Telephony.Threads.getOrCreateThreadId(context, addresses.toSet())
 
     // --- messages ----------------------------------------------------------------------------------------------------
@@ -698,6 +706,7 @@ class Store(private val context: Context) {
         return out
     }
 
+    /** The bytes of a picture message's part, from Android's database or, for one of GmWeb's, from GmWeb. */
     fun readPart(partId: Long): ByteArray? = if (GmWeb.isPart(partId)) GmWeb.part(context, partId) else try {
         resolver.openInputStream(Uri.parse("content://mms/part/$partId"))?.use { it.readBytes() }
     } catch (_: Exception) { null }
@@ -705,6 +714,7 @@ class Store(private val context: Context) {
     /** Who sent each picture message, remembered: a stored message's sender does not change. */
     private val senders = java.util.concurrent.ConcurrentHashMap<Long, String>()
 
+    /** Who sent the picture message [id]: its address of type 137 (the PDU's From); "" where there is none. */
     private fun mmsSender(id: Long): String {
         senders[id]?.let { return it }
         var from = ""
@@ -717,6 +727,7 @@ class Store(private val context: Context) {
 
     // --- writing -----------------------------------------------------------------------------------------------------
 
+    /** A text that arrived, written unread and unseen; Android finds its conversation. Its row, or null. */
     fun insertSmsInbox(address: String, body: String, date: Long, dateSent: Long, subId: Int): Uri? {
         val v = ContentValues().apply {
             put("address", address)
@@ -731,6 +742,7 @@ class Store(private val context: Context) {
         return resolver.insert(Telephony.Sms.Inbox.CONTENT_URI, v)
     }
 
+    /** A text about to be sent, written as waiting to go; [setSmsType] and [setSmsStatus] say what became of it. */
     fun insertSmsOutbox(thread: Long, address: String, body: String, subId: Int): Uri? {
         val v = ContentValues().apply {
             put("thread_id", thread)
@@ -754,6 +766,7 @@ class Store(private val context: Context) {
         resolver.update(uri, ContentValues().apply { put("status", status) }, null, null)
     }
 
+    /** The conversation a message's row is in, or -1 where the row is gone. */
     fun threadOfSms(uri: Uri): Long {
         resolver.query(uri, arrayOf("thread_id"), null, null, null)?.use { if (it.moveToFirst()) return it.getLong(0) }
         return -1
@@ -989,6 +1002,7 @@ class Store(private val context: Context) {
         o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
     } catch (_: Exception) { emptyMap() }
 
+    /** Notes that [thread] was read here, and when: this app's own record, for where Android's cannot be written. */
     private fun keepRead(thread: Long) {
         val o = try { org.json.JSONObject(prefs.getString("read_threads", "{}")!!) } catch (_: Exception) { org.json.JSONObject() }
         o.put(thread.toString(), System.currentTimeMillis())
@@ -998,6 +1012,7 @@ class Store(private val context: Context) {
     /** [rows] with each one read here since its newest message shown as read. */
     private fun withReadHere(rows: ArrayList<Map<String, Any?>>) = readHere(rows, readThreads())
 
+    /** Conversations deleted here beside Google Messages, and when: out of the list until something newer comes. */
     fun hiddenThreads(): Map<Long, Long> = try {
         val o = org.json.JSONObject(prefs.getString("hidden_threads", "{}")!!)
         o.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to o.getLong(k) } }.toMap()
@@ -1095,6 +1110,7 @@ class Store(private val context: Context) {
         editsPrefs.edit().remove("$kind:$id").apply()
     }
 
+    /** How many messages are unread, texts and picture messages together. */
     fun unreadCount(): Int {
         var n = 0
         val read = readThreads()
@@ -1185,6 +1201,7 @@ class Store(private val context: Context) {
     /** A set of conversations kept by this app under [name]: "pinned", "muted". */
     fun threadFlags(name: String): Set<Long> = prefs.getStringSet(name, emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
+    /** Puts [thread] in, or takes it out of, the set kept under [name]. */
     fun setThreadFlag(name: String, thread: Long, on: Boolean) {
         val s = prefs.getStringSet(name, emptySet())!!.toMutableSet()
         if (on) s += thread.toString() else s -= thread.toString()
@@ -1201,6 +1218,7 @@ class Store(private val context: Context) {
 
     fun draft(thread: Long): String? = draftPrefs.getString(thread.toString(), null)
 
+    /** Keeps what was typed into [thread] and not sent; nothing but spaces forgets it. */
     fun setDraft(thread: Long, text: String) {
         if (text.isBlank()) draftPrefs.edit().remove(thread.toString()).apply() else draftPrefs.edit().putString(thread.toString(), text).apply()
     }
@@ -1233,6 +1251,7 @@ class Store(private val context: Context) {
         }
     }
 
+    /** The conversations archived: this app's own set, since Android's database has no archive. */
     fun archivedThreads(): Set<Long> = prefs.getStringSet("archived", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
     fun setArchived(thread: Long, archived: Boolean) {

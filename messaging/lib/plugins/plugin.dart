@@ -441,6 +441,7 @@ sealed class SlotFill {
   Slot<Object?> get slot;
 }
 
+/// Buttons for an [ActionSlot], and below it widgets for a [WidgetSlot]: each built when its place is drawn.
 final class ActionFill<P> extends SlotFill {
   const ActionFill._(this.slot, this.build);
   @override
@@ -961,6 +962,8 @@ enum PluginSource {
   dev,
 }
 
+/// What every plugin is, built in or a pack: an id and a name, and whichever of the contract's parts it gives. Each
+/// part is empty unless a plugin overrides it, and the registry reads them once, when it takes the plugin.
 abstract class GhostPlugin {
   const GhostPlugin();
 

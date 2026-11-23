@@ -13,6 +13,7 @@ import '../me/me.dart';
 import 'common.dart' show IconTap;
 import 'dialup/bevel.dart' show isBevelChrome;
 
+/// The head itself: the face, the title over the name and a note, and Close at the end.
 class DrawerHead extends StatelessWidget {
   const DrawerHead({super.key, required this.title, this.subtitle, this.face, this.note, this.closeKey});
   final String title;

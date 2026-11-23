@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** A number's key ([ContactKey.of]): one number however it is written, and none for what is nobody's number. */
 class ContactKeyTest {
     @Test
     fun oneNumberWrittenThreeWaysSharesAKey() {

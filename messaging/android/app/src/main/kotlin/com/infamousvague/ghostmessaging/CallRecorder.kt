@@ -38,8 +38,10 @@ object CallRecorder {
     private const val RATE = 48000
     private val main = Handler(Looper.getMainLooper())
 
+    /** One voice's file of raw samples, and how many it holds so far. */
     private class Track(val file: File) {
         private val out = BufferedOutputStream(FileOutputStream(file), 1 shl 16)
+        /** Samples in the file, silence included. */
         var written = 0L
             private set
         private var last = 0f
@@ -71,6 +73,7 @@ object CallRecorder {
             written += n
         }
 
+        /** Silence up to sample [to]; nothing when the file is already that long. */
         @Synchronized
         fun pad(to: Long) {
             val gap = to - written
@@ -89,14 +92,20 @@ object CallRecorder {
         fun close() = out.close()
     }
 
+    /** When the recording began, on the elapsed-time clock in nanoseconds; 0 while nothing is recorded. */
     @Volatile private var started = 0L
     @Volatile private var mutedNow = false
     @Volatile private var micTrack: Track? = null
+    /** Everyone else by Dart's key: their file, and the track and sink tapping it (null once the tap is taken off). */
     private val others = HashMap<String, Pair<Track, Pair<AudioTrack, AudioTrackSink>?>>()
 
     /** Samples due now, by the clock since the recording began. */
     private fun due(): Long = (SystemClock.elapsedRealtimeNanos() - started) * RATE / 1_000_000_000L
 
+    /**
+     * The `ghost/recorder` channel: start (this device's file), muted, add and remove (someone else's voice), stop
+     * (the samples in each file) and mux (the files into one MP4, off the main thread).
+     */
     fun register(messenger: BinaryMessenger) {
         MethodChannel(messenger, "ghost/recorder").setMethodCallHandler { call, result ->
             try {
@@ -146,6 +155,10 @@ object CallRecorder {
         t.write(due(), frames, rate, 1) { i, _ -> if (muted) 0f else b.getFloat(i * 4) }
     }
 
+    /**
+     * Taps the remote track [trackId] into [key]'s file at [path]. Someone who comes back (a new track for the same
+     * key) goes on in the file they had. False when nothing is being recorded or the track is not a known voice.
+     */
     @Synchronized
     private fun add(key: String, trackId: String, path: String): Boolean {
         if (started == 0L) return false
@@ -156,6 +169,7 @@ object CallRecorder {
         val sink = AudioTrackSink { data, bits, rate, channels, frames, _ ->
             val d = data.duplicate().order(ByteOrder.LITTLE_ENDIAN)
             file.write(due(), frames, rate, channels.coerceAtLeast(1)) { i, c ->
+                // Interleaved samples; 8-bit ones are brought up to the 16-bit scale.
                 val at = (i * channels + c)
                 if (bits == 16) d.getShort(at * 2).toFloat() else (d.get(at).toInt() shl 8).toFloat()
             }
@@ -165,6 +179,7 @@ object CallRecorder {
         return true
     }
 
+    /** Takes the tap off [key]'s track. The file is kept, so it is filled with silence to the end at the stop. */
     @Synchronized
     private fun remove(key: String, close: Boolean) {
         val had = others[key] ?: return
@@ -267,6 +282,7 @@ object CallRecorder {
                             val ib = codec.getInputBuffer(ix)!!
                             ib.clear()
                             val n = inp.read(chunk, 0, minOf(chunk.size, ib.remaining()))
+                            // Two bytes a sample: the time of this chunk in microseconds.
                             val pts = read / 2 * 1_000_000L / RATE
                             if (n <= 0) {
                                 codec.queueInputBuffer(ix, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
@@ -283,6 +299,7 @@ object CallRecorder {
                         ox == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> outFormat = codec.outputFormat
                         ox >= 0 -> {
                             val ob = codec.getOutputBuffer(ox)!!
+                            // The codec's setup bytes are left out: the muxer has them in the format.
                             if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0 && info.size > 0) {
                                 val bytes = ByteArray(info.size)
                                 ob.position(info.offset)

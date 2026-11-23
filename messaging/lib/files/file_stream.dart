@@ -93,6 +93,8 @@ class FileStream implements StreamedMedia {
   final void Function(String path)? onWhole;
   final VoidCallback? onClosed;
 
+  // A chunk's plain size and how many the file has; then where the chunks opened so far are kept, and the index
+  // that says which slot each is in.
   int get _chunk => file.chunk;
   int get _count => FileSeal.chunks(file.size, chunkSize: _chunk);
   String get dataPath => '${cacheDir.path}/${file.id}.stream';
@@ -108,6 +110,8 @@ class FileStream implements StreamedMedia {
 
   /// Where each chunk is in the data file (its slot), or -1 while it isn't here.
   Int32List? _slots;
+
+  // The next free slot in the data file, how many chunks are here, and the two files while they are open.
   int _nextSlot = 0;
   int _have = 0;
   RandomAccessFile? _data;
@@ -129,8 +133,11 @@ class FileStream implements StreamedMedia {
     return next;
   }
 
+  // The local server and the secret first part of its paths, once [open] has made them.
   HttpServer? _server;
   String? _token;
+
+  // How many hold the stream ([hold], [close]) and how many [whole]s are under way: it shuts once both are none.
   int _users = 1;
   int _wholes = 0;
   bool _closed = false;
@@ -145,6 +152,8 @@ class FileStream implements StreamedMedia {
 
   // --- what is here --------------------------------------------------------------------------------------------------
 
+  /// Finds what is on this device, once: the whole file where it came down before, else what an earlier stream of it
+  /// kept.
   Future<void> _load() => _loaded ??= _loadNow();
 
   Future<void> _loadNow() async {
@@ -192,6 +201,7 @@ class FileStream implements StreamedMedia {
     if (_have == n) await _assemble();
   }
 
+  /// Reads from the finished file at [path] from now on: every chunk is here, chunk i at slot i.
   Future<void> _useWhole(String path) async {
     _whole = path;
     final n = _count;
@@ -249,6 +259,8 @@ class FileStream implements StreamedMedia {
     });
   }
 
+  /// Chunk [i] on disk: done already where it is here, the fetch under way where one is, else a new fetch of it and
+  /// the missing chunks right after it.
   Future<void> _ensure(int i, {required int upTo}) {
     if (_here(i)) return Future.value();
     final coming = _coming[i];
@@ -271,6 +283,8 @@ class FileStream implements StreamedMedia {
     return run;
   }
 
+  /// Brings [count] chunks from [first] down in one ranged read, opens them, and writes each to the data file and
+  /// the index.
   Future<void> _fetchRun(int first, int count) async {
     final last = first + count - 1;
     final start = FileSeal.sealedOffset(first, chunkSize: _chunk);
@@ -342,6 +356,7 @@ class FileStream implements StreamedMedia {
     }
   }
 
+  /// Notes why serving stopped (the first reason stands) and tells whoever listens.
   void _fail(String why) {
     if (_failure != null) return;
     _failure = why;
@@ -451,6 +466,8 @@ class FileStream implements StreamedMedia {
   @visibleForTesting
   int? get port => _server?.port;
 
+  /// Whether [a] is [b], taking the same time wherever they differ, so the token can't be found a letter at a time
+  /// by timing the answers.
   static bool _same(String a, String b) {
     if (a.length != b.length) return false;
     var d = 0;
@@ -480,6 +497,8 @@ class FileStream implements StreamedMedia {
     return (start, math.min(end, size - 1));
   }
 
+  /// Answers one request from the player: checks the token and the method, works the range out, then writes the
+  /// plain bytes a chunk at a time as each is had.
   Future<void> _serve(HttpRequest r) async {
     final res = r.response;
     var started = false;
@@ -586,6 +605,7 @@ class FileStream implements StreamedMedia {
     _maybeShut();
   }
 
+  /// Closes the files and says so ([onClosed]), once nobody holds the stream and no [whole] is under way.
   void _maybeShut() {
     if (!_closed || _wholes > 0 || _users > 0) return;
     // Its files closed once whatever is being written is.
@@ -638,6 +658,7 @@ class FileStream implements StreamedMedia {
   }
 }
 
+/// A notifier the stream can tell from outside it (notifyListeners is for a notifier's own class).
 class _Changes extends ChangeNotifier {
   void tell() => notifyListeners();
 }

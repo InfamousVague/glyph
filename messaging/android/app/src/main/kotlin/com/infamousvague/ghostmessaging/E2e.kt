@@ -47,6 +47,7 @@ object E2e {
 
     // --- this phone's key --------------------------------------------------------------------------------------------
 
+    /** The Keystore's AES key that seals this phone's private key where it is kept; made the first time it's wanted. */
     private fun wrapKey(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getKey(WRAP_ALIAS, null) as SecretKey?)?.let { return it }
@@ -136,9 +137,11 @@ object E2e {
 
     // --- the people ----------------------------------------------------------------------------------------------------
 
+    /** What is kept of encryption with [address], under their number as [norm] has it; null where nothing is. */
     private fun peer(context: Context, address: String): JSONObject? =
         prefs(context).getString("peer:${norm(address)}", null)?.let { runCatching { JSONObject(it) }.getOrNull() }
 
+    /** Keeps [address]'s record, and lets go of the conversation key made from the one before. */
     private fun save(context: Context, address: String, o: JSONObject) {
         prefs(context).edit().putString("peer:${norm(address)}", o.toString()).apply()
         synchronized(sessions) { sessions.remove(norm(address)) }
@@ -209,6 +212,7 @@ object E2e {
         return System.currentTimeMillis() - prefs(context).getLong("marked:${norm(address)}", 0) >= DAY
     }
 
+    /** A text to [address] has just carried the mark: [wantsMark] says no for a day. */
     fun marked(context: Context, address: String) {
         prefs(context).edit().putLong("marked:${norm(address)}", System.currentTimeMillis()).apply()
     }
@@ -265,6 +269,7 @@ object E2e {
         save(context, address, o)
     }
 
+    /** Everyone something has been exchanged with, each as [state] gives them (the screens' `e2eList`). */
     fun list(context: Context): List<Map<String, Any?>> =
         prefs(context).all.keys.filter { it.startsWith("peer:") }.mapNotNull { k ->
             val o = runCatching { JSONObject(prefs(context).getString(k, "") ?: "") }.getOrNull() ?: return@mapNotNull null
@@ -336,6 +341,7 @@ object E2e {
 
     // --- texts ---------------------------------------------------------------------------------------------------------
 
+    /** The key texts with [address] are sealed under, made from both phones' keys, then held; null without theirs. */
     private fun key(context: Context, address: String): ByteArray? {
         val n = norm(address)
         synchronized(sessions) { sessions[n]?.let { return it } }

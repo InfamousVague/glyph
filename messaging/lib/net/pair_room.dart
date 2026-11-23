@@ -11,6 +11,8 @@ import 'net.dart';
 /// (`https://gogho.st/pair/#<secret>`). The page at that link joins the room and draws each code said in it, sealed
 /// with the key, so the relay carries what it cannot read. Made from lib/ui/gm_web_screen.dart's, for Signal too.
 class PairRoom {
+  // The link's secret, with the room's name and key made from it; the code last said; and the listener for the
+  // page joining.
   Uint8List? _secret;
   String? _room;
   Uint8List? _key;
@@ -56,6 +58,7 @@ class PairRoom {
   /// Tells the page it is done.
   void done() => _say({'t': 'paired'});
 
+  /// Says [m] in the room, sealed with its key; false where there is no room, or the relay can't take it.
   bool _say(Map<String, Object?> m) {
     final room = _room, key = _key, hub = Net.instance.hub;
     if (room == null || key == null || hub == null) return false;
@@ -67,6 +70,7 @@ class PairRoom {
     }
   }
 
+  /// Leaves the room, and no longer asks for the relay to be kept connected for it.
   void close() {
     _came?.cancel();
     final room = _room;

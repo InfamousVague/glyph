@@ -41,6 +41,10 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
     private var channel: DeskCrypto.Channel? = null
     private val sendLock = Any()
 
+    /**
+     * One frame from the computer, as whatever carries the connection hands it over: a kind byte, then a hello in the
+     * clear or a sealed message. A frame that is empty, too long, of no known kind or that will not open ends it.
+     */
     fun receive(frame: ByteArray) {
         if (closed) return
         if (frame.isEmpty() || frame.size > DeskCrypto.MAX_FRAME) return close()
@@ -56,6 +60,11 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
         }
     }
 
+    /**
+     * The computer's first frame, in the clear: who it says it is, a nonce and a one-time public key. Answered with
+     * the phone's, and the session's keys are made from both and the key the two share (the pairing's, or the one
+     * being made). Nothing is trusted yet: that comes with a sealed `ready`, which only the key's holder can send.
+     */
     private fun hello(body: ByteArray) {
         // One hello to a connection: a second would ask for new keys under the old connection's name.
         if (channel != null) return close()
@@ -87,6 +96,10 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
         out(byteArrayOf(DeskCrypto.HELLO) + reply.toString().toByteArray())
     }
 
+    /**
+     * A message that opened under the session's key: `ready` once, then `ev` (something the computer says) and `req`
+     * (something it asks, answered with a `res` of the same id). Anything else ends the connection.
+     */
     private fun sealed(m: JSONObject) {
         val type = m.optString("t")
         if (type == "ready") {
@@ -144,6 +157,7 @@ class DeskSession(private val host: DeskHost, val via: String, private val out: 
         }
     }
 
+    /** Ends the session, once: the host and whatever carried it are told. */
     fun close() {
         if (closed) return
         closed = true
@@ -192,6 +206,7 @@ interface DeskHost {
     /** Runs [work] off the thread frames arrive on, so a long read does not hold the next frame. */
     fun run(method: String, work: () -> Unit)
 
+    /** The session has ended, however it ended: it is to be forgotten. */
     fun closed(session: DeskSession)
 }
 
@@ -304,6 +319,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
     private class Upload(val total: Int, var touched: Long) { val bytes = java.io.ByteArrayOutputStream() }
     private val uploads = LinkedHashMap<String, Upload>()
 
+    /** Does [method] with the arguments [a] and gives its answer; throws, in words for the computer, where it can't. */
     fun call(method: String, a: JSONObject): Any? = when (method) {
         "ping" -> null
         "conversations" -> phone.conversations()
@@ -384,6 +400,7 @@ class DeskCalls(private val phone: DeskPhone, private val now: () -> Long = Syst
         else -> throw IllegalArgumentException("The phone doesn't do \"$method\" for a computer")
     }
 
+    /** The `kind` argument, which must be "sms" or "mms": it names the table a message's id is in. */
     private fun kind(a: JSONObject): String = a.getString("kind").also { require(it == "sms" || it == "mms") { "Not a kind of message" } }
 
     /**

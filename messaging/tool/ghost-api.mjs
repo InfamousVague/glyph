@@ -21,6 +21,7 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 
 const args = process.argv.slice(2);
+// An option's value, taken out of the arguments so that what is left is the method and its parameters.
 const flag = (name) => {
   const i = args.indexOf(name);
   if (i < 0) return undefined;
@@ -52,6 +53,7 @@ if (paramsText) {
 // --- the remote link's keys, as lib/api/seal.dart makes them ---------------------------------------------------------
 const hmac = (key, data) => createHmac('sha256', key).update(data).digest();
 const hkdf = (salt, ikm, info) => hmac(hmac(salt, ikm), Buffer.concat([Buffer.from(info), Buffer.from([1])]));
+// The relay channel, the token that opens it and the sealing key, all from the connection string's secret.
 function keysOf(connection) {
   const m = /^ghostapi1:([0-9a-f]{64})$/.exec(connection.trim());
   if (!m) fail('That is not a connection string: it starts ghostapi1: and has 64 hex digits (Settings › API).');
@@ -64,12 +66,14 @@ function keysOf(connection) {
   };
 }
 const aad = Buffer.from('ghost-api-v1');
+// A sealed frame is a random 12-byte nonce, the ciphertext, then the 16-byte tag.
 function seal(key, clear) {
   const nonce = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', key, nonce);
   c.setAAD(aad);
   return Buffer.concat([nonce, c.update(clear), c.final(), c.getAuthTag()]);
 }
+// The clear bytes of a sealed frame, or null where it is too short or was not sealed with this key.
 function open(key, sealed) {
   const b = Buffer.from(sealed);
   if (b.length < 28) return null;
@@ -84,6 +88,7 @@ function open(key, sealed) {
 }
 
 // --- calling ---------------------------------------------------------------------------------------------------------
+// Straight to the app's own server: one POST a call, with the token as a bearer.
 async function callLocal(name, p) {
   if (!token) fail('The token is needed: --token <token> (Settings › API › Copy the token), or GHOST_API_TOKEN.');
   let r;
@@ -99,6 +104,8 @@ async function callLocal(name, p) {
   return r.json();
 }
 
+// Through the relay: joins the channel as the desk side, waits for the relay to say the phone is there, sends the
+// sealed request, and takes the first sealed answer that carries the request's id.
 function callRemote(name, p) {
   const k = keysOf(remote);
   return new Promise((resolve) => {
@@ -144,6 +151,7 @@ function callRemote(name, p) {
 
 const call = (name, p) => (remote ? callRemote(name, p) : callLocal(name, p));
 
+// With no method, or with --doc, the call is api.describe, and what is printed is made from its list of methods.
 const answer = await call(method && !doc ? method : 'api.describe', method && !doc ? params : {});
 if (!answer.ok) fail(`${answer.error?.code}: ${answer.error?.message}`);
 if (method && !doc) {

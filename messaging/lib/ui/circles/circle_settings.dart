@@ -87,6 +87,7 @@ void openCircleSettingsFull(BuildContext context, String seed, {CircleSettingsSe
 /// Something opened from a section: a role (or everyone, CircleManifest.everyoneId), a space, a person.
 typedef _Open = ({String kind, String id});
 
+/// The settings of the circle with [seed], opened on [section]; [qr] opens Invites with the QR code showing.
 class CircleSettingsPage extends StatefulWidget {
   const CircleSettingsPage({super.key, required this.seed, this.section = CircleSettingsSection.overview, this.qr = false});
   final String seed;
@@ -223,6 +224,7 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
+/// One row of the sidebar: a section, marked when it is the one showing, or Leave and Delete at the foot ([danger]).
 class _SidebarRow extends StatelessWidget {
   const _SidebarRow({super.key, required this.icon, required this.label, required this.chosen, required this.onPressed, this.danger = false});
   final LucideIcon icon;
@@ -310,8 +312,10 @@ class _OpenPage extends StatelessWidget {
   }
 }
 
+/// Whether this device's own key is the circle's owner's. Never true for a circle made without an owner's key.
 bool _isOwner(Circle c) => c.manifest.ownerId.isNotEmpty && Circles.instance.signer?.id == c.manifest.ownerId;
 
+/// A count in words: "1 space", "3 spaces"; [many] where the plural is not the word with an s.
 String _count(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?? '${one}s')}';
 
 /// A section's page: its rows, centred and no wider than a reading line, in its own hue.
@@ -786,6 +790,7 @@ class _RolesList extends StatelessWidget {
   }
 }
 
+/// Permissions as a line of words, in the order CirclePerm lists them; "nothing" for none.
 String _perms(Set<CirclePerm> ps) => ps.isEmpty ? 'nothing' : [for (final p in CirclePerm.values) if (ps.contains(p)) p.label.toLowerCase()].join(', ');
 
 /// The roles' list as one row of their card, so the card's hairlines fall between it and its neighbours.
@@ -865,6 +870,7 @@ class _RoleRow extends StatelessWidget {
   }
 }
 
+/// Asks before deleting role [r], deletes it from the circle as it stands now, and runs [then] once it is gone.
 void _confirmDeleteRole(BuildContext context, Circle c, CircleRole r, {VoidCallback? then}) {
   showChoices(context, title: 'Delete ${r.name}? Whoever has it loses what it gave, and every space forgets what it said of it.', choices: [
     Choice('Delete role', Lucide.trash2, () async {
@@ -879,6 +885,7 @@ void _confirmDeleteRole(BuildContext context, Circle c, CircleRole r, {VoidCallb
 
 // --- what a section opens -------------------------------------------------------------------------------------------
 
+/// The page of what a section opened: a role's editor, a space's permissions, or a person's roles.
 class _OpenBody extends StatelessWidget {
   const _OpenBody({required this.circle, required this.open, required this.onGone});
   final Circle circle;
@@ -1400,12 +1407,14 @@ class _PersonRoles extends StatelessWidget {
 
 // --- leaving --------------------------------------------------------------------------------------------------------
 
+/// Leave circle, asked first: it goes from this device's list only.
 void _leave(BuildContext context, Circle c) {
   showChoices(context, title: 'Leave ${c.name}? It goes from your list; its link brings you back.', choices: [
     Choice('Leave circle', Lucide.logOut, () => _gone(context, c, () => Circles.instance.leave(c), 'Left ${c.name}'), danger: true),
   ]);
 }
 
+/// Delete circle, asked first: every space is taken out for everyone in it, then it is left here.
 void _delete(BuildContext context, Circle c) {
   showChoices(context, title: 'Delete ${c.name}? Every space goes from it for everyone in it, and it goes from your list. This can\'t be undone.', choices: [
     Choice('Delete circle', Lucide.trash2, () => _gone(context, c, () async {

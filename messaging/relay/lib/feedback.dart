@@ -30,6 +30,7 @@ class FeedbackConfig {
   final String notionToken;
   final String dataSource;
 
+  /// Whether both are set; where not, `/feedback` answers 503.
   bool get on => notionToken.isNotEmpty && dataSource.isNotEmpty;
 
   /// `GHOST_NOTION_TOKEN` and `GHOST_NOTION_FEEDBACK`, from the relay's environment file (tool/deploy-relay.mjs --env).
@@ -41,6 +42,8 @@ class FeedbackConfig {
 /// is [httpNotion]; a test gives its own.
 typedef NotionCall = Future<(int, String)> Function(String method, Uri url, Map<String, String> headers, List<int> body);
 
+/// Takes `POST /feedback`, checks who sent it and how often, and files it in Notion (the words above [FeedbackConfig]
+/// say what is sent and what the board holds).
 class Feedback {
   Feedback({required this.config, required this.ownsName, this.accountOf, NotionCall? notion, DateTime Function()? now, this.verbose = false})
       : _notion = notion ?? httpNotion,
@@ -57,7 +60,13 @@ class Feedback {
   final DateTime Function() _now;
   final bool verbose;
 
+  /// The version of Notion's API asked for (the `Notion-Version` header).
   static const notionVersion = '2026-03-11';
+
+  /// [most]: the largest request body, in bytes. [shotsMost] and [shotMost]: how many screenshots are taken, and each
+  /// one's bytes; more or bigger are left out. [textMost], [titleMost]: characters kept of the words and the title.
+  /// [skew]: how far the signed time may be from this server's. [perIdAnHour], [perIdADay]: reports from one sender's
+  /// key. [allADay]: reports from everyone together.
   static const most = 10 * 1024 * 1024;
   static const shotsMost = 3;
   static const shotMost = 3 * 1024 * 1024;
@@ -68,6 +77,7 @@ class Feedback {
   static const perIdADay = 20;
   static const allADay = 300;
 
+  /// What the app sends for a report's kind and platform, and the board's name for each; and the pictures taken.
   static const types = {'bug': 'Bug', 'feature': 'Feature idea', 'confusing': 'Something confusing', 'praise': 'Praise', 'other': 'Other'};
   static const platforms = {'android': 'Android', 'iphone': 'iPhone', 'mac': 'Mac', 'windows': 'Windows', 'linux': 'Linux'};
   static const mimes = {'image/png', 'image/jpeg', 'image/webp', 'image/gif'};
@@ -75,6 +85,8 @@ class Feedback {
   /// The words a sender signs (`path` as the relay is asked for it, `/feedback`).
   static String signedWords(String path, int time, String bodySha) => 'ghost-feedback v1\nPOST\n$path\n$time\n$bodySha';
 
+  // When each sender filed a report in the last day, when anyone did, and the signed requests already taken (a hash
+  // of the key and what it signed -> its time), so one is not taken twice.
   final Map<String, List<DateTime>> _byId = {};
   final List<DateTime> _all = [];
   final Map<String, int> _replays = {};
@@ -91,6 +103,7 @@ class Feedback {
 
     if (r.method != 'POST') return answer(HttpStatus.methodNotAllowed, {'error': 'Feedback is sent with POST.'});
     if (!config.on) return answer(HttpStatus.serviceUnavailable, {'error': 'Feedback isn\'t set up on this server yet.'});
+    // The body is read whole first: the signature is over its hash, so who sent it is known only after.
     final bytes = <int>[];
     try {
       await for (final piece in r.timeout(const Duration(seconds: 30))) {
@@ -159,6 +172,7 @@ class Feedback {
     }
   }
 
+  /// What every call to Notion carries: the integration's secret and the API version.
   Map<String, String> get _headers => {'Authorization': 'Bearer ${config.notionToken}', 'Notion-Version': notionVersion};
 
   /// Files [report] as a page in the board, its screenshots uploaded to Notion first: the ticket's id, `GMFB-12`.
@@ -205,11 +219,14 @@ class Feedback {
     return '${page['id'] ?? ''}';
   }
 
+  /// A title for a report sent without one: its first line, cut to 80 characters.
   static String _titleFrom(String text) {
     final line = text.trim().split('\n').first.trim();
     return line.length <= 80 ? line : '${line.substring(0, 77)}…';
   }
 
+  /// Uploads one screenshot to Notion in its two steps (an upload is made, then the file sent to it as a form); the
+  /// upload's id, which the page then names.
   Future<String> _upload(FeedbackShot s) async {
     final (st1, w1) = await _notion('POST', Uri.parse('https://api.notion.com/v1/file_uploads'), {..._headers, 'Content-Type': 'application/json'}, utf8.encode(jsonEncode({'filename': s.name, 'content_type': s.mime})));
     if (st1 != 200) throw _NotionError(st1, w1);
@@ -247,6 +264,8 @@ class FeedbackReport {
       return w.length > most ? w.substring(0, most) : w;
     }
 
+    // A username is kept without its "@" and in lower case, as the handles' directory compares them; one that isn't
+    // of a username's shape is left out. Screenshots that aren't a picture of a kind taken, or are too big, are too.
     final u = j['username'];
     final username = u is String && RegExp(r'^@?[A-Za-z0-9][A-Za-z0-9._]{2,19}$').hasMatch(u.trim()) ? u.trim().replaceFirst('@', '').toLowerCase() : null;
     final p = j['platform'];
@@ -275,6 +294,7 @@ class FeedbackReport {
   }
 }
 
+/// One screenshot of a report: its file name, its kind and its bytes.
 class FeedbackShot {
   const FeedbackShot({required this.name, required this.mime, required this.bytes});
   final String name;
@@ -282,6 +302,7 @@ class FeedbackShot {
   final Uint8List bytes;
 }
 
+/// Notion answered something other than 200: its status and what it said.
 class _NotionError implements Exception {
   _NotionError(this.status, this.words);
   final int status;

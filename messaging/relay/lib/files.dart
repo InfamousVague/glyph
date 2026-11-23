@@ -74,7 +74,10 @@ class Files {
   String _madeDay = '';
 
   final Map<String, _Space> _spaces = {};
+  // Signed requests already taken (a hash of the key and what it signed -> the time it carried), so none is taken
+  // twice ([_who]); forgotten once past twice [skew].
   final Map<String, int> _replays = {};
+  // Writes by each hub name in the minute numbered [_minute], held to [FilesConfig.writesPerMinute] ([_allowed]).
   final Map<String, int> _writes = {};
   int _minute = 0;
   int _used = 0;
@@ -106,11 +109,13 @@ class Files {
     if (verbose) stdout.writeln('${_now().toIso8601String()} files $what');
   }
 
+  /// Reads every space from the disk, then sweeps every ten minutes.
   Future<void> start() async {
     await _load();
     _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) => unawaited(sweep()));
   }
 
+  /// Stops sweeping and writes every space's meta.json, so a save that was still to come is not lost.
   void stop() {
     _sweeper?.cancel();
     _sweeper = null;
@@ -128,6 +133,9 @@ class Files {
   Directory _dirOf(String id) => Directory('${dir.path}/$id');
   File _blobFile(String space, String id, {bool part = false}) => File('${dir.path}/$space/blobs/$id${part ? '.part' : ''}');
 
+  /// Reads each space's meta.json and sets right what the disk says otherwise: a blob being written is cut back to
+  /// what was last saved, the log's size and count are taken from the file, and a finished blob whose file has gone is
+  /// dropped.
   Future<void> _load() async {
     if (!dir.existsSync()) return;
     await for (final e in dir.list()) {
@@ -172,6 +180,7 @@ class Files {
     await sweep();
   }
 
+  /// Writes [s]'s meta.json now (to a file beside, renamed over), in place of any save still to come.
   void _saveNow(_Space s) {
     s.saver?.cancel();
     s.saver = null;
@@ -186,6 +195,7 @@ class Files {
     }
   }
 
+  /// Writes [s]'s meta.json two seconds after its last change, so a run of pieces or log lines is one write.
   void _saveSoon(_Space s) {
     if (s.removed) return;
     s.saver?.cancel();
@@ -194,6 +204,7 @@ class Files {
 
   // --- answering -------------------------------------------------------------------------------------------------------
 
+  /// Answers [r] with [status] and [body] as JSON, never cached. [_refuse] is the same with `{"err": why}`.
   Future<void> _answer(HttpRequest r, int status, [Map<String, Object?>? body]) async {
     try {
       r.response
@@ -378,6 +389,18 @@ class Files {
     }
   }
 
+  /// The routes, each with the space's token in `Authorization` and every write signed ([_who]):
+  ///
+  /// - `GET /files`: what this store allows (`maxFile`, `quota`); no token.
+  /// - `PUT /files/<space>`: makes the space, or opens the one there; answers [_info].
+  /// - `GET /files/<space>`: [_info]. `DELETE /files/<space>`: removes it and all it holds; its owner only.
+  /// - `GET /files/<space>/log?after=<n>`: a page of the list ([_readLog]). `POST …/log[?after=<n>]`: adds a sealed
+  ///   operation to it ([_appendLine]).
+  /// - `POST /files/<space>/blobs` with `{size, pre?}`: room for a file; answers its id.
+  /// - `PUT …/blobs/<id>?offset=<n>`: the next piece ([_writeBlob]). `GET …/blobs/<id>/state`: how far it has got.
+  ///   `POST …/blobs/<id>/done`: finishes it, once every byte is here; its writer only.
+  /// - `GET` or `HEAD …/blobs/<id>`: the finished blob, with Range ([_readBlob]). `DELETE …/blobs/<id>`: removes it;
+  ///   its writer, the owner, or someone the space's roster lets.
   Future<void> _handle(HttpRequest r) async {
     final parts = r.uri.pathSegments.where((s) => s.isNotEmpty).skip(1).toList();
     if (parts.isEmpty) {
@@ -602,6 +625,8 @@ class Files {
     return (HttpStatus.ok, <String, Object?>{'seq': seq});
   }
 
+  /// What a space says of itself to anyone with its token: how long its list is, how full it is, its limits, its owner
+  /// and the newest roster version believed.
   Map<String, Object?> _info(_Space s) => {
         'seq': s.seq,
         'used': s.used,
@@ -615,6 +640,7 @@ class Files {
         'cas': 1,
       };
 
+  /// Notes that [s] was opened today, which is what keeps it from the ninety days' sweep; saved once a day at most.
   void _touch(_Space s) {
     final today = _day();
     if (s.day == today) return;
@@ -718,6 +744,7 @@ class Files {
     } catch (_) {}
   }
 
+  /// 416 for a Range that is no part of the blob, with the blob's length.
   Future<void> _rangeRefused(HttpRequest r, int length) async {
     r.response
       ..statusCode = HttpStatus.requestedRangeNotSatisfiable
@@ -822,6 +849,7 @@ class Files {
     }
   }
 
+  /// Forgets [b], gives back the room it was promised and deletes its file, finished or part. The caller saves.
   void _dropBlob(_Space s, _Blob b) {
     s.blobs.remove(b.id);
     s.used -= b.size;
@@ -833,6 +861,7 @@ class Files {
     }
   }
 
+  /// Removes the space [s] and its whole folder; [why] is only for the log line.
   void _remove(_Space s, String why) {
     _spaces.remove(s.id);
     s.removed = true;
@@ -902,6 +931,9 @@ class FilesConfig {
 
   /// How many spaces one device's key may make.
   final int spacesPerId;
+
+  /// [idleDays]: days a space may go unopened before it is removed. [writesPerMinute]: signed writes one device's key
+  /// may make in a minute, across every space.
   final int idleDays;
   final int writesPerMinute;
 
@@ -911,6 +943,8 @@ class FilesConfig {
   /// The largest sealed operation in a space's log: room for a file's description with its small picture (at most
   /// 18 KB, about 24 KB as base64) and no more.
   final int maxOp;
+
+  /// The most operations a space's log may hold.
   final int maxOps;
 
   /// The most a space's log may hold on disk, in bytes; it counts against [spaceQuota] and [total] too.
@@ -919,6 +953,9 @@ class FilesConfig {
   /// How many spaces one address may make in a day, and how many bytes of unfinished files it may have promised.
   final int spacesPerAddress;
   final int promisedPerAddress;
+
+  /// [maxBlobs]: the most files in one space, finished or not. [maxSpaces]: the most spaces in all. [partHours]:
+  /// hours an unfinished file may go without a new piece before it is let go.
   final int maxBlobs;
   final int maxSpaces;
   final int partHours;
@@ -976,6 +1013,7 @@ class FilesConfig {
   ];
 }
 
+/// Whoever signed a write, once the signature has checked out.
 class _Who {
   _Who(this.id, this.key);
 
@@ -984,6 +1022,7 @@ class _Who {
   final String key;
 }
 
+/// One Files space as the relay knows it: what meta.json keeps, and what is worked out while it runs.
 class _Space {
   _Space({required this.id, required this.hash, required this.owner, required this.by, required this.created, required this.day, this.seq = 0});
   final String id;
@@ -1000,6 +1039,9 @@ class _Space {
 
   /// The day (UTC) it was last opened.
   String day;
+
+  /// [seq]: the number of the last entry in its log (its count of lines). [used]: bytes it holds or has promised,
+  /// its blobs' sizes and its log, held under [FilesConfig.spaceQuota].
   int seq;
   int used = 0;
 
@@ -1056,6 +1098,8 @@ class _Space {
   }
 }
 
+/// One sealed file in a space. [by] is the hub name of whoever started it, [size] what it was said to be, [have] how
+/// many bytes are on disk, [done] whether it was finished (and so may be read), [writing] whether a piece is arriving.
 class _Blob {
   _Blob({required this.id, required this.by, required this.size, required this.at, this.have = 0, this.done = false, this.pre = false});
   final String id;

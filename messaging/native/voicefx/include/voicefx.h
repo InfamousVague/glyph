@@ -24,10 +24,13 @@ extern "C" {
 #define VOICEFX_EXPORT __attribute__((visibility("default")))
 #endif
 
+/* One microphone's processing state: made once, configured from any thread, run on WebRTC's. */
 typedef struct VoiceFx VoiceFx;
 
+/* What is done about noise (voicefx_configure's mode). */
 enum { VOICEFX_OFF = 0, VOICEFX_RNNOISE = 1, VOICEFX_DEEPFILTER = 2 };
 
+/* A new state, off and at a gain of 1; NULL without memory. Destroy it only once nothing is processing with it. */
 VOICEFX_EXPORT VoiceFx *voicefx_create(void);
 VOICEFX_EXPORT void voicefx_destroy(VoiceFx *fx);
 

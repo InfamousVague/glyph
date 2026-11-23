@@ -95,6 +95,7 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
     super.dispose();
   }
 
+  /// The finger moved: the row follows it, and crossing into another stage is felt.
   void _drag(DragUpdateDetails d) {
     // To the left as far as the row is wide; to the right only a little past Pin, with the pull going slack.
     _pulled = (_pulled + (d.primaryDelta ?? 0)).clamp(-_width, SwipeActions.pinAt * 3);
@@ -117,6 +118,7 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
     });
   }
 
+  /// Let go: the row springs back, and the stage it was let go in is done.
   void _letGo([DragEndDetails? _]) {
     final stage = _stage;
     _from = _dx;
@@ -214,6 +216,7 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
   }
 }
 
+/// Clips to the row's card: the box less [inset], with corners of [radius].
 class _CardClip extends CustomClipper<Path> {
   const _CardClip(this.inset, this.radius);
   final EdgeInsets inset;

@@ -31,6 +31,8 @@ void startOwnFriends(AppState app) {
   _hearBuddies();
 }
 
+/// Friends by username are heard over the hub: it is dialled while there are any, or a username of one's own, and
+/// each friend is watched on it for their presence. Asked again whenever the friends or the username change.
 void _hearBuddies() {
   void hear() {
     Net.instance.want('buddies', Buddies.instance.all.isNotEmpty || Me.instance.username != null);
@@ -44,6 +46,9 @@ void _hearBuddies() {
   });
 }
 
+/// Starts everything about people where the app's own network runs whole (a phone, a device of its own): the
+/// routes, then friends, groups, voice and circles in that order, each built on the one before; and beside them
+/// who this is, the account, scheduled messages and friends by username.
 void startPeople(AppState app) {
   Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has

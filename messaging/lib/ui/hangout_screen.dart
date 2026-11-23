@@ -131,6 +131,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
     super.dispose();
   }
 
+  /// Joins the space's call (with the camera on for [video]), then shows it where this window shows a call.
   Future<void> _join({bool video = false}) async {
     try {
       await Voice.instance.join(widget.channel, video: video);
@@ -541,6 +542,8 @@ class _HangoutChatState extends State<HangoutChat> {
     });
   }
 
+  /// The room changed: what shows is read, the names people gave are kept, and who came and who left since the last
+  /// change are noted (the newest 200). [first] is the call made as the page takes the room up.
   void _roomChanged({bool first = false}) {
     _read();
     final room = widget.room;
@@ -570,6 +573,8 @@ class _HangoutChatState extends State<HangoutChat> {
     if (_comings.length > 200) _comings.removeRange(0, _comings.length - 200);
   }
 
+  /// A person's name for a coming or a going: as they say it now, else as they last said it here, else as Voice
+  /// knows them.
   String _nameOf(String id) {
     final said = widget.room.present[id]?.name ?? '';
     return said.isNotEmpty ? said : (_names[id] ?? Voice.instance.nameOf(id));
@@ -623,6 +628,7 @@ class _HangoutChatState extends State<HangoutChat> {
   /// messages sent in circles from any computer or phone connected to the account that sent it").
   HangoutMessage? _editing;
 
+  /// Puts [m]'s words and mentions in the box to be changed, where this device may edit it; files picked are dropped.
   void _startEdit(HangoutMessage m) {
     if (!widget.room.canEdit(m)) return;
     setState(() {
@@ -638,6 +644,8 @@ class _HangoutChatState extends State<HangoutChat> {
     _text.clear();
   }
 
+  /// Send: saves the message being edited, else sends the files picked with the words, else the words alone. Nothing
+  /// goes while slow mode's wait is still running; the box is cleared only once the room has taken it.
   void _send() {
     final room = widget.room;
     final editing = _editing;
@@ -708,6 +716,7 @@ class _HangoutChatState extends State<HangoutChat> {
     });
   }
 
+  /// Someone chosen from the list over the composer: their mention takes the place of the "@…" being written.
   void _pickMention(MentionPerson p) {
     final q = _query;
     if (q == null) return;
@@ -723,6 +732,7 @@ class _HangoutChatState extends State<HangoutChat> {
     if (mounted) _focus.requestFocus();
   }
 
+  /// The box's keys: Escape out of editing, the mention list's own keys while it is open, and Enter otherwise.
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
     // Escape stops editing a message, its words given back.
     if (_editing != null && _query == null && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
@@ -785,8 +795,6 @@ class _HangoutChatState extends State<HangoutChat> {
     );
   }
 
-  /// The + : any files, pictures, videos and GIFs among them, up to ten with one message, chosen with the device's own
-  /// picker (a phone's copied into the app's folder first, as a Files space's are).
   // --- slow mode (Matt, 2026-11-19: "add ... slow mode"; lib/circles/slow_mode.dart) ----------------------------------
 
   /// This space's wait between this person's messages, in seconds; 0 where there is none for them.
@@ -827,6 +835,9 @@ class _HangoutChatState extends State<HangoutChat> {
         ]);
   }
 
+  /// The +'s files: any files, pictures, videos and GIFs among them, chosen with the device's own picker (a phone's
+  /// copied into the app's folder first, as a Files space's are). They wait over the box to go with the next message,
+  /// up to the most one takes ([HangoutMessage.mostFiles]).
   Future<void> _attach() async {
     if (!FilePlatform.canPick) {
       toast(context, 'Files can\'t be chosen on this device yet.');
@@ -872,6 +883,7 @@ class _HangoutChatState extends State<HangoutChat> {
     }
   }
 
+  /// Stops the recording and sends it as a voice message.
   Future<void> _sendVoice() async {
     setState(() => _recording = null);
     try {
@@ -1273,6 +1285,7 @@ int _atOf(Object row) => switch (row) {
       _ => 0,
     };
 
+/// Whether two times (milliseconds since the epoch) fall on one day by this device's clock: a new day gets a divider.
 bool _sameDay(int a, int b) {
   final x = DateTime.fromMillisecondsSinceEpoch(a), y = DateTime.fromMillisecondsSinceEpoch(b);
   return x.year == y.year && x.month == y.month && x.day == y.day;
@@ -1321,6 +1334,7 @@ class _DialupFoot extends StatelessWidget {
   }
 }
 
+/// Someone in the room, for Dial-Up's "People Here": their name, whether they are in its call, and whether it is you.
 typedef _Here = ({String id, String name, bool voice, bool me});
 
 /// Dial-Up's "People Here: N" on a phone: a strip over the transcript with the count and the first names, which a press
@@ -1477,6 +1491,7 @@ class _Speaker extends CustomPainter {
 MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
     mine || m.text.trim().isEmpty ? null : MessageFacts(thread: -1, senders: [m.from], text: m.text, contact: false, outgoing: false, date: DateTime.fromMillisecondsSinceEpoch(m.at), id: 'space:${m.id}', network: 'space');
 
+/// One message of a space's chat: a bubble, as in a conversation, or a channel's line ([flat]) in a circle.
 class _Message extends StatelessWidget {
   const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
@@ -1895,6 +1910,7 @@ Color? spaceNameInk(Tokens t, HangoutRoom room, String id) {
   return null;
 }
 
+/// The colour a role's people's names are written in; null where the role has none and they are in the text's own.
 Color? roleInk(Tokens t, Role role) {
   final c = role.shownColor;
   return c == null ? null : t.colorOf(c);
@@ -1917,6 +1933,7 @@ void editSpaceAbout(BuildContext context, HangoutRoom room) {
   unawaited(push<void>(context, (_) => _AboutPage(room: room)));
 }
 
+/// The page a space's description is written on.
 class _AboutPage extends StatefulWidget {
   const _AboutPage({required this.room});
   final HangoutRoom room;
@@ -2124,6 +2141,8 @@ Iterable<String> spaceCircleMembers(HangoutRoom room) {
   return {...Circles.instance.seenIn(circle).keys, ...Circles.instance.presentIn(circle)};
 }
 
+/// A person's name in [room], from the nearest place that knows it: as they say it here now, as their last message
+/// had it, as the space's circle saw them, as Voice knows them; else "Someone" with the start of their id.
 String _nameOf(HangoutRoom room, String id) {
   final said = room.present[id]?.name;
   if (said != null && said.isNotEmpty) return said;
@@ -2508,6 +2527,8 @@ class _SpaceFaceState extends State<SpaceFace> {
     if (mounted) setState(() {});
   }
 
+  /// Their picture as it is kept on this device (your own for you), or null; one they say they have that is not
+  /// kept yet is asked of them, once for the room.
   String? _picture() {
     final room = widget.room, id = widget.id;
     if (id == room.me) return Me.instance.pictureSharp;

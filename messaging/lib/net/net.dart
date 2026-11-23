@@ -37,6 +37,8 @@ class Net extends ChangeNotifier implements PeerBook {
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
   static const defaultHub = 'wss://gogho.st/hub';
 
+  // The switchboard and this phone's two routes, once [start] has made them; and the people the routes reach, by
+  // their install's name.
   AppState? _app;
   Switchboard? _board;
   HubCarrier? _hub;
@@ -62,11 +64,15 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// Goes up whenever anyone's presence on the hub changes (HubCarrier.presence).
   final ValueNotifier<int> presence = ValueNotifier(0);
+
+  // Whether the app is put away, and the names watched beside the phone's own people: told to each hub route as it
+  // is made.
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
   void _presenceChanged() => presence.value++;
 
+  /// [hub], set up for presence: listened to, told whether the app is away, and asked about the extra names.
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
     hub.awayNow = _away;
@@ -105,6 +111,9 @@ class Net extends ChangeNotifier implements PeerBook {
     _push = value;
     _hub?.push = value;
   }
+
+  // The SMS route; the people the routes reach; whether the person has the network on; and the relay server's
+  // address (theirs where they gave one, else ours).
   SmsCarrier? get sms => _sms;
   List<Peer> get people => _peers.values.toList();
   bool get on => _app?.flag('net_on') ?? true;
@@ -130,6 +139,7 @@ class Net extends ChangeNotifier implements PeerBook {
     return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
   }
 
+  /// Notes something the routes did, for Settings › Network; the newest thirty are kept.
   void _note(String words, {String? via}) {
     recent.insert(0, NetEvent(words, via: via));
     if (recent.length > 30) recent.removeLast();
@@ -182,6 +192,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
   void resume(Duration away) => _hub?.nudge(away: away);
 
+  /// Reads from the phone who the routes reach, each with their name as the contacts have it.
   Future<void> _readPeers() async {
     final list = await Sms.instance.netPeers();
     final found = <String, Peer>{};
@@ -259,12 +270,14 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
+  /// Turns the whole network on or off, and keeps the choice.
   Future<void> setOn(bool value) async {
     _app?.setFlag('net_on', value);
     await _apply();
     notifyListeners();
   }
 
+  /// Switches the route [id] on or off, and keeps the choice.
   Future<void> setRoute(String id, bool value) async {
     final board = _board;
     if (board == null) return;
@@ -298,6 +311,7 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// What the switchboard brings: handed to everyone who asked to [listen]. A test is noted for Settings too.
   void _received(Received r) {
     final who = r.peer.name ?? r.peer.address ?? r.peer.id.substring(0, 6);
     if (r.envelope.kind == 'ping') _note('A test came from $who', via: r.via);
@@ -335,6 +349,7 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 }
 
+/// Signs with the phone's own key, which never leaves where the phone keeps it: the native side does the signing.
 class _PhoneSigner implements NetSigner {
   _PhoneSigner(this.id, this.publicKey);
   @override
@@ -345,6 +360,7 @@ class _PhoneSigner implements NetSigner {
   Future<Uint8List> sign(List<int> message) => Sms.instance.netSign(message);
 }
 
+/// Data texts by the phone's native side, for the SMS route.
 class _PhoneSms implements SmsBridge {
   @override
   Future<bool> available() => Sms.instance.netSmsAvailable();

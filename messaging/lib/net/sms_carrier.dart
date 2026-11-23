@@ -9,6 +9,8 @@ import 'carrier.dart';
 abstract class SmsBridge {
   /// Whether data texts can be sent and heard now: a SIM, and Android's leave to send and receive SMS.
   Future<bool> available();
+
+  /// Sends [bytes] to [address] as one data text; and the data texts that come, with the number each came from.
   Future<void> send(String address, Uint8List bytes);
   Stream<({String address, Uint8List bytes})> get incoming;
 }

@@ -18,8 +18,10 @@ import 'package:media_kit_video/media_kit_video.dart' as mkv;
 /// [frameLimit]: an upload waits on its preview, and a video no reader can open must not hold it up.
 Future<Uint8List?> videoFrame(String path) => _videoFrame(path).timeout(frameLimit, onTimeout: () => null);
 
+/// The longest [videoFrame] waits: a little over libmpv's three steps at their limit ([mediaKitFrame]).
 const frameLimit = Duration(seconds: 25);
 
+/// The frame by this platform's reader, with no time limit of its own; null where there is none or it failed.
 Future<Uint8List?> _videoFrame(String path) async {
   try {
     if (Platform.isAndroid) return await const MethodChannel('ghost_messaging/sms').invokeMethod<Uint8List>('videoFrame', {'path': path});

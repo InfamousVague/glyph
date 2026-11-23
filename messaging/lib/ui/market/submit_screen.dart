@@ -116,6 +116,7 @@ class _Shot {
   Uint8List? bytes;
 }
 
+/// Marketplace › Submit a plugin: the form. What isn't required is for a test, or to start it with a pack already.
 class SubmitPluginScreen extends StatefulWidget {
   const SubmitPluginScreen({super.key, this.api, this.market, this.pickFile, this.pickPicture, this.pastePicture, this.iconOf, this.shotOf, this.start, this.startVersion, this.startFor, this.from, this.hub});
 
@@ -255,6 +256,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
 
   // --- the draft --------------------------------------------------------------------------------------------------
 
+  /// The form as it stands, for [MarketState] to keep: every field, and which of them the person changed here.
   SubmitDraft _draft() => SubmitDraft(
         packId: _pack!.id,
         name: _name.text,
@@ -582,6 +584,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
     return File(await Sms.instance.cacheCopy(picked.first)).readAsBytes();
   }
 
+  /// Makes the plugin's icon of the picture [get] gives (chosen or pasted), and keeps the draft.
   Future<void> _iconFrom(Future<Uint8List?> Function() get) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -601,6 +604,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
     }
   }
 
+  /// Adds the picture [get] gives as a screenshot, up to [PackLimits.shots] of them and never the same one twice.
   Future<void> _shotFrom(Future<Uint8List?> Function() get) async {
     if (_busy || _shots.length >= PackLimits.shots) return;
     setState(() => _busy = true);
@@ -682,6 +686,8 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
 
   // --- sending ----------------------------------------------------------------------------------------------------
 
+  /// Sends the package in its canonical form with the screenshots and notes, drops the draft, and goes to My
+  /// submissions with the new one marked. What the Marketplace refuses stays on the form.
   Future<void> _send() async {
     if (!_ready) return;
     final pack = _pack!;
@@ -1116,6 +1122,7 @@ Future<Uint8List?> samplesPicture(BuildContext context, PluginPack pack) async {
   }
 }
 
+/// The sample texts' rows as [samplesPicture] draws them.
 class _SampleRows extends StatelessWidget {
   const _SampleRows({required this.pack, required this.rows});
   final PluginPack pack;

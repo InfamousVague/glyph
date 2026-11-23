@@ -133,12 +133,14 @@ class _WakeState extends State<_Wake> {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+/// The line under Me in Settings' list: what is linked so far.
 String meSummary(SettingsModel m) {
   final me = Me.instance;
   final have = [if (me.number != null) 'Number verified', for (final n in networks) if (me.links.containsKey(n.id)) n.name];
   return have.isEmpty ? 'Link your accounts' : have.join(', ');
 }
 
+/// The line under Friends joining in Settings' list: who is new, else how many handles are watched and how many came.
 String friendsSummary(SettingsModel m) {
   final me = Me.instance;
   if (me.unseen > 0) return '${me.unseen} new';
@@ -146,6 +148,7 @@ String friendsSummary(SettingsModel m) {
   return 'Watching for ${me.watch.length}${me.joined.isEmpty ? '' : ' · ${me.joined.length} here'}';
 }
 
+/// Settings › Me: the profile, the number, and each network's account to link.
 List<Widget> mePane(BuildContext context, SettingsModel m) {
   final me = Me.instance;
   return [
@@ -346,6 +349,7 @@ class _NumberScreenState extends State<NumberScreen> {
     }
   }
 
+  /// Asks for a code to be texted to the number typed; one that arrived before the server answered is checked at once.
   Future<void> _send() async {
     final number = tidyNumber(_number.text);
     if (!numberFits(number)) {
@@ -551,6 +555,7 @@ class _ProofScreenState extends State<ProofScreen> {
     super.dispose();
   }
 
+  /// Asks the relay server for the code to put in the profile of the handle typed.
   Future<void> _getCode() async {
     final handle = tidyHandle(_handle.text);
     if (!handleFits(n.id, handle)) {
@@ -568,6 +573,7 @@ class _ProofScreenState extends State<ProofScreen> {
     }
   }
 
+  /// Has the relay server look for the code in the profile; found, the account is linked and the screen leaves.
   Future<void> _check() async {
     final handle = _for;
     if (handle == null) return;
@@ -650,6 +656,7 @@ class _ProofScreenState extends State<ProofScreen> {
 
 String _when(DateTime at) => listWhen(at);
 
+/// Settings › Friends joining: who of the watched has come, the handles watched for, and ways to add more.
 List<Widget> friendsPane(BuildContext context, SettingsModel m) {
   final me = Me.instance;
   final importable = [for (final n in networks) if (n.follows && me.links.containsKey(n.id)) n];
@@ -686,6 +693,7 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
   ];
 }
 
+/// Someone watched for who has joined: their handle and network, New until the page has been looked at and left.
 class _JoinedRow extends StatelessWidget implements PaneRow {
   const _JoinedRow({required this.joined});
   final Joined joined;
@@ -711,6 +719,7 @@ class _JoinedRow extends StatelessWidget implements PaneRow {
   }
 }
 
+/// Brings in everyone the linked account follows on [network], to watch for.
 class _ImportRow extends StatefulWidget implements PaneRow {
   const _ImportRow({required this.network});
   final Network network;
@@ -770,6 +779,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
     super.dispose();
   }
 
+  /// Watches for every handle typed that fits the network, and says how many were added and how many didn't fit.
   void _add() {
     final all = Me.split(_text.text);
     final fits = all.where((h) => handleFits(_network, h)).toList();

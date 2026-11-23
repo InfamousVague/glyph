@@ -120,17 +120,22 @@ class RecordingMeter extends ChangeNotifier {
 
   /// Each voice's loudness by step, 0 to 1 (the loudest sample in it), from the recording's start.
   final Map<String, List<double>> levels = {};
+
+  /// How many bytes of each voice's file have gone into [levels] already.
   final Map<String, int> _read = {};
 
   /// Each voice now (Matt, 2026-11-20: "show audio tracks being recorded in real time with meters and whatnot as well
   /// as voice level changing"): the loudest sample and the average power (RMS) of the newest twentieth of a second
   /// written, both 0 to 1 as the file holds them, before any fader. Zero for a voice that has stopped being written.
   final Map<String, ({double peak, double rms})> now = {};
+
+  /// Each file's length at the last look: one that hasn't grown since has stopped being written.
   final Map<String, int> _length = {};
 
   /// Voices that have clipped since the lamp was last cleared ([clearClip]).
   final Set<String> clipped = {};
 
+  /// Forgets everything read, for a new recording or after one stops.
   void clear() {
     levels.clear();
     _read.clear();
@@ -164,6 +169,7 @@ class RecordingMeter extends ChangeNotifier {
         final was = now[e.key];
         if (grew && length >= 2) {
           raf = f.openSync();
+          // Two bytes a sample; `& ~1` keeps the read on a whole sample where the file ends mid-write.
           final take = (length < window * 2 ? length : window * 2) & ~1;
           raf.setPositionSync((length - take) & ~1);
           final d = ByteData.sublistView(raf.readSync(take));
@@ -240,6 +246,8 @@ class RecordingMix extends ChangeNotifier {
   final Map<String, double> _fader = {};
   final Set<String> _muted = {};
   final Set<String> _solo = {};
+
+  /// Each voice's changes of loudness in the mix, in order of sample.
   final Map<String, List<GainPoint>> _points = {};
 
   /// Goes up with every change, for whoever keeps something worked out from the points.
@@ -267,6 +275,7 @@ class RecordingMix extends ChangeNotifier {
   /// Every change made to [key]'s loudness in the mix, in order; empty where it was never other than as recorded.
   List<GainPoint> points(String key) => List.unmodifiable(_points[key] ?? const <GainPoint>[]);
 
+  /// Back to every voice as recorded, with no changes kept.
   void clear() {
     _fader.clear();
     _muted.clear();
@@ -318,6 +327,8 @@ class RecordingMix extends ChangeNotifier {
   }
 }
 
+/// Records the call this device is in: drives the native half (channel 'ghost/recorder'), follows who has said yes,
+/// and on stopping mixes, encodes and names the MP4. Also keeps the list of recordings on this device.
 class CallRecorder extends ChangeNotifier {
   CallRecorder._();
   static final CallRecorder instance = CallRecorder._();
@@ -350,12 +361,14 @@ class CallRecorder extends ChangeNotifier {
   /// Where the recording is now, in samples from its start (the voices' files are kept in step by the clock).
   int get position {
     final t = _now;
+    // 48 samples a millisecond (48 kHz).
     return t == null ? 0 : (DateTime.now().difference(t.started).inMicroseconds * 48 ~/ 1000);
   }
 
   /// The keys of the voices there are, for a solo, which moves every one of them.
   Iterable<String> get _keys => _now?.names.keys ?? const <String>[];
 
+  // The mixer's controls, each change stamped with where the recording is now.
   void setFader(String key, double value) => mix.setFader(key, value, position);
   void setMuted(String key, bool on) => mix.setMuted(key, on, position, among: _keys);
   void setSolo(String key, bool on) => mix.setSolo(key, on, position, among: _keys);
@@ -384,6 +397,7 @@ class CallRecorder extends ChangeNotifier {
     ];
   }
 
+  /// Each voice's key and the raw sound file the native half writes for it.
   Map<String, String> _files(_Taking t) => {for (final k in t.names.keys) k: '${t.dir}/${_safe(k)}.pcm'};
 
   /// Being made into a file after stopping.
@@ -415,8 +429,10 @@ class CallRecorder extends ChangeNotifier {
     return List.unmodifiable(_kept);
   }
 
+  /// The list of kept recordings, as JSON in the recordings folder.
   File get _index => File('${folder().path}/recordings.json');
 
+  /// Reads the list once, leaving out any recording whose MP4 is gone.
   void _readKept() {
     if (_read) return;
     _read = true;
@@ -488,6 +504,7 @@ class CallRecorder extends ChangeNotifier {
     return null;
   }
 
+  /// Ticks whenever the session changes (someone's answer, mute, coming or going) or someone's sound arrives or goes.
   Stream<void> _changes(VoiceSession s) {
     final c = StreamController<void>();
     void tell() => c.add(null);
@@ -505,6 +522,7 @@ class CallRecorder extends ChangeNotifier {
   Future<void> _follow(VoiceSession s) async {
     final t = _now;
     if (t == null) return;
+    // The call ended or was left: the recording ends with it.
     if (Voice.instance.session != s || !s.joined) {
       unawaited(stop());
       return;
@@ -570,6 +588,7 @@ class CallRecorder extends ChangeNotifier {
       });
       final names = ['Everyone', for (final k in keys) t.names[k]!];
       await Mp4Names.apply(out, names);
+      // As long as its longest voice: the native half answers each voice's length in samples.
       seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
       voices = keys.length;
       final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed, markers: List.of(t.markers));
@@ -611,6 +630,7 @@ class CallRecorder extends ChangeNotifier {
   /// A file name for a member's key: their id is hex already; 'me' is 'me'.
   static String _safe(String key) => key.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
 
+  /// A new recording's id: `rec` and the time now in hex.
   static String _hexId() {
     final r = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
     return 'rec$r';
@@ -627,6 +647,7 @@ void mixPcm(List<String> inputs, String out, {List<List<GainPoint>>? gains}) {
   final files = [for (final p in inputs) File(p).openSync()];
   final sink = File(out).openSync(mode: FileMode.write);
   // Where each input is in its points, and how loud it is and is heading.
+  // Samples a full swing of gain takes: a hundredth of a second.
   const ramp = 480;
   final next = List<int>.filled(inputs.length, 0);
   final at = List<double>.filled(inputs.length, 1);

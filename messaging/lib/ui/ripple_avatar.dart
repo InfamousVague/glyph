@@ -43,6 +43,7 @@ class _RippleAvatarState extends State<RippleAvatar> with SingleTickerProviderSt
     _follow();
   }
 
+  /// Runs the rings' clock while they talk, and stops it once the rings have faded.
   void _follow() {
     final speaking = !widget.muted && widget.level > RippleAvatar.talking;
     if (speaking && !_time.isAnimating) _time.repeat();
@@ -95,6 +96,8 @@ class _RippleAvatarState extends State<RippleAvatar> with SingleTickerProviderSt
   }
 }
 
+/// Three rings going out from the face of [radius], one after another: [time] is 0 to 1 round the loop, [strength]
+/// how strongly they are drawn.
 class _Ripples extends CustomPainter {
   _Ripples({required this.time, required this.strength, required this.color, required this.radius});
   final double time;

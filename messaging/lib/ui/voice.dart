@@ -42,6 +42,7 @@ class VoiceRecorder extends StatefulWidget {
 }
 
 class _VoiceRecorderState extends State<VoiceRecorder> {
+  /// How often the loudness is asked for, and how many of the latest readings are kept for the picture of it.
   static const _beat = Duration(milliseconds: 100);
   static const _kept = 64;
   final _watch = Stopwatch()..start();
@@ -73,12 +74,15 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
     return run > most ? most : run;
   }
 
+  /// The recording has reached the most it may be (the phone said so, or the clock here did): the clock stops, and
+  /// the row says why.
   void _fill() {
     if (_full || !mounted) return;
     _watch.stop();
     setState(() => _full = true);
   }
 
+  /// Every beat: counts it, stops at the limit, and otherwise adds the microphone's level now to the readings.
   Future<void> _tick() async {
     if (_full) return;
     _beats++;
@@ -231,6 +235,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
     super.dispose();
   }
 
+  /// The phone's word on what is playing, sent to every player: only the one whose part it names follows it.
   void _heard(VoicePlayback v) {
     if (v.part != widget.part) {
       // Another one is playing now: this one is back at its start.

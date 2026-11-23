@@ -32,6 +32,8 @@ class ChatBackground {
 
   /// none, wallpaper, preset, color, image, wash.
   final String kind;
+
+  /// What comes after the kind's colon: a preset's id, a colour, a picture's path, a wash's four colours.
   final String value;
 
   static const none = ChatBackground('none');
@@ -44,8 +46,10 @@ class ChatBackground {
   /// enough in light and deep enough in dark for the page's ink.
   bool get busy => kind == 'image' || kind == 'color';
 
+  /// The one word it is kept as, which [ChatBackground.parse] reads back.
   String get raw => switch (kind) { 'none' || 'wallpaper' => kind, _ => '$kind:$value' };
 
+  /// Reads a kept choice. Anything that is not one (a preset that is gone, a colour that is no colour) is none.
   factory ChatBackground.parse(String? raw) {
     if (raw == null || raw.isEmpty || raw == 'none') return none;
     if (raw == 'wallpaper') return wallpaper;
@@ -62,6 +66,7 @@ class ChatBackground {
     };
   }
 
+  /// The choice a conversation's own background is kept under.
   static String threadKey(int thread) => 'chat_bg_$thread';
 
   /// Every chat's.
@@ -117,6 +122,7 @@ class ChatBackground {
   }
 }
 
+/// The colour `#RRGGBB` names (with or without the #), opaque; null where it is not six hex digits.
 Color? _hex(String text) {
   final h = text.trim().replaceFirst('#', '');
   if (h.length != 6) return null;
@@ -136,6 +142,7 @@ class ChatPreset {
   final Color darkBottom;
 }
 
+/// The washes offered, in the order shown. A kept `preset:<id>` names one, so an id is never changed.
 const chatPresets = <ChatPreset>[
   ChatPreset('ghost', 'Ghost', Color(0xFFE2FAFA), Color(0xFFD0F1F4), Color(0xFF001F1E), Color(0xFF062B30)),
   ChatPreset('mist', 'Mist', Color(0xFFEEF2F7), Color(0xFFDCE5F0), Color(0xFF0F141B), Color(0xFF172230)),
@@ -156,8 +163,11 @@ const chatColors = ['#DCE8FB', '#E4DCF7', '#F8DCE6', '#FBE6D4', '#F5EDCB', '#DDF
 @immutable
 class PhonePalette {
   const PhonePalette(this._colors);
+
+  /// Android's colours by their names ("accent1_100"…).
   final Map<String, Color> _colors;
 
+  /// The palette as last read; null before Android 12, or until [load] has run.
   static PhonePalette? current;
 
   /// Returns true when the palette is new.
@@ -225,6 +235,7 @@ class BubbleColor {
   final Color? color;
 }
 
+/// The colours offered, in the order shown. The id is what is kept as the choice.
 const bubbleColors = <BubbleColor>[
   // The look's own (lib/looks.dart): its rules' --app-bubble-mine, offered only while a look other than Ghost is
   // chosen. Ghost Keyboard does not know it; it is told the look's nearest colour instead (AccentSync.kt).
@@ -247,6 +258,7 @@ const bubbleColors = <BubbleColor>[
   BubbleColor('mint', 'Mint', Color(0xFF1F9E8F)),
 ];
 
+/// The colour kept as [id]; Ghost where the id is none of them.
 BubbleColor bubbleColor(String id) => bubbleColors.firstWhere((b) => b.id == id, orElse: () => bubbleColors.firstWhere((b) => b.id == 'ghost'));
 
 /// The bubble colour [thread] wears: its own (the `bubble_<thread>` choice), else everywhere's.
@@ -263,6 +275,8 @@ Color inkOn(Color ground) => ground.computeLuminance() > 0.5 ? const Color(0xFF1
 /// light), the page's ink, the accent Android takes from the phone's wallpaper, or one of [bubbleColors].
 (Color, Color) myBubble(Tokens t, AppState app, [int? thread]) => bubbleOf(t, bubbleChoice(app, thread));
 
+/// The bubble and the words on it for the colour kept as [id]. Ghost Keyboard's primary where the id is 'ghost' or
+/// unknown, and where the wallpaper has no palette.
 (Color, Color) bubbleOf(Tokens t, String id) {
   switch (id) {
     case 'theme':

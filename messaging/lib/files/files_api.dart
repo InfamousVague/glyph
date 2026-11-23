@@ -44,8 +44,10 @@ class FilesApi {
     return u.replace(scheme: u.scheme == 'ws' ? 'http' : (u.scheme == 'wss' ? 'https' : u.scheme), pathSegments: [...segments, 'files'], query: null, fragment: null);
   }
 
+  /// The path of a request about this space: the base's path, the space's name, then [rest].
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';
 
+  /// Opens a request carrying the space's token; with [signBody], signed by this install's hub key too.
   Future<HttpClientRequest> _open(String method, String rest, {List<int>? signBody, bool sayHash = false}) async {
     final path = _path(rest);
     final req = await _http.openUrl(method, base.replace(path: path.split('?').first, query: path.contains('?') ? path.substring(path.indexOf('?') + 1) : null));
@@ -72,6 +74,7 @@ class FilesApi {
     return req;
   }
 
+  /// The answer as JSON; a status of 300 or more is thrown as a [FilesError] with the relay's words.
   Future<Map<String, dynamic>> _json(HttpClientResponse res) async {
     final text = await res.transform(utf8.decoder).join();
     Map<String, dynamic> m;
@@ -84,6 +87,7 @@ class FilesApi {
     return m;
   }
 
+  /// One request and its JSON answer. Every way of not reaching the server comes out as a [FilesError] of status 0.
   Future<Map<String, dynamic>> _call(String method, String rest, {List<int>? body, bool sign = false, bool sayHash = false}) async {
     try {
       final req = await _open(method, rest, signBody: sign ? (body ?? const []) : null, sayHash: sayHash);
@@ -113,6 +117,7 @@ class FilesApi {
   Future<FilesInfo> ensure({String owner = '', Map<String, Object?>? rv}) async =>
       FilesInfo.from(await _call('PUT', '', body: utf8.encode(jsonEncode({'owner': owner, 'rv': ?rv})), sign: true));
 
+  /// What the relay says of the space now.
   Future<FilesInfo> info() async => FilesInfo.from(await _call('GET', ''));
 
   /// The log's entries after [after]: each `{s, by, at, o}` with `o` the sealed operation in base64.
@@ -129,6 +134,7 @@ class FilesApi {
   /// ([put]), so the relay refuses one that doesn't before reading it; a relay from before reads past it.
   Future<String> newBlob(int size) async => (await _call('POST', '/blobs', body: utf8.encode(jsonEncode({'size': size, 'pre': true})), sign: true))['id'] as String;
 
+  /// How many sealed bytes of [blob] the relay has, how many it is to be, and whether it was finished ([done]).
   Future<({int have, int size, bool done})> state(String blob) async {
     final m = await _call('GET', '/blobs/$blob/state');
     return (have: (m['have'] as num).toInt(), size: (m['size'] as num).toInt(), done: m['done'] == true);
@@ -137,6 +143,7 @@ class FilesApi {
   /// A piece of a blob at [offset] (where it has got to): what it has after.
   Future<int> put(String blob, int offset, Uint8List bytes) async => ((await _call('PUT', '/blobs/$blob?offset=$offset', body: bytes, sign: true, sayHash: true))['have'] as num).toInt();
 
+  /// Tells the relay [blob] is all there.
   Future<void> done(String blob) => _call('POST', '/blobs/$blob/done', sign: true);
 
   /// Lets [blob] go on the relay: this device's own, or the owner's; or anyone's, as a moderator or admin, with the
@@ -174,6 +181,7 @@ class FilesApi {
     }
   }
 
+  /// Drops its connections at once, whatever is under way on them.
   void close() => _http.close(force: true);
 
   /// Lets its connections go once what is under way on them is done (a client replaced, not stopped).
@@ -183,6 +191,9 @@ class FilesApi {
 /// What the relay says of a space: how much it holds and may hold, the largest file, and the log's last number.
 class FilesInfo {
   const FilesInfo({this.seq = 0, this.used = 0, this.quota = 0, this.maxFile = 0, this.files = 0, this.owner = '', this.rv = 0, this.cas = false});
+
+  /// The log's last number; the sealed bytes held and allowed, and the largest file allowed (0 where the relay names
+  /// no limit); how many files; and the owner's key as the relay has it ('' where it has none).
   final int seq, used, quota, maxFile, files;
   final String owner;
 
@@ -202,5 +213,6 @@ class FilesInfo {
         rv: (m['rv'] as num?)?.toInt() ?? 0,
         cas: m['cas'] == 1,
       );
+  /// As kept with the list on this device: the numbers only, the rest is asked again.
   Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files};
 }

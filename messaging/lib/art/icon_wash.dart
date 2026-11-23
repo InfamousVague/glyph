@@ -12,10 +12,13 @@ import 'dart:math' as math;
 /// page makes iconWash.css from the same rule.
 class IconShape {
   const IconShape(this.tag, this.attrs);
+
+  /// The svg element it is (`path`, `rect`, `circle`…), and its attributes as written.
   final String tag;
   final Map<String, String> attrs;
 }
 
+/// The box round a shape, in the icon's own units: what shapes are ranked and told apart by.
 class IconBounds {
   const IconBounds(this.left, this.top, this.right, this.bottom);
   final double left, top, right, bottom;
@@ -33,6 +36,7 @@ const double _closed = 0.75;
 
 double _num(String? value, [double fallback = 0]) => value == null ? fallback : double.parse(value);
 
+/// The smallest box that holds every one of [points]; null for none.
 IconBounds? _boundsOf(List<(double, double)> points) {
   if (points.isEmpty) return null;
   var left = points.first.$1, right = left, top = points.first.$2, bottom = top;
@@ -77,6 +81,8 @@ final RegExp _letter = RegExp(r'[a-zA-Z]');
   var x = 0.0, y = 0.0, startX = 0.0, startY = 0.0;
   var subpaths = 0;
   var allClosed = true, open = false;
+  // A stretch of the path ends, by a Z ([zed]) or by the next move: without a Z it counts as closed only where it
+  // came back to within a stroke's width of its start.
   void endSubpath(bool zed) {
     if (!open) return;
     if (!zed && math.sqrt((x - startX) * (x - startX) + (y - startY) * (y - startY)) > _closed) allClosed = false;
@@ -167,6 +173,7 @@ IconBounds? _closedBounds(IconShape shape) {
   }
 }
 
+/// Whether two boxes sit clear of each other: side by side or one above the other, overlapping by half a unit at most.
 bool _apart(IconBounds a, IconBounds b) => a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5;
 
 /// The shapes of an icon that wear the wash (`bodiesOf`), by their place among its shapes (from 0), in that order:

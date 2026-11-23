@@ -23,6 +23,8 @@ import 'api.dart';
 
 // --- what the methods answer with ------------------------------------------------------------------------------------
 
+// A person, a conversation of texts and one of its messages, another network's chat and one of its messages, and
+// someone's presence, each as JSON. The field names are the API's, so changing one changes what clients read.
 Map<String, Object?> personJson(Person p) => {'address': p.address, 'name': p.name};
 
 Map<String, Object?> conversationJson(Conversation c) => {
@@ -82,9 +84,11 @@ Map<String, Object?>? presenceJson(InboxPresence? p) => p == null ? null : {'net
 
 // --- small helpers ---------------------------------------------------------------------------------------------------
 
+// A parameter read as a whole number or as words; one missing, with no fallback, is a bad_params error.
 int _int(Map<String, Object?> p, String k, [int? fallback]) => (p[k] as num?)?.toInt() ?? fallback ?? (throw ApiError('bad_params', '"$k" is needed'));
 String _str(Map<String, Object?> p, String k) => (p[k] as String?) ?? (throw ApiError('bad_params', '"$k" is needed'));
 
+/// The network a call names in "network", which must be signed in: an [ApiError] where it isn't one or isn't.
 InboxNetwork _network(Map<String, Object?> p) {
   final id = _str(p, 'network');
   final n = Inbox.instance.named(id);
@@ -93,6 +97,7 @@ InboxNetwork _network(Map<String, Object?> p) {
   return n;
 }
 
+/// The app's shell, for the methods that change what is on the screen; fails while no screen is open.
 AppShellState _shell() => AppShellState.live ?? (throw const ApiError('failed', 'The app\'s screens are not open.'));
 
 /// The id a plugin's file gives itself, where it is readable at all: what an answer about a broken one names.
@@ -111,6 +116,7 @@ void _devModeOn(AppState app) {
   if (!app.flag('dev_mode', fallback: false)) throw const ApiError('failed', 'Turn on developer mode first: tap Settings › About › Version twelve times.');
 }
 
+// Parameters that several methods take.
 const _thread = ApiParam('thread', 'int', 'The conversation\'s number (conversations.list gives them).', required: true, example: 4);
 const _netParam = ApiParam('network', 'string', 'telegram or signal.', required: true, example: 'telegram');
 const _chatParam = ApiParam('chat', 'string', 'The chat\'s id on that network (networks.chats gives them).', required: true, example: '123456789');

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build, test and run it · Ghost Messaging docs</title>
+<meta name="description" content="Running the app and the relay from source, the tests, the scripts, and how the code is commented.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/">Docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">Getting started</div><a href="/docs/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ghost"/></svg><span>Welcome</span></a><a href="/docs/alpha/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#flask-conical"/></svg><span>Join the alpha</span></a><a href="/docs/install/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#download"/></svg><span>Install the app</span></a><a href="/docs/first-run/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#rocket"/></svg><span>The first time you open it</span></a><a href="/docs/account/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg><span>Your account</span></a><a href="/docs/how-accounts-work/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#badge-check"/></svg><span>How your account works</span></a><a href="/docs/profile/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-user"/></svg><span>Your profile and number</span></a></div><div class="nav-group"><div class="nav-title">Circles, spaces and calls</div><a href="/docs/circles/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#users"/></svg><span>Make a circle and invite people</span></a><a href="/docs/spaces/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg><span>Spaces</span></a><a href="/docs/roles/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg><span>Roles and permissions</span></a><a href="/docs/sms-spaces/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#smartphone"/></svg><span>SMS spaces</span></a><a href="/docs/calls/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#headphones"/></svg><span>Calls</span></a><a href="/docs/files/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#folder"/></svg><span>Files spaces</span></a></div><div class="nav-group"><div class="nav-title">Plugins</div><a href="/docs/plugins/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#store"/></svg><span>The Marketplace</span></a><a href="/docs/record-call/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-dot"/></svg><span>Record call</span></a><a href="/docs/scribe/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#file-text"/></svg><span>Scribe</span></a><a href="/docs/live-captions/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#type"/></svg><span>Live captions</span></a><a href="/docs/watch-together/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#film"/></svg><span>Watch together</span></a><a href="/docs/translate/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#languages"/></svg><span>Translate</span></a><a href="/docs/codes/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#key-round"/></svg><span>Codes</span></a><a href="/docs/spam/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#ban"/></svg><span>Spam filter</span></a><a href="/docs/kinds/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#list-filter"/></svg><span>Kinds of text</span></a><a href="/docs/unknown-numbers/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-round-search"/></svg><span>Unknown numbers</span></a><a href="/docs/quiet-hours/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Quiet hours</span></a><a href="/docs/link-previews/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#link"/></svg><span>Link previews</span></a><a href="/docs/quick-actions/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#calendar-plus"/></svg><span>Quick actions</span></a><a href="/docs/replies/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#reply"/></svg><span>Replies</span></a><a href="/docs/cleaner/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#brush-cleaning"/></svg><span>Cleaner</span></a><a href="/docs/discord/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#bot"/></svg><span>Discord servers</span></a></div><div class="nav-group"><div class="nav-title">Build a plugin</div><a href="/docs/build-a-plugin/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#code"/></svg><span>Build a plugin</span></a><a href="/docs/plugin-quick-start/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#rocket"/></svg><span>Your first plugin</span></a><a href="/docs/plugin-format/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#file-code"/></svg><span>The plugin file</span></a><a href="/docs/plugin-rules/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#list-filter"/></svg><span>Tags, tabs and buttons</span></a><a href="/docs/plugin-phrases/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#text-search"/></svg><span>Phrases and tokens</span></a><a href="/docs/plugin-permissions/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg><span>What a plugin may do</span></a><a href="/docs/plugin-testing/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#flask-conical"/></svg><span>Try it in Developer mode</span></a><a href="/docs/plugin-submit/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#send"/></svg><span>Submit it to the Marketplace</span></a><a href="/docs/plugin-guidelines/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#list-checks"/></svg><span>Marketplace guidelines</span></a></div><div class="nav-group"><div class="nav-title">Messaging</div><a href="/docs/texts/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-square"/></svg><span>Texts and conversations</span></a><a href="/docs/google-messages/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-circle"/></svg><span>Beside Google Messages</span></a><a href="/docs/friends/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Friends</span></a><a href="/docs/networks/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#send"/></svg><span>Telegram, Signal and more</span></a><a href="/docs/encryption/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#lock"/></svg><span>Encrypted texts</span></a></div><div class="nav-group"><div class="nav-title">Computers</div><a href="/docs/computers/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#laptop"/></svg><span>Mac, Windows and Linux apps</span></a><a href="/docs/pairing/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#qr-code"/></svg><span>Pair a computer with your phone</span></a></div><div class="nav-group"><div class="nav-title">Privacy and settings</div><a href="/docs/privacy/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#eye"/></svg><span>Privacy and safety</span></a><a href="/docs/settings/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#settings"/></svg><span>Settings, at a glance</span></a><a href="/docs/routes/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Routes</span></a><a href="/docs/coming-soon/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#clock"/></svg><span>Coming soon</span> <span class="badge soon">Soon</span></a></div><div class="nav-group"><div class="nav-title">Developer docs</div><a href="/docs/dev-architecture/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#network"/></svg><span>How the app is built</span></a><a href="/docs/dev-flows/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#workflow"/></svg><span>How the parts work together</span></a><a href="/docs/dev-build/" aria-current="page"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#terminal"/></svg><span>Build, test and run it</span></a><a href="/docs/dev-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#book-open"/></svg><span>API overview and Postman</span></a><a href="/docs/developer/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#braces"/></svg><span>App API</span></a><a href="/docs/dev-relay-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Relay server API</span></a><a href="/docs/dev-hub/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>The hub and pairing protocols</span></a></div></aside>
+  <main id="main" class="page">
+    <div class="crumb">Developer docs</div>
+    <h1>Build, test and run it</h1>
+    <p class="lede">Running the app and the relay from source, the tests, the scripts, and how the code is commented.</p>
+    <p>Everything is in one repository, <a href="https://github.com/InfamousVague/ghost-messaging">github.com/InfamousVague/ghost-messaging</a>, under the AGPL-3.0. A build from source isn't signed as the releases are, so it installs as a separate app beside the real one.</p>
+
+<h2 id="need">What you need</h2>
+<ul>
+  <li><b>Flutter</b> (stable), which brings Dart. The relay uses the same Dart and nothing else.</li>
+  <li>For Android: the Android SDK and a phone or emulator. For a Mac or iPhone build: Xcode.</li>
+  <li><b>Node</b> for the scripts in <code>tool/</code> and the Discord bot; <b>Go</b> only to build the helper programs in <code>sidecar/</code>.</li>
+</ul>
+
+<h2 id="run">Run it</h2>
+<pre><code>flutter pub get
+flutter run                                    # on the connected phone, or -d macos / windows / linux
+flutter build apk --release --target-platform android-arm64
+flutter build macos</code></pre>
+<p>A computer's build starts in <code>lib/desktop/main.dart</code>; with no phone paired it runs on its own, with an account and no texts. The app talks to the relay at gogho.st unless <span class="ui-path">Settings › Routes</span> is given another.</p>
+
+<h2 id="relay">Run the relay</h2>
+<pre><code>cd relay
+dart pub get                                   # the test package only
+dart run bin/relay.dart --port 8787 --verbose  # ws://127.0.0.1:8787/hub and /relay/&lt;channel&gt;
+dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server</code></pre>
+<p>Put it behind a web server that holds the certificate and passes <code>/hub</code>, <code>/relay/*</code>, <code>/files*</code>, <code>/market*</code>, <code>/link/*</code>, <code>/word/*</code> and <code>/feedback</code> to it. Then point an app at it: <span class="ui-path">Settings › Routes</span> takes the hub's address. <a href="/docs/dev-relay-api/#own">Running your own</a> lists what it reads from its environment.</p>
+
+<h2 id="tests">Tests</h2>
+<table>
+  <tr><th>Run</th><th>What it covers</th></tr>
+  <tr><td><code>flutter test</code></td><td>The app: about 200 files in <code>test/</code>, by feature. Screen tests draw each screen and compare it with the picture in <code>test/shots</code>; <code>--update-goldens</code> writes them again. Several start the real relay in the test's own process and send through it.</td></tr>
+  <tr><td><code>cd relay &amp;&amp; dart test</code></td><td>The relay, part by part.</td></tr>
+  <tr><td><code>cd android &amp;&amp; ./gradlew :app:testDebugUnitTest</code></td><td>The Kotlin that needs no phone: the MMS format, the encryption, the link's sealing and session.</td></tr>
+  <tr><td><code>cd discord &amp;&amp; npm test</code></td><td>The Discord bot and its bridge.</td></tr>
+  <tr><td><code>go test ./...</code> in a <code>sidecar/</code> folder</td><td>That helper program.</td></tr>
+  <tr><td><code>flutter test tool/net/live_hub_test.dart --dart-define=HUB=wss://…/hub</code></td><td>Two made-up installs through a running relay. <code>tool/net</code> has one of these for each of the relay's parts.</td></tr>
+  <tr><td><code>flutter test integration_test/… -d macos</code></td><td>On a real device: the desktop link against a phone, the native recorder and transcripts.</td></tr>
+</table>
+<p>Where two languages must agree to the byte (Kotlin and Dart on a seal, the app and the relay on a plugin's checks), both are tested against the same fixed values, kept in <code>test/*_vectors.json</code>.</p>
+
+<h2 id="scripts">Scripts</h2>
+<table>
+  <tr><th>Script</th><th>What it does</th></tr>
+  <tr><td><code>tool/build-docs.mjs</code></td><td>Builds these docs from <code>docs-src</code> into <code>site/docs</code>, with the API reference and the Postman collection. <code>--check</code> fails where <code>site/docs</code> isn't what <code>docs-src</code> makes.</td></tr>
+  <tr><td><code>tool/ghost-api.mjs</code></td><td>A command-line client for <a href="/docs/developer/">the app's API</a>.</td></tr>
+  <tr><td><code>tool/release*.mjs</code></td><td>Build, check and publish a release for Android, Mac, Windows and Linux. Each ends by publishing the source.</td></tr>
+  <tr><td><code>tool/deploy-relay.mjs</code>, <code>deploy-site.mjs</code>, <code>deploy-discord.mjs</code></td><td>Put the relay, the site and the Discord bot on a server.</td></tr>
+  <tr><td><code>tool/build-*sidecar.sh</code>, <code>build-tdlib.sh</code></td><td>Build the helper programs and Telegram's library for each platform.</td></tr>
+  <tr><td><code>tool/phosphor.mjs</code> and the <code>.py</code> files</td><td>Make the icons, stickers, effects and sounds the app ships with.</td></tr>
+</table>
+
+<h2 id="api-docs">Keeping the API docs true</h2>
+<p>The API pages and the Postman collection are made, not written:</p>
+<ul>
+  <li><b>The app's API</b> comes from the app's own registry. After changing <code>lib/api/methods.dart</code>, run <code>UPDATE_API_DOCS=1 flutter test test/api_reference_test.dart</code>, which writes <code>docs-src/api/app-methods.json</code>. Without the variable the same test fails where the file is behind the code.</li>
+  <li><b>The relay's routes</b> are listed in <code>docs-src/api/relay-routes.mjs</code>. A route added to <code>relay/lib</code> is added there.</li>
+  <li><code>node tool/build-docs.mjs</code> then draws both references and writes the collection.</li>
+</ul>
+
+<h2 id="comments">How the code is commented</h2>
+<p>The source is written to be read. The conventions, so a change fits in:</p>
+<ul>
+  <li>A file opens by saying what it is for and where it sits: a doc comment on its main class, or on <code>library;</code>.</li>
+  <li>Classes, and any method whose name and signature don't say enough, have a line or two on what they are for and what they promise. Comments say why, and what a caller can rely on; they don't repeat the code.</li>
+  <li>Inside a function, a comment sits above a step whose reason isn't plain: a workaround, an order that matters, a detail of a protocol.</li>
+  <li>Plain words. "Chooses a route for each thing sent" rather than "route selection manager".</li>
+  <li>Where a file has a twin in another language (<code>DeskCrypto.kt</code> and <code>lib/desktop/link/crypto.dart</code>), each names the other.</li>
+</ul>
+
+    <nav class="prevnext"><a class="prev" href="/docs/dev-flows/"><small>Previous</small>How the parts work together</a><a class="next" href="/docs/dev-api/"><small>Next</small>API overview and Postman</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#need">What you need</a><a href="#run">Run it</a><a href="#relay">Run the relay</a><a href="#tests">Tests</a><a href="#scripts">Scripts</a><a href="#api-docs">Keeping the API docs true</a><a href="#comments">How the code is commented</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

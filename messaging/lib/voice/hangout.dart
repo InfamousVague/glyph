@@ -34,9 +34,10 @@ export 'polls.dart';
 /// the same key, which anyone looking at the hangout is in, in the call or not. Everything here goes through it:
 /// messages, deletions, the roster (lib/voice/roles.dart) and what moderators do.
 ///
-/// **History.** The hub keeps nothing. Each device keeps the last [keep] messages it saw ([HangoutStore]); coming in,
-/// it asks for what it missed and the one there with the lowest id answers, so one copy comes back, not one from each.
-/// The roster comes the same way, from anyone whose is newer and checks out.
+/// **History.** Each device keeps the last [keep] messages it saw ([HangoutStore]); coming in, it asks for what it
+/// missed and the one there with the lowest id answers, so one copy comes back, not one from each. The roster comes
+/// the same way, from anyone whose is newer and checks out. The hub keeps too, sealed, what a latecomer must have (a
+/// message, an edit, a deletion, a vote, the roster, the description: [_say] with keep), for one whose app was closed.
 ///
 /// **Enforcement.** Each device does what the roster says of what it hears: a message from someone who may not write
 /// is not shown, a deletion by someone who may not delete is ignored, someone muted for everyone is silenced on every
@@ -81,6 +82,7 @@ class HangoutRoom extends ChangeNotifier {
   HangoutRoom({required this.channel, required this.route, required this.name, this.username, this.signer, HangoutStore? store})
       : store = store ?? MemoryHangoutStore() {
     roster = this.store.roster(channel.chatRoom) ?? Roster.first(channel.owner, kind: channel.kind);
+    // A kept roster for another owner is not this space's: start from the first.
     if (roster.owner != channel.owner) roster = Roster.first(channel.owner, kind: channel.kind);
     messages = this.store.messages(channel.chatRoom);
     _loadAbout();
@@ -88,6 +90,7 @@ class HangoutRoom extends ChangeNotifier {
     _loadReactions();
   }
 
+  /// The most messages a device keeps of one space's chat, and hands over to one that asks what it missed.
   static const keep = 300;
 
   /// The space: replaced, same seed, when the circle it is in changes its kind ([updateChannel]).
@@ -142,8 +145,12 @@ class HangoutRoom extends ChangeNotifier {
   final List<StreamSubscription<Object?>> _subs = [];
 
   String get me => route.me;
+
+  /// Whether this device's person may do [p] here, by the roster.
   bool can(Perm p) => roster.can(me, p);
 
+  /// Joins the chat room on the hub, says who this is, and asks those here for what was missed (messages since the
+  /// newest held, a newer roster, a newer description). Does nothing where already open.
   Future<void> open() async {
     if (opened) return;
     opened = true;
@@ -171,6 +178,7 @@ class HangoutRoom extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Leaves the chat room. What is held (messages, roster) stays, for the list and the next [open].
   Future<void> close() async {
     if (!opened) return;
     opened = false;
@@ -192,6 +200,7 @@ class HangoutRoom extends ChangeNotifier {
     _hi();
   }
 
+  /// This device is in the space's call now: said in its 'hi' (`a`).
   bool _inVoice = false;
 
   /// Says who this is. [ask]: on coming in, those here answer with theirs. The relay tells the room someone came only
@@ -202,6 +211,7 @@ class HangoutRoom extends ChangeNotifier {
     _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson()});
   }
 
+  /// Pictures asked for and not yet answered, by whose: one asking at a time for each person.
   final Map<String, Completer<String?>> _askedPictures = {};
 
   /// [id]'s profile picture: the one kept here where it is theirs now, else asked of them (`pic?`, answered `pic` by
@@ -226,6 +236,7 @@ class HangoutRoom extends ChangeNotifier {
   /// When each newcomer was last greeted ([_greet]): once, whether they came with their first device or said hi asking.
   final Map<String, DateTime> _greeted = {};
 
+  /// Says who this is for the newcomer [id], once in ten seconds for each.
   void _greet(String id) {
     final at = _greeted[id];
     if (at != null && DateTime.now().difference(at) < const Duration(seconds: 10)) return;
@@ -310,6 +321,8 @@ class HangoutRoom extends ChangeNotifier {
   /// [poll]'s answers counted, each person once (by their username, where they said it, across their devices).
   PollTally tally(HangoutMessage poll) => tallyPoll(poll.poll!, _votes[poll.id] ?? const {}, personOf: _personOf, me: me);
 
+  /// What a vote by [id] is counted under: their username where they said one (`u:` and it, lowercase), so one
+  /// person's devices count once; else the id itself.
   String _personOf(String id) {
     final u = id == me ? Me.instance.username : usernames[id];
     return u == null || u.isEmpty ? id : 'u:${u.toLowerCase()}';
@@ -367,6 +380,8 @@ class HangoutRoom extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// A 'react' said by [from]: taken where it is well formed and they may be in the chat (not banned, not put out of
+  /// the circle).
   void _takeReaction(String from, Map<String, dynamic> m) {
     final id = m['id'], e = m['e'], at = m['at'];
     if (id is! String || e is! String || at is! int || roster.banned.contains(from) || (shut?.call(from) ?? false) || !roster.can(from, Perm.chat)) return;
@@ -390,6 +405,7 @@ class HangoutRoom extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// One vote said by [from] ('vote'), taken where they may write here.
   void _heardVote(String from, Map<String, dynamic> m) {
     final poll = m['p'], c = m['c'], at = m['at'];
     if (poll is! String || c is! List || at is! int || !roster.can(from, Perm.chat)) return;
@@ -399,6 +415,7 @@ class HangoutRoom extends ChangeNotifier {
     }
   }
 
+  /// Many polls' votes at once, as a device hands them over with its history ([_votesOf]): each taken as one heard.
   void _heardVotes(Object? all) {
     if (all is! Map) return;
     var any = false;
@@ -421,6 +438,7 @@ class HangoutRoom extends ChangeNotifier {
           if (m.poll != null && (_votes[m.id]?.isNotEmpty ?? false)) m.id: {for (final e in _votes[m.id]!.entries) e.key: e.value.toJson()},
       };
 
+  /// Saves the votes, where the store keeps them: those of at most [pollsKept] polls.
   void _keepVotes() {
     final s = store;
     if (s is! HangoutVotesStore) return;
@@ -531,6 +549,8 @@ class HangoutRoom extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sends up each of [o]'s files not yet up, all at once, then the message itself once every one is there. A file
+  /// that fails keeps its error for [retry]; nothing is sent where [o] was discarded meanwhile.
   Future<void> _push(OutgoingMessage o, ChatUploads uploads) async {
     // Each file's small picture its share of what a message may carry: a few pictures each get a clear one, ten a
     // smaller one each, and the message still goes in one packet ([fitted] lets go of any that would not).
@@ -578,6 +598,7 @@ class HangoutRoom extends ChangeNotifier {
     final most = m.files.isNotEmpty ? HangoutMessage.mostWordsWith : 4000;
     if (words.length > most) words = words.substring(0, most);
     if (words == m.text) return false;
+    // Always later than the message and its last edit, whatever this device's clock says: the newest edit wins.
     final at = math.max(DateTime.now().millisecondsSinceEpoch, (m.edited ?? m.at) + 1);
     final checked = Mention.checked(Mention.trimmed(mentions, text), words);
     _applyEdit(m.id, words, checked, at);
@@ -605,12 +626,15 @@ class HangoutRoom extends ChangeNotifier {
   /// Whether this device may delete [m]: its own, or anyone's with Manage messages.
   bool canDelete(HangoutMessage m) => m.from == me || (can(Perm.manageMessages) && roster.outranks(me, m.from)) || roster.isOwner(me);
 
+  /// Deletes [m] here and for everyone (kept by the hub for whoever is away), where this device may.
   void delete(HangoutMessage m) {
     if (!canDelete(m)) return;
     _drop(m.id);
     _say({'t': 'del', 'id': m.id}, keep: true);
   }
 
+  /// Takes in messages sent here or heard: those not held are added in order of time, the newest [keep] are kept and
+  /// saved, and [onFresh] is told of the new ones.
   void _add(Iterable<HangoutMessage> fresh) {
     // A message held already that comes again edited later than this device has it (a device's history): its words
     // taken. Its writer's own edit, as the history has it from them.
@@ -641,6 +665,7 @@ class HangoutRoom extends ChangeNotifier {
     onFresh?.call(more);
   }
 
+  /// Takes the message with [id] out of what is held, and saves.
   void _drop(String id) {
     final before = messages.length;
     messages = [for (final m in messages) if (m.id != id) m];
@@ -651,6 +676,7 @@ class HangoutRoom extends ChangeNotifier {
 
   // --- roles and moderation -------------------------------------------------------------------------------------
 
+  /// Whether this device may change the roster: the owner or an admin, with a key to sign it with.
   bool get canManage => roster.canManage(me) && signer != null;
 
   /// Gives [id] [roleId]. Making an admin is the owner's alone: it carries the owner's signature that they are one.
@@ -704,6 +730,7 @@ class HangoutRoom extends ChangeNotifier {
   /// Moderators' mutes, held on each device while it is in the hangout.
   final Set<String> heldMutes = {};
 
+  /// Holds or lifts a moderator's mute of [id], and has the call do it ([onRoster]).
   void _applyMute(String id, bool on) {
     on ? heldMutes.add(id) : heldMutes.remove(id);
     onRoster?.call(roster);
@@ -782,6 +809,8 @@ class HangoutRoom extends ChangeNotifier {
     return _publish(roster.next(newcomer: roleId));
   }
 
+  /// Signs [next] as this device, takes it, and says it to the room (kept by the hub for whoever is away). False where
+  /// there is no key to sign with or the signed roster would not be believed.
   Future<bool> _publish(Roster next) async {
     final s = signer;
     if (s == null) return false;
@@ -792,6 +821,8 @@ class HangoutRoom extends ChangeNotifier {
     return true;
   }
 
+  /// Makes [r] the roster in force (the caller has checked it): saved, the description checked against it again, and
+  /// the call told.
   void _take(Roster r) {
     roster = r;
     store.keepRoster(channel.chatRoom, r);
@@ -823,6 +854,7 @@ class HangoutRoom extends ChangeNotifier {
   /// Null where no one has written one, or it was cleared.
   String? get about => (_about?.text ?? '').isEmpty ? null : _about!.text;
 
+  /// The description in force, signed; an empty one is a cleared one, kept for its version.
   SpaceAbout? _about;
 
   /// The newest about heard that the roster doesn't yet trust (its admin's roster not here yet).
@@ -841,6 +873,8 @@ class HangoutRoom extends ChangeNotifier {
     return true;
   }
 
+  /// A description heard: taken where it is newer than the one in force and the roster trusts its writer; held back
+  /// where the roster doesn't yet.
   void _heardAbout(Object? j) {
     final a = SpaceAbout.fromJson(j);
     if (a == null) return;
@@ -855,6 +889,7 @@ class HangoutRoom extends ChangeNotifier {
     }
   }
 
+  /// Makes [a] the description in force, and saves it.
   void _takeAbout(SpaceAbout a) {
     _about = a;
     if (_waitingAbout != null && _waitingAbout!.version <= a.version) _waitingAbout = null;
@@ -876,6 +911,7 @@ class HangoutRoom extends ChangeNotifier {
     }
   }
 
+  /// Reads the kept description back: in force where the kept roster trusts it, waiting where not.
   void _loadAbout() {
     final s = store;
     String? words;
@@ -897,6 +933,7 @@ class HangoutRoom extends ChangeNotifier {
   /// The relay dropped this device out of the room ([RoomEvent.closed]); it puts it back in on reconnecting.
   bool _dropped = false;
 
+  /// What the hub says of the room: this device dropped out of it or back in it, or someone came or went.
   void _event(RoomEvent e) {
     if (e.closed) {
       _dropped = true;
@@ -945,6 +982,8 @@ class HangoutRoom extends ChangeNotifier {
     return ids.first == me;
   }
 
+  /// A packet from the chat room: opened with the space's key (anything that doesn't open is dropped) and acted on by
+  /// its kind `t`. Every right is checked here against the roster, since the hub checks none.
   void _heard(String from, Uint8List bytes) {
     final clear = NetCrypto.open(channel.key, bytes);
     if (clear == null) return;
@@ -1042,6 +1081,8 @@ class HangoutRoom extends ChangeNotifier {
           final reacts = reactions.toJson({for (final x in messages) x.id});
           if (reacts.isNotEmpty) _say({'t': 'reacts', 'to': from, 'r': reacts});
         }
+        // The roster comes from everyone who has a newer one, not the one answerer: it is small, and checked by its
+        // signature whoever sends it.
         if (roster.sig != null && (m['v'] is! int || roster.version > (m['v'] as int))) _say({'t': 'roster', 'to': from, 'r': roster.toJson()});
         // The description the same way, after the roster that trusts its writer. An older build's sync? has no `av`
         // and gets it anyway; it has no case for `about` and passes over it (this switch has no default).
@@ -1180,6 +1221,7 @@ class HangoutMessage {
   /// The message in a line, for a list's preview: its words, or what came.
   String get summary => !extras ? text : (text.isEmpty ? what : '$what · $text');
 
+  /// The same message with its files, or its words, mentions and time of editing, changed.
   HangoutMessage copyWith({List<SpaceFile>? files, String? text, List<Mention>? mentions, int? edited}) => HangoutMessage(
         id: id,
         from: from,
@@ -1195,6 +1237,7 @@ class HangoutMessage {
         edited: edited ?? this.edited,
       );
 
+  /// As said in the room (the class comment has the fields). Who wrote it is not in it: the hub says who sent it.
   Map<String, Object> toJson() => {
         'id': id,
         'x': fallback,
@@ -1252,6 +1295,7 @@ class HangoutMessage {
     );
   }
 
+  /// As kept on the device and handed over in a history: [toJson] with who wrote it (`f`).
   Map<String, Object> toStored() => {...toJson(), 'f': from};
 }
 
@@ -1301,6 +1345,7 @@ class OutgoingMessage {
   /// Why it wasn't sent, where all its files went up and the message itself was refused.
   String? error;
 
+  /// Whether it stopped (the message refused, or any file), and whether trying again could mend it.
   bool get failed => error != null || files.any((f) => f.error != null);
   bool get retryable => error == null && files.every((f) => f.error == null || f.retryable);
 
@@ -1345,6 +1390,7 @@ class SpaceAbout {
   static List<int> signedBytes(String room, String text, int version, String by, String byKey) =>
       utf8.encode('ghost-hangout about|${jsonEncode({'c': room, 'd': text, 'v': version, 'by': by, 'k': byKey})}');
 
+  /// A description signed with [sign], by the holder of [publicKey] whose id is [by].
   static Future<SpaceAbout> sign(String room, String text, int version, String by, Uint8List publicKey, Future<Uint8List> Function(List<int>) sign) async {
     final key = NetCrypto.hex(publicKey);
     final s = await sign(signedBytes(room, text, version, by, key));
@@ -1353,6 +1399,8 @@ class SpaceAbout {
 
   Map<String, Object> toJson() => {'d': text, 'v': version, 'by': by, 'k': byKey, 's': sig};
 
+  /// From its JSON; null where a field is missing, the words are over [most], or the version is below 1. Not yet
+  /// checked: see [trustedFor].
   static SpaceAbout? fromJson(Object? j) {
     if (j is! Map || j['d'] is! String || j['v'] is! int || j['by'] is! String || j['k'] is! String || j['s'] is! String) return null;
     if ((j['d'] as String).length > most || (j['v'] as int) < 1) return null;
@@ -1395,6 +1443,7 @@ abstract class HangoutStore {
   void keepRoster(String room, Roster roster);
 }
 
+/// A store that keeps everything in memory only: what a room has where it is given none, and what tests use.
 class MemoryHangoutStore implements HangoutStore, HangoutAboutStore, HangoutVotesStore {
   final Map<String, String> _votes = {};
   @override

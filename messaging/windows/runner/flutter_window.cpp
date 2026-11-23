@@ -1,3 +1,5 @@
+// The Windows app's one window: Flutter's stock runner window, which also sets up each of the app's own channels as
+// it is made and takes the link another copy hands over.
 #include "flutter_window.h"
 
 #include "voice_fx.h"

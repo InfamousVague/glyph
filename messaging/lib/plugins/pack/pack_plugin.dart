@@ -17,6 +17,8 @@ import 'manifest.dart';
 import 'phrases.dart';
 import 'review.dart';
 
+/// One checked pack as the registry holds it. Everything it gives is worked out from the pack's rules; nothing of the
+/// pack's runs as code.
 class PackPlugin extends GhostPlugin {
   PackPlugin(this.pack, {required this.source, this.approval, void Function(PackPlugin plugin, Object error)? onError, this.onTrouble, Future<bool> Function(String url)? openLink, DateTime Function()? now, bool paused = false})
       : onError = onError ?? _toTheApp,
@@ -90,6 +92,7 @@ class PackPlugin extends GhostPlugin {
   /// It was slowing the app down: it gives nothing until [unpause].
   bool get paused => _paused;
 
+  /// Lets it run again, its strikes forgotten. Its owner keeps the pause itself (InstalledPlugins.unpause).
   void unpause() {
     _paused = false;
     _strikes.clear();
@@ -124,6 +127,8 @@ class PackPlugin extends GhostPlugin {
     }
   }
 
+  // A strike at [at]: [PackLimits.strikes] of them within [PackLimits.strikeWindow] pause it, and its owner is told
+  // once.
   void _strike(DateTime at) {
     _strikes
       ..add(at)
@@ -207,6 +212,8 @@ class PackPlugin extends GhostPlugin {
     return true;
   }
 
+  /// A switch named alone must be on; with [value], a switch must be that ('on' or 'off') and a choice must be that
+  /// option. A setting never chosen counts as the pack's default.
   bool _settingHolds(String key, String? value, PluginPrefs prefs) {
     final s = _settingsByKey[key];
     if (s == null) return false;
@@ -217,10 +224,13 @@ class PackPlugin extends GhostPlugin {
     return (prefs.get(key) ?? s.choice) == value;
   }
 
+  /// Whether one of its own tags, by the name the pack gives it, is among [tags], where it is kept under the pack's
+  /// id.
   bool Function(String own) _in(TagSet tags) => (own) => tags.has(tagNameOf(pack.id, own));
 
   // --- tags (A.8.2) -----------------------------------------------------------------------------------------------
 
+  /// Its one classifier: the tags its rules give [facts], and the time that took, counted toward a pause.
   List<Tag> _classify(MessageFacts facts, PluginPrefs prefs) {
     if (_paused || !packSees(facts)) return const [];
     final text = PreparedText(facts.text);
@@ -244,6 +254,8 @@ class PackPlugin extends GhostPlugin {
     return [for (final e in got.entries) Tag(tagNameOf(pack.id, e.key), e.value)];
   }
 
+  /// The tag rules in order, each seeing the tags of those before it: its own tag names to their details. A phrase is
+  /// looked for once at most, and no further once `atLeast` is reached. A tag given twice keeps its first detail.
   Map<String, String?> _tag(PreparedText text, MessageFacts facts, PluginPrefs prefs) {
     final got = <String, String?>{};
     for (final rule in pack.rules.tags) {
@@ -309,6 +321,7 @@ class PackPlugin extends GhostPlugin {
   /// The person's own words for [key], each a literal phrase (A.10.10), kept while the setting's words stay.
   final _words = <String, (String, List<Phrase>)>{};
 
+  /// The phrases of the words setting [key], compiled again only when its words change.
   List<Phrase> _wordsOf(String key, PluginPrefs prefs) {
     final raw = prefs.get(key) ?? '';
     final had = _words[key];
@@ -327,6 +340,8 @@ class PackPlugin extends GhostPlugin {
 
   // --- sections and rows (A.8.3, A.8.4) ----------------------------------------------------------------------------
 
+  /// A pack's section as the list's: it takes nothing while the pack is paused, nor a conversation a pack may not act
+  /// on.
   ListSection _section(PackSection s) {
     final id = sectionIdOf(pack.id, s.key);
     return ListSection(
@@ -342,6 +357,7 @@ class PackPlugin extends GhostPlugin {
     );
   }
 
+  /// How a conversation's row looks in [section]; null, and the list draws its own, where the pack gives nothing.
   RowLook? _row(PackRow r, String section, MessageFacts facts, TagSet tags, PluginPrefs prefs) {
     if (_paused || !packMayAct(facts)) return null;
     final value = r.value == null ? null : _expand(r.value!, tags, 24, ellipsis: true);
@@ -386,6 +402,7 @@ class PackPlugin extends GhostPlugin {
 
   // --- buttons (A.8.5) ---------------------------------------------------------------------------------------------
 
+  /// Its buttons for [slot] that are offered for [facts], in the pack's order.
   List<PluginAction> _offered(String slot, MessageFacts facts, TagSet tags, PluginPrefs prefs, {String? section, required bool hasSection}) {
     if (_paused || !packSees(facts)) return const [];
     return [
@@ -406,6 +423,8 @@ class PackPlugin extends GhostPlugin {
     return PluginAction(label: a.label, icon: Lucide.all[a.icon]!, run: (host) => _run(a, host, thread, copied));
   }
 
+  /// A button pressed: its one verb, asked of the host through [GatedHost], which holds it to what the pack may do.
+  /// What that throws or refuses goes to [onError].
   Future<void> _run(PackAction a, PluginHost host, int thread, String? copied) async {
     try {
       final gated = GatedHost(host, plugin: this, thread: thread, openLink: _openLink);
@@ -430,6 +449,8 @@ class PackPlugin extends GhostPlugin {
 
   // --- texts as they come (A.8.6) ----------------------------------------------------------------------------------
 
+  /// Its one incoming rule: what to do with a text that landed in [section], from every rule of the pack's for that
+  /// section whose switch is on and whose condition holds.
   List<IncomingAction> _incomingRule(MessageFacts facts, TagSet tags, String? section, PluginPrefs prefs) {
     if (_paused || !packMayAct(facts)) return const [];
     var read = false, mute = false;

@@ -48,6 +48,8 @@ class Signal extends InboxNetwork {
   AppState? _app;
   InboxState _state = InboxState.unavailable;
   String? _error, _account, _qr;
+
+  /// Requests to the helper are numbered; each waits here, by its number, for the helper's answer ([_ask], [_heard]).
   int _asked = 0;
   final Map<int, Completer<Object?>> _waiting = {};
 
@@ -76,6 +78,8 @@ class Signal extends InboxNetwork {
   /// The `sgnl://linkdevice` address to draw as a QR code, while linking.
   String? get qr => _qr;
 
+  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
+  // the chats seen are kept in there.
   String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/signal' : '${DeskStore.defaultDir().path}/signal');
   File get _file => File('$_dir/chats.json');
 
@@ -152,6 +156,7 @@ class Signal extends InboxNetwork {
     }
   }
 
+  /// The helper says this device is linked, and to whom: ready. The account is shown by its number, else its name.
   void _signedIn(Map s) {
     _account = (s['number'] as String?)?.ifEmpty((s['name'] as String?) ?? '') ?? s['name'] as String?;
     _aci = s['aci'] as String?;
@@ -179,6 +184,7 @@ class Signal extends InboxNetwork {
   /// When names and groups were last asked for.
   DateTime? _whoAt;
 
+  /// Takes what the helper says of a group: that it is one, its title ("Signal group" until it has one) and picture.
   void _takeGroup(Map m) {
     final gid = m['id'] as String?;
     if (gid == null) return;
@@ -205,6 +211,7 @@ class Signal extends InboxNetwork {
     await _nameChats();
   }
 
+  /// Takes the account's contacts as the helper lists them: each one's name, and their number where Signal shares it.
   void _takeContacts(List list) {
     for (final c in list) {
       final m = c as Map;
@@ -314,6 +321,7 @@ class Signal extends InboxNetwork {
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 
+  /// One line from the helper: an answer to a numbered request (`id` with `ok`), or an event (`ev`) of its own.
   void _heard(Map<String, Object?> m) {
     final id = m['id'];
     if (id is num && m.containsKey('ok')) {
@@ -397,6 +405,8 @@ class Signal extends InboxNetwork {
     }
   }
 
+  /// A message the helper heard: kept in its chat, once. Signal gives a message no id; it is known by its time and
+  /// its sender.
   void _message(Map<String, Object?> m) {
     final chat = '${m['chat']}';
     final group = m['group'] == true;
@@ -531,6 +541,7 @@ class Signal extends InboxNetwork {
     return out;
   }
 
+  /// A message in a line, for the list: its words (mentions written out), else what kind of file came.
   String _snippet(Map<String, Object?> m) {
     final text = signalMentions('${m['text'] ?? ''}', m['mentions'] as List?, nameOf: _mentionName).text.trim();
     if (text.isNotEmpty) return text;
@@ -545,6 +556,7 @@ class Signal extends InboxNetwork {
         for (final m in _messages[chatId] ?? const <Map<String, Object?>>[]) _shown(m),
       ];
 
+  /// A kept message as the screens show it. Its id is its time in milliseconds, which is what Signal knows it by.
   InboxMessage _shown(Map<String, Object?> m) {
     final words = signalMentions('${m['text'] ?? ''}', m['mentions'] as List?, nameOf: _mentionName);
     return InboxMessage(
@@ -631,12 +643,15 @@ class Signal extends InboxNetwork {
     return profileOf(user: me);
   }
 
+  /// Who a quoted message was by, to show over the quote: "You", their name, else their number.
   String? _quoteName(String? aci) {
     if (aci == null || aci.isEmpty) return null;
     if (aci == _aci) return 'You';
     return _names[aci] ?? _numbers[aci] ?? _contacts[aci];
   }
 
+  /// An attachment as the screens show it. The number it goes by is its pointer's hash, kept to 30 bits so it is
+  /// never negative; what the helper said of it is kept under that number, to bring it down by.
   InboxMedia _media(Map a) {
     final key = jsonEncode(a['pointer']).hashCode & 0x3fffffff;
     _pointers[key] = a.cast<String, Object?>();
@@ -746,6 +761,7 @@ class Signal extends InboxNetwork {
     });
   }
 
+  /// Brings the attachment [fileId] down through the helper; its path on this device, or null where it can't be had.
   Future<String?> _fetch(int fileId) async {
     final a = _pointers[fileId];
     if (a == null) return null;
@@ -861,6 +877,7 @@ class Signal extends InboxNetwork {
 
   // --- keeping ------------------------------------------------------------------------------------------------------
 
+  /// Reads the file back, to show what was seen before the helper has said anything.
   void _read() {
     try {
       if (!_file.existsSync()) return;
@@ -876,6 +893,8 @@ class Signal extends InboxNetwork {
     } catch (_) {}
   }
 
+  // Saving waits 400 ms for more changes, so a burst of them is written once: to a temporary file, then renamed
+  // over the real one, so a crash never leaves half a file.
   Timer? _saving;
   void _save() {
     _saving?.cancel();
@@ -902,6 +921,7 @@ class Signal extends InboxNetwork {
     }
   }
 
+  /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;
     if (link == null) return Future.error(StateError('Signal isn\'t running'));
@@ -944,6 +964,7 @@ abstract final class SignalLog {
   static String? keep(String line) => _ProcessLink.keep(line);
 }
 
+/// The helper as a process: a line of JSON each way on its stdin and stdout, and its log on stderr.
 class _ProcessLink implements SignalLink {
   _ProcessLink(this.p) {
     p.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
@@ -980,6 +1001,7 @@ class _ProcessLink implements SignalLink {
     return out.length > 300 ? out.substring(0, 300) : out;
   }
 
+  /// Puts [line] of the helper's log in the Developer log, where [keep] keeps it.
   static void logLine(String line) {
     final kept = keep(line);
     if (kept != null) Sms.instance.devLog('signal', kept);
@@ -1007,6 +1029,7 @@ class _ProcessLink implements SignalLink {
   }
 }
 
+/// [other] in place of an empty string.
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
 }

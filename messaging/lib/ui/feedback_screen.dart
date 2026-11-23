@@ -149,6 +149,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   /// Each screenshot at most this large, so three of them in base64 stay under the relay's 10 MB.
   static const _shotTarget = 2400 * 1024;
 
+  /// The username the feedback can go with, without its @; null where there is none.
   String? get _username {
     final u = (widget.username ?? Me.instance.username)?.trim().replaceFirst(RegExp(r'^@'), '');
     return u == null || u.isEmpty ? null : u;
@@ -184,6 +185,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         for (final type in FeedbackType.values) Choice(type.label, _iconOf(type), () => setState(() => _type = type)),
       ]);
 
+  /// The pictures chosen in the device's own picker, each read whole with its file's name.
   Future<List<({String name, Uint8List bytes})>> _pickFromDevice() async {
     final out = <({String name, Uint8List bytes})>[];
     for (final picked in await Sms.instance.pickImages()) {
@@ -193,6 +195,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     return out;
   }
 
+  /// Adds the pictures picked as screenshots, up to the most a report takes; one that can't be used, and any left
+  /// over, are said.
   Future<void> _addShot() async {
     if (_picking || _shots.length >= FeedbackReport.mostShots) return;
     setState(() => _picking = true);
@@ -255,6 +259,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     }
   }
 
+  /// Sends the report with this platform and version, the username only where it was left ticked, thanks with the
+  /// ticket's id where the relay gave one, and closes the form.
   Future<void> _send() async {
     if (!_ready) return;
     final report = FeedbackReport(
@@ -428,6 +434,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     );
   }
 
+  /// One screenshot added, as a small square.
   Widget _thumb(Tokens t, int i, FeedbackShot s) {
     final side = t.lenOf('6rem');
     return SizedBox(

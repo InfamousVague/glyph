@@ -72,6 +72,7 @@ String numberKey(String? number) {
   return d.length > 10 ? d.substring(d.length - 10) : d;
 }
 
+/// A name as two spellings of it agree: trimmed, lowercase, runs of spaces made one.
 String _nameKey(String? name) => (name ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
 /// [phone]'s people and the networks' [contacts], one row a person, in [phone]'s order and then the rest by name.
@@ -106,6 +107,7 @@ List<Someone> gather(List<PhoneContact> phone, List<InboxContact> contacts) {
         }
       }
     }
+    // No one to join, or the person found already has a contact on this network: a row of their own.
     if (into == null || into.contacts.any((x) => x.network == c.network)) {
       into = _Building();
       people.add(into);
@@ -119,11 +121,14 @@ List<Someone> gather(List<PhoneContact> phone, List<InboxContact> contacts) {
   return [...fromPhone, ...rest];
 }
 
+/// One person while [gather] puts them together: their phone contact, where they have one, and their contacts on
+/// networks, one a network at most.
 class _Building {
   _Building({this.phone});
   final PhoneContact? phone;
   final List<InboxContact> contacts = [];
 
+  /// The phone's name for them first, then the first network's that has one, then their number.
   String get name {
     final n = phone?.name?.trim();
     if (n != null && n.isNotEmpty) return n;
@@ -133,6 +138,7 @@ class _Building {
     return number ?? 'Someone';
   }
 
+  /// The phone's number for them, else the first a network shares.
   String? get number {
     if (phone != null && phone!.address.isNotEmpty) return phone!.address;
     for (final c in contacts) {
@@ -141,6 +147,7 @@ class _Building {
     return null;
   }
 
+  /// The finished row, with every way to reach them.
   Someone build() {
     final number = this.number;
     // Networks in a steady order: Telegram, then Signal, then any other.

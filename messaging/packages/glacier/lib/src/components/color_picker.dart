@@ -48,6 +48,7 @@ class GlacierColorPicker extends StatefulWidget {
   State<GlacierColorPicker> createState() => _GlacierColorPickerState();
 }
 
+/// Six hex digits, with or without `#`, as an opaque colour; null for anything else.
 Color? _parseHex(String text) {
   final h = text.trim().replaceFirst('#', '');
   if (h.length != 6) return null;
@@ -55,10 +56,15 @@ Color? _parseHex(String text) {
   return v == null ? null : Color(0xFF000000 | v);
 }
 
+/// A colour as `#RRGGBB`, in capitals: what the picker reports.
 String _hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
 class _GlacierColorPickerState extends State<GlacierColorPicker> {
+  /// The colour the sliders stand at. Kept in OKLCH, not read back from the hex, so a hue or a chroma the hex
+  /// cannot carry (a grey's hue) stays where the person put it.
   late Oklch _colour = Oklch.fromColor(_parseHex(widget.value ?? widget.defaultValue) ?? const Color(0xFF5B7CFA));
+
+  /// The hex last told to the listener: the same value coming back down is not news.
   String? _lastReported;
 
   @override
@@ -72,6 +78,7 @@ class _GlacierColorPickerState extends State<GlacierColorPicker> {
     }
   }
 
+  /// Takes a colour and reports it as hex; [end] says the change is finished (a drag let go, a preset, a hex typed).
   void _set(Oklch next, {bool end = false}) {
     setState(() => _colour = next);
     final hex = _hex(next.toColor());
@@ -129,6 +136,7 @@ class _GlacierColorPickerState extends State<GlacierColorPicker> {
               min: 0,
               max: 360,
               readout: '${c.h.round()}°',
+              // A near-grey has no hue to show, so its track is painted with some chroma lent to it.
               paint: (v) => Oklch(c.l, c.c < 0.04 ? 0.12 : c.c, v).toColor(),
               onChanged: (v, end) => _set(Oklch(c.l, c.c, v), end: end),
               sm: sm,
@@ -248,6 +256,7 @@ class _Channel extends StatelessWidget {
             builder: (context, box) {
               final w = box.maxWidth;
               final usable = (w - thumb).clamp(1.0, double.infinity);
+              // The value under a touch: the thumb's centre runs from half a thumb in to half a thumb short.
               double at(double dx) => (min + ((dx - thumb / 2) / usable).clamp(0.0, 1.0) * (max - min));
               final f = ((value - min) / (max - min)).clamp(0.0, 1.0);
               return GestureDetector(

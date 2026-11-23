@@ -34,11 +34,18 @@ class PairWizard extends StatefulWidget {
 }
 
 class _PairWizardState extends State<PairWizard> {
+  /// How the two may connect: 'local', 'relay' or 'both'. Kept in the store's prefs with the relay's address.
   String _mode = 'both';
   late final TextEditingController _relay;
+
+  /// Whether a relay answered at the address typed; null while it is being asked, or with no address.
   bool? _relayThere;
   Timer? _probe;
+
+  /// The controller and the kept prefs are read once, on the first run of didChangeDependencies.
   bool _started = false;
+
+  /// True for two seconds after the code is copied, while the button says so.
   bool _copied = false;
 
   PhoneLink get _link => DeskScope.of(context).link;
@@ -78,6 +85,8 @@ class _PairWizardState extends State<PairWizard> {
     });
   }
 
+  /// Keeps the choice and starts a pairing attempt, which puts the code on the screen. With no relay address the
+  /// attempt is local only, whatever was chosen.
   Future<void> _show() async {
     final scope = DeskScope.of(context);
     final relay = _relay.text.trim();
@@ -96,6 +105,7 @@ class _PairWizardState extends State<PairWizard> {
         listenable: link,
         builder: (context, _) {
           final a = link.attempt;
+          // One step for each phase of the attempt; with no attempt, the choice of how to connect.
           final children = switch (a?.phase) {
             'showing' => _showing(t, a!),
             'code' => _compare(t, a!),
@@ -132,6 +142,7 @@ class _PairWizardState extends State<PairWizard> {
     );
   }
 
+  /// A step's heading and the words under it; [mark] puts the app's mark above them, as the first step has.
   Widget _title(Tokens t, String title, String body, {bool mark = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         if (mark) ...[
           Container(
@@ -148,6 +159,7 @@ class _PairWizardState extends State<PairWizard> {
         Text(body, style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45)),
       ]);
 
+  /// The first step: how to connect, the relay's address and whether it answers.
   List<Widget> _choose(Tokens t) {
     final relay = _relay.text.trim();
     return [
@@ -181,6 +193,7 @@ class _PairWizardState extends State<PairWizard> {
     ];
   }
 
+  /// The code for the phone to scan, or to copy and paste there, while this side waits for it.
   List<Widget> _showing(Tokens t, PairingAttempt a) => [
         _title(t, 'Scan this with your phone', 'Point the phone\'s camera at it and open the link in Ghost Messaging. Or, in Ghost Messaging on the phone: Settings › Computers › Pair a computer.'),
         // The code as a link: the phone's own camera opens it in Ghost Messaging, and the app's scanner reads it too.
@@ -215,6 +228,7 @@ class _PairWizardState extends State<PairWizard> {
         PairButton(label: 'Back', icon: Lucide.arrowLeft, quiet: true, onPressed: () => _link.cancelPairing()),
       ];
 
+  /// The six digits to compare with the phone's. Once this side has said they match, it waits for the phone to.
   List<Widget> _compare(Tokens t, PairingAttempt a) => [
         _title(t, 'Does ${a.phoneName} show the same six digits?', 'They are made from the key the two just agreed on. The same on both means nobody is in the middle. From then on they connect by ${connectionLabel(a.mode).toLowerCase()}, as chosen on the phone.'),
         PairingCode(code: a.code ?? ''),
@@ -249,6 +263,8 @@ String linkLine(PhoneLink link) {
 class LinkStatus extends StatelessWidget {
   const LinkStatus({super.key, required this.link, this.waiting = 0});
   final PhoneLink link;
+
+  /// Texts written here that have not reached the phone yet, said after the line where there are any.
   final int waiting;
 
   @override

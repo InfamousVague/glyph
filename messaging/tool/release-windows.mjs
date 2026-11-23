@@ -42,6 +42,7 @@ const fail = (why) => {
   console.error(`x ${why}`);
   process.exit(1);
 };
+// Runs a command for what it prints, and stops the release if it fails.
 const out = (cmd, cmdArgs) => {
   const r = spawnSync(cmd, cmdArgs, { encoding: 'utf8' });
   if (r.status !== 0) fail(`${cmd} ${cmdArgs.join(' ')} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 400)}`);
@@ -53,6 +54,7 @@ const pubspec = readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8');
 const [, versionName, versionCode] = pubspec.match(/^version:\s*([0-9.]+)\+(\d+)/m) ?? fail('No version in pubspec.yaml.');
 requireNotes(ROOT, versionName, args, fail);
 
+// What the site says is out now (windows.json), or null where there is nothing or it cannot be read.
 async function liveRelease() {
   try {
     const r = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' });
@@ -72,6 +74,8 @@ if (!run) {
   const before = new Set(JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '20', '--json', 'databaseId'])).map((r) => r.databaseId));
   say(`> Building Ghost Messaging for Windows ${versionName} (${versionCode}) on GitHub`);
   out('gh', ['workflow', 'run', WORKFLOW, '--ref', flag('ref') ?? 'main', '-f', `version=${versionName}`, '-f', `build=${versionCode}`]);
+  // Starting a workflow gives back no run id: the new run is the one that was not in the list before, looked for
+  // every four seconds for two minutes.
   for (let i = 0; i < 30 && !run; i++) {
     await sleep(4000);
     const fresh = JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '5', '--json', 'databaseId'])).find((r) => !before.has(r.databaseId));
@@ -91,6 +95,7 @@ for (;;) {
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 out('gh', ['run', 'download', run, '--dir', OUT]);
+// The installer, wherever in the downloaded artifacts it lies.
 const found = (function find(dir) {
   for (const n of readdirSync(dir)) {
     const p = join(dir, n);
@@ -107,6 +112,7 @@ const info = { version: versionName, versionCode: Number(versionCode), sha256: c
 writeFileSync(join(OUT, FEED), JSON.stringify(info, null, 2) + '\n');
 say(`ok ${EXE}: ${(info.bytes / 1e6).toFixed(1)} MB, sha256 ${info.sha256.slice(0, 16)}…`);
 
+// The box and its login are Ghost.md's: its checkout is found, and its own scripts open the connection.
 const glyph = [flag('glyph'), process.env.GLYPH_ROOT, join(ROOT, '..'), join(homedir(), 'Development/Apps/glyph')]
   .filter(Boolean)
   .find((dir) => existsSync(join(dir, 'tauri/scripts/lib/box.mjs')) && existsSync(join(dir, 'scripts/lib/env.mjs')));

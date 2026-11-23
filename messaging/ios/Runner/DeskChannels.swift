@@ -142,6 +142,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     top.present(picker, animated: true)
   }
 
+  /// The picker is done: each picture is copied out while iOS still lends it, and the paths are given in the order
+  /// chosen, once every copy has ended.
   func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
     picker.dismiss(animated: true)
     let done = picked
@@ -178,6 +180,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return String(data: data, encoding: .utf8)
   }
 
+  /// Replaces what was kept. Readable once the device has been unlocked after a restart, and never carried to
+  /// another device.
   private static func keychain(write account: String, value: String) -> Bool {
     SecItemDelete(query(account) as CFDictionary)
     var q = query(account)
@@ -186,6 +190,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return SecItemAdd(q as CFDictionary, nil) == errSecSuccess
   }
 
+  /// True where nothing is kept under [account] any more, whether or not anything was.
   private static func keychain(delete account: String) -> Bool {
     let status = SecItemDelete(query(account) as CFDictionary)
     return status == errSecSuccess || status == errSecItemNotFound
@@ -218,6 +223,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return nil
   }
 
+  /// A phone announced itself: it is told to Dart once its address is known (resolved).
   func netServiceBrowser(_ browser: NetServiceBrowser, didFind service: NetService, moreComing: Bool) {
     services.append(service)
     service.delegate = self
@@ -274,6 +280,7 @@ func videoFrameImage(_ path: String) -> CGImage? {
   return try? gen.copyCGImage(at: CMTime(seconds: at, preferredTimescale: 600), actualTime: nil)
 }
 
+/// The same frame as a PNG's bytes, for Dart; nil where the video can't be read.
 func videoFramePNG(_ path: String) -> Data? {
   guard let cg = videoFrameImage(path) else { return nil }
   return UIImage(cgImage: cg).pngData()

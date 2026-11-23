@@ -26,15 +26,20 @@ class UsernameChats {
   /// The friends by username, as they are kept now.
   final List<Buddy> Function() buddies;
 
+  /// Every conversation kept here, by its id.
   final Map<int, ChatThread> threads = {};
+
+  /// The id the next row gets: one counter for every thread, so a row's id alone finds it.
   late int _nextRow = base + 1;
 
   /// The thread open on the screen: what comes into it is not unread.
   int open = -1;
 
+  /// A friend's address here is their username with an @ before it, which no phone number has.
   static String addressOf(String username) => '@$username';
   static bool isUsername(String address) => address.startsWith('@');
 
+  /// Takes what [toJson] wrote, in place of whatever is held.
   void load(Map j) {
     threads.clear();
     _nextRow = (j['next'] as num?)?.toInt() ?? base + 1;
@@ -46,11 +51,13 @@ class UsernameChats {
 
   Map<String, Object?> toJson() => {'next': _nextRow, 'threads': [for (final t in threads.values) t.toJson()]};
 
+  /// Whether a conversation or a row is one of these, not the phone's own: how OverlayCalls decides who answers.
   bool ownsThread(int id) => threads.containsKey(id);
   bool ownsRow(int id) => _threadOfRow(id) != null;
 
   // --- friends by username ---------------------------------------------------------------------------------------
 
+  /// The friend an `@username` address names, whatever its case; null for a number or a stranger.
   Buddy? buddyAt(String address) {
     if (!isUsername(address)) return null;
     final name = address.substring(1).toLowerCase();
@@ -60,6 +67,7 @@ class UsernameChats {
     return null;
   }
 
+  /// The friend at [address] in the shape the phone gives a person of a conversation.
   Map<String, Object?> person(String address) {
     final b = buddyAt(address);
     return {'address': address, 'name': b?.shown};
@@ -98,6 +106,7 @@ class UsernameChats {
     for (final t in threads.values) {
       if (t.address.toLowerCase() == address.toLowerCase()) return t;
     }
+    // An odd id made from the address, stepped by two past any thread already there.
     var id = base + ((address.toLowerCase().hashCode & 0x3fffffff) | 1);
     while (threads.containsKey(id)) {
       id += 2;
@@ -123,11 +132,13 @@ class UsernameChats {
     return null;
   }
 
+  /// Saves, and tells the screens which conversation changed, as the phone does for its own (-1: the list).
   void _changed(int thread) {
     save();
     Sms.instance.changes.add(thread);
   }
 
+  /// A thread as a row of the conversation list, in the shape the phone's own conversations have.
   Map<String, Object?> conversation(ChatThread t) {
     final last = t.rows.isEmpty ? null : t.rows.last;
     return {
@@ -146,6 +157,7 @@ class UsernameChats {
     };
   }
 
+  /// When a thread last had something written in it, or was made: what the list is sorted by.
   int _at(ChatThread t) => t.rows.isEmpty ? t.made : t.rows.last.at;
 
   /// The conversations shown (those with something in them), newest first.
@@ -158,6 +170,7 @@ class UsernameChats {
     return list;
   }
 
+  /// The newest [limit] rows of a thread (all of them at 0), newest first, in the shape of the phone's messages.
   List<Map<String, Object?>> messages(int thread, int limit) {
     final t = threads[thread];
     if (t == null) return const [];
@@ -178,6 +191,7 @@ class UsernameChats {
     return row.id;
   }
 
+  /// What became of a row from [textOut]: 'sent', 'delivered' or 'failed'.
   void textState(int id, String state) {
     final row = _row(id);
     if (row == null) return;
@@ -192,6 +206,7 @@ class UsernameChats {
     _changed(t.id);
   }
 
+  /// What a friend wrote, at [at] (milliseconds): unread unless their thread is the one open.
   void textIn(String address, String body, int at) {
     final t = threadWith(address);
     t.rows.add(ChatRow(id: _nextRow++, body: body, at: at, out: false, state: 'received'));
@@ -204,6 +219,7 @@ class UsernameChats {
   Future<int> send(String address, String body) async {
     if (body.isEmpty) throw StateError('Only words can be sent to a friend by username yet');
     final t = threadWith(address);
+    // Not taken by any route: nothing was kept on the way, so a failed row is kept here for it to show.
     if (!await Friends.instance.sendText(address, body)) {
       t.rows.add(ChatRow(id: _nextRow++, body: body, at: DateTime.now().millisecondsSinceEpoch, out: true, state: 'failed'));
       _changed(t.id);
@@ -235,6 +251,7 @@ class UsernameChats {
     _changed(t.id);
   }
 
+  /// Sets a thread's 'pinned' or 'muted'; any other name changes nothing.
   void flag(String name, int thread, bool on) {
     final t = threads[thread];
     if (t == null) return;
@@ -249,6 +266,7 @@ class UsernameChats {
 
   String? draft(int thread) => threads[thread]?.draft;
 
+  /// Keeps what is half written in a thread (nothing, where it is empty). Saved, but the screens are not told.
   void setDraft(int thread, String text) {
     final t = threads[thread];
     if (t == null) return;
@@ -267,11 +285,18 @@ class UsernameChats {
   }
 }
 
+/// One conversation with a friend by username, and everything written in it. Kept as JSON under short keys.
 class ChatThread {
   ChatThread({required this.id, required this.address, int? made}) : made = made ?? DateTime.now().millisecondsSinceEpoch;
   final int id;
+
+  /// The friend's `@username`.
   final String address;
+
+  /// When the thread was made, in milliseconds: its place in the list until something is written.
   final int made;
+
+  /// What was written, oldest first.
   final List<ChatRow> rows = [];
   bool unread = false;
   bool archived = false;
@@ -305,12 +330,19 @@ class ChatThread {
   }
 }
 
+/// One message of a [ChatThread].
 class ChatRow {
   ChatRow({required this.id, required this.body, required this.at, required this.out, required this.state});
   final int id;
   final String body;
+
+  /// When it was written or came in, in milliseconds.
   final int at;
+
+  /// Whether it is ours.
   final bool out;
+
+  /// 'sending', 'sent', 'delivered' or 'failed' for ours; 'received' for theirs.
   String state;
 
   Map<String, Object?> toJson() => {'i': id, 'b': body, 't': at, 'o': out, 's': state};

@@ -7,13 +7,15 @@ import 'package:flutter/services.dart';
 
 import 'link/link.dart';
 
-/// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
 /// What the computer is called in the app's words: "Mac", or "PC" on Windows.
 String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone' : Platform.isLinux ? 'computer' : 'Mac';
 
 /// What the desktop app is for, in its name: "the Mac", or "Windows".
 String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : Platform.isLinux ? 'Linux' : 'the Mac';
 
+/// What the app asks of the system it runs on, over the "ghost_desktop/system" channel (on a Mac and an iPhone,
+/// DeskChannels.swift): opening a link, the computer's name, the Keychain, and recording and playing voice
+/// messages. Each answers quietly (null, false, nothing) where the system has no such thing.
 class MacPlatform {
   /// Opens a web address in this device's own browser, and says whether it could (Matt, 2026-11-20: "when clicking sign
   /// up with discord it says "no browser could be opened""): `open` on a Mac, `explorer` on Windows, the iPhone's own
@@ -50,6 +52,7 @@ class MacPlatform {
     return Platform.localHostname.replaceAll(RegExp(r'\.local\.?$'), '').replaceAll('-', ' ');
   }
 
+  /// The Keychain: what is kept under [account], or null; and [value] kept there, true where the Keychain took it.
   static Future<String?> keyRead(String account) async {
     try {
       return await _system.invokeMethod<String>('keyRead', {'account': account});
@@ -124,6 +127,7 @@ class MacPlatform {
     }
   }
 
+  /// Throws the recording under way away.
   static Future<void> voiceCancel() async {
     try {
       await _system.invokeMethod('voiceCancel');
@@ -148,6 +152,8 @@ class MacPlatform {
     }
   }
 
+  /// Pauses the sound playing, to go on from there; [voiceHalt] stops it for good. [voiceLength] is how long a
+  /// sound runs, in milliseconds as the phone gives it, or 0 where that cannot be told.
   static Future<void> voicePause() async {
     try {
       await _system.invokeMethod('voicePause');
@@ -174,6 +180,7 @@ class MacPlatform {
     _listen();
   }
 
+  /// Who is told of each: where the sound being played has got to, and the iPhone's push token.
   static void Function(Map state)? _heard;
   static void Function(String? token, bool sandbox)? _pushToken;
 
@@ -223,6 +230,7 @@ class BonjourFinder implements PeerFinder {
   static const _system = MethodChannel('ghost_desktop/system');
   static const _found = EventChannel('ghost_desktop/bonjour');
 
+  /// Every address of every phone found, as last told.
   List<Peer> _current = const [];
   StreamSubscription<dynamic>? _sub;
   void Function()? _onChange;
@@ -242,6 +250,7 @@ class BonjourFinder implements PeerFinder {
         // A numeric IPv4 address first: it needs no name looked up, and no interface named.
         final addresses = [for (final a in (s['addresses'] as List? ?? const [])) '$a']..sort((a, b) => (a.contains(':') ? 1 : 0) - (b.contains(':') ? 1 : 0));
         for (final a in addresses) {
+          // A link-local IPv6 address (fe80…) cannot be dialled without its interface's name: left out.
           if (port > 0 && !a.startsWith('fe80')) next.add(Peer(a, port));
         }
       }

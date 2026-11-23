@@ -69,6 +69,7 @@ const String _dev = 'dev';
 /// No plugins from other developers at all here: an iPhone (SPEC G.5), where InstalledPlugins never allows store packs.
 bool get marketOnIphone => !InstalledPlugins.instance.storeAllowed;
 
+/// The page itself: the Marketplace's Discover as it stands, or Added or In development with [shelf] and no [head].
 class PluginsPage extends StatefulWidget {
   const PluginsPage({super.key, this.registry, this.open, this.openListing = false, this.settingsOf, this.summaryOf, this.title = 'Plugins', this.market, this.shelf, this.head = true, this.lead, this.search});
 
@@ -229,6 +230,8 @@ class _PluginsPageState extends State<PluginsPage> {
     _registry.setOn(p, store, false);
   }
 
+  /// A card pressed: with room its page stands beside the shelves (pressed again, it closes); otherwise it opens over
+  /// them.
   void _openPlugin(GhostPlugin plugin) {
     final listing = plugin is ListingPlugin;
     if (_wide) {
@@ -721,6 +724,8 @@ Widget pluginDetailOf(
   );
 }
 
+/// What the page of a plugin from another developer has beyond the app's own: which kind it is (a listing, a store
+/// pack, one that doesn't run, one in development) and what each of its buttons does.
 PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin plugin, {MarketState? market, VoidCallback? onAdd, ValueChanged<String>? onLabel}) {
   final here = InstalledPlugins.instance;
   final m = market ?? MarketState.instance;
@@ -768,6 +773,7 @@ PackPage _packPage(BuildContext context, PluginRegistry registry, GhostPlugin pl
 /// copy's developer's own or there is no copy.
 String? _takenFrom(InstalledPack? had, ListingPlugin l) => had == null || (had.developer != null && had.developer == l.pack.developer) ? null : had.developer ?? '';
 
+/// Reads a plugin in development again from where it was loaded, and says whether it must be agreed to afresh.
 Future<void> _reload(BuildContext context, String packId) async {
   final out = await InstalledPlugins.instance.reloadDev(packId);
   if (!context.mounted) return;

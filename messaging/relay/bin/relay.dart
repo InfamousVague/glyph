@@ -29,7 +29,10 @@ void main(List<String> args) {
   });
 }
 
+/// Reads the options, makes each part of the relay over one data folder, starts listening, and stops cleanly on
+/// Ctrl-C or a service's stop.
 Future<void> _main(List<String> args) async {
+  // The word after `--name`, or [fallback] where it was not given.
   String option(String name, String fallback) {
     final at = args.indexOf('--$name');
     return at >= 0 && at + 1 < args.length ? args[at + 1] : fallback;

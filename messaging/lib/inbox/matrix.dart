@@ -50,6 +50,8 @@ class Matrix extends InboxNetwork {
   InboxState _state = InboxState.unavailable;
   String? _error, _account, _me;
   bool _verified = false;
+
+  /// Requests to the helper are numbered; each waits here, by its number, for the helper's answer ([_ask], [_heard]).
   int _asked = 0;
   final Map<int, Completer<Object?>> _waiting = {};
 
@@ -82,6 +84,8 @@ class Matrix extends InboxNetwork {
   /// Whether the recovery key has signed this device ([unlock]).
   bool get verified => _verified;
 
+  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
+  // the chats seen are kept in there.
   String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/matrix' : '${DeskStore.defaultDir().path}/matrix');
   File get _file => File('$_dir/chats.json');
 
@@ -147,6 +151,7 @@ class Matrix extends InboxNetwork {
 
   // --- signing in ---------------------------------------------------------------------------------------------------
 
+  /// The helper says who is signed in: ready, and the rooms asked for.
   void _signedIn(Map s) {
     _me = s['user_id'] as String?;
     final shown = '${s['name'] ?? ''}'.trim();
@@ -159,6 +164,7 @@ class Matrix extends InboxNetwork {
     unawaited(_refreshRooms());
   }
 
+  /// A sign-in that didn't work: signed out, with the helper's reason to show.
   void _failed(Object e) {
     _error = '$e'.replaceFirst('Bad state: ', '');
     _state = InboxState.signedOut;
@@ -270,6 +276,7 @@ class Matrix extends InboxNetwork {
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 
+  /// One line from the helper: an answer to a numbered request (`id` with `ok`), or an event (`ev`) of its own.
   void _heard(Map<String, Object?> m) {
     final id = m['id'];
     if (id is num && m.containsKey('ok')) {
@@ -320,6 +327,7 @@ class Matrix extends InboxNetwork {
     }
   }
 
+  /// Asks the helper for the rooms as they are now; messages of rooms no longer there are let go.
   Future<void> _refreshRooms() async {
     try {
       final list = (await _ask('rooms')) as List? ?? const [];
@@ -373,8 +381,11 @@ class Matrix extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Messages into order of time, oldest first.
   static void _sort(List<Map<String, Object?>> list) => list.sort((a, b) => ((a['ts'] as num?) ?? 0).compareTo((b['ts'] as num?) ?? 0));
 
+  /// A reaction the helper heard: kept on its message under the reaction event's own id. Dropped where the message
+  /// isn't held.
   void _reaction(Map m) {
     final msg = (_messages['${m['room']}'] ?? const <Map<String, Object?>>[]).where((x) => x['id'] == m['target']).firstOrNull;
     if (msg == null) return;
@@ -445,6 +456,7 @@ class Matrix extends InboxNetwork {
     return out;
   }
 
+  /// A room's newest message in a line, for the list.
   static String _snippet(Map? last) {
     if (last == null) return '';
     if (last['undecryptable'] == true) return 'Encrypted message';
@@ -486,6 +498,8 @@ class Matrix extends InboxNetwork {
     return from.startsWith('@') && from.contains(':') ? from.substring(1, from.indexOf(':')) : from;
   }
 
+  /// An attachment as the screens show it. The number it goes by is its address's hash, kept to 30 bits so it is
+  /// never negative; what the helper said of it is kept under that number, to bring it down by.
   InboxMedia _mediaOf(Map a) {
     final key = '${a['mxc'] ?? a['local'] ?? ''}'.hashCode & 0x3fffffff;
     _media[key] = a.cast<String, Object?>();
@@ -537,6 +551,7 @@ class Matrix extends InboxNetwork {
   @override
   Future<void> reply(String chatId, String messageId, String text) => _send(chatId, text, messageId);
 
+  /// Sends [text], as a reply to [replyTo] where given.
   Future<void> _send(String chatId, String text, String? replyTo) async {
     text = text.trim();
     if (text.isEmpty || _state != InboxState.ready) return;
@@ -667,6 +682,8 @@ class Matrix extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Copies a file being sent into this network's own folder, so its bubble still has it after the place it was
+  /// picked from is gone; the copy's path, or [path] itself where it can't be copied.
   Future<String> _keepSent(String path, int ts, int i, String name) async {
     try {
       final ext = name.contains('.') ? '.${name.split('.').last}' : '';
@@ -750,6 +767,7 @@ class Matrix extends InboxNetwork {
   /// At most this many messages a room are kept on this device; the server has the rest.
   static const kept = 200;
 
+  /// What goes in the file: the account, the rooms, the newest [kept] messages of each, and where older ones begin.
   Map<String, Object?> _keptNow() => {
         'me': _me,
         'account': _account,
@@ -759,6 +777,7 @@ class Matrix extends InboxNetwork {
         'end': _end,
       };
 
+  /// Reads the file back, to show what was seen before the helper has said anything.
   void _read() {
     try {
       if (!_file.existsSync()) return;
@@ -772,12 +791,14 @@ class Matrix extends InboxNetwork {
     } catch (_) {}
   }
 
+  // Saving waits 400 ms for more changes, so a burst of them is written once.
   Timer? _saving;
   void _save() {
     _saving?.cancel();
     _saving = Timer(const Duration(milliseconds: 400), _write);
   }
 
+  /// Writes the file now: to a temporary one, then renamed over it, so a crash never leaves half a file.
   void _write() {
     try {
       _file.parent.createSync(recursive: true);
@@ -796,6 +817,7 @@ class Matrix extends InboxNetwork {
     }
   }
 
+  /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;
     if (link == null) return Future.error(StateError('Matrix isn\'t running'));
@@ -857,6 +879,8 @@ abstract final class MatrixLog {
   }
 }
 
+/// The helper as a process: a line of JSON each way on its stdin and stdout, and its log on stderr, of which what is
+/// worth keeping goes to the Developer log.
 class _ProcessLink implements MatrixLink {
   _ProcessLink(this.p) {
     p.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {

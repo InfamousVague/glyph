@@ -32,11 +32,15 @@ class AccentSheets {
     return AccentSheets(sources);
   }
 
+  /// The stylesheets' own text, kept so a sheet can be made again with an accent's rule after them.
   final List<String> _sources;
 
   /// The sheet with no accent of a bubble's: the page's ink.
   final TokenSheet base;
 
+
+  /// The accent's rule last asked for and the sheet made with it: the same sheet is given while the rule is the
+  /// same, so the theme is not made again on every build.
   String? _css;
   TokenSheet? _sheet;
 
@@ -74,6 +78,7 @@ class AccentSheets {
 /// The page each theme's accent stands on: near white, and near black.
 const _lightPage = Color(0xFFFDFDFD), _darkPage = Color(0xFF0B0B0C);
 
+/// The WCAG contrast ratio of two colours, 1 (the same) to 21 (black on white).
 double _contrast(Color a, Color b) {
   final x = a.computeLuminance(), y = b.computeLuminance();
   return ((x > y ? x : y) + 0.05) / ((x > y ? y : x) + 0.05);
@@ -103,6 +108,7 @@ double _contrast(Color a, Color b) {
         final c = bubbleColor(id).color;
         pair = c == null ? (Color(dark ? 0xFF51FCFB : 0xFF008B8A), Color(dark ? 0xFF00302F : 0xFFFFFFFF)) : (c, inkOn(c));
     }
+    // A colour all but the page's own (white on the light page) would not be seen as an accent: the ink stays.
     return _contrast(pair.$1, dark ? darkPage : lightPage) < 1.5 ? null : pair;
   }
 
@@ -116,6 +122,7 @@ String _hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(
 String? accentCss(String id, {Color lightPage = _lightPage, Color darkPage = _darkPage}) {
   final p = accentPair(id, lightPage: lightPage, darkPage: darkPage);
   if (p.light == null && p.dark == null) return null;
+  // `:root` five times over, so the rule is more specific than any the stylesheets have for these tokens.
   String block(String theme, (Color, Color) pair) =>
       ':root:root:root:root:root[data-theme=\'$theme\'] { --app-accent: ${_hex(pair.$1)}; --app-on-accent: ${_hex(pair.$2)}; }\n';
   return [if (p.light != null) block('light', p.light!), if (p.dark != null) block('dark', p.dark!)].join();

@@ -48,6 +48,8 @@ class SpaceFile {
   /// The file's own key (32 bytes) and its chunks' nonce prefix (8 bytes).
   final Uint8List key;
   final Uint8List prefix;
+
+  /// How many plain bytes each sealed chunk holds: a power of two from 4 KB to 4 MB, 256 KB unless the entry says.
   final int chunk;
 
   /// Who added it: their hub id (as the relay signed it, not as they said), and the name they gave.
@@ -63,11 +65,14 @@ class SpaceFile {
 
   /// A small PNG of it, for a picture; null for anything else.
   final Uint8List? thumb;
+
+  /// The picture's own size in pixels, where whoever added it knew; 0 where not.
   final int width, height;
 
   FileKind get kind => FileKind.of(name, mime);
   DateTime get when => DateTime.fromMillisecondsSinceEpoch(at);
 
+  /// The same file under another name or in another folder ([clearFolder]: at the top).
   SpaceFile copyWith({String? name, String? folder, bool clearFolder = false}) => SpaceFile(
         id: id,
         name: name ?? this.name,
@@ -109,6 +114,8 @@ class SpaceFile {
         if (height > 0) 'ht': height,
       };
 
+  /// The file a log's `add` describes, added by [by] (the relay's word) and at [at] where it doesn't say; null where
+  /// anything in it doesn't hold.
   static SpaceFile? fromJson(Object? j, {required String by, int? at, bool verified = false}) {
     if (j is! Map) return null;
     try {
@@ -234,6 +241,8 @@ enum OpTrust {
   unchecked('?');
 
   const OpTrust(this.wire);
+
+  /// Its letter in the log kept on disk; a letter this build doesn't know reads as [unchecked].
   final String wire;
   static OpTrust of(Object? wire) => values.where((t) => t.wire == wire).firstOrNull ?? unchecked;
 }
@@ -274,6 +283,7 @@ class LoggedOp {
     return LoggedOp(seq: seq, by: by, at: at, op: o, trust: c.trust, rv: c.rv, relayRv: relayRv, sh: sh, cas: cas);
   }
 
+  /// As kept on this device between runs, with how far it was believed.
   Map<String, Object?> toJson() => {'s': seq, 'by': by, 'at': at, 'op': op, 'tr': trust.wire, 'rv': ?rv, 'rr': ?relayRv, 'sh': ?sh, if (cas) 'c': 1};
   static LoggedOp? fromJson(Object? j) {
     if (j is! Map || j['s'] is! int || j['by'] is! String) return null;
@@ -324,6 +334,7 @@ List<LoggedOp> checkAll(List<LoggedOp> log, String space) => [for (final e in lo
 class FileOp {
   FileOp._();
 
+  // What each kind of entry says, before it is signed ([sign]) and sealed ([seal]).
   static Map<String, Object?> add(SpaceFile f) => {'t': 'add', 'f': f.toJson()};
   static Map<String, Object?> rename(String id, String name) => {'t': 'ren', 'id': id, 'n': name};
   static Map<String, Object?> move(String id, String? folder) => {'t': 'mv', 'id': id, 'd': folder};
@@ -392,6 +403,8 @@ class FileOp {
     return jsonEncode(value);
   }
 
+  /// [op] sealed with the space's files key, as the relay keeps it; and one opened again, null where the key is not
+  /// the one or what is inside isn't an entry.
   static Uint8List seal(Uint8List filesKey, Map<String, Object?> op) => NetCrypto.seal(filesKey, utf8.encode(jsonEncode(op)));
 
   static Map<String, Object?>? open(Uint8List filesKey, List<int> sealed) {
@@ -632,6 +645,7 @@ class FilesList {
     }
   }
 
+  /// The plain size of every file listed, in bytes.
   int get bytes => files.values.fold(0, (n, f) => n + f.size);
 }
 
@@ -646,8 +660,10 @@ enum FilesSort {
   const FilesSort(this.label);
   final String label;
 
+  /// The sort called [name], as a choice is kept; newest for none or one unknown.
   static FilesSort of(String? name) => values.where((s) => s.name == name).firstOrNull ?? newest;
 
+  /// [files] in this order: size is biggest first, type is by kind, and names settle a tie in either.
   List<SpaceFile> apply(Iterable<SpaceFile> files) {
     final list = files.toList();
     int byName(SpaceFile a, SpaceFile b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());

@@ -48,7 +48,6 @@ const circlePictureMax = 24000;
 /// picture still go round in one packet.
 const circleBannerMax = 26000;
 
-/// One space in a circle's list.
 /// What a circle's roles can give (Matt, 2026-11-18: "Build custom roles"): changing the circle itself, its spaces and
 /// its roles, inviting, and writing, talking and sharing files in its spaces. Kept by a letter each in the manifest.
 enum CirclePerm {
@@ -61,6 +60,8 @@ enum CirclePerm {
   files('f', 'Share files', 'Add files in files spaces');
 
   const CirclePerm(this.wire, this.label, this.blurb);
+
+  /// Its letter in the manifest, then its name and the line under it in the role editor.
   final String wire;
   final String label;
   final String blurb;
@@ -69,6 +70,7 @@ enum CirclePerm {
   /// holder an admin the owner granted (what every version of the app checks a manifest by).
   bool get signs => this == circle || this == spaces || this == roles;
 
+  /// The permission a manifest's letter stands for; null for one this build doesn't know.
   static CirclePerm? of(Object? wire) => values.where((p) => p.wire == wire).firstOrNull;
 
   /// What everyone in a circle may do where its owner has said nothing else.
@@ -125,6 +127,7 @@ class CircleOverride {
   /// Its answer for [p]: a permission written both ways is denied, as a reader can't tell which was meant.
   PermOverride of(CirclePerm p) => deny.contains(p) ? PermOverride.deny : (allow.contains(p) ? PermOverride.allow : PermOverride.inherit);
 
+  /// This override with [p] answered [s]: taken out of whichever set it was in, and put in the one [s] names.
   CircleOverride withState(CirclePerm p, PermOverride s) => CircleOverride(
         allow: {...allow.where((x) => x != p), if (s == PermOverride.allow) p},
         deny: {...deny.where((x) => x != p), if (s == PermOverride.deny) p},
@@ -132,6 +135,7 @@ class CircleOverride {
 
   String toWire() => '${CirclePerm.lettersOf(allow)}/${CirclePerm.lettersOf(deny)}';
 
+  /// Reads `allow/deny` in letters; anything else is [none]. A letter on both sides is denied.
   static CircleOverride fromWire(Object? w) {
     if (w is! String || !w.contains('/')) return none;
     final at = w.indexOf('/');
@@ -155,6 +159,8 @@ const circleRoleNoHue = 'none';
 @immutable
 class CircleRole {
   const CircleRole({required this.id, required this.name, this.hue = 'blue', this.perms = const {}});
+
+  /// A new role, with a random id of its own.
   factory CircleRole.make(String name, {String hue = 'blue', Set<CirclePerm> perms = const {}}) => CircleRole(id: NetCrypto.hex(NetCrypto.randomBytes(6)), name: name, hue: hue, perms: perms);
 
   final String id;
@@ -162,12 +168,15 @@ class CircleRole {
   final String hue;
   final Set<CirclePerm> perms;
 
+  /// Whether it gives anything that changes the manifest ([CirclePerm.signs]): its holders need the owner's admin
+  /// grant, which only the owner gives.
   bool get signs => perms.any((p) => p.signs);
 
   CircleRole copyWith({String? name, String? hue, Set<CirclePerm>? perms}) => CircleRole(id: id, name: name ?? this.name, hue: hue ?? this.hue, perms: perms ?? this.perms);
 
   Map<String, Object?> toJson() => {'id': id, 'n': name, 'h': hue, 'p': [for (final p in CirclePerm.values) if (perms.contains(p)) p.wire]};
 
+  /// The role [j] is; null without an id, or a name of 1 to 40 characters. A hue this build doesn't know reads as blue.
   static CircleRole? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['n'] is! String) return null;
     final name = (j['n'] as String).trim();
@@ -190,6 +199,7 @@ class CircleRole {
 /// At most this many roles in a circle.
 const circleRolesMax = 30;
 
+/// One space in a circle's list, as the manifest carries it: its seed, name, kind and place.
 @immutable
 class CircleSpace {
   const CircleSpace({required this.seed, required this.name, this.kind = SpaceKind.voice, this.order = 0, this.section, this.kindWire, this.extra = const {}});
@@ -228,6 +238,7 @@ class CircleSpace {
         extra: extra ?? this.extra,
       );
 
+  /// The keys this build reads; whatever else a space carries is kept in [extra].
   static const _known = {'s', 'n', 'k', 'o', 'g'};
 
   Map<String, Object> toJson() => {
@@ -240,6 +251,8 @@ class CircleSpace {
         if (section != null && section!.isNotEmpty) 'g': section!,
       };
 
+  /// The space [j] is; null without a seed of 64 hex letters or a name. A kind this build doesn't know is kept in
+  /// [kindWire]; a name is cut to 100 characters.
   static CircleSpace? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(j['s'] as String) || j['n'] is! String) return null;
     final name = (j['n'] as String).trim();
@@ -336,8 +349,11 @@ class CircleManifest {
   /// one replaces it.
   factory CircleManifest.placeholder({required String owner, required String name, String? hue}) => CircleManifest(owner: owner, name: name, hue: hue ?? 'indigo');
 
+  /// The body's keys this build reads; whatever else it carries is kept in [extra].
   static const _known = {'o', 'v', 'n', 'h', 'i', 'p', 'sp', 'g', 'gv', 'gs'};
 
+  /// The body as it is written and signed: [extra] first, so a known field always wins over it, and the grants in
+  /// order of id, so the same manifest is the same words on every device.
   static Map<String, Object?> _body(String owner, int version, String name, String hue, String icon, String? picture, List<CircleSpace> spaces, Map<String, String> grants, int gv, String? gs, Map<String, Object?> extra) => {
         ...extra,
         'o': owner,
@@ -375,6 +391,7 @@ class CircleManifest {
 
   bool get isSigned => sig != null;
 
+  /// The owner's id on the hub, from their key; '' for a circle with no owner.
   String get ownerId => owner.isEmpty ? '' : NetCrypto.idOf(NetCrypto.unhex(owner));
 
   /// The spaces in their order: by [CircleSpace.order], then by name.
@@ -454,15 +471,15 @@ class CircleManifest {
   /// Its banner (`bn`, base64 PNG, at most [circleBannerMax]); null for none, where the sidebar's top wears its colour.
   String? get banner => extra['bn'] is String && (extra['bn'] as String).length <= circleBannerMax ? extra['bn'] as String : null;
 
-  /// Its banner at full size (`bf`, Matt, 2026-11-19: "when uploading a banner from camera roll it's not uploading the
-  /// full resolution image"): the picture as it was chosen, sealed on the relay under the circle's own seed as a chat's
-  /// file is (Circle.bannerChannel), named here with its key; [banner] is its small stand-in, shown until it is here.
-  /// The entry as a Files space's carries it (SpaceFile.toJson), so it is read by lib/files.
   /// Its invite word (`iw`, Matt, 2026-11-19: "add the custom invite code word as a default feature"): gogho.st/c/<word>,
   /// held on the relay for the circle's link (lib/circles/invite_word.dart). Null where it has none; a build from before
   /// reads none.
   String? get inviteWord => extra['iw'] is String && (extra['iw'] as String).length <= 32 ? extra['iw'] as String : null;
 
+  /// Its banner at full size (`bf`; Matt, 2026-11-19: "when uploading a banner from camera roll it's not uploading
+  /// the full resolution image"): the picture as it was chosen, sealed on the relay under the circle's own seed as a
+  /// chat's file is (Circle.bannerChannel), named here with its key. [banner] is its small stand-in, shown until it
+  /// is here. The entry is as a Files space's carries a file (SpaceFile.toJson), so lib/files reads it; null for none.
   Map<String, Object?>? get bannerFile => extra['bf'] is Map ? (extra['bf'] as Map).cast<String, Object?>() : null;
 
   /// Who was put out of the circle by its owner or an admin (`rm`, ids; Matt, 2026-11-19: "add the ability to remove
@@ -656,6 +673,7 @@ class CircleManifest {
   /// The bytes a signature covers.
   List<int> get signed => utf8.encode('ghost-circle manifest|$raw|${by ?? ''}|${byKey ?? ''}');
 
+  /// As it goes round and is kept: the body as written, who signed it, their key and the signature.
   Map<String, Object?> toJson() => {'b': raw, 'by': by, 'k': byKey, 's': sig};
 
   /// The manifest [j] is; null where it is not one. Every field is checked for its type before it is used, since
@@ -786,6 +804,8 @@ class Circle {
   /// Its spaces, in their order.
   List<CircleSpace> get spaces => manifest.ordered;
 
+  // The circle's room on the hub, the token to join it, and the key what is said there is sealed with: each made
+  // from the seed, so holding the seed is all it takes.
   Uint8List get _seed => NetCrypto.unhex(seed);
   String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'circle room').sublist(0, 16));
   String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'circle token'));
@@ -801,6 +821,7 @@ class Circle {
   /// Every space of the circle, as spaces.
   List<VoiceChannel> get channels => [for (final s in spaces) channelOf(s)];
 
+  /// The space of this circle whose seed is [seed], where it has one.
   CircleSpace? space(String seed) => manifest.spaces.where((s) => s.seed == seed).firstOrNull;
 
   Circle copyWith({CircleManifest? manifest, bool? mine}) => Circle(seed: seed, owner: owner, manifest: manifest ?? this.manifest, mine: mine ?? this.mine);
@@ -831,6 +852,8 @@ class Circle {
 
   Map<String, Object?> toJson() => {'s': seed, 'o': owner, 'm': manifest.toJson(), if (mine) 'mine': 1};
 
+  /// The circle [j] is, as kept on the device or sent between a phone and its computer; null where its seed or
+  /// manifest isn't one, or the manifest names another owner.
   static Circle? fromJson(Object? j) {
     if (j is! Map || j['s'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(j['s'] as String)) return null;
     final owner = j['o'] is String && RegExp(r'^0[23][0-9a-f]{64}$').hasMatch(j['o'] as String) ? j['o'] as String : '';

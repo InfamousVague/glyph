@@ -142,6 +142,8 @@ class PackNotice {
   final String words;               // what the toast says (D.5, A.10.9, B.14)
 }
 
+/// The one place packs are installed, loaded and removed on this device: reads the plugins folder at [load], puts
+/// what checks out into the registry, and tells its listeners of every change.
 class InstalledPlugins extends ChangeNotifier {
   /// Nothing is read or written here: [load] reads the folder, and a test puts its own here (a temp [root], its own
   /// [reviewKeys]) without touching the installed app's.
@@ -276,6 +278,7 @@ class InstalledPlugins extends ChangeNotifier {
     });
   }
 
+  /// Hands [n] to whoever listens to [notices].
   void _notice(PackNotice n) {
     if (!_notices.isClosed) _notices.add(n);
   }
@@ -284,11 +287,13 @@ class InstalledPlugins extends ChangeNotifier {
 
   static const _storeKey = 'plugins_store', _devKey = 'plugins_dev', _floorKey = 'plugins_floor', _pausedKey = 'plugins_paused';
 
+  /// Writes one of the app's choices, only where it differs from what is kept; nothing before [load] gave the app.
   void _put(String key, String value) {
     final app = _app;
     if (app != null && app.choice(key, '') != value) app.set(key, value);
   }
 
+  /// The choice [key] read as a JSON object; empty where it is unset or isn't one.
   Map<String, Object?> _index(String key) {
     try {
       final v = jsonDecode(_app?.choice(key, '') ?? '');
@@ -298,25 +303,32 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// The store packs running now (id to version) and the ids of the packs in development, written to the app's
+  /// choices.
   void _writeIndexes() {
     _put(_storeKey, jsonEncode({for (final s in _store.values) if (s.running) s.id: s.version}));
     _put(_devKey, jsonEncode([for (final d in _dev.values) d.id]));
   }
 
+  /// The highest version of [packId] ever installed here, and that copy's SHA-256: nothing lower, and no other copy of
+  /// that same version, installs after it (not_newer).
   ({String version, String sha256})? _floorOf(String packId) {
     final f = _index(_floorKey)[packId];
     if (f is! Map || f['version'] is! String || f['sha256'] is! String || !packVersionPattern.hasMatch(f['version'] as String)) return null;
     return (version: f['version'] as String, sha256: f['sha256'] as String);
   }
 
+  /// Raises [packId]'s floor to [version]; never lowers it.
   void _raiseFloor(String packId, String version, String sha256) {
     final floor = _floorOf(packId);
     if (floor != null && compareVersions(version, floor.version) <= 0) return;
     _put(_floorKey, jsonEncode({..._index(_floorKey), packId: {'version': version, 'sha256': sha256}}));
   }
 
+  /// The SHA-256 of the copy of [registryId] that was paused, kept so a pause outlasts a restart, for that copy alone.
   String? _pausedSha(String registryId) => _index(_pausedKey)[registryId] as String?;
 
+  /// Keeps the pause of [registryId]'s copy [sha256], or forgets it (null).
   void _setPaused(String registryId, String? sha256) {
     final paused = _index(_pausedKey);
     if (sha256 == null ? !paused.containsKey(registryId) : paused[registryId] == sha256) return;
@@ -344,6 +356,7 @@ class InstalledPlugins extends ChangeNotifier {
     tmp.renameSync(path);
   }
 
+  /// The JSON in the file at [path]; null where there is none or it doesn't parse.
   static Object? _readJson(String path) {
     try {
       final f = File(path);
@@ -353,6 +366,7 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Removes the folder at [path] and everything in it; a failure is let go.
   static void _delete(String path) {
     try {
       final d = Directory(path);
@@ -378,6 +392,8 @@ class InstalledPlugins extends ChangeNotifier {
 
   // --- loading ----------------------------------------------------------------------------------------------------
 
+  /// Reads the folder, once however often it is called, and puts what checks out into the registry. Returns when that
+  /// is done or after [within], whichever comes first, so a slow disk never holds up the app's start.
   Future<void> load(AppState app, {required String appVersion, Duration within = const Duration(seconds: 3)}) async {
     _loading ??= _serial(() => _load(app, appVersion));
     final done = Completer<void>();
@@ -410,6 +426,7 @@ class InstalledPlugins extends ChangeNotifier {
     _later();
   }
 
+  /// The withdrawals and retirements this build ships with and those kept in revoked.json, checked and merged.
   Future<void> _readRevoked() async {
     final saved = _readJson('${root.path}/revoked.json');
     _readFailed();
@@ -429,8 +446,11 @@ class InstalledPlugins extends ChangeNotifier {
   @visibleForTesting
   int signaturesChecked = 0;
 
+  /// What a withdrawal ('revoke') or a retirement ('retire') is known by here: the SHA-256 of its kind and its
+  /// canonical JSON.
   static String _markOf(String kind, Map<String, Object?> json) => sha256Hex(utf8.encode('$kind\n${canonicalJson(json)}'));
 
+  /// Reads unverified.json into [_failed], once.
   void _readFailed() {
     if (_failedRead) return;
     _failedRead = true;
@@ -439,6 +459,7 @@ class InstalledPlugins extends ChangeNotifier {
     if (marks is List) _failed.addAll([for (final m in marks) if (m is String && m.length == 64) m]);
   }
 
+  /// Writes [_failed] to unverified.json, the oldest dropped past [_failedKept].
   void _saveFailed() {
     while (_failed.length > _failedKept) {
       _failed.remove(_failed.first);
@@ -515,6 +536,7 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Whether each of [revs] and each of [rets] verifies, in their order. They cross to the isolate as plain JSON.
   static Future<(List<bool>, List<bool>)> _verified(List<String> keys, List<PackRevocation> revs, List<PackRetirement> rets) async {
     final k = List<String>.of(keys);
     final r = [for (final x in revs) x.toJson()];
@@ -532,6 +554,8 @@ class InstalledPlugins extends ChangeNotifier {
     return [for (var i = 0; i < copies.length; i++) (signed[i], keys.contains(copies[i].$1.key) && !retired.contains(copies[i].$1.key))];
   }
 
+  /// Reads `store/<id>/<version>/` for every pack, checks every copy, and puts one copy of each into the registry in
+  /// install order, as far as the caps allow.
   Future<void> _loadStore() async {
     final base = Directory('${root.path}/store');
     if (!base.existsSync()) return;
@@ -635,6 +659,8 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// When the folder at [path] last changed, for a copy whose own file doesn't say when it came; the epoch where even
+  /// that can't be read.
   static DateTime _modified(String path) {
     try {
       return Directory(path).statSync().modified;
@@ -643,6 +669,8 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Reads `dev/<id>/` for every pack in development, in load order; each goes into the registry only while developer
+  /// mode is on.
   void _loadDev() {
     final base = Directory('${root.path}/dev');
     if (!base.existsSync()) return;
@@ -686,11 +714,14 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// A store pack, and below it one in development, as a plugin: what it throws goes to the registry, its pause to
+  /// [_trouble].
   PackPlugin _storePlugin(PluginPack pack, PackApproval? approval, {required bool paused}) =>
       PackPlugin(pack, source: PluginSource.reviewed, approval: approval, onError: (p, e) => _reg.failed(p, e), onTrouble: _trouble, openLink: _openLink, now: _now, paused: paused);
 
   PackPlugin _devPlugin(PluginPack pack, {required bool paused}) => PackPlugin(pack, source: PluginSource.dev, onError: (p, e) => _reg.failed(p, e), onTrouble: _trouble, openLink: _openLink, now: _now, paused: paused);
 
+  /// How many phrases [p]'s tag rules hold, counted against PackLimits.phrasesInAll.
   static int _phrasesOf(PluginPack p) => p.rules.tags.fold(0, (n, r) => n + r.any.length + r.all.length + r.none.length);
 
   /// The packs running now and their phrases, all but [besides]'s (the copy an install or a load replaces).
@@ -733,6 +764,7 @@ class InstalledPlugins extends ChangeNotifier {
     if (app != null && d.view(devOn: true).needsConsent) _reg.setOn(plugin, AppStore(app), false);
   }
 
+  /// [d] out of the registry; its files stay.
   void _stopDev(_Dev d) {
     if (!d.running) return;
     _reg.uninstall(registryIdOf(d.id));
@@ -771,6 +803,8 @@ class InstalledPlugins extends ChangeNotifier {
     _later();
   }
 
+  // A pack paused itself for slowing the app down (PackPlugin.onTrouble): the pause is kept for the copy that ran, the
+  // list sorts again, and a store pack's is toasted.
   void _trouble(PackPlugin plugin, String what) {
     if (what != 'paused') return;
     final id = plugin.pack.id;
@@ -790,6 +824,8 @@ class InstalledPlugins extends ChangeNotifier {
 
   // --- the Marketplace's packs ------------------------------------------------------------------------------------
 
+  /// Installs a pack from the Marketplace, or updates the one here: [bytes] must be the very copy [approval] signs, by
+  /// a review key this build trusts. [listing] is what the catalog said of it; [on] switches it on.
   Future<PackOutcome> installReviewed(Uint8List bytes, PackApproval approval, {Map<String, Object?> listing = const {}, bool on = true}) => _serial(() => _installReviewed(bytes, approval, listing: listing, on: on));
 
   Future<PackOutcome> _installReviewed(Uint8List bytes, PackApproval approval, {required Map<String, Object?> listing, required bool on}) async {
@@ -866,6 +902,8 @@ class InstalledPlugins extends ChangeNotifier {
     return PackOutcome.ok(plugin);
   }
 
+  /// Takes a store pack out of the registry and deletes its files. Its switch is cleared; with [forget], every other
+  /// choice of its own too ([_forget]).
   Future<PackOutcome> removeStore(String packId, {bool forget = false}) => _serial(() async {
         final app = _app;
         if (app == null) return _notLoaded;
@@ -979,8 +1017,11 @@ class InstalledPlugins extends ChangeNotifier {
 
   // --- packs in development ---------------------------------------------------------------------------------------
 
+  /// Loads a pack in development from [bytes], or a newer copy of one already loaded: unreviewed, and only while
+  /// developer mode is on. A copy that doesn't parse is kept with its issues, an older one that runs going on running.
   Future<PackOutcome> loadDev(List<int> bytes, DevSource source, {bool on = false}) => _serial(() => _loadDevNow(bytes, source, on: on));
 
+  /// Why nothing in development may be loaded now; null where it may.
   PackOutcome? _devRefused() {
     final app = _app;
     if (app == null) return _notLoaded;
@@ -1069,6 +1110,7 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Writes [d]'s source.json (where it came from, when, what was agreed to), and its package where [bytes] is given.
   void _saveDev(_Dev d, List<int>? bytes) {
     final dir = _devDir(d.id);
     try {
@@ -1079,6 +1121,7 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Fetches a pack from [url], where [_linkAllowed] lets it, and loads it as one in development.
   Future<PackOutcome> loadDevFromLink(Uri url, {bool on = false}) async {
     final refused = _devRefused();
     if (refused != null) return refused;
@@ -1097,6 +1140,7 @@ class InstalledPlugins extends ChangeNotifier {
     return (Platform.isMacOS || Platform.isWindows || Platform.isLinux) && (url.host == 'localhost' || url.host == '::1');
   }
 
+  /// The bytes at [url], or why there are none: ten seconds to connect, twenty for all of it.
   Future<(Uint8List?, PackOutcome?)> _fetch(Uri url) async {
     final client = _http?.call() ?? HttpClient();
     client.connectionTimeout = const Duration(seconds: 10);
@@ -1111,6 +1155,7 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Redirects are followed by hand, three at most, and the reading stops once there is more than a package may be.
   Future<(Uint8List?, PackOutcome?)> _get(HttpClient client, Uri url) async {
     var at = url;
     for (var hops = 0;; hops++) {
@@ -1140,6 +1185,8 @@ class InstalledPlugins extends ChangeNotifier {
     }
   }
 
+  /// Loads [packId] again from where it came, its link or its file on a computer. Refused where the new copy names
+  /// another id.
   Future<PackOutcome> reloadDev(String packId) async {
     final d = _dev[packId];
     if (d == null) return const PackOutcome.failed('not_found', 'It isn\'t loaded on this device.');
@@ -1167,6 +1214,7 @@ class InstalledPlugins extends ChangeNotifier {
     return loadDev(bytes, source);
   }
 
+  /// Takes a pack in development out of the registry and deletes its files, its switches cleared.
   Future<PackOutcome> removeDev(String packId) => _serial(() async {
         final app = _app;
         if (app == null) return _notLoaded;
@@ -1209,6 +1257,7 @@ class InstalledPlugins extends ChangeNotifier {
     return d != null && d.pack != null && !d.needsConsent;
   }
 
+  /// Lets a paused pack run again and forgets its pause; the list sorts again.
   void unpause(String packId) {
     final plugin = _store[packId]?.plugin ?? _dev[packId]?.plugin;
     if (plugin == null) return;
@@ -1260,6 +1309,7 @@ class InstalledPlugins extends ChangeNotifier {
     });
   }
 
+  /// Writes every withdrawal and retirement held to revoked.json, which the next start reads ([_readRevoked]).
   void _saveRevoked() {
     try {
       _write('${root.path}/revoked.json', utf8.encode(jsonEncode({'v': 1, 'at': _now().millisecondsSinceEpoch, 'revoked': [for (final r in _revocations.values) r.toJson()], 'retired': [for (final r in _retired.values) r.toJson()]})));
@@ -1312,11 +1362,14 @@ class _Dev {
   String? problem;
   bool running = false;
 
+  /// Newest first, the last 20 kept.
   void heard(DevError e) {
     errors.insert(0, e);
     if (errors.length > 20) errors.removeRange(20, errors.length);
   }
 
+  /// As the screens see it. Where [problem] is unset, one is worked out: developer mode off, paused, or not yet agreed
+  /// to, in that order.
   DevPack view({required bool devOn}) {
     final shown = DevPack(id: id, source: source, loadedAt: loadedAt, pack: pack, plugin: plugin, issues: issues, errors: List.unmodifiable(errors), agreed: agreed == null ? null : List.unmodifiable(agreed!), running: running);
     final why = problem ?? (!devOn ? 'dev_mode_off' : (running && (plugin?.paused ?? false) ? 'paused' : (shown.needsConsent ? 'needs_consent' : null)));
@@ -1346,6 +1399,7 @@ bool _sameBytes(List<int> a, List<int> b) {
   return true;
 }
 
+/// [s] cut to [n] UTF-16 units at most, never between the two halves of a surrogate pair.
 String _cut(String s, int n) {
   if (s.length <= n) return s;
   final last = s.codeUnitAt(n - 1);
@@ -1354,6 +1408,7 @@ String _cut(String s, int n) {
 
 // On an isolate of their own in the app (InstalledPlugins.verifyInIsolate): plain values in, plain values out.
 
+// Whether each withdrawal (first list) and each retirement (second) verifies, in the order given.
 List<List<bool>> _verifyBatch(List<String> keys, List<Map<String, Object?>> revs, List<Map<String, Object?>> rets) => [
       [for (final r in revs) verifyRevocation(PackRevocation.fromJson(r), keys: keys)],
       [for (final r in rets) verifyRetirement(PackRetirement.fromJson(r))],

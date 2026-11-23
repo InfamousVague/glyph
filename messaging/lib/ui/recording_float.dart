@@ -39,6 +39,7 @@ part 'recording_mixer.dart';
 /// The key 'Everyone' is drawn under: the mix of every track, as the file's first track is.
 const _mixKey = '*mix';
 
+/// The pill and, opened, the panel; nothing at all while no call is being recorded.
 class RecordingFloat extends StatefulWidget {
   const RecordingFloat({super.key, this.recorder});
 
@@ -85,6 +86,8 @@ class _RecordingFloatState extends State<RecordingFloat> {
     if (mounted) setState(() {});
   }
 
+  /// Where the pill stands: where it was last put ("x,y" under [_pref]), else at the right, four fifths of the way down
+  /// the room it moves in.
   Offset _kept(AppState? app) {
     final at = _at;
     if (at != null) return at;
@@ -240,6 +243,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   final List<double> _mixLevels = [];
   int _mixRevision = -1;
 
+  /// The mix's lane: each step's levels summed under the gains the faders had at that moment, held to full scale.
   List<double> _mixed(CallRecorder rec) {
     final levels = rec.meter.levels;
     final n = _stepsOf(levels);
@@ -516,6 +520,7 @@ class _TrackHeader extends StatelessWidget {
   }
 }
 
+/// A round button in the panel's header: an icon, with [text] before it where there is room for a word.
 class _ToolButton extends StatelessWidget {
   const _ToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.text});
   final LucideIcon icon;
@@ -564,6 +569,7 @@ class _TimelinePainter extends CustomPainter {
   final TextStyle label;
   final TextStyle clipLabel;
 
+  /// Where a moment of the recording is across the painting, in points from its left edge.
   double _x(double second) => (second - start) * perSecond;
 
   @override
@@ -702,6 +708,7 @@ Color _colourOf(Tokens t, String key) {
   return PluginHues.of(t.child(attrs: {'theme': 'dark'}), hueFor(key)).accent;
 }
 
+/// How many steps the longest track has.
 int _stepsOf(Map<String, List<double>> levels) => levels.values.fold<int>(0, (n, l) => l.length > n ? l.length : n);
 
 /// A level as it is drawn: speech sits low on a straight scale, so it is lifted (a square root) as editors draw it.
@@ -730,4 +737,5 @@ String _short(Duration d) {
   return d.inHours > 0 ? '${d.inHours}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}' : '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
 }
 
+/// The time in words, for a screen reader's label on the pill.
 String _spoken(Duration d) => d.inMinutes > 0 ? '${d.inMinutes} minutes ${d.inSeconds % 60} seconds' : '${d.inSeconds} seconds';

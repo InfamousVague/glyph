@@ -193,6 +193,8 @@ Future<void> showCircleInvitePeople(
   return showInvitePeople(context, target, buddies: buddies, contacts: contacts, texts: texts, compose: write, canText: canText);
 }
 
+/// The sheet itself ([showInvitePeople] raises it): the link, its QR code and Share at the top, a search, then everyone
+/// who could be asked, each with a check, and Send.
 class InvitePeopleSheet extends StatefulWidget {
   const InvitePeopleSheet({super.key, required this.target, this.buddies, this.contacts, this.texts, this.share, this.compose, this.me, this.canText, this.buddyOf, this.chosen, this.asking = false, this.qr = false, this.query});
   final InviteTarget target;
@@ -249,6 +251,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
     unawaited(_load());
   }
 
+  /// Reads the contacts that could be asked; until then, and where they can't be read, friends alone are offered.
   Future<void> _load() async {
     try {
       final found = await (widget.contacts ?? appInviteContacts)();
@@ -320,6 +323,8 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
 
   final Map<String, InviteCandidate> _typedNumbers = {};
 
+  /// Send: friends not already inside are sent the place in the app, the rest are texted (asked about first), or the
+  /// share sheet opens where this device has no texts. Says who was reached and who was not, and closes if anyone was.
   Future<void> _go() async {
     if (_sending || _went) return;
     final picked = _picked();
@@ -596,6 +601,7 @@ class _Ways extends StatelessWidget {
   }
 }
 
+/// A small button with an icon and a word, held down while [on]; a bevel under Dial-Up's chrome.
 class _Pill extends StatelessWidget {
   const _Pill({super.key, required this.icon, required this.label, required this.onPress, this.on = false});
   final LucideIcon icon;

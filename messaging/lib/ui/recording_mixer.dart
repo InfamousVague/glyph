@@ -25,12 +25,14 @@ const _unityAt = 0.75;
 const _faderFloorDb = -42.0;
 final _topDb = 20 * math.log(RecordingMix.most) / math.ln10;
 
+/// The gain a fader at [place] gives.
 double _gainAt(double place) {
   if (place <= 0.01) return 0;
   final db = place >= _unityAt ? (place - _unityAt) / (1 - _unityAt) * _topDb : _faderFloorDb * (1 - place / _unityAt);
   return math.pow(10, db / 20).toDouble();
 }
 
+/// Where a fader stands for [gain]: [_gainAt] the other way.
 double _placeOf(double gain) {
   if (gain <= 0) return 0;
   final db = 20 * math.log(gain) / math.ln10;
@@ -133,6 +135,7 @@ class _LevelMeterState extends State<LevelMeter> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  /// The voice moved: reads where the bars are to go, and starts the ticker that takes them there.
   void _heard() {
     final n = widget.read();
     _toPeak = _onScale(n.peak);
@@ -144,6 +147,7 @@ class _LevelMeterState extends State<LevelMeter> with SingleTickerProviderStateM
     }
   }
 
+  /// A frame: moves the bars and the held peak towards where the voice is, and stops once they are there.
   void _tick(Duration now) {
     final dt = _last == Duration.zero ? 0.016 : (now - _last).inMicroseconds / 1e6;
     _last = now;
@@ -368,6 +372,7 @@ class _StripButton extends StatelessWidget {
   }
 }
 
+/// The mute and solo buttons' colours while on: amber and yellow, as a desk's are.
 const _muteLit = Color(0xFFFF9F0A), _soloLit = Color(0xFFFFD60A);
 
 /// The mixer: a strip for the mix, then one per voice.
@@ -397,6 +402,7 @@ class MixerView extends StatelessWidget {
   }
 }
 
+/// One channel strip: its label and name, the meter beside the fader, the fader's decibels, and mute and solo.
 class _Strip extends StatelessWidget {
   const _Strip({super.key, required this.recorder, required this.track, required this.label, required this.width});
   final CallRecorder recorder;

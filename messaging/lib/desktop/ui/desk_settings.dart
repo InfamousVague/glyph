@@ -45,6 +45,8 @@ class DeskSettings extends ChangeNotifier {
 
   /// How much of what was read is kept on this Mac (lib/desktop/cache.dart); null until it has been counted.
   ({int conversations, int bytes})? kept;
+
+  /// When it was last counted; and this has been disposed of, so a count that comes late tells nobody.
   DateTime _counted = DateTime.fromMillisecondsSinceEpoch(0);
   bool _gone = false;
 
@@ -260,6 +262,7 @@ extension on String {
 
 // --- Your phone -------------------------------------------------------------------------------------------------------
 
+/// The Your phone page: linking one where none is, else the phone paired with and how the two connect.
 List<Widget> _phonePage(BuildContext context, DeskSettings d) {
   final link = d.link;
   final phone = link.phone;
@@ -327,6 +330,8 @@ class _AddressField extends StatefulWidget {
 
 class _AddressFieldState extends State<_AddressField> {
   final _address = TextEditingController();
+
+  /// The address kept has been put in the field: once, so what is typed is not written over.
   bool _read = false;
 
   @override
@@ -343,6 +348,8 @@ class _AddressFieldState extends State<_AddressField> {
     super.dispose();
   }
 
+  /// Keeps the address typed (the 'peer' choice) and has the link try it at once; emptied, the phone is looked for
+  /// by itself again. Something that is no address and port is said to be so, and not kept.
   void _save() {
     final d = widget.settings;
     final app = AppState.of(context);

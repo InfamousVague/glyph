@@ -4,19 +4,18 @@ import AVKit
 import Flutter
 import UIKit
 
-/// A video in a message, on the Mac (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of
-/// text for the filename"): a picture of where it starts and how long it runs, for the conversation to draw, and a
-/// window that plays it with the Mac's own player and controls.
+/// A video in a message, on the iPhone (Matt, 2026-11-14: "mp4 files are not loading it just shows up as a string of
+/// text for the filename"): a picture of where it starts and how long it runs, for the conversation to draw, and
+/// iOS's own player with its controls, shown over the app, to play it.
 ///
-/// The video is the phone's: the app brings its bytes over the link (lib/desktop/remote.dart) and hands them here.
-/// AVFoundation reads a file, so the bytes are written to this app's own folder in the temporary directory, readable
-/// by this account alone, for as long as they are needed and no longer: until the picture is made, or until the
-/// player's window is closed. The folder is removed as the app opens and as it quits, so nothing of a conversation
-/// stays on the Mac's disk (docs/desktop.md: the Mac keeps no texts).
+/// The app hands the video's bytes here. AVFoundation reads a file, so the bytes are written to this app's own
+/// folder in the temporary directory for as long as they are needed and no longer: until the picture is made, or
+/// until the player is put away. The folder is removed as the app opens (AppDelegate), so nothing of a video stays
+/// from an earlier run.
 final class DeskVideo: NSObject, AVPlayerViewControllerDelegate {
   static let shared = DeskVideo()
 
-  /// The player windows open now, and the file each plays.
+  /// The file the player now open is playing; nil with none open.
   private var playing: URL?
 
   /// Every run's folders are in here; this run's is named by its process, so two copies of the app open at once
@@ -53,6 +52,7 @@ final class DeskVideo: NSObject, AVPlayerViewControllerDelegate {
     return known.contains(said.lowercased()) ? said.lowercased() : "mp4"
   }
 
+  /// The video's bytes as a file in this run's folder, under a name no other has, readable by this account alone.
   private static func write(_ data: Data, id: Int, ext: String) throws -> URL {
     let manager = FileManager.default
     try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -87,7 +87,7 @@ final class DeskVideo: NSObject, AVPlayerViewControllerDelegate {
     return ["picture": FlutterStandardTypedData(bytes: jpeg), "millis": millis, "width": image.width, "height": image.height, "videoWidth": Int(own.width), "videoHeight": Int(own.height)]
   }
 
-  /// Opens a window that plays the video. Nil when it is playing, or why it is not.
+  /// Shows iOS's player over the app and plays the video. Nil when it is playing, or why it is not.
   func play(data: Data, id: Int, ext: String, title: String) -> String? {
     guard let file = try? DeskVideo.write(data, id: id, ext: ext) else { return "the video could not be made ready to play" }
     let asset = AVURLAsset(url: file)
@@ -110,6 +110,7 @@ final class DeskVideo: NSObject, AVPlayerViewControllerDelegate {
     return nil
   }
 
+  /// The screen in front: the key window's, or whatever is presented over it. Pickers and the player are shown from it.
   static func topController() -> UIViewController? {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     var top = scenes.flatMap { $0.windows }.first { $0.isKeyWindow }?.rootViewController

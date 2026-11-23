@@ -25,6 +25,8 @@ class Mastodon extends InboxNetwork {
   @override
   final bool soon;
 
+  // The out-of-band redirect (the server shows the code for the person to paste), what Ghost asks leave to do, and
+  // how often the conversations and the open one are asked for.
   static const _oob = 'urn:ietf:wg:oauth:2.0:oob';
   static const _scopes = 'read write';
   static const _idle = Duration(seconds: 30);
@@ -151,6 +153,7 @@ class Mastodon extends InboxNetwork {
     }
   }
 
+  /// Signed in: the conversations are asked for now and every [_idle] after.
   void _ready() {
     _state = InboxState.ready;
     _error = null;
@@ -189,6 +192,8 @@ class Mastodon extends InboxNetwork {
     }
   }
 
+  /// A conversation as the server lists it, named for everyone in it but this account. Notes its newest post and its
+  /// accounts on the way, for sending.
   InboxChat? _conversation(Map c) {
     final cid = '${c['id']}';
     final last = c['last_status'] as Map?;
@@ -237,6 +242,7 @@ class Mastodon extends InboxNetwork {
     }
   }
 
+  /// A post as a message: its words, when, and who wrote it (their shown name, else their @account).
   InboxMessage _message(Map p) {
     final from = p['account'] as Map?;
     return InboxMessage(
@@ -329,6 +335,7 @@ class Mastodon extends InboxNetwork {
 
   // --- calls ----------------------------------------------------------------------------------------------------------
 
+  // A call whose answer is a list, or an object; anything else comes back empty.
   Future<List> _callList(String method, String url) async {
     final r = await _raw(method, url);
     return r is List ? r : const [];
@@ -339,6 +346,7 @@ class Mastodon extends InboxNetwork {
     return r is Map ? r : const {};
   }
 
+  /// One HTTP call to the server, with the token where there is one; the answer's JSON. Throws [_Status] on 400 and up.
   Future<Object?> _raw(String method, String url, {Object? body, bool auth = true}) async {
     final req = await _client.openUrl(method, Uri.parse(url));
     req.headers.set('accept', 'application/json');
@@ -362,6 +370,7 @@ class Mastodon extends InboxNetwork {
     return json;
   }
 
+  /// What went wrong, in words for the page.
   static String _plain(Object e) {
     if (e is _Said) return e.message;
     if (e is _Status) {
@@ -390,6 +399,7 @@ class Mastodon extends InboxNetwork {
   }
 }
 
+/// An answer of 400 or more: its status, and the server's own word for what went wrong.
 class _Status implements Exception {
   const _Status(this.code, this.error);
   final int code;
@@ -398,6 +408,7 @@ class _Status implements Exception {
   String toString() => 'Mastodon $code ${error ?? ''}'.trim();
 }
 
+/// A failure already in words for the person.
 class _Said implements Exception {
   const _Said(this.message);
   final String message;

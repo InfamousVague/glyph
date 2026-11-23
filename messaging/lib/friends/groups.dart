@@ -21,6 +21,8 @@ class GroupMember {
   final String address;
   final String? name;
   final String? photo;
+
+  /// Whether they are an admin of the group, and whether this member is this phone.
   final bool admin;
   final bool me;
 
@@ -29,6 +31,7 @@ class GroupMember {
 
   Person get person => Person(address: address, name: name, photo: photo);
 
+  /// A member as the phone gives one (android Groups.view).
   factory GroupMember.from(Map m) => GroupMember(
         id: m['id'] as String,
         key: (m['key'] as String?) ?? '',
@@ -56,6 +59,7 @@ class Group {
   /// This phone left it or was taken out: its conversation is kept, and nothing more is written in it.
   final bool gone;
 
+  /// The member with [id]; this phone's own; everyone else; and whether this phone may change the group.
   GroupMember? member(String id) => members.where((m) => m.id == id).firstOrNull;
   GroupMember? get mine => members.where((m) => m.me).firstOrNull;
   List<GroupMember> get others => members.where((m) => !m.me).toList();
@@ -88,6 +92,8 @@ class Group {
 abstract class GroupsPort {
   /// This phone's name to the routes; null until they are set up.
   String? get me;
+
+  /// The routes: who [id] is to them, whether one that costs nothing is up, sending, and what comes.
   Peer? peer(String id);
   bool get internet;
   Future<Delivery> send(Peer peer, Envelope envelope);
@@ -95,6 +101,8 @@ abstract class GroupsPort {
 
   /// Whether [address] is a friend: a group is joined only at a friend's asking.
   bool isFriend(String? address);
+
+  /// Has a member's phone say something is waiting, where the relay server is keeping it for them ([Friends.wake]).
   void wake(Peer peer);
 
   /// The records (android Groups.kt): read, a new one of this phone's making, a person as a member, kept.
@@ -147,6 +155,7 @@ class Groups extends ChangeNotifier {
   /// The most members a group can have: what one change of state can tell in a packet with room to spare.
   static const most = 50;
 
+  /// Starts listening to the routes and reads the groups from the phone. Once.
   Future<void> start() async {
     if (_started) return;
     _started = true;
@@ -161,6 +170,7 @@ class Groups extends ChangeNotifier {
     _by.clear();
   }
 
+  /// Reads the groups from the phone again.
   Future<void> refresh() async {
     try {
       final all = await _port.groups();
@@ -173,6 +183,7 @@ class Groups extends ChangeNotifier {
 
   // --- what the screens ask -------------------------------------------------------------------------------------------
 
+  /// Every group held, left or not; the one with [id]; and the one whose conversation is [thread].
   List<Group> get all => _by.values.toList();
   Group? of(String id) => _by[id];
   Group? ofThread(int thread) => _by.values.where((g) => g.thread == thread).firstOrNull;
@@ -194,6 +205,7 @@ class Groups extends ChangeNotifier {
     return group;
   }
 
+  /// Keeps [state] on the phone and here; the group as the phone then holds it.
   Future<Group> _keep(Map<String, dynamic> state) async {
     final group = await _port.save(state);
     _by[group.id] = group;
@@ -213,12 +225,14 @@ class Groups extends ChangeNotifier {
     ]);
   }
 
+  /// The group with [id], which this phone must still be in: throws where it isn't.
   Group _mine(String id) {
     final g = _by[id];
     if (g == null || g.gone) throw StateError('Not in that group');
     return g;
   }
 
+  /// The same, where this phone is an admin of it: throws where it isn't.
   Group _asAdmin(String id) {
     final g = _mine(id);
     if (!g.amAdmin) throw StateError('Only an admin of the group can change it');
@@ -306,6 +320,7 @@ class Groups extends ChangeNotifier {
 
   // --- what comes -----------------------------------------------------------------------------------------------------
 
+  /// A sealed `group` envelope: a state, words, or someone leaving. One that fails is passed over.
   Future<void> _received(Received r) async {
     if (r.envelope.kind != 'group' || !r.sealed) return;
     final id = r.envelope.body['g'];
@@ -322,6 +337,7 @@ class Groups extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Words from a member of a group this phone is in: kept in its conversation.
   Future<void> _text(String id, Received r) async {
     final g = _by[id];
     final words = r.envelope.body['t'];
@@ -329,6 +345,7 @@ class Groups extends ChangeNotifier {
     await _port.storeIn(id, r.peer.id, words, r.envelope.at);
   }
 
+  /// The member [who] said they are going: taken out here, on their own word, with no change to the count.
   Future<void> _left(String id, String who) async {
     final g = _by[id];
     final gone = g?.member(who);
@@ -341,6 +358,8 @@ class Groups extends ChangeNotifier {
     await _port.note(id, '${gone.label} left');
   }
 
+  /// A state from an admin: joins the group at a friend's asking, or changes the one held where it is newer, and
+  /// writes a line in the conversation for each thing that changed.
   Future<void> _state(String id, Received r) async {
     final s = r.envelope.body['s'];
     final me = _port.me;

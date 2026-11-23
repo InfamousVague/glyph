@@ -34,10 +34,13 @@ import 'account_crypto.dart';
 class Account extends ChangeNotifier {
   Account({required this.relay, required this.port, required this.store, required this.profiles});
 
+  /// The app's account, made on first use; a test puts its own in place.
   static Account? _instance;
   static Account get instance => _instance ??= Account(relay: HubAccountRelay(), port: SmsAccountPort(), store: _NoStore(), profiles: AppAccountProfiles());
   static set instance(Account? a) => _instance = a;
 
+  // What it works through: the relay's accounts, the install itself (its key, its vault, starting again), the
+  // preferences, and the profile that goes in a backup.
   final AccountRelay relay;
   final AccountPort port;
   MeStore store;
@@ -53,6 +56,7 @@ class Account extends ChangeNotifier {
 
   // --- what this device keeps -----------------------------------------------------------------------------------------
 
+  // Names in the install's secure storage: the recovery words, and the key the password made ([PasswordKey]).
   static const _words = 'account_words';
   static const _pwKey = 'account_pwkey';
 
@@ -80,6 +84,7 @@ class Account extends ChangeNotifier {
   /// The relay said this device was removed from the account (from another device), or the account is gone.
   bool removedHere = false;
 
+  /// The recovery words from secure storage; null where there are none, or they don't add up.
   Future<List<String>?> _keptWords() async {
     final w = await port.secretRead(_words);
     if (w == null || w.isEmpty) return null;
@@ -87,6 +92,7 @@ class Account extends ChangeNotifier {
     return AccountCrypto.validWords(words) ? words : null;
   }
 
+  /// Notes in the preferences that this device is in the account at [address], with the password's sealed copy.
   void _keepHere({required String address, required String mode, required String sealed}) {
     store.set('acct_address', address);
     store.set('acct_mode', mode);
@@ -102,6 +108,7 @@ class Account extends ChangeNotifier {
     return AccountDraft(words, _keysOf(words).address);
   }
 
+  /// What [words] make: the BIP-39 seed, the account's own key (secp256k1) and its address.
   static ({Uint8List seed, Uint8List key, String address}) _keysOf(List<String> words) {
     final seed = AccountCrypto.seedOf(words);
     final key = AccountCrypto.derive(seed, AccountCrypto.ethPath);
@@ -141,6 +148,8 @@ class Account extends ChangeNotifier {
     return pw;
   }
 
+  /// A request the relay checks as the account's own: a body naming [op], the address, this hub connection and the
+  /// time, with [more], signed with the account's key.
   Map<String, Object?> _signed(String dir, String op, ({Uint8List seed, Uint8List key, String address}) keys, Map<String, Object?> more) {
     final body = jsonEncode({'op': op, 'a': keys.address, 'by': relay.hubId, 'at': DateTime.now().millisecondsSinceEpoch, ...more});
     return {'dir': dir, 'body': body, 'sig': NetCrypto.hex(AccountCrypto.sign(keys.key, utf8.encode(body)))};
@@ -148,6 +157,7 @@ class Account extends ChangeNotifier {
 
   static String get _platform => Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : Platform.isMacOS ? 'macos' : Platform.isWindows ? 'windows' : 'linux';
 
+  /// Lists this device under the account; the account's devices as they then are.
   Future<List<AccountDevice>> _addDevice(Uint8List key, String address) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', (seed: Uint8List(0), key: key, address: address), {
       'add': {'d': device, 'n': profiles.deviceName, 'p': _platform},
@@ -345,6 +355,7 @@ class Account extends ChangeNotifier {
     return [...mine, for (final x in theirs) if (x is Map && x[key] is String && !have.contains(x[key])) x];
   }
 
+  /// The account's keys, from the words kept here; throws where this device isn't signed in or can't read them.
   Future<({Uint8List seed, Uint8List key, String address})> _keys() async {
     final words = await _keptWords();
     if (words == null || address == null) throw AccountError('This device\'s copy of the account can\'t be read. Sign in again.');
@@ -357,6 +368,8 @@ class Account extends ChangeNotifier {
     return AccountDevice.list(m['list'], device);
   }
 
+  /// Takes the device [d] off the account's list; the devices left. That device forgets the account when it next
+  /// asks the relay ([check]).
   Future<List<AccountDevice>> removeDevice(String d) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', await _keys(), {'remove': d}));
     return AccountDevice.list(m['list'], device);
@@ -413,6 +426,7 @@ class Account extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Forgets the account on this device: its address, the sealed copy, the words and the password's key.
   Future<void> _forgetHere() async {
     store.set('acct_address', '');
     store.set('acct_sealed', '');
@@ -442,6 +456,7 @@ class Account extends ChangeNotifier {
   }
 }
 
+/// An account not yet made: its recovery words and the address they make ([Account.draft]).
 class AccountDraft {
   const AccountDraft(this.words, this.address);
   final List<String> words;
@@ -456,29 +471,36 @@ class AccountRestore {
 
   /// The password's copy, to keep on this device; null where the relay had none.
   final String? sealed;
+
+  /// Whether the relay held a backup for it. False for words with none kept: [Account.finish] then needs a password.
   final bool backedUp;
 
   /// The key the password made, where it was typed: kept with the words, so the backup can be sealed again.
   final PasswordKey? passwordKey;
 }
 
+/// A device signed in to the account, as the relay lists it.
 class AccountDevice {
   const AccountDevice({required this.id, required this.name, required this.platform, required this.since, required this.seen, this.here = false});
   final String id;
   final String name;
   final String platform;
+
+  /// When it was added and when it was last seen, as the relay wrote them.
   final String since;
   final String seen;
 
   /// This device.
   final bool here;
 
+  /// The relay's [list] as devices; the one whose id is [mine] is marked [here].
   static List<AccountDevice> list(Object? list, String mine) => [
         for (final d in (list as List? ?? const []).whereType<Map>())
           AccountDevice(id: '${d['d']}', name: '${d['n'] ?? ''}', platform: '${d['p'] ?? ''}', since: '${d['at'] ?? ''}', seen: '${d['seen'] ?? ''}', here: d['d'] == mine),
       ];
 }
 
+/// Why something about the account did not work, in words a person can be shown.
 class AccountError implements Exception {
   AccountError(this.message);
   final String message;
@@ -521,6 +543,8 @@ class HubAccountRelay implements AccountRelay {
     return true;
   }
 
+  /// Says [what] to the relay once the hub is up (waited for, up to ten seconds) and gives the first answer with the
+  /// same `dir`. An `err` about it is thrown as an [AccountError].
   @override
   Future<Map<String, dynamic>> ask(Map<String, Object?> what, {Duration wait = const Duration(seconds: 25)}) async {
     unawaited(Net.instance.want('account', true));
@@ -552,10 +576,15 @@ class HubAccountRelay implements AccountRelay {
 
 /// What the account asks of the install: its key, keeping a secret, starting again.
 abstract class AccountPort {
+  /// This install's identity: its private key read out, and another put in its place.
   Future<Uint8List> identityExport();
   Future<void> identityImport(List<int> scalar, List<int> public);
+
+  /// The install's secure storage, by name; '' is kept in place of a secret to forget it.
   Future<void> secretKeep(String name, String value);
   Future<String?> secretRead(String name);
+
+  /// Starts the app again; false where it can't by itself.
   Future<bool> restart();
 
   /// Lets go of this install's identity where it has one to go back to (a computer paired with a phone takes the
@@ -563,6 +592,7 @@ abstract class AccountPort {
   Future<bool> identityForget();
 }
 
+/// The install as the app reaches it: its native side, through [Sms].
 class SmsAccountPort implements AccountPort {
   /// A paired computer that has not taken on an identity of its own asks everything of the phone: an account's calls
   /// would change the phone's identity and vault from the computer, so none is made from there.
@@ -607,7 +637,9 @@ abstract class AccountProfiles {
   Future<void> stopAll();
 }
 
+/// The app's own: the profile in Settings › Me, the friends list and the circles.
 class AppAccountProfiles implements AccountProfiles {
+  /// The app's preferences once [Account.start] has put them in place; null before.
   MeStore? get _store => Account.instance.store is _NoStore ? null : Account.instance.store;
 
   @override
@@ -664,6 +696,7 @@ class AppAccountProfiles implements AccountProfiles {
   }
 }
 
+/// Stands in for the preferences until [Account.start]: kept in memory only, so nothing reads as signed in.
 class _NoStore implements MeStore {
   final Map<String, String> _kept = {};
   @override

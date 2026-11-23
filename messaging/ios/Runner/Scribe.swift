@@ -16,6 +16,8 @@ final class Scribe: NSObject {
   static let rate = 16000
   private var channel: FlutterMethodChannel?
 
+  /// The `ghost/scribe` channel: available, and transcribe (one track of a file, off the main thread, once the person
+  /// has allowed speech recognition).
   func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "ghost/scribe", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
@@ -49,8 +51,11 @@ final class Scribe: NSObject {
     self.channel = channel
   }
 
+  /// Why a transcription could not be made, in words: they go to Dart as the error's message.
   struct Failure: Error, CustomStringConvertible { let description: String }
 
+  /// The stretches of [track] in [path] with words in them, as `{start, end, text}` (milliseconds). In [language] where
+  /// the device knows it, else the device's own.
   static func transcribe(path: String, track: Int, language: String?) throws -> [[String: Any]] {
     let recognizer = (language.map { SFSpeechRecognizer(locale: Locale(identifier: $0)) } ?? SFSpeechRecognizer()) ?? SFSpeechRecognizer()
     guard let recognizer, recognizer.supportsOnDeviceRecognition else { throw Failure(description: "no on-device speech recognition here") }
@@ -117,6 +122,8 @@ final class Scribe: NSObject {
     return out
   }
 
+  /// What on-device recognition hears in [pcm] from [from] to [to]; nil where it heard nothing, or gave no answer in a
+  /// minute.
   static func recognize(_ recognizer: SFSpeechRecognizer, _ pcm: [Int16], _ from: Int, _ to: Int) -> String? {
     guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(rate), channels: 1, interleaved: false),
           let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(to - from)) else { return nil }

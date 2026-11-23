@@ -58,6 +58,7 @@ class AddFriendButton extends StatelessWidget {
   }
 }
 
+/// The drawer itself: choosing a username where you have none, and otherwise the search and what it found.
 class AddFriendDrawer extends StatefulWidget {
   const AddFriendDrawer({super.key, this.buddies, this.me});
 
@@ -78,6 +79,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
   /// The username looked up, and what was found; null while nothing whole is typed or the answer is coming.
   String? _looked;
   BuddyLookup? _found;
+  // Counts the lookups begun, so an answer that comes after a newer one was asked is dropped.
   int _asked = 0;
 
   Buddies get _buddies => widget.buddies ?? Buddies.instance;
@@ -90,6 +92,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     super.dispose();
   }
 
+  /// The search field changed: a whole, well-formed username is looked up once typing has paused for 350 ms.
   void _typed(String _) {
     _wait?.cancel();
     setState(() => _problem = null);
@@ -119,6 +122,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     }
   }
 
+  /// Takes the username typed as your own; the drawer turns to the search once it is yours.
   Future<void> _claim() async {
     final want = tidyHandle(_field.text);
     if (!Me.goodUsername(want)) {
@@ -140,6 +144,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     }
   }
 
+  /// Asks [name] to be a friend, or accepts where they asked first, and says which happened.
   Future<void> _add(String name) async {
     setState(() {
       _busy = true;
@@ -271,6 +276,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
   }
 }
 
+/// The drawer's pill button, as tall as the field beside it: inked when [filled], faded when it can't be pressed.
 class _Button extends StatelessWidget {
   const _Button({super.key, required this.label, this.icon, this.filled = false, this.onPress});
   final String label;

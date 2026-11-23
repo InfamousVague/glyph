@@ -93,6 +93,7 @@ class MemoryStore implements PluginStore {
   Map<String, String> withPrefix(String prefix) => {for (final e in values.entries) if (e.key.startsWith(prefix)) e.key: e.value};
 }
 
+/// One plugin's own choices: the person's, each read and written under the plugin's [prefix] (`plugin_<id>_`).
 class _Prefs implements PluginPrefs {
   const _Prefs(this.store, this.prefix, {this.tunes = false});
   final PluginStore store;
@@ -150,6 +151,7 @@ class Filing {
   /// The section [thread] is filed in, [main] for the main list, or null where it was never filed.
   String? of(int thread) => _by[thread];
 
+  /// This with [thread] filed in [section]; with null, no longer filed at all.
   Filing _with(int thread, String? section) {
     final by = {..._by};
     section == null ? by.remove(thread) : by[thread] = section;
@@ -356,6 +358,8 @@ class PluginRegistry with ChangeNotifier {
   /// The choice a plugin's switch is kept under.
   static String switchKey(GhostPlugin plugin) => 'plugin_${plugin.id}';
 
+  /// Whether the person has [plugin] switched on; as the plugin starts ([GhostPlugin.onByDefault]) where they never
+  /// chose.
   bool isOn(GhostPlugin plugin, PluginStore store) {
     final value = store.read(switchKey(plugin));
     return value == null ? plugin.onByDefault : value == 'on';
@@ -437,6 +441,8 @@ class PluginRegistry with ChangeNotifier {
 
   Iterable<_Entry> _on(PluginStore store) => _entries.where((e) => isOn(e.plugin, store));
 
+  /// Everything asked of a plugin goes through here: what it throws is told ([_tell]) and [otherwise] stands in, so
+  /// one plugin's fault never breaks the screen that asked.
   T _ask<T>(GhostPlugin plugin, T otherwise, T Function() ask) {
     try {
       return ask();
@@ -484,6 +490,7 @@ class PluginRegistry with ChangeNotifier {
     return _filed;
   }
 
+  /// The first of [sections] that takes the conversation, in their order; null where none does.
   PluginSection? _taker(MessageFacts facts, TagSet tags, PluginStore store, List<PluginSection> sections) {
     for (final s in sections) {
       if (_ask(s.plugin, false, () => s.section.takes(facts, tags, prefsOf(s.plugin, store)))) return s;

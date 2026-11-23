@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** The colour shared with Ghost Keyboard ([AccentSync]): whose choice is taken, and the ids the two must agree on. */
 class AccentSyncTest {
     @Test fun theNewerChoiceWins() {
         assertEquals("pink", AccentSync.take(mine = 100, theirId = "pink", theirs = 200))

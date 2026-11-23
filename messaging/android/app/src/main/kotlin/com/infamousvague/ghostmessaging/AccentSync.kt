@@ -87,6 +87,7 @@ object AccentSync {
     fun take(mine: Long, theirId: String?, theirs: Long): String? =
         if (theirId != null && theirId in IDS && theirs > mine) theirId else null
 
+    /** Whether the provider answering for the keyboard is Ghost Keyboard's own, the keyboard signed as it should be. */
     private fun trusted(context: Context): Boolean = runCatching {
         val provider = context.packageManager.resolveContentProvider(KEYBOARD_AUTHORITY, 0) ?: return false
         provider.packageName == KEYBOARD && CodesProvider.keyboardHere(context)
@@ -144,6 +145,7 @@ class AccentProvider : ContentProvider() {
         return cursor
     }
 
+    /** Whether the app asking is Ghost Keyboard: by its package, and by its signature too in a release build. */
     private fun allowed(context: Context): Boolean {
         val packages = context.packageManager.getPackagesForUid(Binder.getCallingUid()) ?: return false
         if (AccentSync.KEYBOARD !in packages) return false

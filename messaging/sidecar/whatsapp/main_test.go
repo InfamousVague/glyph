@@ -20,6 +20,9 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// Tests of the helper's parts that need no WhatsApp account: reading requests, shaping answers, media pointers there
+// and back, and WhatsApp's messages and history turned into the app's events.
+
 func TestParseRequest(t *testing.T) {
 	r, err := parseRequest([]byte(`{"id":9,"op":"read","to":"15550100@s.whatsapp.net","author":"15550101@s.whatsapp.net","ids":["A1","B2"]}`))
 	if err != nil || r.ID != 9 || r.Op != "read" || len(r.IDs) != 2 || r.IDs[1] != "B2" {
@@ -113,6 +116,7 @@ func TestPointerRoundTrip(t *testing.T) {
 	}
 }
 
+// mustQuote is [b] as a JSON string: a pointer as the app sends it when it kept the object as text.
 func mustQuote(b []byte) json.RawMessage {
 	q, _ := json.Marshal(string(b))
 	return q

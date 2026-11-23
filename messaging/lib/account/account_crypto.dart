@@ -26,6 +26,7 @@ import '../net/fast_gcm.dart';
 ///   (Argon2id, 64 MiB, 3 passes, 1 lane, 16-byte salt) and once under a key from the seed (HKDF-SHA256), so either one
 ///   opens it. The relay keeps the two sealed blobs and can open neither.
 class AccountCrypto {
+  /// The curve the account's own key is on, as Ethereum's are.
   static final ECDomainParameters k1 = ECCurve_secp256k1();
 
   // --- recovery words (BIP-39) -----------------------------------------------------------------------------------------
@@ -50,6 +51,7 @@ class AccountCrypto {
   /// The words as typed, tidied: lower case, one space between, nothing around.
   static List<String> tidyWords(String typed) => typed.trim().toLowerCase().split(RegExp(r'[\s,]+')).where((w) => w.isNotEmpty).toList();
 
+  /// Each word's place in the list, which is its 11-bit number.
   static final Map<String, int> _index = {for (var i = 0; i < bip39English.length; i++) bip39English[i]: i};
 
   /// Whether [word] is one of the 2048.
@@ -73,6 +75,7 @@ class AccountCrypto {
     return all.substring(entropyBits) == want ? entropy : null;
   }
 
+  /// Whether [words] are recovery words whose checksum adds up ([entropyOf]).
   static bool validWords(List<String> words) => entropyOf(words) != null;
 
   /// BIP-39's seed: PBKDF2-HMAC-SHA512 of the words joined by spaces, salted "mnemonic" and [passphrase], 2048 rounds,
@@ -88,6 +91,7 @@ class AccountCrypto {
   /// Ethereum's first account's path: m/44'/60'/0'/0/0.
   static const ethPath = [0x8000002C, 0x8000003C, 0x80000000, 0, 0];
 
+  // HMAC-SHA512; bytes read as a big-endian number; and a number written as [n] big-endian bytes.
   static Uint8List _hmac512(List<int> key, List<int> data) => (HMac(SHA512Digest(), 128)..init(KeyParameter(Uint8List.fromList(key)))).process(Uint8List.fromList(data));
   static BigInt _int(List<int> b) => b.fold(BigInt.zero, (v, x) => (v << 8) | BigInt.from(x & 0xff));
   static Uint8List _fixed(BigInt v, [int n = 32]) => Uint8List.fromList([for (var i = n - 1; i >= 0; i--) ((v >> (8 * i)) & BigInt.from(0xff)).toInt()]);
@@ -213,6 +217,7 @@ class AccountCrypto {
     return Uint8List.fromList(out.sublist(0, length));
   }
 
+  /// HKDF's salt for everything the seed makes here; each use has a label of its own.
   static const _salt = 'ghost-account v1';
 
   /// The Ghost identity the seed makes: a P-256 scalar from HKDF, tried again with a counter in the rare case (one in
@@ -249,6 +254,7 @@ class AccountCrypto {
 
   // --- sealing ---------------------------------------------------------------------------------------------------------
 
+  /// What a sealed copy is bound to: the account's address and which copy it is ('password' or 'seed').
   static Uint8List _aad(String address, String kind) => Uint8List.fromList(utf8.encode('ghost-account v1|${address.toLowerCase()}|$kind'));
 
   /// [clear] under [key]: 12 random bytes, then AES-256-GCM's output with its tag; the address and kind are bound in, so
@@ -258,6 +264,7 @@ class AccountCrypto {
     return Uint8List.fromList([...nonce, ...FastGcm(key).seal(nonce, _aad(address, kind), Uint8List.fromList(clear))]);
   }
 
+  /// What [gcmSeal] sealed, opened; null where the key, the address or the kind is not the one it was sealed with.
   static Uint8List? gcmOpen(List<int> key, List<int> sealed, String address, String kind) {
     if (sealed.length < 28) return null;
     try {
@@ -272,6 +279,7 @@ class AccountCrypto {
   static Future<String> sealWithPassword(AccountBackup backup, String password, String address, {int memoryKiB = argonMemoryKiB, int passes = argonPasses}) async =>
       sealWithPasswordKey(backup, await PasswordKey.make(password, memoryKiB: memoryKiB, passes: passes), address);
 
+  /// The same, with the key the password already made: no Argon2 run.
   static String sealWithPasswordKey(AccountBackup backup, PasswordKey key, String address) =>
       jsonEncode({'v': 1, 'k': 'argon2id', 'm': key.memoryKiB, 't': key.passes, 'p': key.lanes, 's': base64Encode(key.salt), 'c': base64Encode(gcmSeal(key.key, backup.pack(), address, 'password'))});
 
@@ -281,6 +289,7 @@ class AccountCrypto {
     return key == null ? null : openWithPasswordKey(blob, key, address);
   }
 
+  /// The same, with the key the password already made.
   static AccountBackup? openWithPasswordKey(String blob, PasswordKey key, String address) {
     try {
       final m = jsonDecode(blob) as Map;
@@ -296,6 +305,7 @@ class AccountCrypto {
   static String sealWithSeed(AccountBackup backup, List<int> seed, String address) =>
       jsonEncode({'v': 1, 'k': 'seed', 'c': base64Encode(gcmSeal(seedSealKey(seed), backup.pack(), address, 'seed'))});
 
+  /// What the seed's copy holds; null where [blob] is not one, or [seed] is not the one it was sealed with.
   static AccountBackup? openWithSeed(String blob, List<int> seed, String address) {
     try {
       final m = jsonDecode(blob) as Map;
@@ -348,6 +358,7 @@ class AccountBackup {
         'at': at.millisecondsSinceEpoch,
       };
 
+  /// The backup [j] is; null where it is another version, or has no words or identity.
   static AccountBackup? fromJson(Object? j) {
     if (j is! Map || j['v'] != 1 || j['w'] is! String || j['i'] is! String) return null;
     return AccountBackup(
@@ -367,6 +378,7 @@ class AccountBackup {
   /// The JSON, gzipped: friends and circles compress well, and the relay keeps a limited size.
   Uint8List pack() => Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(toJson()))));
 
+  /// What [pack] made, read back; null where it isn't one.
   static AccountBackup? unpack(List<int> bytes) {
     try {
       return fromJson(jsonDecode(utf8.decode(gzip.decode(bytes))));
@@ -375,6 +387,7 @@ class AccountBackup {
     }
   }
 
+  /// This backup with the parts given changed. The words, identity and mode stay; it is dated now.
   AccountBackup copyWith({List<Object?>? friends, List<Object?>? circles, String? username, String? displayName, String? bio, String? keptKey}) => AccountBackup(
         words: words,
         identity: identity,
@@ -434,6 +447,7 @@ class PasswordKey {
     }
   }
 
+  /// As kept in the install's secure storage: the key itself, with its salt and settings.
   String toJson() => jsonEncode({'k': base64Encode(key), 's': base64Encode(salt), 'm': memoryKiB, 't': passes, 'p': lanes});
 
   static PasswordKey? fromJson(String? text) {

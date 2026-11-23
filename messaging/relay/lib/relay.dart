@@ -42,6 +42,11 @@ class Relay {
   final bool verbose;
   final DateTime Function() _now;
 
+  /// The most bytes in one sealed frame passed between the two ends: a megabyte and room for the seal. A longer one
+  /// closes the sender's connection.
+  /// [tempLife]: how long a channel made for pairing lasts. [idleLife]: how long a pairing's channel is kept unused.
+  /// [authWait]: how long a new connection has to say its token before it is closed (4401).
+  /// [maxChannels]: the most channels kept at once; past it a new one is refused.
   static const maxFrame = (1 << 20) + 64;
   static const tempLife = Duration(minutes: 10);
   static const idleLife = Duration(days: 90);
@@ -50,6 +55,7 @@ class Relay {
 
   final Map<String, _Channel> _channels = {};
   HttpServer? _server;
+  // Runs sweep() every minute; _saver is the pending write of channels.json (_saveSoon).
   Timer? _sweeper;
   Timer? _saver;
 
@@ -70,6 +76,7 @@ class Relay {
     return server.port;
   }
 
+  /// Stops every part, writes channels.json once more and closes each end's connection (going away).
   Future<void> stop() async {
     _sweeper?.cancel();
     _saver?.cancel();
@@ -87,6 +94,7 @@ class Relay {
   static final _hexOnly = RegExp(r'^[0-9a-f]+$');
   static bool _hex(Object? text, int length) => text is String && text.length == length && _hexOnly.hasMatch(text);
 
+  /// Today in UTC as `yyyy-mm-dd`: what a channel's last use is kept as.
   String _day() => _now().toUtc().toIso8601String().substring(0, 10);
 
   void _say(String what) {
@@ -127,6 +135,11 @@ class Relay {
     } catch (_) {}
   }
 
+  /// Hands a request to the part that serves its path (the hub, /link, /files, /word, /market, /feedback). What is left
+  /// is a pairing's own connection: a WebSocket to an address ending in a channel's 32 hex digits, served here. Its first
+  /// message is `{auth, role, temp?}`; after that bytes go to the other end untouched, and words are `{delete: true}`
+  /// or `{ping}`. Close codes: 4400 bad hello, 4401 no token in time, 4403 wrong token or relay full, 4409 replaced by
+  /// a newer connection of the same end, 4410 the channel was removed.
   Future<void> _route(HttpRequest request, List<String> segments) async {
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
@@ -146,6 +159,8 @@ class Relay {
     if (!upgrade && segments.isNotEmpty && segments.first == 'market' && market != null) return market!.handle(request).catchError((Object _) {});
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
+    // Anything else that is not a pairing's WebSocket gets one line saying what this is: 200 to a plain request, 404
+    // to a WebSocket at an address that is no channel.
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok
@@ -168,6 +183,7 @@ class Relay {
       if (channel == null) ws.close(4401, 'no token');
     });
 
+    // This connection has ended: frees its end of the channel and tells the other end its peer has gone.
     void leave() {
       waiting.cancel();
       final c = channel;
@@ -212,6 +228,7 @@ class Relay {
         _say('${name.substring(0, 6)} $role joined${joined.expires != null ? ' (pairing)' : ''}');
         return;
       }
+      // A sealed frame: passed to the other end as it came, or dropped and the sender told where the other is away.
       if (data is List<int>) {
         if (data.length > maxFrame) {
           ws.close(WebSocketStatus.messageTooBig, 'too big');
@@ -225,6 +242,7 @@ class Relay {
         }
         return;
       }
+      // Words to the relay itself: unpairing (the channel goes, for both ends) or a ping to be answered.
       Map? said;
       try {
         said = jsonDecode(data as String) as Map;
@@ -268,6 +286,7 @@ class Relay {
     return made;
   }
 
+  /// Forgets the channel [name] and closes both its ends with 4410 and [why].
   void _remove(String name, String why) {
     final c = _channels.remove(name);
     if (c == null) return;
@@ -299,6 +318,7 @@ class Relay {
 
   File? get _file => dataDir == null ? null : File('${dataDir!.path}/channels.json');
 
+  /// Reads channels.json at the start: `{v, channels: {<channel>: {h: token hash, d: day last used}}}`.
   void _load() {
     final f = _file;
     if (f == null || !f.existsSync()) return;
@@ -314,12 +334,15 @@ class Relay {
     sweep();
   }
 
+  /// Writes channels.json two seconds after the last change, so a burst of joins is one write.
   void _saveSoon() {
     if (dataDir == null) return;
     _saver?.cancel();
     _saver = Timer(const Duration(seconds: 2), _save);
   }
 
+  /// Writes the pairings' channels (never one made for pairing) to a file beside and renames it over, so a stop
+  /// halfway never leaves half a file.
   void _save() {
     final f = _file;
     if (f == null) return;
@@ -337,6 +360,7 @@ class Relay {
   }
 }
 
+/// One pairing's channel: what is kept of it, and the connection of each end while it is here.
 class _Channel {
   _Channel(this.hash, this.day, this.expires);
 
