@@ -26,8 +26,15 @@ Dart, behind `lib/net/p2p/node.dart` (`P2pNode`). `lib/net/p2p/node_ffi.dart` is
 - **Dial what a hint names that is no other device's address**: this device's own (loopback), or one that means
   nothing off a link or everything at once (unspecified, `0.0.0.0/8`, link-local `169.254.0.0/16` and `fe80::/10`,
   multicast, broadcast), in whatever form an IPv6 address carries an IPv4 one (mapped, the old compatible form, or
-  the NAT64 prefix). A friend's word cannot point this node at itself or at the services of its own network. (The
-  crate's own tests, two nodes on one machine, dial loopback; the library built for the app never does.)
+  the NAT64 prefix). A friend's word in a hint cannot point this node at itself or at the services of its own
+  network. (The crate's own tests, two nodes on one machine, dial loopback; the library built for the app never
+  does.) What it does not cover: QUIC's hole punching inside iroh, which sends a small probe to whatever addresses the
+  other end of a link names, loopback included (see "What a node that links can make this one send").
+- **Hand over an open to a node disallowed while it was dialled.** DISALLOW closes the links it finds; a dial under
+  way then makes its link after, so the open looks once more when it is done, and a node disallowed since it was asked
+  has its link closed and the open fails (TurnedAway).
+- **Take another node key's port.** The port a node asks for again is the one it had on that network with that node
+  key: another account signed in on the same device is not found on the first one's port.
 - **Ask a link helper's name anything but what the helper is there for.** See "What a link helper is asked". iroh's
   captive-portal check is off: it asks `http://<the helper's name>/generate_204`, in plain HTTP on port 80 whatever
   the helper's own port, and where port 80 there is another server's, takes its answer for a captive portal.
@@ -288,6 +295,21 @@ IPv6 address where it knew the IPv4 one, or, across the internet, the address it
   a probe from.
 
 A node started with `helpers_only` has no socket to probe from at all.
+
+### What a node that links can make this one send
+
+The same probes go wherever the other end says it is, and nothing here can look at those addresses first (the review
+of 2026-11-23). A node that links with this one, by name or turned away in the moment before it is closed on, can
+name this machine's loopback, or another service on its network, as an address of its own, and this node sends a
+small QUIC probe there (35 bytes, sealed, of nothing the other end chooses), a few times over. iroh 1.5 has no hook
+for it: noq's hole punching (`n0_nat_traversal`, REACH_OUT on the dialled end, ADD_ADDRESS on the dialling end)
+takes any address it is told; iroh's transport builder will not turn hole punching off, for the endpoint or for one
+connection (`max_remote_nat_traversal_addresses` under 8 and `max_concurrent_multipath_paths` under 9 are ignored, and
+`Incoming::accept_with` and `ConnectOptions` take only such a config); and its socket sends every IP destination it
+is handed. `dialable` (src/node.rs) covers the addresses of a hint, and only those. What closes it is a patched noq (two calls in
+`n0_nat_traversal.rs` that pass each address through the same check) or an iroh that offers a filter.
+`cargo test named_probe -- --ignored` shows it, and passes the day it is closed. A node started with `helpers_only`
+sends no probe at all.
 
 ## What is counted
 
