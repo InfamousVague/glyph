@@ -15,9 +15,14 @@ const hostSeesWords = 'Whoever runs a relay sees which installs connect to it an
 const joinHostedWords = 'This relay runs in someone\'s Ghost Messaging app. They see which installs connect to it and when, and who sends to whom, never what is said. It is up only while their app is open.';
 
 /// How long it runs, on a phone or a computer.
-String hostRunsWords({required bool phone}) => phone
-    ? 'It runs while you use the app on this phone, and stops a minute after you put the app away. When it stops, everyone on it sees their relay as gone until it is back, and what it was keeping for them in memory goes with it.'
-    : 'It runs for as long as Ghost Messaging is open on this computer. When it stops, everyone on it sees their relay as gone until it is back, and what it was keeping for them in memory goes with it.';
+String hostRunsWords({required bool phone}) =>
+    '${phone ? 'It runs while you use the app on this phone, and stops a minute after you put the app away.' : 'It runs for as long as Ghost Messaging is open on this computer.'} $whenItStopsWords';
+
+/// What the people on it see when it stops, and what waits.
+const whenItStopsWords = 'When it stops, everyone on it sees their relay as unreachable, and their app tries it again by itself until it is back. What they write to friends waits in their app and goes again, for up to three days; what the relay was keeping for them in memory goes with it.';
+
+/// The relay it stays linked to, chosen.
+const viaChoiceWords = 'Its people are reached through the relay it stays linked to: Ghost Messaging\'s own unless you choose another, which must let relays hosted from an app stay.';
 
 /// What this computer's firewall will ask as the relay first listens, said before it does ([os]: PlatformInfo's
 /// operatingSystem). Nothing on a phone.

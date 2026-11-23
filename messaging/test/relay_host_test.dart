@@ -110,6 +110,30 @@ void main() {
     });
   });
 
+  group('the public relay it stays linked to', () {
+    test('gogho.st unless changed; changed, it starts again linked there, and its address names it; only a public relay\'s address is taken', () async {
+      final k = Kept();
+      final host = makeHost(k);
+      addTearDown(host.shutdown);
+      await host.setOn(true);
+      expect([host.via, host.federation!.config.via, GhostRelayAddress.parse(host.ownUrl!)!.via], List.filled(3, Net.defaultHub));
+      final id = host.relayId;
+      expect(await host.setVia('Relay.Example.com'), isNull);
+      expect([k.choices[RelayHost.viaKey], host.via, host.federation!.config.via, GhostRelayAddress.parse(host.ownUrl!)!.via], List.filled(4, 'wss://relay.example.com/hub'));
+      expect([host.state, host.relayId], [HostState.up, id], reason: 'the same relay, linked elsewhere');
+      // What the hub says of itself, which its people's records are made from.
+      final a = OnHost(host);
+      await a.up();
+      expect(a.carrier.relay?.via, 'wss://relay.example.com/hub');
+      await a.carrier.stop();
+      for (final bad in ['ws://relay.example.com/hub', 'ghost-relay://${'ab' * 16}', 'not an address at all']) {
+        expect(await host.setVia(bad), 'The relay it stays linked to is a public relay\'s address, like relay.example.com.', reason: bad);
+      }
+      expect(await host.setVia(''), isNull);
+      expect([k.choices[RelayHost.viaKey], host.via], ['', Net.defaultHub]);
+    });
+  });
+
   group('its limits, the hub\'s own set small', () {
     test('200 connections (one more is closed at once), 24 MB held for people away, 8 MB of what rooms keep, 16 MB in flight', () async {
       final host = makeHost(Kept());

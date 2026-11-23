@@ -21,8 +21,13 @@ abstract class RelayHosting implements Listenable {
   /// The relay's name (32 hex), made from its own key, which is kept in its folder: known once it has started once.
   String? get relayId;
 
-  /// The public relay it stays linked to (`via`): Ghost Messaging's own, `wss://gogho.st/hub`.
+  /// The public relay it stays linked to (`via`): Ghost Messaging's own, `wss://gogho.st/hub`, unless the person chose
+  /// another ([setVia]).
   String get via;
+
+  /// Chooses the public relay it stays linked to: a public relay's address (`relay.example.com`), or empty for Ghost
+  /// Messaging's own. A problem in words where it isn't one; running, it starts again linked there.
+  Future<String?> setVia(String typed);
 
   /// How many installs are signed in to it now, this app among them where it uses it.
   int get connections;

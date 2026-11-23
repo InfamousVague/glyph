@@ -47,6 +47,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
         if (host.on && host.problem != null) SettingRow(key: const ValueKey('host-problem'), icon: icon(Lucide.circleAlert), label: host.problem!),
         if (host.on) SettingRow(key: const ValueKey('host-limits'), icon: icon(Lucide.info), label: 'What it holds', hint: const Text(hostLimitsWords)),
         if (host.on) SettingRow(key: const ValueKey('host-via'), icon: icon(Lucide.globe), label: viaWords(host.viaLink, host.via)),
+        if (host.on) SettingRowBox(child: RelayHostViaBox(host: host)),
         if (up && host.inUse)
           SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Text('To leave it, go back to Ghost Messaging\'s relay above, or switch it off.'))
         else if (up)
@@ -153,7 +154,7 @@ Future<void> askToHost(BuildContext context, RelayHosting host) async {
 /// gone, and what its folder keeps.
 List<String> hostOffWords(RelayHosting host) => [
       if (host.inUse) 'This app goes back to ${relayInUseWords(host.usedBefore.isEmpty ? Net.defaultHub : host.usedBefore)} first.',
-      'Everyone on it sees their relay as gone, and what it was keeping for them in memory goes with it.',
+      whenItStopsWords,
       keptWords,
     ];
 
@@ -325,6 +326,46 @@ class _RelayHostPassBoxState extends State<RelayHostPassBox> {
       SizedBox(height: t.space(2)),
       SettingRow(key: const ValueKey('host-pass-set'), icon: const AppIcon(Lucide.keyRound, size: 18), label: widget.host.hasPass ? 'Change the pass phrase' : 'Ask for this pass phrase', hint: const Text('Give it to whoever you let use it. Everyone on it signs in again.'), disabled: _busy, onPress: () => _pass.text.trim().isEmpty ? null : _set(_pass.text)),
       if (widget.host.hasPass) SettingRow(key: const ValueKey('host-pass-clear'), icon: const AppIcon(Lucide.lock, size: 18), label: 'Ask for no pass phrase', disabled: _busy, onPress: () => _set(null)),
+    ]);
+  }
+}
+
+/// The public relay it stays linked to, chosen: Ghost Messaging's own unless the person names another.
+class RelayHostViaBox extends StatefulWidget {
+  const RelayHostViaBox({super.key, required this.host});
+  final RelayHosting host;
+
+  @override
+  State<RelayHostViaBox> createState() => _RelayHostViaBoxState();
+}
+
+class _RelayHostViaBoxState extends State<RelayHostViaBox> {
+  late final _via = TextEditingController(text: widget.host.via == Net.defaultHub ? '' : widget.host.via);
+  String? _problem;
+
+  @override
+  void dispose() {
+    _via.dispose();
+    super.dispose();
+  }
+
+  Future<void> _use() async {
+    final problem = await widget.host.setVia(_via.text);
+    if (!mounted) return;
+    setState(() => _problem = problem);
+    if (problem == null) toast(context, 'It stays linked to ${Uri.tryParse(widget.host.via)?.host ?? widget.host.via} now');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Text(viaChoiceWords, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
+      SizedBox(height: t.space(2)),
+      GlacierInput(key: const ValueKey('host-via-field'), controller: _via, placeholder: 'gogho.st', ariaLabel: 'The public relay it stays linked to', inputMode: TextInputType.url, autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
+      if (_problem != null) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text(_problem!, key: const ValueKey('host-via-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-danger')))),
+      SizedBox(height: t.space(2)),
+      SettingRow(key: const ValueKey('host-via-use'), icon: const AppIcon(Lucide.globe, size: 18), label: 'Stay linked to this relay', hint: const Text('Empty: Ghost Messaging\'s own.'), onPress: _use),
     ]);
   }
 }

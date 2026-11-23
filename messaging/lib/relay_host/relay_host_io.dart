@@ -14,6 +14,7 @@ import '../net/home_record.dart' show canonicalHub;
 import '../net/hub_carrier.dart';
 import '../net/hub_link.dart';
 import '../net/net.dart';
+import '../net/relay_choice.dart' show tidyRelayAddress;
 import '../net/p2p/node.dart';
 import '../net/p2p/p2p.dart';
 import '../platform_info.dart';
@@ -86,7 +87,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
         _moveBack = moveBack ?? ((url) => Net.instance.setHub(url)),
         _forgetHub = forgetHub ?? ((url) => Net.instance.remember('net_hub', url)),
         _passChanged = passChanged ?? (() => Net.instance.hub?.passAgain()),
-        via = via ?? Net.defaultHub;
+        _defaultVia = via ?? Net.defaultHub;
 
   /// Whether this device can host a relay: a computer, or an Android phone. Not an iPhone (an app there is stopped as
   /// soon as it is put away, and may not listen for others), not a browser.
@@ -122,13 +123,19 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// Whether this is a phone, where it runs only while the app is in use.
   final bool phone;
 
+  /// The public relay it stays linked to unless the person chose another: Ghost Messaging's own.
+  final String _defaultVia;
+
   @override
-  final String via;
+  String get via {
+    final chosen = canonicalHub(_read(viaKey));
+    return chosen != null && chosen.endsWith('/hub') ? chosen : _defaultVia;
+  }
 
   /// The choices it keeps (with the app's), and the secret: whether it is on, the local network's door and port, the
   /// relay this app used before it moved onto this one, the relay's name once known, the link helpers its people's
   /// direct links use, and the pass phrase.
-  static const onKey = 'relay_host_on', lanKey = 'relay_host_lan', portKey = 'relay_host_port', beforeKey = 'relay_host_before', idKey = 'relay_host_id', helpersKey = 'relay_host_helpers', passKey = 'relay_host_pass';
+  static const onKey = 'relay_host_on', lanKey = 'relay_host_lan', portKey = 'relay_host_port', beforeKey = 'relay_host_before', idKey = 'relay_host_id', helpersKey = 'relay_host_helpers', viaKey = 'relay_host_via', passKey = 'relay_host_pass';
 
   /// The port devices on the same network reach it at, unless the person chose another.
   static const defaultPort = 7787;
@@ -567,6 +574,23 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
       }
     }
     notifyListeners();
+  }
+
+  @override
+  Future<String?> setVia(String typed) async {
+    final url = tidyRelayAddress(typed);
+    if (url == null || isGhostRelay(url) || (url.isNotEmpty && !url.startsWith('wss://') && !(viaPlain && url.startsWith('ws://')))) return 'The relay it stays linked to is a public relay\'s address, like relay.example.com.';
+    final chosen = url.isEmpty || url == _defaultVia ? '' : url;
+    if (chosen == _read(viaKey)) return null;
+    _write(viaKey, chosen);
+    // The link is the federation's own from its start: it starts again with the new one, and its people's apps make
+    // their records anew as its hello names it.
+    if (_hub != null) {
+      await _stop();
+      await _start();
+    }
+    notifyListeners();
+    return null;
   }
 
   @override
