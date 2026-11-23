@@ -42,6 +42,14 @@ app's routes in [../docs/network.md](../docs/network.md). Behind a web server it
 relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. It keeps nothing on disk: at most 96 MB of
 packets for people who are away, in memory, and 20,000 connections.
 
+**Link helpers** (`GHOST_LINK_HELPERS`, optional). The apps also make direct links between a person's own devices
+and their friends' ([../docs/OPEN_NETWORK.md](../docs/OPEN_NETWORK.md), section 2). A link helper is a server that
+helps two devices find each other across networks and carries their sealed traffic where no straight path can be
+made (an `iroh-relay`; it is not this program). Set the variable to where yours are, as https addresses with commas
+between (4 at most, 200 characters each at most), and the hub hands them to each app as it signs in: `"helpers"` in
+its `{"ok": true, …}`. With none it says nothing of them, and devices link only where they are on one network. Like
+every variable, it is listed in `deploy/relay.env.example`.
+
 ## What an end says to it
 
 1. It opens a WebSocket at any address ending in the channel: `ws://host/relay/<32 hex digits>`.

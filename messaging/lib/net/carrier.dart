@@ -111,6 +111,18 @@ abstract class Carrier {
   Stream<Arrived> get arrived;
 }
 
+/// A route that holds links of its own to some people's devices (the direct route's streams, lib/net/p2p). When a
+/// route before it only kept a packet for someone who is away from it, the switchboard gives the packet to a link
+/// that is open right now as well, and to nothing else: asking whether one is open, and sending by it, start nothing
+/// and dial nobody.
+abstract class LiveLinks {
+  /// Whether a link to one of [peer]'s devices is open now.
+  bool linked(Peer peer);
+
+  /// Sends [packet] to [peer] by the links open now and by nothing else. Throws [CarrierError] where none took it.
+  Future<Handed> sendLinked(Peer peer, Uint8List packet);
+}
+
 /// A route that cannot carry a packet says why by throwing this.
 class CarrierError implements Exception {
   CarrierError(this.message);

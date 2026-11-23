@@ -57,9 +57,25 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig()})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const []})
       : _now = now ?? DateTime.now,
-        _random = random ?? Random.secure();
+        _random = random ?? Random.secure(),
+        helpers = linkHelpers(helpers);
+
+  /// The link helpers this relay's people use for direct links between their devices (the app's
+  /// docs/OPEN_NETWORK.md, section 2): servers that help two devices find each other and carry their sealed traffic
+  /// when no straight path can be made. Said to each app as it signs in (`"helpers"` beside `"ok"`), as the call
+  /// relay is handed out with a room; from `GHOST_LINK_HELPERS`. With none nothing is said, and an app from before
+  /// passes it over either way.
+  final List<String> helpers;
+
+  /// The most link helpers named, and the longest address one may have.
+  static const maxHelpers = 4;
+  static const maxHelper = 200;
+
+  /// [said] as link helpers are named: https addresses of at most [maxHelper] characters, the first [maxHelpers].
+  static List<String> linkHelpers(Iterable<String> said) =>
+      List.unmodifiable(said.map((h) => h.trim()).where((h) => h.length > 'https://'.length && h.length <= maxHelper && h.startsWith('https://')).take(maxHelpers));
 
   final bool verbose;
 
@@ -360,7 +376,9 @@ class Hub {
     }
     final WebSocket ws;
     try {
-      ws = await WebSocketTransformer.upgrade(request);
+      // No compression: a message is held whole before its length is looked at, and a deflated one of a few hundred
+      // kilobytes opens out to hundreds of megabytes (found in review, 2026-11-22). Sealed packets don't shrink anyway.
+      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
     } catch (_) {
       return;
     }
@@ -497,7 +515,7 @@ class Hub {
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
-        _tell(socket, {'ok': true, 'held': fresh.length});
+        _tell(socket, {'ok': true, 'held': fresh.length, if (helpers.isNotEmpty) 'helpers': helpers});
         for (final h in fresh) {
           socket.add(h.frame);
         }

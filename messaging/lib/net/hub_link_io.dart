@@ -6,7 +6,8 @@ import 'hub_link.dart';
 /// [dialHub] where there is dart:io (a phone, a computer, the tests): its WebSocket, given ten seconds to connect and
 /// pinged every 25 once it has, so one that died without saying so is found out.
 Future<HubLink> dialHub(String url) async {
-  final ws = await WebSocket.connect(url).timeout(const Duration(seconds: 10));
+  // No compression: what a hub sends is held whole before its length is looked at, and sealed packets don't shrink.
+  final ws = await WebSocket.connect(url, compression: CompressionOptions.compressionOff).timeout(const Duration(seconds: 10));
   ws.pingInterval = const Duration(seconds: 25);
   return _WebSocketLink(ws);
 }
