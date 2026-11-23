@@ -62,7 +62,8 @@ class StandaloneFiles implements StandaloneStore {
   @override
   Future<String?> readState() async => _file.existsSync() ? _file.readAsString() : null;
 
-  /// Kept aside as `standalone.json.unreadable-<ms>`, never written over or deleted by the app.
+  /// Kept aside as `standalone.json.unreadable-<ms>`, never written over or deleted by the app but by [wipe], which
+  /// deletes everything of the person's.
   @override
   Future<void> unreadableState() async {
     if (_file.existsSync()) _file.renameSync('${_file.path}.unreadable-${DateTime.now().millisecondsSinceEpoch}');
@@ -136,8 +137,8 @@ class StandaloneFiles implements StandaloneStore {
     }
     _names = {};
     // The folder's own files, by name: on an iPhone the folder is the app's Application Support, which keeps more
-    // than this.
-    final ours = RegExp(r'^(standalone\.json(\.new)?|identity\.key|secret-names\.json|secret-[a-z0-9_]+\.key)$');
+    // than this. A copy kept aside because it couldn't be read ([unreadableState]) is the person's too.
+    final ours = RegExp(r'^(standalone\.json(\.new|\.unreadable-[0-9]+)?|identity\.key|secret-names\.json|secret-[a-z0-9_]+\.key)$');
     if (dir.existsSync()) {
       for (final f in dir.listSync().whereType<File>()) {
         if (ours.hasMatch(f.uri.pathSegments.last)) f.deleteSync();

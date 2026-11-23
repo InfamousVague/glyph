@@ -150,6 +150,10 @@ void main() {
     expect(aside.single.readAsStringSync(), '{"prefs": {"theme": "da');
     // Who it is was read as ever.
     expect((await again.invokeMethod<Map>('netIdentity'))!['id'], (await a.invokeMethod<Map>('netIdentity'))!['id']);
+    // Everything of the person's deleted (signed out, or removed) takes the copy kept aside too (third review); only
+    // the welcome's note is written after.
+    await again.invokeMethod('wipeHere', {'note': 'signed-out'});
+    expect([for (final f in dir.listSync().whereType<File>()) if (f.path.contains('unreadable')) f.uri.pathSegments.last], isEmpty);
   });
 
   test('where it lives: Application Support beside tmp, not inside it (iOS gives the app no HOME)', () {
