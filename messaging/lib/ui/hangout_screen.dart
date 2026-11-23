@@ -335,13 +335,15 @@ class _HangoutScreenState extends State<HangoutScreen> {
             actions: actions,
             body: Stack(children: [
               if (open)
-                OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))
+                // The call's buttons at the floor's left foot and the chat's box at its right, on one line (Matt,
+                // 2026-11-23: "left justify the call controls and right justify the compose input").
+                OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t), sayBeside: dockAt)
               else
                 ListView(
                   padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
                   children: [CallPanel(session: s, videos: false)],
                 ),
-              Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
+              if (open) Positioned(left: t.space(3), bottom: dockAt, child: CallDock(session: s)) else Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
             ]),
           );
         }
@@ -430,7 +432,15 @@ class _HangoutStageState extends State<HangoutStage> {
           ],
           body: open
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(flex: 3, child: OpenSpaceFloor(session: s!)),
+                  // The list beside it is the circle's own, untouched (Matt, 2026-11-23: "don't take over the sidebar
+                  // leave it the standard sidebar for the circle"), so the call's buttons stand on the floor here too.
+                  Expanded(
+                    flex: 3,
+                    child: Stack(children: [
+                      Positioned.fill(child: OpenSpaceFloor(session: s!, bottomInset: t.space(3) + NavPill.clearance(t), sayBeside: t.space(3))),
+                      Positioned(left: t.space(3), bottom: t.space(3), child: CallDock(session: s)),
+                    ]),
+                  ),
                   if (videos) ...[
                     Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
                     SizedBox(height: 200, child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)), child: CallVideos(session: s))),

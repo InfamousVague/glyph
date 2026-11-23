@@ -40,6 +40,7 @@ import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
 import '../voice/channels.dart';
 import '../voice/friend_calls.dart';
+import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart' show VoiceChannel;
 import 'compose.dart';
 import 'dialup/dialup.dart';
@@ -1378,7 +1379,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         // In a hangout's call beside the pane: who is in it, in the list's place (the chat is the
                         // pane's: HangoutStage).
                         // Not with one of the developer designs chosen: its call is a page of its own (space_design.dart).
-                        if (wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout)
+                        if (wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout && !OpenSpaces.isCall(Voice.instance.session))
                           Positioned.fill(child: HangoutPeople(key: ValueKey('people-${Voice.instance.session!.channel.room}'), session: Voice.instance.session!)),
                         // The way round floats over the list's end, clear of the bar at the foot of a phone's
                         // screen; the list leaves it room (AppShell.pillRoom). Not on a wide phone, where it
@@ -1398,7 +1399,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                 // In a hangout's call beside the pane the call's buttons stand where the pill was
                                 // (Matt, 2026-11-15: "hide the default navbar when in a hangout and show the call
                                 // controls where it was").
-                                child: wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout
+                                child: wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout && !OpenSpaces.isCall(Voice.instance.session)
                                     ? Padding(
                                         key: const ValueKey('call-dock-in-pill'),
                                         padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
