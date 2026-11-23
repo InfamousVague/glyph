@@ -123,6 +123,11 @@ class _MeetCallState extends State<MeetCall> {
         onPressed: call.videoLocked ? null : call.onVideo,
       ),
       gap,
+      // The other camera, beside the camera's pill, on a wide phone or tablet while video is on (GMFB-57).
+      if (call.onFlip != null) ...[
+        _Pill(c: c, icon: SpaceWords.flipIcon, label: 'Flip', semantic: SpaceWords.flip, size: size, onPressed: call.onFlip),
+        gap,
+      ],
       _Pill(c: c, icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), off: call.deafened, size: size, onPressed: call.onDeafen),
       gap,
       _Pill(c: c, icon: Lucide.ellipsisVertical, label: 'More', semantic: 'More options', on: _more, size: size, onPressed: () => setState(() => _more = !_more)),
@@ -378,6 +383,8 @@ class _MeetCallState extends State<MeetCall> {
     }
 
     final items = <Widget>[
+      // The other camera (GMFB-57): a narrow phone's bar has no room for a seventh pill, so it is first in More.
+      if (!wide && call.onFlip != null) _MenuRow(c: c, icon: SpaceWords.flipIcon, label: SpaceWords.flip, onPressed: () => run(call.onFlip!)),
       _MenuRow(c: c, icon: LucideMore.settings, label: SpaceWords.settings, onPressed: call.onSettings == null ? null : () => run(() => call.onSettings!(context))),
       _MenuRow(c: c, icon: Lucide.slidersHorizontal, label: SpaceWords.devices, onPressed: call.onDevices == null ? null : () => run(() => call.onDevices!(context))),
       _MenuRow(c: c, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => run(() => _invite(context))),
@@ -511,7 +518,7 @@ class _MeetTile extends StatelessWidget {
                   top: t.space(2),
                   right: t.space(2),
                   child: person.muted
-                      ? _CornerDot(color: const Color(0x99202124), child: AppIcon(LucideMore.micOff, size: 14, wash: false, color: const Color(0xFFFFFFFF)))
+                      ? _CornerDot(color: const Color(0x99202124), child: AppIcon(SpaceWords.mutedIcon(person), size: 14, wash: false, color: const Color(0xFFFFFFFF)))
                       : (talking ? _Bars(level: level, talking: true, c: c) : const SizedBox.shrink()),
                 ),
                 // Bottom left: the name.
@@ -972,7 +979,7 @@ class _PersonRow extends StatelessWidget {
                   if (role != null || person.guest) Text([?role, if (person.guest) 'Guest'].join(' · '), maxLines: 1, style: pageText(t, t.fontSize('xs'), color: c.panelInk2)),
                 ]),
               ),
-              if (person.muted) AppIcon(LucideMore.micOff, size: 18, wash: false, color: c.panelInk2) else if (call.isTalking(person, now)) _Bars(level: level, talking: true, c: c) else AppIcon(Lucide.mic, size: 18, wash: false, color: c.panelInk2),
+              if (person.muted) AppIcon(SpaceWords.mutedIcon(person), size: 18, wash: false, color: c.panelInk2) else if (call.isTalking(person, now)) _Bars(level: level, talking: true, c: c) else AppIcon(Lucide.mic, size: 18, wash: false, color: c.panelInk2),
             ]);
           },
         ),

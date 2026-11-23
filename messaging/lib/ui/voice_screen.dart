@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
@@ -152,6 +153,18 @@ class CallPanel extends StatelessWidget {
   /// the pane beside a hangout's people on a wide screen).
   final bool videos;
 
+  /// The size of each video's tile where [count] have video on, in [width]: one alone across it all, more two to four
+  /// across as the width allows, each 4:3. On a computer's wide pane (GMFB-58, @kevin, Windows 0.12.17: "The video call
+  /// window is far too vertically slim for regular use") never more across than there are videos (two stood three
+  /// across, small, beside a gap), and one alone no taller than 70% of the window ([screenHeight]) so it is all in
+  /// view. A phone's come out as before.
+  @visibleForTesting
+  static Size videoTile({required double width, required int count, required double gap, required double screenHeight}) {
+    final across = count == 1 ? 1 : math.min(count, (width / 240).floor().clamp(2, 4));
+    final w = (width - gap * (across - 1)) / across;
+    return Size(w, math.min(w * 0.75, screenHeight * 0.7));
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -164,21 +177,24 @@ class CallPanel extends StatelessWidget {
       listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
         // A shared screen in the camera's place (GMFB-27), this device's own included.
-        final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me, bool screen})>[
-          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localScreen.value ?? media?.localVideo.value, me: true, screen: media?.localScreen.value != null),
-          for (final m in session.members.values)
-            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false, screen: m.screen),
-        ];
-        final withVideo = [for (final p in people) if (p.video != null) p];
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
         final room = v.hangoutFor(session.channel);
+        // Which mute it is (GMFB-49, Kevin: "muting should be split in communities"): `all` a moderator's, for
+        // everyone, read from the roster and the room and not from what their app says of itself; `mine` this
+        // device's own of them (Mute for me). Either way they are not heard here, so they are drawn muted.
+        final people = <({String id, String name, bool guest, bool muted, bool all, bool mine, MediaStream? video, bool me, bool screen})>[
+          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, all: room?.mutedForAll(room.me) ?? false, mine: false, video: media?.localScreen.value ?? media?.localVideo.value, me: true, screen: media?.localScreen.value != null),
+          for (final m in session.members.values)
+            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted || v.silenced(m.id) || (room != null && !room.heard(m.id)), all: room?.mutedForAll(m.id) ?? false, mine: v.silenced(m.id), video: m.video ? media?.remote.value[m.id] : null, me: false, screen: m.screen),
+        ];
+        final withVideo = [for (final p in people) if (p.video != null) p];
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (videos && withVideo.isNotEmpty) ...[
             LayoutBuilder(builder: (context, box) {
-              final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
-              final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
+              final size = videoTile(width: box.maxWidth, count: withVideo.length, gap: t.space(2), screenHeight: MediaQuery.sizeOf(context).height);
+              final w = size.width;
               return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me && !p.screen, screen: p.screen)),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: size.height, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen)),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -217,6 +233,7 @@ class CallPanel extends StatelessWidget {
                               style: room == null ? null : TextStyle(color: roleInk(t, room.roster.roleOf(p.me ? room.me : p.id))),
                             ),
                             if (p.guest) TextSpan(text: '  guest', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                            if (p.muted && (p.all || p.mine)) TextSpan(text: p.all ? '  muted for everyone' : '  muted for you', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ]),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -227,7 +244,7 @@ class CallPanel extends StatelessWidget {
                         ]),
                       ),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
-                      if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.danger)),
+                      if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(mutedMark(all: p.all, mine: p.mine), size: 16, wash: false, color: t.danger)),
                     ]),
                   )),
               ])),
@@ -270,7 +287,7 @@ class CallVideos extends StatelessWidget {
         final shared = [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
         final tiles = shared == null ? all : [for (final x in all) if (!identical(x, shared)) x];
         Widget tile(({String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
-            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen, screen: x.screen);
+            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen && !session.backCamera, screen: x.screen);
         if (shared != null) {
           return Column(children: [
             Expanded(flex: 3, child: tile(shared)),
@@ -335,7 +352,7 @@ class CallDock extends StatelessWidget {
                 icon: session.muted ? LucideMore.micOff : Lucide.mic,
                 label: session.muted ? 'Unmute' : 'Mute',
                 on: session.muted,
-                onPress: () => session.setMuted(!session.muted),
+                onPress: () => session.locked ? sayMicLocked(context, session) : session.setMuted(!session.muted),
                 kind: 'audioinput',
               ),
               DevicePill(
@@ -346,6 +363,8 @@ class CallDock extends StatelessWidget {
                 kind: 'audiooutput',
               ),
               button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
+              // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
+              if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
@@ -359,7 +378,10 @@ class CallDock extends StatelessWidget {
 
 /// Someone's video in a call: their picture with the name along the foot, and a red mic-off mark while muted.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.name, required this.muted, this.stream, this.mirror = false, this.screen = false});
+  const _Tile({required this.name, required this.muted, this.mark = LucideMore.micOff, this.stream, this.mirror = false, this.screen = false});
+
+  /// The mark while [muted] ([mutedMark]).
+  final LucideIcon mark;
   final String name;
   final bool muted;
   final MediaStream? stream;
@@ -385,7 +407,7 @@ class _Tile extends StatelessWidget {
             right: t.space(2),
             child: Row(children: [
               Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
-              if (muted) ...[SizedBox(width: t.space(1)), AppIcon(LucideMore.micOff, size: 14, wash: false, color: t.danger)],
+              if (muted) ...[SizedBox(width: t.space(1)), AppIcon(mark, size: 14, wash: false, color: t.danger)],
             ]),
           ),
         ]),
@@ -814,7 +836,7 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                       for (final (id, name) in talking.take(3))
                         Padding(padding: EdgeInsets.only(left: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
                       SizedBox(width: t.space(2)),
-                      IconTap(icon: s.muted ? LucideMore.micOff : Lucide.mic, label: s.muted ? 'Unmute' : 'Mute', size: 18, color: s.muted ? red : null, onPressed: () => s.setMuted(!s.muted)),
+                      IconTap(icon: s.muted ? LucideMore.micOff : Lucide.mic, label: s.muted ? 'Unmute' : 'Mute', size: 18, color: s.muted ? red : null, onPressed: () => s.locked ? sayMicLocked(context, s) : s.setMuted(!s.muted)),
                       SizedBox(width: t.space(1)),
                       GlacierPressable(
                         onPressed: () => v.leave(),
@@ -838,6 +860,16 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
     );
   }
 }
+
+/// The mark on someone who isn't heard (GMFB-49), so anyone can tell which mute it is: a lock where a moderator muted
+/// them for everyone ([all]), a crossed speaker where only this device stopped hearing them ([mine]), the crossed
+/// microphone where they muted themselves. The space designs' is the same (SpaceWords.mutedIcon).
+LucideIcon mutedMark({required bool all, required bool mine}) => all ? Lucide.lock : (mine ? LucideMore.volumeX : LucideMore.micOff);
+
+/// Why this device can't unmute, said when its mute button is pressed while locked (GMFB-49): until now the button
+/// did nothing and said nothing.
+void sayMicLocked(BuildContext context, VoiceSession session) =>
+    toast(context, Voice.instance.hangoutFor(session.channel)?.micLockedWhy ?? 'You can\'t unmute in this space.');
 
 /// What can be done about someone in the call, from this device (Matt, 2026-11-15: "add the ability to press and hold
 /// on a user to habe options like muting changing volume levels for that user and more"): silence them here, how loud
@@ -909,15 +941,28 @@ class _PersonSheet extends StatelessWidget {
                           ]),
                           SizedBox(height: t.space(3)),
                           if (me) ...[
-                            SettingRow(label: 'Mute', control: GlacierSwitch(checked: session.muted, onCheckedChange: session.setMuted, ariaLabel: 'Mute')),
+                            SettingRow(
+                              label: 'Mute',
+                              // Locked, the switch stays on: the line under it says why (GMFB-49).
+                              hint: session.locked ? Text(v.hangoutFor(session.channel)?.micLockedWhy ?? 'You can\'t unmute in this space.') : null,
+                              control: GlacierSwitch(checked: session.muted, onCheckedChange: session.setMuted, ariaLabel: 'Mute'),
+                            ),
                             SettingRow(label: 'Deafen', hint: const Text('Hear nobody, and say nothing.'), control: GlacierSwitch(checked: session.deafened, onCheckedChange: session.setDeafened, ariaLabel: 'Deafen')),
                           ] else if (!gone) ...[
                             SettingRow(
-                              icon: AppIcon(LucideMore.micOff, size: 18),
+                              icon: AppIcon(LucideMore.volumeX, size: 18),
                               label: 'Mute for me',
-                              hint: const Text('Only you stop hearing them.'),
+                              hint: const Text('Only you stop hearing them. They aren\'t told.'),
                               control: GlacierSwitch(checked: v.silenced(id), onCheckedChange: (on) => v.setSilenced(id, on), ariaLabel: 'Mute $name for me'),
                             ),
+                            // Muted for everyone, for whoever can't change it (a moderator has the switch below).
+                            if (v.hangoutFor(session.channel) case final room? when room.mutedForAll(id) && !room.canMuteForAll(id))
+                              SettingRow(
+                                key: const ValueKey('muted-for-everyone'),
+                                icon: AppIcon(Lucide.lock, size: 18),
+                                label: 'Muted for everyone',
+                                hint: const Text('A moderator muted them. Only a moderator can unmute them.'),
+                              ),
                             Padding(
                               padding: EdgeInsets.symmetric(vertical: t.space(2)),
                               child: Row(children: [

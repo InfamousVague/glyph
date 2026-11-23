@@ -52,6 +52,10 @@ Future<bool> relayAnswers(String relay) async {
   }
 }
 
+/// Set for a copy of the app that the app opened itself, in place of the one closing (GMFB-47): Windows' and Linux's
+/// runners keep one window of the app on a computer, and let this one start while the other is still there.
+const startedAgain = 'GHOST_DESK_AGAIN';
+
 /// Opens this app afresh and closes this copy: how a computer moves between using no phone and using a linked one,
 /// since what answers the screens is chosen as it starts (lib/desktop/main.dart). A test passes [relaunch].
 Future<void> restartApp({Future<void> Function()? relaunch}) async {
@@ -62,7 +66,9 @@ Future<void> restartApp({Future<void> Function()? relaunch}) async {
     final at = exe.indexOf('.app/');
     if (at > 0) await Process.start('open', ['-n', exe.substring(0, at + 4)], mode: ProcessStartMode.detached);
   } else {
-    await Process.start(exe, const [], mode: ProcessStartMode.detached);
+    // Said to be the app opening itself again: a second start otherwise only shows the window already open and goes
+    // (GMFB-47, windows/runner/main.cpp and linux/runner/main.cc), and this copy is still open as the new one starts.
+    await Process.start(exe, const [], environment: const {startedAgain: '1'}, mode: ProcessStartMode.detached);
   }
   exit(0);
 }

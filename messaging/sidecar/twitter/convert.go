@@ -350,10 +350,11 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
-// quoteOut is the message a message answers.
+// quoteOut is the message a message answers, and who wrote it where X says (GMFB-44: the app names them).
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
+	From string `json:"from,omitempty"`
 }
 
 // reactionOut is one person's reaction to a message.
@@ -494,7 +495,7 @@ func messageOf(me, chat string, group bool, msg *types.Message, name func(string
 		out.Name = name(data.SenderID)
 	}
 	if r := data.ReplyData; r.ID != "" {
-		out.Quote = &quoteOut{ID: r.ID, Text: r.Text}
+		out.Quote = &quoteOut{ID: r.ID, Text: r.Text, From: r.SenderID}
 	}
 	return out
 }

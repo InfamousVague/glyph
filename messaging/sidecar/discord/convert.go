@@ -267,10 +267,38 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
-// quoteOut is the message a reply answers, with its words where Discord sent them along.
+// quoteOut is the message a reply answers, with what Discord sent along of it: its words, who wrote it, and for one
+// with no words what kind of thing its first file is (GMFB-44: a reply to a picture read "A message", and no reply
+// said whom it answered). The app says the rest from the message itself where it holds it.
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text,omitempty"`
+	From string `json:"from,omitempty"`
+	Name string `json:"name,omitempty"`
+	Mime string `json:"mime,omitempty"`
+}
+
+// quoteOf is the quote of [q], the message a reply in [chat] answers.
+func quoteOf(chat string, q *discordgo.Message) *quoteOut {
+	out := &quoteOut{ID: q.ID, Text: messageText(q)}
+	if q.Author != nil {
+		who := personOf(q.Author, q.Member)
+		out.From, out.Name = who.ID, who.Name
+	}
+	if out.Text != "" {
+		return out
+	}
+	// No words of its own: a link's or a bot's card says what it was, else its first file's kind does.
+	for _, e := range q.Embeds {
+		if e != nil && cmp.Or(e.Title, e.Description) != "" {
+			out.Text = cmp.Or(e.Title, e.Description)
+			return out
+		}
+	}
+	if media := mediaOf(chat, q); len(media) > 0 {
+		out.Mime = cmp.Or(media[0].Mime, "application/octet-stream")
+	}
+	return out
 }
 
 // reactionOut is one person's reaction to a message.
@@ -402,7 +430,8 @@ func messageOf(me, chat string, group bool, m *discordgo.Message) messageOut {
 	if ref := m.MessageReference; ref != nil && ref.Type == discordgo.MessageReferenceTypeDefault && ref.MessageID != "" {
 		out.Quote = &quoteOut{ID: ref.MessageID}
 		if q := m.ReferencedMessage; q != nil {
-			out.Quote.Text = messageText(q)
+			out.Quote = quoteOf(chat, q)
+			out.Quote.ID = ref.MessageID
 		}
 	}
 	for _, r := range m.Reactions {

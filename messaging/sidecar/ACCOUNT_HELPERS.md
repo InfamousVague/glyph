@@ -46,7 +46,7 @@ Every request has `id` (a number the app picks) and `op`. No other field of a re
 | `unlinked` | `error`: the service ended the session (signed out, a check asked for); the app shows it and asks to sign in again |
 | `connected` / `disconnected` | the live connection |
 | `chat` | a chat: `id`, `title` (a group's name, the other person's for two; never empty where anything names it), `group` (bool), `members` (`[{"id", "name"}]`, the others), `avatar` (a file, or null), `unread` (a count), `last` (ms), optional `snippet` (the last message's words) and `snippet_mine` (bool) |
-| `message` | `chat`, `group` (bool), `id`, `from` (sender's id), `name` (sender's name where known), `mine` (bool), `ts` (ms), `text`, `media` (a list of `{"pointer": {…}, "mime", "name", "size", "width", "height"}`; `pointer` is the helper's own, given back to `download`), optional `quote` (`{"id", "text"}`), optional `reactions` (`[{"from", "emoji"}]`: those it already has, in `history`) |
+| `message` | `chat`, `group` (bool), `id`, `from` (sender's id), `name` (sender's name where known), `mine` (bool), `ts` (ms), `text`, `media` (a list of `{"pointer": {…}, "mime", "name", "size", "width", "height"}`; `pointer` is the helper's own, given back to `download`), optional `quote` (`{"id", "text"}`, and where the service says: `from` and `name`, who wrote the message answered, and `mime`, its first file's type where it has no words), optional `reactions` (`[{"from", "emoji"}]`: those it already has, in `history`) |
 | `edited` | `chat`, `target`, `text` |
 | `deleted` | `chat`, `target` |
 | `reaction` | `chat`, `from`, `target`, `emoji`, `remove` |

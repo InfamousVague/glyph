@@ -31,7 +31,7 @@ class _NeverOpened implements Exception {
 }
 
 /// [HubLink] over the browser's own WebSocket.
-class _BrowserLink implements HubLink {
+class _BrowserLink implements HubLink, HubLinkEnd {
   _BrowserLink(this._ws) {
     // Frames as array buffers, not blobs: read at once, as dart:io hands them over.
     _ws.binaryType = 'arraybuffer';
@@ -47,7 +47,8 @@ class _BrowserLink implements HubLink {
       }
     }).toJS;
     // However it ends (an error is always followed by this), and whether or not it ever opened.
-    _ws.onclose = ((web.CloseEvent _) {
+    _ws.onclose = ((web.CloseEvent e) {
+      closeCode = e.code;
       if (!_opened.isCompleted) _opened.completeError(_NeverOpened());
       if (!_closed.isCompleted) _closed.complete();
       _said.close();
@@ -58,6 +59,9 @@ class _BrowserLink implements HubLink {
   final _opened = Completer<void>();
   final _closed = Completer<void>();
   final _said = StreamController<Object>();
+
+  @override
+  int? closeCode;
 
   @override
   Stream<Object> get said => _said.stream;

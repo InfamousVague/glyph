@@ -279,7 +279,7 @@ func TestMessageShape(t *testing.T) {
 	m.Reactions = []*slidetypes.Reaction{{Reaction: "❤", SenderFBID: me, LogMessageID: "log.1"}}
 	shape, ok := messageShape("9001", true, m, me, nil)
 	b, _ := json.Marshal(shape)
-	want := `{"chat":"9001","from":"17840000000000002","group":true,"id":"mid.5","media":[],"mine":false,"name":"Alice A","quote":{"id":"mid.4","text":"are you there?"},"reactions":[{"emoji":"❤","from":"17840000000000001","mine":true}],"text":"hello","ts":1700000000123}`
+	want := `{"chat":"9001","from":"17840000000000002","group":true,"id":"mid.5","media":[],"mine":false,"name":"Alice A","quote":{"from":"17840000000000001","id":"mid.4","text":"are you there?"},"reactions":[{"emoji":"❤","from":"17840000000000001","mine":true}],"text":"hello","ts":1700000000123}`
 	if !ok || string(b) != want {
 		t.Fatalf("message:\n got %s\nwant %s", b, want)
 	}

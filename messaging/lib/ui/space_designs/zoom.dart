@@ -446,7 +446,7 @@ class _Tile extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: small ? 5 : 7, vertical: small ? 2 : 3),
                   decoration: BoxDecoration(color: const Color(0xB3000000), borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    if (person.muted) ...[AppIcon(LucideMore.micOff, size: small ? 11 : 13, wash: false, color: _Z.red), SizedBox(width: small ? 3 : 4)],
+                    if (person.muted) ...[AppIcon(SpaceWords.mutedIcon(person), size: small ? 11 : 13, wash: false, color: _Z.red), SizedBox(width: small ? 3 : 4)],
                     Flexible(child: Text(person.shown, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: _Z.ink))),
                   ]),
                 ),
@@ -718,7 +718,12 @@ class _Toolbar extends StatelessWidget {
         decoration: const BoxDecoration(color: _Z.bar, border: Border(top: BorderSide(color: _Z.line))),
         padding: EdgeInsets.fromLTRB(12, 8, 16, bottom + 8),
         child: Row(children: [
-          Expanded(child: half(Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [mute(chevron: chevrons), video(chevron: chevrons)]), Alignment.centerLeft)),
+          Expanded(child: half(Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
+            mute(chevron: chevrons),
+            video(chevron: chevrons),
+            // The other camera, beside Video, on a wide phone or tablet while video is on (GMFB-57).
+            if (call.onFlip != null) _ToolButton(icon: SpaceWords.flipIcon, label: SpaceWords.flip, onPressed: call.onFlip),
+          ]), Alignment.centerLeft)),
           Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
             people,
             chat,
@@ -939,7 +944,7 @@ class _People extends StatelessWidget {
                       ]),
                     ),
                     const SizedBox(width: 8),
-                    Semantics(label: p.muted ? 'Muted' : 'Mic on', child: AppIcon(p.muted ? LucideMore.micOff : Lucide.mic, size: 16, wash: false, color: p.muted ? red : t.color('app-ink-2'))),
+                    Semantics(label: p.muted ? 'Muted' : 'Mic on', child: AppIcon(p.muted ? SpaceWords.mutedIcon(p) : Lucide.mic, size: 16, wash: false, color: p.muted ? red : t.color('app-ink-2'))),
                     const SizedBox(width: 10),
                     Semantics(label: p.video ? 'Video on' : 'Video off', child: AppIcon(p.video ? Lucide.video : LucideMore.videoOff, size: 16, wash: false, color: p.video ? t.color('app-ink-2') : red)),
                   ]),
@@ -1049,6 +1054,8 @@ class _MoreSheet extends StatelessWidget {
                 onClose();
                 call.onDeafen!();
               }, alert: call.deafened),
+        // The other camera (GMFB-57): a phone's five buttons fill its bar, so it is here with the rest.
+        if (call.onFlip != null) row(SpaceWords.flipIcon, SpaceWords.flip, then((_) => call.onFlip!())),
         row(Lucide.userPlus, SpaceWords.invite, then(call.onInvite)),
         row(LucideMore.headphones, SpaceWords.devices, then(call.onDevices)),
         row(Lucide.settings, SpaceWords.settings, then(call.onSettings)),

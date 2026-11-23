@@ -381,13 +381,13 @@ class _Speaker extends StatelessWidget {
     final tap = call.onPerson == null ? null : () => call.onPerson!(context, person);
     return GlacierPressable(
       onPressed: tap,
-      semanticLabel: '${person.shown}${role == null ? '' : ', $role'}${person.muted ? ', muted' : ''}',
+      semanticLabel: '${person.shown}${role == null ? '' : ', $role'}${person.muted ? ', ${SpaceWords.mutedWords(person)}' : ''}',
       builder: (context, state) => Column(mainAxisSize: MainAxisSize.min, children: [
         SizedBox.square(
           dimension: size + 8,
           child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
             _Face(call: call, person: person, size: size, reach: room),
-            if (person.muted) _onRim(box: size + 8, face: size, badge: 26, left: false, child: _Badge(look: look, icon: LucideMore.micOff, color: look.ink2)),
+            if (person.muted) _onRim(box: size + 8, face: size, badge: 26, left: false, child: _Badge(look: look, icon: SpaceWords.mutedIcon(person), color: look.ink2)),
             if (person.video) _onRim(box: size + 8, face: size, badge: 26, left: true, child: _Badge(look: look, icon: Lucide.video, color: _purple)),
           ]),
         ),
@@ -679,14 +679,24 @@ class _Camera extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => _Round(
-        look: look,
-        icon: call.video ? Lucide.video : LucideMore.videoOff,
-        label: _Words.camera(call),
-        on: call.video,
-        size: size,
-        onPressed: call.videoLocked && !call.video ? null : call.onVideo,
-      );
+  Widget build(BuildContext context) {
+    final camera = _Round(
+      look: look,
+      icon: call.video ? Lucide.video : LucideMore.videoOff,
+      label: _Words.camera(call),
+      on: call.video,
+      size: size,
+      onPressed: call.videoLocked && !call.video ? null : call.onVideo,
+    );
+    final flip = call.onFlip;
+    if (flip == null) return camera;
+    // The other camera, beside the camera's button, on a phone while the camera is on (GMFB-57).
+    return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      camera,
+      SizedBox(width: context.tokens.space(1)),
+      _Round(look: look, icon: SpaceWords.flipIcon, label: 'Flip', onPressed: flip, size: size),
+    ]);
+  }
 }
 
 /// A round button with its words under it. [mic] is the big one: purple while you are live, plain while muted.
