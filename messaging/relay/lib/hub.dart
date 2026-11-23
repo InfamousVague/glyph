@@ -61,15 +61,86 @@ import 'ws_door.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, this.maxSignsV2 = 200000, this.newV2AnHour = 30, this.newV2AnHourAll = 5000, WireBudget? wire, this.oldAppHold = const Duration(minutes: 2), this.heldRefusalsMost = 1000})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, this.maxSignsV2 = 200000, this.newV2AnHour = 30, this.newV2AnHourAll = 5000, WireBudget? wire, this.oldAppHold = const Duration(minutes: 2), this.heldRefusalsMost = 1000, this.roomKeepBytes = 256 * 1024 * 1024, String? pass, this.passGuessesAnHour = 20, this.passGuessesAll = 200, this.hosted = false})
       : _now = now ?? DateTime.now,
         started = (now ?? DateTime.now)(),
         _random = random ?? Random.secure(),
         helpers = linkHelpers(helpers),
         names = hubNames(names),
-        wire = wire ?? WireBudget.shared {
+        wire = wire ?? WireBudget.shared,
+        _passKey = pass == null || pass.isEmpty ? null : passKeyOf(pass) {
     federation?.bind(deliver: deliver, isHere: _isHere, knows: _knows, ownNumber: _nonces.contains, handles: handles);
   }
+
+  // --- a pass phrase (a relay hosted from the app: the app's lib/relay_host) ------------------------------------------
+
+  /// What an app must prove it knows to use this hub, made from the pass phrase its keeper set ([passKeyOf]); null where
+  /// none is set, and then nothing here is said or asked: the hello and the sign-in are as they always were. Set, the
+  /// hello says so (`"pass": true`), and a sign-in, a look (`peek`) and everything after it are taken only with
+  /// `"pass"`: [passProof] for this connection's number and the install signing in. Another relay's hello (`"fed": 1`)
+  /// is not asked for it: whether relays link is federation's own choice (federation.dart).
+  final List<int>? _passKey;
+
+  /// Whether this hub asks for a pass phrase.
+  bool get asksPass => _passKey != null;
+
+  /// What the pass phrase is made into, once, by the hub and by an app alike: PBKDF2 with HMAC-SHA256 over [passWords]
+  /// as its salt, [passRounds] rounds, 32 bytes. The proof sent over a local network can be seen there, and a phrase
+  /// tried against it as fast as this allows: so it is slow to make, and a long phrase is what stands in the way.
+  static List<int> passKeyOf(String phrase) => pbkdf2Sha256(utf8.encode(phrase), utf8.encode(passWords), passRounds);
+
+  /// PBKDF2 (RFC 8018) with HMAC-SHA256, its first 32 bytes: what [passKeyOf] makes a pass phrase into.
+  static List<int> pbkdf2Sha256(List<int> password, List<int> salt, int rounds) {
+    var u = hmacSha256(password, [...salt, 0, 0, 0, 1]);
+    final out = Uint8List.fromList(u);
+    for (var i = 1; i < rounds; i++) {
+      u = hmacSha256(password, u);
+      for (var j = 0; j < out.length; j++) {
+        out[j] ^= u[j];
+      }
+    }
+    return out;
+  }
+
+  static const passWords = 'ghost-hub pass v1';
+  static const passRounds = 20000;
+
+  /// What an app says in its hello to a hub that asks for a pass phrase (`"pass"`, in hex): HMAC-SHA256 under [key]
+  /// ([passKeyOf]) over [passWords], a space, the hub's number for this connection and the install's name (16 bytes).
+  /// Good for that connection and that install alone: nothing seen of it can be said again anywhere, or by anyone else.
+  static List<int> passProof(List<int> key, List<int> nonce, String id) => hmacSha256(key, [...utf8.encode('$passWords '), ...nonce, ..._unhex(id)]);
+
+  /// How many wrong (or missing) pass phrases one place may give in an hour, and all places together: past either, every
+  /// sign-in is refused (`"pass": "busy"`) until the hour has passed, its proof not looked at, so a phrase can't be
+  /// guessed here faster than that. The place is as the hub counts it ([placeOf]: a network address, or for a
+  /// connection carried another way whatever its carrier says it is from).
+  final int passGuessesAnHour, passGuessesAll;
+  final LinkedHashMap<String, ({int from, int n})> _passWrong = LinkedHashMap();
+  ({int from, int n}) _passWrongAll = (from: 0, n: 0);
+
+  /// Whether [from] may have one more pass phrase looked at; false where it, or everyone, has had too many wrong lately.
+  bool _passMayTry(String from) {
+    final now = _now().millisecondsSinceEpoch, hour = const Duration(hours: 1).inMilliseconds;
+    if (now - _passWrongAll.from >= hour) _passWrongAll = (from: now, n: 0);
+    final mine = _passWrong[from];
+    if (mine != null && now - mine.from >= hour) _passWrong.remove(from);
+    return _passWrongAll.n < passGuessesAll && (_passWrong[from]?.n ?? 0) < passGuessesAnHour;
+  }
+
+  void _passWasWrong(String from) {
+    final now = _now().millisecondsSinceEpoch;
+    _passWrongAll = (from: _passWrongAll.from == 0 ? now : _passWrongAll.from, n: _passWrongAll.n + 1);
+    final mine = _passWrong.remove(from);
+    _passWrong[from] = (from: mine?.from ?? now, n: (mine?.n ?? 0) + 1);
+    while (_passWrong.length > 10000) {
+      _passWrong.remove(_passWrong.keys.first);
+    }
+  }
+
+  /// This hub runs inside someone's app (the app's lib/relay_host), not on a server: its hello says so (`"hosted":
+  /// true`), so whoever joins is told that the person running it sees which installs talk and when (never what is
+  /// said), as any relay's keeper does, and that it is up only while their app is. False, nothing is said.
+  final bool hosted;
 
   /// When this hub started, by its own clock. Said with each sign-in (`"since"`, beside its time now, `"now"`): what it
   /// kept for someone lives in memory and goes with a restart, so an app that knows when the relay started knows a
@@ -356,10 +427,11 @@ class Hub {
   static const toRoomReaction = 4;
   static const maxReaction = 512;
 
-  /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most.
+  /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most (256 MB
+  /// unless the hub is given less: a relay hosted from the app keeps far less, in the app's memory).
   static const roomKeepFrames = 300;
   static const roomKeepFor = Duration(days: 7);
-  static const roomKeepBytes = 256 * 1024 * 1024;
+  final int roomKeepBytes;
 
   /// Kept packets by room, with the hash of the room's token, so only one who knows it is handed them.
   final Map<String, ({String hash, List<_Held> frames})> _kept = {};
@@ -524,6 +596,17 @@ class Hub {
   static bool _hex(Object? text, int length) => text is String && text.length == length && _hexOnly.hasMatch(text);
   static List<int> _unhex(String text) => [for (var i = 0; i + 1 < text.length; i += 2) int.parse(text.substring(i, i + 2), radix: 16)];
 
+  /// Whether [a] and [b] are the same bytes, looked at whole whatever they are: how long it takes says nothing of where
+  /// they differ.
+  static bool _same(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    var d = 0;
+    for (var i = 0; i < a.length; i++) {
+      d |= a[i] ^ b[i];
+    }
+    return d == 0;
+  }
+
   /// The name a public key is known by here.
   static String nameOf(List<int> publicKey) => hexOf(sha256(publicKey).sublist(0, 16));
 
@@ -648,7 +731,9 @@ class Hub {
     // `relay`: this relay's own name and key, where it has them (federation.dart); an app from before passes over it.
     // `v2`: this hub takes a sign-in bound to the host it is reached at ([greetingV2]); said only where its names are
     // known, and an app from before passes over it.
-    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card, if (names.isNotEmpty) 'v2': true});
+    // `hosted` and `pass`: this hub runs in someone's app ([hosted]), and asks for a pass phrase ([asksPass]); each said
+    // only where it is so, and an app from before passes over both.
+    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card, if (names.isNotEmpty) 'v2': true, if (hosted) 'hosted': true, if (_passKey != null) 'pass': true});
 
     // Another relay's link, once its hello has come in place of an app's: what it says from then on is federation's.
     FedEnd? link;
@@ -739,6 +824,24 @@ class Hub {
         }
 
         if (key == null || sig == null || !_hex(id, 32) || nameOf(key) != id) return bad();
+        // A hub that asks for a pass phrase takes nothing without it, a look neither: looked at before the signature,
+        // being far cheaper. None given is said so, and counts for nothing (an app not told the phrase yet tries again);
+        // a wrong one counts against its place and everyone's ([passGuessesAnHour]).
+        final passKey = _passKey;
+        if (passKey != null) {
+          void noPass(String kind) {
+            _tell(socket, {'ok': false, 'err': kind == 'busy' ? 'Too many wrong pass phrases lately. Try again in a while.' : kind == 'wrong' ? 'That pass phrase isn\'t this relay\'s.' : 'This relay asks for a pass phrase.', 'pass': kind});
+            socket.close(4401, 'pass');
+          }
+
+          final said = hello?['pass'];
+          if (said == null) return noPass('needed');
+          if (!_passMayTry(from)) return noPass('busy');
+          if (!_hex(said, 64) || !_same(_unhex(said as String), passProof(passKey, nonce, id as String))) {
+            _passWasWrong(from);
+            return noPass('wrong');
+          }
+        }
         if (hello?['v'] == 2) {
           // Bound to the host it was signed for, which must be one this hub is reached at.
           final host = hello?['host'];

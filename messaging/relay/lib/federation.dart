@@ -867,6 +867,19 @@ class Federation {
   int get links => _links.length;
   bool linkedWith(String relay) => _links.any((l) => l.id == relay && l.socket.isOpen);
 
+  /// How it stands with the relay this one stays linked to ([FedConfig.via]), for whoever runs it to see (a relay hosted
+  /// from the app shows it: the app's lib/relay_host): whether the link is up, and whether that relay said this one may
+  /// stay, its people reached over the link (`stays`); where it is not up, why the last dial came to nothing (`why`:
+  /// `down` where nothing answered, else what the relay that answered no said, as one with federation off answers "not a
+  /// relay that talks to others") and when it is dialled next. Null where there is no via. Asking changes nothing.
+  ({bool linked, bool stays, String? why, DateTime? next})? get viaLink {
+    if (!on || config.via.isEmpty) return null;
+    final peer = _peers['u:${config.via}'];
+    final link = peer == null ? null : _linkFor(peer);
+    if (link != null) return (linked: true, stays: peer!.stays, why: null, next: null);
+    return (linked: false, stays: false, why: peer?.why, next: peer?.nextTry);
+  }
+
   final Map<String, DateTime> _selfUrls = {};
 
   bool _isSelfUrl(String url) => url == config.publicHub || _selfUrls.containsKey(url);
@@ -1337,6 +1350,7 @@ class Federation {
   void _failed(_Peer peer, String why, {bool refused = false}) {
     final now = _now();
     peer.dialling = false;
+    peer.why = why;
     peer.failures++;
     peer.nextTry = now.add(backoff(peer.failures));
     if (refused) peer.refusedUntil = now.add(refusedFor);
@@ -1447,6 +1461,8 @@ class Federation {
       ..nextTry = null
       ..refusedUntil = null
       ..everLinked = true
+      ..why = null
+      ..stays = m['stay'] == true
       ..relay ??= made.id;
     _say('linked with ${made.id.substring(0, 6)} (dialled)');
     _linked(made);
@@ -1609,10 +1625,13 @@ class Federation {
     }
     if (!_room()) return no('busy');
     final sign = _sign(answerBytes(c: c, dialler: theirs, answerer: id, dialled: config.publicHub));
+    // A relay with no address that asked to stay is told whether it may (`"stay": true`): its people are reached over
+    // this link only where it may, and its keeper's app says so either way. Nothing is said to anyone else.
+    final standing = url == null && stay && _mayStand(theirs);
     try {
-      socket.add(jsonEncode({'ok': true, 'fed': 1, 'id': id, 'key': base64Encode(key), 'sig': base64Encode(sign)}));
+      socket.add(jsonEncode({'ok': true, 'fed': 1, 'id': id, 'key': base64Encode(key), 'sig': base64Encode(sign), if (standing) 'stay': true}));
     } catch (_) {}
-    final link = _Link(socket, theirs, k, url, _now(), outbound: false, standing: url == null && stay && _mayStand(theirs));
+    final link = _Link(socket, theirs, k, url, _now(), outbound: false, standing: standing);
     _links.add(link);
     end.link = link;
     _say('linked with ${link.id.substring(0, 6)} (it dialled${link.standing ? ', and stays' : ''})');
@@ -1980,6 +1999,11 @@ class _Peer {
   /// When it was first wanted, and whether this relay has ever linked with that address (lately).
   final DateTime made;
   bool everLinked;
+
+  /// Why the last dial came to nothing, where it did: `down`, or what the relay that answered no said; and whether, at
+  /// the last link this relay dialled there to stay, it was told it may ([Federation.viaLink]).
+  String? why;
+  bool stays = false;
 
   bool get idle => queue.isEmpty && asks.isEmpty && !dialling;
 }
