@@ -233,6 +233,9 @@ object E2e {
             "hasGhost" to Backgrounds.allKnown(context, listOf(address)),
             "declined" to declined(context, address),
             "friend" to (o?.optString("friend", "") ?: ""),
+            // Their install's name, made from the key held for them: what Dart decides who is a friend by (the direct
+            // route links only with friends: lib/net/net.dart), never the address, which a group's admin can write.
+            "id" to pub?.let { Net.idOf(it) },
             // Texts that came from them plain while encryption is on, and have not been put away ([arrived]).
             "plain" to (if (state == "on") E2ePlain.unseen(o?.optInt("plain", 0) ?: 0, o?.optInt("plainSeen", 0) ?: 0) else 0),
         )

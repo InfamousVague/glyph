@@ -74,12 +74,30 @@ class LinkCarrier extends FakeCarrier implements LiveLinks {
   LinkCarrier(super.id);
   bool open = false;
   final byLink = <Uint8List>[];
+
+  /// What went back on the link something came by: answers.
+  final byLine = <Uint8List>[];
   @override
   bool linked(Peer peer) => open;
+  @override
+  bool get linkedToSomeone => open;
   @override
   Future<Handed> sendLinked(Peer peer, Uint8List packet) async {
     if (this.fail || !open) throw CarrierError('it broke');
     byLink.add(packet);
+    twin?.take(packet);
+    return Handed.passed;
+  }
+
+  /// What comes by this route comes on a link, which an answer goes back on.
+  @override
+  void take(Uint8List packet) => _arrived.add(Arrived(id, packet, address: 'the-other-number', line: 'the link'));
+
+  @override
+  Future<Handed> sendOn(Peer peer, Object? line, Uint8List packet) async {
+    if (this.fail) throw CarrierError('it broke');
+    if (line != 'the link') return sendLinked(peer, packet);
+    byLine.add(packet);
     twin?.take(packet);
     return Handed.passed;
   }

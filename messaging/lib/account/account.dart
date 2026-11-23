@@ -435,11 +435,14 @@ class Account extends ChangeNotifier {
     try {
       await Net.instance.p2p?.wipe();
     } catch (_) {}
-    try {
-      await port.secretKeep(P2p.keyName, '');
-    } catch (_) {}
+    // Only what is there: a build or a device that never had a node writes nothing of the direct network now.
+    for (final name in P2p.secretNames) {
+      try {
+        if ((await port.secretRead(name) ?? '').isNotEmpty) await port.secretKeep(name, '');
+      } catch (_) {}
+    }
     for (final name in P2p.keptNames) {
-      store.set(name, '');
+      if (store.choice(name, '').isNotEmpty) store.set(name, '');
     }
     notifyListeners();
   }
