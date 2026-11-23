@@ -905,7 +905,11 @@ class P2p extends ChangeNotifier {
     return said.isEmpty ? null : said;
   }
 
-  /// Whether [a] is an address a node can be dialled at: `1.2.3.4:5678` or `[2001:db8::1]:5678`.
+  /// Whether [a] is an address a node can be dialled at: `1.2.3.4:5678` or `[2001:db8::1]:5678`, and one another device
+  /// can truly be at. Never loopback, unspecified, multicast, broadcast (or the rest of 240/4) or link-local (the cloud's
+  /// metadata address, 169.254.169.254, among them), nor an IPv4-mapped or -compatible IPv6 form of one: they come from
+  /// someone else's device, and would have this one connect to itself, its own network's services or everyone on it
+  /// (second review, S9). A private network's addresses are kept: two devices at home reach each other by them.
   static bool isAddress(String a) {
     final colon = a.lastIndexOf(':');
     if (colon <= 0 || !RegExp(r'^[0-9]{1,5}$').hasMatch(a.substring(colon + 1))) return false;
@@ -913,15 +917,21 @@ class P2p extends ChangeNotifier {
     if (port < 1 || port > 65535) return false;
     final host = a.substring(0, colon);
     try {
-      if (host.startsWith('[') && host.endsWith(']')) {
-        Uri.parseIPv6Address(host.substring(1, host.length - 1));
-      } else {
-        Uri.parseIPv4Address(host);
-      }
-      return true;
+      if (host.startsWith('[') && host.endsWith(']')) return _reachable6(Uri.parseIPv6Address(host.substring(1, host.length - 1)));
+      return _reachable4(Uri.parseIPv4Address(host));
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _reachable4(List<int> b) => b[0] != 0 && b[0] != 127 && !(b[0] == 169 && b[1] == 254) && b[0] < 224;
+
+  static bool _reachable6(List<int> b) {
+    // ::ffff:a.b.c.d (mapped) and ::a.b.c.d (compatible, ::1 and :: among them): the IPv4 address inside decides.
+    final zeros = b.sublist(0, 10).every((x) => x == 0);
+    if (zeros && ((b[10] == 0xff && b[11] == 0xff) || (b[10] == 0 && b[11] == 0))) return _reachable4(b.sublist(12));
+    // Multicast (ff00::/8) and link-local (fe80::/10).
+    return b[0] != 0xff && !(b[0] == 0xfe && b[1] & 0xc0 == 0x80);
   }
 
   /// The link helpers in [said], as they are used: https addresses with a host and nobody's name or password in

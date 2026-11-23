@@ -512,6 +512,22 @@ void main() {
     });
   });
 
+  // The second review, S9 (R2-I): any IP and port a friend's device said was dialled, loopback, multicast and the
+  // cloud's metadata address among them.
+  test('only addresses a device can be reached at are dialled: not loopback, unspecified, multicast, broadcast or link-local, in any form; a private network is', () {
+    for (final bad in [
+      '127.0.0.1:22', '127.1.2.3:80', '0.0.0.0:1', '0.1.2.3:5', '255.255.255.255:9', '224.0.0.251:5353', '239.255.255.250:1900', '169.254.169.254:80', '169.254.1.1:5',
+      '240.0.0.1:5', // reserved, as the broadcast address is
+      '[::1]:6379', '[::]:1', '[ff02::1]:5353', '[ff05::2]:5', '[fe80::1]:5', '[febf::1]:5',
+      '[::ffff:127.0.0.1]:80', '[::ffff:169.254.169.254]:80', '[::ffff:224.0.0.1]:5', '[::ffff:0.0.0.0]:5', '[::ffff:7f00:1]:80', '[::127.0.0.1]:80',
+    ]) {
+      expect(P2p.isAddress(bad), isFalse, reason: bad);
+    }
+    for (final good in ['10.1.2.3:4000', '192.168.1.9:1234', '172.16.0.1:5', '100.64.0.1:5', '8.8.8.8:53', '[2001:db8::7]:4001', '[fd00::1]:5', '[fec0::1]:5', '[::ffff:192.168.1.9]:5']) {
+      expect(P2p.isAddress(good), isTrue, reason: good);
+    }
+  });
+
   group('the route', () {
     test('is called Direct, comes after the relay, and reaches only those a good card is held for', () async {
       final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
