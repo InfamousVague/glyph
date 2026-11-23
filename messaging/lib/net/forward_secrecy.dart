@@ -280,7 +280,10 @@ class ForwardSecrecy {
     if (had == null || now - had > const Duration(hours: 1).inMilliseconds) _saveOld();
   }
 
-  void _saveOld() => unawaited(_plain.write(oldName, jsonEncode(_old)));
+  // Nothing is written before the load: what is kept would be written over with what this run has heard so far.
+  void _saveOld() {
+    if (_loaded) unawaited(_plain.write(oldName, jsonEncode(_old)));
+  }
 
   /// Whether what goes to [peer] needs a copy sealed the old way besides (third review, item 3): one of their devices
   /// said, freshly, within [oldDeviceFor], that it can't do forward secrecy, and hasn't offered a prekey since. Their
@@ -489,7 +492,10 @@ class ForwardSecrecy {
     return true;
   }
 
-  Future<void> _savePeers() => _plain.write(peersName, jsonEncode({for (final e in _peers.entries) e.key: {for (final b in e.value.values) b.device: b.toJson()}}));
+  Future<void> _savePeers() async {
+    if (!_loaded) return;
+    await _plain.write(peersName, jsonEncode({for (final e in _peers.entries) e.key: {for (final b in e.value.values) b.device: b.toJson()}}));
+  }
 
   void _saveSeenSoon() {
     _seenTimer ??= Timer(const Duration(seconds: 2), () => unawaited(flush()));
@@ -499,6 +505,7 @@ class ForwardSecrecy {
   Future<void> flush() async {
     _seenTimer?.cancel();
     _seenTimer = null;
+    if (!_loaded) return;
     await _plain.write(seenName, jsonEncode([for (final e in _seen.entries) [e.key, e.value]]));
     await _plain.write(passedName, jsonEncode(_passed));
   }
@@ -692,6 +699,8 @@ class _FsWorker {
     _to!.send([id, job]);
     return c.future.timeout(jobFor, onTimeout: () {
       _waiting.remove(id);
+      // A worker that hangs is let go too, or every later job would wait out its five seconds.
+      _die();
       return failed;
     });
   }
