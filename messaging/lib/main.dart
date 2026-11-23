@@ -3,7 +3,8 @@ import 'api/methods.dart';
 import 'api/remote.dart';
 import 'api/server.dart';
 import 'dart:async';
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
+import 'platform_info.dart';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/services.dart';
@@ -94,7 +95,7 @@ void _logErrors() {
 
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
-  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
+  if (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
   // Each frame's times in the log, for a performance pass on an emulator (built with --dart-define=GHOST_FRAME_LOG=true;
   // left out of every other build): how long the frame took to build, to draw, and in all.
@@ -109,7 +110,7 @@ Future<void> main() async {
   // Ghost Messaging of its own: friends by username, groups and calls over the internet (lib/standalone; Matt,
   // 2026-11-15: "roll a version of the app that works without sms"). One already paired with an Android phone as a
   // computer is (lib/desktop) stays that phone's companion.
-  if (Platform.isIOS) {
+  if (PlatformInfo.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
     await standaloneSetup();
   } else {

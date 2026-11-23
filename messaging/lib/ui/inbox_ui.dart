@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'blocking.dart';
 import 'dart:io';
+import '../platform_info.dart';
 
 
 
@@ -1053,7 +1054,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
                         ),
                       ),
                     ),
-                    if (qr != null && Platform.isAndroid)
+                    if (qr != null && PlatformInfo.isAndroid)
                       SettingRow(
                         icon: _icon(Lucide.share2),
                         label: 'Show it on another screen',

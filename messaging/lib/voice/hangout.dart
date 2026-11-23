@@ -4,6 +4,7 @@ import '../games/game_activity.dart';
 import '../names.dart';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -622,7 +623,7 @@ class HangoutRoom extends ChangeNotifier {
       } catch (_) {
         continue;
       }
-      final cleaned = SpaceFile.cleanName(p.path.split(Platform.pathSeparator).last.split('/').last);
+      final cleaned = SpaceFile.cleanName(p.path.split(PlatformInfo.pathSeparator).last.split('/').last);
       final name = cleaned.isEmpty ? 'File' : cleaned;
       files.add(OutgoingFile(path: p.path, name: name, size: size, mime: FileKind.mimeOf(name), owned: p.owned));
     }

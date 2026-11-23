@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -92,7 +93,7 @@ class WhatsApp extends InboxNetwork {
   /// The eight-letter code to type on the phone instead, once asked for ([pairWithPhone]).
   String? get pairCode => _pairCode;
 
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/whatsapp' : '${DeskStore.defaultDir().path}/whatsapp');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/whatsapp' : '${DeskStore.defaultDir().path}/whatsapp');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -120,17 +121,17 @@ class WhatsApp extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<WhatsAppLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'whatsappsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_WHATSAPPSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_WHATSAPPSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\whatsapp-sidecar.exe' else '$exe/../Helpers/whatsapp-sidecar',
-        '${Directory.current.path}/build/whatsapp-sidecar/${Platform.isWindows ? 'windows/whatsapp-sidecar.exe' : 'mac/whatsapp-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\whatsapp-sidecar.exe' else '$exe/../Helpers/whatsapp-sidecar',
+        '${Directory.current.path}/build/whatsapp-sidecar/${PlatformInfo.isWindows ? 'windows/whatsapp-sidecar.exe' : 'mac/whatsapp-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -614,7 +615,7 @@ class WhatsApp extends InboxNetwork {
               'application/octet-stream';
       final text = i == paths.length - 1 ? caption : '';
       try {
-        final name = path.split(Platform.pathSeparator).last;
+        final name = path.split(PlatformInfo.pathSeparator).last;
         final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': text}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         // What was sent is kept for its bubble: a copy in WhatsApp's own folder, and WhatsApp's pointer to fetch it again.

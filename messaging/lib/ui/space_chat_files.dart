@@ -14,6 +14,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -399,7 +400,7 @@ class SpacePickedStrip extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(right: t.space(2)),
             child: Builder(builder: (context) {
-              final name = p.path.split(Platform.pathSeparator).last.split('/').last;
+              final name = p.path.split(PlatformInfo.pathSeparator).last.split('/').last;
               final kind = FileKind.of(name, FileKind.mimeOf(name));
               return Stack(children: [
                 ClipRRect(

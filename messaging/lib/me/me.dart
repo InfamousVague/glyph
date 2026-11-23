@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 import '../names.dart';
 export '../names.dart';
 import 'dart:convert';
@@ -290,7 +290,7 @@ class Me extends ChangeNotifier {
   String? _toldNumber;
   void _tellPhoneItsNumber() {
     final n = number;
-    if (n == null || n == _toldNumber || kIsWeb || !Platform.isAndroid || Sms.remote) return;
+    if (n == null || n == _toldNumber || kIsWeb || !PlatformInfo.isAndroid || Sms.remote) return;
     _toldNumber = n;
     unawaited(Sms.instance.setOwnNumber(n).catchError((_) {}));
   }

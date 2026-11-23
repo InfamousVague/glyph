@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -295,15 +296,15 @@ class Telegram extends InboxNetwork {
       'api_id': apiId,
       'api_hash': apiHash,
       'system_language_code': 'en',
-      'device_model': Platform.isMacOS ? 'Mac' : 'Android',
-      'system_version': Platform.operatingSystemVersion,
+      'device_model': PlatformInfo.isMacOS ? 'Mac' : 'Android',
+      'system_version': PlatformInfo.operatingSystemVersion,
       'application_version': const String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: 'Ghost Messaging'),
     });
   }
 
   /// This app's own folder: Android's private data folder (the cache folder's parent), the Mac's support folder.
   static String _folder() {
-    if (Platform.isAndroid) return '${Directory.systemTemp.parent.path}/files/tdlib';
+    if (PlatformInfo.isAndroid) return '${Directory.systemTemp.parent.path}/files/tdlib';
     return '${DeskStore.defaultDir().path}/tdlib';
   }
 

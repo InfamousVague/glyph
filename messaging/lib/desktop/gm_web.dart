@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -69,8 +70,8 @@ class GmWeb extends ChangeNotifier {
   static String? find(Map<String, String> env) {
     final named = env['GHOST_GMSIDECAR'];
     if (named != null && named.isNotEmpty && File(named).existsSync()) return named;
-    final exe = File(Platform.resolvedExecutable).parent.path;
-    final candidates = Platform.isWindows
+    final exe = File(PlatformInfo.resolvedExecutable).parent.path;
+    final candidates = PlatformInfo.isWindows
         ? ['$exe\\gmsidecar.exe', '${Directory.current.path}\\build\\gmsidecar\\windows\\gmsidecar.exe']
         : ['$exe/../Helpers/gmsidecar', '${Directory.current.path}/build/gmsidecar/mac/gmsidecar'];
     for (final c in candidates) {
@@ -81,8 +82,8 @@ class GmWeb extends ChangeNotifier {
 
   /// Starts the sidecar with its session kept in [dir]; nothing where it is not on this computer.
   Future<void> start(Directory dir, {Map<String, String>? env}) async {
-    _binary = find(env ?? Platform.environment);
-    _dir = Directory('${dir.path}${Platform.pathSeparator}gmessages');
+    _binary = find(env ?? PlatformInfo.environment);
+    _dir = Directory('${dir.path}${PlatformInfo.pathSeparator}gmessages');
     if (_binary == null) return;
     await _spawn();
   }
@@ -452,8 +453,8 @@ class GmWeb extends ChangeNotifier {
     final p = _part[id];
     final dir = _dir;
     if (p == null || dir == null) return null;
-    final cache = Directory('${dir.path}${Platform.pathSeparator}media')..createSync(recursive: true);
-    final file = File('${cache.path}${Platform.pathSeparator}${_hash(p.media)}');
+    final cache = Directory('${dir.path}${PlatformInfo.pathSeparator}media')..createSync(recursive: true);
+    final file = File('${cache.path}${PlatformInfo.pathSeparator}${_hash(p.media)}');
     if (!file.existsSync()) {
       try {
         await ask('media', {'media': p.media, 'key': p.key, 'path': file.path});

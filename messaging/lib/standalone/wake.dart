@@ -1,4 +1,4 @@
-import 'dart:io';
+import '../platform_info.dart';
 
 import '../desktop/platform.dart';
 import '../net/net.dart';
@@ -14,7 +14,7 @@ class IosWake {
   /// Asks once whether notifications may be shown (iOS asks the person the first time only), then keeps the token
   /// with the routes. Called when the app is past its welcome, so the question comes after a username is chosen.
   static void start() {
-    if (_started || !Platform.isIOS) return;
+    if (_started || !PlatformInfo.isIOS) return;
     _started = true;
     MacPlatform.pushRegister((token, sandbox) {
       Net.instance.setPush(token == null ? null : {'apns': token, 'sandbox': sandbox});

@@ -309,7 +309,7 @@ SpamVerdict judgeSpam(MessageFacts facts, {List<SpamRule> rules = spamRules, Spa
 }
 
 /// Whether [facts] are a chat on another network (Signal's, Telegram's), by its number (ListPlugins.chatThread).
-bool isNetworkChat(MessageFacts facts) => facts.thread <= -(1 << 40);
+bool isNetworkChat(MessageFacts facts) => facts.thread <= -(0x10000000000);
 
 class SpamPlugin extends GhostPlugin {
   const SpamPlugin({this.rules = spamRules});

@@ -1,12 +1,12 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
 
 import '../net/crypto.dart';
 import 'bip39_words.dart';
+import 'gzip.dart';
 import '../net/fast_gcm.dart';
 
 /// The cryptography of a Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
@@ -244,7 +244,7 @@ class AccountCrypto {
   /// [passwordKey] off the main isolate: a phone's frames go on while 64 MiB are worked through.
   static Future<Uint8List> passwordKeyAway(String password, List<int> salt, {int memoryKiB = argonMemoryKiB, int passes = argonPasses, int lanes = argonLanes}) {
     final s = Uint8List.fromList(salt);
-    return Isolate.run(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
+    return runAside(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
   }
 
   // --- sealing ---------------------------------------------------------------------------------------------------------

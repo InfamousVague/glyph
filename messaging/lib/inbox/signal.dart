@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -80,7 +81,7 @@ class Signal extends InboxNetwork {
   /// The `sgnl://linkdevice` address to draw as a QR code, while linking.
   String? get qr => _qr;
 
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/signal' : '${DeskStore.defaultDir().path}/signal');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/signal' : '${DeskStore.defaultDir().path}/signal');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -108,17 +109,17 @@ class Signal extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<SignalLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'signalsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_SIGNALSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_SIGNALSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\signal-sidecar.exe' else '$exe/../Helpers/signal-sidecar',
-        '${Directory.current.path}/build/signal-sidecar/${Platform.isWindows ? 'windows/signal-sidecar.exe' : 'mac/signal-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\signal-sidecar.exe' else '$exe/../Helpers/signal-sidecar',
+        '${Directory.current.path}/build/signal-sidecar/${PlatformInfo.isWindows ? 'windows/signal-sidecar.exe' : 'mac/signal-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -131,7 +132,7 @@ class Signal extends InboxNetwork {
     try {
       // On the phone libsignal needs Android's shared C++ library, which goes beside the helper
       // (tool/build-signalsidecar.sh): the helper is started with its folder on the library path.
-      final env = Platform.isAndroid ? {'LD_LIBRARY_PATH': File(binary).parent.path} : null;
+      final env = PlatformInfo.isAndroid ? {'LD_LIBRARY_PATH': File(binary).parent.path} : null;
       return _ProcessLink(await Process.start(binary, ['--dir', _dir], environment: env));
     } catch (_) {
       return null;
@@ -705,7 +706,7 @@ class Signal extends InboxNetwork {
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
       try {
-        final name = path.split(Platform.pathSeparator).last;
+        final name = path.split(PlatformInfo.pathSeparator).last;
         final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': i == paths.length - 1 ? caption : ''}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         // What was sent is kept for its bubble: a copy in Signal's own folder (the picked file is a copy Android may clear),

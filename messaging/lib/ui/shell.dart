@@ -11,7 +11,7 @@ import 'circles/new_circle.dart';
 import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show HardwareKeyboard, KeyDownEvent, KeyEvent, KeyRepeatEvent, KeyUpEvent, LogicalKeyboardKey;
@@ -327,7 +327,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     });
     // The Marketplace's catalog, withdrawals and a developer's own submissions, read a little after starting and every
     // few hours (lib/market/market_state.dart): never under a test, never on an iPhone, which has no store packs.
-    if (!Platform.environment.containsKey('FLUTTER_TEST') && InstalledPlugins.instance.storeAllowed) unawaited(MarketState.instance.start());
+    if (!PlatformInfo.environment.containsKey('FLUTTER_TEST') && InstalledPlugins.instance.storeAllowed) unawaited(MarketState.instance.start());
     // What the packs and the Marketplace have to say as it happens: a pack withdrawn (with the way to its page), paused,
     // loaded from the API, and a developer's decisions.
     _notices = [InstalledPlugins.instance.notices.listen(_notice), MarketState.instance.notices.listen(_notice)];

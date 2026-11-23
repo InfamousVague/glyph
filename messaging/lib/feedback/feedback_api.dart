@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 
 import '../net/crypto.dart';
@@ -52,10 +53,10 @@ class FeedbackReport {
 
   /// What this device is, in the relay's words.
   static String get thisPlatform {
-    if (Platform.isAndroid) return 'android';
-    if (Platform.isIOS) return 'iphone';
-    if (Platform.isMacOS) return 'mac';
-    if (Platform.isWindows) return 'windows';
+    if (PlatformInfo.isAndroid) return 'android';
+    if (PlatformInfo.isIOS) return 'iphone';
+    if (PlatformInfo.isMacOS) return 'mac';
+    if (PlatformInfo.isWindows) return 'windows';
     return 'linux';
   }
 

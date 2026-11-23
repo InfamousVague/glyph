@@ -12,7 +12,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
+import '../platform_info.dart';
+import '../aside.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -56,7 +57,7 @@ class MarketState extends ChangeNotifier {
   /// under flutter test they are checked in place, as InstalledPlugins checks its own, unless a test asks for the
   /// isolate.
   @visibleForTesting
-  static bool verifyInIsolate = !Platform.environment.containsKey('FLUTTER_TEST');
+  static bool verifyInIsolate = !PlatformInfo.environment.containsKey('FLUTTER_TEST');
 
   /// The runtime's verifyApproval for each of [checks], in order; one that throws is false. Not an async function, so
   /// what goes to the isolate holds [checks] and nothing of an await's.
@@ -71,13 +72,13 @@ class MarketState extends ChangeNotifier {
               }
             }(),
         ];
-    return verifyInIsolate ? Isolate.run(all) : Future.value(all());
+    return verifyInIsolate ? runAside(all) : Future.value(all());
   }
 
   /// Asked each time: the identity and the relay can change while the app runs.
   MarketApi get api => (_api ?? MarketApi.live)();
   InstalledPlugins get installed => _installed ?? InstalledPlugins.instance;
-  Directory get cache => _cache ??= Directory('${installed.root.parent.path}${Platform.pathSeparator}market');
+  Directory get cache => _cache ??= Directory('${installed.root.parent.path}${PlatformInfo.pathSeparator}market');
   String get _version => _appVersion ?? appVersion;
 
   // --- what is known ------------------------------------------------------------------------------------------------
@@ -162,7 +163,7 @@ class MarketState extends ChangeNotifier {
   /// After 8 s and then every 6 hours: the catalog, the withdrawals, the packages to check, and the developer's own
   /// where they have any open. Once; never under a test, never on an iPhone (no store packs there at all).
   Future<void> start() async {
-    if (_started || Platform.environment.containsKey('FLUTTER_TEST') || !installed.storeAllowed) return;
+    if (_started || PlatformInfo.environment.containsKey('FLUTTER_TEST') || !installed.storeAllowed) return;
     _started = true;
     await loadDrafts();
     _timer = Timer(const Duration(seconds: 8), () {
@@ -375,7 +376,7 @@ class MarketState extends ChangeNotifier {
     if (fetched.isEmpty) return Future.value(const []);
     final all = [for (final (_, bytes) in fetched) bytes];
     List<PluginPack?> each() => [for (final bytes in all) parsePack(bytes, appVersion: version, checkMinApp: false).pack];
-    return verifyInIsolate ? Isolate.run(each) : Future.value(each());
+    return verifyInIsolate ? runAside(each) : Future.value(each());
   }
 
   static String _markOf(PackApproval a) => sha256Hex(utf8.encode('${a.key}\n${a.sig}\n${approvalWords(a.plugin, a.version, a.sha256)}'));
@@ -413,7 +414,7 @@ class MarketState extends ChangeNotifier {
     return b;
   }
 
-  File _packageFile(String sha) => File('${cache.path}${Platform.pathSeparator}packages${Platform.pathSeparator}$sha');
+  File _packageFile(String sha) => File('${cache.path}${PlatformInfo.pathSeparator}packages${PlatformInfo.pathSeparator}$sha');
 
   /// [e]'s package: held, kept on disk, or fetched (and then kept, unless [keep] is false: the check keeps only what
   /// became a listing). Null where it couldn't be had (said in the log).
@@ -512,7 +513,7 @@ class MarketState extends ChangeNotifier {
 
   // --- the developer's own --------------------------------------------------------------------------------------------
 
-  File get _mineFile => File('${cache.path}${Platform.pathSeparator}mine.json');
+  File get _mineFile => File('${cache.path}${PlatformInfo.pathSeparator}mine.json');
 
   /// What mine.json last said: each submission's status by its sid, and each plugin's listing by its id.
   Future<({Map<String, String> seen, Map<String, String> plugins})?> _mineKept() async {
@@ -605,7 +606,7 @@ class MarketState extends ChangeNotifier {
   /// leaving the Marketplace (Settings › Me, a notification's conversation) loses nothing. Null once it is sent.
   PluginPack? submitting;
 
-  Directory _draftDir(String packId) => Directory('${cache.path}${Platform.pathSeparator}drafts${Platform.pathSeparator}$packId');
+  Directory _draftDir(String packId) => Directory('${cache.path}${PlatformInfo.pathSeparator}drafts${PlatformInfo.pathSeparator}$packId');
 
   /// The draft kept for [packId], where there is one.
   SubmitDraft? draftOf(String packId) => _drafts[packId];
@@ -645,12 +646,12 @@ class MarketState extends ChangeNotifier {
           shots.add(s);
           continue;
         }
-        final file = File('${dir.path}${Platform.pathSeparator}shot-$i.png');
+        final file = File('${dir.path}${PlatformInfo.pathSeparator}shot-$i.png');
         await _write(file, s.bytes!);
         shots.add(DraftShot(bytes: s.bytes, path: file.path));
       }
       if (_drafts[d.packId] == null) return;
-      await _write(File('${dir.path}${Platform.pathSeparator}draft.json'), utf8.encode(jsonEncode(d.copyWith(shots: shots).toJson())));
+      await _write(File('${dir.path}${PlatformInfo.pathSeparator}draft.json'), utf8.encode(jsonEncode(d.copyWith(shots: shots).toJson())));
     } catch (_) {}
   }
 
@@ -674,12 +675,12 @@ class MarketState extends ChangeNotifier {
   /// The drafts kept on disk, read into memory (their screenshots' bytes with them).
   Future<void> loadDrafts() async {
     try {
-      final root = Directory('${cache.path}${Platform.pathSeparator}drafts');
+      final root = Directory('${cache.path}${PlatformInfo.pathSeparator}drafts');
       if (!await root.exists()) return;
       await for (final dir in root.list()) {
         if (dir is! Directory) continue;
         try {
-          final j = jsonDecode(await File('${dir.path}${Platform.pathSeparator}draft.json').readAsString());
+          final j = jsonDecode(await File('${dir.path}${PlatformInfo.pathSeparator}draft.json').readAsString());
           if (j is! Map) continue;
           final d = SubmitDraft.fromJson(j);
           if (!packIdPattern.hasMatch(d.packId)) continue;
@@ -698,8 +699,8 @@ class MarketState extends ChangeNotifier {
 
   // --- the catalog and the signatures, kept ---------------------------------------------------------------------------
 
-  File get _catalogFile => File('${cache.path}${Platform.pathSeparator}catalog.json');
-  File get _verifiedFile => File('${cache.path}${Platform.pathSeparator}verified.json');
+  File get _catalogFile => File('${cache.path}${PlatformInfo.pathSeparator}catalog.json');
+  File get _verifiedFile => File('${cache.path}${PlatformInfo.pathSeparator}verified.json');
 
   Future<void> _keepCatalog(Catalog c) async {
     try {

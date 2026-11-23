@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -147,7 +147,7 @@ class Account extends ChangeNotifier {
     return {'dir': dir, 'body': body, 'sig': NetCrypto.hex(AccountCrypto.sign(keys.key, utf8.encode(body)))};
   }
 
-  static String get _platform => Platform.isAndroid ? 'android' : Platform.isIOS ? 'ios' : Platform.isMacOS ? 'macos' : Platform.isWindows ? 'windows' : 'linux';
+  static String get _platform => PlatformInfo.isAndroid ? 'android' : PlatformInfo.isIOS ? 'ios' : PlatformInfo.isMacOS ? 'macos' : PlatformInfo.isWindows ? 'windows' : 'linux';
 
   Future<List<AccountDevice>> _addDevice(Uint8List key, String address) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', (seed: Uint8List(0), key: key, address: address), {
@@ -637,8 +637,8 @@ class AppAccountProfiles implements AccountProfiles {
 
   @override
   String get deviceName {
-    final host = Platform.localHostname;
-    final kind = Platform.isAndroid ? 'Android phone' : Platform.isIOS ? 'iPhone' : Platform.isMacOS ? 'Mac' : Platform.isWindows ? 'Windows PC' : 'Computer';
+    final host = PlatformInfo.localHostname;
+    final kind = PlatformInfo.isAndroid ? 'Android phone' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isMacOS ? 'Mac' : PlatformInfo.isWindows ? 'Windows PC' : 'Computer';
     return host.isEmpty || host == 'localhost' ? kind : '$kind · $host';
   }
 
