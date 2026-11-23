@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -11,7 +10,6 @@ import 'package:ghost_messaging/net/hub_link.dart';
 import 'package:ghost_messaging/net/hub_pass.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/node.dart';
-import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/relay_choice.dart';
 import 'package:ghost_messaging/relay_host/address.dart';
 import 'package:ghost_messaging/relay_host/direct_link.dart';
