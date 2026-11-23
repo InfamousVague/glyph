@@ -709,6 +709,9 @@ class LinkCalls implements SmsCalls, CapableCalls {
         final c = _cached(thread);
         if (c != null && c['unread'] == true) {
           c['unread'] = false;
+          // On the disk too: the phone says nothing back of what a computer did, so nothing else writes it, and the
+          // app opened again with the conversation unread.
+          _saveListSoon();
           Sms.instance.changes.add(-1);
         }
         return null;

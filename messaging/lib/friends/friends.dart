@@ -725,13 +725,13 @@ class Friends extends ChangeNotifier {
     }
     if (d.acked) {
       await _port.rowState(row, 'delivered');
-      _seen.add(envelope.id);
+      _sentAs(envelope.id);
       unawaited(_copy(address, envelope.id, words, envelope.at, out: true));
       return true;
     }
     await _port.rowState(row, 'sent');
     _rows[envelope.id] = row;
-    _seen.add(envelope.id);
+    _sentAs(envelope.id);
     unawaited(_copy(address, envelope.id, words, envelope.at, out: true));
     // Handed on but not yet answered: it may have gone down a connection that had just died, so it goes again until
     // the friend's app says it has it.
@@ -740,6 +740,15 @@ class Friends extends ChangeNotifier {
     _saveOut();
     if (d.handed == Handed.held) _wake(peer);
     return true;
+  }
+
+  /// What this device sent as [id] is known here, and kept with the choices as what came is: the account's other
+  /// device passes its copy on once ([_mine]), and where that came back after the app had been closed (a phone, a
+  /// moment after sending) the message was kept a second time.
+  void _sentAs(String id) {
+    _seen.add(id);
+    if (_seen.length > keepSeen) _seen.removeRange(0, _seen.length - keepSeen);
+    _app?.set('friends_in', _seen.join(','));
   }
 
   /// Whether a route that costs nothing is up now, for groups of friends too (groups.dart).

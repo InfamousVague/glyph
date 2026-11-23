@@ -417,6 +417,23 @@ void main() {
       expect(a.adminSignedIn(alice), isFalse);
     });
 
+    test('an identity\'s key is kept while any of its connections is here, and forgotten with the last', () async {
+      final a = Handles(dataDir: dir, config: config, fetch: net.fetch)..load();
+      final byPhone = <Map<String, Object?>>[], byComputer = <Map<String, Object?>>[];
+      void Function(Map<String, Object?>) phone = byPhone.add, computer = byComputer.add;
+      a.came(alice, phone, key: utf8.encode('key of $alice'));
+      a.came(alice, computer);
+      a.went(alice, phone);
+      await a.said(alice, {'dir': 'claim', 'name': 'alice_k'}, computer);
+      expect(byComputer.last, containsPair('ok', true), reason: 'the computer is still here: the key they share is too');
+      a.went(alice, computer);
+      // Here again with no key said: nothing is left of the one from before.
+      a.came(alice, computer);
+      await a.said(alice, {'dir': 'claim', 'name': 'alice_k2'}, computer);
+      expect(byComputer.last['err'], contains('Connect again'));
+      a.went(alice, computer);
+    });
+
     test('when a username was claimed, kept when it is claimed again; and the name itself', () async {
       var clock = DateTime.utc(2026, 11, 1, 15, 30);
       final a = Handles(dataDir: dir, config: config, fetch: net.fetch, now: () => clock)..load();
@@ -1042,4 +1059,41 @@ void main() {
       expect((await get('/')).body, contains('Ghost Messaging relay'));
     });
   });
+
+  // DNS rebinding: a name that is public when checked and private when connected to. The connection goes to the
+  // address it is given, whatever the name says now (here a name nothing answers for at all), and the name is still
+  // what the certificate is checked against.
+  test('an outside fetch connects to the address that was checked, with the name for the certificate', () async {
+    final tmp = Directory.systemTemp.createTempSync('fetchat');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    // A certificate authority of its own and a certificate for the name, as the system's checker wants them.
+    Future<void> openssl(List<String> args) async {
+      final r = await Process.run('openssl', args, workingDirectory: tmp.path);
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    }
+
+    File('${tmp.path}/ext').writeAsStringSync('subjectAltName=DNS:rebind.invalid\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n');
+    File('${tmp.path}/caext').writeAsStringSync('[req]\ndistinguished_name=dn\n[dn]\n[v3]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign\n');
+    await openssl(['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2', '-subj', '/CN=test authority', '-config', 'caext', '-extensions', 'v3']);
+    await openssl(['req', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'k.pem', '-out', 'c.csr', '-subj', '/CN=rebind.invalid', '-config', 'caext']);
+    await openssl(['x509', '-req', '-in', 'c.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', 'c.pem', '-days', '2', '-extfile', 'ext']);
+    final server = await HttpServer.bindSecure(InternetAddress.loopbackIPv4, 0, SecurityContext()..useCertificateChain('${tmp.path}/c.pem')..usePrivateKey('${tmp.path}/k.pem'));
+    addTearDown(() => server.close(force: true));
+    final hosts = <String?>[];
+    server.listen((r) {
+      hosts.add(r.headers.value('host'));
+      r.response
+        ..write('hello')
+        ..close();
+    });
+    final trust = SecurityContext()..setTrustedCertificates('${tmp.path}/ca.pem');
+    final got = await fetchAt('GET', Uri.parse('https://rebind.invalid:${server.port}/x'), InternetAddress.loopbackIPv4, context: trust);
+    expect((got.status, got.body), (200, 'hello'));
+    expect(hosts, ['rebind.invalid:${server.port}']);
+    // Another name at the same address: the certificate is not its.
+    expect((await fetchAt('GET', Uri.parse('https://other.invalid:${server.port}/x'), InternetAddress.loopbackIPv4, context: trust)).status, 0);
+    // And an address typed as private is refused before anything is connected to.
+    expect((await defaultFetch('GET', Uri.parse('https://127.0.0.1:${server.port}/x'), outside: true)).status, 0);
+    expect(hosts, hasLength(1));
+  }, skip: Platform.isWindows);
 }

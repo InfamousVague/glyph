@@ -90,6 +90,10 @@ class AutoLeveler extends ChangeNotifier {
   ValueListenable<Map<String, double>>? _levels;
   RtcMedia? _media;
 
+  /// The gain the player was last told for each person ([_heard]).
+  final Map<String, double> _told = {};
+  void Function(String id, double gain)? _toldForTest;
+
   /// What [id] is turned by now, in dB; 0 where nothing is done.
   double dbOf(String id) {
     final g = core.gains[id];
@@ -111,12 +115,13 @@ class AutoLeveler extends ChangeNotifier {
     _levels?.addListener(_heard);
   }
 
-  /// For a test: follows [levels] as it would a call's, with no player to tell.
+  /// For a test: follows [levels] as it would a call's, with no player to tell; [told] hears what a player would be.
   @visibleForTesting
-  void attachForTest(ValueListenable<Map<String, double>>? levels) {
+  void attachForTest(ValueListenable<Map<String, double>>? levels, {void Function(String id, double gain)? told}) {
     _levels?.removeListener(_heard);
     _clear();
     _media = null;
+    _toldForTest = told;
     _levels = levels;
     _levels?.addListener(_heard);
   }
@@ -129,13 +134,18 @@ class AutoLeveler extends ChangeNotifier {
       if (core.gains.isNotEmpty) _clear();
       return;
     }
-    final before = Map.of(core.gains);
     final after = core.feed(levels.value);
+    _told.removeWhere((id, _) => !after.containsKey(id));
     var moved = false;
     for (final e in after.entries) {
-      // Told to the player only when it has moved enough to hear: not 7 times a second for every person.
-      if (((before[e.key] ?? 1) - e.value).abs() < 0.03 && before.containsKey(e.key)) continue;
+      // Told to the player only when it has moved enough to hear: not 7 times a second for every person. Measured
+      // from what the player was last told, not from the reading before: a gain easing in moves less than this at
+      // each reading, and would else be left well short of where it settles.
+      final told = _told[e.key];
+      if (told != null && (told - e.value).abs() < 0.03) continue;
+      _told[e.key] = e.value;
       _media?.setLevelGain(e.key, e.value);
+      _toldForTest?.call(e.key, e.value);
       moved = true;
     }
     if (moved) notifyListeners();
@@ -147,6 +157,7 @@ class AutoLeveler extends ChangeNotifier {
       _media?.setLevelGain(id, 1);
     }
     core.reset();
+    _told.clear();
     notifyListeners();
   }
 }

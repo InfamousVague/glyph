@@ -16,7 +16,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -758,6 +758,14 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
       await p.showCamera(_picture);
     }
   }
+
+  /// How the connection to [id] stands, for the call to mend one that is not through (VoiceSession._mendAll).
+  @override
+  bool? linkUp(String id) => switch (links.value[id]) {
+        PeerLink.connected || PeerLink.poor => true,
+        PeerLink.connecting || PeerLink.reconnecting => false,
+        _ => null,
+      };
 
   @override
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => peerWith(id, onCandidate: onCandidate, onFailed: () {});

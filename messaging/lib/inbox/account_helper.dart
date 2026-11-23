@@ -936,12 +936,26 @@ class AccountHelper extends InboxNetwork {
       });
 
   Timer? _saving;
+  DateTime? _savingSince;
   Future<void> _writing = Future.value();
 
-  /// Written two seconds after the last change, off the frame: the file is written without waiting on it.
+  /// How long after the last change the file is written, and the longest a first change waits while more keep coming
+  /// (a test sets them shorter).
+  @visibleForTesting
+  static Duration saveAfter = const Duration(seconds: 2);
+  @visibleForTesting
+  static Duration saveWithin = const Duration(seconds: 10);
+
+  /// Written two seconds after the last change, off the frame: the file is written without waiting on it. And no
+  /// later than ten seconds after the first, as KeptWriter does: in a busy account something changes more often than
+  /// every two seconds, and a chat read was never written, so the app opened again with it unread.
   void _save() {
+    final now = DateTime.now();
+    _savingSince ??= now;
+    final left = saveWithin - now.difference(_savingSince!);
     _saving?.cancel();
-    _saving = Timer(const Duration(seconds: 2), () {
+    _saving = Timer(left < saveAfter ? (left.isNegative ? Duration.zero : left) : saveAfter, () {
+      _savingSince = null;
       final text = _kept();
       _writing = _writing.then((_) async {
         try {
@@ -960,6 +974,7 @@ class AccountHelper extends InboxNetwork {
     if (_saving?.isActive ?? false) {
       _saving!.cancel();
       _saving = null;
+      _savingSince = null;
       try {
         _file.parent.createSync(recursive: true);
         _file.writeAsStringSync(_kept());

@@ -655,11 +655,21 @@ func download(ctx context.Context, c *whatsmeow.Client, msg whatsmeow.Downloadab
 	if err != nil {
 		return err
 	}
+	return writeWhole(path, data)
+}
+
+// writeWhole writes [data] to [path] whole or not at all: beside it first, then moved into place, and nothing is left
+// beside it where either step fails.
+func writeWhole(path string, data []byte) error {
 	tmp := path + ".part"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
+	err := os.WriteFile(tmp, data, 0o600)
+	if err == nil {
+		err = os.Rename(tmp, path)
 	}
-	return os.Rename(tmp, path)
+	if err != nil {
+		_ = os.Remove(tmp)
+	}
+	return err
 }
 
 // upload sends [path] to WhatsApp's media servers and makes the message that carries it.
@@ -1389,14 +1399,15 @@ func reactionsOf(c *whatsmeow.Client, web *waWeb.WebMessageInfo) map[string]stri
 // --- the log file ---------------------------------------------------------------------------------------------------
 
 // logFile is whatsapp.log in the store's folder, begun afresh past a megabyte; standard error alone where it can't open.
-func logFile() *os.File {
+func logFile() io.Writer {
 	path := filepath.Join(dir, "whatsapp.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {
 		_ = os.Remove(path)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		return os.Stderr
+		// Not os.Stderr: the logger writes there already, and each line would be written twice.
+		return io.Discard
 	}
 	return f
 }

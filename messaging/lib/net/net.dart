@@ -7,6 +7,10 @@ import '../app_state.dart';
 import '../friends/buddies.dart' show Buddy;
 import '../me/me.dart' show Me;
 import '../platform_info.dart';
+import '../relay_host/address.dart';
+import '../relay_host/direct_link.dart';
+import '../relay_host/hosting.dart';
+import '../relay_host/relay_host.dart';
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
@@ -197,7 +201,12 @@ class Net extends ChangeNotifier implements PeerBook {
   /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
   void _helpersSaid() {
     final hub = _helpersOf;
-    if (hub != null) _p2p?.setHelpers(hub.helpers.value);
+    if (hub == null) return;
+    // A relay hosted from an app is reached over Direct by the helpers in use now: one that names none (its keeper's own
+    // relay named none) doesn't take them away, or the node would start again without them and its link to the relay
+    // would go with it, for good.
+    if (isGhostRelay(hub.url) && hub.helpers.value.isEmpty) return;
+    _p2p?.setHelpers(hub.helpers.value);
   }
 
   /// Listens for the link helpers [hub] names, in place of the route listened to before.
@@ -222,6 +231,74 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 
   Map<String, Object?>? _push;
+
+  // --- a relay hosted from this device, and others' (lib/relay_host; docs/OPEN_NETWORK.md, section 5) ---------------
+
+  RelayHosting? _host;
+
+  /// Makes this device's relay host as the routes start (lib/relay_host/relay_host.dart): the platform's own, which is
+  /// none on an iPhone or in a browser; a test hands in one of its own, as it does a node ([p2pNode]).
+  static RelayHosting? Function() relayHostMaker = makeRelayHost;
+
+  /// The relay this device hosts, where it can host one (the Mac, Windows, Linux, Android); null on an iPhone, in a
+  /// browser, and before the routes are set up. Off unless the person switches it on (Settings › Routes).
+  RelayHosting? get relayHost => _host;
+
+  /// The name of the relay this device hosts, where it has one: what Settings › Routes calls "the relay on this device".
+  String? get hostedHere => _host?.relayId;
+
+  /// The pass phrase given for the relay this app uses, where it asked one (kept where the install keeps its keys,
+  /// `relay_pass`, with the relay's address: a phrase is for one relay alone).
+  ({String url, String pass})? _joinPass;
+  static const joinPassName = 'relay_pass';
+
+  Future<({String url, String pass})?> _readJoinPass() async {
+    try {
+      final j = jsonDecode(await Sms.instance.secretRead(joinPassName) ?? '');
+      if (j is Map && j['u'] is String && j['p'] is String && (j['p'] as String).isNotEmpty) return (url: j['u'] as String, pass: j['p'] as String);
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _keepJoinPass(String url, String? pass) async {
+    final p = pass?.trim() ?? '';
+    _joinPass = p.isEmpty ? null : (url: url, pass: p);
+    try {
+      await Sms.instance.secretKeep(joinPassName, p.isEmpty ? '' : jsonEncode({'u': url, 'p': p}));
+    } catch (_) {}
+  }
+
+  /// The pass phrase the hub at [url] is shown, where it asks one: this device's own relay's, or the one given for it.
+  String? _passFor(String url) {
+    final host = _host;
+    if (host != null && host.isMine(url)) return host.ownPass;
+    final j = _joinPass;
+    return j != null && j.url == url ? j.pass : null;
+  }
+
+  /// A pass phrase given for the relay this app uses (it asked for one, or the one given was wrong): kept, and the
+  /// relay asked again with it at once.
+  Future<void> setRelayPass(String pass) async {
+    await _keepJoinPass(hubUrl, pass);
+    _hub?.passAgain();
+    notifyListeners();
+  }
+
+  /// How a relay hosted from an app is dialled (hub_link.dart, HubDials.hosted): this device's own in memory, anyone
+  /// else's over the direct network by the node its address names.
+  Future<HubLink> _dialHosted(String url) {
+    final a = GhostRelayAddress.parse(url);
+    if (a == null) return Future.error(const HubDialRefused('That isn\'t a relay\'s address.'));
+    final host = _host;
+    if (host != null && host.relayId == a.relay) return host.dialHere();
+    return dialOverDirect(_p2p, a);
+  }
+
+  HubCarrier _hubFor(String url, NetSigner signer) {
+    final hub = HubCarrier(url: url, signer: signer)..push = _push;
+    hub.pass = () => _passFor(hub.url);
+    return _presenceOf(hub);
+  }
 
   // --- who is here: presence of people on our own system ------------------------------------------------------------
 
@@ -261,10 +338,15 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
   /// 2026-11-17: "presense sensing ... for users who have signed up for a username and are part of our own system").
-  void setAway(bool away) {
+  ///
+  /// [hostAway]: whether the app is put away for a phone's relay, where that is not [away] ([hostAwayIn]: `inactive`
+  /// is away for presence but not for the relay).
+  void setAway(bool away, {bool? hostAway}) {
     _away = away;
     _hub?.awayNow = away;
     _p2p?.setAway(away);
+    // A phone's relay runs only while the app is in use (lib/relay_host).
+    _host?.appAway(hostAway ?? away);
     // Put away, the app may not come back: what the ledger listed is written now.
     if (away) unawaited(_ledger?.flush());
   }
@@ -367,13 +449,18 @@ class Net extends ChangeNotifier implements PeerBook {
     try {
       final me = await Sms.instance.netIdentity();
       id = me.id;
+      // The account's key, read before any route is up: until it was, nothing the account's other devices sent to its
+      // own name could be opened ([byId]), and it was read only once this device sent a copy itself. So a device just
+      // opened dropped every copy the relay had kept for it (Matt, 2026-11-23: "messages are not in sync across mobile
+      // and desktop").
+      await mine();
       await _readPeers(direct: wantDirect);
       final signer = _signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
       if (carriers != null) {
         routes = [...carriers];
       } else {
-        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: signer)..push = _push);
+        final hub = _hub = _hubFor(hubUrl, signer);
         // Where this account lives, said to the relay at every sign-in with where its friends on other relays do; its
         // changes are the routes' (Settings › Routes says when the record couldn't be made).
         _homes = Homes(signer: signer, read: (key) => app.choice(key, ''), write: app.keep)
@@ -407,6 +494,17 @@ class Net extends ChangeNotifier implements PeerBook {
       board.usedChanged.addListener(_routesUsedChanged);
       _subs.add(board.received.listen(_received));
       if (p2p != null) _holdDirect(board, p2p, me.id, device);
+      // A relay hosted from this device (lib/relay_host), where it can host one: started now where the person has it
+      // on, before the hub's route dials, which may be to it; and the way to any relay hosted from an app.
+      HubDials.hosted = _dialHosted;
+      _joinPass = await _readJoinPass();
+      final host = _host ??= relayHostMaker();
+      if (host != null) {
+        host.addListener(_hostChanged);
+        // Not waited for: a slow start (its folder, its link helpers) held up every route (found in the second review,
+        // 2026-11-23). A route to it waits for it itself, as dialling it in memory waits for its start.
+        unawaited(host.startIfOn().catchError((Object _) {}));
+      }
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -494,7 +592,8 @@ class Net extends ChangeNotifier implements PeerBook {
       // The relay names its link helpers as the app signs in to it. Signed in to already (Direct switched on after),
       // it will not name them again until the next sign-in: they are given now.
       final hub = _hub;
-      if (hub != null && hub.signedInAt > 0) p2p.setHelpers(hub.helpers.value);
+      // (As the relay's own naming is taken: [_helpersSaid], which keeps a hosted relay's.)
+      if (hub != null && hub.signedInAt > 0) _helpersSaid();
       _loadDirect(p2p);
     } catch (e) {
       board.remove(p2p.carrier.id);
@@ -509,6 +608,8 @@ class Net extends ChangeNotifier implements PeerBook {
     // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices as
     // direct links are proved. Without a direct route nothing could compare it, so nothing is listed.
     _startLedger(board, p2p, me, device);
+    // The relay on this device takes it (channel 1), where one runs.
+    _host?.directChanged();
   }
 
   /// Switches Direct on or off (Settings › Routes), kept as the person's choice ([directName]), without the app
@@ -581,6 +682,8 @@ class Net extends ChangeNotifier implements PeerBook {
       p2p.removeListener(_directChanged);
       await p2p.shutdown();
     }
+    // The relay on this device lets it go.
+    _host?.directChanged();
     _directChanged();
   }
 
@@ -730,6 +833,15 @@ class Net extends ChangeNotifier implements PeerBook {
     _followHelpers(null);
     _homes?.dispose();
     _homes = null;
+    // The relay this device hosts stops with the routes: everyone on it sees it gone; its choice and its folder stay.
+    final host = _host;
+    _host = null;
+    if (host != null) {
+      host.removeListener(_hostChanged);
+      await host.shutdown();
+    }
+    HubDials.hosted = null;
+    _joinPass = null;
     if (check != null) {
       check.removeListener(_directChanged);
       await check.stop();
@@ -753,6 +865,8 @@ class Net extends ChangeNotifier implements PeerBook {
     _friendIds = {};
     recent.clear();
     id = null;
+    // The account's key goes with it: the next account signed in here reads its own.
+    _mineKey = null;
     _signer = null;
     _device = null;
     // The node goes with the routes (stopped by P2p.shutdown above), let go of in the core: the next account signed in
@@ -809,6 +923,28 @@ class Net extends ChangeNotifier implements PeerBook {
     } else {
       await board.stop();
     }
+    // A relay on this device takes joiners over Direct whether or not anyone here is to be reached now: its route runs
+    // while the relay does, with Direct switched on (found in the fourth review, 2026-11-23: with nobody to reach the
+    // route was stopped, and the relay's node with it).
+    if (on && directOn && _host?.state == HostState.up && !board.off.contains(P2pCarrier.routeId)) {
+      for (final c in board.carriers) {
+        if (c.id == P2pCarrier.routeId) await c.start().catchError((_) {});
+      }
+    }
+    // The relay on this device follows the route as it now stands (its node brought up for joiners, or let go).
+    _host?.directChanged();
+  }
+
+  HostState? _hostWas;
+
+  /// The relay on this device changed: shown, and the routes set again where it started or stopped ([_apply]).
+  void _hostChanged() {
+    final now = _host?.state;
+    if (now != _hostWas) {
+      _hostWas = now;
+      unawaited(_apply().catchError((Object _) {}));
+    }
+    notifyListeners();
   }
 
   /// Turns the whole network on or off, and keeps the choice.
@@ -846,7 +982,15 @@ class Net extends ChangeNotifier implements PeerBook {
   /// the address is tidied ([tidyRelayAddress]), asked ([checkRelay]), and [confirm], where given, asked with the
   /// tidied address before anything changes. Empty, or our own address, is ours again and needs no check. Says why
   /// it didn't move, or null where it did (or the person said no at [confirm]: then declined is true).
-  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm}) async {
+  ///
+  /// [decide], where given in [confirm]'s place, is asked with what the relay said of itself ([RelayCheck]: whether it
+  /// runs in someone's app, whether it asks for a pass phrase) and answers with the person's yes and the phrase they gave.
+  /// A relay that asks for a phrase is not moved to without one (but this device's own, whose phrase the app knows).
+  ///
+  /// [askFirst], where given, is asked with the tidied address before anything is dialled: a relay's link opened from
+  /// elsewhere is asked about before the app connects to the address it carries (found in the second review,
+  /// 2026-11-23: it dialled first). No is declined, nothing dialled.
+  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm, Future<({bool yes, String? pass})> Function(String url, RelayCheck check)? decide, Future<bool> Function(String url)? askFirst}) async {
     final url = tidyRelayAddress(typed);
     if (url == null) return (problem: 'That isn\'t a relay server\'s address. It looks like relay.example.com or wss://relay.example.com/hub.', declined: false);
     if (url.isEmpty || url == defaultHub) {
@@ -854,10 +998,19 @@ class Net extends ChangeNotifier implements PeerBook {
       return (problem: null, declined: false);
     }
     if (url == hubUrl) return (problem: null, declined: false);
+    if (askFirst != null && !await askFirst(url)) return (problem: null, declined: true);
     final check = await checkRelay(url, connect: connect, timeout: timeout);
     if (!check.ok) return (problem: check.problem, declined: false);
-    if (confirm != null && !await confirm(url)) return (problem: null, declined: true);
-    await setHub(url, relay: check.relay);
+    String? pass;
+    if (decide != null) {
+      final d = await decide(url, check);
+      if (!d.yes) return (problem: null, declined: true);
+      pass = d.pass?.trim();
+    } else if (confirm != null && !await confirm(url)) {
+      return (problem: null, declined: true);
+    }
+    if (check.asksPass && (pass == null || pass.isEmpty) && !(_host?.isMine(url) ?? false)) return (problem: 'This relay asks for a pass phrase: whoever runs it can give it to you.', declined: false);
+    await setHub(url, relay: check.relay, pass: pass);
     return (problem: null, declined: false);
   }
 
@@ -868,22 +1021,27 @@ class Net extends ChangeNotifier implements PeerBook {
   /// is known by ([relay], what it said of itself when it was checked, where it said anything), and given to the relay
   /// being left while it is still connected, so that relay knows where this account lives now. The new relay is given
   /// it as the app signs in there, and friends are told a few at a time (lib/friends/buddies.dart).
-  Future<void> setHub(String url, {HubRelay? relay}) async {
+  ///
+  /// [pass]: the phrase the new relay asks for, where it asks one (kept for it alone).
+  Future<void> setHub(String url, {HubRelay? relay, String? pass}) async {
     final next = Homes.addressOf(relay, url.trim().isEmpty ? defaultHub : url.trim());
     try {
       // (The relay being left answers the new record, and friends on it are told, before it is left: ten seconds.)
       if (next != null) await _homes?.moveTo(next).timeout(const Duration(seconds: 10));
     } catch (_) {}
     _app?.set('net_hub', url.trim());
+    if (pass != null) await _keepJoinPass(url.trim(), pass);
     final board = _board, old = _hub, me = id;
     if (board == null || old == null || me == null) return;
     await old.stop();
     old.presence.removeListener(_presenceChanged);
-    final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: old.signer)..push = _push);
+    final hub = _hub = _hubFor(hubUrl, old.signer);
     _homes?.attach(hub);
     presence.value++;
-    // Another relay names its own link helpers as the app signs in to it; the one left behind's are not used on.
-    _p2p?.setHelpers(const []);
+    // Another relay names its own link helpers as the app signs in to it; the one left behind's are not used on. But a
+    // relay hosted from an app is reached over Direct by the helpers in use now (and names them itself as the app signs
+    // in): emptied first, its dial would find nothing.
+    if (!isGhostRelay(url)) _p2p?.setHelpers(const []);
     _followHelpers(hub);
     board.add(hub);
     await _apply();

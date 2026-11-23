@@ -1217,14 +1217,15 @@ func (a *account) onAck(ev *discordgo.MessageAck) {
 
 // logFile is discord.log in the session's folder, begun afresh past a megabyte; standard error alone where it can't
 // open.
-func logFile() *os.File {
+func logFile() io.Writer {
 	path := filepath.Join(dir, "discord.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {
 		_ = os.Remove(path)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		return os.Stderr
+		// Not os.Stderr: the logger writes there already, and each line would be written twice.
+		return io.Discard
 	}
 	return f
 }

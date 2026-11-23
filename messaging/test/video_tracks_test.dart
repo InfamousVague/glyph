@@ -266,6 +266,12 @@ void main() {
     await engine.chooseAudio('0:1');
     expect(fake.calls, contains('audio 0:1'));
     expect(engine.value.tracks.audioOn, '0:1');
+    // The controller says something new (it plays): the tracks and the choice are still there after.
+    await engine.play();
+    expect(engine.value.playing, isTrue);
+    expect(engine.value.tracks.audio.map((t) => t.id), ['0:0', '0:1'], reason: 'a tick of the controller doesn\'t empty the list');
+    expect(engine.value.tracks.audioOn, '0:1');
+    expect(engine.value.tracks.subtitles, hasLength(1));
     await engine.release();
     engine.dispose();
   });

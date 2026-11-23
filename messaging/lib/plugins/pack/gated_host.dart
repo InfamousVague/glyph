@@ -36,7 +36,7 @@ class GatedHost implements PluginHost {
   bool _may(PackPermission p) => plugin.pack.permissions.contains(p);
 
   // Nothing else happens: the pack's registry hears of it (the Developer log, a pack in development's own list), and
-  // its owner keeps it.
+  // its owner is told (InstalledPlugins does nothing more with a refusal: the error is its record).
   void _refuse(String verb) {
     plugin.onTrouble?.call(plugin, 'refused $verb');
     plugin.onError(plugin, StateError('$verb refused for ${plugin.id}'));

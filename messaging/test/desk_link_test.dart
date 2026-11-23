@@ -494,6 +494,38 @@ void main() {
     second.dispose();
   });
 
+  // Matt, 2026-11-23: "messages are being un marked from read when relaunching the app". The phone tells a computer
+  // nothing back about what the computer itself did (android Bus.changedOnPhone), so the list on the disk was never
+  // written again after a conversation was read here, and the app opened with it unread.
+  test('a conversation read on the computer is still read when the app opens again with the phone away', () async {
+    final store = MemoryStore();
+    final link = mac(store);
+    await pair(link, 'local');
+    final dir = Directory.systemTemp.createTempSync('ghost-desk-test');
+    final bridge = LinkCalls(link, DeskStore(dir, keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    expect((await Sms.instance.conversations()).firstWhere((c) => c.id == 7).unread, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await bridge.cache.settled();
+    await Sms.instance.markRead(7);
+    expect((await Sms.instance.conversations()).firstWhere((c) => c.id == 7).unread, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await bridge.cache.settled();
+
+    bridge.dispose();
+    links.removeLast().dispose();
+    await phone.leaveLocal();
+    final again = mac(store, local: false);
+    await again.start();
+    expect(again.online, isFalse);
+    final second = LinkCalls(again, DeskStore(dir, keychain: false));
+    await second.init();
+    Sms.calls = second;
+    expect((await Sms.instance.conversations()).firstWhere((c) => c.id == 7).unread, isFalse, reason: 'read before the app closed');
+    second.dispose();
+  });
+
   test('a conversation\'s newest are joined to what is kept', () {
     Map<String, dynamic> m(int id) => {'id': id, 'kind': 'sms', 'date': 1000 + id};
     List<int> ids(List<dynamic>? l) => [for (final x in l!) (x as Map)['id'] as int];

@@ -670,6 +670,15 @@ class Account extends ChangeNotifier {
     for (final name in P2p.keptNames) {
       if (store.choice(name, '').isNotEmpty) store.set(name, '');
     }
+    // And the relay this device hosts (lib/relay_host): stopped and switched off, everyone on it seeing it gone, its pass
+    // phrase forgotten and its folder kept (its key, where its people said they live); this app's relay set back to the
+    // one before it. And the pass phrase given for someone else's relay.
+    try {
+      await Net.instance.relayHost?.signedOut();
+    } catch (_) {}
+    try {
+      if ((await port.secretRead(Net.joinPassName) ?? '').isNotEmpty) await port.secretKeep(Net.joinPassName, '');
+    } catch (_) {}
     // And the ledger the relay is checked by, and what the name watch kept (lib/net/ledger.dart, name_watch.dart): what
     // went to whom and came from whom, and what the relay said of friends' usernames, are nothing of the next account's.
     try {
@@ -1098,8 +1107,9 @@ class AppAccountProfiles implements AccountProfiles {
     if (home == null) return;
     final helpers = [for (final n in networks) if (n is AccountHelper) n.service.id];
     // Call recordings and their list, and the voice changer's folder (its ElevenLabs key): where an iPhone or a
-    // computer keeps them (CallRecorder.folder, VoiceChanger.defaultFolder), in the app's folder.
-    for (final path in [for (final name in ['recordings', 'voicechanger', ...otherNetworkFolders, ...helpers]) '$home/$name']) {
+    // computer keeps them (CallRecorder.folder, VoiceChanger.defaultFolder), in the app's folder. And the folder of the
+    // relay this computer hosts (lib/relay_host: its key, where its people said they live), which a plain sign-out keeps.
+    for (final path in [for (final name in ['recordings', 'voicechanger', 'relay', ...otherNetworkFolders, ...helpers]) '$home/$name']) {
       try {
         final dir = Directory(path);
         if (dir.existsSync()) dir.deleteSync(recursive: true);

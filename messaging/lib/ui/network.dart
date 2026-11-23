@@ -21,6 +21,8 @@ import '../net/switchboard.dart' show RouteUse, Switchboard;
 import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
+import 'relay_host_section.dart';
+import '../relay_host/words.dart' show joinHostedWords;
 import 'settings.dart';
 import 'shell.dart';
 
@@ -511,9 +513,13 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
           SettingRow(
             key: const ValueKey('relay-in-use'),
             icon: icon(Lucide.globe),
-            label: relayInUseWords(net.hubUrl),
+            label: relayInUseLabel(net),
             hint: Text('In use · ${_hubLine(net)}'),
           ),
+          // A relay that runs in someone else's app (it said so in its hello; lib/relay_host): what its keeper sees, said
+          // for as long as this app is on it, not only as it joined.
+          if (net.hub!.hosted && !(net.relayHost?.isMine(net.hubUrl) ?? false))
+            SettingRow(key: const ValueKey('relay-hosted'), icon: icon(Lucide.info), label: 'It runs in someone\'s app', hint: const Text(joinHostedWords)),
           // Whether this relay passes messages to other relays, as it said itself the last time the app signed in.
           if (net.hub!.state.value == CarrierState.up)
             SettingRow(
@@ -522,6 +528,9 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
               label: relayTalksWords(net.hub!.relay).$1,
               hint: Text(relayTalksWords(net.hub!.relay).$2),
             ),
+          // The relay asked for a pass phrase and none was given, or the one given was wrong (a relay hosted from someone's
+          // app, lib/relay_host): asked for here, and the relay asked again with it.
+          if (net.hub!.passRefused != null) SettingRowBox(child: RelayPassBox(net: net)),
           // A record of where this account lives that couldn't be made, said rather than swallowed (found in the
           // review of relays that talk, 2026-11-23): without one nobody on another relay can reach this account.
           if (net.homes?.problem != null)
@@ -545,6 +554,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
           SettingRowBox(child: RelayAddressField(net: net)),
         ],
       ),
+    // A relay of this device's own (lib/relay_host): on the Mac, Windows, Linux and Android.
+    if (board != null) ...relayHostSections(context, net),
     PaneSection(
       title: 'Invite',
       footer: const Text('Once they have the app and you text each other, it offers to turn encryption on between you. From then they are someone the routes reach.'),
@@ -645,6 +656,15 @@ String movingWords(String from) {
         ? ('Passes messages to other relays', 'A friend on another relay, added as @name@their.relay, is reached through this one.')
         : ('Doesn\'t pass messages to other relays', 'Whoever runs it hasn\'t switched that on. You reach only people who use this relay.');
 
+/// The relay in use, in a line: as [relayInUseWords] names it, but one on a network that said it runs in someone's app
+/// is not "your own".
+String relayInUseLabel(Net net) {
+  final words = relayInUseWords(net.hubUrl);
+  final hub = net.hub;
+  if (hub == null || !hub.hosted || !words.startsWith('Your own relay: ')) return words;
+  return 'A relay in someone\'s app: ${words.substring('Your own relay: '.length)}';
+}
+
 /// How the relay's route stands, in a few words.
 String _hubLine(Net net) {
   final hub = net.hub;
@@ -702,27 +722,15 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     super.dispose();
   }
 
-  /// Asked once the relay at [url] has answered: what moving there means, and whether to go. True for yes.
-  Future<bool> _confirm(String url) async {
-    var yes = false;
-    await showChoices(
-      context,
-      title: 'Use ${relayInUseWords(url).replaceFirst('Your own relay: ', '')}?',
-      header: Text('${movingWords(widget.net.hubUrl)}\n\n$relayLimitsWords'),
-      choices: [Choice('Use this relay', Lucide.check, () => yes = true, hint: 'It answered as a Ghost Messaging relay.')],
-    );
-    return yes;
-  }
-
-  /// Checks the address typed and moves to it ([Net.useRelay]). A problem is shown under the field; declining at
-  /// [_confirm] changes nothing.
+  /// Checks the address typed and moves to it ([Net.useRelay]), asking what moving there means once it has answered
+  /// ([decideRelay]). A problem is shown under the field; declining changes nothing.
   Future<void> _use() async {
     if (_checking) return;
     setState(() {
       _checking = true;
       _problem = null;
     });
-    final r = await widget.net.useRelay(_address.text, connect: widget.connect, confirm: _confirm);
+    final r = await widget.net.useRelay(_address.text, connect: widget.connect, decide: (url, check) => decideRelay(context, url, check));
     if (!mounted) return;
     setState(() {
       _checking = false;
@@ -759,6 +767,49 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
         hint: const Text('Nothing changes unless a Ghost Messaging relay answers there.'),
         onPress: _checking ? null : _use,
       ),
+    ]);
+  }
+}
+
+/// A pass phrase for the relay in use, which asked for one (lib/relay_host): given, the relay is asked again with it.
+class RelayPassBox extends StatefulWidget {
+  const RelayPassBox({super.key, required this.net});
+  final Net net;
+
+  @override
+  State<RelayPassBox> createState() => _RelayPassBoxState();
+}
+
+class _RelayPassBoxState extends State<RelayPassBox> {
+  final _pass = TextEditingController();
+
+  @override
+  void dispose() {
+    _pass.dispose();
+    super.dispose();
+  }
+
+  Future<void> _try() async {
+    final p = _pass.text.trim();
+    if (p.isEmpty) return;
+    await widget.net.setRelayPass(p);
+    _pass.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final wrong = widget.net.hub?.passRefused == 'wrong', busy = widget.net.hub?.passRefused == 'busy';
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Text(
+        busy ? 'Too many wrong pass phrases were given to this relay lately. It is asked again in a while.' : wrong ? 'The pass phrase given isn\'t this relay\'s.' : 'This relay asks for a pass phrase: whoever runs it can give it to you.',
+        key: const ValueKey('relay-pass-why'),
+        style: pageText(t, t.fontSize('sm'), color: t.color(wrong || busy ? 'app-danger' : 'app-ink-2')),
+      ),
+      SizedBox(height: t.space(2)),
+      GlacierInput(key: const ValueKey('relay-pass-field'), controller: _pass, type: GlacierInputType.password, placeholder: 'Its pass phrase', ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _try()),
+      SizedBox(height: t.space(2)),
+      SettingRow(key: const ValueKey('relay-pass-try'), icon: const AppIcon(Lucide.keyRound, size: 18), label: 'Use this pass phrase', onPress: _try),
     ]);
   }
 }
