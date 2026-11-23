@@ -68,10 +68,17 @@ jobs:
       - name: Build the app
         run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
 
-      # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), by the runner's own
-      # Rust and from nothing but what its Cargo.lock names: beside the app as ghost_p2p.dll, where the app looks for
-      # it, so in the installer and signed with the rest. Left out (p2p: no), the app has no direct route and is
-      # otherwise the same.
+      # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), from nothing but
+      # what its Cargo.lock names, with the Rust its rust-toolchain.toml names (rustup, on the runner, installs it):
+      # beside the app as ghost_p2p.dll, where the app looks for it, so in the installer and signed with the rest. Left
+      # out (p2p: no), the app has no direct route and is otherwise the same.
+      - name: Rust for the direct network's core
+        if: inputs.p2p != 'no'
+        working-directory: messaging/native/p2p
+        run: |
+          rustup toolchain install --no-self-update
+          rustc --version
+
       - name: Build the direct network's core
         if: inputs.p2p != 'no'
         working-directory: messaging/native/p2p

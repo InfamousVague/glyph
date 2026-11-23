@@ -13,8 +13,8 @@
 # stops). cargo keeps what it has built (native/p2p/target) and builds again only what changed, so this is run for
 # every release rather than a library from before trusted; a target's first build takes a few minutes.
 #
-# Needs rustup's targets for what is asked: aarch64-apple-darwin and x86_64-apple-darwin; aarch64-linux-android, and
-# the NDK under ~/Library/Android/sdk; aarch64-apple-ios, aarch64-apple-ios-sim and x86_64-apple-ios.
+# Built with the Rust native/p2p/rust-toolchain.toml names (1.94.1: rustup installs it the first time), and the
+# targets each build needs, which it adds; for Android, the NDK under ~/Library/Android/sdk.
 set -e
 NDK_VERSION=28.2.13676358
 # The app's minSdk (android/app/build.gradle.kts), and the oldest systems the Mac and iPhone apps run on.
@@ -28,6 +28,12 @@ OUT="$ROOT/build/p2p"
 target=${1:-}
 case "$target" in mac|android|ios) ;; *) echo "usage: sh tool/build-p2p.sh mac|android|ios" >&2; exit 2 ;; esac
 
+# The pinned Rust, and nothing else: a build with another would not be the one the tests ran with.
+RUST=$(cd "$CRATE" && rustc --version)
+case "$RUST" in "rustc 1.94.1 "*) ;; *) echo "x native/p2p is built with Rust 1.94.1 (its rust-toolchain.toml), and this is $RUST" >&2; exit 1 ;; esac
+# The targets a build needs, for the pinned Rust (added once; again, nothing happens).
+need() { (cd "$CRATE" && rustup target add "$@" >/dev/null 2>&1) || { echo "x rustup could not add $*" >&2; exit 1; }; }
+
 # One kind of library for one target. What follows `--` goes to the last step alone (the library itself), so the same
 # built dependencies serve every kind.
 build() { (cd "$CRATE" && cargo rustc --quiet --release --locked --lib --crate-type "$1" --target "$2" -- $3); }
@@ -35,6 +41,7 @@ build() { (cd "$CRATE" && cargo rustc --quiet --release --locked --lib --crate-t
 FUNCTIONS="ghost_p2p_abi ghost_p2p_node_id ghost_p2p_new ghost_p2p_command ghost_p2p_buffer_free ghost_p2p_drop ghost_p2p_drop_owned"
 
 if [ "$target" = mac ]; then
+  need aarch64-apple-darwin x86_64-apple-darwin
   LIB="$OUT/mac/libghost_p2p.dylib"
   # Named, as it is linked, the way the app finds it beside its other libraries (Contents/Frameworks, by @rpath). And
   # stripped by the linker itself (-x: no symbol but the ones it offers), not by the release profile's `strip`: what
@@ -57,6 +64,7 @@ if [ "$target" = mac ]; then
 fi
 
 if [ "$target" = android ]; then
+  need aarch64-linux-android
   NDK="$HOME/Library/Android/sdk/ndk/$NDK_VERSION"
   [ -d "$NDK" ] || { echo "x no NDK at $NDK" >&2; exit 1; }
   TOOLS=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/bin | head -1)
@@ -77,6 +85,7 @@ if [ "$target" = android ]; then
 fi
 
 if [ "$target" = ios ]; then
+  need aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
   # A static library (an iPhone app carries no loose dylib of its own making), for the phone and for both kinds of
   # simulator, with the header: what Runner would link. The iPhone app does not link it yet.
   # (Not stripped here at all: a static library is stripped as the app that links it is.)
