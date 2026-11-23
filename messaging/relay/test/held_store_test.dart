@@ -170,10 +170,11 @@ void main() {
     await pumpEventQueue();
     expect(one.heldFor(b.id), 10);
     one.stop();
-    // Each frame is 1,017 bytes (1, who sent it, the packet): four fit in 5,000.
-    final two = hubOn(heldBytes: 5000);
+    // Each frame is 1,017 bytes (1, who sent it, the packet), counted with what holding it costs: four fit in 6,000.
+    final cost = 1017 + Hub.heldOverhead;
+    final two = hubOn(heldBytes: 6000);
     expect(two.heldFor(b.id), 4);
-    expect(two.holding, 4 * 1017);
+    expect(two.holding, 4 * cost);
     expect(two.heldStore!.live, 4);
     expect(await b.signInTo(two), {'ok': true, 'held': 4});
     await pumpEventQueue();

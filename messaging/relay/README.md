@@ -52,7 +52,7 @@ through this server (Matt, 2026-11-14: "for right now we can use our servers to 
 It is `lib/hub.dart`, with its own signature checking in `lib/p256.dart`, and is described with the rest of the
 app's routes in [../docs/network.md](../docs/network.md). Behind a web server it needs one more line beside the
 relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. What it holds for people who are away is in
-memory: at most 96 MB of packets, and 20,000 connections. On disk it keeps the relay's own key and the home records
+memory: at most 96 MB of packets (each counted with 256 bytes for what holding it costs), and 20,000 connections. On disk it keeps the relay's own key and the home records
 people gave it where it talks to other relays (`relay-key.json`, `homes.json`: "Other relays", below), and the names
 of the accounts that sign in bound to it (`hub-v2.json`, below).
 
@@ -328,7 +328,8 @@ or a `kill -9` loses at most the last fifth of a second, and a file torn half wa
 passed over. Whatever is handed over, expires, or is pushed out by a limit is marked gone on the disk too, and the
 oldest file is written again into the newest (what still stands in it) and deleted whenever the files hold more than
 twice what stands plus 16 MB: the disk holds about twice what is held, at most, and what is held has the same limits
-as in memory (200 packets or 1 MB a person, 96 MB in all, rooms 300 packets and 256 MB), which are kept again as the
+as in memory (200 packets or 1 MB a person, 96 MB in all with 256 bytes counted for each, rooms 300 packets and
+256 MB), which are kept again as the
 hub starts, with anything past seven days dropped. A packet handed over in the last fifth of a second before a crash
 may be handed over again after it (the apps pass over a packet they have had already: the app's
 `lib/net/switchboard.dart` and `forward_secrecy.dart`). Holding a packet costs about 5 µs
