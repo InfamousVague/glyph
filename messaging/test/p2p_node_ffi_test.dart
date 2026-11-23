@@ -530,6 +530,20 @@ void main() {
     expect([node.state.value, node.problem], [P2pState.up, null]);
   }, skip: skip, timeout: patient);
 
+  test('an open ends by its timeout, whatever the core does', () async {
+    // The core waits no less than 100 ms for anything; an open asked to wait less has ended all the same.
+    final a = await _up(104), b = await _up(105);
+    final there = _portOf((await _here(b)).addresses);
+    await b.stop();
+    final asked = Stopwatch()..start();
+    await expectLater(a.open(b.nodeId!, P2pChannel.packets, hint: Whereabouts(addresses: [(await _here(a)).addresses.single.replaceFirst(RegExp(r':\d+$'), ':$there')]), timeout: const Duration(milliseconds: 10)), _refused);
+    expect(asked.elapsed, lessThan(const Duration(milliseconds: 70)), reason: 'an open given 10 ms took ${asked.elapsed.inMilliseconds} ms');
+    // And one given longer is answered by the core itself, in its time.
+    final longer = Stopwatch()..start();
+    await expectLater(a.open(b.nodeId!, P2pChannel.packets, hint: Whereabouts(addresses: [(await _here(a)).addresses.single.replaceFirst(RegExp(r':\d+$'), ':$there')]), timeout: const Duration(milliseconds: 600)), _refused);
+    expect(longer.elapsed, lessThan(const Duration(milliseconds: 700)));
+  }, skip: skip, timeout: patient);
+
   test('a node that cannot be started says why, and can be started rightly after', () async {
     final node = _node();
     // Thrown, and the node is left down saying the same: by this side's own look at what it was given, and (the

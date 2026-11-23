@@ -651,6 +651,9 @@ class IrohNode implements P2pNode, Finalizable {
     final request = _nextRequest;
     _nextRequest = _nextRequest >= 0xffffffff ? 1 : _nextRequest + 1;
     final wait = timeout.inMilliseconds.clamp(0, 0xffffffff);
+    // The library is given a moment less than the open's own wait, so that its answer, with its reason, comes first;
+    // whatever it does, the open has ended by its timeout (the library itself waits no less than 100 ms).
+    final libraryWait = (wait - 25).clamp(1, 0xffffffff);
     // What the other device last said of where it is, as far as the library takes it (a helper of 200 bytes, eight
     // addresses of 64); the library itself uses a helper only where it is one of this node's own, and an address only
     // where it is another device's.
@@ -663,7 +666,7 @@ class IrohNode implements P2pNode, Finalizable {
       ..u32(request)
       ..bytes(_unhex(nodeId))
       ..u8(channel)
-      ..u32(wait)
+      ..u32(libraryWait)
       ..u16(helper.length <= 200 ? helper.length : 0)
       ..bytes(helper.length <= 200 ? helper : const [])
       ..u8(addresses.length);
@@ -678,10 +681,10 @@ class IrohNode implements P2pNode, Finalizable {
       _opening.remove(request);
       return _fails('The direct network is not up.');
     }
-    // The library answers within the wait it was given. This is that wait and a little, for a library that never
-    // answers: the open fails, and a stream that turns up after all is closed.
-    opening.late = Timer(Duration(milliseconds: wait) + const Duration(seconds: 5), () {
-      if (_opening.remove(request) != null) opening.fail('The direct network did not answer.');
+    // The open ends by its timeout, whether or not the library has answered: it fails, and a stream that turns up after
+    // all is closed.
+    opening.late = Timer(Duration(milliseconds: wait), () {
+      if (_opening.remove(request) != null) opening.fail('It did not answer in time.');
     });
     // Failed for whoever awaits it; not an error with nobody to hear it for whoever has stopped waiting.
     return opening.done.future..ignore();
