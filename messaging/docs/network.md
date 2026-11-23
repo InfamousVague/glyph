@@ -91,10 +91,14 @@ takes its place, and the relay's latest does.
 Beside the lists: this device's connections to the relay (when each signed in, when anything last came on it, and when
 the relay said it had started: `HubCarrier.signedInAt`, `heardAt`, `relayStartedAt`), when each friend was first known
 here as one (what they sent before is not compared), what a friend's device said it sent that never came, and what each
-relay was found to do. Kept in **files of its own, out of any backup** (`lib/net/kept_files.dart`): Android's
-`no_backup` folder, Library/Caches on an iPhone or a Mac, the local app data on Windows, the cache folder on Linux;
-never the app's choices, which Android's backup copies. Written twenty seconds after a change and as the app is put
-away, books before connections. The index names the device it was kept on all the same. Signing out deletes all of it.
+relay was found to do. Kept in **files of its own, out of any backup**, in a folder that is the build's own
+(`lib/net/kept_files.dart`): Android's no-backup folder as Android gives it (`getNoBackupFilesDir`), the app's Caches
+folder in its container on an iPhone, the person's Caches folder under the build's bundle id on a Mac, the local app
+data on Windows and the cache folder on Linux, each under the app's name; on a computer, a build other than a release
+(a `flutter run`) keeps its own beside the release's (`ledger-debug`). Never the app's choices, which Android's backup
+copies. Written twenty seconds after a change and as the app is put away, books before connections, one write after
+another (a flush waits for one still writing, and signing out for both). The index names the device it was kept on
+all the same. Signing out deletes all of it, a book a flush was writing as it came too.
 It exists only where the build has the direct route: without one nothing could compare it, so nothing is listed.
 
 **Comparing** (`LedgerCheck`). When a direct stream to a friend's device is proved, and every fifteen minutes while it
@@ -147,12 +151,23 @@ app is in use: up to five friends the relay says are here and not compared in a 
 six on a phone. Both bring a phone's node up as a send does; what is said on a link keeps nothing up.
 
 **The name watch** (`lib/net/name_watch.dart`, `NameWatch`). A friend added by username was found by asking the relay
-who has the name. Each is asked again once a day, at a time of its own through the day (when each friend was first
-seen is kept, so a phone that never runs a whole day still comes to each), and ten minutes on where the relay can't be
-reached. The relay answers **an account** 120 lookups an hour, counted for all its devices together (they sign in as
-one: `relay/lib/handles.dart`): the watch takes twenty an hour at most for the whole account, a minute apart, the
-friends shared out among the account's devices forward secrecy has heard from this week, and none for an hour after the
-relay says too many. Two lookups of one name at once share one question (`Me.whois`).
+who has the name. The account asks about each again once a day, at a time of its own through the day (when each friend
+was first seen is kept, so a phone that never runs a whole day still comes to each), and ten minutes on where the relay
+can't be reached. With several devices it is the days that are shared out, not the friends: of n devices forward
+secrecy has heard from this week, each asks about every friend every n days, the days going round the devices in turn
+from one of each friend's own, so every device sees what the relay says of every friend, and each asks about an n-th of
+them a day. What a device shows of a friend it asks again a day on, whatever its turn, so it goes once nobody holds the
+name; a device asks about a friend no sooner than a day after it last did.
+
+**Lookups made of the app's own accord** (`lib/me/lookup_budget.dart`, `LookupBudget`). The relay answers **an account**
+120 lookups an hour, counted for all its devices together (they sign in as one: `relay/lib/handles.dart`). The name
+watch's lookups and the friend requests' checks (`Buddies`: each request as it comes, and again) are held to one budget
+of thirty an hour for the whole account, shared out among its devices, and the rest are the person's: their adds and
+Accepts, which always ask, and the add-friend drawer's lookups as a name is typed. The requests' checks leave the watch
+a third of a device's share, so strangers' requests can't stop it; the watch's are a minute apart; and once the relay
+says too many to either, neither looks anything up for the hour. Accept, refused so, says the relay's hourly limit and
+by when one frees up at the latest (an hour after the first lookup the relay was still counting that this device made).
+One lookup goes at a time, and two of one name share one question (`Me.whois`).
 
 - **Each relay is its own directory**, and what the watch knows is kept for each apart. Another account under a
   friend's username means something only on a relay that has named their own key under it before (the lookup that

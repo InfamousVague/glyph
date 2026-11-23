@@ -109,7 +109,9 @@ class Handles {
   final Map<String, String> _keys = {};
 
   /// When each identity looked someone up, so the usernames cannot be walked through. An account's devices sign in as
-  /// one identity, so its devices share the [lookupsAnHour] (the app's name watch shares them out: lib/net/name_watch.dart).
+  /// one identity, so its devices share the [lookupsAnHour] (the app holds what it looks up of its own accord, the name
+  /// watch's lookups and the friend requests' checks, to a quarter of them, shared out among the account's devices:
+  /// lib/me/lookup_budget.dart).
   final Map<String, List<DateTime>> _lookups = {};
   static const lookupsAnHour = 120;
 
