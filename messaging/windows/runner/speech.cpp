@@ -34,12 +34,14 @@
 
 namespace {
 
+// Lets go of a COM object and forgets it; nothing where there is none.
 template <typename T>
 void Free(T*& p) {
   if (p) p->Release();
   p = nullptr;
 }
 
+// UTF-8 as Windows' own wide text, and back.
 std::wstring Wide(const std::string& s) {
   if (s.empty()) return std::wstring();
   int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
@@ -131,9 +133,11 @@ struct Dictation {
     return true;
   }
 
+  // Begins listening (and listens again after a pause).
   bool Start() { return SUCCEEDED(grammar->SetDictationState(SPRS_ACTIVE)) && SUCCEEDED(recognizer->SetRecoState(SPRST_ACTIVE)); }
 };
 
+// The whole phrase of a result, as text; empty where it has none.
 std::string PhraseOf(ISpRecoResult* result) {
   wchar_t* text = nullptr;
   if (FAILED(result->GetText(static_cast<ULONG>(SP_GETWHOLEPHRASE), static_cast<ULONG>(SP_GETWHOLEPHRASE), TRUE, &text, nullptr)) || !text) return std::string();
@@ -144,6 +148,7 @@ std::string PhraseOf(ISpRecoResult* result) {
 
 // --- Scribe -----------------------------------------------------------------------------------------------------
 
+// One phrase of a transcript: where it starts and ends in the track, in milliseconds, and what was said.
 struct Said {
   int64_t start, end;
   std::string text;
@@ -153,11 +158,13 @@ struct Said {
 std::string Decode(const std::string& path, int track, const std::wstring& out, UINT32* rate, UINT32* channels) {
   IMFSourceReader* reader = nullptr;
   if (FAILED(MFCreateSourceReaderFromURL(Wide(path).c_str(), nullptr, &reader))) return "can't open the recording";
+  // Lets go of the reader however this returns.
   struct Hold {
     IMFSourceReader*& r;
     ~Hold() { Free(r); }
   } hold{reader};
   const DWORD stream = static_cast<DWORD>(track);
+  // Only the one track is read, and as 16-bit PCM: Media Foundation puts in the decoder that makes it so.
   reader->SetStreamSelection(static_cast<DWORD>(MF_SOURCE_READER_ALL_STREAMS), FALSE);
   if (FAILED(reader->SetStreamSelection(stream, TRUE))) return "the recording has no such track";
   IMFMediaType* pcm = nullptr;
@@ -209,6 +216,7 @@ std::string Hear(const std::wstring& pcm, UINT32 rate, UINT32 channels, const st
     Free(file);
     return "speech isn't available";
   }
+  // The file has no header, so the recogniser is told what its bytes are.
   WAVEFORMATEX format = {};
   format.wFormatTag = WAVE_FORMAT_PCM;
   format.nChannels = static_cast<WORD>(channels ? channels : 1);
@@ -229,6 +237,8 @@ std::string Hear(const std::wstring& pcm, UINT32 rate, UINT32 channels, const st
     if (!d.Open(language, stream, interest) || FAILED(d.context->SetNotifyWin32Event()) || !d.Start()) {
       error = "This computer has no speech recognition for this language. Add it in Windows Settings › Time & language › Speech.";
     } else {
+      // Phrases are taken as they come, until the recogniser says the stream has ended; a minute with no word from
+      // it at all ends the wait with what was heard so far.
       bool ended = false;
       while (!ended) {
         if (d.context->WaitForNotifyEvent(60000) != S_OK) break;
@@ -240,6 +250,8 @@ std::string Hear(const std::wstring& pcm, UINT32 rate, UINT32 channels, const st
             std::string text = PhraseOf(result);
             SPRECORESULTTIMES times = {};
             result->GetResultTimes(&times);
+            // The event's place in the stream is in bytes, at the phrase's end; the phrase's length is in units of
+            // 100 nanoseconds. Both to milliseconds, and the start is the end less the length.
             const int64_t end = static_cast<int64_t>(e.ullAudioStreamOffset * 1000 / format.nAvgBytesPerSec);
             const int64_t length = static_cast<int64_t>(times.ullLength / 10000);
             if (!text.empty()) said->push_back({end > length ? end - length : 0, end, text});
@@ -255,6 +267,7 @@ std::string Hear(const std::wstring& pcm, UINT32 rate, UINT32 channels, const st
   return error;
 }
 
+// Whether this Windows has a recogniser [language] could be heard by.
 bool Available(const std::string& language) {
   ISpObjectToken* token = RecognizerFor(language);
   if (!token) return false;
@@ -264,6 +277,8 @@ bool Available(const std::string& language) {
 
 // --- Live captions --------------------------------------------------------------------------------------------
 
+// The message SAPI posts to [g_window] when the live recogniser has events waiting; the two channels; the live
+// recogniser while captions are on; and whether this device is muted.
 constexpr UINT kHeard = WM_APP + 0x48;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_captions;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_scribe;
@@ -271,6 +286,7 @@ std::unique_ptr<Dictation> g_live;
 HWND g_window = nullptr;
 bool g_muted = false;
 
+// Tells Dart what was heard: [done] false for words still being said, true for a finished phrase.
 void Heard(const std::string& text, bool done) {
   if (!g_captions || text.empty()) return;
   flutter::EncodableMap args;
@@ -279,6 +295,8 @@ void Heard(const std::string& text, bool done) {
   g_captions->InvokeMethod("heard", std::make_unique<flutter::EncodableValue>(args));
 }
 
+// The live recogniser's window: on SAPI's message it takes every event waiting and passes each on, on the app's
+// thread. A guess at the words so far is a hypothesis, a finished phrase a recognition.
 LRESULT CALLBACK LiveProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
   if (message == kHeard && g_live && g_live->context) {
     SPEVENT e = {};
@@ -296,6 +314,8 @@ LRESULT CALLBACK LiveProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 
 void StopLive() { g_live.reset(); }
 
+// Captions on: a recogniser on the default microphone, in place of any there was. Made but not listening while
+// muted. False where it could not be made.
 bool StartLive(const std::string& language) {
   StopLive();
   if (!g_window) g_window = MainThreadWindow(LiveProc);
@@ -312,6 +332,7 @@ bool StartLive(const std::string& language) {
   return true;
 }
 
+// Muted, the recogniser stops listening (and anything it still says is dropped); unmuted, it listens again.
 void SetMuted(bool on) {
   g_muted = on;
   if (!g_live) return;
@@ -322,6 +343,7 @@ void SetMuted(bool on) {
   }
 }
 
+// A call's argument by name, and as text or a whole number: null, empty or 0 where it is missing or another type.
 const flutter::EncodableValue* Arg(const flutter::EncodableMap* args, const char* name) {
   if (!args) return nullptr;
   auto it = args->find(flutter::EncodableValue(name));
@@ -399,6 +421,8 @@ void RegisterSpeech(flutter::BinaryMessenger* messenger) {
         });
       }).detach();
     } else if (m == "transcribe") {
+      // One track written out as phrases, on a thread of its own: decoded to a file of plain sound beside the
+      // recording, heard, and the file deleted. The answer goes back on the app's thread.
       std::string path = Str(args, "path"), language = Str(args, "language");
       int track = Int(args, "track");
       std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> held(result.release());

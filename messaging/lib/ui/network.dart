@@ -83,6 +83,8 @@ String directLinkedWords(int linked) => switch (linked) {
       _ => 'Linked to $linked devices now',
     };
 
+/// The line under [directLinkedWords]: how many of the links are straight and how many go through a link helper; with
+/// none, when a link is made at all.
 String directLinkedHint(Iterable<P2pPathKind> links) {
   final straight = links.where((k) => k == P2pPathKind.direct).length, helped = links.where((k) => k == P2pPathKind.helper).length;
   if (links.isEmpty) return 'A link is made when the relay server can\'t carry something, and let go when nothing has been said on it for a while.';
@@ -187,6 +189,7 @@ String relayWrongWords(LedgerWrong w, String who) => switch (w.kind) {
 /// What the name watch does, in a line, and when it last asked.
 String nameWatchWords(int friends) => friends == 0 ? 'No friends added by username yet' : 'Asks the relay about ${friends == 1 ? '1 friend\'s username' : '$friends friends\' usernames'} each day';
 
+/// The line under [nameWatchWords]; [lastAsked] is 0 or less where nothing was asked yet.
 String nameWatchHint(int lastAsked, {required int now}) => lastAsked <= 0
     ? 'Each is asked at a time of its own through the day, and the answer held against the key you added.'
     : 'Last asked ${agoWords(lastAsked, now)}. Each answer is held against the key you added; nothing the relay says changes who your friends are.';
@@ -578,6 +581,8 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     super.dispose();
   }
 
+  /// Checks the address typed and moves to it ([Net.useRelay]), asking what moving there means once it has answered
+  /// ([decideRelay]). A problem is shown under the field; declining changes nothing.
   Future<void> _use() async {
     if (_checking) return;
     setState(() {

@@ -18,6 +18,7 @@ class FastGcm {
   /// A copy, as the other half's key schedule is: the caller's list changing afterwards changes nothing.
   final Uint8List _key;
 
+  /// pointycastle's cipher, set to seal or to open with [nonce] and [aad] and a 128-bit tag.
   GCMBlockCipher _gcm(bool sealing, Uint8List nonce, Uint8List aad) {
     if (nonce.length != 12) throw ArgumentError('a 96-bit nonce');
     return GCMBlockCipher(AESEngine())..init(sealing, AEADParameters(KeyParameter(_key), 128, nonce, aad));

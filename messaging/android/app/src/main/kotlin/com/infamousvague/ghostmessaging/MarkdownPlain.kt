@@ -7,22 +7,28 @@ package com.infamousvague.ghostmessaging
  * plainly. Code and links are left as they are written: nothing in them is a marker. Pure JVM ([MarkdownPlainTest]).
  */
 object MarkdownPlain {
+    // What is set aside before any marker is looked for: a fenced block, a [words](address) link, a code span, a
+    // bare address.
     private val fence = Regex("```[A-Za-z0-9+#.\\-]*\\n?([\\s\\S]*?)\\n?```")
     private val masked = Regex("\\[([^\\[\\]\\n]+)]\\((https?://[^\\s)]+)\\)")
     private val code = Regex("`([^`\\n]+)`")
     private val link = Regex("(?i)(https?://\\S+|www\\.\\S+)")
+    // The markers. One only counts hard against the words it wraps; a single * or _ never inside a word.
     private val spoiler = Regex("\\|\\|(?=\\S)([^\\n]*?\\S)\\|\\|")
     private val bold = Regex("\\*\\*(?=\\S)([^\\n]*?\\S)\\*\\*")
     private val strike = Regex("~~(?=\\S)([^\\n]*?\\S)~~")
     private val star = Regex("(?<![\\p{L}\\p{N}*])\\*(?=[^\\s*])([^\\n*]*?[^\\s*])\\*(?![\\p{L}\\p{N}*])")
     private val under = Regex("(?<![\\p{L}\\p{N}_])_(?=[^\\s_])([^\\n_]*?[^\\s_])_(?![\\p{L}\\p{N}_])")
     private val quote = Regex("(?m)^> (?=\\S)")
+    // A marker with a backslash before it is the character itself; and the place of something held, which is its
+    // number between two characters no message is written with.
     private val escape = Regex("\\\\([*_~`|\\[\\]>\\\\])")
     private val held = Regex("(\\d+)")
 
     /** [text] as a notification says it. */
     fun strip(text: String): String {
         if (text.length > 20000 || text.none { it in "*_~`|[>\\" }) return text
+        // Code, links and escaped characters are taken out first and put back last, so no marker is found in them.
         val kept = mutableListOf<String>()
         fun hold(s: String): String { kept.add(s); return "${kept.size - 1}" }
         var s = text
@@ -41,6 +47,7 @@ object MarkdownPlain {
         }
         s = escape.replace(s) { m -> hold(m.groupValues[1]) }
         s = spoiler.replace(s) { m -> "▒".repeat(minOf(m.groupValues[1].length, 8)) }
+        // Twice, for one kind of formatting inside another.
         repeat(2) {
             s = bold.replace(s) { m -> m.groupValues[1] }
             s = strike.replace(s) { m -> m.groupValues[1] }

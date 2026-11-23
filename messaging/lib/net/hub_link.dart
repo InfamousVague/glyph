@@ -13,6 +13,7 @@ abstract class HubLink {
   /// Says a String or a `List<int>` to the hub.
   void say(Object message);
 
+  /// Closes the link; [said] is done once it has.
   Future<void> close();
 }
 

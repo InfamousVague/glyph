@@ -15,6 +15,7 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../inbox/human_check.dart';
@@ -25,6 +26,18 @@ import '../ui/inbox_ui.dart' show InboxChatRow, openInboxChat;
 import 'plugin.dart';
 import 'registry.dart';
 import 'ui.dart' show PluginNote;
+
+/// Starts the Human check's work for [app], once: on a phone, an iPhone and a computer alike. Each start-up path calls
+/// this after the networks are added (`addInboxSettings`) and started, so a guarded network's new chats are held on
+/// every device the person uses (GMFB-23: the computer's start-up never made it, so on a Mac, Windows or Linux no
+/// first message was ever held or asked its question).
+void startHumanCheck(AppState app) {
+  HumanCheck.instance ??= HumanCheck(
+    choices: () => HumanCheckPlugin.choicesIn(PluginRegistry.instance, AppStore(app)),
+    read: (key) => app.choice(key, ''),
+    write: app.keep,
+  )..watch(Inbox.instance, choicesChanged: app);
+}
 
 class HumanCheckPlugin extends GhostPlugin {
   const HumanCheckPlugin();
@@ -191,6 +204,7 @@ class HeldPage extends StatelessWidget {
   Widget build(BuildContext context) => GhostPage(title: 'Held', body: HeldList(check: check, inbox: inbox));
 }
 
+/// The page's list: a row for each held chat with where it stands under it, drawn again as the held chats change.
 class HeldList extends StatelessWidget {
   const HeldList({super.key, required this.check, required this.inbox});
   final HumanCheck check;
@@ -228,6 +242,7 @@ class HeldList extends StatelessWidget {
               if (held.isEmpty) const PluginNote('Nothing is held.'),
               for (final h in held)
                 Builder(builder: (context) {
+                  // The network no longer lists the chat (it is away): a row from what was kept as it was held.
                   final chat = h.chat ?? InboxChat(network: h.network.id, id: h.id, title: h.record.title.isEmpty ? 'Someone new' : h.record.title, date: DateTime.fromMillisecondsSinceEpoch(h.record.at));
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     InboxChatRow(key: ValueKey('humancheck-held-${h.network.id}:${h.id}'), chat: chat, onPress: () => _choose(context, h, chat)),

@@ -46,6 +46,8 @@ String browserNameOf(String userAgent) {
 /// (lib/standalone/welcome.dart): why the account is no longer in this browser.
 const pageNotes = {'signed-out', 'removed', 'lost'};
 
+/// What the app in a web page asks of its browser: the page's address, somewhere to keep things, being the only tab,
+/// loading the page again. The page's own is lib/web/browser_web.dart; a test's is [MemoryBrowser].
 abstract class Browser {
   /// The browser this page is in. A test puts its own here.
   static Browser instance = platform.browser();
@@ -209,6 +211,7 @@ class MemoryBrowser implements Browser {
     return true;
   }
 
+  /// What [onVisible] was given, run by [becomeVisible].
   final List<void Function()> _visible = [];
 
   @override
@@ -222,6 +225,7 @@ class MemoryBrowser implements Browser {
   }
 }
 
+/// What a test's tabs of one browser share: the store, and which tab is the app's.
 class MemoryBrowserProfile {
   MemoryBrowserStore store = MemoryBrowserStore();
   _MemoryHold? _holder;
@@ -230,11 +234,14 @@ class MemoryBrowserProfile {
   void tabGone() => _holder = null;
 }
 
+/// A test tab's being the one, with what it runs when another asks for it.
 class _MemoryHold implements TabHold {
   _MemoryHold(this.onAsked);
   final Future<void> Function() onAsked;
 }
 
+/// A [BrowserStore] in memory, for a test: it "seals" by a marker and the value backwards, so a test can see that
+/// nothing is held as it was written.
 class MemoryBrowserStore implements BrowserStore {
   /// Records kept plain, as a build from before kept the state: never written by this one.
   final Map<String, String> plain = {};

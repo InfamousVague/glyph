@@ -93,6 +93,7 @@ class P2pCarrier implements Carrier, LiveLinks {
   @override
   Stream<Arrived> get arrived => _arrived.stream;
 
+  /// The listening to streams other devices open, and what is under way with each node, by node id.
   StreamSubscription<P2pStream>? _opened;
   final Map<String, _Node> _nodes = {};
 
@@ -140,6 +141,7 @@ class P2pCarrier implements Carrier, LiveLinks {
             (account: account, nodeId: e.key, kind: _pathTo(e.key)),
       ];
 
+  /// How the path to [nodeId] stands, as the node says; none where it says nothing, or throws.
   P2pPathKind _pathTo(String nodeId) {
     try {
       return p2p.node.pathTo(nodeId)?.kind ?? P2pPathKind.none;
@@ -257,6 +259,8 @@ class P2pCarrier implements Carrier, LiveLinks {
     return diff == 0;
   }
 
+  /// A frame came on [line]: too long, the stream is closed; too many, it is dropped; before the stream has proved
+  /// whose it is, only the proving is taken; after, only a packet from the account it proved to be is handed on.
   void _frame(_Node node, _Line line, Uint8List frame) {
     if (line.closed) return;
     // Longer than a packet may be: refused, and whoever sends such is not listened to further.
@@ -312,12 +316,14 @@ class P2pCarrier implements Carrier, LiveLinks {
     line.timer = p2p.timer(p2p.policy.quiet, () => _close(node, line));
   }
 
+  /// Lets [line] go, and closes its stream.
   void _close(_Node node, _Line line) {
     if (line.closed) return;
     _gone(node, line);
     _drop(line.stream);
   }
 
+  /// [line] is over, whichever end ended it: no longer among [node]'s, and whoever waits on the node looks again.
   void _gone(_Node node, _Line line) {
     if (line.closed) return;
     line.closed = true;
@@ -614,6 +620,8 @@ class _Line {
 
   /// What it may still bring now ([P2pCarrier.lineBurst]).
   final bucket = _Bucket(P2pCarrier.lineBurst, P2pCarrier.linePerSecond);
+
+  /// The listening to its frames, the wait that lets it go when nothing is said on it, and whether it is over.
   StreamSubscription<Uint8List>? sub;
   Timer? timer;
   bool closed = false;
@@ -631,8 +639,10 @@ class _Node {
   final Map<String, _Dial> dials = {};
   Completer<void>? changed;
 
+  /// The dials to it as [account]'s device, begun where there are none.
   _Dial dialFor(String account) => dials[account] ??= _Dial();
 
+  /// An open stream that has proved to be [account]'s; null where there is none.
   _Line? proved(String account) => lines.where((l) => l.account == account && !l.closed).firstOrNull;
 
   /// Whether a stream that may yet prove to be [account]'s is open: one dialled for it, or one the other end opened

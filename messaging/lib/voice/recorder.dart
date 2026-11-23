@@ -371,6 +371,7 @@ abstract interface class RecordingDesk implements Listenable {
   /// The moments marked, in seconds from the start.
   List<double> get markers;
 
+  /// Moves the voice [key]'s fader, mutes it, or solos it, from now on in the mix.
   void setFader(String key, double value);
   void setMuted(String key, bool on);
   void setSolo(String key, bool on);
@@ -582,6 +583,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
     return c.stream;
   }
 
+  /// Follows once more in a second, where someone's sound was announced before the native half held it.
   Timer? _again;
 
   /// Taps whoever has said yes and whose sound has come; lets go of whoever has said no or gone; says this device's mute.

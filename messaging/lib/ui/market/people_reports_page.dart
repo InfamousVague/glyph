@@ -40,11 +40,13 @@ class PeopleReport {
 /// is the same you; a test gives its own.
 typedef ReviewerKeys = Future<NetKeys> Function();
 
+/// The app's own [ReviewerKeys].
 Future<NetKeys> reviewerKeysLive() async => NetKeys.fromScalar(await Sms.instance.identityExport());
 
 /// [rows] opened with [keys].
 List<PeopleReport> openAll(List<SealedReportRow> rows, NetKeys keys) => [for (final r in rows) PeopleReport(r, openReport(r.sealed, keys))];
 
+/// The list: reports still open, then those marked done. Asks for the admin sign-in where the relay wants one.
 class PeopleReportsScreen extends StatefulWidget {
   const PeopleReportsScreen({super.key, this.api, this.ask, this.keys});
 
@@ -73,6 +75,8 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
     unawaited(_read());
   }
 
+  /// Reads the sealed rows from the relay and opens each with this device's key. A key that can't be read is said
+  /// apart from the relay's own errors: nothing can be opened without it.
   Future<void> _read() async {
     try {
       final rows = await _api.sealedReports();
@@ -94,6 +98,8 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
     }
   }
 
+  /// Marks [r] done on the relay and in the list here. Where the relay wants a fresh admin sign-in, asks for it and
+  /// tries again once signed in.
   Future<void> _done(PeopleReport r) async {
     setState(() => _busy.add(r.row.rid));
     try {
@@ -119,6 +125,7 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
     }
   }
 
+  /// One report's row: who and why, with Mark done. One that didn't open here says so and can't be read further.
   Widget _row(PeopleReport r) {
     final t = context.tokens;
     final o = r.opened;
@@ -191,12 +198,14 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
   }
 }
 
+/// Where what was reported happened, in the reviewer's words.
 String _whereOf(AbuseReport r) => switch (r.place) {
       'space' => r.placeName.isEmpty ? 'a space' : 'space ${r.placeName}',
       'chat' => r.placeName.isEmpty ? 'a chat' : 'chat ${r.placeName}',
       _ => 'their profile',
     };
 
+/// A date and the time of day, in this device's time, from milliseconds since 1970.
 String _time(int ms) {
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
   String two(int n) => n.toString().padLeft(2, '0');

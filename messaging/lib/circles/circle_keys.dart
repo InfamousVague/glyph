@@ -56,6 +56,8 @@ class CircleKeys {
 
   /// Which of its identity's devices this is (HubCarrier.device): boxes are sealed per device.
   String device;
+
+  /// This device's key pair for boxes: new keys are sealed to its public half.
   late NetKeys _inbox;
   bool _loaded = false;
   bool get loaded => _loaded;
@@ -71,8 +73,8 @@ class CircleKeys {
   /// live, so its 300 kept packets aren't filled with inboxes (review finding 8).
   final Map<String, int> _keptInbox = {};
 
-  /// The manifest each circle stands at here (set by Circles): a header is believed only while its signer may still
-  /// change the circle, checked again each time it is used (finding 6). None, in a test of the keys alone: all believed.
+  /// The manifest each circle stands at here (set by Circles). Nothing here reads it now: a header is judged against
+  /// the circle's manifest once, as it is taken ([take]), and stays believed after ([_trusted]).
   CircleManifest? Function(String seed)? manifestOf;
 
   /// Told the seed of a circle whose newest key this device lacks and needs (a space's packet it couldn't open), so its
@@ -83,14 +85,17 @@ class CircleKeys {
   final _taken = StreamController<String>.broadcast();
   Stream<String> get taken => _taken.stream;
 
-  /// How far past the newest epoch held a header may be and still be taken (finding 6): enough for a device away
-  /// through a few changes, not a number that runs the counter out.
+  /// How far past the newest epoch held a header could once be and still be taken (finding 6). Nothing holds to it
+  /// now: [take] takes any epoch up to [epochMost] (B4).
   static const epochWindow = 4;
 
   /// The highest epoch there may be: the header's field is 32 bits.
   static const epochMost = 0xffff0000;
 
+  /// The name all of this is kept under in the secrets store.
   static const secretsName = 'circle_keys';
+
+  // What a packet sealed under an epoch's key starts with, and how long its head is: the mark, the epoch, the tag.
   static final _magic = utf8.encode('GE1');
   static const _head = 3 + 4 + 4;
 
@@ -99,6 +104,8 @@ class CircleKeys {
 
   Uint8List get inboxKey => _inbox.public;
 
+  /// Reads what is kept: this device's name and inbox, and each circle's headers and keys. A first run makes the
+  /// inbox and keeps it.
   Future<void> load() async {
     final kept = await _secrets.read(secretsName);
     _epochs.clear();
@@ -124,6 +131,7 @@ class CircleKeys {
     if (made) await _save();
   }
 
+  /// Keeps everything, as [load] reads it; writes go one after another.
   Future<void> _save() {
     final text = jsonEncode({
       'd': device,
@@ -242,6 +250,7 @@ class CircleKeys {
 
   // --- inboxes ----------------------------------------------------------------------------------------------------------
 
+  /// What a device's identity signs to say an inbox is its own: the circle, the device and the inbox's key.
   static List<int> inboxMessage(String seed, String device, List<int> inbox) => utf8.encode('ghost-circle inbox v1|$seed|$device|${NetCrypto.hex(inbox)}');
 
   /// What this device says in [seed]'s circle's room so that a new key can be sealed to it: its inbox, signed by
@@ -268,6 +277,8 @@ class CircleKeys {
 
   // --- a new key --------------------------------------------------------------------------------------------------------
 
+  /// The commitment to an epoch's [key] that its header carries: an HMAC under the key, naming the circle and the
+  /// epoch. A key that came in a box is checked against it.
   static String commitOf(String seed, int epoch, List<int> key) => NetCrypto.hex(NetCrypto.hmac(key, utf8.encode('ghost-circle commit v1|$seed|$epoch')));
 
   /// A new key for [c], one epoch past the newest heard of, signed by [signer] (the owner or an admin), held here, and
@@ -315,8 +326,11 @@ class CircleKeys {
     return out;
   }
 
+  /// What a box's key is bound to: the circle, the epoch and its commitment, and the one device it is for.
   static List<int> _boxInfo(String seed, CircleEpoch h, String id, String device) => utf8.encode('ghost-circle box v1|$seed|${h.epoch}|${h.commit}|$id|$device');
 
+  /// An epoch's [key] sealed to one device's inbox: a key pair made for this box alone agrees a secret with the inbox,
+  /// and the box carries its public half (`o`) with the sealed key (`s`). Null where the inbox's key is no key.
   static Map<String, Object?>? _box(Uint8List circleKey, String seed, CircleEpoch h, Uint8List key, CircleInbox to) {
     final once = NetKeys.generate();
     final shared = NetCrypto.agree(once, to.key);
@@ -328,6 +342,7 @@ class CircleKeys {
   /// Whether boxes are built on an isolate of their own.
   static bool offThread = true;
 
+  /// A box for each of [to], built off the screens' isolate where there is more than one.
   static Future<List<Map<String, Object?>>> _boxesAway(Uint8List circleKey, String seed, CircleEpoch h, Uint8List key, List<CircleInbox> to) async {
     List<Map<String, Object?>> make() => [for (final i in to) ?_box(circleKey, seed, h, key, i)];
     if (!offThread || to.length < 2) return make();
@@ -372,8 +387,11 @@ class CircleKeys {
 
   // --- sealing --------------------------------------------------------------------------------------------------------
 
+  /// The key things are sealed under in an epoch: made from the epoch's key and the seed's own key for the room
+  /// ([base]), apart for each purpose and epoch.
   static Uint8List _keyFor(List<int> epochKey, List<int> base, String purpose, int epoch) => NetCrypto.hkdf(salt: epochKey, ikm: base, info: utf8.encode('ghost-circle epoch v1|$purpose|$epoch'));
 
+  /// What is authenticated beside the sealed bytes: the packet's head and the purpose, so neither can be changed.
   static Uint8List _aad(List<int> head, String purpose) => Uint8List.fromList([...head, ...utf8.encode('|$purpose')]);
 
   /// [clear] sealed for [seed]'s circle with the newest key held, from [base] (the seed's own key for this room) and
@@ -433,7 +451,11 @@ class CircleEpoch {
   final int gv;
   final String seed;
   final int epoch;
+
+  /// The commitment to the epoch's key ([CircleKeys.commitOf]), 64 hex characters.
   final String commit;
+
+  /// Who signed it (their id), their public key in hex, when (ms since the epoch), and the signature in hex.
   final String by;
   final String byKey;
   final int at;
@@ -445,6 +467,7 @@ class CircleEpoch {
   /// How this device keeps the key: `epoch:tag`.
   String get name => '$epoch:$tag';
 
+  /// The bytes its signer signs: every field but the signature.
   List<int> get signed => utf8.encode('ghost-circle epoch v2|$seed|$epoch|$commit|$by|$byKey|$at|$gv');
 
   CircleEpoch withSig(String s) => CircleEpoch(seed: seed, epoch: epoch, commit: commit, by: by, byKey: byKey, at: at, sig: s, gv: gv);

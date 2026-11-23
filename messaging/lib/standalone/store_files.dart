@@ -20,8 +20,10 @@ class StandaloneFiles implements StandaloneStore {
   /// Whether the identity is kept in the Keychain (a build for a device) or in the folder (a test).
   final bool keychain;
 
+  /// The identity's name in the Keychain.
   static const _account = 'standalone-identity';
 
+  // The files in [dir]. A secret's file is named by its name's small letters, digits and underscores only.
   File get _file => File('${dir.path}/standalone.json');
   File get _keyFile => File('${dir.path}/identity.key');
   File get _namesFile => File('${dir.path}/secret-names.json');
@@ -30,6 +32,7 @@ class StandaloneFiles implements StandaloneStore {
   /// The names of the secrets kept here ([_namesFile]), read once.
   Set<String>? _names;
 
+  /// Those names; none where the list is not there or can't be read.
   Set<String> _keptNames() {
     final had = _names;
     if (had != null) return had;

@@ -10,8 +10,10 @@ import '../platform_info.dart';
 class AppleSha {
   AppleSha._(this._update, this._final, this._ctx, this._buf);
 
+  /// How many bytes are handed to CommonCrypto at once: the size of the buffer copied into.
   static const _room = 4 << 20;
 
+  /// A hash begun; null where this is no Mac or iPhone, or the functions are not there.
   static AppleSha? open() {
     if (!PlatformInfo.isMacOS && !PlatformInfo.isIOS) return null;
     try {
@@ -34,6 +36,8 @@ class AppleSha {
   final ffi.Pointer<ffi.Void> _ctx;
   final ffi.Pointer<ffi.Uint8> _buf;
 
+  /// Takes the first [length] bytes of [bytes]; then [end] gives the 32 bytes of the hash, and [close] frees what
+  /// was held.
   void add(Uint8List bytes, int length) {
     for (var at = 0; at < length; at += _room) {
       final n = math.min(_room, length - at);

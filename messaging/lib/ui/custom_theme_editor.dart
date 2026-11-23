@@ -123,6 +123,7 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
   /// The colour whose mixer is open, if any.
   _Part? _open;
 
+  /// The name typed goes into the look, so the preview's heading and the problem line follow it.
   void _named() => setState(() => _theme = _theme?.copyWith(name: _name.text));
 
   @override
@@ -144,6 +145,7 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
 
   Color _of(CustomTheme theme, _Part p) => switch (p) { _Part.paper => theme.paper, _Part.surface => theme.surface, _Part.ink => theme.ink, _Part.accent => theme.accent };
 
+  /// Sets one colour from the mixer's "#RRGGBB"; anything else is left alone. Always opaque.
   void _set(_Part p, String text) {
     final h = text.replaceFirst('#', '');
     final v = int.tryParse(h, radix: 16);
@@ -157,6 +159,8 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
         });
   }
 
+  /// Keeps the look (in [CustomThemeEditor.replacing]'s place when editing) and goes back. Nothing while the look has
+  /// a problem.
   void _save() {
     final theme = _theme!.copyWith(name: _name.text.trim());
     if (theme.problem != null) return;

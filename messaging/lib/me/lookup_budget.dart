@@ -22,11 +22,14 @@ class LookupBudget {
   /// This device's place among the account's devices it knows of (the name watch's own: `index` of `of`).
   ({int index, int of}) Function()? share;
   final DateTime Function() _now;
+
+  /// When each lookup of the last hour was made, and when the relay last said too many (ms; 0 where it has not).
   final List<int> _made = [];
   int _refusedAt = 0;
 
   int get _ms => _now().millisecondsSinceEpoch;
 
+  /// How many devices of the account the budget is shared among; one where [share] does not say.
   int get _devices {
     try {
       final s = share?.call();
@@ -46,6 +49,7 @@ class LookupBudget {
   /// always keeps one, even at the floor of two (review, 2026-11-23).
   int get forRequests => perDevice - (perDevice ~/ 3 < 1 ? 1 : perDevice ~/ 3);
 
+  /// Drops the lookups of over an hour ago, and holds nothing to a time later than [now] (a clock set back).
   void _tidy(int now) {
     _made.removeWhere((t) => now - t >= _hour || t > now);
     if (_refusedAt > now) _refusedAt = now;

@@ -1378,6 +1378,8 @@ List<Widget> _connections(BuildContext context) => [
       ),
     ];
 
+/// The page's sections, as things stand now: the official networks signed in to (or signing in), the official ones that
+/// are not, the plugins, and those still to come.
 List<Widget> _connectionsBody(BuildContext context) {
   final officials = Inbox.instance.official;
   final plugins = Inbox.instance.plugins;
@@ -1411,6 +1413,7 @@ String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.unavailable => 'Not in this build',
     };
 
+/// One network's own page ([_paneBody]), drawn again whenever the network or the plugins' switches change.
 List<Widget> _pane(BuildContext context, InboxNetwork n) => [
       ListenableBuilder(
         listenable: Listenable.merge([Inbox.instance.switches, n]),

@@ -1,6 +1,6 @@
 /// The other networks as plugins in the Marketplace (Matt, 2026-11-20: "I don't see instagram and others listed as
 /// plugins in the marketplace"; "i want all of them to be in the marketplace"): WhatsApp, Matrix, Microsoft Teams,
-/// Google Chat, Messenger and Instagram, each a card with Add. (LinkedIn was one until 2026-11-21: lib/inbox/inbox.dart.)
+/// Google Chat, Messenger, Instagram, Discord, X and Slack, each a card with Add. (LinkedIn was one until 2026-11-21: lib/inbox/inbox.dart.)
 ///
 /// Its switch is the network's own (lib/inbox/inbox.dart, `inbox_on_<id>`), the one Settings › Connections shows: added
 /// here it is on there, and the other way round. Adding one starts it so it can be signed in to; removing it signs out.
@@ -14,6 +14,8 @@ import '../art/lucide.g.dart';
 import '../inbox/inbox.dart';
 import 'plugin.dart';
 
+/// One network's card in the Marketplace. It keeps no switch of its own ([OwnSwitch]): on is the network's own
+/// switch, and turning it starts the network or signs it out.
 class NetworkPlugin extends GhostPlugin implements OwnSwitch {
   const NetworkPlugin(this.network, this.name, {required this.hue, this.caution});
 
@@ -72,6 +74,7 @@ class NetworkPlugin extends GhostPlugin implements OwnSwitch {
   }
 }
 
+/// The caution for a network reached as its own website is, which allows no other apps.
 const _unofficial = 'It signs in the way the network\'s own website does. The network doesn\'t allow other apps and may limit or close an account that uses one.';
 
 /// Every network that is a plugin, in the order the Marketplace lists them.

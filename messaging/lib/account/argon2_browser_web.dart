@@ -14,6 +14,8 @@ Future<Uint8List>? browserArgon2id(Uint8List password, Uint8List salt, {required
 /// Beside the page, wherever the page is served from.
 const _script = 'argon2id.js';
 
+/// Starts the worker, hands it the one job and waits for its answer: the key's bytes, or an error where it says it
+/// couldn't or could not be started.
 Future<Uint8List> _stretch(Uint8List password, Uint8List salt, int memoryKiB, int passes, int lanes, int length) async {
   final worker = web.Worker(_script.toJS);
   final done = Completer<Uint8List>();

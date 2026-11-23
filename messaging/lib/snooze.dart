@@ -13,10 +13,12 @@ import 'package:flutter/foundation.dart';
 
 import 'app_state.dart';
 
+/// The conversations snoozed and those just back from a snooze; whoever listens is told as either changes.
 class Snoozed extends ChangeNotifier {
   Snoozed._();
   static final Snoozed instance = Snoozed._();
 
+  /// The name it is kept under with the app's choices.
   static const storeKey = 'snoozed';
 
   /// What time it is: a test puts its own clock here.
@@ -34,6 +36,7 @@ class Snoozed extends ChangeNotifier {
   /// Those back from a snooze and not yet opened: at the top of Messages.
   Set<String> _woken = {};
 
+  /// Reads what was kept, ends the snoozes whose time has come, and looks again every half minute.
   void start(AppState app) {
     _app = app;
     _read(app.choice(storeKey, '{}'));
@@ -42,6 +45,7 @@ class Snoozed extends ChangeNotifier {
     wakeDue();
   }
 
+  /// For a test: as it was before [start].
   @visibleForTesting
   void reset() {
     _timer?.cancel();
@@ -51,6 +55,7 @@ class Snoozed extends ChangeNotifier {
     _woken = {};
   }
 
+  /// What was kept: `{"u": {key: {"at": ms, "t": title}}, "w": [keys back and not yet opened]}`.
   void _read(String raw) {
     try {
       final j = jsonDecode(raw);
@@ -65,6 +70,7 @@ class Snoozed extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Keeps both, and tells whoever listens.
   void _save() {
     _app?.set(storeKey, jsonEncode({
       'u': {for (final e in _until.entries) e.key: {'at': e.value.until, 't': e.value.title}},

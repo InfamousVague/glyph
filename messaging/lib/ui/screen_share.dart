@@ -106,6 +106,7 @@ class ScreenPicker extends StatelessWidget {
   }
 }
 
+/// One screen or window to choose: its picture (an icon where there is none) over its name.
 class _SourceTile extends StatelessWidget {
   const _SourceTile({required this.source, required this.onPick});
   final ScreenSource source;

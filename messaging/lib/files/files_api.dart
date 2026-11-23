@@ -210,6 +210,7 @@ class FilesPart {
   final int size, have;
   final DateTime at;
 
+  /// One as the relay lists it; null where [j] isn't one.
   static FilesPart? from(Object? j) {
     if (j is! Map || j['id'] is! String || j['by'] is! String || j['z'] is! num) return null;
     return FilesPart(id: j['id'] as String, by: j['by'] as String, size: (j['z'] as num).toInt(), have: (j['h'] as num?)?.toInt() ?? 0, at: DateTime.fromMillisecondsSinceEpoch((j['at'] as num?)?.toInt() ?? 0));

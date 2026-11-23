@@ -32,6 +32,8 @@ int? bubbleThread(List<String> args) {
   return thread == null || thread == -1 ? null : thread;
 }
 
+/// The bubble's own start, in place of the app's (lib/main.dart): loads the look and the person's choices and shows
+/// the one conversation [args] names.
 Future<void> runBubble(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

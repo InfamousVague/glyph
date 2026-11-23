@@ -89,6 +89,7 @@ int _stableHash(String s) {
   return h;
 }
 
+/// The names of 0 to 20, by their value: a sum is asked in words, and a number's name in a reply reads as its digits.
 const _numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
 const _ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
 
@@ -149,6 +150,7 @@ List<String> plainWords(String text) {
 bool passes(HumanChallenge c, String reply) {
   final words = plainWords(reply);
   if (words.isEmpty) return false;
+  // A plural counts as its word ("clocks" answers "clock"): each longer word is tried without its last s too.
   final singular = [for (final w in words) w.length > 3 && w.endsWith('s') ? w.substring(0, w.length - 1) : w];
   bool has(String a) => words.contains(a) || singular.contains(a);
   switch (c.kind) {
@@ -165,12 +167,14 @@ bool passes(HumanChallenge c, String reply) {
 /// Makes and judges the questions. [plain] is the fixed generator and checker; a device's own model, where one can
 /// do this, would be another.
 abstract interface class ChallengeMaker {
+  /// The question for a chat's try [attempt] (0 the first), and whether [reply] answers it.
   HumanChallenge make(String network, String chatId, int attempt);
   bool judge(HumanChallenge challenge, String reply);
 
   static const ChallengeMaker plain = _Plain();
 }
 
+/// The fixed one: [HumanChallenge.forChat]'s questions, judged by [passes].
 class _Plain implements ChallengeMaker {
   const _Plain();
   @override
@@ -256,8 +260,13 @@ class HoldRecord {
 
 /// One network's kept state.
 class _NetState {
+  /// When the network was first guarded (milliseconds); null until then. Chats older than it are never held.
   int? since;
+
+  /// Chats that were there before, or that this account wrote in: conversations already, never held.
   final Set<String> known = {};
+
+  /// The record of each chat held or decided, by its id.
   final Map<String, HoldRecord> chats = {};
 
   Map<String, Object?> toJson() => {'since': since, 'known': known.toList(), 'chats': {for (final e in chats.entries) e.key: e.value.toJson()}};
@@ -291,6 +300,8 @@ typedef HeldChat = ({InboxNetwork network, String id, InboxChat? chat, HoldRecor
 
 // --- the work --------------------------------------------------------------------------------------------------------
 
+/// Holds chats from new people out of the list on the networks the person chose, sends each the check, and judges the
+/// answers. Its state is kept per network ([keyOf]); listeners are told when what is held changes.
 class HumanCheck extends ChangeNotifier {
   HumanCheck({required this.choices, required this.read, required this.write, this.maker = ChallengeMaker.plain, DateTime Function()? now}) : _now = now ?? DateTime.now;
 
@@ -306,6 +317,8 @@ class HumanCheck extends ChangeNotifier {
   /// The app's own, once watching (lib/main.dart).
   static HumanCheck? instance;
 
+  // Each network's state once read; the chats being looked at or judged now ("network:chat"); and the set [held]
+  // last handed back for a network, with the key it was made under.
   final Map<String, _NetState> _states = {};
   final Set<String> _busy = {};
   final Map<String, Set<String>> _heldIds = {};
@@ -317,6 +330,7 @@ class HumanCheck extends ChangeNotifier {
   /// The longest a fetch of a chat's messages is waited for.
   static const fetchFor = Duration(seconds: 20);
 
+  /// The choice a network's state is kept under.
   static String keyOf(String network) => 'humancheck_$network';
 
   _NetState _state(String network) => _states[network] ??= _NetState.parse(read(keyOf(network)));
@@ -448,6 +462,7 @@ class HumanCheck extends ChangeNotifier {
     }
   }
 
+  /// A chat's messages, brought from the network; null where they did not come within [fetchFor].
   Future<List<InboxMessage>?> _fetch(InboxNetwork n, String chatId) async {
     try {
       await n.load(chatId).timeout(fetchFor);
@@ -458,6 +473,7 @@ class HumanCheck extends ChangeNotifier {
     }
   }
 
+  /// Whether [m] is a check this account sent (from this device or another of its own).
   static bool _isCheck(InboxMessage m) => m.mine && m.text.trimLeft().startsWith(HumanChallenge.marker);
 
   /// A held chat's messages looked at: a conversation already lets it in; else the check is sent, or one already sent

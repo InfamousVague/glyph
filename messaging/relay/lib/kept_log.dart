@@ -15,11 +15,15 @@ import 'dart:isolate';
 class KeptLog {
   KeptLog(this.file, {this.compactPast = 10000});
 
+  /// The log; `<file>.tmp` beside it is what a whole rewrite is written to before it takes the log's place.
   final File file;
 
   /// How many lines past those that stand before the log is compacted (and never while one is under way).
   final int compactPast;
 
+  /// The lines not written yet; how many lines the file has and how many keys stand; whether the file must be written
+  /// anew (it couldn't be read, or is of the old kind); the compaction under way; and the last write, which every
+  /// write waits behind so they reach the file in order.
   final List<String> _pending = [];
   int _lines = 0, _standing = 0;
   bool _rewrite = false;
@@ -42,6 +46,7 @@ class KeptLog {
       _rewrite = true;
       return out;
     }
+    // One JSON object and no second line, with neither of a log line's keys: a file of the kind written before.
     final trimmed = text.trimLeft();
     if (whole != null && trimmed.startsWith('{') && !trimmed.contains('\n{')) {
       try {
@@ -137,6 +142,7 @@ class KeptLog {
     }
   }
 
+  /// Writes the file anew as [lines], in an isolate: to `<file>.tmp`, which then takes the file's place.
   Future<void> _writeWhole(List<String> lines) async {
     final path = file.path;
     try {

@@ -58,6 +58,7 @@ const UNIT = '/etc/systemd/system/ghost-link.service';
 const CADDY = '/var/lib/caddy/.local/share/caddy/certificates';
 const args = process.argv.slice(2);
 const printOnly = args.includes('--print');
+// Says what is wrong and ends the script; and the value after --name on the command line, or null.
 const fail = (message) => {
   console.error(`x ${message}`);
   process.exit(1);
@@ -74,6 +75,7 @@ const sum = createHash('sha256').update(program).digest('hex');
 const built = readFileSync(`${BIN}.version`, 'utf8').trim();
 if (readFileSync(`${BIN}.sha256`, 'utf8').trim().split(/\s+/)[0] !== sum) fail(`${BIN} is not what ${BIN}.sha256 says was built: build it again (tool/build-link.sh). Nothing was sent.`);
 if (built !== VERSION) fail(`${BIN} is iroh-relay ${built}; this script is for ${VERSION}. Nothing was sent.`);
+// An ELF file by its first four bytes, for x86-64 by its machine number (62).
 if (program.readUInt32BE(0) !== 0x7f454c46 || program.readUInt16LE(18) !== 62) fail(`${BIN} is not a Linux x86-64 program (tool/build-link.sh with no "host"). Nothing was sent.`);
 
 /** A sample from relay/deploy as the box gets it: its lines without its comments, our name for the example's. */

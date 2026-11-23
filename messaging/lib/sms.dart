@@ -462,6 +462,7 @@ class E2eState {
         otherIds: [for (final x in (m['others'] is List ? m['others'] as List : const [])) if (_isId(x)) x as String],
       );
 
+  /// Whether [x] is a Ghost id: 32 hex digits.
   static bool _isId(Object? x) => x is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(x);
 }
 
@@ -845,6 +846,7 @@ class Sms {
     } catch (_) {}
   }
 
+  /// The ringing [ringIncoming] began is over, however it ended: the phone is told, so its notification goes.
   Future<void> ringEnded() async {
     if (remote || !PlatformInfo.isAndroid) return;
     try {

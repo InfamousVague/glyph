@@ -51,10 +51,12 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix/types"
 )
 
+// quote is the message a `send` answers, by its id.
 type quote struct {
 	ID string `json:"id"`
 }
 
+// request is one line read from standard input. Each op reads the fields it needs and leaves the rest.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -84,12 +86,18 @@ type conn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// The encrypted side (e2ee.go), under e2mu: its client once made, whether connecting it has begun, and how
+	// many times its device has been registered anew.
 	e2mu      sync.Mutex
 	e2        *whatsmeow.Client
 	e2Started bool
 	e2Tries   int
 }
 
+// dir is where the session, the keys, the log and the pictures are kept (--dir); out is standard output, written a
+// JSON line at a time under outLock. mu guards the session, the connection in use (cur), whether it is up, the book
+// and when the session was last written. waiters, under waitMu, are the `history` requests waiting for a stretch,
+// by thread.
 var (
 	dir     string
 	log     zerolog.Logger
@@ -115,6 +123,7 @@ var (
 // its tokens grow old.
 const refreshEvery = 20 * time.Hour
 
+// say writes [v] to standard output as one JSON line. Nothing else writes there.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -130,6 +139,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main takes up the kept session, if there is one, then answers the requests on standard input, each in its own
+// goroutine, until Ghost closes it; the session is written a last time on the way out.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Messenger session is kept")
 	flag.Parse()
@@ -153,6 +164,7 @@ func main() {
 		go resume()
 	}
 
+	// A request is one line, 8 MB at most.
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Buffer(make([]byte, 1<<20), 8<<20)
 	for scan.Scan() {
@@ -187,6 +199,7 @@ func main() {
 	closeKeys()
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is skipped).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -204,13 +217,17 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does what [r] asks and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
 }
 
+// bg is a context with no end that carries the helper's log.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
+// logFile is messenger.log in the session's folder, begun afresh past a megabyte; standard error alone where it
+// can't open.
 func logFile() *os.File {
 	path := filepath.Join(dir, "messenger.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {
@@ -225,6 +242,7 @@ func logFile() *os.File {
 
 // --- cookies and signing in -----------------------------------------------------------------------------------------
 
+// platformOf is the site a name stands for: Facebook where it says so, Messenger for anything else ("" too).
 func platformOf(site string) types.Platform {
 	if strings.Contains(strings.ToLower(site), "facebook") {
 		return types.Facebook
@@ -232,6 +250,7 @@ func platformOf(site string) types.Platform {
 	return types.Messenger
 }
 
+// siteOf is the site's address as a person knows it, for the words that send them to the browser.
 func siteOf(p types.Platform) string {
 	if p == types.Facebook {
 		return "facebook.com"
@@ -239,6 +258,7 @@ func siteOf(p types.Platform) string {
 	return "messenger.com"
 }
 
+// jar puts a browser's cookies, by name, into the library's jar for one of the two sites. Empty ones are left out.
 func jar(platform types.Platform, values map[string]string) *cookies.Cookies {
 	c := &cookies.Cookies{Platform: platform}
 	typed := make(map[cookies.MetaCookieName]string, len(values))
@@ -290,6 +310,7 @@ func refusal(err error, site string) (words string, fatal bool, address string) 
 	return "Messenger could not be reached: " + err.Error(), false, address
 }
 
+// newClient makes the library's client for a site with a browser's cookies. Nothing is asked of Messenger yet.
 func newClient(platform types.Platform, values map[string]string) *messagix.Client {
 	return messagix.NewClient(jar(platform, values), log.With().Str("component", "messagix").Logger(),
 		&messagix.Config{ClientSettings: exhttp.SensibleClientSettings})
@@ -310,6 +331,8 @@ func open(ctx context.Context, platform types.Platform, values map[string]string
 	return &conn{cli: cli, ctx: cctx, cancel: cancel}, user, tbl, nil
 }
 
+// signIn answers `sign_in`: the cookies are checked by loading Messenger's page with them, whatever was signed in
+// before is forgotten, and the new session is kept, said (`linked`) and connected.
 func signIn(ctx context.Context, r request) (any, error) {
 	if len(r.Cookies) == 0 {
 		return nil, errors.New("No cookies were given. Copy them from messenger.com in a browser signed in to your account.")
@@ -448,6 +471,7 @@ func adopt(c *conn, user types.UserInfo, tbl *table.LSTable) {
 	time.AfterFunc(refreshEvery, func() { reload(c, "the page is a day old") })
 }
 
+// current is whether [c] is still the connection in use: one replaced or signed out is no longer listened to.
 func (c *conn) current() bool {
 	mu.Lock()
 	defer mu.Unlock()
@@ -468,6 +492,7 @@ func (c *conn) stop() {
 	}
 }
 
+// setConnected notes whether [c]'s live connection is up, and says `connected` or `disconnected` when that changes.
 func setConnected(c *conn, now bool) {
 	mu.Lock()
 	if cur != c || connected == now {
@@ -583,6 +608,8 @@ func keep(c *conn, now bool) {
 
 // --- what Messenger says ----------------------------------------------------------------------------------------------
 
+// onEvent is the library's handler: a table of rows is taken in, and what it says of the connection is passed on
+// or acted on (the page loaded again, or the session ended where Messenger signed it out).
 func (c *conn) onEvent(ctx context.Context, raw any) {
 	if !c.current() {
 		return
@@ -643,6 +670,7 @@ func (c *conn) take(tbl *table.LSTable, first bool) {
 	}
 }
 
+// keyOf is key, for a caller that does not hold the book's lock.
 func (b *book) keyOf(k int64) int64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -656,6 +684,8 @@ type stretchWait struct {
 	ch     chan *table.UpsertMessages
 }
 
+// awaitStretch begins waiting for a stretch of thread [k]. It is called before the task that asks for one is sent,
+// so the answer cannot slip by; the caller ends the wait with dropWait.
 func awaitStretch(k, before int64) *stretchWait {
 	w := &stretchWait{before: before, ch: make(chan *table.UpsertMessages, 1)}
 	waitMu.Lock()
@@ -664,6 +694,7 @@ func awaitStretch(k, before int64) *stretchWait {
 	return w
 }
 
+// dropWait ends a wait, answered or not.
 func dropWait(k int64, w *stretchWait) {
 	waitMu.Lock()
 	defer waitMu.Unlock()
@@ -679,6 +710,8 @@ func dropWait(k int64, w *stretchWait) {
 	}
 }
 
+// handStretch hands a stretch Messenger sent of thread [k] to whoever waits for it. A waiter's channel holds one,
+// and a waiter handed its stretch is taken off the list, so this never blocks.
 func handStretch(k int64, up *table.UpsertMessages) {
 	waitMu.Lock()
 	defer waitMu.Unlock()
@@ -737,6 +770,7 @@ func linkedConn(ctx context.Context) (*conn, *book, error) {
 	return cur, bk, nil
 }
 
+// status answers `status`: whether anyone is signed in, whether the live connection is up, and who it is.
 func status() map[string]any {
 	mu.Lock()
 	defer mu.Unlock()
@@ -746,6 +780,8 @@ func status() map[string]any {
 	return map[string]any{"linked": true, "connected": connected && cur != nil, "me": sess.Me, "name": sess.Name, "handle": sess.Handle}
 }
 
+// do answers one request within a time limit: a minute, or nearly three for a sign-in or a file. Every op but
+// status, sign_in and unlink needs the connection in use, and waits a while for Messenger's page to load.
 func do(r request) (any, error) {
 	limit := 60 * time.Second
 	if r.Op == "download" || r.Op == "send_media" || r.Op == "sign_in" {

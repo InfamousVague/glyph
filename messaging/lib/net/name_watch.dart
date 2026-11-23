@@ -83,6 +83,7 @@ class _Relay {
   /// This person's own username, where it names another account here.
   NameChange? own;
 
+  /// When any friend's username was last asked and answered here (ms; 0 never).
   int get latest => checked.values.fold(0, (a, b) => b > a ? b : a);
 
   Map<String, Object?> toJson() => {
@@ -95,6 +96,7 @@ class _Relay {
         'o': own?.toJson(),
       };
 
+  /// What was kept of a relay, with no time later than [now]; empty where [j] isn't one.
   static _Relay fromJson(Object? j, int now) {
     final r = _Relay();
     if (j is! Map) return r;
@@ -293,6 +295,7 @@ class NameWatch extends ChangeNotifier {
 
   int get nowMs => _now().millisecondsSinceEpoch;
 
+  /// The address of the relay in use; empty where there is none to say.
   String get _relayNow {
     try {
       return _relayOf?.call() ?? '';
@@ -301,6 +304,7 @@ class NameWatch extends ChangeNotifier {
     }
   }
 
+  /// What is known of the relay in use, begun where nothing is.
   _Relay get _here => _relays[_relayNow] ??= _Relay();
 
   /// What the relay in use said of [friendId]'s username where it named another account; null where it has not, or
@@ -333,6 +337,7 @@ class NameWatch extends ChangeNotifier {
   /// How many friends added by username are watched, by this device and the account's others together.
   int get watching => _friends().length;
 
+  /// The friends watched, as the app says them now; none where it can't say.
   List<WatchedName> _friends() {
     try {
       return friends();
@@ -352,6 +357,7 @@ class NameWatch extends ChangeNotifier {
     }
   }
 
+  /// Reads what was kept and sets the timer for the first lookup due.
   void start() {
     if (_started || _gone) return;
     _started = true;
@@ -359,6 +365,7 @@ class NameWatch extends ChangeNotifier {
     _plan();
   }
 
+  /// Asks nothing more until started again; what is kept stays.
   void stop() {
     _started = false;
     _next?.cancel();
@@ -458,6 +465,7 @@ class NameWatch extends ChangeNotifier {
     });
   }
 
+  /// Makes the one lookup that is due, where one may be made now, and plans the next.
   Future<void> _askDue() async {
     if (!_started || _gone || _asking) return;
     if (!_mayAsk()) return _plan();
@@ -589,6 +597,8 @@ class NameWatch extends ChangeNotifier {
     _plan();
   }
 
+  /// Asks the relay who [name] is, the username the friend [id] said they go by now: taken as theirs only where the
+  /// relay names their own key for it.
   Future<void> _askRename(String id, String name) async {
     _asking = true;
     _count();
@@ -651,6 +661,7 @@ class NameWatch extends ChangeNotifier {
     usernameChanged();
   }
 
+  /// Keeps that this device held [name] under the key [id] on [relay], the newest [mostHeld] of them.
   void _remember(String name, String id, String relay) {
     if (_heldUnder.any((h) => h.username == name && h.id == id && h.relay == relay)) return;
     _heldUnder.add((username: name, id: id, relay: relay, at: nowMs));
@@ -660,6 +671,8 @@ class NameWatch extends ChangeNotifier {
     _save();
   }
 
+  /// Asks the relay in use who this person's own username names, [ownEvery] at most, and keeps what it says where it
+  /// names another account.
   Future<void> _ownCheck() async {
     final name = username(), mine = me(), relay = _relayNow;
     final r = _here;
@@ -764,6 +777,7 @@ class NameWatch extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A username as it is compared: trimmed, in small letters, with no @ before it.
   static String _tidy(String name) {
     var n = name.trim().toLowerCase();
     while (n.startsWith('@')) {
@@ -774,6 +788,7 @@ class NameWatch extends ChangeNotifier {
 
   // --- keeping ----------------------------------------------------------------------------------------------------------
 
+  /// Reads what was kept ([keptName]); no time in it is taken as later than now.
   void _load() {
     Map? j;
     try {
@@ -812,6 +827,7 @@ class NameWatch extends ChangeNotifier {
     }
   }
 
+  /// Keeps what is known, of friends as they are now only, and nothing of an identity this device had before.
   void _save() {
     if (_gone) return;
     _dirty = false;

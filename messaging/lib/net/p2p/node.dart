@@ -67,6 +67,7 @@ class Whereabouts {
   /// When it said so, in milliseconds.
   final int at;
 
+  /// Whether it says nothing of where: no link helper and no address.
   bool get isEmpty => helper == null && addresses.isEmpty;
 
   Map<String, dynamic> toJson() => {'r': ?helper, if (addresses.isNotEmpty) 'a': addresses, 't': at};
@@ -120,6 +121,7 @@ enum P2pPathKind {
   direct,
 }
 
+/// The path to the node [nodeId] as it stands now.
 @immutable
 class P2pPath {
   const P2pPath(this.nodeId, this.kind, {this.rttMs});
@@ -195,6 +197,7 @@ abstract class P2pNode {
   /// device card with its node down. Fails only through the Future.
   Future<String> idOf(Uint8List secret);
 
+  /// How the node stands ([P2pState]); whoever listens is told as it changes.
   ValueListenable<P2pState> get state;
 
   /// Why it is down, in words to show; null while it is not.

@@ -77,6 +77,7 @@ class CustomTheme {
     return '$_mark${base64Url.encode(bytes.toBytes()).replaceAll('=', '')}';
   }
 
+  /// [c]'s red, green and blue, a byte each; how see-through it is is left out.
   static List<int> _rgb(Color c) {
     final v = c.toARGB32();
     return [(v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF];
@@ -238,6 +239,7 @@ Color mix(Color a, Color b, double t) {
   return Color(0xFF000000 | ch(16) << 16 | ch(8) << 8 | ch(0));
 }
 
+/// [c] as it is written: `#RRGGBB`, in capitals.
 String hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
 /// WCAG's contrast between two colours, 1 to 21.

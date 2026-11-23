@@ -28,6 +28,8 @@ var thumbsUpStickers = map[int64]bool{369239263222822: true, 369239343222814: tr
 // How many messages' times are remembered for each chat (to name the message a read mark reaches).
 const stampsKept = 300
 
+// thread is what the book holds of one of Messenger's threads (a chat, or a folder and the like: see listable).
+// Key is the number the app knows it by; Last and Read are times in ms.
 type thread struct {
 	Key         int64
 	Type        table.ThreadType
@@ -45,6 +47,7 @@ type thread struct {
 	FBKey int64
 }
 
+// contact is a person, as Messenger's contact rows give them. Picture is an address, not a file.
 type contact struct {
 	ID       int64
 	Name     string
@@ -52,12 +55,14 @@ type contact struct {
 	Picture  string
 }
 
+// stamp is when a message was sent (ms) and by whom: each thread's are kept in order of time.
 type stamp struct {
 	ID   string
 	TS   int64
 	From int64
 }
 
+// msgRef is what is remembered of a message by its id: its thread, when it was sent (ms) and by whom.
 type msgRef struct {
 	Thread int64
 	TS     int64
@@ -71,11 +76,15 @@ type page struct {
 	More     bool
 }
 
+// ev is an event for the app, made under the book's lock and said once it is let go.
 type ev struct {
 	Name   string
 	Fields map[string]any
 }
 
+// book is the little of Messenger's database the helper keeps, for one account (me). mu guards every field. hybrid
+// gives, for a thread's number on Facebook's side, its number on the encrypted side; stamps holds each thread's
+// newest message times and msgs the same messages by id; pages holds each thread's newest stretch of history.
 type book struct {
 	mu       sync.Mutex
 	me       int64
@@ -92,6 +101,7 @@ type book struct {
 	avatar func(owner string, address string) string
 }
 
+// newBook is an empty book for the person [me]. It gives no pictures until avatar is set.
 func newBook(me int64) *book {
 	return &book{
 		me:       me,
@@ -106,13 +116,16 @@ func newBook(me int64) *book {
 	}
 }
 
+// idString is one of Meta's numbers as the protocol carries ids: in decimal.
 func idString(n int64) string { return strconv.FormatInt(n, 10) }
 
+// parseID reads an id back into Meta's number; false for anything that is not one, 0 included.
 func parseID(s string) (int64, bool) {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
 	return n, err == nil && n != 0
 }
 
+// nullable is [s], or JSON's null where it is empty.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -120,6 +133,7 @@ func nullable(s string) any {
 	return s
 }
 
+// isGroup is whether a thread's kind is a group's: any known kind that is not between two people.
 func isGroup(t table.ThreadType) bool { return t != table.UNKNOWN_THREAD_TYPE && !t.IsOneToOne() }
 
 // listable is whether a thread is a chat: folders and the like are rows of the same table.
@@ -139,6 +153,7 @@ func (b *book) key(k int64) int64 {
 	return k
 }
 
+// thread is the thread [k], begun (with the kind kept for it from before) where the book does not hold it yet.
 func (b *book) thread(k int64) *thread {
 	t := b.threads[k]
 	if t == nil {
@@ -148,6 +163,8 @@ func (b *book) thread(k int64) *thread {
 	return t
 }
 
+// setKind notes a thread's folder (where one is given) and its kind. An unknown kind changes nothing, and an
+// encrypted thread is never made an unencrypted one again.
 func (b *book) setKind(t *thread, kind table.ThreadType, folder string) {
 	if folder != "" {
 		t.Folder = folder
@@ -163,6 +180,7 @@ func (b *book) setKind(t *thread, kind table.ThreadType, folder string) {
 	b.kinds[t.Key] = kind
 }
 
+// name is a person's name; "" where the book has not met them.
 func (b *book) name(id int64) string {
 	if c := b.contacts[id]; c != nil {
 		return c.Name
@@ -234,6 +252,8 @@ func (b *book) sentAt(id string) int64 {
 
 // --- chats and people -----------------------------------------------------------------------------------------------
 
+// personJSON is a person as the app is told them: what a `name` event carries and `who` answers. Called with the
+// book's lock held.
 func (b *book) personJSON(c *contact) map[string]any {
 	return map[string]any{
 		"id":     idString(c.ID),
@@ -243,6 +263,8 @@ func (b *book) personJSON(c *contact) map[string]any {
 	}
 }
 
+// chatJSON is a thread as the protocol's `chat`. A group with no name is titled with its people's names. Called
+// with the book's lock held.
 func (b *book) chatJSON(t *thread) map[string]any {
 	group := isGroup(t.Type)
 	members := []map[string]any{}
@@ -346,6 +368,8 @@ func unwrapLink(addr string) string {
 	return addr
 }
 
+// isLinkPreview is whether something shared is only the preview card of a link in the message: a card that opens
+// a web address through Facebook's link shim and nothing of Meta's own.
 func isLinkPreview(x *table.WrappedXMA) bool {
 	return x.CTA != nil && x.CTA.Type_ == "xma_web_url" && x.CTA.TargetId == 0 && x.CTA.NativeUrl == "" &&
 		strings.Contains(x.CTA.ActionUrl, "/l.php?")
@@ -475,6 +499,7 @@ func (b *book) messageJSON(m *table.WrappedMessage) map[string]any {
 	return out
 }
 
+// sortOldestFirst orders messages by when they were sent, and by Messenger's own sort key where two share a time.
 func sortOldestFirst(list []*table.WrappedMessage) {
 	sort.SliceStable(list, func(i, j int) bool {
 		if list[i].TimestampMs != list[j].TimestampMs {
@@ -501,12 +526,16 @@ func (b *book) messagesJSON(list []*table.WrappedMessage) []map[string]any {
 
 // --- a table of rows → events ---------------------------------------------------------------------------------------
 
+// applied is what a table came to: the events to say, in order, and what `history` requests wait on: the
+// stretches of history it carried, by thread, and Messenger's rows about a stretch already sent.
 type applied struct {
 	Events  []ev
 	Upserts map[int64]*table.UpsertMessages
 	Ranges  []*table.LSUpdateExistingMessageRange
 }
 
+// putContact takes in a contact row. Where it changes what is known of the person, a `name` event is added to
+// [out], and their chat (between two people) is marked in [touched] to be said again.
 func (b *book) putContact(id int64, name, username, picture string, out *[]ev, touched map[int64]bool) {
 	if id == 0 {
 		return

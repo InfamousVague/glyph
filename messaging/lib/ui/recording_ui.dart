@@ -39,6 +39,7 @@ class RecordingBanner extends StatefulWidget {
   @override
   State<RecordingBanner> createState() => _RecordingBannerState();
 
+  /// Stops this device's recording and says it was saved, with a way to the recordings; or that it couldn't be.
   static Future<void> _stop(BuildContext context) async {
     final r = await CallRecorder.instance.stop();
     if (!context.mounted) return;
@@ -70,6 +71,7 @@ class _RecordingBannerState extends State<RecordingBanner> {
     super.dispose();
   }
 
+  /// The recorder changed: [_tick] runs while this device records, and not otherwise.
   void _changed() {
     final on = CallRecorder.instance.since != null;
     if (on) {

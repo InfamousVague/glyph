@@ -21,8 +21,10 @@ import (
 // and digits only, so the dash is never part of one. A person is Slack's user id ("U…", "W…") or, for an app that
 // posts without a user, its bot id ("B…"). A message is Slack's own id for it within its channel: its "ts".
 
+// chatID is the id the app knows a channel of workspace [team] by.
 func chatID(team, channel string) string { return team + "-" + channel }
 
+// slackIDPattern is the shape of every id Slack gives: a channel, a person, an app, a file.
 var slackIDPattern = regexp.MustCompile(`^[A-Z0-9]+$`)
 
 // parseChatID is the channel of chat [id] in workspace [team]. A bare channel id is taken too.
@@ -63,6 +65,7 @@ func inThread(m slack.Msg) (string, bool) {
 
 // --- people ---------------------------------------------------------------------------------------------------------
 
+// person is what is known of a member or an app; a field is "" where Slack has not said.
 type person struct {
 	ID     string
 	Name   string
@@ -77,6 +80,7 @@ func personOfUser(u slack.User) person {
 	return person{ID: u.ID, Name: name, Handle: u.Name, Pic: pic}
 }
 
+// personOfBot reads an app that posts without a user: its name and icon. An app has no handle.
 func personOfBot(b slack.Bot) person {
 	return person{ID: b.ID, Name: strings.TrimSpace(b.Name), Pic: cmp.Or(b.Icons.Image72, b.Icons.Image48, b.Icons.Image36)}
 }
@@ -88,8 +92,10 @@ func senderOf(m slack.Msg) string {
 
 // --- words ----------------------------------------------------------------------------------------------------------
 
+// tagPattern finds Slack's markup in a message's text: "<@U…>", "<#C…|name>", "<!here>", "<https://…|words>".
 var tagPattern = regexp.MustCompile(`<([^<>]*)>`)
 
+// unescape undoes the three escapes Slack puts on "<", ">" and "&" that are part of the words.
 func unescape(s string) string {
 	return strings.NewReplacer("&lt;", "<", "&gt;", ">", "&amp;", "&").Replace(s)
 }
@@ -109,6 +115,9 @@ func plainText(s string, user, channel func(string) string) string {
 	return b.String()
 }
 
+// tagText is one tag's words, from what stands between its "<" and ">": "target|label", the label optional. A
+// mention ("@U…") is "@name", a channel ("#C…") "#name", a special word ("!here", "!subteam^S…|@team") "@here" or
+// its label, and anything else a link: its address, or "label (address)" where the label says something else.
 func tagText(tag string, user, channel func(string) string) string {
 	target, label, _ := strings.Cut(tag, "|")
 	label = unescape(label)
@@ -156,6 +165,7 @@ func reactionEmoji(name string) string {
 	return ":" + name + ":"
 }
 
+// shortcodePattern is an emoji's name as Slack writes one, with or without its colons, and with a skin tone.
 var shortcodePattern = regexp.MustCompile(`^:?([a-z0-9_+'\-]+(?:::skin-tone-[2-6])?):?$`)
 
 // reactionName is Slack's name for [e]: an emoji, or a ":name:" of the workspace's own. "" where it is neither.
@@ -172,11 +182,14 @@ func reactionName(e string) string {
 
 // --- chats ----------------------------------------------------------------------------------------------------------
 
+// memberOut is one of a chat's members in a `chat`, the person themself left out.
 type memberOut struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// chatOut is the protocol's `chat`: what `chats` answers with and a `chat` event carries. Avatar is a file's path,
+// Last the newest message's time in milliseconds, Snippet that message's words.
 type chatOut struct {
 	ID          string      `json:"id"`
 	Title       string      `json:"title"`
@@ -199,7 +212,7 @@ type counts struct {
 // isGroup is whether a chat is anything but a direct message between two.
 func isGroup(ch slack.Channel) bool { return !ch.IsIM }
 
-// mpimMembers is who a group DM is with, from its own name ("mpdm-ann--ben--mo-1") where Slack lists no members.
+// mpimHandles is who a group DM is with, from its own name ("mpdm-ann--ben--mo-1") where Slack lists no members.
 func mpimHandles(name string) []string {
 	rest, ok := strings.CutPrefix(name, "mpdm-")
 	if !ok {
@@ -220,6 +233,7 @@ type view struct {
 	parent func(ch, ts string) string
 }
 
+// name is the name [id] is known by, or "".
 func (v view) name(id string) string {
 	if v.person == nil {
 		return ""
@@ -298,6 +312,7 @@ type pointer struct {
 	Kind string `json:"kind"`
 }
 
+// mediaOut is one file of a message: what `download` needs to fetch it, and what the app shows before it has.
 type mediaOut struct {
 	Pointer pointer `json:"pointer"`
 	Mime    string  `json:"mime"`
@@ -307,16 +322,20 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
+// quoteOut is the message a reply quotes: for Slack, the first message of the thread the reply is in.
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
 }
 
+// reactionOut is one person's reaction; Slack's count of an emoji is spread into one of these for each person.
 type reactionOut struct {
 	From  string `json:"from"`
 	Emoji string `json:"emoji"`
 }
 
+// messageOut is the protocol's `message`: an entry of `history` and what a `message` event carries. ID is Slack's
+// ts, TS the same moment in milliseconds.
 type messageOut struct {
 	Chat      string        `json:"chat"`
 	Group     bool          `json:"group"`
@@ -381,6 +400,7 @@ func messageText(v view, channel string, m slack.Msg) string {
 	return text
 }
 
+// kindOf is the protocol's kind of a file, from its type: image, video, audio, else file.
 func kindOf(mime string) string {
 	switch {
 	case strings.HasPrefix(mime, "image/"):

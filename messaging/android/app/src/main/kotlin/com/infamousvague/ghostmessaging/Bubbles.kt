@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  * later). Ghost's own switch is Settings › Notifications › Bubbles ("notif_bubbles", on unless switched off).
  */
 object Bubbles {
+    /** The key of Ghost's own switch in the "ui" preferences: "off", or anything else for on. */
     const val PREF = "notif_bubbles"
 
     /** Android's bubbles are the conversation kind from Android 11 (API 30); on 10 they were a developer option. */
@@ -25,6 +26,7 @@ object Bubbles {
     /** Whether a conversation's notification offers a bubble: Android 11 or later, and Ghost's switch not off. */
     fun wanted(pref: String?, sdk: Int): Boolean = sdk >= MIN_SDK && pref != "off"
 
+    /** The same, read from this phone: its Android and the switch as kept. */
     fun wanted(context: Context): Boolean =
         wanted(context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString(PREF, "on"), Build.VERSION.SDK_INT)
 
@@ -49,6 +51,7 @@ object Bubbles {
         else -> "none"
     }
 
+    /** The same, asked of this phone; null too where Android would not say. */
     fun systemState(context: Context): String? {
         if (Build.VERSION.SDK_INT < 30) return null
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -106,6 +109,7 @@ object Bubbles {
         return try { nm.notify(thread.toInt(), again); true } catch (_: SecurityException) { false }
     }
 
+    /** [old] with the same screen, face and height, and its notification in or out of the shade as [quiet] says. */
     private fun rebuilt(old: Notification.BubbleMetadata, quiet: Boolean): Notification.BubbleMetadata? {
         if (Build.VERSION.SDK_INT < 30) return old
         val intent = old.intent ?: return old

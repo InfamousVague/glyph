@@ -216,6 +216,7 @@ open class MainActivity : FlutterActivity() {
         handleCalls(MethodChannel(messenger, "ghost_messaging/sms"))
     }
 
+    /** Stops a bubble hearing what changed, as its events are cancelled or its screen goes. */
     private fun dropBubbleEars() {
         bubbleChanged?.let { Bus.others.remove(it) }
         bubblePrefs?.let { Bus.prefsOthers.remove(it) }
@@ -226,6 +227,7 @@ open class MainActivity : FlutterActivity() {
     /** The conversation a bubble shows, from the intent it was opened with (Bubbles.metadata); -1 where none. */
     protected val bubbleThread: Long get() = intent?.getLongExtra(Notifier.EXTRA_THREAD, -1) ?: -1
 
+    /** Answers Dart's calls on "ghost_messaging/sms", for the app's engine and a bubble's alike. */
     private fun handleCalls(calls: MethodChannel) {
         calls.setMethodCallHandler { call, result ->
             // How long each call takes is written to Android's log when asked for

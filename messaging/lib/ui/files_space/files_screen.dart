@@ -978,6 +978,7 @@ class _PartRow extends StatelessWidget {
   final String? by;
   final VoidCallback? onRemove;
 
+  /// How long ago [at] was, in words, to the minute, the hour or the day.
   static String _ago(DateTime at) {
     final d = DateTime.now().difference(at);
     if (d.inMinutes < 1) return 'just now';

@@ -30,8 +30,10 @@ type chatRef struct {
 	Channel string
 }
 
+// id is the chat id the app knows the chat by.
 func (c chatRef) id() string { return chatID(c.Guild, c.Channel) }
 
+// chatID is the chat id of a channel: the channel's own id, behind guildPrefix and the server's where it is in one.
 func chatID(guild, channel string) string {
 	if guild == "" {
 		return channel
@@ -86,6 +88,7 @@ func newer(a, b string) bool {
 
 // --- people ---------------------------------------------------------------------------------------------------------
 
+// person is what is known of someone on Discord; a field is "" where it has not been said.
 type person struct {
 	ID     string
 	Name   string
@@ -111,11 +114,15 @@ func personOf(u *discordgo.User, member *discordgo.Member) person {
 
 // --- chats ----------------------------------------------------------------------------------------------------------
 
+// memberOut is one of a chat's members in a `chat`, the person themself left out.
 type memberOut struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// chatOut is the protocol's `chat`: what `chats` answers with and a `chat` event carries. Avatar is a file's path,
+// Last the newest message's time in milliseconds. Discord's channels carry no words of their newest message, so
+// Snippet is left empty.
 type chatOut struct {
 	ID          string      `json:"id"`
 	Title       string      `json:"title"`
@@ -207,6 +214,7 @@ func chatOf(me string, ch *discordgo.Channel, guild *discordgo.Guild, read *read
 	return out
 }
 
+// guildID is a server's id, "" for none.
 func guildID(g *discordgo.Guild) string {
 	if g == nil {
 		return ""
@@ -248,6 +256,8 @@ type pointer struct {
 	Attachment string `json:"attachment,omitempty"`
 }
 
+// mediaOut is one file or sticker of a message: what `download` needs to fetch it, and what the app shows before
+// it has.
 type mediaOut struct {
 	Pointer pointer `json:"pointer"`
 	Mime    string  `json:"mime"`
@@ -257,16 +267,20 @@ type mediaOut struct {
 	Height  int     `json:"height"`
 }
 
+// quoteOut is the message a reply answers, with its words where Discord sent them along.
 type quoteOut struct {
 	ID   string `json:"id"`
 	Text string `json:"text,omitempty"`
 }
 
+// reactionOut is one person's reaction to a message.
 type reactionOut struct {
 	From  string `json:"from"`
 	Emoji string `json:"emoji"`
 }
 
+// messageOut is the protocol's `message`: an entry of `history` and what a `message` event carries. TS is in
+// milliseconds.
 type messageOut struct {
 	Chat      string        `json:"chat"`
 	Group     bool          `json:"group"`
@@ -291,6 +305,8 @@ func shown(m *discordgo.Message) bool {
 	return false
 }
 
+// Discord's markup inside a message's words: a server's own emoji (<:name:id>, <a:name:id>) and a mention of a
+// person (<@id>, <@!id>).
 var (
 	customEmoji = regexp.MustCompile(`<a?:([A-Za-z0-9_~]+):[0-9]+>`)
 	userMention = regexp.MustCompile(`<@!?([0-9]+)>`)

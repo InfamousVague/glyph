@@ -78,6 +78,8 @@ class Telegram extends InboxNetwork {
   String? get error => _error;
   @override
   String? get account => _account;
+  /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
+  /// channels), the newest first, as they stand among the texts.
   @override
   List<InboxChat> get chats {
     _settle();
@@ -715,8 +717,6 @@ class Telegram extends InboxNetwork {
     notifyListeners();
   }
 
-  /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
-  /// channels), the newest first, as they stand among the texts.
   /// The lists are stale: made again when next asked for ([_settle]), and the listeners told. TDLib says thousands of
   /// things as it starts and signs in, each of which used to make and sort every chat here; now each only says so,
   /// and the lists are made once for whoever next reads them (docs/performance-audit.md, finding 2).
@@ -727,6 +727,7 @@ class Telegram extends InboxNetwork {
 
   bool _stale = false;
 
+  /// Makes the list and the archive again where they are stale: called by whatever reads them.
   void _settle() {
     if (!_stale) return;
     _stale = false;

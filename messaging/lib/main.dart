@@ -62,9 +62,7 @@ import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
-import 'inbox/human_check.dart' show HumanCheck;
-import 'plugins/human_check.dart' show HumanCheckPlugin;
-import 'plugins/registry.dart' show AppStore, PluginRegistry;
+import 'plugins/human_check.dart' show startHumanCheck;
 import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
@@ -309,6 +307,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (Sms.standalone) Account.instance.addListener(_accountChanged);
   }
 
+  /// The account changed: drawn again only where it has ended on this device.
   void _accountChanged() {
     if (mounted && Account.instance.ended) setState(() {});
   }
@@ -392,11 +391,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // First messages from someone new on the networks the Human check guards, held until they answer its question
       // (lib/inbox/human_check.dart; GMFB-23, Matt, Mac 0.12.6: "have new messages from that platform stay hidden from
       // notificatoins and my messages until they solve a small challenge").
-      HumanCheck.instance ??= HumanCheck(
-        choices: () => HumanCheckPlugin.choicesIn(PluginRegistry.instance, AppStore(app)),
-        read: (key) => app.choice(key, ''),
-        write: app.keep,
-      )..watch(Inbox.instance, choicesChanged: app);
+      startHumanCheck(app);
       // Mentions of this device in spaces' chats, notified (lib/voice/mention_alerts.dart).
       MentionAlerts.instance ??= MentionAlerts(
         notify: (a) => Sms.instance.notifyInbox(a.key, network: a.where, title: a.title, body: a.body, group: true),

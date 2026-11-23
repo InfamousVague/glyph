@@ -380,6 +380,7 @@ class PluginRegistry with ChangeNotifier {
   /// switched on. Plugin sync listens (lib/plugins/plugin_sync.dart, GMFB-9) and tells its own moves from the person's.
   static void Function(GhostPlugin plugin, bool on)? switched;
 
+  /// Switches [plugin] on or off: its choice in [store], or its own switch where it keeps one ([OwnSwitch]).
   void setOn(GhostPlugin plugin, PluginStore store, bool on) {
     try {
       switched?.call(plugin, on);

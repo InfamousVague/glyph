@@ -94,6 +94,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
   final Map<String, double> _leveled = {};
 
+  /// Sets it for [id], held between a quarter and three and a half times; 1 takes it away.
   void setLevelGain(String id, double gain) {
     if (gain == 1) {
       if (_leveled.remove(id) == null) return;
@@ -121,6 +122,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   /// How this device's connection to each person stands, by their id ([PeerLink]): drawn on their face and row.
   final ValueNotifier<Map<String, PeerLink>> links = ValueNotifier(const {});
 
+  /// Sets how the connection to [id] stands; null takes them out of [links].
   void _link(String id, PeerLink? to) {
     final now = links.value;
     if (now[id] == to) return;
@@ -178,6 +180,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   @visibleForTesting
   static PeerLink linkFor(double roundTrip) => roundTrip > poorAfter ? PeerLink.poor : PeerLink.connected;
 
+  /// One reading: this device's own level, then each connection's, into [levels].
   Future<void> _readLevelsOnce() async {
     final next = <String, double>{};
     final meter = _meter;
@@ -586,6 +589,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
       final h = track.getSettings()['height'];
       if (h is num && h > 0) _screenHeight = h.toDouble();
     } catch (_) {}
+    // Ended from outside the app (the system's own "Stop sharing", the shared window closed): stopped here too.
     track.onEnded = () {
       if (!identical(_screen, stream)) return;
       unawaited(_stopScreen().then((_) => onEnded?.call()));
@@ -597,6 +601,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     return true;
   }
 
+  /// Stops sharing the screen and lets its capture go.
   Future<void> _stopScreen() async {
     final was = _screen;
     if (was == null) return;
@@ -613,6 +618,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     if (!kIsWeb && PlatformInfo.isAndroid) await screenService?.call(false);
   }
 
+  /// Stops every track of a stream made here (the camera's or microphone's light goes out), then lets it go.
   static Future<void> _dispose(MediaStream s) async {
     for (final t in s.getTracks()) {
       await t.stop();
@@ -671,6 +677,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     }
   }
 
+  /// [id]'s picture arrived: the stream their tile draws.
   void _heard(String id, MediaStream view) => remote.value = {...remote.value, id: view};
 
   /// [id]'s connection failed or closed: forgotten, and the others' pictures sized again.
@@ -719,6 +726,7 @@ class _RtcPeer implements VoicePeer {
   Timer? _connectTimer;
   bool _connected = false, _failedSaid = false;
 
+  /// Says, once, that no way through was found; never after it has connected.
   void _fail() {
     if (_failedSaid || _connected) return;
     _failedSaid = true;
@@ -727,11 +735,13 @@ class _RtcPeer implements VoicePeer {
     onFailed();
   }
 
+  /// Starts the wait of [connectWithin], once.
   void _watchConnect() {
     if (_connected || _connectTimer != null) return;
     _connectTimer = Timer(connectWithin, _fail);
   }
 
+  /// A track arrived: a sound is kept for its volume; a picture takes the place of the one before in [_view].
   Future<void> _took(RTCTrackEvent e) async {
     final track = e.track;
     if (track.kind == 'audio') {

@@ -16,6 +16,8 @@ import 'package:ghost_relay/sha256.dart';
 /// repository, which is public.
 File get _file => File('${Platform.environment['HOME']}/.config/mattssoftware/ghost-bounty-key.json');
 
+/// The bounty key's private half (32 bytes): read from the file, or made on first use and written there with its
+/// public half, mode 600.
 List<int> _scalar() {
   if (_file.existsSync()) {
     final hex = (jsonDecode(_file.readAsStringSync()) as Map)['scalar'] as String;
@@ -29,6 +31,8 @@ List<int> _scalar() {
   return scalar;
 }
 
+/// `key` prints the public half; `pay` signs the body as lib/bounty.dart checks it, posts it, and prints the relay's
+/// answer (exit code 1 where it is not 200).
 Future<void> main(List<String> args) async {
   final scalar = _scalar();
   final public = P256.publicOf(scalar);
@@ -46,6 +50,7 @@ Future<void> main(List<String> args) async {
   final time = DateTime.now().millisecondsSinceEpoch;
   final words = Bounty.signedWords(time, hexOf(sha256(body)));
   final r = Random.secure();
+  // The signature's own secret number, never used twice: a hash of the key, 32 fresh random bytes and the words.
   final nonce = sha256([...scalar, for (var i = 0; i < 32; i++) r.nextInt(256), ...utf8.encode(words)]);
   final sig = P256.sign(scalar, utf8.encode(words), nonce);
   final client = HttpClient();

@@ -23,6 +23,7 @@ JNIEXPORT void JNICALL FN(nativeProcess)(JNIEnv *env, jobject self, jlong fx, jo
   voicefx_process((VoiceFx *)(intptr_t)fx, samples, frames, rate);
 }
 
+/* The voice effect by its name (voicefx_effect_id); none for null or a name that is no effect's. */
 JNIEXPORT void JNICALL FN(nativeEffect)(JNIEnv *env, jobject self, jlong fx, jstring name) {
   const char *n = name ? (*env)->GetStringUTFChars(env, name, NULL) : NULL;
   voicefx_effect((VoiceFx *)(intptr_t)fx, voicefx_effect_id(n));
@@ -41,6 +42,8 @@ JNIEXPORT jbyteArray JNICALL FN(nativeTake)(JNIEnv *env, jobject self, jlong fx,
   return out;
 }
 
+/* The changed voice to play into the call: 16-bit little-endian samples at [rate], as bytes. Read, never written
+ * back (JNI_ABORT). */
 JNIEXPORT void JNICALL FN(nativeFeed)(JNIEnv *env, jobject self, jlong fx, jbyteArray pcm, jint rate) {
   jsize bytes = (*env)->GetArrayLength(env, pcm);
   if (bytes < 2) return;

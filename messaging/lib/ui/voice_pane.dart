@@ -248,6 +248,7 @@ class _AudioTestState extends State<AudioTest> {
   bool _starting = false, _hear = false;
   String? _problem;
 
+  /// Opens the microphone with the call settings chosen; says why under the test where it couldn't be opened.
   Future<void> _start() async {
     if (_media != null || _starting) return;
     setState(() {
@@ -269,6 +270,7 @@ class _AudioTestState extends State<AudioTest> {
     }
   }
 
+  /// Ends the test and lets the microphone go.
   Future<void> _stop() async {
     final media = _media;
     _media = null;

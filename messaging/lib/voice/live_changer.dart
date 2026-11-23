@@ -39,23 +39,31 @@ class LiveChanger extends ChangeNotifier {
 
   void _watchSettings() => VoiceChanger.instance.addListener(() => unawaited(follow()));
 
+  /// The microphone engine's three for ElevenLabs' way (VoiceFx.take, feed, live): what was said since last asked, the
+  /// changed voice put into the call, and the switch that keeps the voice itself out of it. A test gives its own.
   final Future<Uint8List> Function({int most}) take;
   final Future<int> Function(Uint8List pcm, int rate) feed;
   final Future<bool> Function(bool on) setLive;
 
   /// The effect made on this device ('none' for none): VoiceFx.effect.
   final Future<bool> Function(String name) setEffect;
+
+  // The settings and the call, as [follow] and the phrase loop ask them: the way and the effect chosen, ElevenLabs'
+  // changing of one phrase, whether to run at all, and whether this device is muted.
   final CallVoiceWay Function() _way;
   final VoiceEffect Function() _effectNow;
   final Future<Uint8List> Function(Uint8List wav) _convert;
   final bool Function() _shouldRun;
   final bool Function() _muted;
 
+  /// Whether to run now: in a call, live changing on and ready, and this device's microphone engine able to do the
+  /// way chosen.
   static bool _wanted() {
     if (Voice.instance.session == null || !VoiceChanger.instance.liveActive) return false;
     return VoiceChanger.instance.way == CallVoiceWay.device ? VoiceFx.effectsSupported : VoiceFx.liveSupported;
   }
 
+  // ElevenLabs' way: the cutter, the phrases cut and not yet sent (three at most), and the timer that reads.
   final PhraseCutter _cutter = PhraseCutter();
   final List<Uint8List> _waiting = [];
   Timer? _tick;
@@ -117,6 +125,7 @@ class LiveChanger extends ChangeNotifier {
   @visibleForTesting
   Future<void> readOnce() => _read();
 
+  /// Takes what the microphone said since the last reading, cuts it into phrases and starts sending them.
   Future<void> _read() async {
     if (!_on || _running != CallVoiceWay.elevenlabs) return;
     if (!_shouldRun()) {
@@ -140,6 +149,8 @@ class LiveChanger extends ChangeNotifier {
     unawaited(_send());
   }
 
+  /// Sends the phrases waiting to ElevenLabs, one at a time and in order, and feeds each changed one into the call. A
+  /// phrase that could not be changed is dropped and [problem] says why.
   Future<void> _send() async {
     if (_sending || _waiting.isEmpty) return;
     _sending = true;
@@ -205,6 +216,7 @@ class LiveChanger extends ChangeNotifier {
 /// Cuts what the microphone says into phrases: from a little before speech starts to a pause after it (or
 /// [longest] at most), 16-bit little-endian mono at [rate]. A blip shorter than [shortest] of speech is not a phrase.
 class PhraseCutter {
+  /// Samples a second, as the microphone engine gives them (VoiceFx.take).
   static const rate = 16000;
 
   /// 20 ms: what loudness is judged over.
@@ -213,6 +225,8 @@ class PhraseCutter {
   /// Speech is louder than this (RMS, of 32768).
   static const speaking = 450.0;
 
+  /// How much from before speech starts is kept with a phrase, the quiet that ends one, the least speech that makes
+  /// one, and the longest one runs before it is cut anyway.
   static const before = Duration(milliseconds: 250);
   static const pause = Duration(milliseconds: 550);
   static const shortest = Duration(milliseconds: 250);
@@ -220,12 +234,15 @@ class PhraseCutter {
 
   static int _samples(Duration d) => rate * d.inMilliseconds ~/ 1000;
 
+  // The samples just heard while nobody speaks ([before] of them), the phrase being made, and the 20 ms being
+  // gathered; whether a phrase is being made, and how much of it so far was quiet since speech and how much speech.
   final List<int> _pre = [];
   final List<int> _phrase = [];
   final List<int> _part = [];
   bool _in = false;
   int _quiet = 0, _spoken = 0;
 
+  /// Lets go of everything heard so far: a phrase half made is never finished.
   void reset() {
     _pre.clear();
     _phrase.clear();

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ghost Messaging",
-    "description": "The app's API and the relay server's HTTP routes. Made by tool/build-docs.mjs from the app's own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/dev-api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/dev-hub/.",
+    "description": "The app's API and the relay server's HTTP routes. Made by tool/build-docs.mjs from the app's own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -54,7 +54,7 @@
   "item": [
     {
       "name": "App API",
-      "description": "Version 1. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/",
+      "description": "Version 1. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/app-api/",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -1587,7 +1587,7 @@
     },
     {
       "name": "Relay server API",
-      "description": "Plain HTTP on the relay server. https://gogho.st/docs/dev-relay-api/",
+      "description": "Plain HTTP on the relay server. https://gogho.st/docs/developer/relay-api/",
       "auth": {
         "type": "noauth"
       },
@@ -1608,7 +1608,7 @@
                   ],
                   "path": []
                 },
-                "description": "The answer to any request, of any method and path, that no other route takes. There is no separate health route.\n\nWho: Anyone\n\nAnswers: `200 text/plain: Ghost Messaging relay`\n\nRefusals:\n- `400 (empty)  a path whose percent-escapes are not UTF-8`\n- `404 text/plain: Ghost Messaging relay  a WebSocket upgrade whose last path segment is neither hub nor 32 hex digits`"
+                "description": "The answer to any request, of any method and path, that no other route takes. There is no separate health route.\n\nWho: Anyone\n\nAnswers: `200 text/plain: Ghost Messaging relay`\n\nRefusals:\n- `400 (empty)  a path whose percent-escapes are not UTF-8`\n- `404 text/plain: Ghost Messaging relay  a WebSocket upgrade whose last path segment is neither hub nor 32 hex digits`\n- `400 (empty)  a WebSocket upgrade to the hub or a channel whose Sec-WebSocket-Key is not 1 to 64 printable ASCII characters`"
               }
             }
           ]
@@ -1824,7 +1824,7 @@
                     }
                   ]
                 },
-                "description": "Makes a space, or opens one that exists. The first PUT sets the space's token.\n\nWho: Holder of the space token, signed\n\nBody:\n- `owner`: The owner's public key, 66 hex digits. Taken only when it is the signer's own key.\n- `rv`: A roster announcement: {\"v\": version, \"h\": sha256 hex of its signed bytes, \"ad\": [admins' ids], \"g\": the owner's grant (128 hex), from a non-owner}. Ignored when not believed.\n\nAnswers: `201 (made) or 200 (existed) {\"seq\": 0, \"used\": 0, \"quota\": 100000000000, \"maxFile\": 50004194304, \"files\": 0, \"owner\": \"02a1…\", \"rv\": 0, \"cas\": 1}`\n\nRefusals:\n- `404 {\"err\": \"No such space.\"}  (also a wrong token)`\n- `401 {\"err\": \"No token.\"}`\n- `413 {\"err\": \"Too big.\"}  body over 65536 bytes`\n- `401 {\"err\": \"Bad signature.\"}`\n- `429 {\"err\": \"Slow down.\"}`\n- `403 {\"err\": \"Too many Files spaces made by this device.\"}`\n- `429 {\"err\": \"Too many Files spaces made from here today.\"}`\n- `507 {\"err\": \"Full.\"}`"
+                "description": "Makes a space, or opens one that exists. The first PUT sets the space's token. The answer is the space's state, as GET gives it.\n\nWho: Holder of the space token, signed\n\nBody:\n- `owner`: The owner's public key, 66 hex digits. Taken only when it is the signer's own key.\n- `rv`: A roster announcement: {\"v\": version, \"h\": sha256 hex of its signed bytes, \"ad\": [admins' ids], \"g\": the owner's grant (128 hex), from a non-owner}. Ignored when not believed.\n\nAnswers: `201 (made) or 200 (existed) {\"seq\": 0, \"used\": 0, \"quota\": 100000000000, \"maxFile\": 50004194304, \"files\": 0, \"owner\": \"02a1…\", \"rv\": 0, \"cas\": 1, \"parts\": []}`\n\nRefusals:\n- `404 {\"err\": \"No such space.\"}  (also a wrong token)`\n- `401 {\"err\": \"No token.\"}`\n- `413 {\"err\": \"Too big.\"}  body over 65536 bytes`\n- `401 {\"err\": \"Bad signature.\"}`\n- `429 {\"err\": \"Slow down.\"}`\n- `403 {\"err\": \"Too many Files spaces made by this device.\"}`\n- `429 {\"err\": \"Too many Files spaces made from here today.\"}`\n- `507 {\"err\": \"Full.\"}`"
               }
             },
             {
@@ -1855,7 +1855,7 @@
                     }
                   ]
                 },
-                "description": "The space's state: its last log number, bytes used, limits, owner and roster version.\n\nWho: Holder of the space token\n\nAnswers: `200 {\"seq\": 8, \"used\": 1048592, \"quota\": 100000000000, \"maxFile\": 50004194304, \"files\": 1, \"owner\": \"02a1…\", \"rv\": 3, \"cas\": 1}`\n\nRefusals:\n- `404 {\"err\": \"No such space.\"}  (also a wrong token)`\n- `401 {\"err\": \"No token.\"}`\n- `405 {\"err\": \"No.\"}  any method but PUT, GET, DELETE`"
+                "description": "The space's state: its last log number, bytes used, limits, owner and roster version, and in parts the newest 100 uploads not finished yet: each blob's id, who started it (by), its size (z), the bytes here (h) and when it last moved (at).\n\nWho: Holder of the space token\n\nAnswers: `200 {\"seq\": 8, \"used\": 1048592, \"quota\": 100000000000, \"maxFile\": 50004194304, \"files\": 1, \"owner\": \"02a1…\", \"rv\": 3, \"cas\": 1, \"parts\": [{\"id\": \"5d41402abc4b2a76b9719d911017c592\", \"by\": \"<id>\", \"z\": 1048592000, \"h\": 8388608, \"at\": 1763900000000}]}`\n\nRefusals:\n- `404 {\"err\": \"No such space.\"}  (also a wrong token)`\n- `401 {\"err\": \"No token.\"}`\n- `405 {\"err\": \"No.\"}  any method but PUT, GET, DELETE`"
               }
             },
             {
@@ -2414,6 +2414,12 @@
                     "description": "The signature over the request: 64 bytes (r then s), base64."
                   },
                   {
+                    "key": "Origin",
+                    "value": "",
+                    "description": "From the app in a browser at the address the relay is set to allow (GHOST_APP_ORIGIN), the answer carries Access-Control-Allow-Origin for it.",
+                    "disabled": true
+                  },
+                  {
                     "key": "Content-Type",
                     "value": "application/json"
                   }
@@ -2919,7 +2925,7 @@
                     "review"
                   ]
                 },
-                "description": "The review queue: every open submission, the 50 most recently decided, and counts.\n\nWho: Review\n\nAnswers: `200 {\"ok\": true, \"open\": [...], \"recent\": [...], \"counts\": {\"submitted\": 0, \"in_review\": 0, \"changes_requested\": 0, \"reports\": 0}}`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"unsigned\"}  or \"bad_signature\"`\n- `403 {\"ok\": false, \"error\": \"not_admin\"}`"
+                "description": "The review queue: every open submission, the 50 most recently decided, and counts, with the reports of plugins and of people not yet done.\n\nWho: Review\n\nAnswers: `200 {\"ok\": true, \"open\": [...], \"recent\": [...], \"counts\": {\"submitted\": 0, \"in_review\": 0, \"changes_requested\": 0, \"reports\": 0, \"abuse\": 0}}`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"unsigned\"}  or \"bad_signature\"`\n- `403 {\"ok\": false, \"error\": \"not_admin\"}`"
               }
             },
             {
@@ -3261,6 +3267,168 @@
               }
             },
             {
+              "name": "POST /market/abuse",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "{{ghostKey}}",
+                    "description": "The install's public key: 33 bytes, compressed, base64."
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "{{ghostTime}}",
+                    "description": "Now, in milliseconds since 1970."
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "{{ghostSig}}",
+                    "description": "The signature over the request: 64 bytes (r then s), base64."
+                  },
+                  {
+                    "key": "x-ghost-body-sha256",
+                    "value": "{{ghostBodySha256}}",
+                    "description": "The body's SHA-256 in hex, said before it is read."
+                  },
+                  {
+                    "key": "x-ghost-body-length",
+                    "value": "{{ghostBodyLength}}",
+                    "description": "The body's length in bytes."
+                  },
+                  {
+                    "key": "Origin",
+                    "value": "",
+                    "description": "From the app in a browser at the address the relay is set to allow (GHOST_APP_ORIGIN), the answer carries Access-Control-Allow-Origin for it.",
+                    "disabled": true
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sealed\": \"q83vEjRWeJCrze8SNFZ4kKvN7xI0VniQq83vEjRWeJCrze8SNFZ4kKvN7xI0VniQq83vEjRWeJCrze8SNFZ4kKvN7xI0VniQ\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{relay}}/market/abuse",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "market",
+                    "abuse"
+                  ]
+                },
+                "description": "Reports a person or a message to review. The report is sealed in the app to the review keys: the relay can't read it, and keeps the envelope without its sender's key. The newest 150 are kept.\n\nWho: Signed: any install\n\nBody:\n- `sealed` (needed): The sealed report: strict base64, at most 48000 characters, at least 64 bytes decoded. The body is exactly this.\n\nAnswers: `201 {\"ok\": true, \"id\": \"<16 hex>\"}`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"unsigned\"}  or \"bad_signature\"`\n- `400 {\"ok\": false, \"error\": \"bad_json\"}  or \"bad_request\"`\n- `413 {\"ok\": false, \"error\": \"too_large\"}`\n- `429 {\"ok\": false, \"error\": \"rate_limited\"}  5 an hour and 15 a day by one key, 20 a day from one address`"
+              }
+            },
+            {
+              "name": "GET /market/abuse",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "{{ghostKey}}",
+                    "description": "The install's public key: 33 bytes, compressed, base64."
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "{{ghostTime}}",
+                    "description": "Now, in milliseconds since 1970."
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "{{ghostSig}}",
+                    "description": "The signature over the request: 64 bytes (r then s), base64."
+                  }
+                ],
+                "url": {
+                  "raw": "{{relay}}/market/abuse",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "market",
+                    "abuse"
+                  ]
+                },
+                "description": "The reports of people and messages that are kept, newest first, each still sealed. Only a holder of a review key can open one.\n\nWho: Review\n\nAnswers: `200 {\"ok\": true, \"reports\": [{\"rid\", \"sealed\", \"at\", \"done\", \"doneAt\"}]}`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"unsigned\"}  or \"bad_signature\"`\n- `403 {\"ok\": false, \"error\": \"not_admin\"}`"
+              }
+            },
+            {
+              "name": "POST /market/abuse/{rid}",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "{{ghostKey}}",
+                    "description": "The install's public key: 33 bytes, compressed, base64."
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "{{ghostTime}}",
+                    "description": "Now, in milliseconds since 1970."
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "{{ghostSig}}",
+                    "description": "The signature over the request: 64 bytes (r then s), base64."
+                  },
+                  {
+                    "key": "x-ghost-body-sha256",
+                    "value": "{{ghostBodySha256}}",
+                    "description": "The body's SHA-256 in hex, said before it is read."
+                  },
+                  {
+                    "key": "x-ghost-body-length",
+                    "value": "{{ghostBodyLength}}",
+                    "description": "The body's length in bytes."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"done\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{relay}}/market/abuse/:rid",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "market",
+                    "abuse",
+                    ":rid"
+                  ],
+                  "variable": [
+                    {
+                      "key": "rid",
+                      "value": "",
+                      "description": "The report's id: 16 lowercase hex digits."
+                    }
+                  ]
+                },
+                "description": "Marks a report of a person or a message done.\n\nWho: Review\n\nBody:\n- `done` (needed): Always true. The body is exactly this.\n\nAnswers: `200 {\"ok\": true}`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"unsigned\"}  or \"bad_signature\"`\n- `403 {\"ok\": false, \"error\": \"not_admin\"}`\n- `400 {\"ok\": false, \"error\": \"bad_json\"}  or \"bad_request\"`\n- `404 {\"ok\": false, \"error\": \"not_found\"}`"
+              }
+            },
+            {
               "name": "POST /market/developers/{dev}/block",
               "request": {
                 "method": "POST",
@@ -3362,6 +3530,179 @@
                   ]
                 },
                 "description": "Retires a review key: its approvals are refused from then on, and the retirement joins the withdrawals list. The request is not signed; the body carries the key's own signature.\n\nWho: Anyone holding the review key\n\nBody:\n- `v` (needed): Always 1.\n- `key` (needed): The review key, base64. One that has approved or revoked something here.\n- `at` (needed): When, in milliseconds. Not covered by the signature.\n- `sig` (needed): Base64 signature by that key over the retirement's words.\n\nAnswers: `200 {\"ok\": true, \"retired\": {\"v\": 1, \"key\": \"...\", \"at\": 1795000000000, \"sig\": \"...\"}}`\n\nRefusals:\n- `429 {\"ok\": false, \"error\": \"rate_limited\"}  10 an hour from one address`\n- `400 {\"ok\": false, \"error\": \"bad_json\"}  or \"bad_request\"`\n- `413 {\"ok\": false, \"error\": \"too_large\"}`\n- `404 {\"ok\": false, \"error\": \"not_found\"}  a key that has signed nothing here`\n- `401 {\"ok\": false, \"error\": \"bad_signature\"}`\n- `507 {\"ok\": false, \"error\": \"withdrawals_full\"}`"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bounties",
+          "description": "Souls given by the holder of the relay's bounty key.",
+          "item": [
+            {
+              "name": "POST /bounty",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "",
+                    "description": "The bounty key's public half: base64 of its 33 bytes. It must be the key the relay was given.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "",
+                    "description": "Milliseconds since 1970, within 5 minutes of the relay's clock.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "",
+                    "description": "Base64 of the 64-byte signature over the five lines: ghost-bounty v1, POST, /bounty, the time, the body's SHA-256 in hex.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"to\": \"0f1e2d3c4b5a69780f1e2d3c4b5a6978\",\n  \"souls\": 50,\n  \"why\": \"Bug bounty: GMFB-12\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{relay}}/bounty",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "bounty"
+                  ]
+                },
+                "description": "Gives souls to one install, with a reason, and records it in the admin log. Signed by the bounty key alone, over ghost-bounty v1. At most 30 a day; the body is at most 4096 bytes.\n\nWho: Holder of the bounty key\n\nBody:\n- `to` (needed): Who gets them: an install's id, 32 lowercase hex digits.\n- `souls` (needed): A whole number from 1 to 500.\n- `why` (needed): The reason, shown to the person: 1 to 200 characters.\n\nAnswers: `200 {\"ok\": true, \"to\": \"0f1e…\", \"souls\": 50, \"n\": 150}  n is their total after`\n\nRefusals:\n- `405 {\"error\": \"A bounty is paid with POST.\"}`\n- `404 {\"error\": \"Not here.\"}  no bounty key is set`\n- `413 {\"error\": \"Too long to be a bounty.\"}`\n- `400 {\"error\": \"It didn't arrive whole.\"}  the body stalled for 15 seconds`\n- `401 {\"error\": \"Not signed by the bounty key, or too old.\"}  also a repeat`\n- `400 {\"error\": \"It couldn't be read.\"}`\n- `400 {\"error\": \"to is a Ghost id: 32 hex characters.\"}`\n- `400 {\"error\": \"Between 1 and 500 souls.\"}`\n- `400 {\"error\": \"Say why (the ticket), in at most 200 characters.\"}`\n- `429 {\"error\": \"That's 30 bounties today; more tomorrow.\"}`"
+              }
+            }
+          ]
+        },
+        {
+          "name": "The app in a browser",
+          "description": "The app built for a browser, served as plain files under /app/ by a relay given the folder.",
+          "item": [
+            {
+              "name": "GET /app/",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "If-None-Match",
+                    "value": "",
+                    "description": "The ETag from an earlier answer. A match answers 304 with no body.",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{relay}}/app",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "app"
+                  ]
+                },
+                "description": "The app's page, index.html. /app without the slash answers 301 to /app/, keeping any query.\n\nWho: Anyone\n\nAnswers: `200 text/html; charset=utf-8, with an ETag and Cache-Control: no-cache`\n\nRefusals:\n- `404 text/plain: Not found  the folder has no index.html`\n- `405 (empty)  with Allow: GET, HEAD`"
+              }
+            },
+            {
+              "name": "GET /app/{path}",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "If-None-Match",
+                    "value": "",
+                    "description": "The ETag from an earlier answer. A match answers 304 with no body.",
+                    "disabled": true
+                  },
+                  {
+                    "key": "Accept-Encoding",
+                    "value": "",
+                    "description": "br or gzip: a copy packed beforehand is sent where there is one, with Content-Encoding.",
+                    "disabled": true
+                  }
+                ],
+                "url": {
+                  "raw": "{{relay}}/app/:path",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "app",
+                    ":path"
+                  ],
+                  "variable": [
+                    {
+                      "key": "path",
+                      "value": "",
+                      "description": "The file, as the page names it: one or more parts with slashes between. No part may be . or .., start with a dot, or hold a backslash, a colon or a control character."
+                    }
+                  ]
+                },
+                "description": "One file of the build. Its type goes by its ending. A file with a hash of its contents in its name is kept for a year; any other is asked for again each time. Where name.br or name.gz lies beside it and the browser takes that packing, that is what is sent. A folder is not listed.\n\nWho: Anyone\n\nAnswers: `200 the file, with Content-Type, ETag, Vary: Accept-Encoding and Cache-Control: no-cache, or public, max-age=31536000, immutable`\n\nRefusals:\n- `404 text/plain: Not found  no such file, a folder, a name that isn't plain, or a link that leads outside the folder`\n- `405 (empty)  with Allow: GET, HEAD`"
+              }
+            },
+            {
+              "name": "HEAD /app/{path}",
+              "request": {
+                "method": "HEAD",
+                "header": [],
+                "url": {
+                  "raw": "{{relay}}/app/:path",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "app",
+                    ":path"
+                  ],
+                  "variable": [
+                    {
+                      "key": "path",
+                      "value": "",
+                      "description": "The file, as for GET. Left empty, index.html."
+                    }
+                  ]
+                },
+                "description": "The headers of a file (Content-Type, Content-Length, ETag, Cache-Control) without its bytes.\n\nWho: Anyone\n\nAnswers: `200, headers only`\n\nRefusals:\n- `404 text/plain: Not found`\n- `304 (empty)  If-None-Match matched`"
+              }
+            },
+            {
+              "name": "GET /app/clear-site-data",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Sec-Fetch-Site",
+                    "value": "",
+                    "description": "same-origin, as the browser sets it on the page's own fetch.",
+                    "disabled": false
+                  }
+                ],
+                "url": {
+                  "raw": "{{relay}}/app/clear-site-data",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "app",
+                    "clear-site-data"
+                  ]
+                },
+                "description": "Tells the browser to clear what this address keeps. The app's page asks for it as it signs out or is removed. Answered only to the page itself; anything else gets 404, as a file that isn't there.\n\nWho: The app's own page\n\nAnswers: `204 (empty)  with Clear-Site-Data: \"storage\" and Cache-Control: no-store`\n\nRefusals:\n- `404 text/plain: Not found  any other Sec-Fetch-Site, or none`"
               }
             }
           ]

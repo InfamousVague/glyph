@@ -34,6 +34,7 @@ class RcsState {
       );
 }
 
+/// The two ends of that asking: the phone's answer, and a computer's question.
 class RcsShare {
   RcsShare._();
 
