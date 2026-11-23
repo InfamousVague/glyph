@@ -614,6 +614,12 @@ class IrohNode implements P2pNode, Finalizable {
     if (_gone || !isNodeId(nodeId)) return;
     _allowed.remove(nodeId);
     _endStreams((s) => s.nodeId != nodeId, _closedBecause[4]);
+    // An open to it that is under way fails now, and the stream it may still come to is closed as it comes (an OPENED
+    // nobody waits on): it was handed up, frames and all, after this had returned.
+    for (final entry in _opening.entries.where((e) => e.value.nodeId == nodeId).toList()) {
+      _opening.remove(entry.key);
+      entry.value.fail('This device no longer allows it.');
+    }
     if (_number != null) _command((_Writer(_Cmd.disallow)..bytes(_unhex(nodeId))).take());
   }
 

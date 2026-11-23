@@ -245,6 +245,45 @@ void main() {
     await expectLater(theirs.add(Uint8List(1)), _refused);
   }, skip: skip, timeout: patient);
 
+  // The review of Direct's switch (2026-11-23): an open under way when its node was disallowed completed after, and
+  // that node's frames were handed up. This side fails it as disallow returns, before anything the core says next;
+  // the core closes its link and fails it too (native/p2p, src/tests.rs, an_open_under_way_when_its_node_is_disallowed).
+  test('an open under way when its node is disallowed fails as disallow returns, and nothing of that node is handed up', () async {
+    final a = await _up(106), b = await _up(107);
+    a.allow(b.nodeId!, {P2pChannel.packets});
+    b.allow(a.nodeId!, {P2pChannel.packets});
+    final where = await _here(b);
+    final atB = <P2pStream>[];
+    b.opened.listen(atB.add);
+    for (var round = 0; round < 3; round++) {
+      Object? failed;
+      final opening = a.open(b.nodeId!, P2pChannel.packets, hint: where, timeout: const Duration(seconds: 10));
+      unawaited(opening.then<void>((s) => fail('round $round: the open came to a stream after the disallow'), onError: (Object e) => failed = e));
+      a.disallow(b.nodeId!);
+      // Microtasks only: whatever the core says comes later, by its port.
+      await Future<void>.microtask(() {});
+      expect(failed, isA<P2pError>(), reason: 'round $round: the open was still waiting once disallow had returned');
+      // What the other end took of it, it sends on: nothing reaches a.
+      for (final s in atB.toList()) {
+        await s.add(Uint8List.fromList('from a node a disallowed'.codeUnits)).catchError((Object _) {});
+      }
+      await _until(() => a.pathTo(b.nodeId!) == null, 'round $round: a link to the disallowed node was left up');
+      atB.clear();
+      // Allowed again, an open goes.
+      a.allow(b.nodeId!, {P2pChannel.packets});
+      final coming = _next(b);
+      final ours = await a.open(b.nodeId!, P2pChannel.packets, hint: where);
+      final theirs = await coming;
+      atB.remove(theirs);
+      final heard = _Heard(ours);
+      await theirs.add(Uint8List.fromList('allowed again'.codeUnits));
+      await _until(() => heard.frames.isNotEmpty, 'round $round: nothing came once allowed again');
+      await ours.close();
+      await theirs.close();
+      await heard.sub.cancel();
+    }
+  }, skip: skip, timeout: patient);
+
   test('stop then start is the same node, and works again and again; who was allowed is still allowed', () async {
     final a = await _up(41), b = await _up(42);
     final id = b.nodeId;
