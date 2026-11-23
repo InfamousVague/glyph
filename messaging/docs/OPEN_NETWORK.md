@@ -18,7 +18,7 @@ releasable at every step. **Status** lines say what is built; everything else is
 | The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; merged switched off (`Net.p2pNode` null). The contract it holds the core to is `lib/net/p2p/node.dart`. Its switch in Settings › Routes (off until the person turns it on, at first) is being built, then a review of the core and the route together |
 | Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | the name watch in 0.12.16; the ledger built, reviewed and fixed, and waiting on Direct (it compares over direct links) |
 | Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed four times, fixed (relay and app); merged; gogho.st's relay runs it switched off (`GHOST_FED` unset, deployed 2026-11-23); the app's side in 0.12.17. It is switched on once the v2 sign-in (0.12.17, the browser extension's 0.2.2) is in enough apps: `GHOST_HUB_NAMES` first, then `GHOST_FED=open` |
-| A relay hosted from the app | `lib/relay_host/` | being built |
+| A relay hosted from the app | `lib/relay_host/`, its options in `relay/lib/hub.dart` and `federation.dart` | built on `relay-host`, reviewed twice and fixed; off by default, not merged yet. Usable for an app only once its public relay lets it stay, which gogho.st doesn't yet (section 5) |
 | The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged after four reviews, its changes to phones and computers in 0.12.17 (part 6 says what it keeps and where it is served); not on `app.gogho.st` yet: its block and build are ready, its DNS record is to add |
 
 Each part is reviewed independently before it is switched on, and every review finding is fixed with a test that fails
@@ -266,19 +266,61 @@ Friends' apps follow the record; the old relay passes on what still comes to it.
 
 ## 5. A relay hosted from the app
 
-The relay is a Dart package with nothing in it but Dart (`relay/`), so the app runs the same hub in itself:
-Settings › Routes › Host a relay on this device.
+Matt, 2026-11-22: "i'd like everyone to be able to host a relay from their client". **Built** on `relay-host`
+(`lib/relay_host/`; the relay's options in `relay/lib/hub.dart` and `federation.dart`, each inert unless set, so
+gogho.st's relay, whose `bin/relay.dart` sets none, says and does what it did), off by default, on the Mac, Windows,
+Linux and Android. An iPhone and a browser have none (`lib/relay_host/relay_host.dart` chooses the half; a browser's
+build never names the relay package, which the guard test holds it to). Settings › Routes › Host a relay on this device
+runs the same hub gogho.st runs, in the app:
 
-- It is given a key and a folder of its own, small limits (200 connections, 32 MB kept), and, where the person
-  wants, a pass phrase people must have to use it.
-- **Reached three ways:** by this app itself, in memory; by devices on the same network (`ws://address:port/hub`);
-  and from anywhere over the direct network, as a hub connection on channel 1 to its node id, with no port opened
-  and no certificate.
-- **It stays linked to a public relay** (`via`, ours unless changed): it dials out as a relay does, so nothing
-  needs to reach in. People on other relays reach its people through that link (`[6]`, above), and its people reach
-  everyone else the same way back.
-- It is up while the app is running: on a computer for as long as it is open, on an Android phone while the app is
-  in use, on an iPhone not at all.
+- **A key and a folder of its own**: `relay/` under the folder this copy of the app keeps everything in (beside a
+  computer's store; Android's files): `relay-key.json` (its name to everyone), `homes.json` (where its people said they
+  live), `hub-v2.json`, `hub-pass.json` (which installs have given its pass phrase). Nothing anyone said is written.
+- **Small limits**, the hub's own settings: 200 connections; 32 MB kept for people who are away (24 MB held for them,
+  counted with what holding each costs, and 8 MB of what rooms keep); 16 MB in flight, 4 MB waiting for one connection;
+  8 MB waiting for its public relay; 2,000 v2 keys (200 new an hour) and 1,000 home records of each kind. No usernames,
+  accounts, invite words, pushes or call relay of its own: while on it, adding a device, refreshing the backup,
+  deleting the account and finding friends by username don't work, and the screens say so.
+- **A pass phrase**, where the person sets one (`Hub(pass:)`): proved for each connection and each install
+  (PBKDF2-HMAC-SHA256, 20,000 rounds, salted with the relay's own name, which its hello says, then HMAC over the hub's
+  number and the install's name), never sent. Wrong ones cost whoever gives them: each place (an address on the
+  network; over Direct the node) has five free, then waits a minute, doubled each time, an hour at most; strangers
+  together have 200 an hour, past which only installs that never gave the phrase there wait. Those who have given it,
+  and the host's own app in memory, are never shut out by a stranger. An app refused waits for a phrase, or as long as
+  the relay says, instead of trying again.
+- **Reached three ways:** this app in memory (a HubLink straight to a HubSocket); devices on the same network at
+  `ws://address:port/hub` (port 7787 unless changed; only at private addresses of a network of the device's own, never
+  a phone's mobile data), behind a door that takes 8 connections from one address and 64 in all and closes a request not
+  finished in five seconds; and from anywhere over Direct, a hub connection on channel 1 to its node, Direct on at both
+  ends, by `ghost-relay://<relay name>?n=<node id>&via=<public relay>`, which the relay picker takes and holds to that
+  relay (another answering there is refused). A sign-in to it is bound (v2) to the node dialled over Direct, to its name
+  in memory, or to the address on the network.
+- **Its link** (`ghostmsg://relay?a=…`, as its QR code holds and the share sends): opens the app at "Check this
+  relay?", and only on a yes is the address dialled, then "Use this relay?". A link names only a hosted relay or a
+  `ws://` relay on a local network; any other relay is taken only typed in (on Android a relay that says it doesn't know
+  the account makes the app forget the account's words and keys).
+- **Linked to a public relay** (`via`, gogho.st): as a relay with no address, it dials out and asks to stay; its
+  people's records say `ghost-relay://<its name>?via=…`, and others reach them through the public relay (`[6]`). The
+  public relay says whether it may stay (`"stay": true`), and Settings shows how the link stands, as it answered. Its
+  hello says it talks to other relays (`fed`) only while it stays. gogho.st has federation off and answers "not a relay
+  that talks to others"; until it takes the link, the people on a hosted relay reach only each other, so neither "Use
+  it for this app" nor a joiner's "Use this relay" is offered.
+- **Up while the app runs:** on a computer while it is open; on Android stopped a minute after the app is paused or
+  hidden (not merely inactive: split screen, the shade), and started again as it comes back. On a phone it is never
+  offered for the app itself, and a closed Android app can't check a hosted relay for messages (its check needs ws or
+  wss and sends no pass phrase). Stopping closes every connection: the apps on it see their relay unreachable and dial
+  again by themselves, and what it kept in memory goes. Switched off, it first moves this app back to the relay it used
+  before. Signing out stops it, switches it off and forgets its pass phrase; its folder stays. The routes don't wait for
+  it to start.
+- **What the host sees:** which installs connect and when, and who sends to whom; never what. Said before it is switched
+  on, and to whoever joins (its hello says `"hosted": true`); a joiner at a network address is told what the network
+  sees too.
+- **This app on it:** "Use it for this app" is GMFB-25's relay switch, with its home-record move. The account's other
+  devices stay on their relay until moved; friends are told, and reach it through the public relay. Until a friend's
+  app has heard, what they send waits on their relay (about 200 messages, up to three days, lost if it restarts).
+
+Not yet: gogho.st taking the link (`GHOST_FED` and `GHOST_FED_STANDING` there, after the v2 sign-in); Direct switched on
+in a build; a relay on an iPhone; the pass phrase put in Unicode's one form (NFC) before it is proved (trimmed only).
 
 ## 6. The web client
 
