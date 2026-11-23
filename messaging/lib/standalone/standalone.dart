@@ -111,8 +111,8 @@ class StandaloneCalls implements SmsCalls {
     _last = _last.catchError((_) {}).then((_) => store.writeState(text));
   }
 
-  /// Every write done, for a test.
-  @visibleForTesting
+  /// Every write done: before the app starts again, before a page in a browser hands over to another tab of itself
+  /// (lib/web), and for a test.
   Future<void> flushed() => _last;
 
   List<Buddy> get _buddyList {
