@@ -454,7 +454,7 @@ class _GroupName extends StatelessWidget {
   }
 }
 
-/// The floor under everyone: its edge, a grid of dots to walk against, how far this device hears, and each group as a
+/// The floor under everyone: the walls round it ([_walls]), a grid of dots to walk against, how far this device hears, and each group as a
 /// circle, an outline in its colour over a see-through wash of it (Matt, 2026-11-23: "remove the extra decorations like
 /// a crosshair on the circles just make a circle outline with the semiopaque infill").
 class _FloorPainter extends CustomPainter {
@@ -469,14 +469,7 @@ class _FloorPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = ground);
-    final edge = RRect.fromRectAndRadius(Rect.fromPoints(_at(Offset.zero), _at(const Offset(OpenWorld.width, OpenWorld.height))), Radius.circular(36 * scale));
-    canvas.drawRRect(edge, Paint()..color = floor);
-    canvas.drawRRect(
-        edge,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = rule);
+    canvas.drawRect(Rect.fromPoints(_at(Offset.zero), _at(const Offset(OpenWorld.width, OpenWorld.height))), Paint()..color = floor);
     // Dots every 80 of the floor's units, only those in sight.
     const step = 80.0;
     final dot = Paint()..color = ink.withValues(alpha: 0.22);
@@ -496,6 +489,7 @@ class _FloorPainter extends CustomPainter {
         ..color = g.color.withValues(alpha: g.mine ? 0.95 : 0.7);
       canvas.drawCircle(c, r, line);
     }
+    _walls(canvas);
     // How far this device hears: nobody past this ring is heard. (The ring inside which everyone is whole is not
     // drawn: it sat just inside a small group's edge and read as part of the group.)
     canvas.drawCircle(
@@ -505,6 +499,45 @@ class _FloorPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1
           ..color = ink.withValues(alpha: 0.18));
+  }
+
+  /// How thick the walls are and how high they stand, in the floor's units.
+  static const double wallThick = 30, wallHigh = 104;
+
+  /// The walls round the floor, drawn as a room seen from above and a little in front (Matt, 2026-11-23: "add 3d walls
+  /// to the edges so it shows a 2.5d wall around the edges"). From there the far wall shows its face, standing
+  /// [wallHigh] above the floor's far edge under its top; the side walls show only their tops, running down the
+  /// sides; and the near wall shows its top and, below it, its outer face in shade. The far wall lays a soft shadow on
+  /// the floor at its foot. Drawn after the floor's dots and groups, which all lie inside it.
+  void _walls(Canvas canvas) {
+    const w = OpenWorld.width, h = OpenWorld.height, t = wallThick, up = wallHigh;
+    Rect box(double x0, double y0, double x1, double y1) => Rect.fromPoints(_at(Offset(x0, y0)), _at(Offset(x1, y1)));
+    Color shade(double much) => Color.lerp(floor, ink, much)!;
+    Paint fall(Rect r, Color from, Color to) => Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [from, to]).createShader(r);
+    // The far wall's shadow on the floor, darkest at its foot.
+    final shadow = box(0, 0, w, 54);
+    canvas.drawRect(shadow, fall(shadow, ink.withValues(alpha: 0.2), ink.withValues(alpha: 0)));
+    // The far wall's face, lit from above, with a skirting along its foot.
+    final far = box(0, -up, w, 0);
+    canvas.drawRect(far, fall(far, shade(0.2), shade(0.34)));
+    canvas.drawRect(box(0, -9, w, 0), Paint()..color = shade(0.46));
+    // The near wall's outer face, in shade, under its top.
+    final near = box(-t, h + t, w + t, h + t + up);
+    canvas.drawRect(near, fall(near, shade(0.44), shade(0.56)));
+    // The walls' tops: the far one from corner to corner, the sides down from it, the near one between them.
+    final top = Paint()..color = shade(0.1);
+    final tops = [box(-t, -up - t, w + t, -up), box(-t, -up, 0, h + t), box(w, -up, w + t, h + t), box(0, h, w, h + t)];
+    for (final r in tops) {
+      canvas.drawRect(r, top);
+    }
+    // An edge round the tops' outside and round the floor, so wall and floor are told apart in every look.
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = rule;
+    canvas.drawRect(box(-t, -up - t, w + t, h + t), edge);
+    canvas.drawRect(box(0, -up, w, h), edge);
+    canvas.drawLine(_at(const Offset(0, 0)), _at(const Offset(w, 0)), edge);
   }
 
   @override

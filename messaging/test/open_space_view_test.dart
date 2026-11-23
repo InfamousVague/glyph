@@ -192,4 +192,21 @@ void main() {
       }
     });
   }
+  // The walls (Matt, 2026-11-23: "add 3d walls to the edges so it shows a 2.5d wall around the edges"): the far wall's
+  // face and the side wall's top at the far corner, and the near wall's top and outer face at the near one.
+  for (final dark in [false, true]) {
+    testWidgets('the walls round the floor, at its far corner and its near one, ${dark ? 'dark' : 'light'}', (tester) async {
+      final s = await scene(tester, dark: dark);
+      for (final (name, at) in [('open-space-walls-far', const Offset2(230, 200)), ('open-space-walls-near', Offset2(OpenWorld.width - 230, OpenWorld.height - 200))]) {
+        s.a.walkTo(at);
+        while (s.a.walking) {
+          s.a.step(10);
+        }
+        await beat(tester);
+        expect(s.a.me.at, at);
+        if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
+      }
+      await s.end();
+    });
+  }
 }
