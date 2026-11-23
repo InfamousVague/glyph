@@ -30,7 +30,10 @@ import 'package:integration_test/integration_test.dart';
 ///
 /// with the same three key scalars (64 hex digits each, made for the run) given to the Mac's half. With E2E_IDLE, it ends
 /// with that many minutes put away with Direct on and as many with it off, for the app's CPU to be measured from the
-/// Mac (`adb shell cat /proc/<pid>/stat`). What it sees is said in the log (`E2E …`): counts and kinds, never a key.
+/// Mac (`adb shell cat /proc/<pid>/stat`, and its UDP sockets by its user in `/proc/net/udp*`, which an app itself may
+/// not read). Put away with nothing holding it (no bound service), Android freezes the app within a minute or two and
+/// its timers wait with it: bring it back (`adb shell am start -n com.infamousvague.ghostmessaging/.MainActivity`) as each
+/// window ends. What it sees is said in the log (`E2E …`): counts and kinds, never a key.
 const _hub = String.fromEnvironment('E2E_HUB');
 const _keys = String.fromEnvironment('E2E_KEYS');
 const _idle = int.fromEnvironment('E2E_IDLE');
