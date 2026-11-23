@@ -31,8 +31,9 @@ String shortcutsSummary(SettingsModel m) => !Sms.callsHere
 List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   final keys = Keys.instance;
   final groups = <String, List<KeyCommand>>{};
+  // Only what this device has (Keys.offered): in a browser, no calls' commands and no Marketplace.
   for (final c in KeyCommand.values) {
-    if (c.group == 'Calls' && !Sms.callsHere) continue;
+    if (!Keys.offered(c)) continue;
     (groups[c.group] ??= []).add(c);
   }
   return [

@@ -475,7 +475,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           keywords: [for (final p in c.people) p.address].join(' '),
           detail: c.unread ? 'Unread' : null,
         ),
-      for (final (id, label, command) in _places) CommandDescriptor(id: 'go:$id', label: label, group: 'Go to', shortcut: Keys.instance.of(command)?.label),
+      // Only the places this device has (Keys.offered): no Marketplace in a browser.
+      for (final (id, label, command) in _places)
+        if (Keys.offered(command)) CommandDescriptor(id: 'go:$id', label: label, group: 'Go to', shortcut: Keys.instance.of(command)?.label),
     ];
   }
 
@@ -892,6 +894,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// the section's own: a dev pack's id for `submit` (the form starts with that pack), a submission's sid for `mine`
   /// (marked and scrolled to).
   void marketplace({String? section, String? plugin, String? seek, String? arg}) {
+    // None in a browser, however it is asked for (a key, a link, an old way into Settings › Plugins): it has nowhere to
+    // keep a plugin (lib/web/app.dart).
+    if (Sms.browser) return;
     final side = _side.currentState;
     if (side == null) {
       // Asked for before the first frame (`ui.openSettings('plugins')`, a link): once there is a list.
