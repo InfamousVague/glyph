@@ -80,7 +80,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   /// Add people: the friends who are not in it yet.
   void _addPeople(Group g) {
-    final inIt = {for (final m in g.members) Friends.digits(m.address)};
+    final inIt = {for (final m in g.members) Friends.digits(m.shown)};
     final can = Friends.instance.friends.where((f) => !inIt.contains(Friends.digits(f.address))).toList();
     if (can.isEmpty) {
       toast(context, 'Every friend of yours is in it already');
@@ -207,9 +207,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       for (final m in ghost.members)
                         SettingRow(
                           icon: AppIcon(m.admin ? Lucide.shieldCheck : Lucide.userRound, size: 18),
-                          label: m.me ? 'You' : (m.name ?? (m.address.isEmpty ? 'Someone' : m.address)),
+                          // As this phone knows them (GroupMember.shown), never the address the group's admin wrote.
+                          label: m.label,
                           value: m.admin ? const Text('Admin') : null,
-                          hint: m.name != null && !m.me ? Text(m.address) : null,
+                          hint: m.name != null && !m.me && !m.standIn ? Text(m.shown) : null,
                           onPress: ghost.amAdmin && !m.me ? () => _member(ghost, m) : null,
                         ),
                       if (ghost.amAdmin) SettingRow(icon: const AppIcon(Lucide.userPlus, size: 18), label: 'Add people', onPress: () => _addPeople(ghost)),

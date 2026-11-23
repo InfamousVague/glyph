@@ -172,7 +172,8 @@ object Notifier {
         // A text the list hides (a kind the filter has unticked, or Spam) makes no notification, the app open or not; it
         // still arrives and is kept (GMFB-18, Matt, Android 0.12.3: "If we dont have a specific kind of message enabled
         // like political messages we shouldn't get notified via sms for those messages"). NotifyHush.kt says how.
-        val strangers = people.all { store.contact(it["address"] as String)["name"] == null }
+        // A member of a group shown under a stand-in (Groups.memberName) is called "Someone" and is still nobody's contact.
+        val strangers = people.all { val a = it["address"] as String; Groups.memberName(a) != null || store.contact(a)["name"] == null }
         if (!inBubble && NotifyHush.hushes(ui.getString(NotifyHush.PREF, null), thread, people.map { it["address"] as String }, people.size > 1, strangers, unread.last()["body"] as String)) return true
         val previews = ui.getString("notif_preview", "on") != "off"
         // A group only the bridge has (its people named only as they write): still a group, under the name Google

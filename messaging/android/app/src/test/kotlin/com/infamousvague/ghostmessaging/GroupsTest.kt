@@ -47,4 +47,30 @@ class GroupsTest {
         assertEquals("+15550003333", Groups.listed("+15550003333", held))
         assertEquals("", Groups.listed("", held))
     }
+
+    // The review's follow-up (2026-11-23): in the group's own conversation and its notifications, a stranger listed under
+    // Mom's number was shown as Mom, with her photo.
+    @Test fun aMemberIsShownUnderThisPhonesOwnRecordForTheirKeyElseUnderNobodysAddress() {
+        val ben = "b".repeat(32); val eve = "e".repeat(32); val maya = "c".repeat(32); val dan = "d".repeat(32)
+        val held = setOf(E2e.norm("+1 (555) 000-2222"), E2e.norm("+15550004444"))
+        val known = mapOf(ben to "+1 (555) 000-2222", maya to "@maya")
+        // Ben, listed under another number of his: shown under the one this phone's record has for his key.
+        assertEquals("+1 (555) 000-2222", Groups.shownAddress(ben, "+15550009999", known, held))
+        // A friend by username, listed under anything: their @name.
+        assertEquals("@maya", Groups.shownAddress(maya, "+15550002222", known, held))
+        // Eve, listed under Ben's number (a record of this phone's holds it), as "@maya", or under nothing: a stand-in.
+        val stand = Groups.memberAddress(eve)
+        assertEquals(stand, Groups.shownAddress(eve, "+15550002222", known, held))
+        assertEquals(stand, Groups.shownAddress(eve, "@maya", known, held))
+        assertEquals(stand, Groups.shownAddress(eve, "", known, held))
+        // Dan, listed under a number nobody's record holds: the group's word for him, as before.
+        assertEquals("+15550003333", Groups.shownAddress(dan, "+15550003333", known, held))
+        // The stand-in is nobody's: no digit, no contact is found by it, and it is called Someone.
+        assertTrue(stand.none { it.isDigit() })
+        assertNull(ContactKey.of(stand))
+        assertEquals("Someone · eeee", Groups.memberName(stand))
+        assertEquals("Someone · 0123", Groups.memberName(Groups.memberAddress("0123" + "a".repeat(28))))
+        assertNull(Groups.memberName("+15550002222"))
+        assertNull(Groups.memberName(Groups.address(eve)))
+    }
 }
