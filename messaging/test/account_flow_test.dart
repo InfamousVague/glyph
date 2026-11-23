@@ -142,10 +142,23 @@ class Device implements AccountPort, AccountRelay, AccountProfiles {
 class _Told extends Device {
   _Told(super.relayAccounts, super.handles);
   Map<String, Object?>? said;
+
+  /// Whether the relay says it holds the account.
+  bool held = true;
   @override
   Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
-    if (what['dir'] == 'acct-hello' && said != null) return {'dir': 'acct-hello', 'known': false, 'account': true, 'removed': said};
+    if (what['dir'] == 'acct-hello' && said != null) return {'dir': 'acct-hello', 'known': false, 'account': held, 'removed': said};
     return super.ask(what);
+  }
+}
+
+/// A device whose relay keeps no removals (one from before they were kept): `removed` never comes with acct-hello.
+class _NoProofs extends Device {
+  _NoProofs(super.relayAccounts, super.handles);
+  @override
+  Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
+    final m = await super.ask(what);
+    return what['dir'] == 'acct-hello' ? ({...m}..remove('removed')) : m;
   }
 }
 
@@ -422,6 +435,41 @@ void main() {
       expect(third.secrets.keys, [Me.mineSecret]);
     });
 
+    // Third review, A1: a browser removed while it was closed, then the backup brought up to date by another of the
+    // account's devices (which dropped the removal kept), stayed the account when opened again. With the removal kept it
+    // deletes everything; and where the relay holds the account and doesn't list it, it does so even with nothing signed.
+    test('removed, then a backup brought up to date: a browser deletes everything as it next asks, signed or not', () async {
+      Sms.browser = false;
+      Sms.standalone = false;
+      final (phone, _) = await made();
+      Sms.browser = true;
+      Sms.standalone = true;
+      final page = Device(accounts, handles);
+      await page.account.finish(await page.account.signInWithPassword('maya', 'correct horse battery'));
+      final unsigned = _NoProofs(accounts, handles);
+      await unsigned.account.finish(await unsigned.account.signInWithPassword('maya', 'correct horse battery'));
+      Sms.browser = false;
+      Sms.standalone = false;
+      await phone.account.removeDevice(page.account.device);
+      await phone.account.removeDevice(unsigned.account.device);
+      expect(await phone.account.refresh(force: true), isTrue);
+      Sms.browser = true;
+      Sms.standalone = true;
+      await page.account.check();
+      expect(page.wipes, ['removed']);
+      await unsigned.account.check();
+      expect(unsigned.wipes, ['removed'], reason: 'the relay holds the account and doesn\'t list it: a browser\'s is a copy');
+      // A relay that doesn't hold the account at all (it lost it): nothing deleted, and said.
+      final lost = _Told(accounts, handles);
+      await lost.account.finish(await lost.account.signInWithPassword('maya', 'correct horse battery'));
+      lost
+        ..held = false
+        ..said = const {'what': 'nothing'};
+      await lost.account.check();
+      expect(lost.wipes, isEmpty);
+      expect(lost.account.unknownHere, isTrue);
+    });
+
     test('the devices, a removal and the backup brought up to date are opened with the password each time', () async {
       final page = Device(accounts, handles, hasFriends: true);
       await page.claim('maya');
@@ -634,30 +682,134 @@ void main() {
       expect((await mac.account.devices()).single.here, isTrue);
     });
 
-    test('a removal the account didn\'t sign, or of another device, or from before it was added: nothing deleted', () async {
+    test('a removal the account didn\'t sign, or of another device, or from before it was added deletes nothing; where the relay holds the account, the words and keys are forgotten as before', () async {
       final (phone, draft) = await made();
-      final iphone = _Told(accounts, handles);
-      await iphone.account.finish(await iphone.account.signInWithPassword('maya', 'correct horse battery'));
-      final address = iphone.account.address!, device = iphone.account.device;
       final otherWords = phone.account.draft().words;
-      for (final (why, said) in [
-        ('signed by another key', removalBy(otherWords, address, device)),
-        ('of another device', removalBy(draft.words, address, 'f' * 32)),
-        ('for another account', removalBy(draft.words, '0x${'1' * 40}', device)),
-        ('from before this device was added', removalBy(draft.words, address, device, at: iphone.account.joinedAt - 3600000)),
-        ('not signed at all', {'body': jsonDecode(jsonEncode(removalBy(draft.words, address, device)))['body'], 'sig': '00' * 65}),
-        ('not words at all', {'what': 'removed'}),
+      Future<_Told> signedIn() async {
+        final iphone = _Told(accounts, handles);
+        await iphone.account.finish(await iphone.account.signInWithPassword('maya', 'correct horse battery'));
+        return iphone;
+      }
+
+      // A relay that doesn't hold the account at all (another relay, one that lost it): nothing forgotten either. One
+      // device for every case (signing in is limited a few an hour an account), since it stays signed in.
+      final other = await signedIn();
+      other.held = false;
+      for (final (why, made) in <(String, Map<String, Object?> Function(String address, String device, int joined))>[
+        ('signed by another key', (a, d, _) => removalBy(otherWords, a, d)),
+        ('of another device', (a, d, _) => removalBy(draft.words, a, 'f' * 32)),
+        ('for another account', (a, d, _) => removalBy(draft.words, '0x${'1' * 40}', d)),
+        ('from before this device was added', (a, d, joined) => removalBy(draft.words, a, d, at: joined - 3600000)),
+        ('not signed at all', (a, d, _) => {'body': removalBy(draft.words, a, d)['body'], 'sig': '00' * 65}),
+        ('not words at all', (a, d, _) => {'what': 'removed'}),
       ]) {
-        iphone.said = said;
+        // The relay holds the account and doesn't list this device: not believed as a removal, so nothing deleted; but
+        // the words and keys forgotten, as every device did before removals were kept.
+        final iphone = await signedIn();
+        iphone.store.set('conversations', 'kept');
+        iphone.said = made(iphone.account.address!, iphone.account.device, iphone.account.joinedAt);
         await iphone.account.check();
         expect(iphone.wipes, isEmpty, reason: why);
-        expect(iphone.account.unknownHere, isTrue, reason: why);
+        expect(iphone.account.signedIn, isFalse, reason: why);
+        expect(iphone.secrets.containsKey('account_words'), isFalse, reason: why);
+        expect(iphone.store.choice('conversations', ''), 'kept', reason: '$why: what it keeps stays');
+        other.said = made(other.account.address!, other.account.device, other.account.joinedAt);
+        await other.account.check();
+        expect(other.wipes, isEmpty, reason: why);
+        expect(other.account.signedIn, isTrue, reason: why);
+        expect(other.account.unknownHere, isTrue, reason: why);
       }
       // The account's own, for this device, now: it is believed.
+      final iphone = await signedIn();
+      final address = iphone.account.address!, device = iphone.account.device;
       iphone.said = removalBy(draft.words, address, device);
       await iphone.account.check();
       expect(iphone.wipes, ['removed']);
       expect(Account.removalProven(removalBy(draft.words, address, device), address: address.toLowerCase(), device: device), isTrue, reason: 'the address as the relay writes it');
+    });
+
+    // Third review, M1: every signed-in phone or computer brings the backup up to date once a day (acct-put), which
+    // dropped the removals kept, so a removed device asking after it was handed nothing to check and stayed the account.
+    test('removed, then another device brings the backup up to date: the removed one still deletes everything as it asks', () async {
+      final (phone, _) = await made();
+      final laptop = Device(accounts, handles);
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      Sms.standalone = false;
+      await phone.account.removeDevice(laptop.account.device);
+      expect(await phone.account.refresh(force: true), isTrue);
+      Sms.standalone = true;
+      await laptop.account.check();
+      expect(laptop.wipes, ['removed']);
+    });
+
+    // Under a relay that keeps no removals (one from before, or a removal made before it was deployed): what the release
+    // before did, as an Android phone still does. Nothing deleted, the words and keys forgotten.
+    test('removed under a relay that keeps no removals: the words and keys forgotten, nothing deleted', () async {
+      final (phone, _) = await made();
+      final laptop = _NoProofs(accounts, handles);
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      laptop.store.set('conversations', 'kept');
+      Sms.standalone = false;
+      await phone.account.removeDevice(laptop.account.device);
+      Sms.standalone = true;
+      await laptop.account.check();
+      expect(laptop.wipes, isEmpty);
+      expect(laptop.account.signedIn, isFalse);
+      expect(laptop.account.removedHere, isTrue);
+      expect(laptop.secrets.containsKey('account_words'), isFalse);
+      expect(laptop.store.choice('conversations', ''), 'kept');
+    });
+
+    // Third review, F: a relay that caught a removal as it went by, held it back, and hands it out after the device has
+    // signed in again. A device gets a new number at each sign-in, so no removal signed before can name it.
+    test('a removal caught before the device signed in again is never taken: each sign-in is a new number', () async {
+      final (phone, draft) = await made();
+      final laptop = _Told(accounts, handles);
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      final first = laptop.account.device;
+      final caught = removalBy(draft.words, laptop.account.address!, first);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await laptop.account.finish(await laptop.account.signInWithPassword('maya', 'correct horse battery'));
+      expect(laptop.account.device, isNot(first));
+      laptop.said = caught;
+      await laptop.account.check();
+      expect(laptop.wipes, isEmpty);
+      // An install signed in before devices kept when they joined: from its first check on, a removal signed before it
+      // is an old one, even one naming its number.
+      final old = _Told(accounts, handles);
+      await old.account.finish(await old.account.signInWithPassword('maya', 'correct horse battery'));
+      old.store.set('acct_joined', '');
+      final replayed = removalBy(draft.words, old.account.address!, old.account.device, at: DateTime.now().millisecondsSinceEpoch - 3600000);
+      await old.account.check();
+      expect(old.account.joinedAt, greaterThan(DateTime.now().millisecondsSinceEpoch - 60000));
+      old.said = replayed;
+      await old.account.check();
+      expect(old.wipes, isEmpty);
+      expect(phone.wipes, isEmpty);
+    });
+
+    // Signing in again put the backup's friends and circles in place of this device's (Account.finish → apply), losing
+    // whatever came since the backup was last sealed (third review). Listing it again keeps them.
+    test('a relay that doesn\'t hold the account: listing this device again puts it there from here, and keeps what is here', () async {
+      final iphone = Device(accounts, handles, hasFriends: true);
+      await iphone.claim('maya');
+      await iphone.account.create(iphone.account.draft(), 'correct horse battery');
+      final otherHandles = Handles(texts: FakeTexts())..load();
+      final other = Accounts(handles: otherHandles);
+      iphone
+        ..relayAccounts = other
+        ..handles = otherHandles;
+      otherHandles.came(iphone.connection, (_) {}, key: iphone.keys.public);
+      await iphone.account.check();
+      expect(iphone.account.unknownHere, isTrue);
+      iphone.applied = null;
+      await iphone.account.listHereAgain();
+      expect(iphone.account.unknownHere, isFalse);
+      expect(iphone.applied, isNull, reason: 'nothing of the backup put in place of what is here');
+      await iphone.account.check();
+      expect(iphone.account.unknownHere, isFalse);
+      expect((await iphone.account.devices()).single.here, isTrue);
+      expect(iphone.wipes, isEmpty);
     });
   });
 
@@ -681,9 +833,33 @@ void main() {
     expect(left, ['unrelated'], reason: 'only what the app keeps of the person goes');
   });
 
+  // A copy of the app started with a folder of its own (GHOST_DESK_DIR: a developer's beside the installed one, which on
+  // Windows share %APPDATA%) deleted the installed copy's sessions as it wiped (third review): only the folder this copy
+  // keeps everything in is deleted under, and where it was never said, nothing.
+  test('a wipe deletes folders only under this copy\'s own folder, never the installed default\'s', () async {
+    final was = AppAccountProfiles.appFolder;
+    addTearDown(() => AppAccountProfiles.appFolder = was);
+    AppAccountProfiles.appFolder = null;
+    expect(AppAccountProfiles().wipeFolder, isNull);
+    final mine = Directory.systemTemp.createTempSync('ghost-dev-copy');
+    addTearDown(() => mine.deleteSync(recursive: true));
+    Directory('${mine.path}/recordings').createSync();
+    AppAccountProfiles.appFolder = mine.path;
+    expect(AppAccountProfiles().wipeFolder, mine.path);
+    expect(AppAccountProfiles(home: '/elsewhere').wipeFolder, '/elsewhere');
+    Sms.standalone = true;
+    addTearDown(() => Sms.standalone = false);
+    final files = FilesStore.forTest(base: null, signer: KeysSigner(NetKeys.generate()), data: Directory('${mine.path}/space-files'));
+    await AppAccountProfiles(files: files, networks: const []).wipe();
+    expect(Directory('${mine.path}/recordings').existsSync(), isFalse);
+    // Nowhere in the account's code is the default folder used for it any more.
+    expect(File('lib/account/account.dart').readAsStringSync(), isNot(contains('DeskStore.defaultDir().path')));
+  });
+
   // An iPhone's push token, given to the relay so it can wake the app (relay/lib/pushes.dart), is taken back before the
   // routes stop on a wipe or a sign-out: a wiped iPhone isn't woken with "New message" for who it was. Net passes it to
-  // the hub route, which says {"push": null} at once (test/push_wake_test.dart).
+  // the hub route, which says {"push": null} at once (test/push_wake_test.dart); the relay keeps a token per device, so
+  // a sibling iPhone of the account keeps its own (relay/test/pushes_test.dart).
   test('stopping the routes takes an iPhone\'s push token back first', () async {
     Net.instance.setPush({'apns': 'ab' * 80, 'sandbox': true});
     addTearDown(() => Net.instance.setPush(null));

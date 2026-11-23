@@ -80,6 +80,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
   final store = DeskStore(dir == null || dir.isEmpty ? DeskStore.defaultDir() : Directory(dir), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
+  // What a computer of its own deletes everything of the person's under, when it does (lib/account/account.dart).
+  AppAccountProfiles.appFolder = store.dir.path;
   final envPeers = peers ?? [for (final p in (env['GHOST_DESK_PEERS'] ?? '').split(',')) ?Peer.parse(p)];
   final prefs = await store.prefs();
   final link = PhoneLink(

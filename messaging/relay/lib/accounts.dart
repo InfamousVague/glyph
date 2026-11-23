@@ -50,6 +50,11 @@ class Accounts {
   static const maxBlob = 64 * 1024;
   static const maxAccounts = 200000;
   static const maxDevices = 20;
+
+  /// The most an `acct-devices` body may be: the app's are a couple of hundred bytes (a device's number, a name of 60
+  /// letters at most, a platform). Each removal's body is kept ([acct-devices], `gone`), so this bounds what one account
+  /// can make the server keep: [maxDevices] of them.
+  static const maxDevicesBody = 2048;
   static const skew = Duration(minutes: 10);
 
   /// Lookups by username, and blobs handed over, per connection and per account, in an hour.
@@ -89,9 +94,22 @@ class Accounts {
   final Map<String, DateTime> _used = {};
 
   int _bytes = 0;
-  static int _sizeOf(Map<String, Object?> a) => ((a['pw'] as String?)?.length ?? 0) + ((a['seed'] as String?)?.length ?? 0);
+
+  /// What an account costs of [maxBytes]: its two blobs, and the removals kept for its devices (`gone`).
+  static int _sizeOf(Map<String, Object?> a) => ((a['pw'] as String?)?.length ?? 0) + ((a['seed'] as String?)?.length ?? 0) + _goneSize(a['gone']);
+  static int _goneSize(Object? gone) {
+    if (gone is! Map) return 0;
+    var n = 0;
+    for (final g in gone.values) {
+      if (g is Map) n += ((g['body'] as String?)?.length ?? 0) + ((g['sig'] as String?)?.length ?? 0);
+    }
+    return n;
+  }
 
   int get count => _accounts.length;
+
+  /// What the accounts kept cost of [maxBytes] now: their blobs and their removals.
+  int get bytesKept => _bytes;
 
   /// The address of [id]'s account, or null.
   String? accountOf(String id) => _byId[id];
@@ -279,10 +297,7 @@ class Accounts {
           if (had != null && had['id'] != identity) return err('That account belongs to another Ghost identity.');
           final other = _byId[identity];
           if (other != null && other != address) return err('This Ghost identity already has an account.');
-          final grows = pw.length + seed.length - (had == null ? 0 : _sizeOf(had));
-          if ((had == null && _accounts.length >= maxAccounts) || _bytes + grows > maxBytes) return err('No more accounts can be made on this server just now.');
-          _bytes += grows;
-          _accounts[address] = {
+          final record = <String, Object?>{
             'id': identity,
             'key': base64Encode(key),
             'bind': base64Encode(bind),
@@ -291,7 +306,15 @@ class Accounts {
             'seed': seed,
             'at': (had?['at'] as String?) ?? now.toUtc().toIso8601String().substring(0, 10),
             'devices': had?['devices'] ?? <Object?>[],
+            // The account's signed removals, kept through every backup brought up to date: every signed-in device does
+            // that once a day, and a removed device asking after it was handed nothing to check, so it stayed the account
+            // (third review, M1).
+            if (had?['gone'] != null) 'gone': had!['gone'],
           };
+          final grows = _sizeOf(record) - (had == null ? 0 : _sizeOf(had));
+          if ((had == null && _accounts.length >= maxAccounts) || _bytes + grows > maxBytes) return err('No more accounts can be made on this server just now.');
+          _bytes += grows;
+          _accounts[address] = record;
           _byId[identity] = address;
           _changed();
           _say('${address.substring(0, 8)} ${had == null ? 'made' : 'resealed'}');
@@ -358,6 +381,7 @@ class Accounts {
         case 'acct-devices':
           // The devices signed in to the account: listed, one added (the device signing in), or one removed.
           if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
+          if (said['body'] is String && (said['body'] as String).length > maxDevicesBody) return err('That is too long.');
           final (body, why) = _signed(said, 'devices', id);
           if (body == null) return err(why!);
           final address = (body['a'] as String).toLowerCase();
@@ -382,19 +406,24 @@ class Accounts {
           if (add is Map) gone.remove(add['d']);
           if (remove is String && list.any((x) => x['d'] == remove)) {
             gone.remove(remove);
-            gone[remove] = {'body': said['body'], 'sig': said['sig']};
+            final proof = {'body': said['body'], 'sig': said['sig']};
+            // Counted in [maxBytes] with the account's blobs. Where the server is full the device is still taken off the
+            // list, and its removal not kept: it then does what a removed device did before removals were kept.
+            if (_bytes + _goneSize({remove: proof}) <= maxBytes) gone[remove] = proof;
             while (gone.length > maxDevices) {
               gone.remove(gone.keys.first);
             }
           }
           if (remove is String) list.removeWhere((x) => x['d'] == remove);
           if (add is Map || remove is String) {
+            final before = _sizeOf(a);
             a['devices'] = list;
             if (gone.isEmpty) {
               a.remove('gone');
             } else {
               a['gone'] = gone;
             }
+            _bytes += _sizeOf(a) - before;
             _changed();
           }
           tell({'dir': 'acct-devices', 'a': address, 'list': list});

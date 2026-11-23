@@ -383,6 +383,63 @@ void main() {
     expect((await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': phone})).containsKey('removed'), isFalse);
   });
 
+  // Every signed-in phone or computer brings the backup up to date once a day (acct-put), and a password change and a
+  // browser's Update your backup do too: the removals must outlive it (third review, M1: they were dropped, and a removed
+  // device asking after a reseal was handed nothing to check).
+  test('removed, the backup brought up to date, then it asks: still handed the account\'s removal', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    final mac = 'b' * 32;
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'MacBook', 'p': 'macos'}}));
+    final removal = maya.signed('acct-devices', 'devices', maya.id, {'remove': mac});
+    await ask(maya.id, removal);
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    final resealed = await ask(maya.id, maya.put(maya.id));
+    expect(resealed, containsPair('ok', true));
+    final told = await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac});
+    expect(told, containsPair('known', false));
+    expect(told['removed'], {'body': removal['body'], 'sig': removal['sig']});
+    // And across a restart after it.
+    accounts.save();
+    final again = Accounts(dataDir: dir, handles: handles)..load();
+    final heardAgain = <Map<String, Object?>>[];
+    await again.said(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac}, heardAgain.add);
+    expect(heardAgain.last['removed'], {'body': removal['body'], 'sig': removal['sig']});
+  });
+
+  // A removal's body is kept, so how big one may be bounds what an account can make the server keep, and what is kept
+  // counts toward the server's whole (third review: one account made it keep 3.72 MB outside it).
+  test('a devices body is at most 2 KB, and the removals kept count toward the server\'s bytes', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    final blobs = accounts.bytesKept;
+    expect(blobs, greaterThan(0));
+    final mac = 'b' * 32;
+    // A name of 4,000 letters makes the body too long: refused before anything is read of it.
+    final long = await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'x' * 4000, 'p': 'macos'}}));
+    expect(long, containsPair('dir', 'err'));
+    // Padding the removal's body (anything signed is kept whole) is refused the same way.
+    final padded = await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'remove': mac, 'pad': 'y' * 4000}));
+    expect(padded, containsPair('dir', 'err'));
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'MacBook', 'p': 'macos'}}));
+    final removal = maya.signed('acct-devices', 'devices', maya.id, {'remove': mac});
+    await ask(maya.id, removal);
+    expect(accounts.bytesKept, blobs + (removal['body'] as String).length + (removal['sig'] as String).length);
+    // Read back as kept, the same.
+    accounts.save();
+    final again = Accounts(dataDir: dir, handles: handles)..load();
+    expect(again.bytesKept, accounts.bytesKept);
+    // A backup brought up to date keeps the removal, and counts it once.
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await ask(maya.id, maya.put(maya.id));
+    expect(accounts.bytesKept - (removal['body'] as String).length - (removal['sig'] as String).length, greaterThan(0));
+    // Deleted, the account costs nothing.
+    await ask(maya.id, maya.signed('acct-delete', 'delete', maya.id, const {}));
+    expect(accounts.bytesKept, 0);
+  });
+
   test('the account\'s removals kept are the newest few: no account grows without end', () async {
     final maya = Who();
     await claim(maya, 'maya');

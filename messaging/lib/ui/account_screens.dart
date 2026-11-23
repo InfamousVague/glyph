@@ -83,21 +83,21 @@ Widget _accountSection(BuildContext context) {
   }
   return PaneSection(
       title: 'Account',
-      // The relay doesn't know this device, and nothing signed by the account says it was removed (Account.unknownHere):
-      // nothing was deleted or forgotten; said, with what to do.
+      // The relay doesn't hold the account at all (Account.unknownHere): nothing was deleted or forgotten; said, with what
+      // to do.
       description: account.unknownHere
           ? Text(Sms.browser
-              ? 'The relay server doesn\'t list this browser under your account: it may have lost what it kept, or this browser was never added to it. Nothing has been deleted here. Sign in again to list it.'
-              : 'The relay server doesn\'t list this device under your account: it may be another relay than the one your account is on, it may have lost what it kept, or this device was never added to it. Nothing has been deleted or forgotten here. Sign in again to list it, or go back to the relay your account is on (Settings › Routes).')
+              ? 'The relay server doesn\'t hold your account: it may have lost what it kept. Nothing has been deleted here. List this browser again to put your account back on it from here.'
+              : 'The relay server doesn\'t hold your account: it may be another relay than the one your account is on, or it may have lost what it kept. Nothing has been deleted or forgotten here. List this device again to put your account on it from here, or go back to the relay your account is on (Settings › Routes).')
           : null,
       children: [
         if (account.unknownHere)
           SettingRow(
-            key: const ValueKey('account-sign-in-again'),
+            key: const ValueKey('account-list-again'),
             icon: _icon(Lucide.keyRound),
-            label: 'Sign in again',
-            hint: const Text('With your username and password, to list this device under your account'),
-            onPress: () => push(context, (_) => SignInScreen(username: Me.instance.username ?? '')),
+            label: Sms.browser ? 'List this browser again' : 'List this device again',
+            hint: Text(Account.keepsWords ? 'Your account put on this relay from here, your friends and circles as they are' : 'After your password: your account put back on this relay from here'),
+            onPress: () => push(context, (_) => const ListHereAgainScreen()),
           ),
         SettingRow(
           icon: _icon(Lucide.shieldCheck),
@@ -1034,6 +1034,66 @@ class _DevicesScreenState extends State<DevicesScreen> {
 /// The backup brought up to date from a browser, after the password (Account.refreshWith): the profile, friends and
 /// circles as they are here, put together with what the backup has, and sealed again both ways. Every other device
 /// does this by itself once a day; a browser keeps nothing that could.
+/// Where the relay doesn't hold the account (Account.unknownHere): the account put on it from this device and the device
+/// listed under it (Account.listHereAgain), without signing in again, which would put the backup's friends and circles
+/// in place of this device's. A browser asks the password first.
+class ListHereAgainScreen extends StatefulWidget {
+  const ListHereAgainScreen({super.key});
+
+  @override
+  State<ListHereAgainScreen> createState() => _ListHereAgainScreenState();
+}
+
+class _ListHereAgainScreenState extends State<ListHereAgainScreen> {
+  final _password = TextEditingController();
+  String? _problem;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      await Account.instance.listHereAgain(password: Account.keepsWords ? null : _password.text);
+      if (!mounted) return;
+      toast(context, Sms.browser ? 'This browser is listed under your account again' : 'This device is listed under your account again');
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) setState(() => _problem = e is AccountError ? e.message : 'That did not work.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final here = Sms.browser ? 'browser' : 'device';
+    final what = Text('Your account is put on this relay server from this $here, with your profile, friends and circles as they are here, and this $here is listed under it. Nothing here changes.');
+    return _AccountPage(title: Sms.browser ? 'List this browser again' : 'List this device again', children: [
+      if (Account.keepsWords)
+        PaneSection(title: 'On this relay', description: what, footer: _problemText(context, _problem), children: [
+          SettingRow(icon: _icon(Lucide.shieldCheck), label: 'Your account', hint: Text(shortAddress(Account.instance.address ?? ''))),
+        ])
+      else
+        PaneSection(
+          title: 'Your password first',
+          description: what,
+          footer: _problemText(context, _problem),
+          children: [_field(_password, 'Password', 'Password', secret: true, autofill: 'current-password', onSubmitted: (_) => _go())],
+        ),
+      _gap(context, 8),
+      PairButton(label: _busy ? 'Listing…' : (Sms.browser ? 'List this browser' : 'List this device'), icon: Lucide.refreshCw, onPressed: _busy ? null : _go),
+    ]);
+  }
+}
+
 class UpdateBackupScreen extends StatefulWidget {
   const UpdateBackupScreen({super.key});
 

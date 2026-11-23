@@ -12,7 +12,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import 'account/account.dart' show Account;
+import 'account/account.dart' show Account, AppAccountProfiles;
 import 'circles/circles.dart';
 import 'circles/pending_link.dart';
 import 'circles/sms_space.dart';
@@ -115,6 +115,9 @@ Future<void> main() async {
   // computer is (lib/desktop) stays that phone's companion.
   if (PlatformInfo.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
+    // What an iPhone deletes everything of the person's under, when it does (lib/account/account.dart): the folder its
+    // store is in.
+    AppAccountProfiles.appFolder = StandaloneCalls.defaultDir().path;
     try {
       await standaloneSetup();
     } catch (_) {
