@@ -67,6 +67,10 @@ LucideIcon noteIcon(String note) {
 
 final List<(List<String>, LucideIcon)> _noteIcons = [
   (['splash'], LucideMore.rocket),
+  // Keyboard shortcuts (GMFB-41).
+  (['keyboard shortcuts'], LucideMore.keyboard),
+  // Running your own relay (GMFB-25).
+  (['relay server'], Lucide.hardDrive),
   // The Marketplace and plugins from other developers (Matt, 2026-11-20): before developer mode, which loads them too.
   (['marketplace', 'make your own'], Lucide.store),
   (['developer mode'], Lucide.braces),

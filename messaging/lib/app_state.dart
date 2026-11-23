@@ -108,6 +108,11 @@ class AppState extends ChangeNotifier {
   String get textSize => choice('text_size', 'default');
   double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
 
+  /// The face everything is drawn in: 'default', each look's own, or 'readable', Atkinson Hyperlegible Next, for
+  /// anyone who finds letters hard to tell apart (GMFB-41; lib/looks.dart stamps it).
+  String get font => choice('font', 'default');
+  void setFont(String v) => set('font', v);
+
   /// Whether messages set off their effects (lib/effects.dart).
   bool get effects => flag('effects');
   void setEffects(bool v) => setFlag('effects', v);

@@ -1386,6 +1386,13 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-font-sans: 'Arimo', Arial, Helvetica, sans-serif;
 }
 
+/* The Readable font (Settings › Appearance; GMFB-41, from the Uplink gap review: "dyslexia font"): Atkinson
+   Hyperlegible Next, bundled, in place of every look's own face, Dial-Up's and Phosphor's too. Above the looks' rules
+   (specificity 5), since a face chosen for reading must win. Code stays in the mono. */
+:root:root:root:root:root:root[data-font='readable'] {
+  --glacier-font-sans: 'Atkinson Hyperlegible Next Variable', 'Inter Variable', sans-serif;
+}
+
 /*
  * The rail on a computer: its rings and circles' faces a little smaller than the pill's (lib/ui/nav_rail.dart; Matt,
  * 2026-11-20: "make the navigtion rail icons just a bit smaller as well", then "leave them the same size on mobile").

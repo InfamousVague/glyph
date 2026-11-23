@@ -3,7 +3,9 @@ import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
 import '../backgrounds.dart';
+import '../custom_theme.dart';
 import '../looks.dart';
+import 'custom_theme_editor.dart';
 
 /// A look (lib/looks.dart) drawn small, in its own colours whatever the page around it is: its page, a bubble from
 /// someone else and one of yours, as a conversation in that look would show them. The look's rules are laid over a
@@ -73,53 +75,65 @@ class LookPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final chosen = app.look;
+    // A look of one's own in use (lib/custom_theme.dart) is the one ringed; none of the app's is then.
+    final mine = CustomTheme.used(app);
+    final own = CustomTheme.saved(app);
+    final chosen = mine == null ? app.look : null;
     final corner = t.radius('lg');
     final gap = t.space(2);
     final looks = [
       for (final look in Look.values)
         if (look.ready || look == chosen) look,
     ];
+    // A tile: [preview] in a frame, ringed where [on], with [label] under it.
+    Widget tile({required String label, required bool on, required Widget preview, required VoidCallback onPressed, required double side, Key? key}) => GlacierPressable(
+          key: key,
+          onPressed: onPressed,
+          semanticLabel: '$label${on ? ', chosen' : ''}',
+          builder: (context, state) => AnimatedScale(
+            scale: state.pressed ? 0.95 : 1,
+            duration: const Duration(milliseconds: 120),
+            child: SizedBox(
+              width: side,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(corner),
+                    border: Border.all(color: on ? t.color('app-ink') : t.color('app-rule'), width: on ? 2.5 : 1),
+                  ),
+                  padding: EdgeInsets.all(on ? 1.5 : 3),
+                  child: ClipRRect(borderRadius: BorderRadius.circular((corner - 3).clamp(0, corner)), child: preview),
+                ),
+                SizedBox(height: t.space(1)),
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, strutStyle: StrutStyle(fontSize: t.fontSize('xs'), height: 1.3, forceStrutHeight: true), style: t.textAt(t.fontSize('xs'), weight: on ? 'semibold' : 'regular', color: t.color(on ? 'app-ink' : 'app-ink-2'))),
+              ]),
+            ),
+          ),
+        );
+    // The person's own looks after the app's (GMFB-41): pressed, used; pressed again while in use, its menu.
+    Widget ownCard(CustomTheme theme, double side) => tile(
+          key: ValueKey('own-look-${theme.code}'),
+          label: theme.name,
+          on: theme == mine,
+          side: side,
+          preview: CustomThemePreview(theme: theme, width: side),
+          onPressed: () => theme == mine ? themeMenu(context, app, theme) : CustomTheme.use(app, theme),
+        );
     Widget card(Look look, double side) {
       final on = look == chosen;
       // Ghost's preview wears the bubbles Ghost would: yours where Ghost is the look, else white, which choosing Ghost
       // goes back to.
       final bubble = look != Look.ghost ? 'theme' : (chosen == Look.ghost ? app.bubble : 'white');
-      return GlacierPressable(
-        onPressed: () => app.setLook(look),
-        semanticLabel: '${look.label}${on ? ', chosen' : ''}',
-        builder: (context, state) => AnimatedScale(
-          scale: state.pressed ? 0.95 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: SizedBox(
-            width: side,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(corner),
-                  border: Border.all(color: on ? t.color('app-ink') : t.color('app-rule'), width: on ? 2.5 : 1),
-                ),
-                padding: EdgeInsets.all(on ? 1.5 : 3),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular((corner - 3).clamp(0, corner)),
-                  child: LookPreview(look: look, bubble: bubble, width: side),
-                ),
-              ),
-              SizedBox(height: t.space(1)),
-              Text(look.label, maxLines: 1, overflow: TextOverflow.ellipsis, strutStyle: StrutStyle(fontSize: t.fontSize('xs'), height: 1.3, forceStrutHeight: true), style: t.textAt(t.fontSize('xs'), weight: on ? 'semibold' : 'regular', color: t.color(on ? 'app-ink' : 'app-ink-2'))),
-            ]),
-          ),
-        ),
-      );
+      return tile(label: look.label, on: on, side: side, preview: LookPreview(look: look, bubble: bubble, width: side), onPressed: () => CustomTheme.chooseLook(app, look));
     }
 
     // As many across as fit at 5rem, stretched to fill the row up to 6.25rem each, where fixed 6.25rem tiles left a
     // third of a tile empty at the row's end on a phone.
     return LayoutBuilder(builder: (context, box) {
       final least = t.lenOf('5rem'), most = t.lenOf('6.25rem');
-      final across = box.maxWidth.isFinite ? ((box.maxWidth + gap) / (least + gap)).floor().clamp(1, looks.length) : looks.length;
+      final across = box.maxWidth.isFinite ? ((box.maxWidth + gap) / (least + gap)).floor().clamp(1, looks.length + own.length) : looks.length + own.length;
       final side = box.maxWidth.isFinite ? ((box.maxWidth - gap * (across - 1)) / across).floorToDouble().clamp(least, most) : most;
-      return Wrap(spacing: gap, runSpacing: t.space(3), children: [for (final look in looks) card(look, side)]);
+      return Wrap(spacing: gap, runSpacing: t.space(3), children: [for (final look in looks) card(look, side), for (final theme in own) ownCard(theme, side)]);
     });
   }
 }

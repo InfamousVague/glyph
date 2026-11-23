@@ -341,7 +341,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// A key pressed anywhere in the app: a command of lib/keys.dart, or push to talk. True where it was one, so the
   /// page under it does not also take it. Not while Settings is waiting for keys to put a command on.
   bool _key(KeyEvent e) {
-    if (!mounted || KeyRecorder.listening) return false;
+    // The quick switcher open: its field and its list have the keys.
+    if (!mounted || KeyRecorder.listening || _switcher) return false;
     final keys = Keys.instance;
     final session = Voice.instance.session;
     // Letting go of push to talk: off again.
@@ -397,8 +398,97 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         }
       case KeyCommand.shortcuts:
         settings('shortcuts');
+      case KeyCommand.toggleSidebar:
+        // Only where the list stands beside the pane: on a phone the list is the page.
+        if (!_wide || _open == null) return false;
+        setState(() => _sideHidden = !_sideHidden);
+      case KeyCommand.quickSwitch:
+        quickSwitch();
+      case KeyCommand.nextChat:
+        return stepConversation(1);
+      case KeyCommand.previousChat:
+        return stepConversation(-1);
+      case KeyCommand.markRead:
+        final list = ConversationsScreen.live;
+        if (list == null) return false;
+        unawaited(list.markShownRead());
+      case KeyCommand.bold:
+      case KeyCommand.italic:
+      case KeyCommand.code:
+        return Keys.format(command);
     }
     return true;
+  }
+
+  /// The list put away beside a conversation (KeyCommand.toggleSidebar), the pane the whole window; back with the same
+  /// keys. Only on a wide window.
+  bool _sideHidden = false;
+
+  /// The quick switcher is up (KeyCommand.quickSwitch).
+  bool _switcher = false;
+
+  /// Opens the quick switcher: every conversation by name, and the app's places (GMFB-41).
+  void quickSwitch() => setState(() => _switcher = true);
+
+  /// Opens the conversation [by] rows below the one open (above, where negative) in the list as it is shown: the first
+  /// or the last where none of the list's is open. False where there is no list or nothing in it.
+  bool stepConversation(int by) {
+    final list = ConversationsScreen.live;
+    final order = list?.order ?? const <Conversation>[];
+    if (list == null || order.isEmpty) return false;
+    final at = order.indexWhere((c) => c.id == thread);
+    final next = Keys.stepTo(order.length, at, by);
+    if (next == at) return true;
+    list.openConversation(order[next]);
+    return true;
+  }
+
+  /// The places the quick switcher offers beside the conversations, with the keys each is on.
+  static const _places = [
+    ('new', 'Start something new', KeyCommand.newChat),
+    ('messages', 'Messages', KeyCommand.messages),
+    ('contacts', 'Contacts', KeyCommand.contacts),
+    ('archive', 'Archive', KeyCommand.archive),
+    ('voice', 'Spaces', KeyCommand.voice),
+    ('settings', 'Settings', KeyCommand.settings),
+    ('marketplace', 'Marketplace', KeyCommand.marketplace),
+    ('shortcuts', 'Keyboard shortcuts', KeyCommand.shortcuts),
+  ];
+
+  /// The most conversations the switcher lists: the newest, which are the ones jumped to.
+  static const _switchMost = 400;
+
+  List<CommandDescriptor> _switchCommands() {
+    final every = ConversationsScreen.live?.every ?? const <Conversation>[];
+    return [
+      for (final c in every.take(_switchMost))
+        CommandDescriptor(
+          id: 'c:${c.id}',
+          label: c.title,
+          group: 'Conversations',
+          keywords: [for (final p in c.people) p.address].join(' '),
+          detail: c.unread ? 'Unread' : null,
+        ),
+      for (final (id, label, command) in _places) CommandDescriptor(id: 'go:$id', label: label, group: 'Go to', shortcut: Keys.instance.of(command)?.label),
+    ];
+  }
+
+  void _runSwitch(String id) {
+    if (id.startsWith('c:')) {
+      final want = int.tryParse(id.substring(2));
+      final list = ConversationsScreen.live;
+      final c = list?.every.where((c) => c.id == want).firstOrNull;
+      if (list != null && c != null) list.openConversation(c);
+      return;
+    }
+    switch (id.substring(3)) {
+      case 'settings':
+        settings();
+      case 'shortcuts':
+        settings('shortcuts');
+      case final place:
+        go(place);
+    }
   }
 
   void _notice(PackNotice n) {
@@ -552,6 +642,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         _open = null;
         _thread = null;
         _showing = null;
+        _sideHidden = false;
       });
       settingsSection.value = null;
       marketSection.value = null;
@@ -1156,7 +1247,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       final railed = style == NavStyle.rail;
       final railW = railed ? NavRail.width(t) + MediaQuery.paddingOf(context).left : 0.0;
       final room = box.maxWidth - railW;
-      final side = wide ? AppShell.sideWidthAt(room, _dragged) : room;
+      // The list put away (KeyCommand.toggleSidebar): the pane takes its room. With nothing open the list comes back,
+      // so the window is never empty.
+      final hidden = wide && _sideHidden && _open != null;
+      final side = hidden ? 0.0 : wide ? AppShell.sideWidthAt(room, _dragged) : room;
       // A wide phone has the pill stood up at its right, where the window is tall enough for it (not a small phone
       // on its side). The strip is as wide as the pill and its room, and clear of anything cut into the screen's edge.
       final edges = MediaQuery.paddingOf(context);
@@ -1209,9 +1303,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                 left: railW + (railed ? 1 : 0),
                 top: 0,
                 bottom: 0,
-                width: side - (railed ? 1 : 0),
+                width: hidden ? 0 : side - (railed ? 1 : 0),
                 child: Offstage(
-                  offstage: covered,
+                  offstage: covered || hidden,
                   child: TickerMode(
                     enabled: !covered,
                     // The list is at the window's left: on the Mac its header leaves the window's three buttons room.
@@ -1336,16 +1430,17 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // divider line that we have on the dial up theme to the right of the sidebar, instead we should just use
               // the normal border here wrapping the whole sidebar in the standard border like we do for the rest of
               // elements").
-              if (wide && !dialup) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
+              if (wide && !dialup && !hidden) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
               Positioned(
                 key: const ValueKey('shell-pane'),
-                left: wide ? railW + side + (dialup ? 0 : 1) : 0,
+                left: wide ? railW + side + (dialup || hidden ? 0 : 1) : 0,
                 top: 0,
                 bottom: 0,
                 right: 0,
                 // With nothing open on a narrow screen the pane is empty air over the list: touches go through.
                 // Over all of a narrow window, a page is at the window's left too.
-                child: _lightsIf(!wide, IgnorePointer(
+                // With the list put away the pane is at the window's left, and leaves the Mac's three buttons room.
+                child: _lightsIf(!wide || (hidden && !railed), IgnorePointer(
                   ignoring: !wide && _open == null,
                   child: _sized(NotificationListener<NavigationNotification>(
                     onNotification: (n) {
@@ -1362,7 +1457,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               ),
               // The line between the list and the pane, dragged to make the list wider or narrower; double clicked,
               // as it was made. Over both, so the pointer finds it on either side of the line.
-              if (wide)
+              if (wide && !hidden)
                 Positioned(
                   key: const ValueKey('shell-split'),
                   left: railW + side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
@@ -1384,6 +1479,24 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
               // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
               const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
+              // The quick switcher (KeyCommand.quickSwitch): it takes no room here and draws over everything while up.
+              Positioned(
+                left: 0,
+                top: 0,
+                width: 0,
+                height: 0,
+                child: GlacierCommandPalette(
+                  key: const ValueKey('quick-switcher'),
+                  open: _switcher,
+                  onOpenChange: (v) => setState(() => _switcher = v),
+                  // Its keys are Settings' to change (lib/keys.dart), not the kit's own Cmd+K.
+                  shortcut: false,
+                  placeholder: 'Jump to a conversation or a place…',
+                  emptyLabel: const Text('Nothing by that name'),
+                  commands: _switcher ? _switchCommands() : const [],
+                  onRun: _runSwitch,
+                ),
+              ),
             ]),
           ),
         ),
