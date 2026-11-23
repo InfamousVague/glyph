@@ -42,6 +42,7 @@
  *   8. Settings call it a browser, with an About of its own and none of what a browser has nothing to set for; and
  *      the Marketplace is on no key (Ctrl+5), in no quick switcher and in no list of shortcuts.
  *   9. One signs in on a third, new browser with the username and password: the same person, the friend still there,
+ *      and the conversation with him from before, handed over by her other browser (GMFB-53),
  *      both browsers in the account's devices as browsers, after the password. How long signing in took is said.
  *  10. The page's own Argon2id (web/argon2id.js, in a worker) is held to test/vectors/argon2id.json.
  *  11. In a narrow window the page is laid out as a phone; wide again, as a computer.
@@ -1043,6 +1044,13 @@ async function run(engine) {
       await elsewhere.press('Contacts', { role: 'button' });
       await elsewhere.sees(`${sam.username}, Ghost`, { within: 30000 });
       await elsewhere.shot(`${engine}-Maya-15-signed-in`);
+      // Her conversation with Sam, said before this browser existed: her other browser, still open, hands it over
+      // (GMFB-53: "none of my messages appear in the sidebar"; Friends.historyAsk). In the list, and opened, both ways.
+      await elsewhere.press('Messages', { role: 'button' });
+      await elsewhere.press(sam.username, { within: 60000 });
+      await elsewhere.sees(hello, { within: 30000 });
+      await elsewhere.sees(answer);
+      await elsewhere.shot(`${engine}-Maya-15b-history`);
       // Her two browsers, in her list of devices, each called what it is: after her password, which a browser keeps
       // nothing in place of.
       await elsewhere.press('Settings', { role: 'button' });
