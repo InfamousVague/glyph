@@ -21,16 +21,21 @@ import '../sounds.dart';
 enum SpaceKind {
   voice('Chat and voice', 'Talk any time, with a chat beside it'),
   text('Texting', 'A chat, no voice'),
-  files('Files', 'Share files, with a chat beside them');
+  files('Files', 'Share files, with a chat beside them'),
+
+  /// A call you walk around in (lib/voice/open_space.dart): everyone has a place on a floor seen from above, and is
+  /// heard louder or quieter by how near they are. A build from before this kind takes it for a voice space where it
+  /// stands alone (everyone heard, nobody placed) and for a chat in a circle ([of], CircleSpace.fromJson).
+  open('Open space', 'Walk around, and hear who is near you');
 
   const SpaceKind(this.label, this.hint);
   final String label;
   final String hint;
 
-  /// Its word on the wire: `voice`, `text`, `files`.
+  /// Its word on the wire: `voice`, `text`, `files`, `open`.
   String get wire => name;
 
-  bool get hasVoice => this == voice;
+  bool get hasVoice => this == voice || this == open;
 
   /// From its word; voice for anything else (missing, or a kind from a newer build).
   static SpaceKind of(Object? wire) {
@@ -288,6 +293,20 @@ class ScreenSource {
   final Uint8List? thumbnail;
 }
 
+/// Media whose camera can be turned to the other side of a phone (GMFB-57, Kevin: "Add a button to flip camera on
+/// mobile versions"; lib/voice/rtc.dart). Apart from [VoiceMedia] so the stand-ins in tests need not.
+abstract class CameraMedia {
+  /// This device has a front and a back camera to change between: an Android phone or an iPhone.
+  bool get canFlipCamera;
+
+  /// The camera is, or will next be, the one on the back: what it sees is not drawn mirrored. Kept while video is off,
+  /// so turning video on again in the same call opens the camera it was.
+  bool get backCamera;
+
+  /// Changes to the other camera. The picture each connection sends stays the one it is, so nothing is asked of them.
+  Future<void> flipCamera();
+}
+
 /// This device's microphone and camera, and the connections to the others (lib/voice/rtc.dart).
 abstract class VoiceMedia {
   /// How loud each one is now, 0 to 1: `me` for this device's microphone, and each other member by id. What the
@@ -368,6 +387,25 @@ class VoiceMember {
 abstract class LinkedMedia {
   /// true: through. false: not through yet, or lost and trying by itself. null: no connection, or one that failed.
   bool? linkUp(String id);
+}
+
+/// Media that can play each person at a gain for where they stand in an open space, under their own volume
+/// (lib/voice/open_space.dart). lib/voice/rtc.dart's is one; a test's may be.
+abstract class PlacedMedia {
+  /// 0 to 1; 1 takes it away.
+  void setPlaceGain(String id, double gain);
+}
+
+/// Someone's sound as it arrives on this device: the received track carrying it, and a mark of the connection it came
+/// on. A connection made again brings a track with the same id (the id is their microphone's), so the mark is what
+/// says it is a new one.
+typedef VoiceSound = ({String track, int link});
+
+/// Media that can say which track each other member's sound arrives on, for a recording to tap
+/// (lib/voice/recorder.dart; GMFB-52). lib/voice/rtc.dart's is one; a test's may be.
+abstract class SoundMedia {
+  /// Each other member's sound by their id, while there is a connection that has brought one.
+  ValueListenable<Map<String, VoiceSound>> get sounds;
 }
 
 /// How long a call waits before it mends a connection ([VoiceSession]'s `mend`): short in a test.
@@ -556,6 +594,13 @@ class VoiceSession extends ChangeNotifier {
   /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
   void saySound(String sound) => _say({'t': 'sb', 's': sound});
 
+  /// Told what someone said of an open space's floor ('os': where they stand; 'osg': its groups;
+  /// lib/voice/open_space.dart).
+  void Function(String from, Map<String, dynamic> what)? onPlace;
+
+  /// Says [what] of an open space's floor to the call.
+  void sayPlace(Map<String, Object?> what) => _say(what);
+
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
@@ -658,6 +703,25 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The camera this device sends is the one on its back (GMFB-57): its own preview is then not mirrored.
+  bool get backCamera => media is CameraMedia && (media as CameraMedia).backCamera;
+
+  /// Whether the Flip camera button is shown (GMFB-57): on a phone, while video is on and the screen is not being
+  /// shared in its place.
+  bool get canFlipCamera => video && !screen && media is CameraMedia && (media as CameraMedia).canFlipCamera;
+
+  /// Changes between the front and the back camera (GMFB-57). Does nothing where it can't: a computer, video off, the
+  /// screen shared. Nothing is said to the others: they are sent the same picture as before, from the other camera.
+  Future<void> flipCamera() async {
+    if (!canFlipCamera) return;
+    try {
+      await (media as CameraMedia).flipCamera();
+    } catch (_) {
+      // The camera would not change (one camera, or the system said no): the call goes on with the one it has.
+    }
+    notifyListeners();
+  }
+
   /// Whether this device can share its screen at all: a computer or Android, with media that can capture one.
   bool get canShareScreen => media is ScreenMedia && (media as ScreenMedia).screenSupported;
 
@@ -687,6 +751,17 @@ class VoiceSession extends ChangeNotifier {
     // The relay was lost: nothing can be said or heard in the room until it is back, which the carrier sees to by
     // itself, joining the room again and saying who is in it then.
     if (e.closed) {
+      // Not lost but taken: this device's place on the relay went to another connection of the same device, a second
+      // window of the app (GMFB-47). The two take each other's place turn about, so mending would bring this one back
+      // into the call every few seconds, offering everyone a new connection each time. It goes, as when another device
+      // takes the call over ('moved'), and stays out until its person joins again.
+      if (e.replaced) {
+        if (joined && !_moving) {
+          _moving = true;
+          unawaited(_movedAway());
+        }
+        return;
+      }
       if (joined && !_lost) {
         _lost = true;
         notifyListeners();
@@ -951,6 +1026,8 @@ class VoiceSession extends ChangeNotifier {
         onWatch?.call(from, m);
       case 'sb':
         if (m['s'] is String) onSound?.call(from, m['s'] as String);
+      case 'os' || 'osg':
+        onPlace?.call(from, m);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':

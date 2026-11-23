@@ -20,6 +20,7 @@ import '../keys.dart';
 import '../net/net.dart';
 import '../net/p2p/node_factory.dart';
 import '../sms.dart';
+import '../ui/call_moved_note.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/window_chrome.dart';
 import 'ui/desk_title_bar.dart';
@@ -337,8 +338,9 @@ class _DesktopAppState extends State<DesktopApp> {
   final _navigator = GlobalKey<NavigatorState>(debugLabel: 'desk');
 
   /// [pages] as they are: a call being recorded shows in its banner over the call, whose Mixer opens the tracks full
-  /// screen (lib/ui/recording_float.dart); nothing floats over the pages.
-  Widget _recorded(Widget pages) => pages;
+  /// screen (lib/ui/recording_float.dart); nothing floats over the pages but the note that a call moved to another
+  /// of the person's devices (lib/ui/call_moved_note.dart, GMFB-50).
+  Widget _recorded(Widget pages) => CallMovedNote(child: pages);
 
   @override
   void initState() {

@@ -18,6 +18,7 @@ import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
+import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import '../voice/voice_changer.dart';
 import 'common.dart';
@@ -45,6 +46,7 @@ import 'translated_card.dart';
 import '../plugins/plugin.dart' show MessageFacts;
 import 'poof.dart';
 import 'nav_bar.dart';
+import 'open_space_view.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
@@ -209,11 +211,13 @@ class _HangoutScreenState extends State<HangoutScreen> {
     final room = _room ?? v.hangoutFor(widget.channel);
     return ListenableBuilder(
       // The recorder too: Record call's icon in the header goes to Stop as it starts.
-      listenable: Listenable.merge([v, ?room, CallRecorder.instance]),
+      listenable: Listenable.merge([v, ?room, CallRecorder.instance, OpenSpaces.instance]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         // In the call on a narrow phone: the chosen design is the page (space_design.dart).
-        final design = inlineSpaceCall(context, s);
+        // An open space is its own page, the floor (lib/ui/open_space_view.dart): no design is drawn in its place.
+        final floor = OpenSpaces.instance.of(s);
+        final design = floor != null ? null : inlineSpaceCall(context, s);
         if (design != null) return design;
         final pad = MediaQuery.paddingOf(context).bottom;
         final wide = AppShell.wideOf(context);
@@ -342,10 +346,13 @@ class _HangoutScreenState extends State<HangoutScreen> {
               Expanded(
                 child: _tab == 'chat'
                     ? chat
-                    : ListView(
-                        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
-                        children: [CallPanel(session: s)],
-                      ),
+                    // An open space: the floor in the people's place, the dock over its foot.
+                    : floor != null
+                        ? OpenSpaceView(session: s, floor: floor, bottomInset: dockAt + NavPill.clearance(t))
+                        : ListView(
+                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
+                            children: [CallPanel(session: s)],
+                          ),
               ),
             ]),
             if (_tab != 'chat') Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
@@ -391,11 +398,13 @@ class _HangoutStageState extends State<HangoutStage> {
     final room = _room ?? v.hangoutFor(widget.channel);
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.session]),
+      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.session, OpenSpaces.instance]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);
         final videos = s != null && CallVideos.any(s);
+        // In an open space's call: its floor over the chat, as the videos are (lib/ui/open_space_view.dart).
+        final floor = OpenSpaces.instance.of(s);
         return GhostPage(
           title: 'Chat',
           back: false,
@@ -410,7 +419,17 @@ class _HangoutStageState extends State<HangoutStage> {
             if (room != null && widget.channel.circle != null) _membersButton(context, room),
             if (room != null && widget.channel.circle == null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
-          body: videos
+          body: floor != null
+              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(flex: 3, child: OpenSpaceView(session: s!, floor: floor)),
+                  if (videos) ...[
+                    Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+                    SizedBox(height: 200, child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)), child: CallVideos(session: s))),
+                  ],
+                  Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+                  Expanded(flex: 2, child: chat),
+                ])
+              : videos
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Expanded(child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)), child: CallVideos(session: s))),
                   Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
@@ -1377,7 +1396,8 @@ class _ReplyBar extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Replying to $who', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-            if (reply.text.isNotEmpty) Text(reply.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            // Record call's line with its icon, not its emoji (GMFB-43).
+            if (reply.text.isNotEmpty) NoteWords(reply.text, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ]),
         ),
         IconTap(key: const ValueKey('space-replying-stop'), icon: Lucide.x, label: 'Stop replying', size: 18, onPressed: onClose),
@@ -1408,7 +1428,8 @@ class SpaceQuote extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Text(who, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-        if (reply.text.isNotEmpty) Text(reply.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
+        // Record call's line with its icon, not its emoji (GMFB-43).
+        if (reply.text.isNotEmpty) NoteWords(reply.text, maxLines: 2, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
       ]),
     );
   }
@@ -1795,10 +1816,15 @@ class _Message extends StatelessWidget {
 extension on _Message {
   /// The words, with their links and mentions pressable; a translation's as they are (the mentions are counted in the
   /// words as they came).
-  Widget _words(Tokens t, ShownView? shown, TextStyle style, Color ink) => LinkedText(
-        shown?.bubble ?? message.text,
+  Widget _words(Tokens t, ShownView? shown, TextStyle style, Color ink) {
+    // Record call's line that came with no card to draw (from a build before its notes): its icon where the emoji was
+    // (GMFB-43). Such a line has no mentions to count again.
+    final mark = shown == null && message.mentions.isEmpty ? recordingWordsOf(message.text) : null;
+    return LinkedText(
+        mark?.words ?? shown?.bubble ?? message.text,
         ink: ink,
         style: style,
+        before: [if (mark != null) noteIconSpan(t, mark, style)],
         // Changed by its writer since (Matt, 2026-11-20: "I'd like to be able to edit messages sent in circles").
         after: [
           if (message.edited != null)
@@ -1808,6 +1834,7 @@ extension on _Message {
         mentionStyle: mentionStyle(t, on: message.from == room.me && !flat ? ink : null),
         onMention: onMention,
       );
+  }
 
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
   /// colour and the time beside it, and the words, files or sticker under them on the page.
@@ -2480,7 +2507,7 @@ class HangoutModeration extends StatelessWidget {
       builder: (context, _) {
         final r = room.roster;
         final above = r.outranks(room.me, id);
-        final mutedAll = r.muted.contains(id) || room.heldMutes.contains(id);
+        final mutedAll = room.mutedForAll(id);
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SettingRow(
             icon: AppIcon(Lucide.shieldCheck, size: 18),
@@ -2490,9 +2517,10 @@ class HangoutModeration extends StatelessWidget {
           ),
           if (above && room.can(Perm.muteOthers))
             SettingRow(
-              icon: AppIcon(LucideMore.micOff, size: 18),
+              icon: AppIcon(Lucide.lock, size: 18),
               label: 'Mute for everyone',
-              hint: const Text('No one in the space hears them until they\'re unmuted.'),
+              // What sets it apart from Mute for me, above it in the sheet (GMFB-49).
+              hint: const Text('No one in the space hears them, and they can\'t unmute themselves.'),
               control: GlacierSwitch(checked: mutedAll, onCheckedChange: (on) => room.muteForAll(id, on), ariaLabel: 'Mute $name for everyone'),
             ),
           if (above && room.can(Perm.removeMembers))

@@ -45,6 +45,20 @@ class PluginChatNote {
     return PluginChatNote(p, k, details);
   }
 
+  /// Record call's line in a chat's words: "🔴 Maya started recording this call. ..." and "⏹ Maya stopped recording."
+  /// (lib/voice/recorder.dart). The emoji is what travels, for a build from before and a browser's page; a build with
+  /// this draws the app's own icon in its place wherever the words are shown and not the card: a quote, a thread, a
+  /// list's preview (GMFB-43: "use the icons ... instead of emoji").
+  static final _recordingLine = RegExp('^(\u{1F534}|\u23F9)\uFE0F? ?(.*? (?:started|stopped) recording\\b.*)\$', unicode: true, dotAll: true);
+
+  /// [text] where it is Record call's line: whether it says the recording started (else stopped), and the words
+  /// without the emoji. Null for any other words.
+  static ({bool started, String words})? recordingLine(String text) {
+    final m = _recordingLine.firstMatch(text);
+    if (m == null) return null;
+    return (started: m.group(1) == '\u{1F534}', words: m.group(2)!);
+  }
+
   @override
   bool operator ==(Object other) => other is PluginChatNote && other.plugin == plugin && other.kind == kind && mapEquals(other.details, details);
 

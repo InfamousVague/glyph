@@ -22,6 +22,15 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  // Started a second time (GMFB-47): the app is one of its kind (my_application_new), so the second start asks this
+  // one to activate and goes. The window already open is brought to the front; no second one is made. One not shown
+  // yet is still starting, and shows itself with its first frame.
+  GList* open = gtk_application_get_windows(GTK_APPLICATION(application));
+  if (open != nullptr) {
+    GtkWindow* had = GTK_WINDOW(open->data);
+    if (gtk_widget_get_visible(GTK_WIDGET(had))) gtk_window_present(had);
+    return;
+  }
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -142,7 +151,17 @@ MyApplication* my_application_new() {
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
+  // One window of the app on a computer (GMFB-47, "Two windows one voice call"): two copies started from one folder
+  // are one device to the relay and take each other's place on it every few seconds. With no flag the application is
+  // one of its kind for this person's session, and a second start activates the first (my_application_activate). Not
+  // where GHOST_DESK_DIR gives a copy a folder of its own (lib/desktop/main.dart): that one is another install, and
+  // runs beside this.
+  const gchar* own_folder = g_getenv("GHOST_DESK_DIR");
+  const GApplicationFlags flags = own_folder != nullptr && own_folder[0] != '\0'
+                                      ? G_APPLICATION_NON_UNIQUE
+                                      : static_cast<GApplicationFlags>(0);
+
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     flags, nullptr));
 }

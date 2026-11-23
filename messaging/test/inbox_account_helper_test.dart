@@ -309,6 +309,30 @@ void main() {
       n.dispose();
     });
 
+    test('a reply says who and what it answers: from the message kept here, else from what the helper sent (GMFB-44)', () async {
+      final (n, helper) = await started(linked: true, service: discordService);
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'members': [{'id': 'jo-1', 'name': 'Jo Park'}], 'unread': 0, 'last': 1});
+      helper.event(msg('t1', 'm1', '', ts: 1000, media: [{'pointer': {'url': 'https://cdn.example/p.jpg'}, 'mime': 'image/jpeg', 'name': 'p.jpg', 'size': 3, 'width': 10, 'height': 10}]));
+      helper.event(msg('t1', 'm2', 'mine', from: 'me-1', mine: true, ts: 2000));
+      InboxMessage reply(String id) => n.messagesOf('t1').firstWhere((m) => m.id == id);
+      // To a picture kept here, of which the helper sent the id alone.
+      helper.event({...msg('t1', 'm3', 'nice', from: 'me-1', mine: true, ts: 3000), 'quote': {'id': 'm1'}});
+      // To one of this account's own.
+      helper.event({...msg('t1', 'm4', 'what?', ts: 4000), 'quote': {'id': 'm2', 'text': 'mine', 'from': 'me-1', 'name': 'Matt'}});
+      // To ones older than what is loaded: the helper's words and name, or the kind of thing it was.
+      helper.event({...msg('t1', 'm5', 'yes', ts: 5000), 'quote': {'id': 'old-1', 'text': 'lunch on friday?', 'from': 'ann-1', 'name': 'Ann Lee'}});
+      helper.event({...msg('t1', 'm6', 'ha', ts: 6000), 'quote': {'id': 'old-2', 'from': 'jo-1', 'mime': 'video/mp4'}});
+      // Nothing known of it at all.
+      helper.event({...msg('t1', 'm7', 'ok', ts: 7000), 'quote': {'id': 'old-3'}});
+      await settle();
+      expect((reply('m3').replyTo, reply('m3').replySender, reply('m3').replyText), ('m1', 'Jo Park', 'Photo'));
+      expect((reply('m4').replySender, reply('m4').replyText), ('You', 'mine'));
+      expect((reply('m5').replySender, reply('m5').replyText), ('Ann Lee', 'lunch on friday?'));
+      expect((reply('m6').replySender, reply('m6').replyText), ('Jo Park', 'Video'));
+      expect((reply('m7').replyTo, reply('m7').replySender, reply('m7').replyText), ('old-3', null, null));
+      n.dispose();
+    });
+
     test('the service ending the session signs out here, keeping what was read, and says why', () async {
       final (n, helper) = await started(linked: true);
       helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo', 'group': false, 'unread': 0, 'last': 1});

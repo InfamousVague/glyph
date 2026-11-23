@@ -17,6 +17,13 @@ abstract class HubLink {
   Future<void> close();
 }
 
+/// A link that can say what the hub closed it with (a WebSocket's close code): 4409 where a newer connection of the
+/// same device took its place (GMFB-47). Apart from [HubLink], so a link that can't say need not.
+abstract class HubLinkEnd {
+  /// The code it was closed with; null while open, or where none was given.
+  int? get closeCode;
+}
+
 /// Makes a link to the hub at [url], open and ready to be said to; throws where it can't. How long it tries is its
 /// own to decide: whoever dials waits for as long as it does.
 typedef HubDial = Future<HubLink> Function(String url);

@@ -473,6 +473,26 @@ func TestMessageOf(t *testing.T) {
 	if got != want {
 		t.Fatalf("reply:\n got %s\nwant %s", got, want)
 	}
+	// A reply says whom it answers, and for a picture with no words what kind of thing it was (GMFB-44).
+	pic := &discordgo.Message{ID: msg1, Author: ann, Attachments: []*discordgo.MessageAttachment{{ID: "9", URL: "https://cdn.discordapp.com/attachments/1/9/cat.png", ContentType: "image/png"}}}
+	answer := &discordgo.Message{ID: msg3, Author: me, Content: "ha", MessageReference: &discordgo.MessageReference{MessageID: msg1}, ReferencedMessage: pic}
+	if got := encode(t, messageOf(meID, dmID, false, answer).Quote); got != `{"id":"`+msg1+`","from":"`+annID+`","name":"`+ann.DisplayName()+`","mime":"image/png"}` {
+		t.Fatalf("reply to a picture: %s", got)
+	}
+	pic.Content, pic.Member = "look", &discordgo.Member{Nick: "Annie"}
+	if got := encode(t, messageOf(meID, dmID, false, answer).Quote); got != `{"id":"`+msg1+`","text":"look","from":"`+annID+`","name":"Annie"}` {
+		t.Fatalf("reply to words: %s", got)
+	}
+	card := &discordgo.Message{ID: msg1, Embeds: []*discordgo.MessageEmbed{{Title: "Build passed"}}}
+	answer.ReferencedMessage = card
+	if got := encode(t, messageOf(meID, dmID, false, answer).Quote); got != `{"id":"`+msg1+`","text":"Build passed"}` {
+		t.Fatalf("reply to a card: %s", got)
+	}
+	// The one answered is gone, or Discord sent nothing of it: its id alone.
+	answer.ReferencedMessage = nil
+	if got := encode(t, messageOf(meID, dmID, false, answer).Quote); got != `{"id":"`+msg1+`"}` {
+		t.Fatalf("reply to one not sent along: %s", got)
+	}
 	file := f.messages[dmID][2]
 	got = encode(t, messageOf(meID, dmID, false, file).Media)
 	want = `[{"pointer":{"url":"https://cdn.discordapp.com/attachments/1/77/menu.pdf?ex=1","chat":"` + dmID + `","message":"` + msg1 + `","attachment":"77"},"mime":"application/pdf","name":"menu.pdf","size":4096,"width":0,"height":0}]`
