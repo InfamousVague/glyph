@@ -11,6 +11,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import 'friends/buddies.dart';
+import 'friends/friends.dart';
 import 'inbox/inbox.dart';
 import 'net/net.dart';
 
@@ -21,7 +22,9 @@ class Presence {
   static Listenable get changes => Listenable.merge([Net.instance.presence, Inbox.instance.presenceChanges]);
 
   /// The install name on our own system of whoever [address] names: a friend by username (`@name`), or someone this
-  /// phone shares keys with, by their number. Null for anyone else.
+  /// phone shares keys with, by their number: the id the encryption record for that number names (Friends.idOf),
+  /// never whoever the routes happen to hold under it (a member of a group, under a number its admin wrote: found in
+  /// review, 2026-11-23). Null for anyone else.
   static String? ghostIdOf(String address) {
     if (address.startsWith('@')) {
       final name = address.substring(1).toLowerCase();
@@ -31,7 +34,7 @@ class Presence {
       return null;
     }
     if (address.contains(':')) return null;
-    return Net.instance.byAddress(address)?.id;
+    return Friends.instance.idOf(address);
   }
 
   /// Whether whoever [address] names is on now, and where; or when they were last seen. Null where nothing is known.

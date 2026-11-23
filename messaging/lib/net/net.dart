@@ -214,20 +214,11 @@ class Net extends ChangeNotifier implements PeerBook {
     final key = _mineKey;
     return key == null ? null : Peer(id: me, key: key);
   }
-  @override
-  Peer? byAddress(String address) {
-    final want = _digits(address);
-    for (final p in _peers.values) {
-      if (_digits(p.address ?? '') == want) return p;
-    }
-    return null;
-  }
 
-  /// A number as two phones agree on it whatever each wrote before it: its last ten digits.
-  static String _digits(String address) {
-    final d = address.replaceAll(RegExp(r'[^0-9]'), '');
-    return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
-  }
+  // No one is found here by an address (found in review, 2026-11-23). The people come from more than one list, and on
+  // Android a member of a group is among them under whatever address the group's admin wrote: a friend's number, or
+  // "@friend". The first address that matched sent a friend's words to that member. Who an address is, is the record
+  // for it to say (Friends.idOf, by the id its key makes), and the routes are asked by that id ([byId]).
 
   void _note(String words, {String? via}) {
     recent.insert(0, NetEvent(words, via: via));

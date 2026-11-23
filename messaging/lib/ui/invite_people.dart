@@ -32,7 +32,6 @@ import '../invites/text_invites.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
-import '../net/net.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
@@ -266,12 +265,14 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
 
   Set<String> get _inside => widget.target.inside?.call() ?? const {};
 
+  /// The friend by username a friend by [number] also is: the one whose id the encryption record for that number names
+  /// (Friends.idOf), never whoever the routes hold under the number (found in review, 2026-11-23).
   Buddy? _buddyOf(String number) {
     final pick = widget.buddyOf;
     if (pick != null) return pick(number);
-    final peer = Net.instance.byAddress(number);
-    if (peer == null) return null;
-    return _buddies.friends.where((f) => f.id == peer.id).firstOrNull;
+    final id = Friends.instance.idOf(number);
+    if (id == null) return null;
+    return _buddies.friends.where((f) => f.id == id).firstOrNull;
   }
 
   /// Everyone offered, friends on Ghost Messaging first and by name, then the contacts in the phone's order; each

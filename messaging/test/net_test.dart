@@ -114,8 +114,6 @@ class Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
-  @override
-  Peer? byAddress(String address) => all.values.where((p) => p.address == address).firstOrNull;
 }
 
 /// Two installs that have exchanged keys, each with a switchboard over the routes given.

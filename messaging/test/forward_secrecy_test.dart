@@ -131,8 +131,6 @@ class Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
-  @override
-  Peer? byAddress(String address) => all.values.where((p) => p.address == address).firstOrNull;
 }
 
 /// An account: one identity, the words' key its devices seal copies to each other with, and its devices.
