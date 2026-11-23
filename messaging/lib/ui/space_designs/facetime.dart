@@ -8,6 +8,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call drawn like Group FaceTime (SpaceDesign.facetime): a dark, full-bleed stage where one other fills the
@@ -32,8 +33,8 @@ const _stageInk = Color(0xFF0B0B0E);
 /// Wider than this is a computer's window: controls in one capsule, the chat beside the stage.
 const _wide = 760.0;
 
-/// Your picture-in-picture in the top corner.
-const _pipPhone = Size(100, 136), _pipWide = Size(212, 132);
+/// Your picture-in-picture in the top corner: upright on a phone, 4:3 on a computer.
+const _pipPhone = Size(100, 136), _pipWide = Size(212, 159);
 
 /// The gap between tiles, and a computer's inset from the window's edges (the side column of tiles and your picture
 /// above it share it, so they line up).
@@ -318,7 +319,7 @@ class _Alone extends StatelessWidget {
     final me = call.me;
     final talking = call.isTalking(me, now);
     final selfView = me.video
-        ? SizedBox(width: wide ? 300 : 220, height: wide ? 220 : 290, child: _Tile(call: call, person: me, talking: talking, radius: 28, faceSize: 96, label: false))
+        ? SizedBox(width: wide ? 300 : 220, height: wide ? 300 / tileAspect : 290, child: _Tile(call: call, person: me, talking: talking, radius: 28, faceSize: 96, label: false))
         : _Monogram(call: call, person: me, size: wide ? 168 : 148, talking: talking);
     return DecoratedBox(
       decoration: BoxDecoration(gradient: _washFor(context, call.channel.name)),
@@ -488,18 +489,20 @@ class _Mosaic extends StatelessWidget {
           final h = math.max(0.0, box.maxHeight - top - bottom);
           final rects = <String, Rect>{};
           if (wide) {
-            // The featured tile on the left, the rest in a grid on the right.
+            // The featured tile on the left, the rest in a grid on the right, every tile 4:3, each centred in its room.
             final side = _sideColumn(w, rest.length);
             final cols = side.cols;
             final rows = math.max(1, (rest.length / cols).ceil());
             final bigW = w - side.width - gap;
-            rects[featured.id] = Rect.fromLTWH(left, top, bigW, h);
-            final cellW = side.cell;
+            final featuredW = math.min(bigW, h * tileAspect), featuredH = featuredW / tileAspect;
+            rects[featured.id] = Rect.fromLTWH(left + (bigW - featuredW) / 2, top + (h - featuredH) / 2, featuredW, featuredH);
             final sideH = math.max(0.0, box.maxHeight - sideTop - bottom);
-            final cellH = math.max(0.0, math.min((sideH - gap * (rows - 1)) / rows, cellW * 0.9));
+            final cellH = math.max(0.0, math.min((sideH - gap * (rows - 1)) / rows, side.cell / tileAspect));
+            final cellW = cellH * tileAspect;
             final used = rows * cellH + (rows - 1) * gap;
+            final across = cols * cellW + (cols - 1) * gap;
             for (var i = 0; i < rest.length; i++) {
-              rects[rest[i].id] = Rect.fromLTWH(left + bigW + gap + (i % cols) * (cellW + gap), sideTop + (sideH - used) / 2 + (i ~/ cols) * (cellH + gap), cellW, cellH);
+              rects[rest[i].id] = Rect.fromLTWH(left + bigW + gap + (side.width - across) / 2 + (i % cols) * (cellW + gap), sideTop + (sideH - used) / 2 + (i ~/ cols) * (cellH + gap), cellW, cellH);
             }
           } else {
             // The featured tile across the top, the rest in rows of two or three below.

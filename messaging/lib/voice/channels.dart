@@ -28,6 +28,7 @@ import 'live_changer.dart';
 import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
+import 'open_space.dart';
 import 'voice.dart';
 import 'voice_settings.dart';
 
@@ -267,6 +268,7 @@ class Voice extends ChangeNotifier {
     _leaveCall ??= Sms.instance.leaveCall.stream.listen((_) => unawaited(leave()));
     if (_app != null) return;
     _app = app;
+    OpenSpaces.instance.app = app;
     try {
       own = [for (final j in jsonDecode(app.choice('voice_channels', '[]')) as List) ?VoiceChannel.fromJson(j)];
       _seen.addAll((jsonDecode(app.choice('voice_seen', '{}')) as Map).cast<String, int>());
@@ -1016,6 +1018,8 @@ class Voice extends ChangeNotifier {
       WatchTogether.instance.follow();
       // And its soundboard (soundboard.dart).
       Soundboard.instance.follow();
+      // And its floor, where it is an open space (open_space.dart).
+      OpenSpaces.instance.follow();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
       // And the voice changer, live, where it is on (live_changer.dart).
@@ -1035,16 +1039,19 @@ class Voice extends ChangeNotifier {
     if (m is RtcMedia) await m.applyLive(settings);
   }
 
-  // The microphone and the speaker chosen in Settings: kept, and switched to at once in a call there is.
-  Future<void> useInput(String deviceId) async {
+  // The microphone and the speaker chosen in Settings: kept with the system's name for them (to find one again whose
+  // id has changed), and switched to at once in a call there is. An empty id is the system's own.
+  Future<void> useInput(String deviceId, {String name = ''}) async {
     _app?.set('voice_input', deviceId);
-    await media?.setInput(deviceId);
+    _app?.set('voice_input_name', deviceId.isEmpty ? '' : name);
+    await media?.setInput(deviceId, name: name);
     notifyListeners();
   }
 
-  Future<void> useOutput(String deviceId) async {
+  Future<void> useOutput(String deviceId, {String name = ''}) async {
     _app?.set('voice_output', deviceId);
-    await media?.setOutput(deviceId);
+    _app?.set('voice_output_name', deviceId.isEmpty ? '' : name);
+    await media?.setOutput(deviceId, name: name);
     notifyListeners();
   }
 
@@ -1056,6 +1063,7 @@ class Voice extends ChangeNotifier {
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
     Soundboard.instance.follow();
+    OpenSpaces.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
     AutoLeveler.instance.follow();

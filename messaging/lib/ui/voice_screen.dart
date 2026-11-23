@@ -28,6 +28,7 @@ import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import 'screen_share.dart';
+import 'tile_grid.dart';
 import '../kit/semantic_colors.dart';
 import '../backgrounds.dart' show strongFill;
 
@@ -161,7 +162,9 @@ class CallPanel extends StatelessWidget {
   static Size videoTile({required double width, required int count, required double gap, required double screenHeight}) {
     final across = count == 1 ? 1 : math.min(count, (width / 240).floor().clamp(2, 4));
     final w = (width - gap * (across - 1)) / across;
-    return Size(w, math.min(w * 0.75, screenHeight * 0.7));
+    // Held to 70% of the window, it keeps 4:3 by narrowing (Matt, 2026-11-23: "make them like 4:3"), centred.
+    final h = math.min(w / tileAspect, screenHeight * 0.7);
+    return Size(h < w / tileAspect ? h * tileAspect : w, h);
   }
 
   @override
@@ -192,7 +195,7 @@ class CallPanel extends StatelessWidget {
             LayoutBuilder(builder: (context, box) {
               final size = videoTile(width: box.maxWidth, count: withVideo.length, gap: t.space(2), screenHeight: MediaQuery.sizeOf(context).height);
               final w = size.width;
-              return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+              return Wrap(alignment: WrapAlignment.center, spacing: t.space(2), runSpacing: t.space(2), children: [
                 for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: size.height, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen)),
               ]);
             }),
@@ -253,9 +256,9 @@ class CallPanel extends StatelessWidget {
   }
 }
 
-/// The pictures of whoever in [session] has video on, filling the space given: one alone, two to four two across,
-/// more three across (Matt, 2026-11-15: "when a video starts split the right side 50/50 showing the videos above the
-/// chat"). Nothing where nobody has video on ([any]).
+/// The pictures of whoever in [session] has video on, in the space given (Matt, 2026-11-15: "when a video starts split
+/// the right side 50/50 showing the videos above the chat"): each 4:3 and as large as fits (Matt, 2026-11-23), the
+/// grid centred. Nothing where nobody has video on ([any]).
 class CallVideos extends StatelessWidget {
   const CallVideos({super.key, required this.session});
   final VoiceSession session;
@@ -292,30 +295,11 @@ class CallVideos extends StatelessWidget {
             Expanded(flex: 3, child: tile(shared)),
             if (tiles.isNotEmpty) ...[
               SizedBox(height: t.space(2)),
-              Expanded(child: Row(spacing: t.space(2), children: [for (final x in tiles.take(4)) Expanded(child: tile(x))])),
+              Expanded(child: TileGrid(count: tiles.length < 4 ? tiles.length : 4, gap: t.space(2), tile: (i) => tile(tiles[i]))),
             ],
           ]);
         }
-        final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
-        final rows = (tiles.length / across).ceil();
-        final gap = t.space(2);
-        return Column(children: [
-          for (var r = 0; r < rows; r++) ...[
-            if (r > 0) SizedBox(height: gap),
-            Expanded(
-              child: Row(children: [
-                for (var c = 0; c < across; c++) ...[
-                  if (c > 0) SizedBox(width: gap),
-                  Expanded(
-                    child: r * across + c < tiles.length
-                        ? tile(tiles[r * across + c])
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ]),
-            ),
-          ],
-        ]);
+        return TileGrid(count: tiles.length, gap: t.space(2), tile: (i) => tile(tiles[i]));
       },
     );
   }
@@ -1154,7 +1138,7 @@ class _DevicePillState extends State<DevicePill> {
     Widget row(String id, String name) => GlacierMenuItem(
           icon: AppIcon(input ? Lucide.mic : LucideMore.headphones, size: 16),
           shortcut: id == current ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16),
-          onSelect: () => input ? v.useInput(id) : v.useOutput(id),
+          onSelect: () => input ? v.useInput(id, name: name) : v.useOutput(id, name: name),
           child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
         );
     final ring = t.len('app-ring');
@@ -1200,7 +1184,9 @@ class _DevicePillState extends State<DevicePill> {
           children: [
             GlacierMenuLabel(child: Text(input ? 'Microphone' : 'Speaker or headset')),
             row('', input ? 'The system\'s own' : 'The system\'s own'),
-            for (final d in _devices) row(d.deviceId, d.label.isEmpty ? 'A device' : d.label),
+            // The Mac's "default" is the system's own, the row above.
+            for (final d in _devices)
+              if (d.deviceId != 'default') row(d.deviceId, d.label.isEmpty ? 'A device' : d.label),
             const GlacierMenuSeparator(),
             GlacierMenuItem(
               icon: const AppIcon(Lucide.settings, size: 16),

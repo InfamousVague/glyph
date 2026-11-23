@@ -16,7 +16,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -91,9 +91,23 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       t.enabled = !_deaf && !_silenced.contains(id);
       // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most, and
       // times the auto leveler's gain for them where it is on (leveler.dart).
-      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0)).clamp(0.0, 6.0);
+      // And, in an open space, times how much of them is heard from where this device stands (open_space.dart).
+      final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0) * (_placed[id] ?? 1.0)).clamp(0.0, 6.0);
       unawaited(Helper.setVolume(v, t).catchError((_) {}));
     }
+  }
+
+  /// How much of each person is heard from where this device stands in an open space (open_space.dart): 1 is all.
+  final Map<String, double> _placed = {};
+
+  @override
+  void setPlaceGain(String id, double gain) {
+    if (gain >= 1) {
+      if (_placed.remove(id) == null) return;
+    } else {
+      _placed[id] = gain.clamp(0.0, 1.0);
+    }
+    _apply(id);
   }
 
   /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
@@ -357,19 +371,54 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   @visibleForTesting
   static Future<List<MediaDeviceInfo>> Function()? enumerate;
 
+  /// Makes each connection to another person: WebRTC's own, or a test's.
+  @visibleForTesting
+  static Future<RTCPeerConnection> Function(Map<String, dynamic> configuration)? connect;
+
+  /// How the sound devices are listed, chosen and opened: WebRTC's own, or a test's.
+  @visibleForTesting
+  static SoundDevices sound = const SoundDevices();
+
+  /// The kind of computer or phone the device rules below are for: this one, or the one a test says.
+  @visibleForTesting
+  static String? platformForTest;
+
+  static String get _os =>
+      platformForTest ??
+      (kIsWeb
+          ? 'web'
+          : PlatformInfo.isMacOS
+              ? 'macos'
+              : PlatformInfo.isWindows
+                  ? 'windows'
+                  : PlatformInfo.isLinux
+                      ? 'linux'
+                      : PlatformInfo.isAndroid
+                          ? 'android'
+                          : PlatformInfo.isIOS
+                              ? 'ios'
+                              : 'other');
+
   /// Windows' WebRTC (flutter_webrtc's common/cpp) takes the microphone from `optional: [{sourceId}]` and reads
   /// `deviceId` as the speaker; the Mac's and the phones' take `deviceId` as the microphone. Asked as `deviceId` on
   /// Windows, every choice of microphone was the system's first (Matt, 2026-11-21: "the device picker is not working
   /// in windows").
-  static bool get _sourceIds => !kIsWeb && (PlatformInfo.isWindows || PlatformInfo.isLinux);
+  static bool get _sourceIds => _os == 'windows' || _os == 'linux';
 
-  Map<String, Object> get _audioAsked => {
-        if (settings.input.isNotEmpty && !_sourceIds) 'deviceId': settings.input,
-        if (settings.input.isNotEmpty && _sourceIds)
+  /// The microphone and the speaker this call has now, as worked out from the settings and the devices there are
+  /// ([_useInput], [_useOutput]): empty for the system's own.
+  String _input = '', _output = '';
+
+  /// Whether the microphone or the speaker chosen is not connected, so the system's own is used in its place.
+  bool inputMissing = false, outputMissing = false;
+
+  Map<String, Object> _audioAsked(String input, String output) => {
+        if (input.isNotEmpty && !_sourceIds) 'deviceId': input,
+        if (input.isNotEmpty && _sourceIds)
           'optional': [
-            {'sourceId': settings.input},
+            {'sourceId': input},
           ],
-        if (settings.output.isNotEmpty && _sourceIds) 'deviceId': settings.output,
+        if (output.isNotEmpty && _sourceIds) 'deviceId': output,
         'echoCancellation': settings.useEcho,
         // WebRTC's own only where it is the one used: RNNoise and DeepFilterNet run after capture (VoiceFx).
         'noiseSuppression': settings.noiseOn(VoiceFx.available) == NoiseMode.webrtc,
@@ -383,24 +432,87 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// The devices there are of [kind] (`audioinput`, `audiooutput`), by the system's names for them.
   static Future<List<MediaDeviceInfo>> devices(String kind) async {
     try {
-      final all = await (enumerate ?? navigator.mediaDevices.enumerateDevices)();
+      final all = await (enumerate ?? sound.list)();
       return [for (final d in all) if (d.kind == kind) d];
     } catch (_) {
       return const [];
     }
   }
 
-  /// Takes sound from another microphone, in the call as it goes: the new one's track in every connection's place.
-  Future<void> setInput(String deviceId) async {
-    settings = settings.copyWith(input: deviceId);
-    // The computers' audio device modules hold one microphone for every track: chosen there too, in case a new
-    // track's constraint is not read.
-    if (deviceId.isNotEmpty && !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux)) {
-      await Helper.selectAudioInput(deviceId).catchError((_) {});
+  /// The id the system's own device has in [there], where choosing it by id is how to go back to it: the Mac lists it
+  /// as "default" (the one that follows System Settings); Windows' and Linux's WebRTC open the first listed when
+  /// asked for none, so going back is choosing that one. Empty where there is nothing to choose.
+  static String _systemOwn(List<MediaDeviceInfo> there) {
+    switch (_os) {
+      case 'macos':
+        return there.any((d) => d.deviceId == 'default') ? 'default' : '';
+      case 'windows':
+      case 'linux':
+        return there.firstOrNull?.deviceId ?? '';
+      default:
+        return '';
     }
+  }
+
+  /// An Android microphone was chosen in this app since it started: going back to the system's own then chooses the
+  /// phone's built-in one, as WebRTC keeps a chosen microphone until told another.
+  static bool _androidChose = false;
+
+  /// Works out the microphone from the settings and the devices there are now, and tells WebRTC: the one chosen, else
+  /// (not connected, or none chosen) the system's own. Returns its id, empty for the system's own.
+  Future<String> _useInput() async {
+    final there = await devices('audioinput');
+    final c = DeviceChoice.resolve(settings.input, settings.inputName, there);
+    inputMissing = c.missing;
+    _input = c.id;
+    var pick = c.id;
+    if (pick.isEmpty) {
+      pick = _systemOwn(there);
+      if (_os == 'android' && _androidChose) pick = there.where((d) => d.deviceId.startsWith('microphone-')).firstOrNull?.deviceId ?? '';
+    }
+    // The phones' and the computers' WebRTC hold one microphone for every track: chosen there, not only asked for by
+    // the track (Android reads nothing of a track's deviceId; the Mac's finds the device only once WebRTC's sound is
+    // started, SoundDevices.ready). A browser takes the track's own.
+    if (pick.isNotEmpty && const {'macos', 'windows', 'linux', 'android'}.contains(_os)) {
+      try {
+        await sound.selectInput(pick);
+        if (_os == 'android' && c.id.isNotEmpty) _androidChose = true;
+      } catch (e) {
+        debugPrint('rtc: microphone $pick not chosen: $e');
+      }
+    }
+    return _input;
+  }
+
+  /// The same for the speaker: the one chosen, else the system's own. On a phone the system's own is the loudspeaker.
+  Future<String> _useOutput() async {
+    final there = await devices('audiooutput');
+    final c = DeviceChoice.resolve(settings.output, settings.outputName, there);
+    outputMissing = c.missing;
+    _output = c.id;
+    if (_os == 'android' && c.id.isEmpty) {
+      await sound.speakerphone(true).catchError((_) {});
+      return _output;
+    }
+    final pick = c.id.isNotEmpty ? c.id : _systemOwn(there);
+    if (pick.isNotEmpty && _os != 'web') {
+      try {
+        await sound.selectOutput(pick);
+      } catch (e) {
+        debugPrint('rtc: speaker $pick not chosen: $e');
+      }
+    }
+    return _output;
+  }
+
+  /// Takes sound from another microphone, in the call as it goes: the new one's track in every connection's place.
+  /// [name] is the system's name for it, to find it again by.
+  Future<void> setInput(String deviceId, {String name = ''}) async {
+    settings = settings.copyWith(input: deviceId, inputName: deviceId.isEmpty ? '' : name);
     final old = _mic;
     if (old == null) return;
-    final fresh = await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
+    final input = await _useInput();
+    final fresh = await sound.open({'audio': _audioAsked(input, _output), 'video': false});
     final track = fresh.getAudioTracks().first;
     track.enabled = old.getAudioTracks().firstOrNull?.enabled ?? true;
     _mic = fresh;
@@ -421,26 +533,31 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       await t.stop();
     }
     await old.dispose();
+    // The microphone's processing (noise removal, the gain, the voice changer's effect) given to the new one too.
+    await VoiceFx.apply(settings);
   }
 
-  /// Plays the call through another speaker or headset.
-  Future<void> setOutput(String deviceId) async {
-    settings = settings.copyWith(output: deviceId);
-    if (deviceId.isNotEmpty) await Helper.selectAudioOutput(deviceId).catchError((_) {});
+  /// Plays the call through another speaker or headset, in the call as it goes. [name] as for [setInput].
+  Future<void> setOutput(String deviceId, {String name = ''}) async {
+    settings = settings.copyWith(output: deviceId, outputName: deviceId.isEmpty ? '' : name);
+    await _useOutput();
   }
 
   @override
   Future<void> start() async {
     // The native processing first: what it can run decides whether WebRTC's own noise suppression is asked for.
     await VoiceFx.apply(settings);
-    _mic ??= await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
+    // The devices first: the chosen microphone is opened, or the system's own where it is not connected.
+    // Windows' and Linux's WebRTC take the speaker with the microphone ([_audioAsked]), so it is worked out first there;
+    // elsewhere after, as Android's sound routing starts with the microphone.
+    if (_mic == null) {
+      final input = await _useInput();
+      if (_sourceIds) await _useOutput();
+      _mic = await sound.open({'audio': _audioAsked(input, _output), 'video': false});
+    }
     // And again with the microphone open: the native hook is there only once WebRTC is (android VoiceFx.kt).
     unawaited(VoiceFx.apply(settings));
-    if (settings.output.isNotEmpty) {
-      await Helper.selectAudioOutput(settings.output).catchError((_) {});
-    } else if (!kIsWeb && PlatformInfo.isAndroid) {
-      await Helper.setSpeakerphoneOn(true);
-    }
+    if (!_sourceIds) await _useOutput();
     // A light test: the microphone by itself, measured by the native half ([light]).
     if (light && _peers.isEmpty && VoiceFx.levelSupported) {
       try {
@@ -507,7 +624,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// Settings changed while in the call: how loud others are and the microphone's processing at once; the rest
   /// from the next call.
   Future<void> applyLive(VoiceSettings fresh) async {
-    settings = fresh.copyWith(input: settings.input, output: settings.output);
+    settings = fresh.copyWith(input: settings.input, output: settings.output, inputName: settings.inputName, outputName: settings.outputName);
     _peers.keys.forEach(_apply);
     await VoiceFx.apply(settings);
   }
@@ -820,7 +937,7 @@ class _RtcPeer implements VoicePeer {
   /// Makes the connection and wires what it finds to the session (candidates) and to [media] (their stream, their
   /// going).
   Future<RTCPeerConnection> _make() async {
-    final pc = await createPeerConnection({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan', if (relayOnly) 'iceTransportPolicy': 'relay'});
+    final pc = await (RtcMedia.connect ?? createPeerConnection)({'iceServers': media.iceServers, 'sdpSemantics': 'unified-plan', if (relayOnly) 'iceTransportPolicy': 'relay'});
     pc.onIceCandidate = (c) {
       if (c.candidate != null) onCandidate({'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
@@ -1009,4 +1126,73 @@ enum PeerLink {
         PeerLink.reconnecting => 'Reconnecting…',
         PeerLink.failed => 'Can\'t connect',
       };
+}
+
+/// Which device a choice comes to among those there are now ([resolve]).
+@immutable
+class DeviceChoice {
+  const DeviceChoice(this.id, {this.missing = false});
+
+  /// The device to use; empty for the system's own.
+  final String id;
+
+  /// The device chosen is not connected: the system's own is used in its place.
+  final bool missing;
+
+  /// The device chosen as [id] (with the system's [name] for it when it was chosen) among [there]: by its id, else
+  /// by its name where exactly one real device has it (an id that changed since: Android numbers a USB microphone
+  /// afresh each time it is plugged in), else the system's own, said to be [missing]. An empty [id] is the system's
+  /// own.
+  static DeviceChoice resolve(String id, String name, List<MediaDeviceInfo> there) {
+    if (id.isEmpty) return const DeviceChoice('');
+    if (there.any((d) => d.deviceId == id)) return DeviceChoice(id);
+    if (name.isNotEmpty) {
+      // The Mac lists the system's own as "default", under the name of the device it is now: never taken for a real one.
+      final named = [for (final d in there) if (d.label == name && d.deviceId != 'default') d];
+      if (named.length == 1) return DeviceChoice(named.single.deviceId);
+    }
+    return const DeviceChoice('', missing: true);
+  }
+}
+
+/// How sound devices are listed, chosen and opened, through flutter_webrtc: one place, so a test can stand in for it
+/// (RtcMedia.sound) and see which device each step asked for.
+class SoundDevices {
+  const SoundDevices();
+
+  static Future<void>? _ready;
+
+  /// Once in the app's life, on a computer: WebRTC's sound started, so it knows every device. Until a first connection
+  /// is made, the Mac's lists only "default" for the microphone and the speaker, and choosing any other answers
+  /// "deviceId not found!": every device chosen in Settings was dropped at the start of a call, which took the
+  /// system's own (Matt, 2026-11-23: "switching input and output devices doesn't work we have to switch them on the
+  /// physical settings on the operating system for them to change, it seems to only use the default device"). One
+  /// connection made and closed at once, a few milliseconds.
+  Future<void> ready() => _ready ??= () async {
+        if (kIsWeb || !(PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux)) return;
+        try {
+          final pc = await createPeerConnection({});
+          await pc.close();
+        } catch (_) {}
+      }();
+
+  /// Every device the system has, sound and cameras.
+  Future<List<MediaDeviceInfo>> list() async {
+    await ready();
+    return navigator.mediaDevices.enumerateDevices();
+  }
+
+  Future<MediaStream> open(Map<String, dynamic> constraints) => navigator.mediaDevices.getUserMedia(constraints);
+
+  Future<void> selectInput(String id) async {
+    await ready();
+    await Helper.selectAudioInput(id);
+  }
+
+  Future<void> selectOutput(String id) async {
+    await ready();
+    await Helper.selectAudioOutput(id);
+  }
+
+  Future<void> speakerphone(bool on) => Helper.setSpeakerphoneOn(on);
 }

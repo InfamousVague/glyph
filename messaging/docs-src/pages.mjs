@@ -19,6 +19,7 @@ export const sections = [
       { slug: 'circles', icon: 'users', title: 'Make a circle and invite people', summary: 'A circle is a group of people with a sidebar of spaces. Make one, invite people, and join one.' },
       { slug: 'spaces', icon: 'message-circle', title: 'Spaces', summary: 'The four kinds of space, polls, mentions, and spaces of your own.' },
       { slug: 'roles', icon: 'shield-check', title: 'Roles and permissions', summary: 'Who can do what in a circle, and changing it space by space.' },
+      { slug: 'open-spaces', icon: 'compass', title: 'Open spaces', summary: 'A call you walk around in: hear who is near you, and gather in groups.' },
       { slug: 'sms-spaces', icon: 'smartphone', title: 'SMS spaces', summary: 'A space that people without the app are in by text.' },
       { slug: 'calls', icon: 'headphones', title: 'Calls', summary: 'Joining voice, the call\'s controls, each person\'s volume, and guests from a browser.' },
       { slug: 'files', icon: 'folder', title: 'Files spaces', summary: 'Share files with a circle, sealed end to end, and play videos in the app.' },

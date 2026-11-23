@@ -92,7 +92,7 @@ enum CirclePerm {
   /// Never one that [signs]: whoever may change the circle can sign a manifest without the override anyway.
   static List<CirclePerm> inSpace(SpaceKind kind) => switch (kind) {
         SpaceKind.text => const [write, files, invite],
-        SpaceKind.voice => const [voice, write, invite],
+        SpaceKind.voice || SpaceKind.open => const [voice, write, invite],
         SpaceKind.files => const [files, write, invite],
       };
 
