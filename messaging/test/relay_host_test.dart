@@ -21,75 +21,13 @@ import 'package:ghost_relay/hub.dart';
 
 import 'support/direct_world.dart';
 import 'support/fake_p2p.dart';
+import 'support/host_support.dart';
 
 /// A relay hosted from the app (lib/relay_host; docs/OPEN_NETWORK.md, section 5; Matt, 2026-11-22: "i'd like everyone to
 /// be able to host a relay from their client"): the same hub gogho.st runs, in the app, with a folder and a key of its
 /// own and small limits; this app on it in memory, a device anywhere on it over Direct, a pass phrase where it is set;
 /// up while the app runs and stopped cleanly. The local network in two processes and the link to a public relay are
 /// test/relay_host_lan_test.dart's; the screens test/relay_host_settings_test.dart's.
-
-/// What the app keeps for the host: its choices and its secrets.
-class _Kept {
-  final choices = <String, String>{};
-  final secrets = <String, String>{};
-  String get hubUrl => (choices['net_hub'] ?? '').isEmpty ? Net.defaultHub : choices['net_hub']!;
-}
-
-/// A host as the app makes one, but for what it keeps ([k]) and where: a folder of its own for the test ([folder]),
-/// made and deleted with it where none is given, as the app always has one (its key, and so its name, outlives a stop).
-RelayHost _host(_Kept k, {Directory? folder, bool phone = false, Timer Function(Duration, void Function())? timer, P2p? Function()? p2p, int port = 0, bool lan = false}) {
-  k.choices[RelayHost.portKey] = '$port';
-  if (!lan) k.choices[RelayHost.lanKey] = 'off';
-  final dir = folder ?? Directory.systemTemp.createTempSync('relay-host-');
-  if (folder == null) addTearDown(() => dir.deleteSync(recursive: true));
-  return RelayHost(
-    read: (key) => k.choices[key] ?? '',
-    write: (key, v) => k.choices[key] = v,
-    secretRead: (n) async => k.secrets[n],
-    secretKeep: (n, v) async => k.secrets[n] = v,
-    folder: () async => dir,
-    p2p: p2p ?? () => null,
-    phone: phone,
-    timer: timer,
-    hubUrl: () => k.hubUrl,
-    useRelay: (url) async {
-      k.choices['net_hub'] = url;
-      return null;
-    },
-    moveBack: (url) async => k.choices['net_hub'] = url,
-    forgetHub: (url) => k.choices['net_hub'] = url,
-    passChanged: () {},
-  );
-}
-
-/// Waits for [ok], however long the machine takes (twenty seconds at most), not for a length of time.
-Future<void> _until(bool Function() ok, String what) async {
-  for (var i = 0; i < 2000 && !ok(); i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
-  expect(ok(), isTrue, reason: what);
-}
-
-/// An install on the relay this device hosts, in memory: its key and its route, dialled as the app dials its own.
-class _OnHost {
-  _OnHost(RelayHost host, {String? Function()? pass, HubDial? dial}) : keys = NetKeys.generate() {
-    carrier = HubCarrier(url: host.ownUrl!, signer: KeysSigner(keys), retry: const Duration(milliseconds: 20), dial: (url) {
-      dials++;
-      return (dial ?? (_) => host.dialHere())(url);
-    })
-      ..pass = pass;
-    carrier.arrived.listen(got.add);
-  }
-  final NetKeys keys;
-  late final HubCarrier carrier;
-  final got = <Arrived>[];
-  int dials = 0;
-  String get id => keys.id;
-  Future<void> up() async {
-    await carrier.start();
-    await _until(() => carrier.state.value == CarrierState.up, 'never signed in: ${carrier.problem}');
-  }
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -145,12 +83,12 @@ void main() {
 
   group('this app on it, in memory', () {
     test('two installs sign in to it with no socket, and reach each other; the hub says it runs in an app and names its public relay', () async {
-      final k = _Kept();
-      final host = _host(k);
+      final k = Kept();
+      final host = makeHost(k);
       addTearDown(host.shutdown);
       await host.setOn(true);
       expect([host.on, host.state, host.relayId, k.choices[RelayHost.idKey]], [true, HostState.up, isNotNull, host.relayId]);
-      final a = _OnHost(host), b = _OnHost(host);
+      final a = OnHost(host), b = OnHost(host);
       await a.up();
       await b.up();
       expect(host.connections, 2);
@@ -160,7 +98,7 @@ void main() {
       expect(host.hub!.signsV2(a.id), isTrue);
       final handed = await a.carrier.send(Peer(id: b.id), Uint8List.fromList([7, 7, 7]));
       expect(handed, Handed.passed);
-      await _until(() => b.got.isNotEmpty, 'the packet never reached b');
+      await waitFor(() => b.got.isNotEmpty, 'the packet never reached b');
       expect([b.got.single.from, b.got.single.bytes], [a.id, [7, 7, 7]]);
       for (final x in [a, b]) {
         await x.carrier.stop();
@@ -168,14 +106,14 @@ void main() {
     });
 
     test('while it isn\'t running, its dial reaches nothing and says so', () async {
-      final host = _host(_Kept());
+      final host = makeHost(Kept());
       await expectLater(host.dialHere(), throwsA(isA<HubDialRefused>().having((e) => e.message, 'message', 'The relay on this device isn\'t running.')));
     });
   });
 
   group('its limits, the hub\'s own set small', () {
     test('200 connections (one more is closed at once), 24 MB held for people away, 8 MB of what rooms keep, 16 MB in flight', () async {
-      final host = _host(_Kept());
+      final host = makeHost(Kept());
       addTearDown(host.shutdown);
       await host.setOn(true);
       final hub = host.hub!;
@@ -198,10 +136,10 @@ void main() {
     });
 
     test('what is held for someone away is held to its 24 MB: past it, the sender is told it is full', () async {
-      final host = _host(_Kept());
+      final host = makeHost(Kept());
       addTearDown(host.shutdown);
       await host.setOn(true);
-      final a = _OnHost(host);
+      final a = OnHost(host);
       await a.up();
       // Each away person's mailbox takes a megabyte (16 of these); a few dozen people's would be past 24 MB: it keeps
       // 24 MB in all, then says full.
@@ -227,19 +165,19 @@ void main() {
   group('a pass phrase', () {
     const phrase = 'the long way round the lake';
     test('this app gives it as anyone does; one without it is refused, told so, and not dialled again by itself; given, it signs in', () async {
-      final k = _Kept();
-      final host = _host(k);
+      final k = Kept();
+      final host = makeHost(k);
       addTearDown(host.shutdown);
       await host.setOn(true);
       await host.setPass(phrase);
       expect([host.hasPass, k.secrets[RelayHost.passKey], host.hub!.asksPass], [true, phrase, true]);
-      final mine = _OnHost(host, pass: () => host.ownPass);
+      final mine = OnHost(host, pass: () => host.ownPass);
       await mine.up();
       expect(mine.carrier.asksPass, isTrue);
       String? given;
-      final other = _OnHost(host, pass: () => given);
+      final other = OnHost(host, pass: () => given);
       await other.carrier.start();
-      await _until(() => other.carrier.passRefused != null, 'never refused');
+      await waitFor(() => other.carrier.passRefused != null, 'never refused');
       expect([other.carrier.passRefused, other.carrier.state.value, other.carrier.problem], ['needed', CarrierState.down, 'This relay asks for a pass phrase.']);
       // Waits for a phrase: no dial again by itself (each would be refused the same, and a wrong one counts).
       for (var i = 0; i < 20; i++) {
@@ -248,11 +186,11 @@ void main() {
       expect(other.dials, 1);
       given = 'the short way';
       other.carrier.passAgain();
-      await _until(() => other.carrier.passRefused == 'wrong', 'a wrong one was never refused as wrong');
+      await waitFor(() => other.carrier.passRefused == 'wrong', 'a wrong one was never refused as wrong');
       expect(other.dials, 2);
       given = phrase;
       other.carrier.passAgain();
-      await _until(() => other.carrier.state.value == CarrierState.up, 'never signed in with the right one');
+      await waitFor(() => other.carrier.state.value == CarrierState.up, 'never signed in with the right one');
       expect(other.carrier.passRefused, isNull);
       for (final x in [mine, other]) {
         await x.carrier.stop();
@@ -260,15 +198,15 @@ void main() {
     });
 
     test('changed, everyone is signed out to sign in again with the new one', () async {
-      final host = _host(_Kept());
+      final host = makeHost(Kept());
       addTearDown(host.shutdown);
       await host.setOn(true);
-      final mine = _OnHost(host, pass: () => host.ownPass);
+      final mine = OnHost(host, pass: () => host.ownPass);
       await mine.up();
       await host.setPass(phrase);
-      await _until(() => mine.carrier.state.value == CarrierState.up && host.connections == 1 && host.hub!.asksPass, 'this app never signed in again with the new phrase');
+      await waitFor(() => mine.carrier.state.value == CarrierState.up && host.connections == 1 && host.hub!.asksPass, 'this app never signed in again with the new phrase');
       await host.setPass(null);
-      await _until(() => !host.hub!.asksPass && host.connections == 1 && mine.carrier.state.value == CarrierState.up, 'never signed in again once it was taken away');
+      await waitFor(() => !host.hub!.asksPass && host.connections == 1 && mine.carrier.state.value == CarrierState.up, 'never signed in again once it was taken away');
       await mine.carrier.stop();
     });
   });
@@ -279,17 +217,17 @@ void main() {
     tearDown(() => dir.delete(recursive: true));
 
     test('stopping closes every connection, and this app sees its relay gone; what it held goes; its folder keeps its key, and it has the same name again', () async {
-      final k = _Kept();
-      final host = _host(k, folder: dir);
+      final k = Kept();
+      final host = makeHost(k, folder: dir);
       await host.setOn(true);
       final id = host.relayId;
-      final a = _OnHost(host);
+      final a = OnHost(host);
       await a.up();
       // Something held for someone away, in memory.
       final away = NetKeys.generate();
       expect(await a.carrier.send(Peer(id: away.id), Uint8List.fromList(utf8.encode('SECRET-WORDS'))), Handed.held);
       await host.shutdown();
-      await _until(() => a.carrier.state.value == CarrierState.down, 'this app never saw its relay go');
+      await waitFor(() => a.carrier.state.value == CarrierState.down, 'this app never saw its relay go');
       expect(host.state, HostState.off);
       expect(host.on, isTrue, reason: 'shut down with the app, the choice stays');
       // What its folder keeps: its key and who signs in the newer way; nothing anyone said.
@@ -301,8 +239,8 @@ void main() {
       // Started again: the same name, and nothing of what it held.
       await host.startIfOn();
       expect(host.relayId, id);
-      await _until(() => a.carrier.state.value == CarrierState.up, 'this app never came back to it');
-      final b = _OnHost(host, dial: (_) => host.dialHere());
+      await waitFor(() => a.carrier.state.value == CarrierState.up, 'this app never came back to it');
+      final b = OnHost(host, dial: (_) => host.dialHere());
       await b.up();
       expect(host.hub!.heldFor(away.id), 0, reason: 'what it held was in memory, and went when it stopped');
       for (final x in [a, b]) {
@@ -312,8 +250,8 @@ void main() {
     });
 
     test('switched off while this app uses it: the app goes back to the relay it used before, then it stops', () async {
-      final k = _Kept()..choices['net_hub'] = 'wss://relay.example.com/hub';
-      final host = _host(k);
+      final k = Kept()..choices['net_hub'] = 'wss://relay.example.com/hub';
+      final host = makeHost(k);
       await host.setOn(true);
       expect(await host.useHere(), isNull);
       expect([k.hubUrl, k.choices[RelayHost.beforeKey], host.inUse], [host.ownUrl, 'wss://relay.example.com/hub', true]);
@@ -322,8 +260,8 @@ void main() {
     });
 
     test('signing out stops it and switches it off, forgets its pass phrase, keeps its folder, and sets this app\'s relay back', () async {
-      final k = _Kept();
-      final host = _host(k, folder: dir);
+      final k = Kept();
+      final host = makeHost(k, folder: dir);
       await host.setOn(true);
       await host.setPass('a phrase of the person signing out');
       expect(await host.useHere(), isNull);
@@ -337,7 +275,7 @@ void main() {
   group('on a phone', () {
     test('it stops a minute after the app is put away, and starts again as it comes back; a computer\'s runs on', () async {
       final clock = FakeClock();
-      final phone = _host(_Kept(), phone: true, timer: clock.timer), computer = _host(_Kept(), timer: clock.timer);
+      final phone = makeHost(Kept(), phone: true, timer: clock.timer), computer = makeHost(Kept(), timer: clock.timer);
       addTearDown(phone.shutdown);
       addTearDown(computer.shutdown);
       for (final h in [phone, computer]) {
@@ -347,10 +285,10 @@ void main() {
       await clock.pass(const Duration(seconds: 59));
       expect([phone.state, computer.state], [HostState.up, HostState.up]);
       await clock.pass(const Duration(seconds: 1));
-      await _until(() => phone.state == HostState.off, 'the phone\'s never stopped');
+      await waitFor(() => phone.state == HostState.off, 'the phone\'s never stopped');
       expect([phone.on, computer.state], [true, HostState.up], reason: 'stopped, not switched off');
       phone.appAway(false);
-      await _until(() => phone.state == HostState.up, 'the phone\'s never started again');
+      await waitFor(() => phone.state == HostState.up, 'the phone\'s never started again');
       // Put away and back within the minute: never stopped.
       phone.appAway(true);
       await clock.pass(const Duration(seconds: 30));
@@ -370,8 +308,8 @@ void main() {
       final hostDevice = w.install(w.account('hana'), computer: true), joiner = w.install(w.account('jo'), network: 'cafe');
       await hostDevice.start();
       await joiner.start();
-      final k = _Kept();
-      final host = _host(k, timer: w.clock.timer, p2p: () => hostDevice.p2p);
+      final k = Kept();
+      final host = makeHost(k, timer: w.clock.timer, p2p: () => hostDevice.p2p);
       addTearDown(host.shutdown);
       await host.setOn(true);
       await w.until(() => host.directUrl != null, 'the relay never had an address over Direct');
@@ -387,7 +325,7 @@ void main() {
       expect(w.mesh.dials.where((d) => d.channel == P2pChannel.hub).map((d) => d.to), [hostDevice.p2p.nodeId]);
       expect(host.hub!.signsV2(joiner.account.id), isTrue, reason: 'bound to the node it dialled, which the direct network proves');
       // And this app, in memory, on the same relay.
-      final hana = _OnHost(host);
+      final hana = OnHost(host);
       await hana.up();
       expect(await jo.send(Peer(id: hana.id), Uint8List.fromList([1, 2, 3])), Handed.passed);
       await w.until(() => hana.got.isNotEmpty, 'what came over Direct never reached this app');
@@ -403,7 +341,7 @@ void main() {
       final hostDevice = w.install(w.account('hana'), computer: true), joiner = w.install(w.account('jo'), network: 'cafe');
       await hostDevice.start();
       await joiner.start();
-      final host = _host(_Kept(), timer: w.clock.timer, p2p: () => hostDevice.p2p);
+      final host = makeHost(Kept(), timer: w.clock.timer, p2p: () => hostDevice.p2p);
       addTearDown(host.shutdown);
       await host.setOn(true);
       await w.until(() => host.directUrl != null, 'the relay never had an address over Direct');
