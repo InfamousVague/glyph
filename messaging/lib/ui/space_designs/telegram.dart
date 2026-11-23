@@ -553,8 +553,8 @@ class _MicMark extends StatelessWidget {
       );
 }
 
-/// Everyone with video on, two across, each tile 4:3 (one alone as wide as the panel; the last of an odd number centred
-/// under the rest at their size).
+/// Everyone with video on: on a computer 4:3 tiles as large as fit ([roomy]); on a phone two across (one alone, or the
+/// last of an odd number, across the whole width).
 class _VideoGrid extends StatelessWidget {
   const _VideoGrid({required this.call, required this.people, required this.room, this.roomy = false});
   final SpaceCall call;
@@ -563,7 +563,7 @@ class _VideoGrid extends StatelessWidget {
   /// The height the list leaves for the grid; its rows shrink to fit it, to no less than 84 each.
   final double room;
 
-  /// On a computer (GMFB-58): tiles shaped 16:9 and as large as [room] and the width allow, as many across as makes
+  /// On a computer (GMFB-58): tiles shaped 4:3 (Matt, 2026-11-23) and as large as [room] and the width allow, as many across as makes
   /// them largest, no row under 240 high (the list scrolls instead); the grid in the middle.
   final bool roomy;
 
@@ -579,10 +579,10 @@ class _VideoGrid extends StatelessWidget {
           final rows = (n / across).ceil();
           // Whole pixels, so a row's tiles never add up to a hair more than the width and wrap.
           final cell = ((box.maxWidth - gap * (across - 1)) / across).floorToDouble();
-          final high = math.min(cell * 9 / 16, math.max(240.0, (room - gap * (rows - 1)) / rows));
+          final high = math.min(cell / tileAspect, math.max(240.0, (room - gap * (rows - 1)) / rows));
           if (high > h * 1.15) {
             h = high;
-            w = math.min(cell, high * 16 / 9);
+            w = math.min(cell, high * tileAspect);
           }
         }
         return SizedBox(
@@ -595,13 +595,14 @@ class _VideoGrid extends StatelessWidget {
       final half = (box.maxWidth - gap) / 2;
       final rows = (people.length + 1) ~/ 2;
       final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
-      // 4:3, narrower where the list needs the height.
-      final h = math.min((people.length == 1 ? box.maxWidth : half) / tileAspect, fit);
-      return Column(spacing: gap, children: [
-        for (var r = 0; r < rows; r++)
-          Row(mainAxisAlignment: MainAxisAlignment.center, spacing: gap, children: [
-            for (final p in people.skip(r * 2).take(2)) SizedBox(width: h * tileAspect, height: h, child: _VideoTile(call: call, person: p)),
-          ]),
+      final pair = math.min(half * 0.82, fit);
+      final wide = math.min(math.min(box.maxWidth * 9 / 16, 200.0), fit);
+      return Wrap(spacing: gap, runSpacing: gap, children: [
+        for (var i = 0; i < people.length; i++)
+          if (people.length.isOdd && i == people.length - 1)
+            SizedBox(width: box.maxWidth, height: wide, child: _VideoTile(call: call, person: people[i]))
+          else
+            SizedBox(width: half, height: pair, child: _VideoTile(call: call, person: people[i])),
       ]);
     });
   }

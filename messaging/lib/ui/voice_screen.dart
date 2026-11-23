@@ -162,7 +162,9 @@ class CallPanel extends StatelessWidget {
   static Size videoTile({required double width, required int count, required double gap, required double screenHeight}) {
     final across = count == 1 ? 1 : math.min(count, (width / 240).floor().clamp(2, 4));
     final w = (width - gap * (across - 1)) / across;
-    return Size(w, math.min(w * 0.75, screenHeight * 0.7));
+    // Held to 70% of the window, it keeps 4:3 by narrowing (Matt, 2026-11-23: "make them like 4:3"), centred.
+    final h = math.min(w / tileAspect, screenHeight * 0.7);
+    return Size(h < w / tileAspect ? h * tileAspect : w, h);
   }
 
   @override
@@ -193,7 +195,7 @@ class CallPanel extends StatelessWidget {
             LayoutBuilder(builder: (context, box) {
               final size = videoTile(width: box.maxWidth, count: withVideo.length, gap: t.space(2), screenHeight: MediaQuery.sizeOf(context).height);
               final w = size.width;
-              return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+              return Wrap(alignment: WrapAlignment.center, spacing: t.space(2), runSpacing: t.space(2), children: [
                 for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: size.height, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen)),
               ]);
             }),
