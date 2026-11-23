@@ -65,10 +65,34 @@ class UsernameChats {
     return {'address': address, 'name': b?.shown};
   }
 
-  /// Where things stand with each friend, as the phone's encryption record has it: on, and friends.
-  List<Map<String, Object?>> states() => [
-        for (final b in buddies())
-          if (b.state == 'yes') {'address': addressOf(b.username), 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'person': person(addressOf(b.username))},
+  /// Where things stand with each friend, as the phone's encryption record has it: on, and friends. One for each
+  /// username, by the install it stands for (the newest: Buddies.onePerUsername), which is where what is written to them
+  /// goes (`id`), with the username's other installs that are friends too (`others`), whose words are theirs as well.
+  /// Who sent something, and where it goes, is decided by these ids (lib/friends/friends.dart), never by the address
+  /// the routes were given for someone: on Android a member of a group can be there as "@anyone" (found in review,
+  /// 2026-11-23).
+  List<Map<String, Object?>> states() {
+    final yes = [for (final b in buddies()) if (b.state == 'yes') b];
+    return [
+      for (final b in Buddies.onePerUsername(yes))
+        {
+          'address': addressOf(b.username),
+          'state': 'on',
+          'friend': 'yes',
+          'hasGhost': true,
+          'person': person(addressOf(b.username)),
+          'id': b.id,
+          'others': [for (final o in yes) if (o.id != b.id && o.username.toLowerCase() == b.username.toLowerCase()) o.id],
+        },
+    ];
+  }
+
+  /// The phone's own records (android E2e.list) with any whose address is a username's left out: a number's record
+  /// can't be one, and a text from a sender named "@maya" (some networks let a sender name itself) would otherwise
+  /// stand for the friend by username with that name.
+  static List<Object?> phoneRecords(List<Object?>? list) => [
+        for (final s in list ?? const <Object?>[])
+          if (s is Map && !isUsername('${s['address'] ?? ''}')) s,
       ];
 
   /// Those the routes reach, sealed with [keys] (an iPhone's own; android Buddies.peers works it out on a phone):
