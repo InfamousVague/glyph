@@ -29,10 +29,10 @@ Future<void> until(bool Function() ok, String what) async {
 /// One install: its key, its relay, and everything of the app's that stands on them.
 class RelayApp implements PeerBook, BuddiesPort, BuddiesAcross {
   /// [keys] and [kept] (its choices) are another run's of the same install where given: the app opened again.
-  RelayApp(this.net, this.name, MemoryHub relay, {NetKeys? keys, Map<String, String>? kept}) : keys = keys ?? NetKeys.generate() {
+  RelayApp(this.net, this.name, MemoryHub relay, {NetKeys? keys, Map<String, String>? kept, Duration busyAgain = const Duration(seconds: 3)}) : keys = keys ?? NetKeys.generate() {
     if (kept != null) choices.addAll(kept);
     signer = KeysSigner(this.keys);
-    homes = Homes(signer: signer, read: (k) => choices[k] ?? '', write: (k, v) => choices[k] = v, dial: net.appDial, answerWithin: const Duration(seconds: 2));
+    homes = Homes(signer: signer, read: (k) => choices[k] ?? '', write: (k, v) => choices[k] = v, dial: net.appDial, answerWithin: const Duration(seconds: 2), busyAgain: busyAgain);
     buddies = Buddies(this, spread: const Duration(hours: 1));
     _use(relay);
   }

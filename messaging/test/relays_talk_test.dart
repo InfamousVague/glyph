@@ -280,6 +280,49 @@ void main() {
     expect(net.feds[b.url]!.homes.of(alex.id)!.h, ['wss://b.test/hub']);
   });
 
+  test('another device of the account made a newer record: the next this one makes is newer still', () async {
+    final alex = await app('alex', a);
+    expect([alex.homes.mine!.n, alex.homes.count], [1, 1]);
+    // The account's other device (it holds the same key) gave the relay record number 5.
+    final theirs = await HomeRecord.make(alex.signer, addresses: ['wss://a.test/hub'], count: 5);
+    alex.hub.sayHandles({'dir': 'home', 'rec': theirs.toJson()});
+    await until(() => alex.homes.count == 5, 'the count the relay holds was not taken up');
+    expect([alex.homes.mine!.n, alex.choices['net_home_n']], [1, '5'], reason: 'its own record stands; only the count moves on');
+    await alex.moveTo(b);
+    expect([alex.homes.mine!.n, alex.homes.mine!.h], [6, ['wss://b.test/hub']]);
+    await until(() => net.feds[b.url]!.homes.of(alex.id)?.n == 6, 'the new relay was not given it');
+  });
+
+  test('a relay too busy to check a record just now is given it again in a while', () async {
+    var clock = DateTime.now();
+    net = RelayNet(now: () => clock);
+    a = net.relay('a.test', checksASecond: 1);
+    final alex = RelayApp(net, 'alex', a, busyAgain: const Duration(milliseconds: 10));
+    apps.add(alex);
+    // Two friends' records, known before it signs in: with its own that is three to check, and the relay checks one.
+    final one = KeysSigner(NetKeys.generate()), two = KeysSigner(NetKeys.generate());
+    final recs = [for (final s in [one, two]) (await HomeRecord.make(s, addresses: ['wss://b.test/hub'], count: 1, now: clock)).toJson()];
+    final said = <Map<String, dynamic>>[];
+    alex.hub.homes.listen(said.add);
+    recs.forEach(alex.homes.give);
+    await alex.hub.start();
+    await until(() => alex.hub.state.value == CarrierState.up && said.any((m) => m['err'] == 'busy'), 'the relay was never too busy');
+    expect(net.feds[a.url]!.homes.others, lessThan(2));
+    // A second later the relay has room again, and what it turned away is given again by itself.
+    clock = clock.add(const Duration(seconds: 2));
+    await until(() => net.feds[a.url]!.homes.others == 2, 'the records turned away were never given again');
+    expect([for (final s in [one, two]) net.feds[a.url]!.homes.of(s.id)?.n], [1, 1]);
+  });
+
+  test('a friends list handed over whole (a phone\'s and its computer\'s, put together) says where each lives to the relay', () async {
+    final alex = await app('alex', a);
+    final maya = KeysSigner(NetKeys.generate());
+    final rec = (await HomeRecord.make(maya, addresses: ['wss://b.test/hub'], count: 3)).toJson();
+    await alex.buddies.takeAll(jsonEncode([Buddy(username: 'maya@b.test', id: maya.id, key: base64Encode(maya.publicKey), state: 'yes', home: rec).toJson()]));
+    expect(alex.buddies.friends.single.home, rec);
+    await until(() => net.feds[a.url]!.homes.of(maya.id)?.n == 3, 'the relay was not told where she lives');
+  });
+
   test('a name on one\'s own relay written in full is someone here: added as plain @name', () async {
     final alex = await app('alex', a), anna = await app('anna', a);
     final asked = await alex.buddies.add('@anna@a.test');
