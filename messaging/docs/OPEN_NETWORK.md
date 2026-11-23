@@ -13,18 +13,20 @@ releasable at every step. **Status** lines say what is built; everything else is
 | Part | Where | Status (2026-11-23) |
 | --- | --- | --- |
 | Seams: a hub link and a hub socket that are not a WebSocket | `lib/net/hub_link.dart`, `relay/lib/hub.dart` | built, in 0.12.13 |
-| A link helper (iroh's relay server) for direct links | `tool/build-link.sh`, `tool/deploy-link.mjs`, `native/link-check/` | live at `https://gogho.st:7843` (UDP 7842 for address discovery); not yet handed out by the relay |
+| A link helper (iroh's relay server) for direct links | `tool/build-link.sh`, `tool/deploy-link.mjs`, `native/link-check/` | live at `https://gogho.st:7843` (UDP 7842 for address discovery); not yet handed out by gogho.st's relay (`GHOST_LINK_HELPERS` is set when Direct ships) |
 | The direct network's core (Rust, iroh 1.5) | `native/p2p/`, `lib/net/p2p/node_ffi*.dart` | built, reviewed, fixed; shipped inside the app but never loaded until Direct is switched on; run on the Android emulator through our link helper |
-| The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; merged switched off (`Net.p2pNode` null). The contract it holds the core to is `lib/net/p2p/node.dart` |
-| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | being built |
-| Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed, fixed (relay and app); in its second review; not merged |
-| A relay hosted from the app | `lib/relay_host/` | planned (needs federation's standing links and a helpers-only node) |
-| The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged; the review's fixes made on the `web` branch (part 6 says what it keeps and where it is served); not on `app.gogho.st` yet: its block and build are ready, its DNS record is to add |
+| The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; merged switched off (`Net.p2pNode` null). The contract it holds the core to is `lib/net/p2p/node.dart`. Its switch in Settings › Routes (off until the person turns it on, at first) is being built, then a review of the core and the route together |
+| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | the name watch in 0.12.16; the ledger built, reviewed and fixed, and waiting on Direct (it compares over direct links) |
+| Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed four times, fixed (relay and app); merged; gogho.st's relay runs it switched off (`GHOST_FED` unset, deployed 2026-11-23); the app's side in 0.12.17. It is switched on once the v2 sign-in (0.12.17, the browser extension's 0.2.2) is in enough apps: `GHOST_HUB_NAMES` first, then `GHOST_FED=open` |
+| A relay hosted from the app | `lib/relay_host/` | being built |
+| The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged after four reviews, its changes to phones and computers in 0.12.17 (part 6 says what it keeps and where it is served); not on `app.gogho.st` yet: its block and build are ready, its DNS record is to add |
 
 Each part is reviewed independently before it is switched on, and every review finding is fixed with a test that fails
 without its fix. The reviews also found things wrong in what was already live, now fixed: a compressed message could
 stop the relay (0.12.13's relay deploy), a friend by username's message could be handed to texting on Android
-(0.12.14), and who sent something was decided by an address a group's admin writes (being fixed for 0.12.15).
+(0.12.14), who sent something was decided by an address a group's admin writes (0.12.15), and an app's sign-in to
+the relay named nothing of the relay it was made for, so another relay could sign in with it (the v2 sign-in, in
+0.12.17 and the relay, used once gogho.st lists its names).
 
 ## What stays true
 
@@ -215,14 +217,14 @@ A relay gets a key of its own (`relay-key.json`), and a name made from it as an 
 says so (`"relay": {"id", "key"}`), which a build from before passes over.
 
 **A link between two relays** is one relay dialling the other's hub address and saying, in place of an app's
-hello:
-
-    {"fed":1, "id", "key", "sig", "url": its own hub address (where it has one), "c": a number it made up}
-    {"ok":true, "fed":1, "id", "key", "sig": over "ghost-fed v1 " and c}
-
-Each proves it holds its key; one that names a `url` is believed once the other has dialled that address and seen
-the same key there (TLS says whose address it is). Whether a relay links at all is its keeper's choice:
-`GHOST_FED=off | open | list`, with `GHOST_FED_ALLOW` and `GHOST_FED_BLOCK`. Off by default.
+hello, who it is, its own hub address where it has one, and a number it made up; the other answers with its own
+key. As built, each signs `"ghost-fed v2 "`, the number, both names and the address dialled, so a hello can't be
+used at another relay or another address; `relay/README.md` (Other relays) has every field, the allowances, and the
+standing links a relay keeps up. Each proves it holds its key; one that names a `url` is believed once the other has
+dialled that address and seen the same key there (TLS says whose address it is). A relay with no address of its own
+(one hosted from an app, section 5) links outward only. Whether a relay links at all is its keeper's choice:
+`GHOST_FED=off | open | list`, with `GHOST_FED_ALLOW` and `GHOST_FED_BLOCK`. Off by default, and off on gogho.st
+until the v2 sign-in is in enough apps.
 
 **What crosses a link:**
 
