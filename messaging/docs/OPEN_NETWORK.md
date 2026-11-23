@@ -303,10 +303,11 @@ runs the same hub gogho.st runs, in the app:
   the relay says, instead of trying again.
 - **Reached three ways:** this app in memory (a HubLink straight to a HubSocket); devices on the same network at
   `ws://address:port/hub` (port 7787 unless changed; only at private addresses of a network of the device's own, never
-  a phone's mobile data), behind a door that takes 8 connections from one address and 64 in all and closes a request not
+  a phone's mobile data), behind a door that takes 8 connections from one address (3 of them signed in) and 64 in all and closes a request not
   finished in five seconds; and from anywhere over Direct, a hub connection on channel 1 to its node, Direct on at both
   ends, by `ghost-relay://<relay name>?n=<node id>&via=<public relay>`, which the relay picker takes and holds to that
-  relay (another answering there is refused). A sign-in to it is bound (v2) to the node dialled over Direct, to its name
+  relay: its hello carries the relay key's signature over the connection's number and the node dialled, so another
+  relay, or a node copying this one's public card, is refused. A sign-in to it is bound (v2) to the node dialled over Direct, to its name
   in memory, or to the address on the network.
 - **Its link** (`ghostmsg://relay?a=…`, as its QR code holds and the share sends): opens the app at "Check this
   relay?", and only on a yes is the address dialled, then "Use this relay?". A link names only a hosted relay or a

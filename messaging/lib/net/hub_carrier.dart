@@ -65,6 +65,21 @@ class HubRelay {
     String? hub(Object? x) => x is String && x.length <= 200 && RegExp(r'^wss?://[^\s?#@]+/hub$').hasMatch(x) ? x : null;
     return HubRelay(id: id, key: key, url: hub(url), via: hub(via), fed: said['fed'] == true);
   }
+
+  /// Whether the hub that said [hello] is the relay [address] names: its card names that relay, and its `relaySig` is
+  /// that relay's key's signature over `ghost-hub relay v1 `, the hub's number and the place dialled (the node id, or
+  /// the relay's name in memory: [GhostRelayAddress.signedHost]; relay/lib/federation.dart, signReached). A copy of
+  /// another relay's card proves nothing without the key (found in the third review, 2026-11-23).
+  static bool proves(Map hello, GhostRelayAddress address) {
+    final relay = from(hello['relay']), sig = hello['relaySig'], nonce = hello['hello'];
+    if (relay == null || relay.id != address.relay || sig is! String || nonce is! String) return false;
+    try {
+      final message = [...utf8.encode('ghost-hub relay v1 '), ...NetCrypto.unhex(nonce), ...utf8.encode(address.signedHost.toLowerCase())];
+      return NetCrypto.verify(base64Decode(relay.key), message, base64Decode(sig));
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 /// Something that happened in a room: who is in it on joining, then who came and went.
@@ -520,7 +535,7 @@ class HubCarrier implements Carrier {
       // A hosted relay's address names the relay: another answering there is not signed in to (found in the second
       // review, 2026-11-23: nothing checked it).
       final named = GhostRelayAddress.parse(url);
-      if (named != null && relay?.id != named.relay) {
+      if (named != null && !HubRelay.proves(m, named)) {
         _drop('wrong relay');
         _lost(wrongRelayWords);
         return;

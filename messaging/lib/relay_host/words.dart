@@ -66,7 +66,7 @@ const phoneNotHereWords = 'Not on a phone: it stops a minute after the app is pu
 
 /// The pass phrase, set or not.
 const noPassWords = 'No pass phrase: anyone who has its address can use it.';
-const passWords = 'People must give the pass phrase to use it. On a shared network a short one can be guessed from what is overheard: make it long.';
+const passWords = 'People must give the pass phrase to use it. On a shared network a short one can be guessed from what is overheard: make it long. Wrong guesses make the guesser wait, but someone guessing from many places can keep people new to it out for an hour at a time; those who have used it, and you, are never kept out.';
 
 /// Reaching it over Direct.
 const directOnHint = 'They need Direct on too. Nothing is opened on this device for it, and it works from anywhere.';

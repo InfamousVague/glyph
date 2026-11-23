@@ -12,7 +12,12 @@ import 'dart:typed_data';
 /// timeout. Each held one of the app's file descriptors (a Mac app from the Dock has 256): one device on the network
 /// could take them all, and the app could then open no file.
 class LanDoor extends Stream<Socket> implements ServerSocket {
-  LanDoor(this._listening, {this.most = 64, this.each = 8, this.wait = const Duration(seconds: 5), this.localOk});
+  LanDoor(this._listening, {this.most = 64, this.each = 8, this.eachThrough = 3, this.wait = const Duration(seconds: 5), this.localOk});
+
+  /// The most connections from one address that have finished their request (a device signed in, or signing in): an
+  /// app needs one, and a check of the relay one more for a moment. Without it 8 addresses with 8 sign-ins each filled
+  /// the door, with no pass phrase set (found in the third review, 2026-11-23).
+  final int eachThrough;
 
   final ServerSocket _listening;
 
@@ -42,9 +47,19 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
 
   /// The request that came on the connection from [address]:[port] has finished its headers: it is not closed for
   /// taking too long. Whatever comes of it then is the hub's (whose own wait for a hello closes a silent WebSocket).
-  void through(InternetAddress? address, int? port) {
-    if (address == null || port == null) return;
-    _byEnd[_end(address, port)]?.through();
+  /// False where it was closed instead, its address having as many through as it may ([eachThrough]).
+  bool through(InternetAddress? address, int? port) {
+    if (address == null || port == null) return true;
+    final s = _byEnd[_end(address, port)];
+    if (s == null || s.isThrough) return true;
+    final already = _open.where((o) => o.isThrough && o.from == address.address).length;
+    if (already >= eachThrough) {
+      turnedAway++;
+      s.destroy();
+      return false;
+    }
+    s.through();
+    return true;
   }
 
   Socket? _take(Socket raw) {
@@ -71,7 +86,7 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
     }
     final end = _end(raw.remoteAddress, port);
     late final _DoorSocket s;
-    s = _DoorSocket(raw, onGone: () {
+    s = _DoorSocket(raw, address, onGone: () {
       if (!_open.remove(s)) return;
       final n = (_from[address] ?? 1) - 1;
       if (n <= 0) {
@@ -115,11 +130,14 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
 /// A connection at the door: the socket itself, with its going told to the door however it goes (closed by either
 /// end, destroyed, failed).
 class _DoorSocket extends Stream<Uint8List> implements Socket {
-  _DoorSocket(this._s, {required void Function() onGone}) : _onGone = onGone {
+  _DoorSocket(this._s, this.from, {required void Function() onGone}) : _onGone = onGone {
     unawaited(_s.done.then((_) => _gone(), onError: (Object _) => _gone()));
   }
 
   final Socket _s;
+
+  /// The address it came from.
+  final String from;
   final void Function() _onGone;
   Timer? deadline;
   bool isThrough = false;

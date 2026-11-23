@@ -157,6 +157,11 @@ it is set, and `bin/relay.dart` sets none of them: a relay on a server, gogho.st
   an hour at a time, never those who use it. A try that isn't read is answered `"pass": "busy"` with `"wait"`, the
   seconds until it would be. Each refusal closes the connection (4401). Another relay's hello is not asked for it:
   whether relays link is their keepers' own choice.
+- `attach(reachedAs:)`: a connection taken knowing how the app at the far end named this relay's place (the node id
+  its Direct connection came in at, or the relay's name in memory): the hello carries `"relaySig"`, the relay key's
+  signature over `ghost-hub relay v1 `, the connection's number and that place, which an app dialling
+  `ghost-relay://<name>?n=<node>` checks against the name, the key and the node it dialled. Nothing where it isn't
+  given or the relay has no key.
 - `hosted`: the hello says it runs in someone's app (`"hosted": true`), so whoever joins is told that whoever runs it
   sees which installs talk and when (never what), and that it is up only while their app is.
 - `roomKeepBytes`: what rooms keep, all of them together (256 MB unless given less).

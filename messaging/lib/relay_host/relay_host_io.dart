@@ -153,7 +153,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
 
   /// The local network's door ([LanDoor]): the most connections at it at once, all together and from one address, and
   /// how long one may take to finish its request before it is closed.
-  static const doorMost = 64, doorEach = 8, doorWait = Duration(seconds: 5);
+  static const doorMost = 64, doorEach = 8, doorThrough = 3, doorWait = Duration(seconds: 5);
 
   /// What waits for the public relay while it can't be reached.
   static const viaQueue = 8 << 20;
@@ -430,7 +430,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     if (hub == null || _server != null) return;
     try {
       // Counted and timed at the door, before dart:io's server sees a byte ([LanDoor]).
-      final door = LanDoor(await ServerSocket.bind(_listenOn, port), most: doorMost, each: doorEach, wait: doorWait, localOk: (a) => _doorAt.contains(a.address));
+      final door = LanDoor(await ServerSocket.bind(_listenOn, port), most: doorMost, each: doorEach, eachThrough: doorThrough, wait: doorWait, localOk: (a) => _doorAt.contains(a.address));
       final server = HttpServer.listenOn(door)..idleTimeout = doorWait;
       // Stopped while it was being opened.
       if (!identical(hub, _hub)) {
@@ -465,7 +465,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// anywhere else.
   Future<void> _door(HttpRequest r) async {
     // Its request is whole: not closed for taking too long ([LanDoor]).
-    _lanDoor?.through(r.connectionInfo?.remoteAddress, r.connectionInfo?.remotePort);
+    if (!(_lanDoor?.through(r.connectionInfo?.remoteAddress, r.connectionInfo?.remotePort) ?? true)) return;
     final hub = _hub;
     final upgrade = WebSocketTransformer.isUpgradeRequest(r);
     if (hub != null && upgrade && r.uri.path.endsWith('/hub')) return hub.accept(r);
@@ -530,7 +530,8 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     _directSockets.add(socket);
     // Its place, for what the hub counts by place: the node it came from (keys are free, so everyone's counts hold
     // too).
-    hub.attach(socket, from: 'p2p:${s.nodeId}');
+    // Signed for as reached at this device's node, which the joiner dialled and checks ([Federation.signReached]).
+    hub.attach(socket, from: 'p2p:${s.nodeId}', reachedAs: _directNode);
   }
 
   Future<void> _closeDirect({bool keepListening = false}) async {
@@ -565,7 +566,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     final pair = _MemoryPair(onCut: (p) => _pairs.remove(p));
     _pairs.add(pair);
     // The keeper's own app: never asked for the pass phrase, so no stranger's wrong ones can shut it out.
-    hub.attach(pair.socket, own: true);
+    hub.attach(pair.socket, own: true, reachedAs: _fed?.id);
     return pair.link;
   }
 

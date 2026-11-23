@@ -66,4 +66,32 @@ void main() {
     expect(host.doorOpen, 1, reason: 'its connection counted at the door while it lasts');
     await flood.stdin.close();
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('one address holds three connections that got through at most: 8 addresses can\'t fill the door with sign-ins (the third review, 2026-11-23)', () async {
+    final host = makeHost(Kept(), lan: true);
+    addTearDown(host.shutdown);
+    await host.setOn(true);
+    final url = host.lanUrls.single;
+    final held = <WebSocket>[];
+    var refused = 0;
+    for (var i = 0; i < 5; i++) {
+      try {
+        held.add(await WebSocket.connect(url));
+      } catch (_) {
+        refused++;
+      }
+    }
+    addTearDown(() async {
+      for (final w in held) {
+        await w.close();
+      }
+    });
+    expect([held.length, refused], [RelayHost.doorThrough, 2]);
+    expect(host.doorOpen, RelayHost.doorThrough);
+    // One goes, and another may come.
+    await held.removeAt(0).close();
+    await waitFor(() => host.doorOpen == RelayHost.doorThrough - 1, 'the one that went was still counted');
+    held.add(await WebSocket.connect(url));
+    expect(host.doorOpen, RelayHost.doorThrough);
+  });
 }

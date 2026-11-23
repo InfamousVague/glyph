@@ -265,6 +265,29 @@ void main() {
   });
 
   group('a hub hosted from the app', () {
+    test('its hello proves it holds its key, for this connection and the place it was reached as (the third review, 2026-11-23)', () async {
+      final net = FakeNet();
+      final r = TestRelay(net, 'r.test', seed: 3, public: false, via: 'wss://v.test/hub');
+      final hub = Hub(federation: r.fed, hosted: true);
+      final node = 'cd' * 32;
+      final (mine, theirs) = MemSocket.pair();
+      final hello = Completer<Map>();
+      mine.incoming.listen((d) => hello.isCompleted ? null : hello.complete(jsonDecode(d as String) as Map));
+      hub.attach(theirs, reachedAs: node);
+      final h = await hello.future;
+      final sig = base64Decode(h['relaySig'] as String), nonce = unhex(h['hello'] as String);
+      expect(P256.verify(r.fed.key, Federation.reachedMessage(nonce, node), sig), isTrue);
+      expect(P256.verify(r.fed.key, Federation.reachedMessage(nonce, 'ef' * 32), sig), isFalse, reason: 'for that node alone');
+      // Reached no particular way (a server's WebSocket), or with no key: nothing more is said.
+      expect((await _Signing(hub).hello.future).containsKey('relaySig'), isFalse);
+      final plain = Hub();
+      final (m2, t2) = MemSocket.pair();
+      final h2 = Completer<Map>();
+      m2.incoming.listen((d) => h2.isCompleted ? null : h2.complete(jsonDecode(d as String) as Map));
+      plain.attach(t2, reachedAs: node);
+      expect((await h2.future).keys.toSet(), {'hello', 'peek', 'react'}, reason: 'gogho.st\'s hello as it was');
+    });
+
     test('says so in its hello, and only where it is', () async {
       expect((await _Signing(Hub(hosted: true)).hello.future)['hosted'], true);
       expect((await _Signing(Hub()).hello.future).containsKey('hosted'), isFalse);

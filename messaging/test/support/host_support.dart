@@ -69,13 +69,21 @@ Future<void> waitFor(bool Function() ok, String what, {Duration most = const Dur
 }
 
 /// An install on the relay this device hosts, in memory: its key and its route, dialled as the app dials its own.
+/// Another device's way in to [host], in memory: attached as anyone's (asked for the pass phrase), signed for as reached
+/// by the relay's name, as this app's own address names it.
+Future<HubLink> _strangerDial(RelayHost host) async {
+  final pair = HubPair();
+  host.hub!.attach(pair.socket, reachedAs: host.relayId);
+  return pair.link;
+}
+
 class OnHost {
   /// This app on [host], in memory ([RelayHost.dialHere]: the keeper's own, never asked for the pass phrase); with
   /// [stranger], another device's way in, in memory too but attached as anyone's, so asked as anyone is.
   OnHost(RelayHost host, {String? Function()? pass, HubDial? dial, bool stranger = false}) : keys = NetKeys.generate() {
     carrier = HubCarrier(url: host.ownUrl!, signer: KeysSigner(keys), retry: const Duration(milliseconds: 20), dial: (url) {
       dials++;
-      return (dial ?? (stranger ? (url) => MemoryHub(host.hub!).dial(url) : (_) => host.dialHere()))(url);
+      return (dial ?? (stranger ? (_) => _strangerDial(host) : (_) => host.dialHere()))(url);
     })
       ..pass = pass;
     carrier.arrived.listen(got.add);

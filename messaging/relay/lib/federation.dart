@@ -488,6 +488,16 @@ class Federation {
   /// A signature of this relay's over [message], with a number of its own made for it and never used again.
   List<int> _sign(List<int> message) => P256.sign(_scalar, message, _freshScalar());
 
+  /// What a hub's hello says to prove this relay holds the key its card names, for the connection with the hub's number
+  /// [nonce], reached as [reachedAs] (the node id dialled over Direct, or the relay's name in memory): this relay's
+  /// signature over the words `ghost-hub relay v1 `, the number and that ([reachedMessage]). An app dialling `ghost-relay://<name>?n=<node>` checks it
+  /// against the key, the name and the node it dialled, so a node that copies another relay's public card is no
+  /// better than a node that says nothing (found in the third review, 2026-11-23). Null where federation is off.
+  List<int>? signReached(List<int> nonce, String reachedAs) => !on ? null : _sign(reachedMessage(nonce, reachedAs));
+
+  /// What [signReached] signs.
+  static List<int> reachedMessage(List<int> nonce, String reachedAs) => [...utf8.encode('ghost-hub relay v1 '), ...nonce, ...utf8.encode(reachedAs.toLowerCase())];
+
   /// Whether this relay links with others at all.
   bool get on => config.mode != FedMode.off;
 

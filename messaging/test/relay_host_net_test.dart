@@ -170,8 +170,13 @@ void main() {
     // A hosted relay whose keeper's relay named no helpers, reached (here) in memory in Direct's place.
     // (A relay of its own name: the one an address names must be the one that answers.)
     final fed = Federation(config: const FedConfig(mode: FedMode.list, via: Net.defaultHub), dial: (_) => Future.error(StateError('no via here')));
-    final hosted = MemoryHub(Hub(federation: fed));
-    HubDials.hosted = hosted.dial;
+    final hub = Hub(federation: fed);
+    // As the relay in an app attaches a Direct connection: signed for as reached at its node.
+    HubDials.hosted = (url) async {
+      final pair = HubPair();
+      hub.attach(pair.socket, reachedAs: 'cd' * 32);
+      return pair.link;
+    };
     final url = '${GhostRelayAddress(relay: fed.id, node: 'cd' * 32, via: Net.defaultHub)}';
     await Net.instance.setHub(url);
     await waitFor(() => Net.instance.hub!.state.value == CarrierState.up, 'never signed in to the hosted relay');

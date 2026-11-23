@@ -36,6 +36,19 @@ class _FakeLink implements HubLink {
 /// A relay's card for its hello: a real key, so its name is made from it.
 Map<String, Object?> _card(NetKeys k) => {'id': k.id, 'key': base64Encode(k.public), 'fed': true};
 
+/// A hello from the relay [k], with the hub's number [nonce], signed for as reached at [at] (relay/lib/federation.dart,
+/// signReached) where [at] is given.
+Map<String, Object?> _hello(NetKeys k, {String nonce = '', String? at, bool hosted = true}) {
+  final n = nonce.isEmpty ? 'd' * 64 : nonce;
+  return {
+    'hello': n,
+    'peek': true,
+    'relay': _card(k),
+    if (hosted) 'hosted': true,
+    if (at != null) 'relaySig': base64Encode(NetCrypto.sign(k, [...utf8.encode('ghost-hub relay v1 '), ...NetCrypto.unhex(n), ...utf8.encode(at)])),
+  };
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -91,14 +104,29 @@ void main() {
     final url = '${GhostRelayAddress(relay: real.id, node: 'c' * 64)}';
 
     test('checking it, another relay answering there is refused; the one it names is taken', () async {
-      final wrong = await checkRelay(url, connect: (_) async => _FakeLink({'hello': 'd' * 64, 'peek': true, 'relay': _card(other), 'hosted': true}));
+      final wrong = await checkRelay(url, connect: (_) async => _FakeLink(_hello(other, at: 'c' * 64)));
       expect([wrong.ok, wrong.problem], [false, wrongRelayWords]);
       final none = await checkRelay(url, connect: (_) async => _FakeLink({'hello': 'd' * 64, 'peek': true, 'hosted': true}));
       expect(none.ok, isFalse, reason: 'one that says no name isn\'t it either');
-      final right = await checkRelay(url, connect: (_) async => _FakeLink({'hello': 'd' * 64, 'peek': true, 'relay': _card(real), 'hosted': true}));
+      final right = await checkRelay(url, connect: (_) async => _FakeLink(_hello(real, at: 'c' * 64)));
       expect(right.ok, isTrue);
       // An ordinary relay's address names none: anything that answers as a relay is one.
       expect((await checkRelay('wss://relay.example.com/hub', connect: (_) async => _FakeLink({'hello': 'd' * 64, 'relay': _card(other)}))).ok, isTrue);
+    });
+
+    test('a copy of the named relay\'s public card proves nothing: it must be signed by its key for this connection and the node dialled (the third review, 2026-11-23)', () async {
+      // The reviewer's probe: the real relay's card is in every hello it says; an impostor at another node says it too.
+      final copied = await checkRelay(url, connect: (_) async => _FakeLink(_hello(real)));
+      expect([copied.ok, copied.problem], [false, wrongRelayWords]);
+      // Signed by a key of the impostor's own under the real name: the key doesn't make that name.
+      final forged = _hello(other, at: 'c' * 64)..['relay'] = _card(real);
+      expect((await checkRelay(url, connect: (_) async => _FakeLink(forged))).ok, isFalse);
+      // Signed by the real relay, for another node (a signature seen elsewhere, said again here).
+      expect((await checkRelay(url, connect: (_) async => _FakeLink(_hello(real, at: 'e' * 64)))).ok, isFalse);
+      // For another connection's number.
+      final stale = _hello(real, nonce: 'a' * 64, at: 'c' * 64)..['hello'] = 'b' * 64;
+      expect((await checkRelay(url, connect: (_) async => _FakeLink(stale))).ok, isFalse);
+      expect((await checkRelay(url, connect: (_) async => _FakeLink(_hello(real, at: 'c' * 64)))).ok, isTrue);
     });
 
     test('the route doesn\'t sign in to another relay answering there', () async {

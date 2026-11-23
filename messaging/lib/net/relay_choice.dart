@@ -109,12 +109,14 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   final greeted = Completer<bool>();
   HubRelay? relay;
   var hosted = false, asksPass = false;
+  Map? hello;
   final sub = ws.said.listen(
     (data) {
       if (greeted.isCompleted) return;
       try {
         final m = data is String ? jsonDecode(data) : null;
         if (m is Map) {
+          hello = m;
           relay = HubRelay.from(m['relay']);
           hosted = m['hosted'] == true;
           asksPass = m['pass'] == true;
@@ -141,7 +143,7 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   // A hosted relay's address names the relay: the one that answers must be it (found in the second review,
   // 2026-11-23: anything at that node was taken).
   final named = GhostRelayAddress.parse(url);
-  if (named != null && relay?.id != named.relay) return RelayCheck.failed(wrongRelayWords);
+  if (named != null && (hello == null || !HubRelay.proves(hello!, named))) return RelayCheck.failed(wrongRelayWords);
   return RelayCheck.answered(DateTime.now().difference(started), relay: relay, hosted: hosted, asksPass: asksPass);
 }
 

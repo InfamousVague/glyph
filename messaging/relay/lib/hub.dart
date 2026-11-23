@@ -912,7 +912,11 @@ class Hub {
   /// WebSocket always was. [maxConnections] counts these too: one more than that is closed at once (4503, "full").
   /// [own]: the keeper's own app, in memory in the same program (the app's lib/relay_host), which is never asked for the
   /// pass phrase, so nothing a stranger does can refuse it.
-  void attach(HubSocket socket, {String from = '', bool own = false}) {
+  ///
+  /// [reachedAs]: how the app at the far end names this relay's place (the node id its Direct connection came in at; the
+  /// relay's name in memory): the hello carries this relay's signature over it and the connection's number
+  /// (`"relaySig"`, [Federation.signReached]), where it has a key.
+  void attach(HubSocket socket, {String from = '', bool own = false, String? reachedAs}) {
     if (_open >= maxConnections) {
       socket.close(4503, 'full');
       return;
@@ -935,7 +939,8 @@ class Hub {
     // known, and an app from before passes over it.
     // `hosted` and `pass`: this hub runs in someone's app ([hosted]), and asks for a pass phrase ([asksPass]); each said
     // only where it is so, and an app from before passes over both.
-    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card, if (names.isNotEmpty) 'v2': true, if (hosted) 'hosted': true, if (_pass != null) 'pass': true, if (_pass != null) 'salt': passSalt});
+    final reachedSig = reachedAs == null ? null : federation?.signReached(nonce, reachedAs);
+    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card, if (reachedSig != null) 'relaySig': base64Encode(reachedSig), if (names.isNotEmpty) 'v2': true, if (hosted) 'hosted': true, if (_pass != null) 'pass': true, if (_pass != null) 'salt': passSalt});
 
     // Another relay's link, once its hello has come in place of an app's: what it says from then on is federation's.
     FedEnd? link;
