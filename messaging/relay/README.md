@@ -291,7 +291,7 @@ for all of it.
 
 What it adds to what a relay can see: which of its people talk to people on which other relay, and when. Never what.
 What waits for another relay, the links, and others' records are in memory: a restart loses them, as it loses what the
-hub held, and each app says where its friends live again as it signs in.
+hub held (unless `GHOST_HUB_KEEP_HELD=1`: "What it keeps"), and each app says where its friends live again as it signs in.
 
 **Not built:** rooms across relays (circles, spaces, calls stay on the relay they were made on), who is here across
 relays, and an account signing in on another relay than the one it was made on.
@@ -311,6 +311,32 @@ relays, and an account signing in on another relay than the one it was made on.
 used. No frame is written or held; no address is logged. It can see that two addresses share a channel, when, and
 how much they send. A pairing's channel is removed by unpairing or after ninety days unused; a pairing-time channel
 lives ten minutes and is never written.
+
+**The hub's packets for people who are away**, and what a room keeps for whoever joins later (a space's words,
+deletions, roster and reactions), are held in memory, and a restart loses them, unless the relay's keeper sets
+`GHOST_HUB_KEEP_HELD=1` (off by default; `lib/held_store.dart`). Then they are on the machine's disk too, under
+`<data>/held/` (`/var/lib/ghost-relay/held` on the box), for as long as the hub holds them: until handed over, and
+never more than seven days. Each is kept exactly as sealed by the apps, which the relay cannot open, with what is
+needed to hand it over: for a packet held for someone, **whose name it is for, whose name sent it** (as the hub
+stamped it), when it came, and, for one an account sent to its own name, which of its devices sent it; for a room's,
+the room's name, the SHA-256 of its token and when it came. Nothing else: no address, no username, no number. So
+with it on, anyone who can read the box's disk can read who wrote to whom, and when, for the last week, as anyone
+who can read the relay's memory always could; with it off that goes with each restart.
+
+It is written as append-only files, each record its length and a CRC-32: a stop (SIGTERM) writes everything, a crash
+or a `kill -9` loses at most the last fifth of a second, and a file torn half way is read up to the tear and the rest
+passed over. Whatever is handed over, expires, or is pushed out by a limit is marked gone on the disk too, and the
+oldest file is written again into the newest (what still stands in it) and deleted whenever the files hold more than
+twice what stands plus 16 MB: the disk holds about twice what is held, at most, and what is held has the same limits
+as in memory (200 packets or 1 MB a person, 96 MB in all with 256 bytes counted for each, rooms 300 packets and
+256 MB), which are kept again as the
+hub starts, with anything past seven days dropped. A packet handed over in the last fifth of a second before a crash
+may be handed over again after it (the apps pass over a packet they have had already: the app's
+`lib/net/switchboard.dart` and `forward_secrecy.dart`). Holding a packet costs about 5 µs
+more with it on, and writing what waits about 2 ms a megabyte (`dart run tool/held_store_bench.dart`); a packet to
+someone who is connected is never written. After a clean stop the hub's `since` (said with every sign-in) is the
+start of the hub before, since nothing it kept went with the restart; after a crash, or where another relay's packets
+waited in memory, it is the new start.
 
 ## On our server
 
@@ -341,7 +367,7 @@ Done 2026-11-14 04:35 UTC, in one login: the service up, every other site on the
 from outside `https://ghost-sms.com/relay/` and `/hub` answering "Ghost Messaging relay". The live check signed in
 in 380 ms, had a packet held for someone away and handed over, one passed and answered in 164 ms, and a room
 joined by two and left. A restart of the service drops whoever is connected (the apps connect again by
-themselves) and loses what the hub held.
+themselves) and loses what the hub held, unless `GHOST_HUB_KEEP_HELD=1` keeps it on disk ("What it keeps", above).
 
 ### The Marketplace (`/market`)
 
