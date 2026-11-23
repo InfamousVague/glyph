@@ -557,6 +557,21 @@ class Hub {
   static const toRoomReaction = 4;
   static const maxReaction = 512;
 
+  /// A packet a name sent to itself, handed to one of its own devices that asked for it (`stamp: true` in its hello)
+  /// with the device that sent it, as that device said it in its hello: `[7][from, 16 bytes][n][device, n bytes][the
+  /// packet]` (GMFB-53: a history goes only to the device that asked for it, which only the hub can vouch for). Every
+  /// other connection, and every other packet, is handed [toPeer] as before, byte for byte.
+  static const toPeerFromDevice = 7;
+
+  /// [frame] (a [toPeer] frame) with the device that sent it put in ([toPeerFromDevice]).
+  static Uint8List stamped(Uint8List frame, String device) {
+    final d = utf8.encode(device);
+    return Uint8List.fromList([toPeerFromDevice, ...frame.sublist(1, 17), d.length, ...d, ...frame.sublist(17)]);
+  }
+
+  /// The frame [to] is handed of [frame], a packet its name sent itself from [device]: stamped where it asked to be.
+  static Uint8List _forDevice(_End to, Uint8List frame, String? device) => to.stamps && device != null && device.isNotEmpty ? stamped(frame, device) : frame;
+
   /// What a room keeps: its newest [roomKeepFrames], none older than [roomKeepFor], [roomKeepBytes] in all at most (256 MB
   /// unless the hub is given less: a relay hosted from the app keeps far less, in the app's memory).
   static const roomKeepFrames = 300;
@@ -1105,7 +1120,7 @@ class Hub {
           return;
         }
         final device = hello?['device'] is String && (hello!['device'] as String).length <= 64 ? hello['device'] as String : '';
-        final made = _End(id as String, socket, (what) => _tell(socket, what), device: device, place: from);
+        final made = _End(id as String, socket, (what) => _tell(socket, what), device: device, place: from, stamps: hello?['stamp'] == true);
         final list = _here[made.id] ??= [];
         final first = list.isEmpty;
         // The same device again (a reconnect) takes its own place; the longest here goes where there are too many.
@@ -1138,7 +1153,7 @@ class Hub {
         // Handed over as fast as the device takes them; what isn't written by the time it goes is kept again.
         // Each one written is off the disk too; one not written stays there, held again.
         var given = 0;
-        _handOver(socket, [for (final h in fresh) h.frame], notGiven: (left) => _holdAgain(made.id, fresh.sublist(fresh.length - left)), gone: () => _unstore(fresh[given++]));
+        _handOver(socket, [for (final h in fresh) _forDevice(made, h.frame, h.byDevice)], notGiven: (left) => _holdAgain(made.id, fresh.sublist(fresh.length - left)), gone: () => _unstore(fresh[given++]));
         // A mode said with the hello holds from the first moment: someone invisible never shows as come.
         final asked = hello?['mode'];
         if (first && asked is String && (asked == 'busy' || asked == 'invisible')) _mode[made.id] = asked;
@@ -1273,8 +1288,10 @@ class Hub {
       // To every device of theirs that is here (but the one sending it, where they write to themselves).
       final there = [for (final t in _here[to] ?? const <_End>[]) if (!identical(t, from) && t.ws.isOpen) t];
       if (there.isNotEmpty) {
+        // To its own name: each device that asked is told which device sent it ([toPeerFromDevice]).
+        final own = to == from.id ? from.device : null;
         for (final t in there) {
-          t.ws.add(frame);
+          t.ws.add(_forDevice(t, frame, own));
         }
         _tell(from.ws, {'ack': seq, 'here': true});
         return;
@@ -1669,7 +1686,10 @@ class _WebSocketHubSocket implements HubSocket {
 /// One connection signed in: a device of [id]'s, with the rooms it is in, the names it watches and the rooms it looks
 /// at without being in them.
 class _End {
-  _End(this.id, this.ws, this.tell, {this.device = '', this.place = ''});
+  _End(this.id, this.ws, this.tell, {this.device = '', this.place = '', this.stamps = false});
+
+  /// Whether it asked to be told which of its name's devices sent what its name sends itself ([Hub.toPeerFromDevice]).
+  final bool stamps;
 
   /// Where it came from, as allowances count it ([Hub.placeOf]); '' for a connection made in this program.
   final String place;

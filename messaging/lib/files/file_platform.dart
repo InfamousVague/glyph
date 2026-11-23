@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../desktop/platform.dart' show MacPlatform;
+import 'browser_files.dart';
 import '../sms.dart';
 
 /// A file picked to go up: where it is on this device, and whether it is a copy the app made (a phone's), which goes
@@ -33,11 +34,19 @@ class FilePlatform {
   static bool get _desktop => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
   static bool get _phone => !kIsWeb && PlatformInfo.isAndroid;
 
+  /// A page in a browser whose build has Files spaces (Sms.browserFiles): it picks, takes drops and saves through
+  /// lib/files/browser_files.dart, with files that are no paths.
+  static bool get _browser => kIsWeb && Sms.browserFiles;
+
   /// Whether this device can choose files at all.
-  static bool get canPick => _phone || _desktop;
+  static bool get canPick => _phone || _desktop || _browser;
 
   /// Whether files can be dragged onto the window here.
-  static bool get canDrop => !kIsWeb && PlatformInfo.isMacOS;
+  static bool get canDrop => (!kIsWeb && PlatformInfo.isMacOS) || _browser;
+
+  /// Whether a file can be opened in another app from here: not in a browser, where it would be opened in a tab of
+  /// the app's own address (docs/OPEN_NETWORK.md, part 6).
+  static bool get canOpen => !kIsWeb;
 
   /// Files chosen with the device's own picker; none where it was put away.
   static Future<List<PickedFile>> pick() async {
@@ -76,12 +85,17 @@ class FilePlatform {
   }
 
   /// Whether a file can be saved out of the app here (an iPhone's Files export is not built yet).
-  static bool get canSave => _phone || _desktop;
+  static bool get canSave => _phone || _desktop || _browser;
 
   /// Saves the file at [path] where the person says, under [name]: where it went in words, or null where it was not
   /// saved.
   static Future<String?> save(String path, String name, String mime) async {
     if (!canSave) return null;
+    // A browser: what came down is held in the tab under [path], and saved to the browser's downloads from there.
+    if (_browser) {
+      BrowserFiles.save(path, name);
+      return 'Saved to your downloads';
+    }
     if (_phone) return await Sms.instance.saveFile(path, name, mime) ? 'Saved' : null;
     if (!kIsWeb && PlatformInfo.isMacOS) {
       final to = await _system.invokeMethod<String>('saveFile', {'name': name});
@@ -132,7 +146,7 @@ class FilePlatform {
 
   /// Opens the file at [path] in whichever app reads its kind; never one that runs something ([runsCode]).
   static Future<void> open(String path, String name) async {
-    if (runsCode(name)) return;
+    if (runsCode(name) || !canOpen) return;
     if (_phone) return Sms.instance.openFile(path, name: name);
     if (!kIsWeb && PlatformInfo.isWindows) {
       await Process.run('explorer', [path]);

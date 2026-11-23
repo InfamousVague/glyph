@@ -60,10 +60,13 @@ final _olderCircleIcons = <String, LucideIcon>{
 LucideIcon circleIconOf(String name) => circleIcons[name] ?? _olderCircleIcons[name] ?? Lucide.all[name] ?? Lucide.users;
 
 /// A space's kind in a word or three, as the new-space cards name it.
-/// The kinds of space offered where one is made or changed: all of them, but for Files in a browser, which has no
-/// folder to keep files in (Sms.browser).
-// Nor an open space there: it is a call to walk around in, and a browser has no calls yet (Sms.callsHere).
-List<SpaceKind> get spaceKindsOffered => Sms.browser ? [for (final k in SpaceKind.values) if (k != SpaceKind.files && k != SpaceKind.open) k] : SpaceKind.values;
+/// The kinds of space offered where one is made or changed: all of them, but for Files in a browser whose build has
+/// no Files spaces (Sms.filesHere), and an open space in a browser: it is a call to walk around in, and a browser has
+/// no calls yet (Sms.callsHere).
+List<SpaceKind> get spaceKindsOffered => [
+      for (final k in SpaceKind.values)
+        if (!(k == SpaceKind.files && !Sms.filesHere) && !(k == SpaceKind.open && Sms.browser)) k,
+    ];
 
 String spaceKindTitle(SpaceKind kind) => switch (kind) {
       SpaceKind.voice => 'Chat & voice',

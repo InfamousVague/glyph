@@ -77,7 +77,7 @@ const APP_BUILD = appAt >= 0 ? resolve(args[appAt + 1]) : null;
 
 // app.gogho.st's policy: the page's own (web/index.html) with gogho.st's hub, and frame-ancestors, which only a header
 // can say. Written out in APP_BLOCK, where a test reads it (test/web_build_test.dart), and held here to the page.
-const APP_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' wss://gogho.st/hub https://gogho.st/market/abuse https://gogho.st/feedback; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'";
+const APP_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' wss://gogho.st/hub https://gogho.st/market/abuse https://gogho.st/feedback https://gogho.st/files/; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'";
 // Checked on every run: a page whose policy changed and a block that still sends the old one would leave the app on
 // app.gogho.st held to a policy it no longer has.
 const wantCsp = `${appPolicy(ROOT)}; frame-ancestors 'none'`;

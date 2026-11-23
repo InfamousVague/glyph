@@ -119,6 +119,11 @@ abstract class UsernameOverlay implements SmsCalls {
       case 'callNote' when _isName(a['address']):
         chats.callNote(a['address'] as String, '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch, out: a['out'] == true);
         return null;
+      // A new device's history (GMFB-53): the conversations with friends by username are kept here, not by Android.
+      case 'netHistory':
+        return [for (final c in chats.history()) {'a': c.address, 'r': [for (final r in c.rows) [r.t, r.at, r.o ? 1 : 0]]}];
+      case 'netHistoryKeep' when _isName(a['address']):
+        return chats.keepHistory(a['address'] as String, UsernameChats.pastRows(a['rows']));
       case 'netTextIn' when _isName(a['address']):
         final address = a['address'] as String, body = '${a['body']}';
         chats.textIn(address, body, (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);

@@ -23,16 +23,22 @@ import '../voice/channels.dart';
 import '../voice/roles.dart';
 import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
+import '../net/file_seal_async.dart';
 import 'apple_sha.dart';
 import 'file_kinds.dart';
+import 'file_sink.dart';
+import 'file_source.dart';
 import 'file_stream.dart';
 import 'files_api.dart';
+import 'files_http.dart';
 import 'files_model.dart';
 
 export 'file_kinds.dart';
 export 'file_stream.dart' show FileStream, StreamedMedia;
 export 'files_api.dart' show FilesError, FilesInfo, FilesPart;
 export 'files_model.dart';
+export 'file_source.dart' show FileSource, BytesSource;
+export 'file_sink.dart' show HeldFiles;
 
 /// A Files space's files on this device (Matt, 2026-11-17: "add full functionality for filesharing in a space when the
 /// space is designated a Files Space"): the list each space's log makes, files going up and coming down with their
@@ -67,7 +73,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     this.thumbnails = true,
     this.piece = 16,
     this.poll = const Duration(seconds: 45),
-  })  : _base = base,
+    bool? browser,
+    FilesHttp Function()? http,
+  })  : browser = browser ?? kIsWeb,
+        _http = http ?? defaultFilesHttp,
+        _base = base,
         _signer = signer,
         _me = me,
         _data = data,
@@ -118,6 +128,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     int piece = 16,
     Duration poll = const Duration(seconds: 45),
     void Function(VoiceChannel c, String words)? announce,
+    bool browser = false,
+    FilesHttp Function()? http,
   }) =>
       FilesStore._(
         base: () => base,
@@ -133,6 +145,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
         thumbnails: false,
         piece: piece,
         poll: poll,
+        browser: browser,
+        http: http,
       );
 
   final Uri? Function() _base;
@@ -145,6 +159,18 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   final Roster? Function(VoiceChannel c) _roster;
   final String Function() _myName;
   final void Function(VoiceChannel c, String words)? _announce;
+
+  /// A page in a browser (docs/OPEN_NETWORK.md, part 6): the same lists, rules, sealing and queue, with the bytes
+  /// coming from the file a person picked ([uploadSources]) and going into the tab ([HeldFiles]), and nothing kept: no
+  /// list, queue or file on disk (a page has none), so a space's list is read from the relay as it opens and an upload
+  /// stops with the tab. A test of the browser's way sets it on a computer.
+  final bool browser;
+
+  /// How requests to the relay go (lib/files/files_http.dart).
+  final FilesHttp Function() _http;
+
+  /// What came down in a browser, by file id: the address each is held under in the tab ([HeldFiles]).
+  final Map<String, String> _held = {};
 
   /// Small pictures of pictures added (dart:ui): off in a test without an engine.
   final bool thumbnails;
@@ -308,6 +334,13 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   static SpaceFile? f0(List<SpaceFile> files) => files.firstOrNull;
 
+  /// For a test of a browser's page: [f] as come down already, held in the tab under [url] (HeldFiles).
+  @visibleForTesting
+  void putHeld(SpaceFile f, String url) {
+    _held[f.id] = url;
+    notifyListeners();
+  }
+
   /// For a picture or a test: a transfer shown as it would be.
   @visibleForTesting
   void putTransfer(Transfer t) {
@@ -335,6 +368,13 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// file brought down.
   Future<void> wipe() async {
     await clear();
+    if (browser) {
+      for (final url in _held.values) {
+        HeldFiles.release(url);
+      }
+      _held.clear();
+      return;
+    }
     for (final dir in [_data(), _cache()]) {
       try {
         if (dir.existsSync()) dir.deleteSync(recursive: true);
@@ -347,8 +387,9 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     if (_started) return;
     _started = true;
     try {
-      final f = File('${_data().path}/queue.json');
-      if (f.existsSync()) {
+      // A browser keeps no queue: what it was sending stopped with the tab.
+      final f = browser ? null : File('${_data().path}/queue.json');
+      if (f != null && f.existsSync()) {
         for (final j in (jsonDecode(await f.readAsString()) as List)) {
           final t = Transfer._fromJson(j);
           if (t != null && !transfers.any((x) => x.id == t.id)) transfers.add(t);
@@ -396,6 +437,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// Keeps the uploads still to finish in queue.json, written aside and renamed so it is never half written. A chat's
   /// files are left out: their messages ask again.
   Future<void> _saveQueue() async {
+    if (browser) return;
     try {
       final d = _data()..createSync(recursive: true);
       final tmp = File('${d.path}/queue.json.tmp');
@@ -417,7 +459,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     if (had != null && had.base == base && identical(had.signer, signer)) return had;
     // The one it replaces lets its connections go, rather than keeping them open for as long as the app runs.
     had?.closeIdle();
-    return _apis[room] = FilesApi(base: base, space: room, token: FileSeal.filesToken(c.seed), signer: signer);
+    return _apis[room] = FilesApi(base: base, space: room, token: FileSeal.filesToken(c.seed), signer: signer, http: _http());
   }
 
   /// Opens [c] while something shows it: its list read and kept current. [close] when done.
@@ -766,6 +808,33 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     _pump();
   }
 
+  /// Adds files that are no paths on this device to [c], in [folder]: in a browser, those a person picked or dropped
+  /// on the page (lib/files/browser_files.dart). They go up as any upload does, read a piece at a time.
+  void uploadSources(VoiceChannel c, List<FileSource> sources, {String? folder}) {
+    for (final src in sources) {
+      final name = SpaceFile.cleanName(src.name.split('/').last.split(r'\\').last);
+      final shown = name.isEmpty ? 'File' : name;
+      transfers.add(Transfer._source(
+        space: c,
+        source: src,
+        name: shown,
+        size: src.size,
+        mime: FileKind.mimeOf(shown),
+        folder: SpaceFile.cleanFolder(folder),
+      ));
+    }
+    notifyListeners();
+    _pump();
+  }
+
+  /// The SHA-256 of what [t] sends, said in hundredths as it reads ([told]): its file's path on another isolate, or its
+  /// [FileSource] a piece at a time.
+  Future<String> _shaOf(Transfer t, void Function(int read)? told) {
+    final src = t.source;
+    if (src != null) return shaOfSource(src, told: told);
+    return _shaAside(t.path!, told: told);
+  }
+
   bool _pumping = false;
 
   /// Sends the queued uploads one after another; only one pump runs at a time. Those left waiting for the relay are
@@ -811,8 +880,9 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       notifyListeners();
       return;
     }
-    final file = File(t.path!);
-    if (!file.existsSync()) {
+    final src = t.source;
+    final file = src == null ? File(t.path!) : null;
+    if (file != null && !file.existsSync()) {
       t._fail('The file isn\'t there any more.');
       await _settle(t);
       return;
@@ -837,8 +907,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       }
       // The same file as when it was sealed before, or nothing is sent: a chunk sealed again under its nonce must say
       // the same words, or the key would be given away.
-      final modified = file.lastModifiedSync().millisecondsSinceEpoch;
-      if (t.sha != null && (t.modified != modified || file.lengthSync() != t.size)) {
+      final modified = file == null ? src!.modified : file.lastModifiedSync().millisecondsSinceEpoch;
+      if (t.sha != null && (t.modified != modified || (file == null ? src!.size : file.lengthSync()) != t.size)) {
         t._fail('The file changed while it was going up. Add it again.');
         await _settle(t);
         return;
@@ -847,11 +917,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       if (t.sha == null) {
         t.status = 'Getting it ready';
         notifyListeners();
-        final path = t.path!;
+        final path = t.path;
         // The whole file is read once for its checksum before any of it goes: said in hundredths, so a big one is
-        // seen to be moving.
+        // seen to be moving (in a browser, from 8 MB: it reads more slowly there).
         var said = -1;
-        t.sha = await _shaAside(path, told: t.size < 64 << 20 ? null : (read) {
+        t.sha = await _shaOf(t, t.size < (browser ? 8 << 20 : 64 << 20) ? null : (read) {
           final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
           if (pct == said) return;
           said = pct;
@@ -864,11 +934,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
         // its first minute (lib/files/video_frame.dart; Matt, 2026-11-18: "videos having a frame from the first minute").
         final kind = FileKind.of(t.name, t.mime);
         if (thumbnails && kind == FileKind.image && t.size <= 40 << 20) {
-          final made = await thumbnailOfFile(path, kind, most: t.thumbMost);
+          final made = src != null ? await thumbnailOf(await src.read(0, t.size), most: t.thumbMost) : await thumbnailOfFile(path!, kind, most: t.thumbMost);
           t.thumb = made?.png;
           t.width = made?.width ?? 0;
           t.height = made?.height ?? 0;
-        } else if (thumbnails && kind == FileKind.video) {
+        } else if (thumbnails && kind == FileKind.video && path != null) {
           // A video's frame takes a player to open it: made while the file goes up, and waited for only at the end
           // (videoFrame gives up after frameLimit), so the upload never stands waiting on it.
           _videoThumbs[t] = thumbnailOfFile(path, kind, most: t.thumbMost);
@@ -898,7 +968,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       Future<bool> unchanged() async {
         if (t.owned) return true;
         var said = -1;
-        final sha = await _shaAside(t.path!, told: t.size < 64 << 20 ? null : (read) {
+        final sha = await _shaOf(t, t.size < 64 << 20 ? null : (read) {
           final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
           if (pct == said) return;
           said = pct;
@@ -928,6 +998,12 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
         final count = math.min(piece, total - first);
         final from = first * FileSeal.chunk;
         final length = math.min(t.size - from, count * FileSeal.chunk);
+        if (file == null) {
+          // A browser's: the piece read from the picked file, sealed by the browser's own AES-GCM (SealAsync).
+          final plain = await src!.read(from, length);
+          if (plain.length != length) throw const FileSystemException('The file changed while it was going up.');
+          return SealAsync.sealRun(SealRun(key: t.fileKey!, prefix: t.prefix!, fileId: t.blob!, size: t.size, first: first, plain: plain));
+        }
         final raf = await file.open();
         try {
           await raf.setPosition(from);
@@ -1045,6 +1121,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     } on FileSystemException catch (e) {
       t._fail(e.message.isEmpty ? 'The file couldn\'t be read.' : e.message);
       await _settle(t);
+    } catch (e) {
+      // A browser's file that can't be read any more (moved, deleted or changed since it was picked: NotReadableError).
+      if (src == null) rethrow;
+      t._fail('The file couldn\'t be read. Add it again.');
+      await _settle(t);
     }
   }
 
@@ -1070,6 +1151,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// Puts the uploaded file where a download of [f] would lie ([cachedPath]): the app's own copy is moved there,
   /// someone's own file is copied where it is 64 MB or less.
   Future<void> _keepLocal(Transfer t, SpaceFile f) async {
+    // A browser's upload is no file on this device: it comes down again if it is opened here.
+    if (t.path == null) return;
     try {
       final at = File(cachedPath(f));
       await at.parent.create(recursive: true);
@@ -1101,7 +1184,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       if (t.owned) _deleteQuietly(t.path!);
     } else {
       final f = t.file;
-      if (f != null) _deleteQuietly(_partPath(f));
+      // A browser's part is in memory, let go as its download sees it was stopped.
+      if (f != null && !browser) _deleteQuietly(_partPath(f));
       t._done?.completeError(FilesError(-1, 'Stopped.'));
       _downloads.remove(t.file?.id);
     }
@@ -1178,6 +1262,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// [f]'s file on this device, where it has come down already.
   String? cached(SpaceFile f) {
+    if (browser) return _held[f.id];
     final p = cachedPath(f);
     if (File(p).existsSync()) return p;
     // Renamed since it came down: the one there under its old name.
@@ -1194,6 +1279,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// Deletes all this device keeps of [f]: the file that came down, a part of one, and what a stream kept of it.
   void _forgetCached(SpaceFile f) {
+    if (browser) {
+      final url = _held.remove(f.id);
+      if (url != null) HeldFiles.release(url);
+      return;
+    }
     try {
       final dir = Directory('${_cache().path}/${f.id}');
       if (dir.existsSync()) dir.deleteSync(recursive: true);
@@ -1213,6 +1303,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// (Matt, 2026-11-18: "would it be possible to setup streaming and buffering of the file?" ... "yes build it").
   /// [FileStream.close] it when done; once all of it has come it is the ordinary download ([cached]).
   FileStream stream(VoiceChannel c, SpaceFile f) {
+    // A page has no server to play from: there a video comes down whole and plays from the tab ([fetch]).
+    if (browser) throw UnsupportedError('A browser plays a file once it has come down.');
     final had = _streams[f.id];
     if (had != null && !had.closed) {
       had.hold();
@@ -1264,7 +1356,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       }, onError: (Object e) => _endDownload(t, error: e is FilesError ? e : FilesError(0, '$e'))).whenComplete(streaming.close));
       return t._done!.future;
     }
-    unawaited(_runDownload(t));
+    unawaited(browser ? _runHeldDownload(t) : _runDownload(t));
     return t._done!.future;
   }
 
@@ -1341,6 +1433,70 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       try {
         await out?.close();
       } catch (_) {}
+      _endDownload(t, error: e is FilesError ? e : FilesError(0, '$e'));
+    }
+  }
+
+  /// A browser's download (docs/OPEN_NETWORK.md, part 6): read from the relay as it streams, opened [16] chunks at a
+  /// time by the browser's own AES-GCM, each handed to the tab as it opens ([HeldFiles]) and hashed as it goes, then
+  /// checked against its SHA-256 as the app checks its part file. Held for the tab's life under the address [fetch]
+  /// gives; nothing is kept once the tab closes. Stopped, nothing is held. A cut connection is read again from the
+  /// last whole lot, twice, as a stream's is (lib/files/file_stream.dart).
+  Future<void> _runHeldDownload(Transfer t) async {
+    final c = t.space;
+    final f = t.file!;
+    final api = _api(c);
+    if (api == null) {
+      _endDownload(t, error: FilesError(0, 'Not connected to the relay yet.'));
+      return;
+    }
+    final out = HeldFiles.sink();
+    final hash = _ShaSink();
+    try {
+      final chunks = FileSeal.chunks(f.size, chunkSize: f.chunk);
+      final step = f.chunk + FileSeal.tag;
+      final lastLen = FileSeal.plainLength(chunks - 1, f.size, chunkSize: f.chunk) + FileSeal.tag;
+      int lotOf(int i) => math.min(16, chunks - i);
+      int bytesOf(int i) => lotOf(i) == chunks - i ? (lotOf(i) - 1) * step + lastLen : lotOf(i) * step;
+      t.state = TransferState.running;
+      _moved();
+      var index = 0;
+      for (var tries = 0; index < chunks; tries++) {
+        final buffer = BytesBuilder(copy: false);
+        try {
+          final stream = await api.read(f.id, start: FileSeal.sealedOffset(index, chunkSize: f.chunk));
+          await for (final piece in stream) {
+            if (t._cancel) throw FilesError(-1, 'Stopped.');
+            buffer.add(piece);
+            while (index < chunks && buffer.length >= bytesOf(index)) {
+              final need = bytesOf(index), lot = lotOf(index), first = index;
+              final bytes = buffer.takeBytes();
+              buffer.add(Uint8List.sublistView(bytes, need));
+              final plain = await SealAsync.openRun(OpenRun(key: f.key, prefix: f.prefix, fileId: f.id, size: f.size, first: first, sealed: Uint8List.sublistView(bytes, 0, need), chunkSize: f.chunk));
+              if (plain == null) throw FilesError(-2, 'The file didn\'t open: it was changed on the way, or isn\'t whole.');
+              if (t._cancel) throw FilesError(-1, 'Stopped.');
+              out.add(plain);
+              hash.add(plain);
+              index += lot;
+              t.done = math.min(f.size, t.done + plain.length);
+              _moved();
+            }
+          }
+          if (index < chunks) throw FilesError(0, 'The file came down short.');
+        } on FilesError catch (e) {
+          // Only the relay out of reach is tried again, from the last whole lot; a refusal or a lot that didn't open is not.
+          if (!e.offline || tries >= 2 || t._cancel) rethrow;
+          await Future<void>.delayed(Duration(milliseconds: 400 * (tries + 1)));
+        }
+      }
+      if (f.sha.isNotEmpty && hash.hex() != f.sha) throw FilesError(-2, 'The file came down different from what was added.');
+      final url = out.finish(f.mime);
+      _held[f.id] = url;
+      t.state = TransferState.done;
+      t.done = f.size;
+      _endDownload(t, path: url);
+    } catch (e) {
+      out.abort();
       _endDownload(t, error: e is FilesError ? e : FilesError(0, '$e'));
     }
   }
@@ -1510,6 +1666,17 @@ void _shaTelling((String, SendPort) job) {
   Isolate.exit(port, sha);
 }
 
+/// A browser download's SHA-256, taken as its chunks come ([FilesStore._runHeldDownload]).
+class _ShaSink {
+  final _out = _DigestSink();
+  late final ByteConversionSink _in = crypto.sha256.startChunkedConversion(_out);
+  void add(Uint8List bytes) => _in.add(bytes);
+  String hex() {
+    _in.close();
+    return NetCrypto.hex(Uint8List.fromList(_out.value!.bytes));
+  }
+}
+
 /// SHA-256 a piece at a time. The plain Dart one (package:crypto) reads about 100 MB a second, five times what
 /// pointycastle's did (19 MB/s: twenty minutes and more for a 26 GB file); a Mac's and an iPhone's own, on the
 /// processor's SHA instructions, reads faster than the disk gives it.
@@ -1654,6 +1821,8 @@ class FilesSpace {
   File get _file => File('${_store._data().path}/spaces/${FileSeal.filesRoom(channel.seed)}.json');
 
   void _load() {
+    // A browser keeps no list: it is read from the relay as the space opens.
+    if (_store.browser) return;
     try {
       final f = _file;
       if (!f.existsSync()) return;
@@ -1682,11 +1851,15 @@ class FilesSpace {
   );
 
   /// Has the log written soon ([_writer]).
-  void _save() => _writer.save();
+  void _save() {
+    if (!_store.browser) _writer.save();
+  }
 
   /// Writes the log now (a test that reads the file after).
   @visibleForTesting
-  void flushKept() => _writer.flush();
+  void flushKept() {
+    if (!_store.browser) _writer.flush();
+  }
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
   /// (the log's own rosters, or this device's), the rest under the roster as it is now (FilesList.read).
@@ -1858,11 +2031,21 @@ class Transfer {
   Transfer._up({required this.space, required String this.path, required this.name, required this.size, required this.mime, this.folder, this.owned = false})
       : up = true,
         file = null,
+        source = null,
         id = '${space.seed}:${DateTime.now().microsecondsSinceEpoch}:$path';
+
+  /// An upload of a file that is no path here ([FilesStore.uploadSources]): a browser's.
+  Transfer._source({required this.space, required FileSource this.source, required this.name, required this.size, required this.mime, this.folder})
+      : up = true,
+        file = null,
+        path = null,
+        owned = false,
+        id = '${space.seed}:${DateTime.now().microsecondsSinceEpoch}:${source.name}';
 
   Transfer._down({required this.space, required SpaceFile this.file})
       : up = false,
         path = null,
+        source = null,
         name = file.name,
         size = file.size,
         mime = file.mime,
@@ -1875,6 +2058,7 @@ class Transfer {
   @visibleForTesting
   Transfer.shown({required this.space, required this.name, required this.size, this.done = 0, this.up = true, this.state = TransferState.running, this.error, this.retryable = true})
       : path = null,
+        source = null,
         file = null,
         mime = FileKind.mimeOf(name),
         folder = null,
@@ -1888,6 +2072,9 @@ class Transfer {
   final bool up;
   final VoiceChannel space;
   final String? path;
+
+  /// What an upload of no path reads from ([Transfer._source]).
+  final FileSource? source;
   final SpaceFile? file;
   final String name;
   final int size;

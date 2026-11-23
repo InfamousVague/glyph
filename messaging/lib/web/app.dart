@@ -7,6 +7,7 @@ import '../accent.dart';
 import '../account/account.dart';
 import '../app_state.dart';
 import '../emoji_sets.dart';
+import '../files/files_store.dart' show FilesStore;
 import '../keys.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
@@ -90,6 +91,10 @@ void _taken() {
 /// The hub this build was made for (`node tool/build-web.mjs --hub wss://gogho.st/hub`, `--dart-define=GHOST_WEB_HUB`):
 /// the build for app.gogho.st names gogho.st's; a relay's own build names none.
 const builtHub = String.fromEnvironment('GHOST_WEB_HUB');
+
+/// Whether this build has Files spaces (`node tool/build-web.mjs --files`, `--dart-define=GHOST_WEB_FILES=true`): off
+/// unless asked for (Sms.browserFiles; docs/OPEN_NETWORK.md, part 6).
+const webFiles = bool.fromEnvironment('GHOST_WEB_FILES');
 
 /// Whether this build joins calls (`node tool/build-web.mjs --calls`, `--dart-define=GHOST_WEB_CALLS=true`): off
 /// unless asked for (Sms.browserCalls).
@@ -176,6 +181,9 @@ Future<void> _start(Browser b) async {
   Sms.browserName = b.name;
   // Calls, where this build has them (tool/build-web.mjs --calls): the page's own WebRTC, the app's own call code.
   Sms.browserCalls = webCalls;
+  // Files spaces, where this build has them (tool/build-web.mjs --files): the app's own files store, keeping nothing
+  // in the browser (FilesStore.browser).
+  Sms.browserFiles = webFiles;
   Net.homeHub = hubFor(b.address);
   // What a page can't run is never made. Plugins: none of the app's own (they sort texts, draw cards for links
   // fetched from other sites, and add to calls: nothing a page has), and none from the Marketplace, which need a
@@ -200,6 +208,8 @@ Future<void> _start(Browser b) async {
   // Settings › About, the page's own (settings.dart): a phone's and a computer's are theirs.
   SettingsSources.add(browserSettings);
   startPeople(state);
+  // Files spaces, where the build has them: the store follows the relay as it comes, as a computer's does.
+  if (webFiles) unawaited(FilesStore.instance.start());
   SpaceGroups.instance.start(state);
   watchForRemoval(b);
   runApp(WebApp(state: state, accents: accents));

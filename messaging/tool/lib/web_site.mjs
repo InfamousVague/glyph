@@ -24,16 +24,19 @@ export const policyOf = (html) => META.exec(html)?.[1] ?? null;
 
 /**
  * What the page sends to beside [hub], over plain HTTP from the page itself (lib/web/http.dart), where the hub is at
- * another address than the page: feedback to the hub's server (lib/feedback/feedback_api.dart feedbackUrlFor), and a
+ * another address than the page: feedback to the hub's server (lib/feedback/feedback_api.dart feedbackUrlFor), a
  * report to Ghost Messaging's review there where the hub is Ghost Messaging's own (lib/market/market_api.dart
- * marketIsOwn, marketUrlFor; lib/ui/report_sheet.dart reportsGoFromHere: a page made for another relay sends none).
- * The relay must also let the page's address read the answers (relay/lib/relay.dart, GHOST_APP_ORIGIN).
+ * marketIsOwn, marketUrlFor; lib/ui/report_sheet.dart reportsGoFromHere: a page made for another relay sends none),
+ * and a Files space's files, from a build with them (lib/files/files_http_web.dart; FilesApi.baseFor: the hub's
+ * server, `/files/`). A build without Files spaces never asks there; the one policy serves both, so the site's block
+ * needn't change with the build. The relay must also let the page's address read the answers (relay/lib/relay.dart,
+ * GHOST_APP_ORIGIN).
  */
 export function sentBeside(hub) {
   const u = new URL(hub);
   const at = `${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}${u.pathname.replace(/\/hub$/, '').replace(/\/$/, '')}`;
   const own = u.hostname === 'gogho.st' || u.hostname === 'ghost-sms.com';
-  return [...(own ? [`${at}/market/abuse`] : []), `${at}/feedback`];
+  return [...(own ? [`${at}/market/abuse`] : []), `${at}/feedback`, `${at}/files/`];
 }
 
 /** connect-src for a build that names [hub]: the page's own address, the hub, and what it sends beside it. */

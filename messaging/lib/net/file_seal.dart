@@ -52,6 +52,9 @@ class FileSeal {
 
   // A chunk's nonce: the file's eight bytes, then the chunk's number. And what it is bound to: the label, the
   // file's id, the chunk's number, and whether it is the last.
+  static Uint8List nonceOf(List<int> prefix, int index) => _nonce(prefix, index);
+  static Uint8List aadOf(String fileId, int index, bool last) => _aad(fileId, index, last);
+
   static Uint8List _nonce(List<int> prefix, int index) => Uint8List.fromList([...prefix, (index >> 24) & 0xff, (index >> 16) & 0xff, (index >> 8) & 0xff, index & 0xff]);
 
   static Uint8List _aad(String fileId, int index, bool last) =>
@@ -73,34 +76,45 @@ class FileSeal {
     }
   }
 
+  /// The chunks of a run: each one's number, whether it is the file's last, and where its bytes are in the run (its
+  /// plain bytes for [sealRun], its sealed bytes for [openRun], [sealed] saying which). What lib/net/file_seal_async.dart
+  /// walks too, so a browser seals and opens exactly these chunks. Throws (sealing) or stops short with a null end
+  /// (opening) where the run's bytes don't hold its last chunk whole.
+  static Iterable<({int index, bool last, int start, int end})> runChunks({required int size, required int first, required int length, required int chunkSize, required bool sealed}) sync* {
+    final n = chunks(size, chunkSize: chunkSize);
+    var at = 0, i = first;
+    do {
+      final len = plainLength(i, size, chunkSize: chunkSize) + (sealed ? tag : 0);
+      if (at + len > length) {
+        if (!sealed) throw ArgumentError('chunk $i is short');
+        yield (index: i, last: i == n - 1, start: at, end: -1);
+        return;
+      }
+      yield (index: i, last: i == n - 1, start: at, end: at + len);
+      at += len;
+      i++;
+    } while (at < length);
+  }
+
   /// Seals chunks [first] onward of [plain] (the plain bytes of those chunks, one after another): what an upload sends
   /// in one piece. Plain data, so it may be run on another isolate.
   static Uint8List sealRun(SealRun run) {
-    final n = chunks(run.size, chunkSize: run.chunkSize);
     final out = BytesBuilder(copy: false);
-    var at = 0, i = run.first;
-    do {
-      final len = plainLength(i, run.size, chunkSize: run.chunkSize);
-      if (at + len > run.plain.length) throw ArgumentError('chunk $i is short');
-      out.add(sealChunk(run.key, run.prefix, run.fileId, i, i == n - 1, Uint8List.sublistView(run.plain, at, at + len)));
-      at += len;
-      i++;
-    } while (at < run.plain.length);
+    for (final c in runChunks(size: run.size, first: run.first, length: run.plain.length, chunkSize: run.chunkSize, sealed: false)) {
+      out.add(sealChunk(run.key, run.prefix, run.fileId, c.index, c.last, Uint8List.sublistView(run.plain, c.start, c.end)));
+    }
     return out.takeBytes();
   }
 
   /// Opens chunks [first] onward of [sealed]: null where any fails.
   static Uint8List? openRun(OpenRun run) {
+    if (run.sealed.isEmpty) return Uint8List(0);
     final out = BytesBuilder(copy: false);
-    var at = 0;
-    final n = chunks(run.size, chunkSize: run.chunkSize);
-    for (var i = run.first; at < run.sealed.length; i++) {
-      final len = plainLength(i, run.size, chunkSize: run.chunkSize) + tag;
-      if (at + len > run.sealed.length) return null;
-      final plain = openChunk(run.key, run.prefix, run.fileId, i, i == n - 1, Uint8List.sublistView(run.sealed, at, at + len));
+    for (final c in runChunks(size: run.size, first: run.first, length: run.sealed.length, chunkSize: run.chunkSize, sealed: true)) {
+      if (c.end < 0) return null;
+      final plain = openChunk(run.key, run.prefix, run.fileId, c.index, c.last, Uint8List.sublistView(run.sealed, c.start, c.end));
       if (plain == null) return null;
       out.add(plain);
-      at += len;
     }
     return out.takeBytes();
   }

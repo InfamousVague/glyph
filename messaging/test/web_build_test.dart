@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/feedback/feedback_api.dart' show feedbackUrlFor;
+import 'package:ghost_messaging/files/files_api.dart' show FilesApi;
 import 'package:ghost_messaging/market/market_api.dart' show marketUrlFor;
 
 /// The app's build for a browser (lib/web/main.dart, web/; Matt: "the full web client"): what the page in web/ says,
@@ -126,15 +127,16 @@ void main() {
       ...(list['app'] as Map).cast<String, String>(),
       'Content-Security-Policy': r'${APP_CSP}',
     });
-    // The policy is the page's own with gogho.st's hub beside its own address, and the two the page sends to there over
-    // plain HTTP (lib/web/http.dart: a report to the review, feedback), exactly those; and frame-ancestors, which the
-    // page's <meta> can't say.
+    // The policy is the page's own with gogho.st's hub beside its own address, and what the page sends to there over
+    // plain HTTP (lib/web/http.dart: a report to the review, feedback; lib/files/files_http_web.dart: a Files space's
+    // files, from a build with them), exactly those; and frame-ancestors, which the page's <meta> can't say.
     final page = RegExp(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">').firstMatch(File('web/index.html').readAsStringSync())!.group(1)!;
     expect(page, contains("connect-src 'self';"));
-    expect(csp, '${page.replaceFirst("connect-src 'self';", "connect-src 'self' wss://gogho.st/hub https://gogho.st/market/abuse https://gogho.st/feedback;")}; ${list['frameAncestors']}');
+    expect(csp, '${page.replaceFirst("connect-src 'self';", "connect-src 'self' wss://gogho.st/hub https://gogho.st/market/abuse https://gogho.st/feedback https://gogho.st/files/;")}; ${list['frameAncestors']}');
     // Where the app finds those two beside its hub, the same.
     expect(marketUrlFor('wss://gogho.st/hub', const ['abuse']).toString(), 'https://gogho.st/market/abuse');
     expect(feedbackUrlFor('wss://gogho.st/hub').toString(), 'https://gogho.st/feedback');
+    expect(FilesApi.baseFor('wss://gogho.st/hub').toString(), 'https://gogho.st/files');
     // What the page asks for as it signs out or is removed (lib/web/browser_web.dart, the relay's own in
     // relay/lib/web_app.dart): the browser told to clear everything it keeps for the address. Answered before any file
     // is looked for, and checked on the box as a visitor gets it.

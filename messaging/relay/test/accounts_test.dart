@@ -302,6 +302,27 @@ void main() {
     expect(await ask(c.id, {'dir': 'acct-find', 'name': 'maya'}), containsPair('err', contains('Too many')));
   });
 
+  // GMFB-53: a device listed with its name on the hub; its other devices can then ask whether the hub name a packet came
+  // from is that listed device's (and its name on the list), and nobody gets either from the device number alone.
+  test('devices: the hub name a device is listed with is checked by acct-hello with both numbers, and said with neither alone', () async {
+    final maya = Who();
+    await claim(maya, 'maya');
+    await ask(maya.id, maya.put(maya.id));
+    final mac = 'b' * 32, hub = 'c' * 32, old = 'd' * 32;
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': mac, 'n': 'MacBook', 'p': 'macos', 'h': hub}}));
+    await ask(maya.id, maya.signed('acct-devices', 'devices', maya.id, {'add': {'d': old, 'n': 'Old phone', 'p': 'android', 'h': 'not a hub name'}}));
+    final right = await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac, 'h': hub});
+    expect(right, allOf(containsPair('known', true), containsPair('hm', true), containsPair('n', 'MacBook')));
+    final wrong = await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac, 'h': 'e' * 32});
+    expect(wrong, allOf(containsPair('known', true), containsPair('hm', false)));
+    expect(wrong.containsKey('n'), isFalse);
+    // Listed without a hub name (an app from before, or one that wasn't 32 hex digits): never vouched for.
+    expect(await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': old, 'h': 'not a hub name'}), containsPair('hm', false));
+    // Asked as before: answered as before.
+    final before = await ask(maya.id, {'dir': 'acct-hello', 'a': maya.address, 'd': mac});
+    expect(before.containsKey('hm') || before.containsKey('n'), isFalse);
+  });
+
   test('devices: added by the device signing in, listed, removed; a removed device hears so', () async {
     final maya = Who();
     await claim(maya, 'maya');
