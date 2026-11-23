@@ -65,7 +65,10 @@ On a friend's card, **Vouch for @name** signs, with the account key:
       + ("yes" | "no") + "\n" + time in milliseconds
 
 `no` is a vouch taken back. One person's newest word about one account stands; each new one is later than the one
-before it, whatever the clock says. The friend's key is in it, so a vouch for one key says nothing about another key
+before it, whatever the clock says. A vouch is good for **365 days from its time**: the time is signed and the year
+is fixed in the app, so nobody can make one last longer. Vouch for again renews it for a year from then. An expired
+vouch is counted by nobody, carried to nobody, and dropped from what the app keeps; a time more than a day ahead of
+the viewer's clock isn't believed either. The friend's key is in it, so a vouch for one key says nothing about another key
 that later has the same username.
 
 How it travels (`lib/friends/buddies.dart`; every part is something a build from before passes over):
@@ -87,4 +90,5 @@ How it travels (`lib/friends/buddies.dart`; every part is something a build from
   carried.
 
 What it can't do: someone vouched for who later hides a withdrawal from a viewer who never saw it can go on showing
-that viewer the old vouch, until the viewer sees the withdrawal (it is carried by every honest copy of the profile).
+that viewer the old vouch until the viewer sees the withdrawal (every honest copy of the profile carries it), and at
+the latest until the vouch's year runs out.

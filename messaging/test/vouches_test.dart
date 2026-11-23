@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/friends/vouches.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
@@ -123,8 +124,9 @@ void main() {
     final me = NetKeys.generate(), friend = NetKeys.generate();
     final v = make()..load(me.id);
     // 500 vouches for a friend from 500 others: no more than 2 × 64 are read, and 64 kept.
+    final recent = DateTime.now().millisecondsSinceEpoch - 600000;
     final many = [
-      for (var i = 0; i < 500; i++) {'b': NetCrypto.hex(NetCrypto.sha256([i]).sublist(0, 16)), 't': 1000 + i, 's': base64Encode(List.filled(64, 1))},
+      for (var i = 0; i < 500; i++) {'b': NetCrypto.hex(NetCrypto.sha256([i]).sublist(0, 16)), 't': recent + i, 's': base64Encode(List.filled(64, 1))},
     ];
     v.tookCarried(friend.id, many);
     expect(v.carried[friend.id]!.length, Vouches.most);
@@ -164,5 +166,100 @@ void main() {
     for (final x in b.values) {
       x.dispose();
     }
+  });
+
+  group('a vouch is good for a year from when it was signed', () {
+    const day = 24 * 3600 * 1000;
+    late int clock;
+    late VouchWorld w;
+    late VouchPort maya, sam, theo;
+    late Map<VouchPort, Buddies> b;
+    late Map<VouchPort, Map<String, String>> kept;
+
+    setUp(() async {
+      clock = DateTime.utc(2026, 11, 23).millisecondsSinceEpoch;
+      w = VouchWorld();
+      maya = VouchPort(w, 'maya');
+      sam = VouchPort(w, 'sam');
+      theo = VouchPort(w, 'theo');
+      kept = {for (final p in [maya, sam, theo]) p: <String, String>{}};
+      b = await makeFriends([(maya, sam), (maya, theo), (sam, theo)], stores: {
+        for (final p in [maya, sam, theo]) p: Vouches(read: (k) => kept[p]![k] ?? '', write: (k, v) => kept[p]![k] = v, now: () => clock),
+      });
+    });
+    tearDown(() {
+      for (final x in b.values) {
+        x.dispose();
+      }
+    });
+
+    Buddy mayaAt(VouchPort p) => b[p]!.byId(maya.keys.id)!;
+
+    test('run out: counted by nobody, carried to nobody, dropped from what is kept', () async {
+      await b[sam]!.vouch(mayaAt(sam));
+      await pumpEventQueue();
+      expect(b[sam]!.vouchRunsOut(mayaAt(sam)), DateTime.fromMillisecondsSinceEpoch(clock + 365 * day));
+      clock += 365 * day - 1;
+      expect([b[maya]!.vouchersOf(null).length, b[theo]!.vouchersOf(mayaAt(theo)).length], [1, 1], reason: 'good to the last moment of the year');
+      clock += 1;
+      expect([b[maya]!.vouchersOf(null), b[theo]!.vouchersOf(mayaAt(theo))], [isEmpty, isEmpty]);
+      expect(b[maya]!.vouches.carry(), isEmpty, reason: 'not carried to friends');
+      expect(b[sam]!.vouchedFor(mayaAt(sam)), isFalse, reason: 'Sam is offered Vouch for again');
+      // Dropped from the store as it is next read.
+      final again = Vouches(read: (k) => kept[maya]![k] ?? '', write: (k, v) => kept[maya]![k] = v, now: () => clock)..load(maya.keys.id);
+      expect(again.held, isEmpty);
+      expect(kept[maya]!.values.single, isNot(contains(sam.keys.id)));
+      // And an expired one sent again is not taken.
+      final old = sam.sent.lastWhere((s) => s.envelope.kind == 'vouch').envelope;
+      sam.deliver(maya, old);
+      await pumpEventQueue();
+      expect(b[maya]!.vouches.held, isEmpty);
+    });
+
+    test('Vouch for again renews it for a year from then', () async {
+      await b[sam]!.vouch(mayaAt(sam));
+      await pumpEventQueue();
+      clock += 200 * day;
+      await b[sam]!.vouch(mayaAt(sam));
+      await pumpEventQueue();
+      clock += 300 * day;
+      expect(b[theo]!.vouchersOf(mayaAt(theo)).length, 1, reason: 'a year from the renewal, not from the first');
+      expect(b[sam]!.vouchRunsOut(mayaAt(sam)), DateTime.fromMillisecondsSinceEpoch(clock - 300 * day + 365 * day));
+      clock += 66 * day;
+      expect(b[theo]!.vouchersOf(mayaAt(theo)), isEmpty);
+    });
+
+    test('a later time written in a vouch (to make it last longer) breaks its signature', () async {
+      await b[sam]!.vouch(mayaAt(sam));
+      await pumpEventQueue();
+      final carried = maya.sent.lastWhere((s) => s.to == theo.keys.id && s.envelope.body['s'] == 'vo').envelope;
+      final moved = [for (final v in carried.body['vo'] as List) {...(v as Map), 't': (v['t'] as int) + 300 * day}];
+      clock += 400 * day;
+      maya.deliver(theo, Envelope(kind: 'buddy', body: {'s': 'vo', 'vo': moved}));
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(mayaAt(theo)), isEmpty);
+      // Nor is one signed further ahead than a clock can be wrong believed.
+      final ahead = clock + 30 * day;
+      final sig = NetCrypto.sign(sam.keys, Vouch.signedBytes(by: sam.keys.id, forId: maya.keys.id, forKey: maya.key, on: true, t: ahead));
+      maya.deliver(theo, Envelope(kind: 'buddy', body: {'s': 'vo', 'vo': [Vouch(by: sam.keys.id, forId: maya.keys.id, on: true, t: ahead, sig: sig).carried()]}));
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(mayaAt(theo)), isEmpty);
+    });
+
+    test('a viewer who never saw the withdrawal stops counting the old vouch within the year', () async {
+      await b[sam]!.vouch(mayaAt(sam));
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(mayaAt(theo)).length, 1);
+      // Theo hears nothing more from Maya, so never sees Sam take it back.
+      maya.cut.add(theo.keys.id);
+      sam.cut.add(theo.keys.id);
+      clock += 10 * day;
+      await b[sam]!.vouch(mayaAt(sam), on: false);
+      await pumpEventQueue();
+      expect(b[maya]!.vouchersOf(null), isEmpty);
+      expect(b[theo]!.vouchersOf(mayaAt(theo)).length, 1, reason: 'the limit the year is for');
+      clock += 355 * day;
+      expect(b[theo]!.vouchersOf(mayaAt(theo)), isEmpty);
+    });
   });
 }

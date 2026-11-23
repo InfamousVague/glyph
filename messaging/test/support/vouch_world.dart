@@ -29,6 +29,9 @@ class VouchPort implements BuddiesPort, BuddiesSigner {
   final _hellos = StreamController<({String from, Envelope envelope})>.broadcast();
 
   String get key => base64Encode(keys.public);
+
+  /// The installs nothing sent reaches.
+  final cut = <String>{};
   bool _holds(String id) => (jsonDecode(list) as List).any((b) => (b as Map)['i'] == id && b['s'] != 'blocked');
 
   @override
@@ -51,6 +54,8 @@ class VouchPort implements BuddiesPort, BuddiesSigner {
   @override
   Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async {
     sent.add((to: id, envelope: envelope, sealed: sealed));
+    // Lost on the way to those [cut] names, as to someone who is away until it runs out.
+    if (cut.contains(id)) return true;
     final to = world.byId[id];
     if (to == null || (sealed && (!_holds(id) || !to._holds(keys.id)))) return false;
     scheduleMicrotask(() => (sealed ? to._in : to._hellos).add((from: keys.id, envelope: envelope)));

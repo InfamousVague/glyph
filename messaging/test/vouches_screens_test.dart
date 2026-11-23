@@ -39,7 +39,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('profile-vouches-count')));
     await settle(tester);
     expect(find.text('sam'), findsOneWidget, reason: 'the names, on a tap');
-    expect(find.text('You vouch for them'), findsNothing);
+    expect(find.byKey(const ValueKey('profile-vouches-mine')), findsNothing);
 
     await tester.tap(find.text('Vouch for @maya'));
     await tester.runAsync(pumpEventQueue);
@@ -49,7 +49,8 @@ void main() {
     // Opened again: Theo's own vouch is said, and the choice is to take it back.
     await tester.tap(find.text('open'));
     await settle(tester);
-    expect(find.text('You vouch for them'), findsOneWidget);
+    expect(find.text(yourVouchWords(b[theo]!.vouchRunsOut(b[theo]!.byId(maya.keys.id)!)!)), findsOneWidget);
+    expect(find.text('Vouch for @maya again'), findsOneWidget, reason: 'renewing is offered');
     expect(find.text('Vouched for by 1 of your friends'), findsOneWidget, reason: 'Theo isn\'t his own friend');
     await tester.tap(find.text('Take back your vouch for @maya'));
     await tester.runAsync(pumpEventQueue);

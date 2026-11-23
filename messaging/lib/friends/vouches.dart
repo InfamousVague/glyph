@@ -12,6 +12,11 @@ import '../net/crypto.dart';
 /// `ghost-vouch v1`, a newline, then the voucher's name, the account's name, the account's key (base64), `yes` or `no`,
 /// and the time in milliseconds, each on a line of its own. The account's key is in it, so a vouch for one key says
 /// nothing of another key that later takes the same username.
+///
+/// A vouch is good for a year ([lasts]) from the time it was signed (Matt, 2026-11-23: "vouches expire after a year").
+/// The time is in what is signed and the year is fixed here, so nobody can make one last longer; Vouch for again
+/// renews it. An expired one is counted by nobody, carried to nobody, and dropped from what is kept. A taken-back word
+/// is kept as long as the vouch it took back could have lasted, and dropped after.
 @immutable
 class Vouch {
   const Vouch({required this.by, required this.forId, required this.on, required this.t, required this.sig});
@@ -28,6 +33,21 @@ class Vouch {
   final Uint8List sig;
 
   static const words = 'ghost-vouch v1\n';
+
+  /// How long a vouch is good for, from [t].
+  static const lasts = Duration(days: 365);
+
+  /// How far ahead of this device's clock a time may be and still be believed (another device's clock running fast).
+  static const ahead = Duration(days: 1);
+
+  /// When it stops being good, in milliseconds since 1970.
+  int get until => t + lasts.inMilliseconds;
+
+  /// Whether it has run out by [now].
+  bool expiredAt(int now) => now >= until;
+
+  /// Whether it is good at [now]: not run out, and not signed further ahead than a clock can be wrong by.
+  bool goodAt(int now) => !expiredAt(now) && t <= now + ahead.inMilliseconds;
 
   static Uint8List signedBytes({required String by, required String forId, required String forKey, required bool on, required int t}) => Uint8List.fromList(utf8.encode('$words$by\n$forId\n$forKey\n${on ? 'yes' : 'no'}\n$t'));
 
@@ -143,10 +163,31 @@ class Vouches extends ChangeNotifier {
         hidden = j['hide'] == true;
       }
     } catch (_) {}
+    if (_prune()) _save();
     notifyListeners();
   }
 
+  /// Drops every word that has run out; true where any was dropped.
+  bool _prune() {
+    final now = _now();
+    var dropped = false;
+    void from(Map<String, Vouch> m) {
+      final before = m.length;
+      m.removeWhere((_, v) => v.expiredAt(now));
+      if (m.length != before) dropped = true;
+    }
+
+    from(given);
+    from(held);
+    for (final m in carried.values) {
+      from(m);
+    }
+    carried.removeWhere((_, m) => m.isEmpty);
+    return dropped;
+  }
+
   void _save() {
+    _prune();
     final me = _for;
     if (me != null) {
       _write(_key(me), jsonEncode({
@@ -195,8 +236,9 @@ class Vouches extends ChangeNotifier {
   /// held.
   bool heard(Object? body, {required String from, required String fromKey, required String me, required String meKey}) {
     load(me);
+    if (_prune()) _save();
     final v = Vouch.fromJson(body);
-    if (v == null || v.by != from || v.forId != me || !v.checks(byKey: fromKey, forKey: meKey)) return false;
+    if (v == null || v.by != from || v.forId != me || !v.goodAt(_now()) || !v.checks(byKey: fromKey, forKey: meKey)) return false;
     if (!_newer(held, v)) return false;
     _cap(held);
     _save();
@@ -210,11 +252,12 @@ class Vouches extends ChangeNotifier {
   /// checked as it comes; the rest are kept as they came, and checked if that voucher becomes a friend.
   void tookCarried(String friend, Object? list, {String? Function(String id)? keyOf, String? friendKey}) {
     if (list is! List || _for == null) return;
+    if (_prune()) _save();
     final had = carried[friend] ?? const <String, Vouch>{};
     final now = <String, Vouch>{};
     for (final j in list.take(2 * most)) {
       final v = Vouch.fromJson(j, forId: friend);
-      if (v == null || v.by == friend) continue;
+      if (v == null || v.by == friend || !v.goodAt(_now())) continue;
       final k = keyOf?.call(v.by);
       if (k != null && friendKey != null && !v.checks(byKey: k, forKey: friendKey)) continue;
       final seen = had[v.by];
@@ -234,7 +277,8 @@ class Vouches extends ChangeNotifier {
   /// where the person hid them.
   List<Map<String, Object>> carry() {
     if (hidden) return const [];
-    final all = held.values.toList()..sort((a, b) => b.t.compareTo(a.t));
+    final now = _now();
+    final all = held.values.where((v) => v.goodAt(now)).toList()..sort((a, b) => b.t.compareTo(a.t));
     return [for (final v in all) v.carried()];
   }
 
@@ -257,9 +301,16 @@ class Vouches extends ChangeNotifier {
   List<T> vouchersOf<T>(String forId, String forKey, Iterable<T> friends, {required String Function(T) id, required String Function(T) key}) {
     final words = forId == _for ? held : (carried[forId] ?? const <String, Vouch>{});
     if (words.isEmpty) return const [];
+    final now = _now();
     return [
       for (final f in friends)
-        if (words[id(f)] case final v? when id(f) != forId && v.on && v.checks(byKey: key(f), forKey: forKey)) f,
+        if (words[id(f)] case final v? when id(f) != forId && v.on && v.goodAt(now) && v.checks(byKey: key(f), forKey: forKey)) f,
     ];
+  }
+
+  /// This account's vouch for [forId] where it gave one and it is good now; null otherwise.
+  Vouch? givenFor(String forId) {
+    final v = given[forId];
+    return v != null && v.on && v.goodAt(_now()) ? v : null;
   }
 }

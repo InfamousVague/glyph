@@ -27,8 +27,14 @@ String namesOf(List<Buddy> who) {
   return '${names.sublist(0, names.length - 1).join(', ')} and ${names.last}';
 }
 
+/// A day as the card says when a vouch runs out: "23 Nov 2027".
+String vouchDay(DateTime d) => '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]} ${d.year}';
+
+/// What the card says of the viewer's own vouch for someone, and when it runs out.
+String yourVouchWords(DateTime until) => 'You vouch for them, until ${vouchDay(until)}';
+
 /// What Vouch for says under it.
-const vouchHint = 'Say this account is really them. Only your friends who are theirs too will see it.';
+const vouchHint = 'Say this account is really them, for a year. Only your friends who are theirs too will see it.';
 
 /// The choices on [b]'s card (a friend's): Vouch for them, or take it back.
 List<Choice> vouchChoices(BuildContext context, Buddy b, {Buddies? buddies}) {
@@ -44,10 +50,12 @@ List<Choice> vouchChoices(BuildContext context, Buddy b, {Buddies? buddies}) {
     }
   }
 
+  final until = all.vouchRunsOut(b);
+  if (until == null) return [Choice('Vouch for $name', Lucide.userCheck, () => unawaited(go(true)), hint: vouchHint)];
   return [
-    all.vouchedFor(b)
-        ? Choice('Take back your vouch for $name', Lucide.undo2, () => unawaited(go(false)), hint: 'They and your friends stop counting it')
-        : Choice('Vouch for $name', Lucide.userCheck, () => unawaited(go(true)), hint: vouchHint),
+    // A vouch is good for a year from when it was given; giving it again starts the year again.
+    Choice('Vouch for $name again', Lucide.userCheck, () => unawaited(go(true)), hint: 'Yours runs out ${vouchDay(until)}. Again, it lasts a year from today'),
+    Choice('Take back your vouch for $name', Lucide.undo2, () => unawaited(go(false)), hint: 'They and your friends stop counting it'),
   ];
 }
 
@@ -75,7 +83,8 @@ class _VouchesLineState extends State<VouchesLine> {
         final t = context.tokens;
         final b = widget.buddy;
         final who = all.vouchersOf(b);
-        final mine = b != null && all.vouchedFor(b);
+        final until = b == null ? null : all.vouchRunsOut(b);
+        final mine = until != null;
         if (who.isEmpty && !mine) return const SizedBox.shrink();
         final ink = pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4);
         return widget.section(
@@ -90,7 +99,7 @@ class _VouchesLineState extends State<VouchesLine> {
                 child: Text(vouchedWords(who.length, mine: b == null), style: ink.copyWith(fontWeight: FontWeight.w600)),
               ),
             if (_names && who.isNotEmpty) Text(namesOf(who), key: const ValueKey('profile-vouches-names'), style: ink.copyWith(color: t.color('app-ink-2'))),
-            if (mine) Text('You vouch for them', key: const ValueKey('profile-vouches-mine'), style: ink.copyWith(color: t.color('app-ink-2'))),
+            if (mine) Text(yourVouchWords(until), key: const ValueKey('profile-vouches-mine'), style: ink.copyWith(color: t.color('app-ink-2'))),
           ]),
         );
       },

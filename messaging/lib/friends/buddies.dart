@@ -834,7 +834,14 @@ class Buddies extends ChangeNotifier {
   bool get vouchesHere => !_remote && _port is BuddiesSigner;
 
   /// This account's vouch for [b], where it gave one and has not taken it back.
-  bool vouchedFor(Buddy b) => vouches.given[b.id]?.on ?? false;
+  bool vouchedFor(Buddy b) => vouches.givenFor(b.id) != null;
+
+  /// When this account's vouch for [b] runs out, where it gave one that is good now; null otherwise. Vouch for again
+  /// renews it for another year.
+  DateTime? vouchRunsOut(Buddy b) {
+    final v = vouches.givenFor(b.id);
+    return v == null ? null : DateTime.fromMillisecondsSinceEpoch(v.until);
+  }
 
   /// Vouches for [b] (or for this account, where [b] is null) that count here: by this account's own friends, one a
   /// username, each checked against the key held for them.
