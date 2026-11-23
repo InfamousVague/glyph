@@ -65,6 +65,26 @@
 <li><b>If it can't start</b> on your device, <ui>Settings › Routes</ui> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
+<h2 id="checked">How the relay is checked</h2>
+<p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
+<ul>
+<li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay ever gives a friend's username to a different key, their profile says so, and you're still talking to the friend you added: the relay can't swap them for someone else. Their app is told too, by every route there is, so they know the relay gave their username away. If it happens to your own username, you're told at once.</li>
+<li><b>Add-me links</b> carry the start of your key after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
+<li><b>Messages</b> <soon/>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything the relay said it passed on but never delivered, or kept and never handed over, comes straight, and is noted. A device that was away while another of yours took a message isn't counted against the relay.</li>
+</ul>
+
+<m-screen title="Routes" back caption="Settings › Routes, Checking the relay, in a build with Direct.">
+  <m-section title="Checking the relay" foot="What is compared is which messages went and came, and when: never their words.">
+    <m-row icon="shield-check" hue="green" label="Last checked 5 min ago, with 3 devices" hint="Of Ghost Messaging's relay (gogho.st), over direct links with your friends' devices."/>
+    <m-row icon="check" hue="green" label="212 messages matched this week" hint="1 was made up for: it came straight because this device was away while another of yours took it."/>
+    <m-row icon="circle-alert" hue="red" label="Said it passed on a message from Maya, and it never came" hint="21 Nov"/>
+    <m-row icon="refresh-cw" hue="blue" label="Check now" hint="Dials the friends the relay says are here, and compares." chev/>
+    <m-row icon="at-sign" hue="blue" label="Asks the relay about 4 friends' usernames each day" hint="Last asked 2 h ago."/>
+  </m-section>
+</m-screen>
+
+<p>Without Direct, the relay is checked by the username lookups alone, and <ui>Settings › Routes</ui> says so. <b>Check now</b> dials the friends the relay says are online, once a minute at most; with no direct link in use, a few are checked by themselves while the app is open.</p>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 

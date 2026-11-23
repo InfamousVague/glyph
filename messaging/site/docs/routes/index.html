@@ -97,6 +97,26 @@
 <li><b>If it can't start</b> on your device, <span class="ui-path">Settings › Routes</span> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
+<h2 id="checked">How the relay is checked</h2>
+<p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
+<ul>
+<li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay ever gives a friend's username to a different key, their profile says so, and you're still talking to the friend you added: the relay can't swap them for someone else. Their app is told too, by every route there is, so they know the relay gave their username away. If it happens to your own username, you're told at once.</li>
+<li><b>Add-me links</b> carry the start of your key after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
+<li><b>Messages</b> <span class="badge soon">Coming soon</span>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything the relay said it passed on but never delivered, or kept and never handed over, comes straight, and is noted. A device that was away while another of yours took a message isn't counted against the relay.</li>
+</ul>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Checking the relay</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#shield-check"/></svg></span><span class="m-txt"><b>Last checked 5 min ago, with 3 devices</b><small>Of Ghost Messaging's relay (gogho.st), over direct links with your friends' devices.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#check"/></svg></span><span class="m-txt"><b>212 messages matched this week</b><small>1 was made up for: it came straight because this device was away while another of yours took it.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="red"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#circle-alert"/></svg></span><span class="m-txt"><b>Said it passed on a message from Maya, and it never came</b><small>21 Nov</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#refresh-cw"/></svg></span><span class="m-txt"><b>Check now</b><small>Dials the friends the relay says are here, and compares.</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#at-sign"/></svg></span><span class="m-txt"><b>Asks the relay about 4 friends' usernames each day</b><small>Last asked 2 h ago.</small></span></div>
+  </div><p class="m-foot">What is compared is which messages went and came, and when: never their words.</p></div>
+</div></div><figcaption>Settings › Routes, Checking the relay, in a build with Direct.</figcaption></figure>
+
+<p>Without Direct, the relay is checked by the username lookups alone, and <span class="ui-path">Settings › Routes</span> says so. <b>Check now</b> dials the friends the relay says are online, once a minute at most; with no direct link in use, a few are checked by themselves while the app is open.</p>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
@@ -109,7 +129,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/keyboard-shortcuts/"><small>Previous</small>Keyboard shortcuts</a><a class="next" href="/docs/coming-soon/"><small>Next</small>Coming soon</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#direct">Direct Coming soon</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#direct">Direct Coming soon</a><a href="#checked">How the relay is checked</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

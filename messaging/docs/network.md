@@ -17,6 +17,7 @@ and were written so they need not). Here the interface is a **route**.
 | The switchboard | `lib/net/switchboard.dart` | Chooses a route for each thing sent, falls back, seals, opens, tells copies apart, answers |
 | The relay server's hub | `relay/lib/hub.dart`, `lib/net/hub_carrier.dart` | The route through a server: names, held packets, who is here, rooms |
 | The direct route | `lib/net/p2p/` (`P2pCarrier`, `P2p`, `DeviceCard`, `P2pNode`) | Straight between a person's own devices and their friends', with no server in between: the way through when the relay can't carry something ([OPEN_NETWORK.md](OPEN_NETWORK.md), section 2) |
+| Checking the relay | `lib/net/ledger.dart` (`Ledger`, `LedgerCheck`), `lib/net/name_watch.dart` | What went to each friend and came from them, compared over direct links to find what the relay dropped or kept back; and friends' usernames asked of the relay again ([below](#checking-the-relay)) |
 | SMS | `lib/net/sms_carrier.dart`, `android/…/NetSms.kt` | The route through the phone network: data texts |
 | The phone's keys | `android/…/Net.kt`, `E2e.kt` | Who this phone is, who it can reach, a signature for a hub |
 | The app's hold on it all | `lib/net/net.dart` (`Net`), `lib/ui/network.dart` | Set up as the app opens; Settings › Network |
@@ -69,6 +70,107 @@ against an hour, and an app started over and over is a cost of its own.
 Not built yet: a **local network** route (`lan`: finds the other install on the same Wi-Fi and connects straight to
 it). It is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a
 stand-in in its place to hold that true.
+
+## Checking the relay
+
+What checks what the relay says ([OPEN_NETWORK.md](OPEN_NETWORK.md), section 3; Matt, 2026-11-22: "p2p as a secondary
+back up that validates everything our relay says"). Two parts: the **ledger**, compared over direct links, which
+waits for the direct route's core and is built and tested against the stand-in node; and the **name watch**, which
+needs no direct route and runs now.
+
+**The ledger** (`lib/net/ledger.dart`, `Ledger`). The switchboard tells it, through a small interface (`SendLog`),
+what each route took and what the route said (passed on, or kept for someone away), what came and by which route,
+what was answered, and that something came that could not be opened here (sealed for another device of the account).
+For each friend it lists what was **sent** (the envelope's name, when, the route, passed or kept, answered) and what
+was **got** (name, when, route), for seven days and at most 500 of each. Only what asks for an answer: never a test
+(`ping`), typing, a card (`p2p`) or its own messages (`ldg`), never anyone who is not a friend or the account's own
+devices (later), and never a word of any message. Sent again, the relay's word is the one kept: another route's never
+takes its place, and the relay's latest does.
+
+Beside the lists: this device's connections to the relay (when each signed in, and when anything last came on it:
+`HubCarrier.signedInAt`, `heardAt`), when each friend was first known here as one (what they sent before is not
+compared), and what each relay was found to do. Kept with the app's choices (`ldg`, one `ldg.<account>` per friend,
+`ldg_relay`), written twenty seconds after a change and as the app is put away, books before connections. The index
+names the device it was kept on, so choices restored on another device are not taken for its own. Signing out deletes
+all of it. It exists only where the build has the direct route: without one nothing could compare it, so nothing is
+listed.
+
+**Comparing** (`LedgerCheck`). When a direct stream to a friend's device is proved, and every fifteen minutes while it
+stays open, each device says on that stream alone (`Switchboard.sendOn`; never through the relay, never by a dial) an
+envelope of kind `ldg` that asks for no answer:
+
+    {"t":"sum", "w":[from, now], "s":[[name, when, "p"|"k"|"o"], …], "g":[name, …],
+     "h":{"u": my relay, "up": whether I'm connected to it, "t": since when}}
+    {"t":"dif", "want":[name, …]}
+
+`s` is what was sent to the other account, each with when and what the relay said as it took it (`p` passed, `k`
+kept, `o` another route took it); `g` the names of what came from them. OPEN_NETWORK.md's `was` is folded into `s`:
+the times are needed anyway, to compare only what both lists cover and to leave out the last two minutes (what may
+still be on its way), and with the relay's word beside each nothing waits on a second round. The other device's
+clock is taken from `w`'s second time and allowed for; one more than a day off is not compared. Then:
+
+- What they sent that never came here is asked for (`dif`, 64 at most) and sent again straight, on the stream that
+  asked, by whoever still holds it: the switchboard's unanswered (`Switchboard.held`, five minutes, never a call that
+  has stopped ringing) and Friends' own list (`Friends.heldFor`, given to `LedgerCheck.holders` through
+  `Net.addHolder`).
+- What came there and was never answered here is taken as answered (`Switchboard.answeredBy`): the answer was lost,
+  and Friends stops sending it again.
+- Each thing that had to come straight is put down once. **Made up for** where another route took it, their relay is
+  another, it came and could not be opened here (an unopened packet within 30 s of its time), or this device was not
+  connected when the relay passed it (another device of the account took it). **The relay said it passed it on, and
+  it never came** where this device was connected then, which is proved, not assumed: the connection signed in ten
+  seconds before and something came on it ten seconds after, and the relay's frames come in order on one connection.
+  **The relay said this device was away** where it said it kept it while this device was connected so. **The relay
+  kept it and never handed it over** where this is the account's only device (no card of another, no packet from one
+  in a week, and forward secrecy has heard of no other), it signed in after, and its connection lived two seconds past
+  the sign-in, so what the relay hands over then had come.
+- A friend whose device says it is connected to the same relay while the relay has told this one, connected and
+  watching them a minute or more, that they are gone, is put down as the relay being wrong about who is here; once
+  in six hours for one friend.
+
+**What a friend's device can make this one do:** a `sum` of more than 500 names in either list, a name longer than 32,
+or a `dif` of more than 64, is refused whole; one `sum` from a device every ten minutes and twelve from an account in an
+hour; six `dif`s and two hundred things sent again for one account in an hour. What it puts down is the ledger's,
+capped there (500 missing, 50 wrongs and 64 comparisons for a relay, 300 connections). `LedgerCheck.refused` counts
+what was turned away.
+
+**Checking by hand, and by itself.** "Check now" (Settings › Routes) dials the friends the relay says are here, at
+most twelve, asking each to meet, once a minute at most. With no direct link in use, a round runs by itself while the
+app is in use: up to five friends the relay says are here and not compared in a day, every hour on a computer and every
+six on a phone. Both bring a phone's node up as a send does; what is said on a link keeps nothing up.
+
+**The name watch** (`lib/net/name_watch.dart`, `NameWatch`). A friend added by username was found by asking the relay
+who has the name. Each is asked again once a day, at a time of its own through the day (`whois` by name in
+`Me.whois`, so two lookups at once each get their own answer), twenty lookups an hour at most and a minute apart
+(the relay answers an install 120 an hour, `relay/lib/handles.dart`; the rest are left to the person), and ten
+minutes on where the relay can't be reached. Its own username is asked at each sign-in, every ten minutes at most.
+
+- An answer that names another key than the one held for a friend is shown on that friend's card and in Settings ›
+  Routes ("The relay now says @maya is a different key; you are still talking to the Maya you added"), and the friend
+  is told by every route there is (`Switchboard.sendEveryWay`: each route that would take it and costs nothing, on its
+  own; the other end takes the one envelope once), sealed, at most once a day while it lasts, in an envelope of kind
+  `name`:
+
+      {"u": the username, "i": the account name the relay gave it to, "at": ms}
+
+  Their app takes it only from a friend by username, sealed, for its own username and another key, once an hour from
+  one friend, shows it at once, and keeps it a week.
+- Its own username given to another key is shown at once (a toast from the app's frame) and in Settings › Routes,
+  until the relay answers with its own key again.
+- An add-me link (`lib/friends/add_link.dart`) carries the first eight hex digits of the account's name after `#`,
+  which no browser sends to a server (`site/add` carries it into the app's own `ghostmsg://add/` address). The app
+  refuses a `whois` answer whose key doesn't make a name that begins so (`Buddies.add`'s `keyPrefix`), and keeps and
+  sends nothing.
+- Nothing changes who a friend is: a friend stays the key that was added, whatever the relay says after. What the watch
+  keeps (`name_watch`) is of friends only, and goes at sign-out.
+
+**What is live with the direct route switched off** (no core in any build yet): the name watch, the add-me link's key
+check, and Settings › Routes saying the relay is checked only by the name watch, with what it found; nothing is dialled
+and no ledger is kept. The ledger, the comparing, "Check now" and the rounds come with the core.
+
+`test/ledger_test.dart` (the lists, comparing between installs over a real hub in memory that a test can make drop
+what it says, and a stand-in node), `test/name_watch_test.dart`, `test/relay_check_settings_test.dart`, and parts of
+`test/add_me_test.dart`, `test/p2p_net_test.dart` and `test/profile_open_test.dart`.
 
 ## Who is who
 
