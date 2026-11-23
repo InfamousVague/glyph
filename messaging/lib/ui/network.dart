@@ -16,6 +16,8 @@ import '../net/hub_carrier.dart' show HubRelay;
 import '../net/p2p/node.dart';
 import 'name_watch_words.dart';
 import '../net/p2p/p2p.dart';
+import '../net/p2p/p2p_carrier.dart' show P2pCarrier;
+import '../net/switchboard.dart' show Switchboard;
 import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
@@ -49,6 +51,9 @@ String networkSummary() {
 /// What an invitation says: where to get the app, in words a person would send. When they have it and the two
 /// phones text each other, the app offers to exchange keys, and that is what makes them reachable by the routes.
 const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://gogho.st';
+
+/// Each route's icon in Settings › Routes.
+LucideIcon _routeIcon(String id) => switch (id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, P2pCarrier.routeId => Lucide.link2, _ => Lucide.network };
 
 String _routeLine(Carrier c, {required bool on, required bool anyone, required bool off}) {
   if (off || !on) return 'Off';
@@ -89,6 +94,24 @@ String directLinkedHint(Iterable<P2pPathKind> links) {
 /// What "Only through link helpers" means, under its switch.
 const directHelpersOnlyHint = 'Friends\' devices then see the link helper\'s address and not this device\'s. It is slower.';
 
+/// What switching Direct on means, said before it is on (Settings › Routes › Direct, under its title).
+const directOffWords =
+    'Switched on, this device links straight with your own devices and your friends\' when the relay server can\'t carry something, and checks what the relay says against what they say. Only those devices are told where this one is, and they learn its network address.';
+
+/// What Direct does, said while it is on.
+const directOnWords = 'Straight between devices when the relay server can\'t carry something. This device links only with your own devices and your friends\', and only they are told where it is: they learn its network address.';
+
+/// What a link helper is, and what it sees, under the Direct section either way.
+const directHelperWords =
+    'A link helper is a server that helps two devices find each other and passes their sealed packets along where no straight path can be made. It sees which devices link and how much they send, never who they are or what is said.';
+
+/// The relay in use names no link helper (a relay of one's own, or one that hasn't been given any): what that costs,
+/// rather than a helper made up in its place. The row's label, and the line under it.
+const directNoHelperLabel = 'The relay server names no link helper';
+String directNoHelperHint({required bool helpersOnly}) => helpersOnly
+    ? 'So nothing links while "Only through link helpers" is on.'
+    : 'So only devices that can reach each other as they are link up, such as two on the same network: devices behind most home routers can\'t link.';
+
 /// Settings › Routes › Direct (docs/OPEN_NETWORK.md, section 2; Matt, 2026-11-22: "p2p delivery with the relay as a
 /// primary source but have p2p as a secondary back up"): what the direct route knows and holds now, and its one
 /// choice. The route's own row, with its switch, is with the other routes above.
@@ -99,8 +122,8 @@ PaneSection directSection(BuildContext context, P2p p2p) {
   final kinds = {for (final l in links) l.nodeId: l.kind}.values;
   return PaneSection(
     title: 'Direct',
-    description: const Text('Straight between devices when the relay server can\'t carry something. A device links only with your own devices and your friends\', and only they are told where it is.'),
-    footer: const Text('A link helper is a server that helps two devices find each other and passes their sealed packets along where no straight path can be made. It sees which devices link and how much they send, never who they are or what is said.'),
+    description: const Text(directOnWords),
+    footer: const Text(directHelperWords),
     children: [
       SettingRow(
         key: const ValueKey('direct-known'),
@@ -125,11 +148,68 @@ PaneSection directSection(BuildContext context, P2p p2p) {
         SettingRow(
           key: const ValueKey('direct-no-helpers'),
           icon: icon(Lucide.info),
-          label: 'No link helpers yet',
-          hint: Text(p2p.helpersOnly ? 'So nothing links while "Only through link helpers" is on.' : 'Direct links work on your own network for now.'),
+          label: directNoHelperLabel,
+          hint: Text(directNoHelperHint(helpersOnly: p2p.helpersOnly)),
         ),
     ],
   );
+}
+
+/// Settings › Routes › Direct before Direct is switched on: what switching it on means, "Only through link helpers",
+/// which can be chosen first, and where the relay in use names no link helper, what that costs. Nothing of the direct
+/// network is made to draw it.
+PaneSection directOffSection(BuildContext context, Net net) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final helpers = net.relayHelpers;
+  return PaneSection(
+    title: 'Direct',
+    description: const Text(directOffWords),
+    footer: const Text(directHelperWords),
+    children: [
+      SettingRow(
+        key: const ValueKey('direct-helpers-only'),
+        icon: icon(Lucide.eyeOff),
+        label: 'Only through link helpers',
+        hint: const Text(directHelpersOnlyHint),
+        control: GlacierSwitch(checked: net.helpersOnly, onCheckedChange: net.setHelpersOnly, ariaLabel: 'Only through link helpers'),
+      ),
+      if (helpers != null && helpers.isEmpty)
+        SettingRow(
+          key: const ValueKey('direct-no-helpers'),
+          icon: icon(Lucide.info),
+          label: directNoHelperLabel,
+          hint: Text(directNoHelperHint(helpersOnly: net.helpersOnly)),
+        ),
+    ],
+  );
+}
+
+/// Settings › Routes' row for Direct while its route is not made (switched off; switched on a moment ago; or on, and it
+/// could not be made): the same name, words and switch as the route's own row, drawn from no route at all.
+Widget _directOffRow(Net net, {required Widget icon}) {
+  final on = net.directOn;
+  return SettingRow(
+    key: const ValueKey('route-${P2pCarrier.routeId}'),
+    icon: icon,
+    label: P2pCarrier.label,
+    hint: Text('${!net.on || !on ? 'Off' : net.directProblem != null ? 'Not working on this device' : 'Starting…'}\n${P2pCarrier.aboutWords}'),
+    control: GlacierSwitch(checked: on, onCheckedChange: (v) => net.setRoute(P2pCarrier.routeId, v), ariaLabel: P2pCarrier.label),
+  );
+}
+
+/// The routes' ids as Settings › Routes lists them, in the switchboard's order: those on [board], and Direct where it
+/// is offered and its route is not made ([standIn]), in its place after the relay's.
+List<String> _routeIds(Switchboard board, {required bool standIn}) {
+  final ids = [for (final c in board.carriers) c.id];
+  if (!standIn || ids.contains(P2pCarrier.routeId)) return ids;
+  int at(String id) {
+    final i = board.order.indexOf(id);
+    return i < 0 ? board.order.length : i;
+  }
+
+  final mine = at(P2pCarrier.routeId);
+  final i = ids.indexWhere((id) => at(id) > mine);
+  return ids..insert(i < 0 ? ids.length : i, P2pCarrier.routeId);
 }
 
 String _ago(DateTime at) {
@@ -193,7 +273,7 @@ String nameWatchHint(int lastAsked, {required int now}) => lastAsked <= 0
 /// day, and "Check now" (once a minute at most). Then the name watch, which needs no direct route. In a build with no
 /// direct route ([ledger] null) it says the relay is checked only by the name watch, shows that alone, and dials
 /// nothing.
-PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, required LedgerCheck? check, required NameWatch? watch, required String relay, bool directOn = true, String Function(String id)? nameOf, int? now}) {
+PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, required LedgerCheck? check, required NameWatch? watch, required String relay, bool directOn = true, bool directOffered = false, String Function(String id)? nameOf, int? now}) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final at = now ?? DateTime.now().millisecondsSinceEpoch;
   String who(String id) {
@@ -278,7 +358,9 @@ PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, re
     title: 'Checking the relay',
     description: Text(compares
         ? 'Your devices and your friends\' compare what went between them, over direct links, to find anything the relay dropped or kept back. Friends\' usernames are asked of it again each day.'
-        : 'This device has no direct route, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Nothing is dialled.'),
+        : directOffered
+            ? 'Direct is off, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Switch Direct on above to compare what went between your devices and your friends\' over direct links too.'
+            : 'This device has no direct route, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Nothing is dialled.'),
     footer: Text(compares
         ? 'What is compared is which messages went and came, and when: never their words. It goes only to the friend it concerns, sealed, over a direct link.'
         : 'Only the relay you use is asked. A friend whose username it now gives to another account is told, sealed, through the relay.'),
@@ -334,21 +416,28 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Routes',
         description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
-        footer: Text(net.p2p == null && net.directProblem == null
+        footer: Text(!net.directOffered
             ? 'A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'
             : 'A route over the local network is being made: it will be listed here.'),
         children: [
-          for (final c in board.carriers)
-            SettingRow(
-              key: ValueKey('route-${c.id}'),
-              icon: icon(switch (c.id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, 'p2p' => Lucide.link2, _ => Lucide.network }),
-              label: c.name,
-              hint: Text('${_routeLine(c, on: net.on, anyone: anyone, off: board.off.contains(c.id))}\n${c.about}'),
-              control: GlacierSwitch(checked: !board.off.contains(c.id), onCheckedChange: (v) => net.setRoute(c.id, v), ariaLabel: c.name),
-            ),
+          // Direct among them wherever the build offers it: its route's own row once it is made, else the same row
+          // drawn from nothing, switched off (or on and not working), until the person switches it on.
+          for (final id in _routeIds(board, standIn: net.directOffered))
+            if (board.carrier(id) case final c?)
+              SettingRow(
+                key: ValueKey('route-${c.id}'),
+                icon: icon(_routeIcon(c.id)),
+                label: c.name,
+                hint: Text('${_routeLine(c, on: net.on, anyone: anyone, off: board.off.contains(c.id))}\n${c.about}'),
+                control: GlacierSwitch(checked: !board.off.contains(c.id), onCheckedChange: (v) => net.setRoute(c.id, v), ariaLabel: c.name),
+              )
+            else
+              _directOffRow(net, icon: icon(_routeIcon(id))),
         ],
       ),
     if (board != null && net.p2p != null) directSection(context, net.p2p!),
+    // Offered and not on: what switching it on means, before it is.
+    if (board != null && net.p2p == null && net.directOffered && net.directProblem == null) directOffSection(context, net),
     // A build with the direct route whose core could not be started (a library missing, or built for another machine):
     // the other routes go on, and this says why there is no Direct among them.
     if (board != null && net.p2p == null && net.directProblem != null)
@@ -356,7 +445,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
         SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
       ]),
     // Checking the relay: what comparing over direct links found, and the name watch, which needs no direct route.
-    if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, nameOf: _friendName),
+    if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, directOffered: net.directOffered, nameOf: _friendName),
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',

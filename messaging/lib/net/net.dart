@@ -18,6 +18,7 @@ import 'kept_files.dart';
 import 'ledger.dart';
 import 'p2p/node.dart';
 import 'p2p/p2p.dart';
+import 'p2p/p2p_carrier.dart' show P2pCarrier;
 import 'packet.dart';
 import 'relay_choice.dart';
 import 'sms_carrier.dart';
@@ -41,20 +42,48 @@ class NetEvent {
 /// the person has not switched the network off (Settings › Network).
 ///
 /// What the person chooses is kept with their other choices: `net_on`, `net_hub` (the relay server's address),
-/// `net_off` (the routes switched off, by name).
+/// `net_off` (the routes switched off, by name), `net_direct` (Direct switched on or off: [directName]).
 ///
-/// **The direct route** (lib/net/p2p; docs/OPEN_NETWORK.md, section 2) is there where the build has its core
-/// ([p2pNode]): after the relay's hub in the order, linking only with this account's own devices and with friends
-/// ([friends]), and kept in step with the people, how the person chose to be shown, the app being put away and
-/// coming back, and the relay in use.
+/// **The direct route** (lib/net/p2p; docs/OPEN_NETWORK.md, section 2) is offered where the build has its core
+/// ([p2pNode]) and is there only while the person has switched Direct on ([directOn]): after the relay's hub in the
+/// order, linking only with this account's own devices and with friends ([friends]), and kept in step with the people,
+/// how the person chose to be shown, the app being put away and coming back, and the relay in use. Until it is
+/// switched on nothing of it is made or run, the core least of all: no library opened, no node, no ledger.
 class Net extends ChangeNotifier implements PeerBook {
   Net._();
   static final Net instance = Net._();
 
-  /// Makes this device's node on the direct network: the core's own (native/p2p, over lib/net/p2p/node_ffi.dart), set
-  /// before the routes are set up in a build that has it. Null, or answering null, there is no core here: no direct
-  /// route is made, and Settings › Routes shows none.
+  /// Makes this device's node on the direct network: the core's own (makeP2pNode, lib/net/p2p/node_factory.dart), set
+  /// where the app starts on a platform whose builds carry the core (Android, the Mac, Windows, Linux). Asked for a
+  /// node only once the person has switched Direct on ([directOn]), and once for as long as the app runs: until then
+  /// nothing of the core runs, not so much as its library being opened (docs/OPEN_NETWORK.md, section 2: "a person who
+  /// never switches Direct on runs none of it"). Null: there is no core here, no direct route is ever made, and
+  /// Settings › Routes shows no Direct. Answering null where Direct is switched on: the build left its core out, and
+  /// Settings › Routes says so ([directProblem]).
   static P2pNode? Function()? p2pNode;
+
+  /// Whether Direct is on where the person has not chosen ([directName]): off in the first release that carries the
+  /// core, so each person switches it on themselves; the default once Matt has used it, when this turns true and
+  /// whoever switched it off stays off.
+  static const directByDefault = false;
+
+  /// The person's choice of Direct, kept with their other choices: 'on' or 'off', nothing where they have not chosen.
+  /// Direct is the one route that starts off, so its choice is its own, never in `net_off`, which lists the routes
+  /// switched off of those that start on: someone who never chose is told apart from someone who switched it off, and
+  /// a later default ([directByDefault]) reaches the first and not the second. Seeding `net_off` with Direct instead
+  /// would have made the two one.
+  static const directName = 'net_direct';
+
+  /// Whether this build offers Direct at all: it was given a way to make the core's node ([p2pNode]).
+  bool get directOffered => p2pNode != null;
+
+  /// Whether Direct is switched on: the person's choice ([directName]), or where they have not chosen,
+  /// [directByDefault]. Never in a build that offers no Direct.
+  bool get directOn {
+    if (p2pNode == null) return false;
+    final chosen = _app?.choice(directName, '') ?? '';
+    return chosen == 'on' || (chosen != 'off' && directByDefault);
+  }
 
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
   static const defaultHub = 'wss://gogho.st/hub';
@@ -101,8 +130,22 @@ class Net extends ChangeNotifier implements PeerBook {
 
   P2p? _p2p;
 
-  /// The app's hold on the direct network; null where this build has no core, or the routes are not set up.
+  /// The app's hold on the direct network; null where this build has no core, Direct is switched off, or the routes
+  /// are not set up.
   P2p? get p2p => _p2p;
+
+  /// The node [p2pNode] made, kept for as long as the app runs (and [_nodeBy], what made it): switching Direct off
+  /// stops it, and switching it on again starts the same one, so the core never holds one for each time.
+  P2pNode? _node;
+  P2pNode? Function()? _nodeBy;
+
+  /// Who this account is to the routes, and which of its devices this is, as [start] found them: what a direct
+  /// network made later, when Direct is switched on, is made with.
+  NetSigner? _signer;
+  String? _device;
+
+  /// Switching Direct on and off, one change after another ([setDirect]).
+  Future<void> _directTurn = Future.value();
 
   /// Goes up whenever what Settings › Routes shows of the direct route changes: the devices known, the links, the
   /// link helpers, what the ledger's comparisons found. Apart from the routes' own changes, which friends' unanswered
@@ -293,11 +336,12 @@ class Net extends ChangeNotifier implements PeerBook {
       app.set('hub_device', device);
     }
     HubCarrier.device = device;
+    _device = device;
     try {
       final me = await Sms.instance.netIdentity();
       id = me.id;
       await _readPeers();
-      final signer = _PhoneSigner(me.id, me.key);
+      final signer = _signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
       if (carriers != null) {
         routes = [...carriers];
@@ -311,11 +355,13 @@ class Net extends ChangeNotifier implements PeerBook {
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
-      // The direct route, where this build has the core: its node key in the secret store beside the account's words,
-      // never in the account's backup; a computer's node up whenever the route is on, a phone's only while there is
-      // something to say. Made apart from the other routes: a core that fails to load (a library missing, or built for
-      // another machine) costs the direct route alone, and Settings › Routes says why (second review, M3).
-      var p2p = _p2p = _makeDirect(signer, device, app);
+      // The direct route, where this build has the core and the person has switched Direct on ([directOn]); otherwise
+      // nothing of it is made, the core's library not even opened, until they do ([setDirect]). Its node key in the
+      // secret store beside the account's words, never in the account's backup; a computer's node up whenever the route
+      // is on, a phone's only while there is something to say. Made apart from the other routes: a core that fails to
+      // load (a library missing, or built for another machine) costs the direct route alone, and Settings › Routes says
+      // why (second review, M3).
+      final p2p = _p2p = directOn ? _makeDirect(signer, device, app) : null;
       if (p2p != null) routes.add(p2p.carrier);
       // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
       // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
@@ -325,31 +371,12 @@ class Net extends ChangeNotifier implements PeerBook {
       final fs = ForwardSecrecy(device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app));
       if (!await fs.tryLoad()) _fsAgain(fs);
       final board = _board = Switchboard(me: me.id, peers: this, carriers: routes, fs: fs);
-      board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty));
+      // The routes the person switched off; Direct by its own choice, whatever `net_off` says of it.
+      board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty && s != P2pCarrier.routeId));
+      if (!directOn) board.off.add(P2pCarrier.routeId);
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
-      if (p2p != null) {
-        try {
-          p2p
-            ..attach(board)
-            ..setMode(_mode)
-            ..setAway(_away)
-            ..addListener(_directChanged);
-          _followHelpers(_hub);
-          _loadDirect(p2p);
-        } catch (e) {
-          board.remove(p2p.carrier.id);
-          _followHelpers(null);
-          p2p.removeListener(_directChanged);
-          unawaited(p2p.shutdown().catchError((Object _) {}));
-          p2p = _p2p = null;
-          directProblem = _couldNot(e);
-        }
-      }
-      // The ledger, where there is a direct route to compare it over (docs/OPEN_NETWORK.md, section 3): told by the
-      // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices
-      // as direct links are proved. Without a core nothing could compare it, so nothing is listed.
-      if (p2p != null) _startLedger(board, p2p, me.id, device);
+      if (p2p != null) _holdDirect(board, p2p, me.id, device);
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -375,13 +402,24 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
-  /// This device's hold on the direct network, where the build has a core ([p2pNode]); null where it has none, or
-  /// where the core could not be made or held (then [directProblem] says why).
+  /// This device's hold on the direct network, made once Direct is switched on, where the build has a core
+  /// ([p2pNode]); null where it has none, or where the core could not be made or held (then [directProblem] says why).
+  /// The node is made the first time and kept ([_node]): a direct network made again holds the same one.
   P2p? _makeDirect(NetSigner signer, String device, AppState app) {
     directProblem = null;
     try {
-      final node = p2pNode?.call();
-      if (node == null) return null;
+      final make = p2pNode;
+      if (make == null) return null;
+      var node = _nodeBy == make ? _node : null;
+      if (node == null) {
+        node = make();
+        _node = node;
+        _nodeBy = make;
+      }
+      if (node == null) {
+        directProblem = 'This build of the app doesn\'t carry the direct network\'s core, so Direct can\'t be switched on here. The other routes work as before.';
+        return null;
+      }
       return P2p(
         node: node,
         signer: signer,
@@ -402,6 +440,131 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 
   static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
+
+  /// Holds [p2p], whose route is on [board] already: it hears the routes, is told how the person chose to be shown,
+  /// whether the app is put away and the link helpers of the relay in use, reads what it keeps, and the ledger is
+  /// started over it. As the routes are set up, and when Direct is switched on later. Where the core breaks its word on
+  /// the way, nothing of it is held, and Settings › Routes says why.
+  void _holdDirect(Switchboard board, P2p p2p, String me, String device) {
+    try {
+      p2p
+        ..attach(board)
+        ..setMode(_mode)
+        ..setAway(_away)
+        ..addListener(_directChanged);
+      _followHelpers(_hub);
+      // The relay names its link helpers as the app signs in to it. Signed in to already (Direct switched on after),
+      // it will not name them again until the next sign-in: they are given now.
+      final hub = _hub;
+      if (hub != null && hub.signedInAt > 0) p2p.setHelpers(hub.helpers.value);
+      _loadDirect(p2p);
+    } catch (e) {
+      board.remove(p2p.carrier.id);
+      _followHelpers(null);
+      p2p.removeListener(_directChanged);
+      unawaited(p2p.shutdown().catchError((Object _) {}));
+      _p2p = null;
+      directProblem = _couldNot(e);
+      return;
+    }
+    // The ledger, where there is a direct route to compare it over (docs/OPEN_NETWORK.md, section 3): told by the
+    // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices as
+    // direct links are proved. Without a direct route nothing could compare it, so nothing is listed.
+    _startLedger(board, p2p, me, device);
+  }
+
+  /// Switches Direct on or off (Settings › Routes), kept as the person's choice ([directName]), without the app
+  /// starting again. On: the node, the route and the ledger are made as a start with Direct on makes them, and the
+  /// route is started where there is anyone to reach (a computer's node comes up with it, a phone's when there is
+  /// something to say). Off: every link is closed, the node stopped, nobody let in, and the route and the ledger taken
+  /// out, so nothing of the direct network runs or is heard until Direct is switched on again. One change at a time,
+  /// in the order asked; before the routes are set up, the choice alone, which they read.
+  Future<void> setDirect(bool on) {
+    final turn = _directTurn.then((_) => _setDirect(on));
+    _directTurn = turn.catchError((Object _) {});
+    return turn;
+  }
+
+  Future<void> _setDirect(bool on) async {
+    if (p2pNode == null) return;
+    _app?.set(directName, on ? 'on' : 'off');
+    final board = _board, me = id, signer = _signer, device = _device, app = _app;
+    if (board == null || me == null || signer == null || device == null || app == null) return notifyListeners();
+    if (on) {
+      board.off.remove(P2pCarrier.routeId);
+      if (_p2p == null) {
+        // Who is a friend, which only the direct route asks: asked now, as the people are read with Direct on.
+        Set<String>? friends;
+        try {
+          friends = await _friendsAmong(Map.of(_peers));
+        } catch (_) {}
+        if (!identical(board, _board) || !directOn || _p2p != null) return;
+        if (friends != null) _friendIds = friends;
+        final p2p = _p2p = _makeDirect(signer, device, app);
+        if (p2p != null) {
+          board.add(p2p.carrier);
+          _holdDirect(board, p2p, me, device);
+        }
+      }
+    } else {
+      board.off.add(P2pCarrier.routeId);
+      directProblem = null;
+      await _dropDirect(board);
+    }
+    if (!identical(board, _board)) return;
+    await _apply();
+    notifyListeners();
+  }
+
+  /// Takes the direct route out of [board], and the ledger with it: every link closed, the node stopped and nobody let
+  /// in (P2p.shutdown), nothing of the direct network heard. The node itself is kept, stopped, for Direct switched on
+  /// again. The ledger's lists stay, marked as not kept from now on (Ledger.pause): what comes while Direct is off is
+  /// listed nowhere, and is never taken for something the relay dropped.
+  Future<void> _dropDirect(Switchboard board) async {
+    final p2p = _p2p, ledger = _ledger, check = _check;
+    _p2p = null;
+    _ledger = null;
+    _check = null;
+    _p2pTimer?.cancel();
+    _p2pTimer = null;
+    _followHelpers(null);
+    if (p2p != null) board.remove(p2p.carrier.id);
+    if (check != null) {
+      check.removeListener(_directChanged);
+      await check.stop();
+    }
+    if (ledger != null) {
+      ledger.removeListener(_directChanged);
+      if (identical(board.log, ledger)) board.log = null;
+      await ledger.pause();
+      await ledger.shutdown();
+    }
+    if (p2p != null) {
+      p2p.removeListener(_directChanged);
+      await p2p.shutdown();
+    }
+    _directChanged();
+  }
+
+  /// "Only through link helpers" (Settings › Routes › Direct): kept as the direct network keeps it
+  /// ([P2p.helpersOnlyName]), so it can be chosen before Direct is ever switched on, and the first link already shows
+  /// friends' devices the link helper's address and never this one's; told to the direct network where it runs.
+  bool get helpersOnly => _p2p?.helpersOnly ?? _app?.choice(P2p.helpersOnlyName, '') == 'on';
+
+  Future<void> setHelpersOnly(bool only) async {
+    final p2p = _p2p;
+    if (p2p != null) return p2p.setHelpersOnly(only);
+    _app?.keep(P2p.helpersOnlyName, only ? 'on' : 'off');
+    notifyListeners();
+  }
+
+  /// The link helpers the relay in use named as the app last signed in to it (HubCarrier.helpers); null until it has
+  /// signed in to it once. What Settings › Routes says of Direct before it is on: where the relay names none, devices
+  /// link only where they can reach each other as they are.
+  List<String>? get relayHelpers {
+    final hub = _hub;
+    return hub == null || hub.signedInAt <= 0 ? null : hub.helpers.value;
+  }
 
   /// Where the ledger is kept: files of its own, out of any backup (kept_files.dart; the review, D6); under a test,
   /// memory, so nothing is written where this computer's own app keeps its files (a test gives its own folder where
@@ -467,12 +630,12 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
-    // Who of them is a friend, which is the direct route's question, asked only where there is a direct route to ask
-    // for: whom the records that say so name, by the id their key makes, and never by an address. On Android the
-    // people come from those encryption is on with, the members of this phone's groups and friends by username
-    // together (MainActivity's netPeers), and a group member's address is whatever the group's admin wrote: "@anything",
-    // or a real friend's number (second review, M1).
-    final friends = p2pNode == null ? <String>{} : await _friendsAmong(found);
+    // Who of them is a friend, which is the direct route's question, asked only where Direct is switched on: whom the
+    // records that say so name, by the id their key makes, and never by an address. On Android the people come from
+    // those encryption is on with, the members of this phone's groups and friends by username together (MainActivity's
+    // netPeers), and a group member's address is whatever the group's admin wrote: "@anything", or a real friend's
+    // number (second review, M1).
+    final friends = directOn ? await _friendsAmong(found) : <String>{};
     _peers
       ..clear()
       ..addAll(found);
@@ -547,6 +710,11 @@ class Net extends ChangeNotifier implements PeerBook {
     _friendIds = {};
     recent.clear();
     id = null;
+    _signer = null;
+    _device = null;
+    // A switch of Direct still under way belongs to the routes as they were (it sees they are gone): the next routes'
+    // switching waits on none of it.
+    _directTurn = Future.value();
     directProblem = null;
   }
 
@@ -600,6 +768,8 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 
   Future<void> setRoute(String id, bool value) async {
+    // Direct starts off, and its choice is its own ([setDirect], [directName]).
+    if (id == P2pCarrier.routeId) return setDirect(value);
     final board = _board;
     if (board == null) return;
     // The person's choice is kept whatever happens to be running; then the routes are started or stopped to suit.
@@ -611,7 +781,7 @@ class Net extends ChangeNotifier implements PeerBook {
     } else {
       board.off.add(id);
     }
-    _app?.set('net_off', board.off.join(','));
+    _app?.set('net_off', board.off.where((r) => r != P2pCarrier.routeId).join(','));
     if (!value) await board.setOn(id, false);
     await _apply();
     notifyListeners();

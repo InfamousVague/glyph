@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -10,13 +11,14 @@ import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/me/me.dart' show AppMeStore, Me;
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
-import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
+import 'package:ghost_messaging/net/forward_secrecy.dart' show FsStore, MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/kept_files.dart';
 import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
 import 'package:ghost_messaging/net/p2p/node.dart';
+import 'package:ghost_messaging/net/p2p/node_factory.dart' show p2pCoreHere;
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_relay/hub.dart';
@@ -29,6 +31,9 @@ import 'support/fake_p2p.dart';
 /// ([Net.p2pNode]), after the relay's hub in the order, linking with friends and nobody else the routes reach, kept in
 /// step with the people, the person's mode, the app being put away and coming back and the relay in use, and deleted
 /// from the device at sign-out. The phone under it is a stand-in channel, as test/net_want_test.dart's.
+
+/// The choices of an app whose person has switched Direct on (Settings › Routes): Direct starts off.
+AppState _directOn() => AppState()..set(Net.directName, 'on');
 
 /// Waits for [ok], however long the machine takes (five seconds at most), not for a length of time.
 Future<void> _until(bool Function() ok, String what) async {
@@ -53,6 +58,9 @@ void main() {
   late bool e2eFails, secretsLocked;
   late FakeP2pMesh mesh;
   late FakeP2pNode node;
+
+  /// What the phone was asked, by method, in order.
+  late List<String> asked;
 
   /// A friend by username as the phone keeps them (lib/friends/buddies.dart), where they stand with this phone.
   Map<String, Object?> buddy(String username, NetKeys keys, String state) => {'u': username, 'i': keys.id, 'k': base64Encode(keys.public), 's': state};
@@ -79,8 +87,10 @@ void main() {
     secretsLocked = false;
     mesh = FakeP2pMesh();
     node = mesh.node();
+    asked = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
       final a = call.arguments is Map ? call.arguments as Map : const {};
+      asked.add(call.method);
       switch (call.method) {
         case 'netIdentity':
           return {'id': me.id, 'key': base64Encode(me.public)};
@@ -120,17 +130,70 @@ void main() {
   }
 
   test('a build with no core has no direct route, and one whose core gives no node has none either', () async {
-    expect(Net.p2pNode, isNull, reason: 'null in this branch: the core\'s factory is wired in with the core');
+    expect(Net.p2pNode, isNull, reason: 'set where the app starts (main.dart), never under a test unless it says so');
     final hub = PlainCarrier('hub'), sms = PlainCarrier('sms');
-    await Net.instance.start(AppState(), carriers: [hub, sms]);
-    expect(Net.instance.p2p, isNull);
+    await Net.instance.start(_directOn(), carriers: [hub, sms]);
+    expect([Net.instance.p2p, Net.instance.directOffered, Net.instance.directOn], [null, false, false]);
     expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'sms']);
     expect(secrets.keys, isNot(contains(P2p.keyName)));
+    // Switched on all the same (a choice brought from another device): nothing, and nothing said.
+    await Net.instance.setDirect(true);
+    expect([Net.instance.p2p, Net.instance.directProblem], [null, null]);
     await Net.instance.shutdown();
+    // A build that was to carry the core and left it out: switched on, it says so, and the other routes go on.
     Net.p2pNode = () => null;
-    await Net.instance.start(AppState(), carriers: [PlainCarrier('hub')]);
+    await Net.instance.start(_directOn(), carriers: [PlainCarrier('hub')]);
     expect(Net.instance.p2p, isNull);
     expect(Net.instance.board!.carrier('p2p'), isNull);
+    expect(Net.instance.directProblem, contains('doesn\'t carry the direct network\'s core'));
+  });
+
+  // Matt's brief, 2026-11-23: Direct starts off in its first release, and "a person who never switches Direct on runs
+  // none of it" (docs/OPEN_NETWORK.md, section 2). Once the app's start sets Net.p2pNode, the route was made at every
+  // start: the core's library opened, a node key made, friends told this device's card, and Direct on for everyone,
+  // 'p2p' being in nobody's net_off.
+  test('Direct starts off: with a core and nothing chosen, nothing of the direct network is made or run, and its choice is its own, never in net_off', () async {
+    var made = 0;
+    Net.p2pNode = () {
+      made++;
+      return node;
+    };
+    final app = AppState();
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(app, carriers: [hub, PlainCarrier('sms')]);
+    expect([Net.instance.directOffered, Net.instance.directOn, Net.directByDefault], [true, false, false]);
+    expect(made, 0, reason: 'the core was not asked for a node: its library is not so much as opened');
+    expect([Net.instance.p2p, Net.instance.ledger, Net.instance.check, Net.instance.board!.log], [null, null, null, null]);
+    expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'sms']);
+    expect(Net.instance.board!.off, {'p2p'});
+    expect(asked, isNot(anyOf(contains('buddiesKept'), contains('e2eList'))), reason: 'nobody was asked who is a friend');
+    expect(Net.instance.friends, isEmpty);
+    await pumpEventQueue(times: 20);
+    expect(secrets.keys, isNot(contains(P2p.keyName)), reason: 'no node key was made');
+    expect(app.withPrefix('p2p_'), isEmpty);
+    expect(hub.to, isEmpty, reason: 'nobody was told a card');
+    expect([node.starts, node.calls], [0, isEmpty]);
+    // A card from a friend that comes meanwhile is nobody's to take.
+    final (_, packet) = await samsCard();
+    hub.take(packet, from: sam.id);
+    await pumpEventQueue(times: 20);
+    expect([node.calls, app.withPrefix('p2p_')], [isEmpty, isEmpty]);
+    // Another route switched off is kept as ever, and Direct is never written among them.
+    await Net.instance.setRoute('sms', false);
+    expect([app.choice('net_off', ''), app.choice(Net.directName, '')], ['sms', '']);
+    await Net.instance.shutdown();
+    // Switched on before, whatever net_off says of it: on. Switched off: off, whatever it says.
+    final chosen = AppState()
+      ..set('net_off', 'p2p')
+      ..set(Net.directName, 'on');
+    await Net.instance.start(chosen, carriers: [PlainCarrier('hub')]);
+    expect([Net.instance.directOn, Net.instance.p2p, Net.instance.board!.off], [true, isNotNull, isEmpty]);
+    await Net.instance.shutdown();
+    chosen
+      ..set(Net.directName, 'off')
+      ..set('net_off', '');
+    await Net.instance.start(chosen, carriers: [PlainCarrier('hub')]);
+    expect([Net.instance.directOn, Net.instance.p2p, Net.instance.board!.off], [false, null, {'p2p'}]);
   });
 
   // The second review, M3 (R2-K): the node and the direct network were made inside the one try that sets every route
@@ -143,7 +206,7 @@ void main() {
     ]) {
       Net.p2pNode = broken;
       final hub = PlainCarrier('hub'), sms = PlainCarrier('sms');
-      await Net.instance.start(AppState(), carriers: [hub, sms]);
+      await Net.instance.start(_directOn(), carriers: [hub, sms]);
       expect([Net.instance.board, Net.instance.error], [isNotNull, isNull], reason: 'the routes were set up');
       expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'sms']);
       expect(Net.instance.p2p, isNull);
@@ -160,7 +223,7 @@ void main() {
   test('with a core: the route comes after the relay\'s, its key is with the secrets, and only friends are told the card', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub'), sms = PlainCarrier('sms', traits: const CarrierTraits(maxPacket: 133, maxParts: 6, metered: true, live: false, wakes: true));
-    final app = AppState();
+    final app = _directOn();
     await Net.instance.start(app, carriers: [hub, sms]);
     final p2p = Net.instance.p2p!;
     expect(Net.instance.board!.order, ['hub', 'p2p', 'lan', 'sms']);
@@ -220,7 +283,7 @@ void main() {
     e2e.add({'address': '+15550009999', 'state': 'on', 'friend': 'yes', 'id': stranger.id});
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    await Net.instance.start(AppState(), carriers: [hub]);
+    await Net.instance.start(_directOn(), carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null && hub.to.length >= 2, 'read, and the friends told');
     await pumpEventQueue();
@@ -254,7 +317,7 @@ void main() {
   test('kept in step: the people, how the person chose to be shown, the app put away and back, and shutting down', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    await Net.instance.start(AppState(), carriers: [hub]);
+    await Net.instance.start(_directOn(), carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
     final (theirs, packet) = await samsCard();
@@ -308,7 +371,7 @@ void main() {
     });
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    await Net.instance.start(AppState(), carriers: [hub]);
+    await Net.instance.start(_directOn(), carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
     await pumpEventQueue();
@@ -330,7 +393,7 @@ void main() {
     addTearDown(one.stop);
     addTearDown(two.stop);
     Net.p2pNode = () => node;
-    final app = AppState()..set('net_hub', first);
+    final app = _directOn()..set('net_hub', first);
     await Net.instance.start(app);
     final p2p = Net.instance.p2p!;
     await _until(() => Net.instance.hub!.state.value == CarrierState.up && p2p.loaded, 'signed in to the first relay');
@@ -368,7 +431,7 @@ void main() {
     e2e.add({'address': '@sam', 'state': 'on', 'friend': 'yes', 'id': sam.id});
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    final app = AppState();
+    final app = _directOn();
     await Net.instance.start(app, carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
@@ -416,7 +479,7 @@ void main() {
   test('Friends counts the direct route as a way that costs nothing only while it reaches someone: a link to a friend\'s device open', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    final app = AppState();
+    final app = _directOn();
     await Net.instance.start(app, carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
@@ -451,7 +514,7 @@ void main() {
   test('choices restored from another device\'s backup are known by the node key that did not come with them, and the device takes a name of its own', () async {
     Net.p2pNode = () => node;
     // A device the app ran on, with Direct: its name, and the direct network's word for its node.
-    final first = AppState();
+    final first = _directOn();
     await Net.instance.start(first, carriers: [PlainCarrier('hub')]);
     await _until(() => Net.instance.p2p!.loaded, 'what the direct network keeps was read');
     final name = first.choice('hub_device', '');
@@ -462,7 +525,7 @@ void main() {
     expect(first.choice('hub_device', ''), name);
     await Net.instance.shutdown();
     // Its choices restored onto a new device: they come, the node key does not. A name of its own.
-    final restored = AppState();
+    final restored = _directOn();
     for (final k in ['hub_device', P2p.idName, P2p.cardName, P2p.toldName, P2p.cardsName]) {
       restored.set(k, first.choice(k, ''));
     }
@@ -480,7 +543,7 @@ void main() {
     await Net.instance.shutdown();
     // A secret store that can't be read yet says nothing either way: the name stays.
     secretsLocked = true;
-    final locked = AppState()
+    final locked = _directOn()
       ..set('hub_device', name)
       ..set(P2p.idName, first.choice(P2p.idName, ''));
     await Net.instance.start(locked, carriers: [PlainCarrier('hub')]);
@@ -490,7 +553,7 @@ void main() {
   test('a device the account is gone from forgets its place on the direct network: the key, the cards and what was told', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
-    final app = AppState();
+    final app = _directOn();
     await Net.instance.start(app, carriers: [hub]);
     final p2p = Net.instance.p2p!;
     await _until(() => p2p.loaded && p2p.card != null && hub.to.length >= 2, 'read, and the friends told');
@@ -528,7 +591,7 @@ void main() {
     Net.ledgerStore = () => files;
     addTearDown(() => Net.ledgerStore = Net.defaultLedgerStore);
     final hub = PlainCarrier('hub');
-    final app = AppState();
+    final app = _directOn();
     await Net.instance.start(app, carriers: [hub]);
     final ledger = Net.instance.ledger!;
     await _until(() => ledger.loaded && Net.instance.p2p!.loaded, 'read');
@@ -593,6 +656,167 @@ void main() {
     await P2p.forget(kept, plain);
     expect([kept.writes, plain.writes, plain.kept[P2p.cardsName]], [0, 1, '']);
   });
+
+  /// A card from [device]'s node, Sam's, saying where it is and that it holds [held] (this device's card's name).
+  Uint8List samsCardFrom(FakeP2pNode device, DeviceCard card, {String? held}) => Packet.wrap(
+        from: sam.id,
+        sealed: true,
+        payload: NetCrypto.seal(keyWith(sam), Envelope(kind: P2p.kind, body: {'t': 'card', 'c': card.toJson(), 'w': device.whereabouts.value!.toJson(), 'h': [?held]}, ack: false).encode()),
+      );
+
+  // Matt's brief, 2026-11-23: "Switching it on starts the node and the route without a restart; switching it off stops
+  // the node and closes every link."
+  test('switched on without a restart: the node, the route and the ledger are made, friends asked and told; switched off: every link closed, the node stopped and nobody let in, the route and the ledger gone; on again: the same node', () async {
+    var made = 0;
+    Net.p2pNode = () {
+      made++;
+      return node;
+    };
+    final kept = MemoryFsStore();
+    Net.ledgerStore = () => kept;
+    addTearDown(() => Net.ledgerStore = Net.defaultLedgerStore);
+    final app = AppState();
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(app, carriers: [hub, PlainCarrier('sms')]);
+    expect([Net.instance.p2p, made], [null, 0]);
+
+    // Switched on, as its switch in Settings › Routes does it.
+    await Net.instance.setRoute('p2p', true);
+    final p2p = Net.instance.p2p!;
+    expect([made, app.choice(Net.directName, ''), app.choice('net_off', ''), Net.instance.board!.off], [1, 'on', '', isEmpty]);
+    expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'p2p', 'sms'], reason: 'after the relay\'s, as ever');
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, nell.id]));
+    expect([Net.instance.ledger, Net.instance.check, Net.instance.board!.log], [isNotNull, isNotNull, same(Net.instance.ledger)]);
+    await _until(() => p2p.loaded && p2p.card != null && hub.to.length >= 2, 'read, and the friends told');
+    expect([p2p.on, p2p.carrier.state.value], [true, CarrierState.up]);
+    // A friend's device: its card taken, it let in, and a link made for a send (a phone's node comes up for it).
+    final theirs = mesh.node();
+    await theirs.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+    final card = await DeviceCard.make(KeysSigner(sam), device: 'ab' * 16, nodeId: theirs.nodeId!, now: DateTime.now());
+    hub.take(samsCardFrom(theirs, card, held: p2p.card!.tag), from: sam.id);
+    await _until(() => p2p.devicesOf(sam.id).isNotEmpty, 'Sam\'s card was taken');
+    expect(node.allowed.keys, [theirs.nodeId]);
+    theirs.allow(p2p.nodeId!, {P2pChannel.packets});
+    final ends = <HandEnd>[];
+    theirs.opened.listen((s) => ends.add(HandEnd(s, linkKey: LinkWords.linkKey(keyWith(sam)), account: sam.id, node: theirs.nodeId!, them: me.id)));
+    expect(await p2p.carrier.send(Peer(id: sam.id, key: keyWith(sam)), Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: 'ping', ack: false).encode()))), Handed.passed);
+    expect([ends.single.proved, p2p.carrier.links.length, node.state.value], [true, 1, P2pState.up]);
+
+    // Switched off: the link closed at both ends, the node stopped, nobody let in, the route and the ledger gone.
+    await Net.instance.setRoute('p2p', false);
+    expect([Net.instance.p2p, Net.instance.ledger, Net.instance.check, Net.instance.board!.log, Net.instance.board!.carrier('p2p')], [null, null, null, null, null]);
+    expect([app.choice(Net.directName, ''), app.choice('net_off', ''), Net.instance.board!.off], ['off', '', {'p2p'}]);
+    expect([node.state.value, node.streams, theirs.streams, node.allowed], [P2pState.off, 0, 0, isEmpty]);
+    expect([p2p.loaded, p2p.carrier.lines], [false, 0]);
+    // The ledger's lists stay, marked as kept no longer from now (Ledger.pause).
+    expect((jsonDecode(kept.kept[Ledger.indexName]!) as Map)['p'], isA<int>());
+    // Nothing of it hears anything now: a card that comes is nobody's to take, and the core is told nothing.
+    final calls = Map.of(node.calls);
+    hub.take(samsCardFrom(theirs, card), from: sam.id);
+    await pumpEventQueue(times: 20);
+    expect(node.calls, calls);
+
+    // While it is off, Sam is a friend no longer. Switched on again: the same node, and his device not let in.
+    peers.removeWhere((p) => p['id'] == sam.id);
+    buddies.removeWhere((b) => b['i'] == sam.id);
+    await Net.instance.refresh();
+    await Net.instance.setRoute('p2p', true);
+    final again = Net.instance.p2p!;
+    expect([made, identical(again, p2p), identical(again.node, node)], [1, false, true]);
+    await _until(() => again.loaded && again.card != null, 'read again');
+    expect(node.allowed, isEmpty, reason: 'nobody the first one let in is let in still');
+    expect(Net.instance.friends.map((p) => p.id), [nell.id]);
+  });
+
+  test('switched on after the relay was signed in to, the direct network has the link helpers the relay named at once, not at its next sign-in', () async {
+    final one = Relay(hub: Hub(helpers: ['https://link.one.example']));
+    final url = 'ws://127.0.0.1:${await one.start(port: 0)}/hub';
+    addTearDown(one.stop);
+    Net.p2pNode = () => node;
+    await Net.instance.start(AppState()..set('net_hub', url));
+    await _until(() => Net.instance.hub!.state.value == CarrierState.up, 'signed in to the relay');
+    expect([Net.instance.relayHelpers, Net.instance.p2p], [['https://link.one.example'], null]);
+    await Net.instance.setDirect(true);
+    final p2p = Net.instance.p2p!;
+    expect(p2p.helpers, ['https://link.one.example'], reason: 'the relay names them only as the app signs in to it');
+    await _until(() => p2p.loaded, 'read');
+    await p2p.up();
+    expect(node.config!.helpers, ['https://link.one.example']);
+  });
+
+  test('switched off and on again at once, the second waits for the first: what the direct network going lets go of is never what the new one has let in', () async {
+    Net.p2pNode = () => node;
+    final slow = _SlowStore();
+    Net.ledgerStore = () => slow;
+    addTearDown(() => Net.ledgerStore = Net.defaultLedgerStore);
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(_directOn(), carriers: [hub]);
+    final first = Net.instance.p2p!;
+    await _until(() => first.loaded && first.card != null, 'read');
+    final (theirs, packet) = await samsCard();
+    hub.take(packet, from: sam.id);
+    await _until(() => first.devicesOf(sam.id).isNotEmpty, 'Sam\'s card was taken');
+    expect(node.allowed.keys, [theirs.nodeId]);
+    // The ledger going writes slowly, and meanwhile Direct is switched on again: given every chance to, nothing new is
+    // made until the old one has gone.
+    slow.hold = Completer<void>();
+    final off = Net.instance.setDirect(false), on = Net.instance.setDirect(true);
+    bool madeAgain() => Net.instance.p2p != null && !identical(Net.instance.p2p, first) && Net.instance.p2p!.loaded;
+    for (var i = 0; i < 200 && !madeAgain(); i++) {
+      await pumpEventQueue();
+    }
+    expect([Net.instance.p2p, slow.waiting], [null, greaterThan(0)], reason: 'not made while the one before was still going');
+    slow.hold!.complete();
+    slow.hold = null;
+    await Future.wait([off, on]);
+    final second = Net.instance.p2p!;
+    await _until(() => second.loaded && node.allowed.isNotEmpty, 'the new one read what it keeps and let Sam\'s device in');
+    expect(identical(first, second), isFalse);
+    expect(node.allowed.keys, [theirs.nodeId], reason: 'let go of by the one going before the new one let it in');
+    expect([for (final c in Net.instance.board!.carriers) if (c.id == 'p2p') identical(c, second.carrier)], [true]);
+  });
+
+  // Matt's brief: "Set Net.p2pNode = makeP2pNode where the app starts, for builds with the core." Not on an iPhone: no
+  // core is packaged there.
+  test('the app sets Net.p2pNode where it starts, where its builds carry the core, and nothing else does; an iPhone\'s carries none', () {
+    final sets = RegExp(r'Net\.p2pNode\s*=');
+    final where = [
+      for (final f in Directory('lib').listSync(recursive: true).whereType<File>())
+        if (f.path.endsWith('.dart') && sets.hasMatch(f.readAsStringSync())) f.path.replaceAll('\\', '/'),
+    ]..sort();
+    expect(where, ['lib/desktop/main.dart', 'lib/main.dart']);
+    for (final path in where) {
+      expect(File(path).readAsStringSync(), contains('if (p2pCoreHere) Net.p2pNode = makeP2pNode;'), reason: path);
+    }
+    // These tests run on a computer whose builds carry it.
+    expect(p2pCoreHere, isTrue);
+    expect(File('lib/net/p2p/node_factory.dart').readAsStringSync(), contains('PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux'));
+    // The iPhone's project links no core (tool/build-p2p.sh ios makes one it does not use yet): no Direct offered there.
+    for (final f in Directory('ios').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.pbxproj') || f.path.endsWith('Podfile'))) {
+      expect(f.readAsStringSync(), isNot(anyOf(contains('GhostP2p'), contains('ghost_p2p'))), reason: f.path);
+    }
+  });
+}
+
+/// A store whose writes wait while [hold] is set.
+class _SlowStore implements FsStore {
+  final kept = <String, String>{};
+  Completer<void>? hold;
+  @override
+  Future<String?> read(String name) async => kept[name];
+
+  /// How many writes are waiting now.
+  int waiting = 0;
+  @override
+  Future<void> write(String name, String value) async {
+    final h = hold;
+    if (h != null) {
+      waiting++;
+      await h.future;
+      waiting--;
+    }
+    kept[name] = value;
+  }
 }
 
 /// A relay that says this device is not the account's any more.

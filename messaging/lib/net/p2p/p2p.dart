@@ -1551,8 +1551,12 @@ class P2p extends ChangeNotifier {
     _idle = _relayTimer = _retry = _due = _askTimer = null;
   }
 
-  /// The app is closing, or the routes are being set up anew: the node is stopped and nothing more is heard. What is
-  /// kept stays.
+  /// The app is closing, the routes are being set up anew, or Direct was switched off: the node is stopped, nobody it
+  /// let in is let in any more, and nothing more is heard. What is kept stays.
+  ///
+  /// Nobody is left let in because the node outlives this: the app keeps one node for as long as it runs, and the
+  /// direct network made again when Direct is switched on again holds the same one, where who is allowed outlives a
+  /// stop and a start (node.dart). A friend removed while Direct was off was let in by the core still.
   Future<void> shutdown() async {
     _gone = true;
     _loaded = false;
@@ -1563,6 +1567,12 @@ class P2p extends ChangeNotifier {
     carrier.closeAll();
     await carrier.dispose();
     await _stop();
+    for (final n in _allowed.toList()) {
+      try {
+        node.disallow(n);
+      } catch (_) {}
+    }
+    _allowed.clear();
   }
 }
 
