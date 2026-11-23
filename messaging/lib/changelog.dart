@@ -26,6 +26,7 @@ class ReleaseNotes {
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.20', '2026-11-23', [
+    'Open spaces: a new kind of space you walk around in. Everyone stands somewhere on a floor seen from above, and you hear people louder the nearer they stand. Walk with W A S D or the arrow keys on a computer, or press where you want to go. Make groups on the floor (a game, a chat, a film): inside one you hear everyone in it, and its circle grows as people step in. Choose Open space when you make a space.',
     'Microphones and speakers: the one you choose in Settings › Voice and video, or from the call\'s own buttons, is now the one a call uses, from its start and when you switch in the middle of it. Before, on a Mac every call took the system\'s own whatever you chose, and Settings listed only that one until you had been in a call; on Android a chosen microphone was never used. Choosing "The system\'s own" again now goes back to it, a chosen device that isn\'t plugged in says so while the call uses the system\'s own, and on a Mac the ring and the app\'s other sounds play through the speaker you chose.',
   ]),
   ReleaseNotes('0.12.19', '2026-11-23', [

@@ -30,7 +30,7 @@ Widget avatarFigure(BuildContext context, OpenFigure who, Widget face) => Ripple
 /// An open space's floor seen from above (lib/voice/open_space.dart; Matt, 2026-11-23: "a top down view and lets you
 /// move around in the space ... allow walking around with wasd or arrow keys"). This device stays in the middle of the
 /// view and the floor moves under it. Walk with W A S D or the arrow keys while the floor has the keyboard, or press
-/// (or drag) where to go. Groups are drawn as target circles that grow with who is in them; press a group's name for
+/// (or drag) where to go. Groups are drawn as circles that grow with who is in them; press a group's name for
 /// what can be done with it. Everyone else is drawn where they said they stand, eased between their words, and fainter
 /// the less of them is heard from here.
 class OpenSpaceView extends StatefulWidget {
@@ -426,7 +426,8 @@ class _GroupName extends StatelessWidget {
 }
 
 /// The floor under everyone: its edge, a grid of dots to walk against, how far this device hears, and each group as a
-/// target (a washed circle, its edge, and a ring and four marks inside it).
+/// circle, an outline in its colour over a see-through wash of it (Matt, 2026-11-23: "remove the extra decorations like
+/// a crosshair on the circles just make a circle outline with the semiopaque infill").
 class _FloorPainter extends CustomPainter {
   _FloorPainter({required this.me, required this.centre, required this.scale, required this.ground, required this.floor, required this.rule, required this.ink, required this.groups});
   final Offset me, centre;
@@ -465,26 +466,16 @@ class _FloorPainter extends CustomPainter {
         ..strokeWidth = g.mine ? 2.5 : 1.8
         ..color = g.color.withValues(alpha: g.mine ? 0.95 : 0.7);
       canvas.drawCircle(c, r, line);
-      final faint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = g.color.withValues(alpha: 0.35);
-      canvas.drawCircle(c, r * 0.55, faint);
-      // A target's four marks, across its edge.
-      for (var i = 0; i < 4; i++) {
-        final a = i * math.pi / 2;
-        final d = Offset(math.cos(a), math.sin(a));
-        canvas.drawLine(c + d * (r - 10 * scale), c + d * (r + 10 * scale), line);
-      }
-      canvas.drawCircle(c, 3, Paint()..color = g.color.withValues(alpha: 0.6));
     }
-    // How far this device hears: whole inside the inner ring, nothing past the outer.
-    final hear = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = ink.withValues(alpha: 0.18);
-    canvas.drawCircle(centre, OpenWorld.far * scale, hear);
-    canvas.drawCircle(centre, OpenWorld.near * scale, hear..color = ink.withValues(alpha: 0.28));
+    // How far this device hears: nobody past this ring is heard. (The ring inside which everyone is whole is not
+    // drawn: it sat just inside a small group's edge and read as part of the group.)
+    canvas.drawCircle(
+        centre,
+        OpenWorld.far * scale,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = ink.withValues(alpha: 0.18));
   }
 
   @override
