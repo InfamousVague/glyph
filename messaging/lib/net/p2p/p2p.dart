@@ -152,7 +152,9 @@ class P2p extends ChangeNotifier {
     if (!_hex32.hasMatch(device)) throw ArgumentError('a device is named by 32 hex digits');
     carrier = P2pCarrier(this);
     node.state.addListener(_nodeState);
-    _paths = node.paths.listen((_) => notifyListeners());
+    _paths = node.paths.listen((_) {
+      if (!_gone) notifyListeners();
+    }, onError: (Object _) {});
   }
 
   /// The envelope kind devices tell each other where they are with.
@@ -384,7 +386,7 @@ class P2p extends ChangeNotifier {
     final tag = NetCrypto.hex(NetCrypto.sha256([...utf8.encode('ghost-p2p node key '), ...key]).sublist(0, 8));
     var nodeId = id != null && id['g'] == tag && isNodeId(id['n']) ? id['n'] as String : null;
     if (nodeId == null) {
-      nodeId = await node.idOf(key);
+      nodeId = await _answered(node.idOf(key));
       if (!isNodeId(nodeId)) throw StateError('the direct network gave no node id');
       await _plain.write(idName, jsonEncode({'a': me, 'g': tag, 'n': nodeId}));
     }
@@ -957,27 +959,77 @@ class P2p extends ChangeNotifier {
 
   Future<void> _start(P2pConfig config) async {
     _running = config;
-    try {
-      await node.start(config);
-    } catch (e) {
-      _problem = '$e';
+    // Waited for until it has answered and is no longer starting, and no longer than a dial may take whatever the
+    // core does.
+    final done = Completer<void>();
+    var answered = false;
+    void look() {
+      if (answered && node.state.value != P2pState.starting && !done.isCompleted) done.complete();
     }
-    // Still starting: waited for, for as long as a dial may take.
-    if (node.state.value == P2pState.starting) {
-      final done = Completer<void>();
-      void changed() {
-        if (node.state.value != P2pState.starting && !done.isCompleted) done.complete();
-      }
 
-      final wait = timer(policy.dialFor, () {
-        if (!done.isCompleted) done.complete();
-      });
-      node.state.addListener(changed);
-      await done.future;
-      wait.cancel();
-      node.state.removeListener(changed);
+    final wait = timer(policy.dialFor, () {
+      if (!done.isCompleted) done.complete();
+    });
+    node.state.addListener(look);
+    void said([Object? wrong]) {
+      if (wrong != null) _problem = '$wrong';
+      answered = true;
+      look();
     }
-    if (node.state.value == P2pState.up) _idleSoon();
+
+    try {
+      node.start(config).then((_) => said(), onError: (Object e) => said(e));
+    } catch (e) {
+      said(e);
+    }
+    await done.future;
+    wait.cancel();
+    node.state.removeListener(look);
+    if (node.state.value == P2pState.up) return _idleSoon();
+    // Not up, and it has not said it is down either: held to have failed, so the next thing that wants it does not
+    // wait as long again, and tried again after a while as a node that said so is.
+    if (!_failed && _loaded && _on && identical(_running, config)) {
+      _failed = true;
+      _problem ??= 'The direct network did not start';
+      _retry ??= timer(policy.redialAfter, _again);
+      carrier.restate();
+      notifyListeners();
+    }
+  }
+
+  /// Stops the node, waiting no longer than a dial may take for it to have stopped.
+  Future<void> _stop() {
+    final done = Completer<void>();
+    final wait = timer(policy.dialFor, () {
+      if (!done.isCompleted) done.complete();
+    });
+    void stopped([Object? _]) {
+      wait.cancel();
+      if (!done.isCompleted) done.complete();
+    }
+
+    try {
+      node.stop().then((_) => stopped(), onError: stopped);
+    } catch (_) {
+      stopped();
+    }
+    return done.future;
+  }
+
+  /// What the node answers, waited for no longer than twice the time a dial may take; null where it has not by then.
+  Future<T?> _answered<T extends Object>(Future<T> asked) {
+    final done = Completer<T?>();
+    final wait = timer(policy.dialFor * 2, () {
+      if (!done.isCompleted) done.complete(null);
+    });
+    asked.then((answer) {
+      wait.cancel();
+      if (!done.isCompleted) done.complete(answer);
+    }, onError: (Object e, StackTrace at) {
+      wait.cancel();
+      if (!done.isCompleted) done.completeError(e, at);
+    });
+    return done.future;
   }
 
   void _nodeState() {
@@ -1024,7 +1076,7 @@ class P2p extends ChangeNotifier {
     _idle = timer(policy.idle, () {
       _idle = null;
       if (policy.stayUp || _busy > 0 || carrier.lines > 0 || node.state.value != P2pState.up) return;
-      unawaited(node.stop().catchError((Object _) {}));
+      unawaited(_stop());
     });
   }
 
@@ -1048,7 +1100,7 @@ class P2p extends ChangeNotifier {
       _failed = false;
       _problem = null;
       _running = null;
-      unawaited(node.stop().catchError((Object _) {}));
+      unawaited(_stop());
     }
     carrier.restate();
     notifyListeners();
@@ -1083,7 +1135,9 @@ class P2p extends ChangeNotifier {
   /// (Net.resume). The node looks at its paths again, and devices that could not be reached are dialled afresh.
   void networkChanged() {
     carrier.networkChanged();
-    if (node.state.value == P2pState.up) node.networkChanged();
+    try {
+      if (node.state.value == P2pState.up) node.networkChanged();
+    } catch (_) {}
     if (_failed) _again();
   }
 
@@ -1204,9 +1258,7 @@ class P2p extends ChangeNotifier {
     _running = null;
     _minePeer = null;
     carrier.restate();
-    try {
-      await node.stop();
-    } catch (_) {}
+    await _stop();
     await forget(_secrets, _plain);
     if (!_gone) notifyListeners();
   }
@@ -1237,9 +1289,7 @@ class P2p extends ChangeNotifier {
     await _paths?.cancel();
     carrier.closeAll();
     await carrier.dispose();
-    try {
-      await node.stop();
-    } catch (_) {}
+    await _stop();
   }
 }
 

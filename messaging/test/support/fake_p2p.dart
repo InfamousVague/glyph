@@ -344,6 +344,9 @@ class FakeP2pNode implements P2pNode {
   /// How long a start takes, by the mesh's clock.
   Duration startTakes = Duration.zero;
 
+  /// Set, the node never answers a stop or what a key makes (a core that hangs): the stop is done all the same.
+  bool hangs = false;
+
   P2pConfig? _config;
   String? _id;
   int _run = 0;
@@ -371,7 +374,7 @@ class FakeP2pNode implements P2pNode {
   String? get nodeId => _id;
 
   @override
-  Future<String> idOf(Uint8List secret) async => idFor(secret);
+  Future<String> idOf(Uint8List secret) => hangs ? Completer<String>().future : Future.value(idFor(secret));
 
   @override
   final ValueNotifier<P2pState> state = ValueNotifier(P2pState.off);
@@ -443,12 +446,14 @@ class FakeP2pNode implements P2pNode {
   }
 
   @override
-  Future<void> stop() async {
-    if (state.value == P2pState.off) return;
-    stops++;
-    _end();
-    problem = null;
-    state.value = P2pState.off;
+  Future<void> stop() {
+    if (state.value != P2pState.off) {
+      stops++;
+      _end();
+      problem = null;
+      state.value = P2pState.off;
+    }
+    return hangs ? Completer<void>().future : Future.value();
   }
 
   void _end() {

@@ -38,7 +38,7 @@ import 'p2p.dart';
 /// [P2pPolicy.quiet].
 class P2pCarrier implements Carrier, LiveLinks {
   P2pCarrier(this.p2p) {
-    _opened = p2p.node.opened.listen(_adopt);
+    _opened = p2p.node.opened.listen(_adopt, onError: (Object _) {});
   }
 
   final P2p p2p;
@@ -109,8 +109,16 @@ class P2pCarrier implements Carrier, LiveLinks {
   List<({String account, String nodeId, P2pPathKind kind})> get links => [
         for (final e in _nodes.entries)
           for (final account in {for (final l in e.value.lines) ?l.account})
-            (account: account, nodeId: e.key, kind: p2p.node.pathTo(e.key)?.kind ?? P2pPathKind.none),
+            (account: account, nodeId: e.key, kind: _pathTo(e.key)),
       ];
+
+  P2pPathKind _pathTo(String nodeId) {
+    try {
+      return p2p.node.pathTo(nodeId)?.kind ?? P2pPathKind.none;
+    } catch (_) {
+      return P2pPathKind.none;
+    }
+  }
 
   /// Whether a stream to [account]'s device at [nodeId] is open and proved.
   bool linkedTo(String account, String nodeId) => _nodes[nodeId]?.proved(account) != null;

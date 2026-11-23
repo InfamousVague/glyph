@@ -26,7 +26,8 @@ with the relay as a primary source but have p2p as a secondary back up"). [OPEN_
 plan and its reference: device cards, who a device links with, when its node runs, link helpers. Its rules are all
 Dart (`lib/net/p2p/`), tested against a stand-in node (`test/support/fake_p2p.dart`, `test/p2p_test.dart`); the
 node itself is the core (`native/p2p/`, Rust on iroh), behind `lib/net/p2p/node.dart`. A build without the core has
-no direct route at all (`Net.p2pNode` is null) and Settings › Routes shows none.
+no direct route at all (`Net.p2pNode` is null) and Settings › Routes shows none. Devices tell each other their cards
+and where they are in envelopes of one more kind, `p2p`, which go by the other routes and never by a text.
 
 Not built yet: a **local network** route (`lan`: finds the other install on the same Wi-Fi and connects straight to
 it). It is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a

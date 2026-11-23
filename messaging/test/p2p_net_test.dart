@@ -189,9 +189,13 @@ void main() {
     expect(node.allowed, isEmpty);
 
     // Shut down: the node stops, and the app holds no direct network.
-    expect(node.state.value, P2pState.up);
+    expect([node.state.value, p2p.loaded], [P2pState.up, true]);
     await Net.instance.shutdown();
-    expect([node.state.value, Net.instance.p2p], [P2pState.off, null]);
+    expect([node.state.value, Net.instance.p2p, p2p.loaded], [P2pState.off, null, false]);
+    // And it hears nothing more: a card that comes now is nobody's to take.
+    final before = Net.instance.direct.value;
+    p2p.setHelpers(const ['https://late.example']);
+    expect(Net.instance.direct.value, before, reason: 'no longer listened to');
   });
 
   test('the relay in use names the link helpers as the app signs in to it, and another relay\'s take their place', () async {

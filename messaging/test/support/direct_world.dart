@@ -120,6 +120,9 @@ class Install implements PeerBook {
   /// Set before a start, the node made for it fails to start with these words ([FakeP2pNode.failStarts]).
   String? startFails;
 
+  /// Set before a start, the node made for it never answers a stop or what a key makes ([FakeP2pNode.hangs]).
+  bool coreHangs = false;
+
   /// While set, the account's key will not sign (a keystore that refuses); [signs] counts each time it is asked.
   bool signFails = false;
   int signs = 0;
@@ -174,7 +177,9 @@ class Install implements PeerBook {
   /// The app opens: its node made (not started), its routes set up and started, and what the direct network keeps
   /// read.
   Future<void> start() async {
-    node = world.mesh.node(network: network)..failStarts = startFails;
+    node = world.mesh.node(network: network)
+      ..failStarts = startFails
+      ..hangs = coreHangs;
     hub = HubCarrier(url: world.memory.url, signer: KeysSigner(account.keys), retry: const Duration(hours: 1), dial: (url) async => _DeviceLink(await world.memory.dial(url), device));
     p2p = P2p(
       node: node,
@@ -207,6 +212,8 @@ class Install implements PeerBook {
   Future<void> stop() async {
     if (!running) return;
     running = false;
+    // (A core a test made hang is let answer: the clock that would time it out is the test's to move.)
+    node.hangs = false;
     hub.helpers.removeListener(_helpers);
     await _sub?.cancel();
     await board.stop();
@@ -220,6 +227,9 @@ class Install implements PeerBook {
     await stop();
     await start();
   }
+
+  /// How many times this install's node has dialled [other]'s.
+  int dialled(Install other) => world.mesh.dials.where((d) => identical(d.from, node) && d.to == other.p2p.nodeId).length;
 
   /// Sends [words] to [to] as a friend's text, by [only] those routes where given.
   Future<Delivery> text(Account to, String words, {Set<String>? only, bool urgent = false}) => board.send(this.to(to), Envelope(kind: 'text', body: {'t': words}), only: only, urgent: urgent);
