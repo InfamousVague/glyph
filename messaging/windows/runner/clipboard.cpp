@@ -127,6 +127,7 @@ std::vector<std::string> Pick(int most, bool pictures) {
   return out;
 }
 
+// The "most" argument of a call; [fallback] where it is not said.
 int MostOf(const flutter::EncodableValue* args, int fallback) {
   if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
     auto it = map->find(flutter::EncodableValue("most"));

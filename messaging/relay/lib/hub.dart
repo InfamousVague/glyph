@@ -167,6 +167,9 @@ class Hub {
   /// first 48 bits: [placeOf]), and all places together. A sign-in past them is taken all the same, its key kept the
   /// next time it signs in with room; so pushing others out takes a great many places, and a long time, not one.
   final int newV2AnHour, newV2AnHourAll;
+
+  /// The keys new to those kept that each place has added this hour, and all places together: when the hour began (ms)
+  /// and how many. [_v2Places] places are remembered, the one counted longest ago let go first.
   final LinkedHashMap<String, ({int from, int n})> _v2From = LinkedHashMap();
   ({int from, int n}) _v2All = (from: 0, n: 0);
   static const _v2Places = 100000;
@@ -175,6 +178,7 @@ class Hub {
   /// taken a moment ago costs nothing (found in the second review, 2026-11-23).
   static const v2NameAge = Duration(days: 2);
 
+  /// The write that is due ([_saveV2]): two seconds after a key new to those kept signs in, once for all that follow.
   Timer? _v2Saver;
 
   /// Whether the key named [id] has signed in here with v2, for a test.
@@ -187,6 +191,7 @@ class Hub {
   /// again only off the event loop (kept_log.dart); none in memory.
   late final KeptLog? _v2Log = dataDir == null ? null : KeptLog(File('${dataDir!.path}/hub-v2.json'));
 
+  /// Whether [id] has held a username here for [v2NameAge] or longer.
   bool _holdsAName(String id) {
     final since = handles?.nameHeldSince(id);
     return since != null && _now().difference(since) >= v2NameAge;
@@ -205,6 +210,8 @@ class Hub {
     if (_v2Log != null) _v2Saver ??= Timer(const Duration(seconds: 2), _saveV2);
   }
 
+  /// Whether one more key new to those kept may be added from the place [from] this hour ([newV2AnHour],
+  /// [newV2AnHourAll]); counted where it may.
   bool _mayPinFrom(String from) {
     final now = _now().millisecondsSinceEpoch, hour = const Duration(hours: 1).inMilliseconds;
     if (now - _v2All.from >= hour) _v2All = (from: now, n: 0);
@@ -222,6 +229,8 @@ class Hub {
     return true;
   }
 
+  /// Lets one kept key go: the one seen longest ago that holds no name; only with none of those left, the one seen
+  /// longest ago that does.
   void _evictV2() {
     while (_v2Nameless.isNotEmpty) {
       final oldest = _v2Nameless.keys.first;
@@ -240,6 +249,7 @@ class Hub {
     }
   }
 
+  /// Reads the keys kept from `hub-v2.json` as the hub starts: the latest [maxSignsV2] of them.
   void _loadV2() {
     final log = _v2Log;
     if (log == null) return;
@@ -252,6 +262,7 @@ class Hub {
     }
   }
 
+  /// Every key kept, as the log writes them when it is written whole: those holding no name first.
   Map<String, Object?> _allV2() => {for (final id in [..._v2Nameless.keys, ..._v2Named.keys]) id: 1};
 
   /// Writes the keys kept that changed since: appended to the log, off the event loop (kept_log.dart).
@@ -273,6 +284,7 @@ class Hub {
     return peer.address;
   }
 
+  /// Whether [a] is on a private network: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, or IPv6's fc00::/7.
   static bool _privateAddress(InternetAddress a) {
     final b = a.rawAddress;
     if (a.type == InternetAddressType.IPv4) return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168);
@@ -301,6 +313,8 @@ class Hub {
   /// wait at once (past that it is answered at once).
   final Duration oldAppHold;
   final int heldRefusalsMost;
+
+  /// The refusals waiting to be said, and when each key's app from before was last refused (50,000 are remembered).
   final Set<Timer> _refusalsHeld = {};
   final LinkedHashMap<String, DateTime> _refusedOldAt = LinkedHashMap();
 
@@ -420,7 +434,6 @@ class Hub {
   /// dials an address and finds its own hub there (federation.dart).
   final Set<String> _nonces = {};
 
-  /// Away, under a name with several devices here, is every one of them away.
   /// [id] chose how they are shown (GMFB-34): told to whoever watches them, once a change.
   void _setMode(String id, String said) {
     final mode = said == 'busy' || said == 'invisible' ? said : '';
@@ -450,6 +463,8 @@ class Hub {
     }
   }
 
+  /// Whether every device here under [id] has the app put away: away, under a name with several devices here, is
+  /// every one of them away, and only then is the name told as away.
   bool _allAway(String id) => (_here[id] ?? const <_End>[]).every((e) => e.away);
 
   /// [_mail]: packets held for each name that is away. [_rooms]: every room someone is in, by its key ([_keyOf]).
@@ -610,6 +625,7 @@ class Hub {
     if (verbose) stdout.writeln('${_now().toIso8601String()} hub $what');
   }
 
+  /// Says [what] to [ws] as JSON, where there is one and it is still open.
   void _tell(HubSocket? ws, Map<String, Object?> what) {
     if (ws == null || !ws.isOpen) return;
     try {
@@ -622,7 +638,7 @@ class Hub {
   /// The hub says `{hello: <its number, hex>}`; the app answers `{id, key, sig, device?, peek?}` and is told
   /// `{ok, held}` and handed what was held for it. After that a binary message is a packet ([_packet]) and a text one
   /// is JSON, known by its key: `ping`, `push` (pushes.dart), `dir` (accounts, invite words, invites, handles, in that
-  /// order), `watch`, `away`, `join`, `anchor`, `leave`, `look`, `unlook`. Close codes: 4400 bad hello, 4401 no hello
+  /// order), `watch`, `mode`, `away`, `join`, `anchor`, `leave`, `look`, `unlook`. Close codes: 4400 bad hello, 4401 no hello
   /// in time, 4409 replaced by a newer connection of the same device.
   Future<void> accept(HttpRequest request) async {
     if (_open >= maxConnections) {
@@ -913,6 +929,7 @@ class Hub {
           'seen': {for (final id in ids) if (!_shown(id) && _seen.containsKey(id)) id: _seen[id]},
         });
       } else if (said['mode'] is String) {
+        // `{"mode": "online" | "busy" | "invisible"}`: how they are shown to whoever watches them from now on (GMFB-34).
         _setMode(e.id, said['mode'] as String);
       } else if (said['away'] is bool) {
         // The app put away, or back in use: told to whoever watches them, once a change.
@@ -1022,8 +1039,6 @@ class Hub {
     }
   }
 
-  /// Keeps [frame] for [to], who is not here, where there is room: at most [mailboxFrames] and [mailboxBytes] for one
-  /// person and [heldBytes] for everyone together. False where there is none.
   /// Hands [frames] to [socket] in order, written only as fast as the connection takes them (found in the second review,
   /// 2026-11-23): a room's kept messages (up to 300 of 64 KB) and what was held for someone, written in one go, waited in
   /// memory all at once, and a phone reading them as fast as they came was ended for it. They are the hub's own already
@@ -1054,6 +1069,9 @@ class Hub {
     if (box.isEmpty) _mail.remove(to);
   }
 
+  /// Keeps [frame] for [to], who is not here, where there is room: at most [mailboxFrames] and [mailboxBytes] for one
+  /// person and [heldBytes] for everyone together (each packet counted with [heldOverhead]). False where there is none.
+  /// [byDevice]: the device that sent it to its own name, which is not handed it back.
   bool _hold(String to, Uint8List frame, {String? byDevice}) {
     final box = _mail[to] ??= [];
     final size = box.fold<int>(0, (n, h) => n + h.frame.length);
@@ -1297,6 +1315,8 @@ class _WebSocketHubSocket implements HubSocket {
     return _ws.close(code, reason);
   }
 
+  /// Hands [frames] over in order, behind any hand-over under way, written only as fast as the connection takes them
+  /// ([_go]). [notGiven] is told how many at the end were not written, where the connection closes first.
   void handOver(List<Uint8List> frames, void Function(int left)? notGiven) {
     if (_closing) {
       notGiven?.call(frames.length);
@@ -1349,6 +1369,8 @@ class _WebSocketHubSocket implements HubSocket {
   }
 }
 
+/// One connection signed in: a device of [id]'s, with the rooms it is in, the names it watches and the rooms it looks
+/// at without being in them.
 class _End {
   _End(this.id, this.ws, this.tell, {this.device = '', this.place = ''});
 

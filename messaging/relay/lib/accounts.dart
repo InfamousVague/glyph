@@ -105,6 +105,8 @@ class Accounts {
 
   /// What an account costs of [maxBytes]: its two blobs, and the removals kept for its devices (`gone`).
   static int _sizeOf(Map<String, Object?> a) => ((a['pw'] as String?)?.length ?? 0) + ((a['seed'] as String?)?.length ?? 0) + _goneSize(a['gone']);
+
+  /// The length of the removals kept for an account's devices: each one's body and signature.
   static int _goneSize(Object? gone) {
     if (gone is! Map) return 0;
     var n = 0;

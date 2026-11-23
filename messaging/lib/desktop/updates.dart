@@ -555,6 +555,8 @@ class LinuxUpdateHost implements UpdateHost {
         _version = version ?? const String.fromEnvironment('GHOST_VERSION') {
     kind = install ?? _kindOf(_exe);
   }
+
+  // The environment, where the program runs from, and this copy's build number and version: a test gives its own.
   final Map<String, String> _env;
   final String _exe;
   final int _build;
@@ -565,6 +567,8 @@ class LinuxUpdateHost implements UpdateHost {
 
   /// Starts the app at the path, detached.
   final Future<void> Function(String exe) launch;
+
+  /// Ends this copy, once the new one has been started.
   final void Function() quit;
 
   /// Unpacks the .tar.gz at [archive] into [into]: null, or why it couldn't.
@@ -584,10 +588,14 @@ class LinuxUpdateHost implements UpdateHost {
   /// For the .deb, once it is here and checked: the command that installs it.
   String? command;
 
+  /// The new app's folder, unpacked and checked, waiting for Restart to update.
   String? _staged;
 
+  /// The folder this copy runs from.
   String get _folder => File(_exe).parent.path;
 
+  /// How the copy at [exe] was installed: the .deb's where it runs from [debFolder]; else a folder, the person's own
+  /// where a file can be made beside it.
   static LinuxInstall _kindOf(String exe) {
     if (exe.startsWith('$debFolder/')) return LinuxInstall.deb;
     final folder = File(exe).parent;
@@ -616,8 +624,10 @@ class LinuxUpdateHost implements UpdateHost {
   /// `sudo apt install` for a .deb at [path], quoted for a shell.
   static String aptCommand(String path) => 'sudo apt install ${_quoted(path)}';
 
+  /// [s] as one word of a shell command: as it is where plain, else in single quotes.
   static String _quoted(String s) => RegExp(r'^[A-Za-z0-9_./-]+$').hasMatch(s) ? s : "'${s.replaceAll("'", "'\\''")}'";
 
+  /// Where updates are brought down to: under the person's cache folder (XDG_CACHE_HOME, else ~/.cache).
   String get _cache {
     final xdg = _env['XDG_CACHE_HOME'];
     final base = xdg != null && xdg.isNotEmpty ? xdg : '${_env['HOME'] ?? Directory.systemTemp.path}/.cache';

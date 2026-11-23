@@ -307,6 +307,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     if (Sms.standalone) Account.instance.addListener(_accountChanged);
   }
 
+  /// The account changed: drawn again only where it has ended on this device.
   void _accountChanged() {
     if (mounted && Account.instance.ended) setState(() {});
   }

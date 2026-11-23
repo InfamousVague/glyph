@@ -101,6 +101,7 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
     super.dispose();
   }
 
+  /// Pauses what is playing and closes the drawer.
   void _close() {
     unawaited(_p.pause());
     final nav = Navigator.of(context);
@@ -267,6 +268,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
   double _viewStart = 0;
   bool _saving = false;
 
+  /// [_mixLevels] brought up to the steps [rec] has now, each at most 1; started over where the mix has changed.
   List<double> _mixed(RecordingDesk rec) {
     final levels = rec.meter.levels;
     final n = _stepsOf(levels);
@@ -286,6 +288,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
     return _mixLevels;
   }
 
+  /// Stops the call's recording and says where it was saved, with a way to the recordings' page.
   Future<void> _stop() async {
     if (_stopping) return;
     setState(() => _stopping = true);

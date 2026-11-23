@@ -83,6 +83,7 @@ class FilesFsStore implements FsStore {
     return run;
   }
 
+  /// One write, in its turn: an empty [value] deletes the file.
   Future<void> _write(String name, String value) async {
     final d = await _dir;
     if (d == null) return;

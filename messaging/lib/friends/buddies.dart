@@ -469,11 +469,15 @@ class Buddies extends ChangeNotifier {
   /// The addresses the record named when friends were last told, and whose told-state is loaded.
   List<String> _toldWhere = const [];
   String? _toldFor;
+
+  /// When each friend was last sent the record in answer to theirs: no more than one such answer a minute to a friend.
   final Map<String, DateTime> _repliedAt = {};
 
   /// Those still to be told the record there is now, a friend at a time.
   final List<String> _toTell = [];
   Timer? _teller;
+
+  /// The [Homes] that has been given the friends' records: another one (the routes started again) is given them anew.
   Homes? _givenTo;
 
   /// Those whose friend request the relay could not pass to their relay when it was last sent.
@@ -525,6 +529,7 @@ class Buddies extends ChangeNotifier {
     _tellSoon();
   }
 
+  /// Reads what is kept of telling friends, for the account [me]; once for an account.
   void _loadTold(String me) {
     if (_toldFor == me) return;
     _toldFor = me;
@@ -544,6 +549,7 @@ class Buddies extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Keeps it, without those who are friends no longer.
   void _keepTold() {
     final me = _toldFor, across = _across;
     if (me == null || across == null) return;
@@ -1027,6 +1033,8 @@ class Buddies extends ChangeNotifier {
     }
   }
 
+  /// A friend request from someone not yet a peer, which comes in the clear as a greeting: checked against the key
+  /// the hub knows them by before anything is kept or answered.
   Future<void> _greeting(String from, Envelope e) async {
     if (e.body['buddy'] != 'ask') return;
     final key = e.body['k'], username = e.body['u'];
@@ -1145,6 +1153,7 @@ class Buddies extends ChangeNotifier {
   }
 }
 
+/// The port in the app: the routes ([Net]) and their hub, followed as they start again.
 class _AppBuddiesPort implements BuddiesPort, BuddiesAcross {
   _AppBuddiesPort() {
     Net.instance.listen((r) => _in.add((from: r.peer.id, envelope: r.envelope)));

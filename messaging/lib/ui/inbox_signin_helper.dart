@@ -26,8 +26,9 @@ const _extensionServices = {'messenger', 'instagram', 'discord', 'twitter', 'sla
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
-/// Signing in to Messenger, Instagram or LinkedIn (Matt, 2026-11-20: "Let's do the feasible ones but skip X and google
-/// voice"). First the warning ([HelperService.warning]), which has to be agreed to before anything is asked of the
+/// Signing in to a network that has an account helper: Messenger, Instagram, Discord, X or Slack (Matt, 2026-11-20:
+/// "Let's do the feasible ones but skip X and google voice"; Discord, X and Slack came on 2026-11-21, and LinkedIn,
+/// one of the first three, is in no build now). First the warning ([HelperService.warning]), which has to be agreed to before anything is asked of the
 /// service, as WhatsApp's is (lib/ui/inbox_signin_whatsapp.dart). Then the three steps Google Messages' setup has
 /// (lib/gm/google_signin_flow.dart): sign in to the service in a private window of a browser, copy a request from its
 /// developer tools as cURL, paste it here. The helper signs in with those cookies (sidecar/ACCOUNT_HELPERS.md).
@@ -79,6 +80,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     super.dispose();
   }
 
+  /// Opens the service's sign-in page in a private window; where none could be opened, the link is copied instead.
   Future<void> _open() async {
     final open = widget.onOpenPrivate ?? (_computer ? openPrivately : null);
     final ok = open != null && await open(_s.signInUrl);
@@ -90,6 +92,8 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     }
   }
 
+  /// Signs in with what was pasted, or ([synced]) with the cookies the extension synced. Only a pasted sign-in is
+  /// shared on to the account's other devices: a synced one came from there.
   Future<void> _signIn({bool synced = false}) async {
     if (_n.signingIn) return;
     final what = synced && _synced != null ? jsonEncode(_synced) : _pasted.text;
@@ -123,6 +127,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     );
   }
 
+  /// The service's warning, with the row that agrees to it and one that goes back.
   List<Widget> _warning(Tokens t) => [
         PaneSection(
           title: '${_s.name} doesn\'t support this',
@@ -144,6 +149,8 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
         ),
       ];
 
+  /// After the warning: the extension's synced sign-in where there is one (else a suggestion to get the extension),
+  /// then the three numbered steps. The step to do next has the darker edge.
   List<Widget> _steps(Tokens t) {
     Widget card(int n, String title, List<Widget> body, {bool current = false}) => Container(
           margin: EdgeInsets.only(bottom: t.space(3)),

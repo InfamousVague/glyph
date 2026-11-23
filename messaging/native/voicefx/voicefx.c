@@ -180,6 +180,7 @@ static void biquad(float *s, int n, float *z, double b0, double b1, double b2, d
     s[i] = (float)y;
   }
 }
+/* A high-pass ([high]) or a low-pass at [hz], for sound at 48 kHz. */
 static void pass(float *s, int n, float *z, double hz, int high) {
   const double w = 2.0 * 3.14159265358979 * hz / 48000.0, q = 0.8;
   const double c = cos(w), alpha = sin(w) / (2 * q), a0 = 1 + alpha;
@@ -201,7 +202,9 @@ static void drive(float *s, int n, float amount) {
 
 /* A voice's pitch and its formants (the resonances of the throat and mouth that say how big the speaker is) moved
  * apart, as the voice goes (Matt, 2026-11-21: "work on making them sound more realistic and do feminine masculine and
- * things like that"): pitch-synchronous overlap-add (PSOLA). The voice's period is found (YIN, on a quarter-rate copy);
+ * things like that"). Every voice but the robot is now moved by Signalsmith Stretch (see effect, below); what follows
+ * is the robot's way, and the others' where there is no Stretch:
+ * pitch-synchronous overlap-add (PSOLA). The voice's period is found (YIN, on a quarter-rate copy);
  * each period is cut out round its peak with a window two periods long; the pieces are laid down again closer together
  * for a higher voice or further apart for a lower one, which moves the pitch and leaves the formants where they were;
  * and each piece is squeezed or stretched as it is laid down, which moves the formants alone. Moving only the pitch is
@@ -219,6 +222,7 @@ typedef struct {
   float drive;   /* how rough, 0 for clean */
 } Shape;
 
+/* What each effect does to a voice; the radio has no shape (it is filters alone), nor has none. */
 static Shape shape_of(int which) {
   Shape s = {1, 1, 0, 0, 0};
   switch (which) {
@@ -236,6 +240,7 @@ static Shape shape_of(int which) {
   return s;
 }
 
+/* The lowest and highest pitch a voice is looked for at. */
 #define PI 3.14159265358979
 #define MIN_HZ 70
 #define MAX_HZ 500
@@ -284,6 +289,7 @@ static float find_period(VoiceFx *fx) {
   return t * 4;
 }
 
+/* What was said at [at], which may fall between two samples: a straight line between them. */
 static float in_at(VoiceFx *fx, double at) {
   long a = (long)floor(at);
   float f = (float)(at - (double)a);
@@ -329,6 +335,8 @@ static void lay(VoiceFx *fx, long m, float p, double c, float formant, float gai
   }
 }
 
+/* PSOLA on one block: [s] goes into the ring, pieces are laid down for it, and [s] comes back as what was said
+ * LATENCY ago, reshaped. */
 static void reshape(VoiceFx *fx, int which, float *s, int n) {
   Shape sh = shape_of(which);
   for (int i = 0; i < n; i++) fx->in[(fx->inPos + i) & (RING - 1)] = s[i];
@@ -386,6 +394,8 @@ static void reshape(VoiceFx *fx, int which, float *s, int n) {
   if (sh.drive > 0) drive(s, n, sh.drive);
 }
 
+/* The voice effect [which] on one block at 48 kHz, in place: the radio by filters, the robot by PSOLA, every other
+ * voice by Signalsmith Stretch. */
 static void effect(VoiceFx *fx, int which, float *s, int n) {
   if (which != fx->effectWas) {
     /* A new effect starts from quiet: nothing of the last one is heard. */
@@ -543,6 +553,7 @@ void voicefx_effect(VoiceFx *fx, int effect) {
   vfx_store(&fx->effect, effect);
 }
 
+/* The names in the order of the VOICEFX_EFFECT_ numbers: a name's place in the list is its effect. */
 int voicefx_effect_id(const char *name) {
   static const char *names[VOICEFX_EFFECT_COUNT] = {"none", "deeper", "higher", "chipmunk", "monster", "robot", "radio", "feminine", "masculine", "child", "older"};
   if (!name) return VOICEFX_EFFECT_NONE;

@@ -36,6 +36,7 @@ class Pushes {
   /// `install|device` -> its token (a key from before devices, the install alone, is read as `install|`).
   final Map<String, ({String token, bool sandbox, String day})> _tokens = {};
 
+  /// The key a device's token is kept under, and the install such a key belongs to.
   static String _key(String id, String device) => '$id|$device';
   static String _idOf(String key) => key.contains('|') ? key.substring(0, key.indexOf('|')) : key;
   final Map<String, DateTime> _last = {};

@@ -1427,6 +1427,7 @@ class CircleRoom {
   /// What this device would have said and couldn't, for want of the circle's newest key: said once it comes (finding 3).
   final List<({Map<String, Object?> what, bool keep})> _waiting = [];
 
+  /// The most kept waiting: past it the oldest goes.
   static const mostWaiting = 100;
 
   /// Packets heard under a key this device lacks: opened again once it comes (finding 4). The newest [mostUnread].
@@ -1448,6 +1449,8 @@ class CircleRoom {
 
   /// What the owner or an admin signs to tell [id] they are banned from [seed]'s circle, at [at] (ms).
   static List<int> outMessage(String seed, String id, int at) => utf8.encode('ghost-circle out v1|$seed|$id|$at');
+
+  /// When each banned id was last told so here: at most once a minute each.
   final Map<String, DateTime> _toldOut = {};
 
   /// This device's circle keys; none (a test from before) seals everything with the seed's key, as before.
@@ -1462,6 +1465,8 @@ class CircleRoom {
 
   /// The inboxes heard in the room, by `id:device`: who a new key is sealed to.
   final Map<String, CircleInbox> inboxes = {};
+
+  /// When this device last asked for the key, and the newest epoch it knew of then ([_askKey]).
   DateTime? _askedKey;
   int _askedFor = 0;
 
@@ -1672,6 +1677,7 @@ class CircleRoom {
 
   void _sayPlain(Map<String, Object?> what, {bool keep = false}) => _send(NetCrypto.seal(circle.key, utf8.encode(jsonEncode(what))), keep: keep);
 
+  /// Sends what is already sealed to the circle's room; with [keep], for the hub to hold for members who are away.
   void _send(Uint8List sealed, {bool keep = false}) {
     if (!opened) return;
     try {

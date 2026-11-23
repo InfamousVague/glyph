@@ -935,7 +935,6 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
-  /// Rings everyone in the group, and hops into its channel.
   /// The friend by username this conversation is with, where they can be called: one person, a friend.
   Buddy? get _callable {
     if (_group || _people.length != 1 || !_people.first.address.startsWith('@')) return null;
@@ -943,6 +942,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return Buddies.instance.all.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
   }
 
+  /// Rings the friend this conversation is with ([_callable]) and goes to the call. Where they couldn't be reached, says
+  /// so and leaves the call it had made.
   Future<void> _callFriend({required bool video}) async {
     final b = _callable;
     if (b == null) return;
@@ -973,6 +974,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     }
   }
 
+  /// Rings everyone in the group, and hops into its channel.
   Future<void> _callGroup() async {
     final g = _ghost;
     if (g == null) return;

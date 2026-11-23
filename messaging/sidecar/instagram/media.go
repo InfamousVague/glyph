@@ -24,6 +24,8 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix/useragent"
 )
 
+// The most that is fetched for a picture of a person or chat (5 MB) and for a message's file (1 GB), and how a long
+// video is fetched: a megabyte at a time.
 const (
 	maxAvatar   = 5 << 20
 	maxDownload = 1 << 30
@@ -32,6 +34,8 @@ const (
 	chunkSize   = 1 << 20
 )
 
+// mediaHTTP fetches files, with no cookies. A redirect to the host that serves long videos is not followed: fetch
+// sees it and reads the video in pieces instead.
 var mediaHTTP = &http.Client{
 	Timeout: 10 * time.Minute,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -45,6 +49,8 @@ var mediaHTTP = &http.Client{
 	},
 }
 
+// mediaRequest asks for a file with the headers a browser sends for a picture, video or sound on a page, by [mime];
+// [byteRange] is a Range header's value, "" for the whole file.
 func mediaRequest(ctx context.Context, method, address, mime, byteRange string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, address, nil)
 	if err != nil {
@@ -74,6 +80,7 @@ func mediaRequest(ctx context.Context, method, address, mime, byteRange string) 
 	return mediaHTTP.Do(req)
 }
 
+// statusWords puts a file server's refusal in words: a link that has run out is the usual one.
 func statusWords(code int) error {
 	switch code {
 	case http.StatusForbidden, http.StatusUnauthorized, http.StatusNotFound, http.StatusGone:
@@ -102,6 +109,7 @@ func fetch(ctx context.Context, address, mime string, limit int64, w io.Writer) 
 	return copyLimited(w, resp.Body, limit)
 }
 
+// copyLimited copies [r] to [w], failing where there is more than [limit] bytes of it.
 func copyLimited(w io.Writer, r io.Reader, limit int64) error {
 	n, err := io.Copy(w, io.LimitReader(r, limit+1))
 	if err != nil {
@@ -182,6 +190,7 @@ func fetchTo(ctx context.Context, address, mime string, limit int64, dest string
 	return err
 }
 
+// pointer is what `download` is handed back for a message's file: its address, and the kind of file it is.
 type pointer struct {
 	URL  string `json:"url"`
 	Mime string `json:"mime"`
@@ -258,12 +267,14 @@ func fetchAvatar(ctx context.Context, address string) string {
 	return p
 }
 
+// avatarJob is one picture waiting to be fetched for the session of [c], and what to do with the file.
 type avatarJob struct {
 	c       *instameow.Client
 	address string
 	then    func(file string)
 }
 
+// The pictures waiting, and the one goroutine that fetches them, started at the first.
 var (
 	avatarJobs = make(chan avatarJob, 1024)
 	avatarOnce sync.Once

@@ -83,6 +83,7 @@ func cookieMap(header string) map[string]string {
 	return out
 }
 
+// sameCookies is whether two sets of cookies have the same names and values.
 func sameCookies(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -115,6 +116,7 @@ type ownKeys struct {
 	Version    string `json:"signing_key_version"`
 }
 
+// convKey is one version of a chat's key, as session.json keeps it.
 type convKey struct {
 	Key       []byte    `json:"key"`
 	CreatedAt time.Time `json:"created_at"`
@@ -134,6 +136,7 @@ type session struct {
 	Tokens   map[string]string             `json:"conversation_tokens,omitempty"`
 }
 
+// sessionPath is where the session is kept, in the helper's folder.
 func sessionPath() string { return filepath.Join(dir, "session.json") }
 
 // saveSession writes the session for the person alone to read (0600), whole or not at all.
@@ -187,6 +190,7 @@ type keyStore struct {
 
 var _ crypto.KeyStore = (*keyStore)(nil)
 
+// newKeyStore makes a store holding copies of a session's keys and tokens.
 func newKeyStore(s session) *keyStore {
 	ks := &keyStore{me: s.Me, own: s.Keys, convs: map[string]map[string]convKey{}, tokens: map[string]string{}}
 	for conv, keys := range s.ConvKeys {
@@ -219,6 +223,8 @@ func (ks *keyStore) fill(s *session) {
 	}
 }
 
+// notify tells the account that something in the store changed, so it is written to session.json. Called with the
+// store's lock let go: the write reads the store back through fill.
 func (ks *keyStore) notify() {
 	if ks.changed != nil {
 		ks.changed()
@@ -232,12 +238,14 @@ func (ks *keyStore) hasKeys(conv string) bool {
 	return len(ks.convs[conv]) > 0
 }
 
+// hasToken is whether X has given a token for a chat: with no key beside it, one of X Chat's unencrypted chats.
 func (ks *keyStore) hasToken(conv string) bool {
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 	return ks.tokens[conv] != ""
 }
 
+// GetConversationKey is a chat's key at one version; crypto.ErrKeyNotFound where it is not held.
 func (ks *keyStore) GetConversationKey(_ context.Context, conv, version string) (*crypto.ConversationKey, error) {
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -248,6 +256,7 @@ func (ks *keyStore) GetConversationKey(_ context.Context, conv, version string) 
 	return &crypto.ConversationKey{ConversationID: conv, KeyVersion: version, Key: k.Key, CreatedAt: k.CreatedAt}, nil
 }
 
+// PutConversationKey keeps a copy of a chat's key under its version.
 func (ks *keyStore) PutConversationKey(_ context.Context, key *crypto.ConversationKey) error {
 	if key == nil || key.ConversationID == "" || key.KeyVersion == "" || len(key.Key) == 0 {
 		return errors.New("an empty conversation key")
@@ -270,6 +279,7 @@ func (ks *keyStore) DeleteConversationKey(_ context.Context, conv, version strin
 	return nil
 }
 
+// GetLatestConversationKey is a chat's key at its newest version: versions are snowflakes, so the largest is newest.
 func (ks *keyStore) GetLatestConversationKey(_ context.Context, conv string) (*crypto.ConversationKey, error) {
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -286,6 +296,7 @@ func (ks *keyStore) GetLatestConversationKey(_ context.Context, conv string) (*c
 	return &crypto.ConversationKey{ConversationID: conv, KeyVersion: best, Key: k.Key, CreatedAt: k.CreatedAt}, nil
 }
 
+// GetOwnSigningKey is the person's own keys, read from the base64 they are kept in.
 func (ks *keyStore) GetOwnSigningKey(context.Context) (*crypto.SigningKeyPair, error) {
 	ks.mu.RLock()
 	own, me := ks.own, ks.me
@@ -314,6 +325,7 @@ func (ks *keyStore) GetPublicKey(context.Context, string, string) (*crypto.Publi
 
 func (ks *keyStore) PutPublicKey(context.Context, *crypto.PublicKeyInfo) error { return nil }
 
+// GetConversationToken is the token X gave for a chat; crypto.ErrKeyNotFound where it gave none.
 func (ks *keyStore) GetConversationToken(_ context.Context, conv string) (string, error) {
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -323,6 +335,7 @@ func (ks *keyStore) GetConversationToken(_ context.Context, conv string) (string
 	return "", crypto.ErrKeyNotFound
 }
 
+// PutConversationToken keeps a chat's token. The session is written again only when it differs from the one held.
 func (ks *keyStore) PutConversationToken(_ context.Context, conv, token string) error {
 	if conv == "" || token == "" {
 		return nil
@@ -361,6 +374,7 @@ func rejected(err error) bool {
 	return twittermeow.IsAuthError(err) || errors.Is(err, twittermeow.ErrCSRFMismatch) || statusOf(err) == http.StatusUnauthorized
 }
 
+// X turning the account away, in words, by the reason it gave: shown when a session ends and when a sign-in fails.
 const (
 	wordsSignedOut = "X signed this session out. Sign in to x.com in the browser and copy the cookies again."
 	wordsLocked    = "X has locked this account for now. Open x.com in the browser, finish the checks it shows, then sign in again."
@@ -457,6 +471,7 @@ func passcodeWords(err error) error {
 	return plain(err)
 }
 
+// What a sign-in answers when the passcode is the trouble: the account has none, or none was given.
 const (
 	wordsNoPasscode   = "This account has no X Chat passcode yet. Open x.com/messages in the browser, set one up, then sign in here again."
 	wordsNeedPasscode = "X keeps its chats encrypted: give the 4-digit X Chat passcode (the one x.com asks for in Messages) with the cookies."

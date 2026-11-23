@@ -64,6 +64,7 @@ class KeyBinding {
   /// Ctrl as itself on a Mac, where [primary] is Cmd; on the others it is [primary].
   final bool control;
 
+  /// Whether this is the Mac app (never a browser, even on a Mac).
   static bool get _mac => !kIsWeb && PlatformInfo.isMacOS;
 
   /// Whether it holds a key that is not typed: it works while the cursor is in a field.

@@ -36,6 +36,7 @@ struct Dev {
 }
 
 impl Dev {
+    /// A node not yet started, whose key is 32 bytes of `n`: each test's devices take numbers of their own.
     fn new(n: u8) -> Dev {
         let (tx, said) = mpsc::unbounded_channel();
         let node = Node::new(&Handle::current(), move |events| {
@@ -47,6 +48,7 @@ impl Dev {
         Dev { node, said, kept: VecDeque::new(), secret, id: node_id(&secret), takes: true }
     }
 
+    /// What it is started with where the test names no link helper.
     fn config(&self) -> Config {
         Config { secret: self.secret, helpers: vec![], helpers_only: false }
     }
@@ -97,6 +99,7 @@ impl Dev {
         all
     }
 
+    /// Starts it, and waits for it to say it is up.
     async fn up(&mut self) {
         self.node.start(self.config());
         self.came_up().await;
@@ -108,6 +111,7 @@ impl Dev {
         self.came_up().await;
     }
 
+    /// Waits for the answer to a start, which must be UP with the id its secret makes.
     async fn came_up(&mut self) {
         let id = self.id;
         match self.next("up", |e| matches!(e, Event::Up { .. } | Event::Down { .. })).await {
@@ -116,6 +120,7 @@ impl Dev {
         }
     }
 
+    /// Stops it, and waits for it to say it is off.
     async fn off(&mut self) {
         self.node.stop();
         self.next("off", |e| matches!(e, Event::Off)).await;
@@ -140,6 +145,7 @@ impl Dev {
         }
     }
 
+    /// Opens a stream to `to` on `channel`, given ten seconds: the stream's number, or why not.
     async fn open(&mut self, request: u32, to: [u8; 32], channel: u8, hint: &Hint) -> Result<u64, (OpenError, String)> {
         self.open_within(request, to, channel, hint, Duration::from_secs(10)).await
     }
@@ -160,6 +166,7 @@ impl Dev {
         }
     }
 
+    /// The next stream another node opened here: its number, who opened it, and on which channel.
     async fn incoming(&mut self) -> (u64, [u8; 32], u8) {
         match self.next("an incoming stream", |e| matches!(e, Event::Incoming { .. })).await {
             Event::Incoming { stream, node, channel } => (stream, node, channel),
@@ -193,6 +200,7 @@ impl Dev {
         self.next("word of what was sent", |e| matches!(e, Event::Sent { stream: s, frames: n } if *s == stream && *n >= frames)).await;
     }
 
+    /// Waits for the path to `of` to be said to be of `kind`; its round trip in milliseconds, where one was said.
     async fn path(&mut self, of: [u8; 32], kind: PathKind) -> Option<u32> {
         match self.next("a path", |e| matches!(e, Event::Path { node, kind: k, .. } if *node == of && *k == kind)).await {
             Event::Path { rtt_ms, .. } => rtt_ms,
@@ -232,6 +240,7 @@ async fn port_is_free(port: u16) -> std::io::Result<()> {
     }
 }
 
+/// An event for a failure's message: a frame by its length, not its bytes.
 fn brief(event: &Event) -> String {
     match event.as_frame() {
         Some((stream, frame)) => format!("Frame({stream}, {} bytes)", frame.len()),
@@ -566,6 +575,7 @@ async fn by_hand(n: u8) -> Endpoint {
     Endpoint::builder(presets::Minimal).secret_key(SecretKey::from_bytes(&[n; 32])).bind().await.expect("an endpoint")
 }
 
+/// A node's address as iroh dials it, from its id and the addresses of a hint.
 fn at(node: [u8; 32], hint: &Hint) -> EndpointAddr {
     EndpointAddr::from_parts(EndpointId::from_bytes(&node).unwrap(), hint.addresses.iter().map(|a| TransportAddr::Ip(a.parse().unwrap())))
 }
@@ -1098,6 +1108,7 @@ async fn a_link_helper_is_asked_nothing_on_port_80() {
 mod cost {
     use super::*;
 
+    /// The node's own count of its traffic so far.
     async fn counted(dev: &Dev) -> (u64, u64, u64) {
         dev.node.traffic().expect("it is up")
     }

@@ -605,6 +605,8 @@ class Switchboard {
   /// The packets being passed on now, by tag ([_passOn]).
   final Set<String> _passing = {};
 
+  /// What a route brought: parsed, held to whom the route vouches sent it, joined where it came in parts, opened, and
+  /// handed to whoever listens.
   Future<void> _arrived(Arrived a) async {
     final parsed = Packet.parse(a.bytes);
     // From this install's own name: only another device of the same account (a copy, GMFB-21), sealed with the

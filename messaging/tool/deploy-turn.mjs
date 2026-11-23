@@ -40,6 +40,7 @@ const MAX_PORT = 49400;
 const PUBLIC_IP = '149.248.47.151';
 const args = process.argv.slice(2);
 const printOnly = args.includes('--print');
+// Says what is wrong and ends the script; and the value after --name on the command line, or null.
 const fail = (message) => {
   console.error(`x ${message}`);
   process.exit(1);

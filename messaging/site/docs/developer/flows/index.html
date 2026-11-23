@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>How the parts work together · Ghost Messaging developer docs</title>
-<meta name="description" content="Five things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, and adding a plugin.">
+<meta name="description" content="Things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, adding a plugin, and more.">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
 <link rel="stylesheet" href="/docs/docs.css">
@@ -29,8 +29,8 @@
   <main id="main" class="page">
     <div class="crumb">The source</div>
     <h1>How the parts work together</h1>
-    <p class="lede">Five things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, and adding a plugin.</p>
-    <p>The quickest way into the source is to follow one thing through it. Here are five, each from the tap to the wire, naming the file at every step. <a href="/docs/developer/architecture/">How the app is built</a> says what each part is.</p>
+    <p class="lede">Things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, adding a plugin, and more.</p>
+    <p>The quickest way into the source is to follow one thing through it. Here are several, each from the tap to the wire, naming the file at every step. <a href="/docs/developer/architecture/">How the app is built</a> says what each part is.</p>
 
 <h2 id="sms">Sending a text</h2>
 <p>On an Android phone where Ghost Messaging is the texting app.</p>
@@ -41,25 +41,70 @@
 <li class="step"><div class="step-body"><h3>Android's database, then the radio</h3><p><code>Store.kt</code> writes the message to Android's own database, and Android's <code>SmsManager</code> sends it. Reports of sent and delivered come back to <code>SmsStatusReceiver</code>.</p></div></li>
 <li class="step"><div class="step-body"><h3>The screen hears</h3><p><code>Bus.changed</code> sends an event up <code>ghost_messaging/events</code>; <code>Sms.instance.changes</code> fires and the thread and list read again.</p></div></li>
 </ol>
-<p>A text arriving runs the other way: <code>SmsDeliverReceiver</code> in <code>Messaging.kt</code> writes it, <code>Notifier.kt</code> shows it, paired computers are told, and the screen hears the same event.</p>
+<p>A text arriving runs the other way: <code>SmsDeliverReceiver</code> in <code>Messaging.kt</code> writes it, <code>Notifier.kt</code> shows it (unless the list hides that kind of text: <code>NotifyHush.kt</code>), paired computers are told, and the screen hears the same event.</p>
 
 <h2 id="hub">A message to a friend</h2>
 <ol class="steps">
 <li class="step"><div class="step-body"><h3>Kept first</h3><p><code>Friends.sendText</code> (<code>lib/friends/friends.dart</code>) stores the message where the person's texts are, so it is in the conversation whether or not it has gone.</p></div></li>
 <li class="step"><div class="step-body"><h3>Into an envelope</h3><p>An <code>Envelope</code> of kind <code>text</code> goes to <code>Net.send</code> (<code>lib/net/net.dart</code>), and on to <code>Switchboard.send</code>.</p></div></li>
-<li class="step"><div class="step-body"><h3>Sealed and routed</h3><p>The switchboard (<code>lib/net/switchboard.dart</code>) seals the envelope with the key the two installs share, wraps it as a packet, and tries the routes in order. A message isn't allowed to cost money, so the SMS route is passed over and the hub is tried.</p></div></li>
-<li class="step"><div class="step-body"><h3>Through the hub</h3><p><code>HubCarrier.send</code> (<code>lib/net/hub_carrier.dart</code>) hands it to the relay's hub (<code>relay/lib/hub.dart</code>), which passes it to the friend's connected devices, or keeps it and says so.</p></div></li>
-<li class="step"><div class="step-body"><h3>Answered, or waited for</h3><p>Passed on, the sender waits a few seconds for the other app's answer and marks the message delivered. Kept, it is marked sent, and the friend's closed app is woken: an Android phone by an empty data text (at most one every ten minutes), an iPhone by a push from <code>relay/lib/pushes.dart</code>.</p></div></li>
-<li class="step"><div class="step-body"><h3>On the other side</h3><p>The packet arrives at <code>Switchboard</code>, which joins its parts, opens it, drops it if it has been seen before, and answers. <code>Friends</code> stores it, and the conversation changes.</p></div></li>
+<li class="step"><div class="step-body"><h3>Sealed</h3><p>The switchboard (<code>lib/net/switchboard.dart</code>) adds this device's prekey to the envelope. Where the friend's devices have offered prekeys of their own it seals the envelope for forward secrecy: <code>ForwardSecrecy.sealAway</code> (<code>lib/net/forward_secrecy.dart</code>) makes a key pair for this packet alone and wraps the envelope's key for each of their devices. Otherwise it seals with the key the two installs share. Either way the result is wrapped as a packet (<code>lib/net/packet.dart</code>).</p></div></li>
+<li class="step"><div class="step-body"><h3>Routed</h3><p>The routes are tried in order. A message isn't allowed to cost money, so the SMS route is passed over and the hub comes first. <a href="#route">The next section</a> says how the choice is made.</p></div></li>
+<li class="step"><div class="step-body"><h3>Through the hub</h3><p><code>HubCarrier.send</code> (<code>lib/net/hub_carrier.dart</code>) hands it to the relay's hub (<code>relay/lib/hub.dart</code>), which passes it to the friend's connected devices, or keeps it and says so. Where nobody of that name is on this relay and the friend's home record names another, the hub gives it to <code>Federation.pass</code> (<code>relay/lib/federation.dart</code>), and that relay hands it on or keeps it as its own.</p></div></li>
+<li class="step"><div class="step-body"><h3>Answered, or waited for</h3><p>Passed on, the sender waits a few seconds for the other app's answer and marks the message delivered. Kept, it is marked sent, and the friend's closed app is woken: an Android phone by an empty data text (at most one every ten minutes), an iPhone by a push from <code>relay/lib/pushes.dart</code>. <code>Friends</code> sends again what stays unanswered.</p></div></li>
+<li class="step"><div class="step-body"><h3>On the other side</h3><p>The packet arrives at <code>Switchboard</code>, which joins its parts, opens it (a forward-secret one with the prekey it names), drops it if it has been seen before, and answers. A device that can't open it, because it was sealed for another device of the account, passes it on unopened to the account's own name. <code>Friends</code> stores it, and the conversation changes.</p></div></li>
+</ol>
+
+<h2 id="route">The hub or a direct link</h2>
+<p>How <code>Switchboard.send</code> chooses between the relay and <a href="/docs/developer/architecture/#direct">the direct route</a>, where a build has the direct route's core.</p>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>The candidates</h3><p><code>Switchboard.routes</code> takes the routes in the person's order (the hub, then Direct, then SMS, where they chose none) and leaves out any that is switched off, not up, doesn't reach this person, can't hold the packet, or costs money for something not worth it. <code>P2pCarrier.reaches</code> is true only where Direct is on and an unexpired device card is held for one of their devices.</p></div></li>
+<li class="step"><div class="step-body"><h3>The hub first</h3><p>The hub takes the packet and says one of two things: passed on, or kept. Passed on, the answer from the other app is waited for, and that is the end of it.</p></div></li>
+<li class="step"><div class="step-body"><h3>Kept: only by a link already open</h3><p>Kept means they are away from the relay. The direct route is then given the packet only where a stream to one of their devices is open right now (<code>LiveLinks.linked</code>), by that stream and without waiting. Nothing is dialled and no node is started for someone who is away. The same holds where the hub passed the packet on and no answer came in time.</p></div></li>
+<li class="step"><div class="step-body"><h3>The hub can't take it: dial</h3><p>Where the hub is down or refuses the packet, the switchboard goes on to Direct. <code>P2pCarrier.send</code> (<code>lib/net/p2p/p2p_carrier.dart</code>) starts the node if it is a phone's, and sends to every device a card is held for: on an open stream, else dialled by where that device last said it was, five seconds for all of it. Where another route can still carry an envelope, <code>P2p.meet</code> also asks the device to bring its node up and say where it is now. Passed if one device took it; otherwise it throws and the switchboard tries the next route.</p></div></li>
+<li class="step"><div class="step-body"><h3>Whose stream it is</h3><p>A stream opens with each end's nonce, then each end's proof: an HMAC under a key only the two accounts' devices hold, over both accounts, both node ids and both nonces. Until the proof has come nothing is sent or taken. What arrives after is taken as from the account whose card names that node, as the hub's stamp is.</p></div></li>
+<li class="step"><div class="step-body"><h3>Written down</h3><p>The switchboard tells the ledger (<code>lib/net/ledger.dart</code>) which route took the packet and what the route said. The next time a direct stream to that friend opens, the two ledgers compare, and anything the relay said it passed that never came is sent again straight.</p></div></li>
+</ol>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>Where this runs</b>Tests run all of it against a stand-in node (<code>test/support/fake_p2p.dart</code>). In an app, steps three to six happen only once a build gives <code>Net.p2pNode</code> a node; until then the hub is followed by SMS alone.</div></aside>
+
+<h2 id="elsewhere">Adding a friend on another relay</h2>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>The name is split</h3><p><code>Buddies.add</code> (<code>lib/friends/buddies.dart</code>) takes <code>maya@relay.example</code> apart. A name with no relay, or with this app's own, is asked of its own relay's directory as ever.</p></div></li>
+<li class="step"><div class="step-body"><h3>Asked through its own relay</h3><p><code>Homes.whois</code> (<code>lib/net/homes.dart</code>) asks the app's relay, which asks the other over a link between the two (<code>relay/lib/federation.dart</code>). The answer is their name, key and home record.</p></div></li>
+<li class="step"><div class="step-body"><h3>Or asked directly</h3><p>Where the app's relay links with nobody, or couldn't reach that one, <code>whoisAt</code> (<code>lib/net/relay_ask.dart</code>) dials the other relay's hub itself, signed in under a key made for this one question and thrown away. Nothing of the account goes there.</p></div></li>
+<li class="step"><div class="step-body"><h3>The record is checked</h3><p><code>HomeRecord.check</code> (<code>lib/net/home_record.dart</code>) holds the record to the key it came with: the name is the key's, the signature is the key's. With no record, or a relay that passes nothing on, the app says they can't be reached and sends nothing.</p></div></li>
+<li class="step"><div class="step-body"><h3>The request goes</h3><p>The friend request is an ordinary sealed envelope to their name. The app's hub finds nobody of that name connected, sees their record names another relay, and passes the packet there. The other relay takes it because the sender's own record names the relay it came from.</p></div></li>
+<li class="step"><div class="step-body"><h3>Records kept in step</h3><p>The two friends send each other their own home records in sealed <code>home</code> envelopes, and again whenever one moves. A friend's app follows the record with the highest count.</p></div></li>
 </ol>
 
 <h2 id="call">Joining a call in a space</h2>
 <ol class="steps">
 <li class="step"><div class="step-body"><h3>Allowed?</h3><p><code>Voice.join</code> (<code>lib/voice/channels.dart</code>) checks the hub is reachable and the circle's roles allow voice, and leaves any call already on.</p></div></li>
 <li class="step"><div class="step-body"><h3>The microphone</h3><p><code>RtcMedia</code> (<code>lib/voice/rtc.dart</code>) opens it, with noise removal from <code>native/voicefx</code> in the capture path. On Android a foreground service (<code>CallService.kt</code>) keeps the call alive with the screen off.</p></div></li>
-<li class="step"><div class="step-body"><h3>Into the room</h3><p><code>VoiceSession.join</code> (<code>lib/voice/voice.dart</code>) joins the space's room on the hub with the name and token made from the space's seed. The hub answers with who is there.</p></div></li>
+<li class="step"><div class="step-body"><h3>Into the room</h3><p><code>VoiceSession.join</code> (<code>lib/voice/voice.dart</code>) joins the space's room on the hub with the name and token made from the space's seed. The hub answers with who is there, and, where the relay has a TURN server, a username and password for it that stop working after a while (<code>relay/lib/turn.dart</code>; kept as <code>HubCarrier.callRelay</code>).</p></div></li>
 <li class="step"><div class="step-body"><h3>An offer to each</h3><p>The newcomer makes a WebRTC connection to each member and says an offer in the room, sealed with the space's key. Each answers, and both sides exchange candidates the same way.</p></div></li>
-<li class="step"><div class="step-body"><h3>Sound, between the members</h3><p>From there the call's sound and picture go between the members' devices. The hub carried the setup and carries none of the call.</p></div></li>
+<li class="step"><div class="step-body"><h3>A path is found</h3><p>Each connection is given the public STUN servers and the TURN server (<code>RtcMedia.iceServers</code>). Where a TURN server was handed out the connection starts through it alone, which connects whatever routers are between the two; if that fails, the side that offered starts over trying every path at once (<code>FallbackMedia</code>, <code>VoiceSession._failed</code>). With none handed out, it is direct paths only.</p></div></li>
+<li class="step"><div class="step-body"><h3>Sound, between the members</h3><p>From there the call's sound and picture go between the members' devices, or through the TURN server, which passes packets it can't open. The hub carried the setup and carries none of the call.</p></div></li>
+</ol>
+
+<p>Ringing one friend is the same call with no space made: <code>FriendCalls.call</code> (<code>lib/voice/friend_calls.dart</code>) makes the call's seed from the two friends' names, joins it, and sends a sealed <code>voice</code> envelope by the routes. Every device of the friend's rings (on Android through <code>IncomingCall.kt</code>); the one that answers tells the account's other devices to stop.</p>
+
+<h2 id="web">Signing in from a browser</h2>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>The page starts</h3><p><code>lib/web/main.dart</code> hands over to <code>lib/web/app.dart</code>, which makes sure it is the only tab of itself, by the browser's own lock, and opens the page's store (<code>lib/web/browser.dart</code>, <code>browser_web.dart</code>).</p></div></li>
+<li class="step"><div class="step-body"><h3>The same calls as a computer of its own</h3><p><code>StandaloneCalls.on(WebStandaloneStore(…))</code> becomes <code>Sms.calls</code>. The hub's address is the one the build names, or <code>/hub</code> beside the page (<code>hubFor</code>).</p></div></li>
+<li class="step"><div class="step-body"><h3>Username and password</h3><p><code>Account.signInWithPassword</code> (<code>lib/account/account.dart</code>) asks the relay for the account's salt and settings, stretches the password with Argon2id on a worker (<code>web/argon2id.js</code>, through <code>lib/account/argon2_browser.dart</code>), and fetches the sealed backup with the proof, as any new device does.</p></div></li>
+<li class="step"><div class="step-body"><h3>Kept, sealed</h3><p><code>WebStandaloneStore</code> (<code>lib/web/store.dart</code>) writes the identity, the conversations and every secret to IndexedDB, each record sealed under a key the browser made as not extractable. The recovery words and the password's key are not kept.</p></div></li>
+<li class="step"><div class="step-body"><h3>The network starts</h3><p><code>startPeople</code> (<code>lib/people.dart</code>) starts the routes, friends, groups, spaces and circles. The hub's connection is the browser's own WebSocket (<code>lib/net/hub_link_web.dart</code>); there is no direct route and no SMS route.</p></div></li>
+<li class="step"><div class="step-body"><h3>Signing out</h3><p>The whole database is deleted, its key with it, and the page asks its server for <code>Clear-Site-Data</code> (<code>relay/lib/web_app.dart</code> answers it at <code>/app/clear-site-data</code>). A browser removed from the account on another device does the same when it next hears of it.</p></div></li>
+</ol>
+
+<h2 id="cookies">Signing in to a network with browser cookies</h2>
+<p>Messenger, Instagram, Discord, X and Slack.</p>
+<ol class="steps">
+<li class="step"><div class="step-body"><h3>The helper starts</h3><p><code>AccountHelper</code> (<code>lib/inbox/account_helper.dart</code>) starts that network's helper program with a folder of its own and reads its <code>ready</code> event from its output.</p></div></li>
+<li class="step"><div class="step-body"><h3>The cookies arrive</h3><p>Pasted: the person copies a request from the browser's developer tools, and <code>cookiesIn</code> (<code>lib/inbox/cookie_paste.dart</code>) keeps only the cookies that service needs; <code>tokenIn</code> reads Discord's or Slack's token. Or synced: <a href="/docs/browser-extension/">the extension</a> sealed them and kept them on the relay, and <code>CurlSync</code> (<code>lib/inbox/curl_sync.dart</code>) opens them on this device.</p></div></li>
+<li class="step"><div class="step-body"><h3>sign_in</h3><p>The app writes one line of JSON, <code>{"id": …, "op": "sign_in", "cookies": {…}}</code>, to the helper's input. The helper connects to the service as the website would and answers with who it is signed in as.</p></div></li>
+<li class="step"><div class="step-body"><h3>Chats and messages</h3><p>The helper sends <code>chat</code> and <code>message</code> events as lines; <code>AccountHelper</code> turns them into <code>InboxChat</code> and <code>InboxMessage</code>, and they join the list. <code>sidecar/ACCOUNT_HELPERS.md</code> lists every request and event.</p></div></li>
 </ol>
 
 <h2 id="pair">Pairing a computer</h2>
@@ -83,7 +128,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/developer/architecture/"><small>Previous</small>How the app is built</a><a class="next" href="/docs/developer/build/"><small>Next</small>Build, test and run it</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#sms">Sending a text</a><a href="#hub">A message to a friend</a><a href="#call">Joining a call in a space</a><a href="#pair">Pairing a computer</a><a href="#plugin">Adding a Marketplace plugin</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#sms">Sending a text</a><a href="#hub">A message to a friend</a><a href="#route">The hub or a direct link</a><a href="#elsewhere">Adding a friend on another relay</a><a href="#call">Joining a call in a space</a><a href="#web">Signing in from a browser</a><a href="#cookies">Signing in to a network with browser cookies</a><a href="#pair">Pairing a computer</a><a href="#plugin">Adding a Marketplace plugin</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

@@ -8,6 +8,7 @@ Map<String, String> cookiesIn(String pasted, {Set<String> names = const {}}) {
   final text = pasted.trim();
   final found = <String, String>{};
   bool wanted(String name) => names.isEmpty || names.contains(name);
+  // Takes the wanted cookies out of `name=value; name=value`.
   void take(String pairs) {
     for (final part in pairs.split(';')) {
       final i = part.indexOf('=');

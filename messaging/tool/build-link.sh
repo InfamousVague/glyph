@@ -22,6 +22,7 @@ out="$root/build/link"
 src="$out/src/iroh-relay-$version"
 want=${1:-server}
 case "$want" in server | host) ;; *) echo "x tool/build-link.sh [server|host]"; exit 1 ;; esac
+# A file's SHA-256, by whichever of the two tools this machine has (Linux's, or the Mac's).
 sum() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
 # The source: the crate file as crates.io serves it, unpacked afresh each time, so what is built is what was checked.
@@ -38,6 +39,8 @@ tar -xzf "$crate" -C "$out/src"
 # Its symbols are left out (a third smaller), and the paths in it are not this machine's.
 export CARGO_PROFILE_RELEASE_STRIP=symbols
 export RUSTFLAGS="--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}/registry/src/=/crates.io/ --remap-path-prefix=$out/src/=/"
+# Builds the server program with the command given (cargo build, or cargo zigbuild and its target), by the crate's
+# own Cargo.lock and nothing newer.
 build() { (cd "$src" && "$@" --locked --release --features server --bin iroh-relay --target-dir "$out/target"); }
 keep() { # the program built, and where it goes
   mkdir -p "$(dirname "$2")"

@@ -110,7 +110,7 @@ export const developer = [
     pages: [
       { slug: 'developer', icon: 'braces', title: 'Developer docs', summary: 'For people reading, building or scripting Ghost Messaging: how it is built, and both of its APIs.' },
       { slug: 'developer/architecture', icon: 'network', title: 'How the app is built', summary: 'The major parts of Ghost Messaging, where each lives in the source, and what it talks to.' },
-      { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Five things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, and adding a plugin.' },
+      { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, adding a plugin, and more.' },
       { slug: 'developer/build', icon: 'terminal', title: 'Build, test and run it', summary: 'Running the app and the relay from source, the tests, the scripts, and how the code is commented.' },
     ],
   },

@@ -37,12 +37,15 @@
 
 namespace {
 
+// The microphone's rate; what the encoder makes of a second; how many blocks the microphone fills in turn, and how
+// long each is (a twentieth of a second); and the longest a message may be whatever it may weigh.
 constexpr int kRate = 48000;
 constexpr int kBytesPerSecond = 12000;  // 96 kbit/s
 constexpr int kBlocks = 4;
 constexpr int kBlockFrames = kRate / 20;
 constexpr int kMostSeconds = 600;
 
+// Windows' wide text as UTF-8, for the paths the encoder is given.
 std::string Utf8(const std::wstring& wide) {
   if (wide.empty()) return {};
   int size = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
@@ -51,6 +54,8 @@ std::string Utf8(const std::wstring& wide) {
   return out;
 }
 
+// One voice message being recorded: the open microphone, a thread that takes each block as it fills, and the samples
+// kept so far.
 class Recording {
  public:
   ~Recording() { Close(); }
@@ -98,6 +103,7 @@ class Recording {
 
   // Closes the microphone; the samples it kept.
   std::vector<int16_t> Close() {
+    // The pump is woken to see it has been stopped, and waited for, before the blocks it reads are taken away.
     if (running_.exchange(false)) {
       SetEvent(event_);
       if (pump_.joinable()) pump_.join();
@@ -121,6 +127,8 @@ class Recording {
   }
 
  private:
+  // On its own thread: waits for Windows' word that a block is full (or a fifth of a second), takes every full
+  // block, and hands each back to be filled again.
   void Pump() {
     while (running_.load()) {
       WaitForSingleObject(event_, 200);
@@ -134,6 +142,8 @@ class Recording {
     }
   }
 
+  // One block's samples: the loudest of them is noted even once the recording is full, so the level still moves;
+  // the samples are kept only while there is room.
   void Take(WAVEHDR& h) {
     const auto* p = reinterpret_cast<const int16_t*>(h.lpData);
     const size_t n = h.dwBytesRecorded / 2;
@@ -162,8 +172,10 @@ class Recording {
   bool full_ = false;
 };
 
+// The recording under way, if any: one at a time.
 std::unique_ptr<Recording> g_recording;
 
+// The "bytes" argument of a call: how much a message may weigh, or 0 where it is not said.
 int BytesOf(const flutter::EncodableValue* args) {
   if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
     auto it = map->find(flutter::EncodableValue("bytes"));

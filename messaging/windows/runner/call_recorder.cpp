@@ -42,8 +42,10 @@
 
 namespace {
 
+// The rate every voice's file is written at, whatever rate its sound comes in.
 constexpr int kRate = 48000;
 
+// UTF-8 as Windows' own wide text, for its file calls.
 std::wstring Wide(const std::string& s) {
   if (s.empty()) return std::wstring();
   int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
@@ -55,6 +57,7 @@ std::wstring Wide(const std::string& s) {
 // One voice's file.
 class Track {
  public:
+  // Opens the file to write, making its folder where that is missing (one level only).
   explicit Track(const std::string& path) {
     std::wstring w = Wide(path);
     size_t slash = w.find_last_of(L"\\/");
@@ -65,6 +68,7 @@ class Track {
 
   bool ok() const { return file_ != nullptr; }
 
+  // How many samples the file holds so far.
   int64_t written() {
     std::lock_guard<std::mutex> lock(mutex_);
     return written_;
@@ -78,10 +82,13 @@ class Track {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!file_) return;
     const int n = static_cast<int>(static_cast<int64_t>(frames) * kRate / rate);
+    // More than a tenth of a second behind the clock, the gap is filled with silence first; more than that ahead
+    // of it, the block is dropped. Within it, the block goes on the end as it is.
     if (due - written_ > kRate / 10) PadLocked(due - n);
     if (written_ - due > kRate / 10) return;
     const int ch = std::max(1, channels);
     std::vector<int16_t> out(static_cast<size_t>(n));
+    // To 48 kHz by a straight line between the two samples either side, and to mono by the channels' average.
     for (int i = 0; i < n; i++) {
       double pos = static_cast<double>(i) * rate / kRate;
       int a = std::min(static_cast<int>(pos), frames - 1);
@@ -96,6 +103,7 @@ class Track {
     written_ += n;
   }
 
+  // Silence up to sample [to], where the file is shorter.
   void Pad(int64_t to) {
     std::lock_guard<std::mutex> lock(mutex_);
     PadLocked(to);
@@ -129,6 +137,7 @@ class Track {
 std::atomic<int64_t> g_started{0};  // steady_clock microseconds at the start; 0 while not recording
 std::atomic<bool> g_muted{false};
 
+// A clock that never goes back, in microseconds.
 int64_t NowMicros() {
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
@@ -144,6 +153,8 @@ int64_t Due() {
 class Sink : public libwebrtc::AudioTrackSink {
  public:
   explicit Sink(std::shared_ptr<Track> track) : track_(std::move(track)) {}
+  // A block of their sound, on WebRTC's audio thread: 16-bit whole numbers, or 32-bit floats from -1 to 1 brought
+  // to the 16-bit scale. Any other width is not written.
   void OnData(const void* audio_data, int bits_per_sample, int sample_rate, size_t number_of_channels, size_t number_of_frames) override {
     if (!audio_data || g_started.load() == 0) return;
     const int ch = static_cast<int>(number_of_channels);
@@ -161,17 +172,20 @@ class Sink : public libwebrtc::AudioTrackSink {
   std::shared_ptr<Track> track_;
 };
 
+// Someone else in the call: their file, their WebRTC track, and the sink on it (none once they are unhooked).
 struct Other {
   std::shared_ptr<Track> track;
   libwebrtc::scoped_refptr<libwebrtc::RTCAudioTrack> rtc;
   std::unique_ptr<Sink> sink;
 };
 
+// What a recording holds, under [g_mutex]: this device's own voice, and everyone else by the key Dart names them by.
 std::mutex g_mutex;
 std::shared_ptr<Track> g_mic;
 std::map<std::string, Other> g_others;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 
+// The audio track flutter_webrtc holds under [id]; null where there is none, or it is not sound.
 libwebrtc::scoped_refptr<libwebrtc::RTCAudioTrack> RemoteAudio(const std::string& id) {
   auto* webrtc = FlutterWebRTCPluginSharedInstance();
   if (!webrtc) return nullptr;
@@ -181,12 +195,16 @@ libwebrtc::scoped_refptr<libwebrtc::RTCAudioTrack> RemoteAudio(const std::string
   return libwebrtc::scoped_refptr<libwebrtc::RTCAudioTrack>(static_cast<libwebrtc::RTCAudioTrack*>(track.get()));
 }
 
+// Takes the sink off their track; their file stays open, to be filled to the end at the stop.
 void Unhook(Other& o) {
   if (o.rtc && o.sink) o.rtc->RemoveSink(o.sink.get());
   o.rtc = nullptr;
   o.sink.reset();
 }
 
+// Starts recording someone: a sink on their track [id], writing to [path]. Someone already known by [key] (their
+// track changed, or they left and came back) keeps the file they had. False where nothing is recording, the track is
+// not found, or the file can't be opened.
 bool Add(const std::string& key, const std::string& id, const std::string& path) {
   std::lock_guard<std::mutex> lock(g_mutex);
   if (g_started.load() == 0) return false;
@@ -210,6 +228,7 @@ bool Add(const std::string& key, const std::string& id, const std::string& path)
   return true;
 }
 
+// Stops hearing someone who left; what was written of them is kept.
 void Remove(const std::string& key) {
   std::lock_guard<std::mutex> lock(g_mutex);
   auto it = g_others.find(key);
@@ -239,6 +258,7 @@ flutter::EncodableMap StopAll() {
   return counts;
 }
 
+// Returns from Encode with [what] and the failure's number where [hr] failed.
 #define CHECK(hr, what)                  \
   do {                                   \
     if (FAILED(hr)) {                    \
@@ -248,6 +268,7 @@ flutter::EncodableMap StopAll() {
     }                                    \
   } while (0)
 
+// Lets go of a COM object and forgets it; nothing where there is none.
 template <typename T>
 void Free(T*& p) {
   if (p) p->Release();
@@ -262,6 +283,7 @@ std::string Encode(const std::string& in, const std::string& out, int bytes_per_
   IMFSinkWriter* writer = nullptr;
   IMFMediaType* target = nullptr;
   IMFMediaType* given = nullptr;
+  // Closes the file and lets go of the writer and both types, however this returns.
   struct Done {
     FILE* f;
     IMFSinkWriter*& w;
@@ -284,6 +306,7 @@ std::string Encode(const std::string& in, const std::string& out, int bytes_per_
   target->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
   target->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, kRate);
   target->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 1);
+  // The rate asked for: 128 kbit/s (16000 bytes a second) only where the caller names no other.
   target->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, bytes_per_second);  // 128 kbit/s for a call, as on the Mac
   DWORD stream = 0;
   hr = writer->AddStream(target, &stream);
@@ -324,6 +347,7 @@ std::string Encode(const std::string& in, const std::string& out, int bytes_per_
     }
     sample->AddBuffer(mb);
     const LONGLONG frames = static_cast<LONGLONG>(n / 2);
+    // Media Foundation's times are in units of 100 nanoseconds.
     sample->SetSampleTime(at * 10000000 / kRate);
     sample->SetSampleDuration(frames * 10000000 / kRate);
     hr = writer->WriteSample(stream, sample);
@@ -337,6 +361,7 @@ std::string Encode(const std::string& in, const std::string& out, int bytes_per_
   return std::string();
 }
 
+// A call's argument by name, and as text or a yes/no: null, empty or false where it is missing or another type.
 const flutter::EncodableValue* Arg(const flutter::EncodableMap* args, const char* name) {
   if (!args) return nullptr;
   auto it = args->find(flutter::EncodableValue(name));
@@ -380,6 +405,7 @@ void RegisterCallRecorder(flutter::BinaryMessenger* messenger) {
     const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
     const std::string& m = call.method_name();
     if (m == "start") {
+      // Any recording still going is ended first. The clock starts only if this device's own file could be opened.
       StopAll();
       auto mic = std::make_shared<Track>(Str(args, "mic"));
       {
@@ -400,6 +426,7 @@ void RegisterCallRecorder(flutter::BinaryMessenger* messenger) {
     } else if (m == "stop") {
       result->Success(flutter::EncodableValue(StopAll()));
     } else if (m == "encode") {
+      // On a thread of its own, with Media Foundation started there; the answer goes back on the app's thread.
       std::string in = Str(args, "in"), out = Str(args, "out");
       std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> held(result.release());
       std::thread([in, out, held] {

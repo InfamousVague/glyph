@@ -26,6 +26,7 @@ import 'plugin.dart';
 import 'registry.dart';
 import 'ui.dart' show PluginNote;
 
+/// The plugin: its switch, and a switch for each network it guards.
 class HumanCheckPlugin extends GhostPlugin {
   const HumanCheckPlugin();
 
@@ -191,6 +192,7 @@ class HeldPage extends StatelessWidget {
   Widget build(BuildContext context) => GhostPage(title: 'Held', body: HeldList(check: check, inbox: inbox));
 }
 
+/// The page's list: a row for each held chat with where it stands under it, drawn again as the held chats change.
 class HeldList extends StatelessWidget {
   const HeldList({super.key, required this.check, required this.inbox});
   final HumanCheck check;
@@ -228,6 +230,7 @@ class HeldList extends StatelessWidget {
               if (held.isEmpty) const PluginNote('Nothing is held.'),
               for (final h in held)
                 Builder(builder: (context) {
+                  // The network no longer lists the chat (it is away): a row from what was kept as it was held.
                   final chat = h.chat ?? InboxChat(network: h.network.id, id: h.id, title: h.record.title.isEmpty ? 'Someone new' : h.record.title, date: DateTime.fromMillisecondsSinceEpoch(h.record.at));
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     InboxChatRow(key: ValueKey('humancheck-held-${h.network.id}:${h.id}'), chat: chat, onPress: () => _choose(context, h, chat)),

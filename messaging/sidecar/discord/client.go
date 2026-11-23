@@ -53,6 +53,8 @@ type client interface {
 // newClient makes the client for a token; the tests replace it. Nothing is asked of Discord yet.
 var newClient = newDiscordClient
 
+// discordClient is the real client: a discordgo session signed in as the person. uploadID counts this run's
+// uploads: each file is named to Discord by the next number.
 type discordClient struct {
 	s *discordgo.Session
 	// For uploads and downloads, which may outlast the API client's 20 seconds.
@@ -60,6 +62,8 @@ type discordClient struct {
 	uploadID atomic.Int64
 }
 
+// newDiscordClient makes the session for a person's token: [hb] is the heartbeat session kept from the last run (nil
+// for none), [handler] is called with every gateway event. A bot's token is refused.
 func newDiscordClient(token string, hb *discordgo.HeartbeatSession, handler func(any)) (client, error) {
 	s, err := discordgo.New(token)
 	if err != nil {
@@ -106,6 +110,8 @@ func discordLogger(level, _ int, format string, a ...any) {
 	}
 }
 
+// Open loads Discord's page and then connects the gateway. A connection Discord drops at once is tried three more
+// times, five seconds apart; one closed with 4004 is errBadToken.
 func (c *discordClient) Open() error {
 	// As Discord's website does first: its page, which says the gateway's address and the app's build number.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -134,6 +140,7 @@ func (c *discordClient) Me() *discordgo.User {
 	return c.s.State.User
 }
 
+// PrivateChannels is a copy of the list, for the caller to keep while the gateway goes on changing its own.
 func (c *discordClient) PrivateChannels() []*discordgo.Channel {
 	c.s.State.RLock()
 	defer c.s.State.RUnlock()
@@ -221,6 +228,7 @@ func (c *discordClient) Upload(ctx context.Context, ch chatRef, name, mime strin
 	return prep.Attachments[0].UploadFilename, nil
 }
 
+// React adds the person's own reaction to a message, or takes it off.
 func (c *discordClient) React(ctx context.Context, ch chatRef, message, emoji string, remove bool) error {
 	if remove {
 		return c.s.MessageReactionRemoveUser(ch.Guild, ch.Channel, message, emoji, "@me", discordgo.WithContext(ctx))
@@ -232,6 +240,7 @@ func (c *discordClient) Delete(ctx context.Context, ch chatRef, message string) 
 	return c.s.ChannelMessageDelete(ch.Channel, message, opts(ctx, ch)...)
 }
 
+// Ack marks a channel read up to [message].
 func (c *discordClient) Ack(ctx context.Context, ch chatRef, message string) error {
 	_, err := c.s.ChannelMessageAckNoToken(ch.Channel, message, opts(ctx, ch)...)
 	return err
@@ -241,6 +250,8 @@ func (c *discordClient) User(ctx context.Context, id string) (*discordgo.User, e
 	return c.s.User(id, discordgo.WithContext(ctx))
 }
 
+// Get fetches a file with the headers Discord's app sends for one, and without the token. Any answer but 200 is a
+// statusError; a file past [limit] is an error, once [limit]+1 bytes of it have been written.
 func (c *discordClient) Get(ctx context.Context, url string, w io.Writer, limit int64) error {
 	r, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -279,6 +290,8 @@ func compileTransport(onlyHTTP1 bool) http.RoundTripper {
 	return c.Transport
 }
 
+// forceHTTP1ChromeFingerprint makes [c] shake hands as Chrome 120 does but for two things: it offers HTTP/1.1 alone,
+// and leaves out the application settings extension, which belongs to HTTP/2.
 func forceHTTP1ChromeFingerprint(c *req.Client) {
 	c.SetTLSHandshake(func(ctx context.Context, addr string, plainConn net.Conn) (net.Conn, *tls.ConnectionState, error) {
 		hostname := addr

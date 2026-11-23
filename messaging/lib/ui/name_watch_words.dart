@@ -22,6 +22,7 @@ String ownNameWords(NameChange c) => switch (c.kind) {
       _ => '@${c.username} now belongs to another account on this relay',
     };
 
+/// The line under [ownNameWords]: the ordinary reason for each kind, and what can be done.
 String ownNameHint(NameChange c) => switch (c.kind) {
       NameKind.old => 'It stays with the key this device had before you made a new one, and can\'t be moved to this key. To have a username on this key, choose one in Profile.',
       NameKind.changed => 'Your key holds a different username on this relay now: you may have changed it on another of your devices.',

@@ -284,6 +284,8 @@ class HubCarrier implements Carrier {
     if (_awaySaid != wasAway) _ws?.say(jsonEncode({'away': _awaySaid}));
   }
 
+  /// What the hub is told: away where the app is put away or the person chose Away; and of the modes only busy and
+  /// invisible, online for the rest.
   bool get _awaySaid => _awayNow || _mode == 'away';
   String get _hubMode => _mode == 'busy' || _mode == 'invisible' ? _mode : 'online';
 
@@ -416,6 +418,7 @@ class HubCarrier implements Carrier {
     ws.said.listen((data) => _said(ws, data), onDone: () => _gone(ws), onError: (_) => _gone(ws), cancelOnError: true);
   }
 
+  /// The connection [ws] ended; nothing where it is no longer the one in use.
   void _gone(HubLink ws) {
     if (!identical(_ws, ws)) return;
     _drop('the connection was lost');
@@ -434,6 +437,8 @@ class HubCarrier implements Carrier {
     _again = Timer(wait, _connect);
   }
 
+  /// What the hub said on [ws]: bytes are a packet, by their first byte (1 to this account, 2 in a room, 4 a room's
+  /// reaction); words are the hub's own, as JSON.
   Future<void> _said(HubLink ws, Object data) async {
     if (!identical(_ws, ws)) return;
     if (_ready) heardAt = _now().millisecondsSinceEpoch;

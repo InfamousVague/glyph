@@ -1,9 +1,9 @@
 import 'circle.dart';
 
-/// Slow mode (Matt, 2026-11-19: "add ... slow mode" as a default feature): a circle's space can let each person write
-/// only once in so many seconds, as a Discord channel's slow mode does. It is the space's in the circle's signed list
-/// (`CircleSpace.extra['slow']`: the seconds), so whoever manages spaces sets it and every member's app keeps to it;
-/// those who manage spaces are not held by it. A build from before passes over the key.
+// Slow mode (Matt, 2026-11-19: "add ... slow mode" as a default feature): a circle's space can let each person write
+// only once in so many seconds, as a Discord channel's slow mode does. It is the space's in the circle's signed list
+// (`CircleSpace.extra['slow']`: the seconds), so whoever manages spaces sets it and every member's app keeps to it;
+// those who manage spaces are not held by it. A build from before passes over the key.
 
 /// The waits a space can have, in seconds; 0 is off.
 const slowModeChoices = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];

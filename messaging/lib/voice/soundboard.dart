@@ -53,10 +53,14 @@ class BoardSound {
   final SpaceFile? file;
 
   bool get builtIn => file == null;
+
+  /// Where one of the app's own is, among the app's assets.
   String get asset => 'assets/soundboard/$id.wav';
 
+  /// The longest a circle's sound's name is kept; a longer one is cut.
   static const nameMost = 32;
 
+  /// A circle's sound as its manifest keeps it (never one of the app's own, which has no file).
   Map<String, Object?> toJson() => {'n': name, 'e': emoji, 'f': file!.withoutThumb().toJson()};
 
   /// A circle's sound from its manifest; null where it is not one.
@@ -107,6 +111,8 @@ List<BoardSound> circleSounds(Circle c) {
 /// Who played what, for the line a call shows of it.
 typedef BoardPlayed = ({String by, BoardSound sound, DateTime at});
 
+/// The soundboard on this device: follows the call there is, says and plays the pads pressed, plays what others
+/// press, and keeps a circle's own sounds. Listeners are told when a sound is played or a choice changes.
 class Soundboard extends ChangeNotifier {
   Soundboard._();
   static final Soundboard instance = Soundboard._();
@@ -137,7 +143,10 @@ class Soundboard extends ChangeNotifier {
   static const shownFor = Duration(seconds: 4);
   Timer? _gone;
 
+  /// When each person last played sounds, for [_allowed] ('me' is this device).
   final Map<String, List<DateTime>> _recent = {};
+
+  /// How many sounds are playing here now, and the most that may at once: one more is not played.
   int _playing = 0;
   static const _atOnce = 4;
 
@@ -170,6 +179,7 @@ class Soundboard extends ChangeNotifier {
   /// Follows the call [Voice] is in.
   void follow() => followSession(Voice.instance.session);
 
+  /// Follows [s] (null: no call): hears the sounds said in it, and lets go of the call before.
   void followSession(VoiceSession? s) {
     if (identical(s, _session)) return;
     _session?.onSound = null;
@@ -203,6 +213,8 @@ class Soundboard extends ChangeNotifier {
   /// [s] played on this device alone: a pad tried outside a call, or among a circle's sounds as they are arranged.
   void preview(BoardSound s, {VoiceChannel? space}) => unawaited(_play(s, space ?? _session?.channel));
 
+  /// Someone in the call pressed a pad: shown, and played where it is one of this space's own pads, they haven't
+  /// played too many, and this device hears the soundboard.
   void _heard(String from, String id) {
     final sess = _session;
     if (sess == null || !isOn() || !_allowed(from)) return;
@@ -222,6 +234,7 @@ class Soundboard extends ChangeNotifier {
     return true;
   }
 
+  /// Sets [last], taken away again after [shownFor].
   void _show(BoardPlayed? p) {
     _gone?.cancel();
     last = p;
@@ -234,6 +247,7 @@ class Soundboard extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Plays [s] here at the soundboard's own loudness; not at all where that is nothing or [_atOnce] are playing.
   Future<void> _play(BoardSound s, VoiceChannel? space) async {
     final loud = volume / 100;
     if (loud <= 0 || _playing >= _atOnce) return;
@@ -290,6 +304,7 @@ class Soundboard extends ChangeNotifier {
           if (x.id == s.id) BoardSound(id: x.id, name: (name ?? x.name).trim().isEmpty ? x.name : (name ?? x.name).trim(), emoji: emoji ?? x.emoji, file: x.file) else x,
       ]);
 
+  /// Writes [sounds] as the circle's own, in its manifest's choices for the plugin; false where the circle refused.
   Future<bool> _keep(Circle c, List<BoardSound> sounds) async {
     final now = Circles.instance.bySeed(c.seed) ?? c;
     final ok = await Circles.instance.setPlugin(now, SoundboardPlugin.pluginId, on: now.manifest.pluginOn(SoundboardPlugin.pluginId) ?? false, choices: {'snd': [for (final s in sounds) s.toJson()]});
@@ -334,6 +349,7 @@ class Soundboard extends ChangeNotifier {
       await e.setVolume(volume.clamp(0, 1).toDouble());
       final done = Completer<void>();
       var started = false;
+      // Done when the player says it ended or failed, or stops after having started.
       void tick() {
         final v = e.value;
         if (v.playing) started = true;

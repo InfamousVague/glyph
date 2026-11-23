@@ -15,6 +15,7 @@ import 'signal.dart' show signalReactions;
 
 /// What an account helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
 abstract class HelperLink {
+  /// What the helper says: answers (with the `id` of what was asked) and events (`ev`), one JSON object each.
   Stream<Map<String, Object?>> get heard;
   void say(Map<String, Object?> line);
   Future<void> close();
@@ -181,6 +182,8 @@ class AccountHelper extends InboxNetwork {
 
   static const _mostKept = 400;
 
+  // The running helper and what it is asked: each request goes out under the next number ([_asked]) and its answer
+  // completes the one waiting under it.
   HelperLink? _link;
   StreamSubscription<Map<String, Object?>>? _sub;
   AppState? _app;
@@ -218,6 +221,7 @@ class AccountHelper extends InboxNetwork {
   /// The cookies are with the service, being checked.
   bool get signingIn => _busy;
 
+  /// A service's own folder on this device: under the app's files on the phone, the desktop store's on a computer.
   static String _dirOf(HelperService s) => PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/${s.id}' : '${DeskStore.defaultDir().path}/${s.id}';
 
   /// Deletes what a service no longer offered kept on this device: its helper's session and the chats kept here.
@@ -301,13 +305,15 @@ class AccountHelper extends InboxNetwork {
     return cookies;
   }
 
-  /// Signs in with what was pasted (a copied request, a Cookie header, or the pairs): only after the person has
-  /// agreed to the warning (lib/ui/inbox_signin_helper.dart). False, with [error] saying why, where it did not.
   /// Told of a sign-in made on this device by what was pasted (not one that came synced), so every device on the Ghost
   /// account is signed in too (CurlSync.share; Matt, 2026-11-21: "if i login to discord or something the curl should
   /// automatically be applied to all devices using the same ghost messaging account"). Null in a test.
   static void Function(String serviceId, Map<String, String> cookies)? onShare;
 
+  /// Signs in with the cookies in [pasted] (a copied request, a Cookie header, or the pairs; and [passcode], where the
+  /// service asks for one): only after the person has agreed to the warning (lib/ui/inbox_signin_helper.dart). False,
+  /// with [error] saying why, where it did not. [share] false: a sign-in that came synced from another device, not
+  /// told on to [onShare] again.
   Future<bool> signIn(String pasted, {String? passcode, bool share = true}) async {
     if (_link == null) return false;
     final cookies = cookiesOf(pasted);
@@ -344,8 +350,11 @@ class AccountHelper extends InboxNetwork {
     }
   }
 
+  /// An error as the person is shown it: the helper's own words where it gave them.
   static String _words(Object e) => e is StateError ? e.message : '$e';
 
+  /// The helper is signed in (its `status` answer, a `sign_in` answer or a `linked` event): takes whose account it is
+  /// and asks for the chats.
   void _signedIn(Map s) {
     final handle = (s['handle'] as String?)?.trim() ?? '';
     final name = (s['name'] as String?)?.trim() ?? '';
@@ -380,6 +389,7 @@ class AccountHelper extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Drops everything held of the account in memory, on signing out.
   void _forget() {
     _chats.clear();
     _messages.clear();
@@ -392,6 +402,7 @@ class AccountHelper extends InboxNetwork {
 
   // --- what the helper says ---------------------------------------------------------------------------------------
 
+  /// One line from the helper: the answer to something asked (it has `ok` and the request's `id`), or an event.
   void _heard(Map<String, Object?> m) {
     final id = m['id'];
     if (id is num && m.containsKey('ok')) {
@@ -558,6 +569,7 @@ class AccountHelper extends InboxNetwork {
 
   Map<String, Object?>? _find(String chatId, String messageId) => (_messages[chatId] ?? const []).where((x) => x['id'] == messageId).firstOrNull;
 
+  /// Sets or takes away one person's reaction to a message kept here: each person has one at most.
   void _reaction(Map<String, Object?> m) {
     final msg = _find('${m['chat']}', '${m['target']}');
     if (msg == null) return;
@@ -598,6 +610,7 @@ class AccountHelper extends InboxNetwork {
   @override
   Future<void> send(String chatId, String text) => _send(chatId, text);
 
+  /// Sends text: its bubble is shown at once as "sending", then takes the service's id and time, or is marked failed.
   Future<void> _send(String chatId, String text, {Map<String, Object?>? quote}) async {
     text = text.trim();
     if (text.isEmpty || _state != InboxState.ready) return;
@@ -674,6 +687,7 @@ class AccountHelper extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Copies a file that was sent into this network's folder; the path of the copy, or [path] itself if it could not be.
   Future<String> _keepSent(String path, int ts, int i, String name) async {
     try {
       final ext = name.contains('.') ? '.${name.split('.').last}' : '';
@@ -731,6 +745,7 @@ class AccountHelper extends InboxNetwork {
     return out;
   }
 
+  /// A message as one line of the chat list: its words, or what kind of thing its first attachment is.
   static String _snippet(Map<String, Object?> m) {
     final text = '${m['text'] ?? ''}'.trim();
     if (text.isNotEmpty) return text;
@@ -759,6 +774,8 @@ class AccountHelper extends InboxNetwork {
           ),
       ];
 
+  /// An attachment as the screens have it. Its number is made from the helper's pointer to it, and the attachment is
+  /// remembered under that number for [fileOf] to bring down.
   InboxMedia _media(Map a) {
     final key = jsonEncode(a['pointer']).hashCode & 0x3fffffff;
     _pointers[key] = a.cast<String, Object?>();
@@ -808,6 +825,7 @@ class AccountHelper extends InboxNetwork {
     }
   }
 
+  /// The chat open on screen: what arrives in it is not counted unread.
   String? _watching;
 
   @override
@@ -894,6 +912,7 @@ class AccountHelper extends InboxNetwork {
 
   // --- keeping ------------------------------------------------------------------------------------------------------
 
+  /// Reads what was kept ([_file]) as the helper starts, so the chats are there before it has connected.
   void _read() {
     try {
       if (!_file.existsSync()) return;
@@ -948,6 +967,8 @@ class AccountHelper extends InboxNetwork {
     }
   }
 
+  /// Asks the helper for [op] and waits for its answer: the result, or a [StateError] with the helper's reason (or
+  /// that it took too long).
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {
     final link = _link;
     if (link == null) return Future.error(StateError('${service.name} isn\'t running'));
@@ -984,6 +1005,8 @@ class AccountHelper extends InboxNetwork {
   AppState? get app => _app;
 }
 
+/// The helper as a child process: a line of JSON to its stdin for each thing said, a line from its stdout for each
+/// thing heard, and its stderr as its log.
 class _ProcessLink implements HelperLink {
   _ProcessLink(this.p, String network) {
     p.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {

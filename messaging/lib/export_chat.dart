@@ -74,6 +74,7 @@ Future<String> writeExport(String markdown, String name) async {
   return f.path;
 }
 
+// A number in two digits, a date as 2026-01-31, and a time as 09:05.
 String _two(int n) => n.toString().padLeft(2, '0');
 String _day(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}';
 String _time(DateTime d) => '${_two(d.hour)}:${_two(d.minute)}';

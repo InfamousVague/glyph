@@ -12,6 +12,8 @@ import 'package:media_kit/media_kit.dart' as mk;
 class DeskPlayer {
   DeskPlayer._();
 
+  // The one player there is at a time and the part it plays (-1: none), what it is listened to with, where it has
+  // got to, and when [heard] was last told (so a moving position tells it only a few times a second).
   static mk.Player? _player;
   static int _part = -1;
   static final List<StreamSubscription<Object?>> _subs = [];
@@ -22,6 +24,7 @@ class DeskPlayer {
   /// Where it has got to, each time it moves.
   static void Function(Map<String, Object?> state)? heard;
 
+  /// Tells [heard] where it stands; [ended] puts the position back at the start.
   static void _say({bool ended = false}) {
     heard?.call({'part': _part, 'position': ended ? 0 : _at.inMilliseconds, 'duration': _length.inMilliseconds, 'playing': _playing});
   }
@@ -75,12 +78,14 @@ class DeskPlayer {
     }
   }
 
+  /// Pauses it where it is: [play] with the same part goes on from there.
   static Future<void> pause() async {
     await _player?.pause();
     _playing = false;
     _say();
   }
 
+  /// Stops it and lets the player go: the sound ended, another part is to play, or it could not be played.
   static Future<void> halt() async {
     for (final s in _subs) {
       await s.cancel();

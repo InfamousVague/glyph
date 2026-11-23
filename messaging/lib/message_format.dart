@@ -52,6 +52,7 @@ class FormatRun {
   /// For the words of a [words](address) link: which of the links given to [MessageFormat.parse] it opens, or -1.
   final int link;
 
+  /// Whether it is drawn with [f] (one [Fmt], or any of several).
   bool has(int f) => flags & f != 0;
 
   @override
@@ -126,6 +127,8 @@ class MessageFormat {
   }
 }
 
+/// One reading of a message's words: for each code unit how it is drawn, filled in a pass for blocks of code and
+/// then a pass for each line, and gathered into runs at the end ([read]).
 class _Reader {
   _Reader(this.text, List<(int, int)> keep, this.links)
       : n = text.length,
@@ -145,6 +148,8 @@ class _Reader {
     }
   }
 
+  // For each code unit of [text] (n of them): its [Fmt]s; whether it is a marker, a quote's bar, or locked (code, or a
+  // marker: nothing more is read in it); which spoiler and which link it is in (-1 none); and [whole], set above.
   final String text;
   final int n;
   final List<(int, int)> links;
@@ -154,8 +159,10 @@ class _Reader {
   final List<int> whole;
   var _spoilers = 0;
 
+  /// Whether [i] is inside a link or a mention kept whole.
   bool _kept(int i) => i < n && whole[i] >= 0;
 
+  /// Reads the blocks of code, then each line, and gathers the code units drawn alike into runs.
   MessageFormat read() {
     _blocks();
     var ls = 0;
@@ -176,6 +183,7 @@ class _Reader {
     return MessageFormat._(text, runs, _spoilers);
   }
 
+  /// [a] to [b] is a marker: not drawn, and nothing more is read in it.
   void _hide(int a, int b) {
     for (var i = a; i < b; i++) {
       marker[i] = true;
@@ -211,6 +219,7 @@ class _Reader {
     }
   }
 
+  /// Where the next ``` at or after [from] is that is not inside something kept whole nor after a backslash; -1 none.
   int _fence(int from) {
     var at = from;
     while (true) {
@@ -221,6 +230,8 @@ class _Reader {
     }
   }
 
+  /// One line, [ls] to [le]: a quote where it starts with "> ", then the inline markers in each stretch of it that is
+  /// not locked.
   void _line(int ls, int le) {
     var base = 0;
     var a = ls;
@@ -249,6 +260,7 @@ class _Reader {
     }
   }
 
+  /// The code unit at [i] is drawn with [base], in spoiler [sp] and link [lk] where those are not -1.
   void _apply(int i, int base, int sp, int lk) {
     flags[i] |= base;
     if (sp >= 0) spoiler[i] = sp;
@@ -258,11 +270,16 @@ class _Reader {
     }
   }
 
+  /// Whether [c] is a space, a tab, a line break or a no-break space.
   static bool _space(int c) => c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D || c == 0xA0;
 
+  /// A letter or a digit, of any script.
   static final _word = RegExp(r'[\p{L}\p{N}]', unicode: true);
+  /// Whether a letter or a digit, of any script, stands at [i].
   bool _wordAt(int i) => i >= 0 && i < n && _word.hasMatch(text[i]);
 
+  /// The inline markers in [a] to [b], which is already drawn with [base], in spoiler [sp] and link [lk]: what a pair
+  /// of markers holds is read the same way, with the pair's own format added.
   void _inline(int a, int b, int base, int sp, int lk) {
     var i = a;
     while (i < b) {
