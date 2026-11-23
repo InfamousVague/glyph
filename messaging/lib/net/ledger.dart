@@ -897,6 +897,7 @@ class LedgerCheck extends ChangeNotifier {
       });
     }
     final now = nowMs;
+    _sumSent.removeWhere((_, t) => now - t >= const Duration(hours: 1).inMilliseconds);
     if (now - (_sumSent[nodeId] ?? -sumEvery.inMilliseconds) < sumEvery.inMilliseconds) return;
     final line = p2p.carrier.lineTo(account, nodeId);
     final peer = board.peers.byId(account);
@@ -917,6 +918,9 @@ class LedgerCheck extends ChangeNotifier {
   // --- what comes ---------------------------------------------------------------------------------------------------------
 
   void _received(Received r) {
+    // Something came: what this device's connection to the relay last heard is kept up to date, so what is kept of it
+    // after the app starts again is no older than the last thing that came.
+    _noteRelay();
     final e = r.envelope;
     if (e.kind != kind) return;
     // By the direct route only, sealed, from a friend's device on a stream proved to be theirs: never through the
@@ -967,6 +971,7 @@ class LedgerCheck extends ChangeNotifier {
     }
     // Too often: from that device, or from that account's devices together.
     final now = nowMs;
+    _sumHeard.removeWhere((_, t) => now - t >= const Duration(hours: 1).inMilliseconds);
     if (now - (_sumHeard[nodeId] ?? -sumEvery.inMilliseconds) < sumEvery.inMilliseconds || !_mayHave(_sums, account, sumsAnHour)) {
       refused++;
       return;
