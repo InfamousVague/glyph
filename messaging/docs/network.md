@@ -16,15 +16,21 @@ and were written so they need not). Here the interface is a **route**.
 | A route | `lib/net/carrier.dart` (`Carrier`) | One way of getting bytes to another install: start, stop, "do you reach them", send, what arrived, and what it is like (how long a packet, does it cost money, does it wake a closed app) |
 | The switchboard | `lib/net/switchboard.dart` | Chooses a route for each thing sent, falls back, seals, opens, tells copies apart, answers |
 | The relay server's hub | `relay/lib/hub.dart`, `lib/net/hub_carrier.dart` | The route through a server: names, held packets, who is here, rooms |
+| The direct route | `lib/net/p2p/` (`P2pCarrier`, `P2p`, `DeviceCard`, `P2pNode`) | Straight between a person's own devices and their friends', with no server in between: the way through when the relay can't carry something ([OPEN_NETWORK.md](OPEN_NETWORK.md), section 2) |
 | SMS | `lib/net/sms_carrier.dart`, `android/…/NetSms.kt` | The route through the phone network: data texts |
 | The phone's keys | `android/…/Net.kt`, `E2e.kt` | Who this phone is, who it can reach, a signature for a hub |
 | The app's hold on it all | `lib/net/net.dart` (`Net`), `lib/ui/network.dart` | Set up as the app opens; Settings › Network |
 
-Not built yet, and what each would be: a **local network** route (`lan`: finds the other install on the same Wi-Fi
-and connects straight to it), a **peer-to-peer** route (`p2p`: libp2p or the like, with no server of ours), and
-**calls** on top (`lib/calls/`: a call is set up by envelopes over these routes; its sound and picture go phone to
-phone). Each is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a
-stand-in `p2p` in its place to hold that true.
+The **peer-to-peer** route this made room for is built: `p2p`, shown as "Direct" (Matt, 2026-11-22: "p2p delivery
+with the relay as a primary source but have p2p as a secondary back up"). [OPEN_NETWORK.md](OPEN_NETWORK.md) is its
+plan and its reference: device cards, who a device links with, when its node runs, link helpers. Its rules are all
+Dart (`lib/net/p2p/`), tested against a stand-in node (`test/support/fake_p2p.dart`, `test/p2p_test.dart`); the
+node itself is the core (`native/p2p/`, Rust on iroh), behind `lib/net/p2p/node.dart`. A build without the core has
+no direct route at all (`Net.p2pNode` is null) and Settings › Routes shows none.
+
+Not built yet: a **local network** route (`lan`: finds the other install on the same Wi-Fi and connects straight to
+it). It is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a
+stand-in in its place to hold that true.
 
 ## Who is who
 
@@ -53,13 +59,18 @@ A call's ring, sealed, is 123 bytes: one data text. Longer ones cross a short ro
 
 ## How the switchboard chooses
 
-- The routes are tried in order: `lan`, `p2p`, `hub`, `sms` where the person has not said otherwise.
+- The routes are tried in order: `hub`, `p2p`, `lan`, `sms` where the person has not said otherwise. The relay
+  comes first: it is the fast path, and the one that keeps things for someone who is away. (Until 2026-11-22 the
+  order was `lan`, `p2p`, `hub`, `sms`, with only `hub` and `sms` built; no install keeps an order of its own.)
 - One is passed over when it is switched off, not up, does not reach that person, cannot hold the packet even in
   pieces, or costs money and this is not something allowed to (`metered`: only a ring, a greeting, a test).
 - On a route where an answer comes at once the answer is waited for (4 s); with none the next is tried. The other
   end knows the second copy by the envelope's name and passes it on once, answering both.
 - Kept by a hub for someone who is away is good enough, unless it is urgent (a call ringing): then the routes after
   are tried too, so the one that wakes a closed app gets its turn.
+- Once a route has only kept it, a route that holds links of its own (`LiveLinks`: the direct route) is given it
+  only where a link to one of their devices is open right now, by that link alone. Nothing is dialled and nothing
+  started for someone who is away; where it was not urgent that copy is not waited for.
 - Sealed unless the sender says not to. Nothing unsealed is taken from someone a key is held for; from a name no
   key is held for, only a `hello` in the clear is shown to the app.
 - An answer never goes back by a route that costs money.
@@ -73,7 +84,9 @@ one; Settings › Network takes its address.
 1. The hub says `{"hello": <64 hex digits>}`. The app answers `{"id", "key", "sig"}`: its name, its public key
    (33 bytes, base64) and its signature over `"ghost-hub v1 "` and those 32 bytes (r then s, base64). The hub
    checks the name is that key's and the signature is that key's (`relay/lib/p256.dart`, Dart's BigInt and nothing
-   else, held to RFC 6979's example), then `{"ok": true, "held": n}` and whatever was kept.
+   else, held to RFC 6979's example), then `{"ok": true, "held": n}` and whatever was kept. Where the relay was
+   given link helpers for the direct route (`GHOST_LINK_HELPERS`), the same answer names them: `"helpers":
+   ["https://…"]`, four at most.
 2. `[1][a number: 4 bytes][to: 16 bytes][packet]` goes to that name as `[1][from: 16 bytes][packet]`, answered
    `{"ack": number, "here": true}`; or is kept (200 packets or 1 MB a person, seven days, in memory) and answered
    `"here": false`; or refused, `{"nak": number, "err": "full"}`.
