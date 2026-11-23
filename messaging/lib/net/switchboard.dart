@@ -446,20 +446,40 @@ class Switchboard {
       _passedBytes = 0;
     }
     if (_passedBytes + whole.payload.length > passOnBytes) return;
-    if (!whole.passed && !fs.markPassed(tag)) return;
-    _passedBytes += whole.payload.length;
+    // Passed on already by this device, or being passed on now: once.
+    if (!whole.passed && (fs.wasPassed(tag) || _passing.contains(tag))) return;
     final packet = Packet.wrap(from: whole.from, sealed: true, fs: true, passed: true, payload: whole.payload);
     final self = Peer(id: me);
-    final c = [_carriers[via], _carriers['hub']].whereType<Carrier>().where((c) => c.state.value == CarrierState.up && c.traits.maxPacket > smallRoute && c.reaches(self)).firstOrNull;
-    if (c == null) return;
-    final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
-    if (pieces == null) return;
+    // By the relay first, which keeps it for a sibling that is away; else by the route it came by. Marked passed on only
+    // once a route has taken it: the direct route with no sibling linked can't, and the relay's own copy must then still
+    // be passed on when it comes (second review, S4).
+    final routes = [_carriers['hub'], if (via != 'hub') _carriers[via]].whereType<Carrier>().where((c) => c.state.value == CarrierState.up && c.traits.maxPacket > smallRoute && c.reaches(self)).toList();
+    if (routes.isEmpty) return;
+    _passedBytes += whole.payload.length;
+    _passing.add(tag);
     unawaited(() async {
-      for (final p in pieces) {
-        await c.send(self, p);
+      try {
+        for (final c in routes) {
+          final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
+          if (pieces == null) continue;
+          try {
+            for (final p in pieces) {
+              await c.send(self, p);
+            }
+          } catch (_) {
+            continue;
+          }
+          if (!whole.passed) fs.markPassed(tag);
+          return;
+        }
+      } finally {
+        _passing.remove(tag);
       }
-    }().catchError((_) {}));
+    }());
   }
+
+  /// The packets being passed on now, by tag ([_passOn]).
+  final Set<String> _passing = {};
 
   Future<void> _arrived(Arrived a) async {
     final parsed = Packet.parse(a.bytes);

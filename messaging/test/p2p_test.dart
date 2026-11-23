@@ -5,12 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/forward_secrecy.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
 import 'package:ghost_messaging/net/p2p/node.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/p2p/p2p_carrier.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/net/switchboard.dart';
 import 'package:ghost_relay/hub.dart';
 
 import 'support/direct_world.dart';
@@ -39,6 +41,57 @@ Future<DeviceCard> _cardOf(World w, Account account, {String? device, String? no
     DeviceCard.make(KeysSigner(account.keys), device: device ?? NetCrypto.hex(NetCrypto.randomBytes(16)), nodeId: node ?? NetCrypto.hex(NetCrypto.randomBytes(32)), now: w.clock.now());
 
 Map<String, dynamic> _kept(Install i, String name) => (jsonDecode(i.plain.kept[name] ?? '{}') as Map).cast<String, dynamic>();
+
+/// A route of live links that reaches this account's other devices by its word, and can link with none of them now.
+class _DeadLinks implements Carrier, LiveLinks {
+  @override
+  String get id => 'p2p';
+  @override
+  String get name => 'Direct';
+  @override
+  String get about => '';
+  @override
+  CarrierTraits get traits => const CarrierTraits(maxPacket: 60 * 1024);
+  @override
+  final ValueNotifier<CarrierState> state = ValueNotifier(CarrierState.off);
+  @override
+  String? problem;
+  final _arrived = StreamController<Arrived>.broadcast();
+  final asked = <Uint8List>[];
+  @override
+  Stream<Arrived> get arrived => _arrived.stream;
+  @override
+  Future<void> start() async => state.value = CarrierState.up;
+  @override
+  Future<void> stop() async => state.value = CarrierState.off;
+  @override
+  bool reaches(Peer peer) => true;
+  @override
+  Future<Handed> send(Peer peer, Uint8List packet) async {
+    asked.add(packet);
+    throw CarrierError('none of their devices could be reached directly');
+  }
+
+  @override
+  bool linked(Peer peer) => false;
+  @override
+  bool get linkedToSomeone => false;
+  @override
+  Future<Handed> sendLinked(Peer peer, Uint8List packet) async => throw CarrierError('no link to them is open now');
+  @override
+  Future<Handed> sendOn(Peer peer, Object? line, Uint8List packet) async => throw CarrierError('no link to them is open now');
+  void take(Uint8List packet, {String? from}) => _arrived.add(Arrived(id, packet, from: from));
+}
+
+/// Who a switchboard knows, by name.
+class _Book implements PeerBook {
+  _Book(this.by);
+  final Map<String, Peer> by;
+  @override
+  Peer? byId(String id) => by[id];
+  @override
+  Peer? byAddress(String address) => null;
+}
 
 void main() {
   late World w;
@@ -1180,6 +1233,54 @@ void main() {
       await desk.p2p.refresh();
       expect(desk.p2p.devicesOf(maya.id), isEmpty);
       expect(desk.p2p.carrier.reaches(desk.mine), isFalse);
+    });
+  });
+
+  group('the switchboard and the direct route', () {
+    // The second review, S4 (R2-D): a forward-secret packet that came straight and is not for this device was passed on
+    // by the route it came by alone; with no sibling linked that failed unsaid, and it was already marked passed on, so
+    // the relay's own copy was never passed on either, and the sibling never got it from this device.
+    test('a packet for another device of this account that came straight is passed on by the relay first, and marked passed on only once a route took it', () async {
+      ForwardSecrecy.offThread = false;
+      final me = NetKeys.generate(), sam = NetKeys.generate();
+      final pair = NetCrypto.netKey(NetCrypto.conversationKey(me, sam.public)!);
+      final book = _Book({me.id: Peer(id: me.id, key: NetCrypto.randomBytes(32)), sam.id: Peer(id: sam.id, key: pair)});
+      final fs = ForwardSecrecy(device: NetCrypto.hex(NetCrypto.randomBytes(16)), secrets: MemoryFsStore(), plain: MemoryFsStore());
+      await fs.load();
+      final hub = PlainCarrier('hub', traits: const CarrierTraits(maxPacket: 60 * 1024)), direct = _DeadLinks();
+      final board = Switchboard(me: me.id, peers: book, carriers: [hub, direct], fs: fs);
+      addTearDown(board.dispose);
+      await board.start();
+      await pumpEventQueue();
+      Uint8List forSibling(String words) => Packet.wrap(
+            from: sam.id,
+            sealed: true,
+            fs: true,
+            payload: ForwardSecrecy.seal(from: sam.id, to: me.id, pairKey: pair, clear: Envelope(kind: 'text', body: {'t': words}).encode(), targets: [FsBundle(device: NetCrypto.hex(NetCrypto.randomBytes(16)), prekey: 'aabbccdd', key: NetKeys.generate().public, made: DateTime.now().millisecondsSinceEpoch)]),
+          );
+      bool passed(Uint8List p) => Packet.parse(p)?.passed ?? false;
+      // It comes straight (the relay only kept its own copy): passed on by the relay, which keeps it for the sibling.
+      final first = forSibling('for the sibling');
+      direct.take(first, from: sam.id);
+      await pumpEventQueue();
+      expect([hub.carried.where(passed).length, direct.asked.where(passed).length], [1, 0]);
+      // The relay's own copy, handed over later: passed on already, not again.
+      hub.take(first, from: sam.id);
+      await pumpEventQueue();
+      expect(hub.carried.where(passed).length, 1);
+      // With the relay down, the direct route is tried and can't: not marked passed on, so the relay's own copy, when it
+      // comes, is passed on by it.
+      await hub.stop();
+      final second = forSibling('while the relay was down');
+      direct.take(second, from: sam.id);
+      await pumpEventQueue();
+      expect([hub.carried.where(passed).length, direct.asked.where(passed).length], [1, 1]);
+      await hub.start();
+      hub.take(second, from: sam.id);
+      await pumpEventQueue();
+      expect(hub.carried.where(passed).length, 2);
+      expect(fs.wasPassed(NetCrypto.hex(NetCrypto.sha256(Packet.parse(second)!.payload).sublist(0, 8))), isTrue);
+      await board.stop();
     });
   });
 
