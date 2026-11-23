@@ -8,6 +8,8 @@ import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/market/market_api.dart';
 import 'package:ghost_messaging/market/market_models.dart' show SealedReportRow;
+import 'package:ghost_messaging/net/net.dart' show Net;
+import 'package:ghost_messaging/sms.dart' show Sms;
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/safety/abuse_report.dart';
@@ -128,6 +130,45 @@ void main() {
     expect(sent.single.kind, 'person');
     expect(sent.single.messages, isEmpty);
     await tester.pump(const Duration(seconds: 6));
+  });
+
+  // Second review of the web client: a report goes to Ghost Messaging's own review, which a page reaches only where it
+  // was made for gogho.st's hub (app.gogho.st: its policy names the address, the relay lets it read the answer). A page
+  // made for another relay says where to report from instead, and still offers Block.
+  test('a report goes from anywhere but a page made for a relay not Ghost Messaging\'s', () {
+    expect(reportsGoFromHere(browser: false, hub: 'wss://relay.example.com/hub'), isTrue);
+    expect(reportsGoFromHere(browser: false, hub: Net.defaultHub), isTrue);
+    expect(reportsGoFromHere(browser: true, hub: 'wss://gogho.st/hub'), isTrue);
+    expect(reportsGoFromHere(browser: true, hub: 'wss://ghost-sms.com/hub'), isTrue);
+    expect(reportsGoFromHere(browser: true, hub: 'wss://relay.example.com/hub'), isFalse);
+    expect(reportsGoFromHere(browser: true, hub: 'ws://127.0.0.1:18990/hub'), isFalse);
+  });
+
+  testWidgets('in a page made for another relay the sheet says where to report from, and Block still works', (tester) async {
+    final was = (Sms.browser, Net.homeHub);
+    addTearDown(() {
+      Sms.browser = was.$1;
+      Net.homeHub = was.$2;
+    });
+    Sms.browser = true;
+    Net.homeHub = 'wss://relay.example.com/hub';
+    final h = await SpaceHarness.load(tester);
+    final sent = <AbuseReport>[], blocked = <String>[];
+    await h.shoot(tester, ReportForm(target: _target, send: (r) async => (sent..add(r)).isEmpty ? '' : 'x', block: (t) async => blocked.add(t.id)), 'report-not-here');
+    expect(find.byKey(const ValueKey('report-not-here')), findsOneWidget);
+    expect(find.textContaining('which this page can\'t reach: it was made for relay.example.com. Report @pest from app.gogho.st, or from Ghost Messaging on your phone or computer.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('report-send')), findsNothing);
+    await _press(tester, 'report-block-only');
+    await tester.pump();
+    expect(blocked, [_target.id]);
+    expect(sent, isEmpty);
+    await tester.pump(const Duration(seconds: 6));
+
+    // Made for gogho.st's hub (app.gogho.st): the form, as everywhere else.
+    Net.homeHub = Net.defaultHub;
+    await h.shoot(tester, ReportForm(key: const ValueKey('own'), target: _target, send: (r) async => 'x'), 'report-from-app-gogho-st');
+    expect(find.byKey(const ValueKey('report-not-here')), findsNothing);
+    expect(find.byKey(const ValueKey('report-reason-spam')), findsOneWidget);
   });
 
   testWidgets('a refusal is said and the form stays', (tester) async {

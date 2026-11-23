@@ -322,6 +322,18 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     notifyListeners();
   }
 
+  /// Everything of the Files spaces this device keeps deleted (lib/account/account.dart: signed out with everything
+  /// deleted, or removed from the account): what was going up stopped, the spaces' lists and the queue, and every
+  /// file brought down.
+  Future<void> wipe() async {
+    await clear();
+    for (final dir in [_data(), _cache()]) {
+      try {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      } catch (_) {}
+    }
+  }
+
   /// Picks up what was going up when the app last closed.
   Future<void> start() async {
     if (_started) return;

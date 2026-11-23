@@ -551,7 +551,7 @@ class Hub {
         _tell(socket, {'pong': said['ping']});
       } else if (said.containsKey('push')) {
         // This install's token for push notifications (an iPhone), or null to forget it.
-        pushes?.said(e.id, said['push']);
+        pushes?.said(e.id, said['push'], device: e.device);
         _tell(socket, {'push': pushes != null});
       } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
         final a = accounts;

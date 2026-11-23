@@ -21,6 +21,7 @@ import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
+import '../../sms.dart' show Sms;
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
@@ -178,10 +179,12 @@ class _CircleBannerState extends State<CircleBanner> {
   }
 
   /// Brings the full picture down once, where the circle has one and it isn't here yet; the stand-in shows meanwhile.
+  /// A page in a browser keeps no files (Files is not in a page): the stand-in, which came with the circle, is its
+  /// picture there.
   void _fetch() {
     final c = widget.circle;
     final j = c.manifest.bannerFile;
-    final f = j == null ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
+    final f = j == null || Sms.browser ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
     if (f == null) {
       _full = null;
       return;

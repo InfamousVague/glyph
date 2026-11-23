@@ -9,8 +9,12 @@ import 'p256.dart';
 /// every fifteen minutes on its own, hub.dart's `peek`): an iPhone says, over its connection, the token Apple gave it
 /// for push notifications, and when a packet is held for it this asks Apple to show "New message".
 ///
-/// - **What is kept** (`pushes.json`): per install, the token and whether it is Apple's sandbox (a build from Xcode)
-///   or production, and the day. Nothing about who sent what: the notification says only that something came.
+/// - **What is kept** (`pushes.json`): per device of an install (the `device` its hello says: two iPhones signed in to
+///   one account are one install to the hub, each with a token of its own), the token and whether it is Apple's sandbox
+///   (a build from Xcode) or production, and the day. Nothing about who sent what: the notification says only that
+///   something came. An app from before devices says none, and is kept as the install's device '' as it always was.
+///   One device saying `{"push": null}` (a wiped or signed-out iPhone) takes its own token alone, never a sibling's
+///   (third review); what is held wakes every device of the install that gave one.
 /// - **How often**: at most once a minute per install ([quiet]), however much is held.
 /// - **Apple's side** needs a key from the Apple Developer account (an APNs .p8 file, its key id, the team id and the
 ///   app's bundle id: [ApnsConfig.fromEnvironment]). Without one nothing is sent and registrations are still kept.
@@ -29,7 +33,11 @@ class Pushes {
   /// Sends one notification to a token; Apple's by default ([Apns.send]). A test gives its own.
   final Future<bool> Function(String token, bool sandbox)? send;
 
+  /// `install|device` -> its token (a key from before devices, the install alone, is read as `install|`).
   final Map<String, ({String token, bool sandbox, String day})> _tokens = {};
+
+  static String _key(String id, String device) => '$id|$device';
+  static String _idOf(String key) => key.contains('|') ? key.substring(0, key.indexOf('|')) : key;
   final Map<String, DateTime> _last = {};
   Apns? _apns;
 
@@ -44,7 +52,8 @@ class Pushes {
       final j = jsonDecode(f.readAsStringSync()) as Map;
       for (final e in j.entries) {
         final v = e.value as Map;
-        _tokens['${e.key}'] = (token: '${v['t']}', sandbox: v['s'] == true, day: '${v['d']}');
+        final key = '${e.key}';
+        _tokens[key.contains('|') ? key : _key(key, '')] = (token: '${v['t']}', sandbox: v['s'] == true, day: '${v['d']}');
       }
     } catch (_) {}
   }
@@ -57,29 +66,38 @@ class Pushes {
     temp.renameSync(f.path);
   }
 
-  /// What an install says about its token (`{"push": {"apns": "<hex>", "sandbox": true}}`, or `{"push": null}` to
-  /// forget it). Said over its own connection, so only it can set its own.
-  void said(String id, Object? what) {
+  /// What an install's [device] says about its token (`{"push": {"apns": "<hex>", "sandbox": true}}`, or
+  /// `{"push": null}` to forget it). Said over its own connection, so only it can set its own; and its own device's
+  /// alone. The same token kept under another of the install's devices (the same iPhone before it said which device it
+  /// is) is taken off there.
+  void said(String id, Object? what, {String device = ''}) {
+    final key = _key(id, device);
     if (what is Map && what['apns'] is String && RegExp(r'^[0-9a-fA-F]{32,200}$').hasMatch(what['apns'] as String)) {
-      _tokens[id] = (token: (what['apns'] as String).toLowerCase(), sandbox: what['sandbox'] == true, day: _now().toIso8601String().substring(0, 10));
+      final token = (what['apns'] as String).toLowerCase();
+      _tokens.removeWhere((k, v) => k != key && _idOf(k) == id && v.token == token);
+      _tokens[key] = (token: token, sandbox: what['sandbox'] == true, day: _now().toIso8601String().substring(0, 10));
     } else {
-      _tokens.remove(id);
+      _tokens.remove(key);
     }
     _save();
   }
 
-  /// Something was held for [id], who is not connected: their app is asked to wake, if it can be.
+  /// Something was held for [id], who is not connected: each of their devices that gave a token is asked to wake, if
+  /// it can be.
   void held(String id) {
-    final t = _tokens[id];
-    if (t == null) return;
+    final mine = [for (final e in _tokens.entries) if (_idOf(e.key) == id) e];
+    if (mine.isEmpty) return;
     final now = _now();
     final last = _last[id];
     if (last != null && now.difference(last) < quiet) return;
     _last[id] = now;
-    unawaited(_deliver(id, t.token, t.sandbox));
+    for (final e in mine) {
+      unawaited(_deliver(e.key, e.value.token, e.value.sandbox));
+    }
   }
 
-  Future<void> _deliver(String id, String token, bool sandbox) async {
+  /// One wake to the token kept under [key] (`install|device`).
+  Future<void> _deliver(String key, String token, bool sandbox) async {
     final s = send;
     bool ok;
     if (s != null) {
@@ -91,7 +109,7 @@ class Pushes {
     }
     // A token Apple no longer knows (the app was deleted) is forgotten; [Apns.send] says so by false with gone.
     if (!ok && _apns?.lastGone == true) {
-      _tokens.remove(id);
+      _tokens.remove(key);
       _save();
     }
   }

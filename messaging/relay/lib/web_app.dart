@@ -19,6 +19,12 @@ import 'dart:io';
 ///   its contents in its name (`main.dart.3f9a1c2b.js`) never changes, and is kept for a year.
 /// - **Packed already.** Where `name.br` or `name.gz` lies beside a file and the browser takes that packing, it is
 ///   what is sent: nothing is packed as it is asked for.
+/// - **What the browser is told the app may do** ([headers]), on every answer, the worker's (`argon2id.js`) as much as
+///   the page's: the page's own policy (the one in its `<meta>`, [policy]) as a header, with `frame-ancestors 'none'`,
+///   which only a header can say; no frame of it in anyone's page; no file of it taken as another kind; nothing said
+///   of where a link was followed from; no window or other site's page sharing its process or reading its files; and
+///   no camera, microphone, location or screen asked for. The same as app.gogho.st's (the app's
+///   tool/deploy-site.mjs), but for HSTS, which is the server in front of a relay's to say.
 ///
 /// GET and HEAD only. Nothing is written, logged or kept about who asked.
 class WebApp {
@@ -26,6 +32,56 @@ class WebApp {
 
   /// The folder: what `flutter build web` wrote, `index.html` at its top.
   final Directory dir;
+
+  /// Beside the page: answered with `Clear-Site-Data: "storage"` and nothing else (the app's lib/web/browser_web.dart asks
+  /// for it as it wipes; app.gogho.st's block in tool/deploy-site.mjs answers the same), and only to the page itself
+  /// ([clearAsker]).
+  static const clearPath = 'clear-site-data';
+
+  /// Who may be told to clear: a request the browser says came from this very address (`Sec-Fetch-Site: same-origin`),
+  /// as the page's own fetch does. Anything else (a link in a message, another site sending the browser here, a picture
+  /// asked for from elsewhere, the address typed) is answered as a file that isn't here: answered, a link would have
+  /// signed the person out, and each time it was followed again the account would have one more device on its list
+  /// (third review, A2). A browser too old to say where a request came from clears nothing; the store is deleted anyway.
+  static const clearAsker = 'same-origin';
+
+  /// The policy of a page whose `<meta>` gives none (a build that isn't the app's): its own address and nothing else.
+  static const fallbackPolicy =
+      "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'";
+
+  static final _meta = RegExp(r'''<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"\s*/?>''', caseSensitive: false);
+
+  ({int size, DateTime at, String policy})? _read;
+
+  /// The page's policy, as its `<meta>` says it (read again when `index.html` is replaced), with `frame-ancestors
+  /// 'none'`: so the header says no more and no less than the page, and the worker, which the `<meta>` does not
+  /// reach, is held to the same.
+  String get policy {
+    var said = fallbackPolicy;
+    try {
+      final page = File('${dir.path}/index.html');
+      final stat = page.statSync();
+      final had = _read;
+      if (had != null && had.size == stat.size && had.at == stat.modified) return had.policy;
+      said = _meta.firstMatch(page.readAsStringSync())?.group(1)?.replaceAll('&#39;', "'").replaceAll('&quot;', '"').trim() ?? fallbackPolicy;
+      final whole = "${said.replaceAll(RegExp(r';\s*$'), '')}; frame-ancestors 'none'";
+      _read = (size: stat.size, at: stat.modified, policy: whole);
+      return whole;
+    } on FileSystemException {
+      return "$fallbackPolicy; frame-ancestors 'none'";
+    }
+  }
+
+  /// What every answer under `/app/` carries (the app's tool/deploy-site.mjs sends the same at app.gogho.st, with HSTS).
+  Map<String, String> get headers => {
+        'Content-Security-Policy': policy,
+        'X-Frame-Options': 'DENY',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), display-capture=()',
+      };
 
   /// Whether there is an app to serve: the folder is there and has its page.
   bool get there => File('${dir.path}/index.html').existsSync();
@@ -91,11 +147,7 @@ class WebApp {
   /// had it once its escapes are read.
   Future<void> handle(HttpRequest request, List<String> parts) async {
     final response = request.response;
-    response.headers
-      ..set('X-Content-Type-Options', 'nosniff')
-      // The app is never a frame in someone else's page.
-      ..set('X-Frame-Options', 'DENY')
-      ..set('Referrer-Policy', 'no-referrer');
+    headers.forEach(response.headers.set);
     if (request.method != 'GET' && request.method != 'HEAD') {
       response
         ..statusCode = HttpStatus.methodNotAllowed
@@ -107,6 +159,16 @@ class WebApp {
       response
         ..statusCode = HttpStatus.movedPermanently
         ..headers.set(HttpHeaders.locationHeader, '${request.uri.path}/${request.uri.hasQuery ? '?${request.uri.query}' : ''}');
+      return response.close();
+    }
+    // What the page asks for as it signs out or is removed, once it has deleted its store (the app's lib/web/browser_web.dart):
+    // the browser is told to clear everything this address keeps, which in Chromium also takes the deleted store's
+    // bytes off the disk, where deleting the database alone leaves them for a while.
+    if (parts.length == 1 && parts.single == clearPath && request.headers.value('sec-fetch-site') == clearAsker) {
+      response
+        ..statusCode = HttpStatus.noContent
+        ..headers.set('Clear-Site-Data', '"storage"')
+        ..headers.set(HttpHeaders.cacheControlHeader, 'no-store');
       return response.close();
     }
     final names = parts.isEmpty ? const ['index.html'] : parts;

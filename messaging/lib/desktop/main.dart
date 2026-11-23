@@ -50,9 +50,10 @@ import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
+import '../standalone/unreadable.dart';
 import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
-import '../ui/account_screens.dart' show SignInScreen;
+import '../ui/account_screens.dart' show RestartScreen, SignInScreen;
 import '../ui/common.dart' show push;
 import 'ui/link_offer.dart';
 
@@ -79,6 +80,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
   final store = DeskStore(dir == null || dir.isEmpty ? DeskStore.defaultDir() : Directory(dir), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
+  // What a computer of its own deletes everything of the person's under, when it does (lib/account/account.dart).
+  AppAccountProfiles.appFolder = store.dir.path;
   final envPeers = peers ?? [for (final p in (env['GHOST_DESK_PEERS'] ?? '').split(',')) ?Peer.parse(p)];
   final prefs = await store.prefs();
   final link = PhoneLink(
@@ -98,7 +101,12 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final alone = await store.load() == null;
   if (alone) {
     final own = StandaloneCalls(Directory('${store.dir.path}/standalone'), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
-    await own.load();
+    try {
+      await own.loadAgain();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'computer'));
+    }
     Sms.calls = own;
     Sms.standalone = true;
   }
@@ -480,6 +488,9 @@ class _DeskHomeState extends State<DeskHome> {
           // Unpaired since it opened: the wizard, or the app of its own again.
           return _sized(false, _wizard(skipLabel: 'Use without a phone', onSkip: _restart));
         }
+        // Everything of its account deleted (signed out with everything, or removed from another device) on a computer
+        // that can't open itself again (Windows, Linux): only that it is to be opened again, offline.
+        if (Account.instance.ended) return _sized(true, const RestartScreen());
         // Linked from here or from Settings: the app opens again on the phone.
         if (linked) {
           _restart();

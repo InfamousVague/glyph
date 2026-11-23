@@ -12,6 +12,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'account/account.dart' show Account, AppAccountProfiles;
 import 'circles/circles.dart';
 import 'circles/pending_link.dart';
 import 'circles/sms_space.dart';
@@ -31,6 +32,7 @@ import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
 import 'standalone/standalone.dart';
+import 'standalone/unreadable.dart';
 import 'standalone/wake.dart';
 import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
@@ -52,6 +54,7 @@ import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
+import 'ui/account_screens.dart' show RestartScreen;
 import 'ui/add_me.dart' show askToAdd;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
@@ -112,7 +115,15 @@ Future<void> main() async {
   // computer is (lib/desktop) stays that phone's companion.
   if (PlatformInfo.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
-    await standaloneSetup();
+    // What an iPhone deletes everything of the person's under, when it does (lib/account/account.dart): the folder its
+    // store is in.
+    AppAccountProfiles.appFolder = StandaloneCalls.defaultDir().path;
+    try {
+      await standaloneSetup();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'iPhone'));
+    }
   } else {
     // The phone's friends by username are kept in Dart, beside its texts (lib/standalone/overlay.dart): an iPhone
     // writes to them by username (Matt, 2026-11-15: "Yes, Android next").
@@ -284,11 +295,19 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _check(first: true);
     _opens = Sms.instance.opens.stream.listen(_open);
+    // An iPhone of its own that deleted everything of its account (signed out with everything, or removed from another
+    // device) and can't start again by itself: only that it is to be opened again.
+    if (Sms.standalone) Account.instance.addListener(_accountChanged);
+  }
+
+  void _accountChanged() {
+    if (mounted && Account.instance.ended) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    Account.instance.removeListener(_accountChanged);
     _opens?.cancel();
     super.dispose();
   }
@@ -491,6 +510,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     }
     // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
     // default for texts, so the walkthrough above is not shown on one.
+    if (Sms.standalone && Account.instance.ended) return const RestartScreen();
     if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
     // A new Android install, past the texts step: the username and password next (Matt, 2026-11-20: "Yes, replace
     // it"). After the texts step, since the relay server is dialled only once the app has started (_check).

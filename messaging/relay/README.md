@@ -24,14 +24,26 @@ through a relay only when both use the same one.
 
 `--web <folder>` (or `GHOST_WEB_DIR`) names a folder holding the app built for a browser (`node tool/build-web.mjs`
 in the app's folder writes `build/web`), and the relay serves it as plain files under `/app/` (`lib/web_app.dart`).
-A page may speak only to the address it came from and the hub sends no headers that would let another site's page
-in, so the page and the hub are one address: in a browser the app dials `/hub` where its page came from. Only GET
-and HEAD; only what is in the folder (no `..`, no names starting with a dot, no links leading out of it); no lists
-of a folder; each file said to be what it is (`application/wasm`, `text/javascript`, ...); `index.html` and every
-file whose name doesn't say what is in it asked for again each time (`no-cache`, with a tag), a file with a hash of
-its contents in its name kept for a year; and `name.br` or `name.gz` sent in a file's place where it lies beside it
-and the browser reads that packing. Behind a web server, pass `/app/` on to the relay beside `/hub`. Without the
-option there is no `/app/`.
+A build that names no hub (the plain `node tool/build-web.mjs`) dials `/hub` where its page came from, so the page and
+the hub are one address. Only GET and HEAD; only what is in the folder (no `..`, no names starting with a dot, no
+links leading out of it); no lists of a folder; each file said to be what it is (`application/wasm`,
+`text/javascript`, ...); `index.html` and every file whose name doesn't say what is in it asked for again each time
+(`no-cache`, with a tag), a file with a hash of its contents in its name kept for a year; and `name.br` or `name.gz`
+sent in a file's place where it lies beside it and the browser reads that packing. Every answer says what the app may
+do (the app's `tool/web/headers.json`): the page's own policy as a `Content-Security-Policy` header, with
+`frame-ancestors 'none'` (so the Argon2id worker, which the page's `<meta>` doesn't reach, is held to it too),
+`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
+`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` of `same-origin`, and a `Permissions-Policy` that
+asks for no camera, microphone, location or screen. HSTS is for the web server in front of the relay to say. Behind a
+web server, pass `/app/` on to the relay beside `/hub`. Without the option there is no `/app/`.
+
+Serve it from its own address if you can (as gogho.st does: app.gogho.st, the app's `tool/deploy-site.mjs`): a page
+at the same address as anything else there (a site with scripts written into it, the relay's `/link` pages) shares the
+app's store in the browser, and a script slipped into one of those could read what the app keeps. A page there
+sends the relay two things across addresses, a report (`POST /market/abuse`) and feedback (`POST /feedback`):
+`GHOST_APP_ORIGIN` names that address (`https://app.gogho.st` for gogho.st), and the relay answers those two, and
+nothing else, so the page may read them (CORS: `Access-Control-Allow-Origin` that address, a `POST` with the app's
+signature headers). Without it, the page at its own address can send neither.
 
 ## The hub
 
@@ -67,6 +79,16 @@ how much they send. A pairing's channel is removed by unpairing or after ninety 
 lives ten minutes and is never written.
 
 ## On our server
+
+**Deploy the relay before any app that deletes an account from a removed device** (the `web` branch's change; the
+app's `lib/account/account.dart` `check`). Such an app deletes everything of the account from an iPhone, a computer of
+its own or a browser only on the account's own signed removal, which the relay keeps (`acct-devices`' `gone`) and
+hands back with `acct-hello`. A relay from before hands out none: under it a removed iPhone or computer only forgets
+the account's words and keys, as the release before did, and nothing is deleted. A removal made before this relay was
+deployed was never kept either: those devices do the same. The same deploy keeps push tokens one per device
+(`pushes.json`, read as it was), answers `/app/clear-site-data` only to the page itself, and needs
+`GHOST_APP_ORIGIN=https://app.gogho.st` in its env for app.gogho.st's reports and feedback (`deploy-relay.mjs --env`
+replaces the whole file: put the rest of it in too).
 
     node tool/deploy-relay.mjs --keep-connection && node tool/deploy-site.mjs --caddy   # the first time: one login
     node tool/deploy-relay.mjs                                                          # after that, when relay/ changes

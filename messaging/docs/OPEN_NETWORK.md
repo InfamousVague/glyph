@@ -19,7 +19,7 @@ releasable at every step. **Status** lines say what is built; everything else is
 | Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | being built |
 | Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed, fixed (relay and app); in its second review; not merged |
 | A relay hosted from the app | `lib/relay_host/` | planned (needs federation's standing links and a helpers-only node) |
-| The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged; review fixes under way before it goes on `app.gogho.st` |
+| The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged; the review's fixes made on the `web` branch (part 6 says what it keeps and where it is served); not on `app.gogho.st` yet: its block and build are ready, its DNS record is to add |
 
 Each part is reviewed independently before it is switched on, and every review finding is fixed with a test that fails
 without its fix. The reviews also found things wrong in what was already live, now fixed: a compressed message could
@@ -288,7 +288,7 @@ What stood in the way, surveyed 2026-11-22, and what answers each:
 | `gzip` from `dart:io` on the sign-in path | A Dart one (`package:archive`) in the browser |
 | Argon2id (64 MiB, 3 passes) would freeze the page | The same JavaScript one the extension uses (`extension/src/ghost/crypto.ts`), which gives way as it works |
 | The platform seam (`SmsCalls`: about 40 calls) | `WebCalls`, beside `StandaloneCalls`: `UsernameChats` as it is, kept in IndexedDB as one record |
-| The Keychain | Secrets in IndexedDB, sealed with a key the page can use but not read out (WebCrypto, not extractable); or the password asked again each visit |
+| The Keychain | Every record in IndexedDB sealed with a key the page can use but not read out (WebCrypto, not extractable); the recovery words and the password's key not kept at all, and the password asked again whenever they are wanted (below: what a browser keeps) |
 | The hub's WebSocket | `hub_link_web.dart` (the seam) |
 | Pickers that hand back paths | Bytes in the browser |
 
@@ -299,9 +299,84 @@ helper programs), Files spaces, plugins and the Marketplace, recording, the voic
 sharing, the local API, and the direct route (so the browser doesn't check the relay). A closed tab gets nothing:
 there is no push to a browser yet.
 
-Served as plain files from the same host as the relay (`/app/`; the relay sends no cross-origin headers), which a
-relay anyone runs can serve as well. Tried against a relay on this machine (`dart run relay/bin/relay.dart`), with
-accounts made for the test.
+Tried against a relay on this machine (`dart run relay/bin/relay.dart`), with accounts made for the test
+(`tool/web/e2e.mjs`, in Chromium and WebKit).
+
+### Its address
+
+Ours is served at **app.gogho.st**, an address of its own (`tool/deploy-site.mjs --app`, `tool/lib/web_site.mjs`),
+never under gogho.st: the site's pages have scripts written into them and `/join` takes an address to dial, and the
+relay's `/link`, `/files` and `/market` answer there too. A page at the same address as any of those shares the
+app's store, so a script slipped into one of them could read what the app keeps, and an account's identity can't be
+changed once it has been read. The build for it names its hub, `wss://gogho.st/hub`
+(`node tool/build-web.mjs --app`, `--dart-define=GHOST_WEB_HUB`), and its policy lets it speak to that and to its own
+address and nothing else, but for the two things it sends over plain HTTP, from the page's own `fetch`
+(`lib/web/http.dart`): a report to the review, `https://gogho.st/market/abuse`, and feedback, `https://gogho.st/feedback`
+(`tool/lib/web_site.mjs` `connectFor`). The relay lets app.gogho.st read those two answers, and no others
+(`GHOST_APP_ORIGIN=https://app.gogho.st`: `Access-Control-Allow-Origin` on `/market/abuse` and `/feedback` alone,
+`relay/lib/relay.dart`). A relay anyone runs can serve the same app from its own `/app/` (`--web`, `GHOST_WEB_DIR`),
+built without a hub, which then speaks to the hub beside it; feedback goes to that relay, beside the page, and a
+report can't go from there (reports go to Ghost Messaging's review, at another address its policy doesn't name), so
+the report sheet says where to report from instead: app.gogho.st, or the app on a phone or a computer. Feedback from a
+browser is words alone: a page can't choose a picture yet.
+
+Both addresses tell the browser the same things on every answer (`tool/web/headers.json`, held to by
+`test/web_build_test.dart` and `relay/test/web_app_test.dart`): the page's own policy as a header, with
+`frame-ancestors 'none'` (the worker, `argon2id.js`, which the page's `<meta>` doesn't reach, is held to it too);
+`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
+`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` of `same-origin`, and a `Permissions-Policy` that asks
+for no camera, microphone, location or screen; `no-cache`, and a year only for the one file named by its hash. HSTS
+is app.gogho.st's; a relay's own server in front of it says its own.
+
+### What a browser keeps, and what that is worth
+
+- **Every record is sealed** (`lib/web/store.dart`): the conversations and choices (one record, `state`, which holds
+  the circles' and spaces' keys and the password-sealed copy of the backup), the identity, and every secret
+  (forward secrecy's prekeys, the circles' keys, the key the account's devices seal copies to each other with). Sealed
+  with AES-256-GCM under a key the browser made for the page as not extractable: the page's own code can't read the
+  key's bytes out.
+- **What that doesn't keep out.** Anything that runs in the page can ask the browser to open every record with that
+  key, as the app does: a script slipped into the page, or a browser extension allowed to read and change pages on
+  the app's address. The key is kept among the browser profile's files: in Chrome, Edge and Firefox as it is, so a
+  copy of the profile opens everything; Safari wraps it with a key in the Keychain. And the page's code comes from the
+  server each time it is opened: a server broken into could hand out a page that takes the password as it is typed.
+  The app on a phone or a computer is installed once and changes only with an update.
+- **What isn't kept at all**: the recovery words and the key the password makes (`Account.keepsWords`). They are
+  opened from the password-sealed copy of the backup each time they are wanted: showing the words, a new password,
+  listing or removing the devices, and bringing the backup up to date (which every other device does by itself once a
+  day, and a browser only when asked, in Settings › Me). In their place a browser keeps only the key the account's
+  devices seal copies to each other with, made from the words: it opens none of the account's other keys, but it
+  opens every copy of what is said with friends by username, both ways, for as long as the account lasts (it never
+  changes). The password-sealed copy is kept, so whoever opens the store could try passwords against it as fast as
+  they like: a long password is what stands in the way.
+- **Signing out deletes the whole database**, its key with it, asks the server for `Clear-Site-Data: "storage"`
+  (`relay/lib/web_app.dart`, app.gogho.st's block; answered only to the page's own asking, `Sec-Fetch-Site:
+  same-origin`, so a link to it from anywhere else signs nobody out), and loads the page again at the welcome; it takes itself off the
+  account's devices by its own number (`acct-leave`, `relay/lib/accounts.dart`), which needs no account key. Deleted,
+  the database is gone to the page and to whoever uses the browser next; Chrome kept its bytes, the key among them,
+  among the profile's files for a while after, until the `Clear-Site-Data` answer took them away. On a computer others
+  use, a private window, or clearing the browser's data for the app, is the safer way.
+- **Removed from another device**, it does the same: a page left open within a few minutes, as soon as its tab is
+  looked at again, or as the hub's connection comes back; a page closed, the next time it is opened. The relay keeps the
+  account's signed removal (`acct-devices`' `remove`, kept through every backup brought up to date) and hands it to the
+  device, which checks the account key's signature over its own number; each sign-in gives a device a new number, so
+  no removal signed before can name it. A browser also deletes everything where the relay holds the account and
+  doesn't list it, signed or not: what it keeps is a copy, and it can't be on another relay than its page's. An iPhone
+  or a computer of its own deletes everything only on the signed removal; where the relay holds the account and doesn't
+  list it with nothing signed (a relay from before removals were kept, a removal made before it was deployed), it forgets
+  the account's words and keys and keeps its conversations, as every device did before and an Android phone still does.
+  A relay that doesn't hold the account at all (another relay, one that lost what it kept) can make no device delete
+  or forget anything: it says so, and offers to list the device again, which puts the account on that relay from the
+  device without signing in (signing in would put the backup's friends and circles in place of the device's). The relay
+  is to be deployed before an app with this (`relay/README.md`).
+  A store that can't be opened (a record under another key, or changed) is deleted too, and the person is asked to
+  sign in again, never made someone new under the account's choices; one that can't be read just now (busy, full) is
+  not started on, and nothing is written over it.
+- **One tab at a time**, by the browser's own lock (Web Locks): a browser without it is told it is too old. A tab
+  that hands over stops its routes first, writes what it has, then lets go; the other waits for it.
+- **Each browser signed in is a device** on the account's list (at most 20, kept until removed), with its browser's
+  name and when it was last seen; a private window is a new one each time, and the sign-in page says so. The page asks
+  the browser to keep its store through low space (`navigator.storage.persist()`).
 
 ## The order of work
 

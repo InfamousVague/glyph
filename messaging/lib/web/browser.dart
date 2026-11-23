@@ -42,6 +42,10 @@ String browserNameOf(String userAgent) {
   return ['Browser', ?which, ?on].join(' · ');
 }
 
+/// The words a page may be loaded again with ([Browser.reload]), said once on the welcome as it opens
+/// (lib/standalone/welcome.dart): why the account is no longer in this browser.
+const pageNotes = {'signed-out', 'removed', 'lost'};
+
 abstract class Browser {
   /// The browser this page is in. A test puts its own here.
   static Browser instance = platform.browser();
@@ -52,48 +56,84 @@ abstract class Browser {
   /// What this browser is called in the account's list of devices ([browserNameOf]): "Browser · Chrome · Mac".
   String get name;
 
-  /// Why the app can't run in this browser at all, in words for the person; null where it can. (No secure address:
-  /// a browser gives a page neither the sealing nor the one-tab lock without one.)
+  /// Why the app can't run in this browser at all, in words for the person; null where it can. (No secure address: a
+  /// browser gives a page neither the sealing nor the one-tab lock without one. No lock between tabs: two tabs would
+  /// both be the device, and both write the one store.)
   String? get unfit;
 
   /// The page's own store. Throws where the browser will keep nothing for this page.
   Future<BrowserStore> openStore();
 
-  /// Asks to be the one tab of the app in this browser. [onAsked]: another tab wants to be it instead; finish what is
-  /// being written, then answer, and it is theirs. Null where another tab is it already.
-  Future<TabHold?> holdTab({required Future<void> Function() onAsked});
+  /// Asks the browser to keep what the page keeps when it runs short of space (`navigator.storage.persist()`): true
+  /// where it will. A browser that says no may still clear it, as it would any site's.
+  Future<bool> keep();
 
-  /// Becomes the one tab, asking whichever tab is it to let go (and taking it where that one doesn't answer).
-  Future<TabHold> takeTab({required Future<void> Function() onAsked});
+  /// Asks to be the one tab of the app in this browser. [onAsked]: another tab wants to be it instead; shut down,
+  /// finish what is being written, and the lock is let go and this page starts again as the tab that isn't it.
+  /// [onTaken]: it was taken from this tab without waiting (this one said nothing in time): write nothing more, the
+  /// page is starting again. Null where another tab is it already.
+  Future<TabHold?> holdTab({required Future<void> Function() onAsked, void Function()? onTaken});
 
-  /// The page, loaded again from the start.
-  void reload();
+  /// Becomes the one tab, asking whichever tab is it to let go and waiting while it does; taken from it only where it
+  /// says nothing at all (closed, or put to sleep by the browser).
+  Future<TabHold> takeTab({required Future<void> Function() onAsked, void Function()? onTaken});
+
+  /// The page, loaded again from the start; with [note] (one of [pageNotes]) said on the welcome as it opens.
+  void reload({String? note});
+
+  /// The note the page was loaded again with ([reload]), taken off the address so it is said once; null where none.
+  String? takeNote();
 
   /// [url] opened in a tab beside this one, with no way back to this page from it; whether the browser did.
   bool openTab(String url);
+
+  /// [then] each time the page is looked at again (its tab brought back to the front, the window shown again).
+  void onVisible(void Function() then);
 }
 
 /// Being the one tab of the app. Held until the page goes.
 abstract class TabHold {}
 
-/// Named values that outlast the page, and a second kind the page can seal and open but never read the key of.
-abstract class BrowserStore {
-  Future<String?> read(String name);
+/// What is kept for this page is there and can't be opened: a sealed record under another key (two tabs once made one
+/// each), or changed. The store is lost: it is wiped, and the person signs in again (lib/web/app.dart).
+class BrowserStoreLost implements Exception {
+  BrowserStoreLost(this.name);
+  final String name;
+  @override
+  String toString() => 'what this browser keeps as $name can\'t be opened';
+}
 
-  /// Keeps [value] as [name], whole or not at all.
-  Future<void> write(String name, String value);
+/// Named records that outlast the page, every one sealed: opened only with a key the browser holds for this page.
+abstract class BrowserStore {
+  /// A record kept plain by a build from before every record was sealed (lib/web/store.dart moves it); null where
+  /// there is none, or it is sealed.
+  Future<String?> readPlain(String name);
+
   Future<void> delete(String name);
 
-  /// [read] of what [writeSealed] kept: opened with the store's key. Null where nothing is kept, or it won't open.
+  /// What [writeSealed] kept as [name], opened with the store's key; null where nothing is kept. Throws
+  /// [BrowserStoreLost] where something is kept there and won't open.
   Future<String?> readSealed(String name);
 
-  /// [write], sealed first with a key the browser holds for this page and hands out to no one, the page included.
+  /// Keeps [value] as [name], whole or not at all, sealed first with a key the browser holds for this page and hands
+  /// out to no one, the page included (a script running in the page can still ask it to open what it sealed).
   Future<void> writeSealed(String name, String value);
+
+  /// Everything kept for the page deleted, the key with it (the whole database). Nothing is written after, and
+  /// nothing more is read.
+  Future<void> wipe();
+
+  /// Nothing more is written (another tab is taking over, or the page is going): a write asked for after this is let
+  /// go unwritten.
+  void close();
+
+  /// Told when a record is found that won't open while the app runs: the store is lost (lib/web/app.dart wipes it).
+  void Function(String name)? onLost;
 }
 
 /// A [Browser] in memory, for a test: one store per browser, and tabs that ask each other as real ones do.
 class MemoryBrowser implements Browser {
-  MemoryBrowser({Uri? address, this.unfit, MemoryBrowserProfile? profile, this.name = 'Browser'})
+  MemoryBrowser({Uri? address, this.unfit, MemoryBrowserProfile? profile, this.name = 'Browser', this.note})
       : address = address ?? Uri.parse('https://relay.example/app/'),
         profile = profile ?? MemoryBrowserProfile();
 
@@ -107,11 +147,21 @@ class MemoryBrowser implements Browser {
   /// What tabs of one browser share: the store, and which of them is the one.
   final MemoryBrowserProfile profile;
 
+  /// The note the page was loaded with, until taken.
+  String? note;
+
   int reloads = 0;
+
+  /// The note each [reload] was asked with.
+  final List<String?> reloadNotes = [];
   final List<String> opened = [];
 
   /// Set to have [openStore] fail, as a browser that keeps nothing for a page does.
   bool noStore = false;
+
+  /// What [keep] answers, and how many times it was asked.
+  bool keeps = true;
+  int keepAsked = 0;
 
   @override
   Future<BrowserStore> openStore() async {
@@ -120,31 +170,60 @@ class MemoryBrowser implements Browser {
   }
 
   @override
-  Future<TabHold?> holdTab({required Future<void> Function() onAsked}) async {
+  Future<bool> keep() async {
+    keepAsked++;
+    return keeps;
+  }
+
+  @override
+  Future<TabHold?> holdTab({required Future<void> Function() onAsked, void Function()? onTaken}) async {
     if (profile._holder != null) return null;
     return profile._holder = _MemoryHold(onAsked);
   }
 
   @override
-  Future<TabHold> takeTab({required Future<void> Function() onAsked}) async {
+  Future<TabHold> takeTab({required Future<void> Function() onAsked, void Function()? onTaken}) async {
     final had = profile._holder;
-    profile._holder = null;
+    // The tab that has it is asked, and is waited for: it lets go once it has shut down and written what it had.
     await had?.onAsked();
+    profile._holder = null;
     return profile._holder = _MemoryHold(onAsked);
   }
 
   @override
-  void reload() => reloads++;
+  void reload({String? note}) {
+    reloads++;
+    reloadNotes.add(note);
+  }
+
+  @override
+  String? takeNote() {
+    final n = note;
+    note = null;
+    return n != null && pageNotes.contains(n) ? n : null;
+  }
 
   @override
   bool openTab(String url) {
     opened.add(url);
     return true;
   }
+
+  final List<void Function()> _visible = [];
+
+  @override
+  void onVisible(void Function() then) => _visible.add(then);
+
+  /// The page is looked at again, as a tab brought back to the front is.
+  void becomeVisible() {
+    for (final f in [..._visible]) {
+      f();
+    }
+  }
 }
 
 class MemoryBrowserProfile {
-  final MemoryBrowserStore store = MemoryBrowserStore();
+  MemoryBrowserStore store = MemoryBrowserStore();
   _MemoryHold? _holder;
 
   /// The tab that was the one has gone (closed, or loaded again).
@@ -157,30 +236,71 @@ class _MemoryHold implements TabHold {
 }
 
 class MemoryBrowserStore implements BrowserStore {
+  /// Records kept plain, as a build from before kept the state: never written by this one.
   final Map<String, String> plain = {};
 
   /// What was sealed, as the store holds it: never the value itself.
   final Map<String, String> sealed = {};
 
+  /// The database was deleted ([wipe]); and how many times.
+  int wipes = 0;
+  bool closed = false;
+
+  /// Writes let go unwritten after [close] or [wipe].
+  int dropped = 0;
+
+  /// Set to have every read, or every write, fail as a browser's store can (busy, or full).
+  bool failReads = false, failWrites = false;
+
+  @override
+  void Function(String name)? onLost;
+
   static String _seal(String value) => 'sealed:${String.fromCharCodes(value.codeUnits.reversed)}';
 
   @override
-  Future<String?> read(String name) async => plain[name];
-  @override
-  Future<void> write(String name, String value) async => plain[name] = value;
+  Future<String?> readPlain(String name) async {
+    if (failReads) throw StateError('the browser\'s store: busy');
+    return plain[name];
+  }
+
   @override
   Future<void> delete(String name) async {
+    if (closed) return;
     plain.remove(name);
     sealed.remove(name);
   }
 
   @override
   Future<String?> readSealed(String name) async {
+    if (failReads) throw StateError('the browser\'s store: busy');
     final kept = sealed[name];
-    if (kept == null || !kept.startsWith('sealed:')) return null;
+    if (kept == null) return null;
+    if (!kept.startsWith('sealed:')) {
+      onLost?.call(name);
+      throw BrowserStoreLost(name);
+    }
     return String.fromCharCodes(kept.substring(7).codeUnits.reversed);
   }
 
   @override
-  Future<void> writeSealed(String name, String value) async => sealed[name] = _seal(value);
+  Future<void> writeSealed(String name, String value) async {
+    if (closed) {
+      dropped++;
+      return;
+    }
+    if (failWrites) throw StateError('the browser\'s store: full');
+    plain.remove(name);
+    sealed[name] = _seal(value);
+  }
+
+  @override
+  Future<void> wipe() async {
+    closed = true;
+    wipes++;
+    plain.clear();
+    sealed.clear();
+  }
+
+  @override
+  void close() => closed = true;
 }
