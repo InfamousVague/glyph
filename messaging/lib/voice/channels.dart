@@ -1039,16 +1039,19 @@ class Voice extends ChangeNotifier {
     if (m is RtcMedia) await m.applyLive(settings);
   }
 
-  // The microphone and the speaker chosen in Settings: kept, and switched to at once in a call there is.
-  Future<void> useInput(String deviceId) async {
+  // The microphone and the speaker chosen in Settings: kept with the system's name for them (to find one again whose
+  // id has changed), and switched to at once in a call there is. An empty id is the system's own.
+  Future<void> useInput(String deviceId, {String name = ''}) async {
     _app?.set('voice_input', deviceId);
-    await media?.setInput(deviceId);
+    _app?.set('voice_input_name', deviceId.isEmpty ? '' : name);
+    await media?.setInput(deviceId, name: name);
     notifyListeners();
   }
 
-  Future<void> useOutput(String deviceId) async {
+  Future<void> useOutput(String deviceId, {String name = ''}) async {
     _app?.set('voice_output', deviceId);
-    await media?.setOutput(deviceId);
+    _app?.set('voice_output_name', deviceId.isEmpty ? '' : name);
+    await media?.setOutput(deviceId, name: name);
     notifyListeners();
   }
 

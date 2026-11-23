@@ -13,6 +13,8 @@ class VoiceSettings {
   const VoiceSettings({
     this.input = '',
     this.output = '',
+    this.inputName = '',
+    this.outputName = '',
     this.audioKbps = 510,
     this.stereo = true,
     this.echo = true,
@@ -28,6 +30,11 @@ class VoiceSettings {
   /// The microphone's and the speaker's device ids; empty for the system's own.
   final String input;
   final String output;
+
+  /// The names the system gave them when they were chosen: a device whose id has changed since (Android numbers a USB
+  /// microphone afresh each time it is plugged in) is found again by its name ([SoundChoice.resolve]).
+  final String inputName;
+  final String outputName;
   final int audioKbps;
   final bool stereo;
   final bool echo;
@@ -59,6 +66,8 @@ class VoiceSettings {
   factory VoiceSettings.of(AppState app) => VoiceSettings(
         input: app.choice('voice_input', ''),
         output: app.choice('voice_output', ''),
+        inputName: app.choice('voice_input_name', ''),
+        outputName: app.choice('voice_output_name', ''),
         audioKbps: int.tryParse(app.choice('voice_kbps', '510')) ?? 510,
         stereo: app.flag('voice_stereo', fallback: true),
         echo: app.flag('voice_echo', fallback: true),
@@ -73,9 +82,11 @@ class VoiceSettings {
       );
 
   /// With another device or volume; everything else as it is.
-  VoiceSettings copyWith({String? input, String? output, int? inputVolume, int? outputVolume}) => VoiceSettings(
+  VoiceSettings copyWith({String? input, String? output, String? inputName, String? outputName, int? inputVolume, int? outputVolume}) => VoiceSettings(
         input: input ?? this.input,
         output: output ?? this.output,
+        inputName: inputName ?? this.inputName,
+        outputName: outputName ?? this.outputName,
         audioKbps: audioKbps,
         stereo: stereo,
         echo: echo,
