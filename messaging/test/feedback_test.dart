@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/feedback/feedback_api.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
+import 'package:ghost_messaging/sms.dart' show Sms;
 import 'package:ghost_messaging/ui/circles/members_drawer.dart' show MembersDrawer;
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/feedback_screen.dart';
@@ -257,6 +258,26 @@ void main() {
 
     await h.shoot(tester, FeedbackScreen(username: '', send: (r) async => 'x'), 'feedback-anonymous');
     expect(find.byKey(const ValueKey('feedback-username')), findsNothing);
+  });
+
+  // In a browser, which can't choose a picture yet: the words alone, and a row saying so, which a screen reader reads.
+  testWidgets('in a browser the form sends words alone and says why there are no screenshots', (tester) async {
+    final was = Sms.browser;
+    addTearDown(() => Sms.browser = was);
+    Sms.browser = true;
+    final h = await SpaceHarness.load(tester);
+    final sent = <FeedbackReport>[];
+    await h.shoot(tester, FeedbackScreen(username: 'matt', send: (r) async => (sent..add(r)).isEmpty ? '' : 'GMFB-14'), 'feedback-browser');
+    expect(find.byKey(const ValueKey('feedback-add-shot')), findsNothing);
+    expect(find.byKey(const ValueKey('feedback-no-shots')), findsOneWidget);
+    expect(find.text('Not from a browser yet'), findsOneWidget);
+    expect(tester.getSemantics(find.byKey(const ValueKey('feedback-no-shots'))).label, contains('Not from a browser yet'));
+    await tester.enterText(find.descendant(of: find.byKey(const ValueKey('feedback-text')), matching: find.byType(EditableText)), 'From a browser.');
+    await tester.pump();
+    await _press(tester, 'feedback-send');
+    await tester.pump();
+    expect(sent.single.shots, isEmpty);
+    await tester.pump(const Duration(seconds: 6));
   });
 
   testWidgets('a refusal is said and the form stays', (tester) async {

@@ -362,7 +362,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               gap,
               PaneSection(
                 title: 'Screenshots',
-                footer: Text('Up to ${FeedbackReport.mostShots}.'),
+                footer: Sms.browser ? null : Text('Up to ${FeedbackReport.mostShots}.'),
                 children: [
                   if (_shots.isNotEmpty)
                     SettingRowBox(
@@ -370,15 +370,22 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         for (final (i, s) in _shots.indexed) _thumb(t, i, s),
                       ]),
                     ),
-                  if (_shots.length < FeedbackReport.mostShots)
+                  // Not in a browser, which can't choose a picture yet (Sms.browser): the words go alone there, and the
+                  // row says so (a plain row, which a screen reader reads; a switched-off one it doesn't).
+                  if (Sms.browser)
+                    SettingRow(
+                      key: const ValueKey('feedback-no-shots'),
+                      icon: AppIcon(Lucide.image, size: 18),
+                      label: 'Not from a browser yet',
+                      hint: const Text('Say what you saw in words, or send screenshots from the app on your phone or computer.'),
+                    )
+                  else if (_shots.length < FeedbackReport.mostShots)
                     SettingRow(
                       key: const ValueKey('feedback-add-shot'),
                       icon: AppIcon(Lucide.imagePlus, size: 18),
                       label: _picking ? 'Adding…' : 'Add a screenshot',
-                      // Not in a browser, which can't choose a picture yet (Sms.browser): the words go alone there.
-                      hint: Sms.browser ? const Text('Not from a browser yet: say what you saw in words') : null,
-                      disabled: Sms.browser || _sending || _picking,
-                      onPress: Sms.browser || _sending || _picking ? null : _addShot,
+                      disabled: _sending || _picking,
+                      onPress: _sending || _picking ? null : _addShot,
                     ),
                 ],
               ),
