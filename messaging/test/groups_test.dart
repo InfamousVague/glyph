@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/friends/groups.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/ui/network.dart' show peerLabel;
 
 import 'support/fake_groups.dart';
 
@@ -208,6 +209,24 @@ void main() {
     expect([for (final m in (g.state()['members'] as List).cast<Map>()) m['a']], ['', '+15550002222', '+15550009999']);
     // A view that says nothing of it (the screens' pictures): as listed.
     expect(GroupMember.from({'id': 'x', 'address': '+15550003333'}).shown, '+15550003333');
+  });
+
+  // The review's follow-up (2026-11-23): Settings › Network's row for someone whose address is none here was blank.
+  test('one of the routes\' people with no address known here is called after their group, else their install\'s name', () {
+    final crew = Group.from({
+      'id': 'f' * 32,
+      'name': 'Crew',
+      'v': 1,
+      'thread': 3,
+      'members': [
+        {'id': 'a' * 32, 'key': 'k', 'me': true},
+        {'id': 'e' * 32, 'key': 'k'},
+      ],
+    });
+    expect(peerLabel(const Peer(id: 'b0b0b0b0b0b0', address: '+15550001111', name: 'Ben'), groups: [crew]), 'Ben');
+    expect(peerLabel(const Peer(id: 'b0b0b0b0b0b0', address: '+15550001111'), groups: [crew]), '+15550001111');
+    expect(peerLabel(Peer(id: 'e' * 32, address: ''), groups: [crew]), 'A member of Crew');
+    expect(peerLabel(const Peer(id: 'c0c0c0c0c0c0c0c0', address: '', name: ''), groups: [crew]), 'c0c0c0c0');
   });
 }
 

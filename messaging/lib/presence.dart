@@ -32,11 +32,17 @@ class Presence {
     return Friends.instance.idOf(address);
   }
 
+  /// Whether the install named [id] is on our own system now, or when it was last seen, as the relay's hub says: by
+  /// its name, for whoever is known by it already (one of the routes' people, a friend by username).
+  static InboxPresence? ofId(String id) {
+    final g = Net.instance.presenceOfId(id);
+    return g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
+  }
+
   /// Whether whoever [address] names is on now, and where; or when they were last seen. Null where nothing is known.
   static InboxPresence? of(String address) {
     final id = ghostIdOf(address);
-    final g = id == null ? null : Net.instance.presenceOfId(id);
-    final ghost = g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
+    final ghost = id == null ? null : ofId(id);
     // Busy or away on Ghost is how they chose to be shown: it wins over being online elsewhere.
     if (ghost != null && (ghost.online || ghost.busy || ghost.away)) return ghost;
     final other = Inbox.instance.presenceOfAddress(address);

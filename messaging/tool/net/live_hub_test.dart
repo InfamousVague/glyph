@@ -21,8 +21,6 @@ class _Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
-  @override
-  Peer? byAddress(String address) => null;
 }
 
 Future<void> _up(HubCarrier c) async {
