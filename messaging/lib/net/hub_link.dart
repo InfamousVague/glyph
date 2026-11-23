@@ -29,9 +29,37 @@ abstract class HubLinkEnd {
 typedef HubDial = Future<HubLink> Function(String url);
 
 /// Dials the hub at [url] as the platform this runs on does: a WebSocket, dart:io's or the browser's. Ten seconds
-/// to connect, then a TimeoutException.
-Future<HubLink> dialHub(String url) => platform.dialHub(url);
+/// to connect, then a TimeoutException. A relay hosted from someone's app (`ghost-relay://…`,
+/// lib/relay_host/address.dart) is no WebSocket's: it is dialled as [HubDials.hosted] says.
+Future<HubLink> dialHub(String url) {
+  if (url.trim().toLowerCase().startsWith('ghost-relay://')) {
+    final dial = HubDials.hosted;
+    return dial == null ? Future.error(const HubDialRefused('A relay hosted from someone\'s app can\'t be reached from here.')) : dial(url);
+  }
+  return platform.dialHub(url);
+}
 
 /// Why a [dialHub] failed, in the platform's own few words: what Settings › Routes says after "Couldn't connect"
 /// (relay_choice.dart).
-String dialProblem(Object error) => platform.dialProblem(error);
+String dialProblem(Object error) => error is HubDialRefused ? error.message : platform.dialProblem(error);
+
+/// What a relay hosted from an app says (`{"ok": false, "err": …, "door": "full"}` in place of its hello, then closed:
+/// lib/relay_host/relay_host_io.dart) where this device already has as many connections to it as it takes from one
+/// device: what the app shows.
+const doorFullWords = 'This relay takes only a few connections from one device at a time, and this device has them. Close Ghost Messaging elsewhere on this device, or try again in a moment.';
+
+/// The ways to a hub that aren't a WebSocket, set by whoever has one.
+abstract final class HubDials {
+  /// How a relay hosted from someone's app is dialled (`ghost-relay://…`): in memory where it is this app's own, over
+  /// the direct network where it is another device's (lib/relay_host, set as the routes start). Null where there is no
+  /// way: a browser, a test that set none.
+  static HubDial? hosted;
+}
+
+/// Why an address could not be dialled at all, in words to show.
+class HubDialRefused implements Exception {
+  const HubDialRefused(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
