@@ -33,7 +33,7 @@ class NavItem {
   /// and what it is read aloud by.
   final String? short;
 
-  /// A number worn on the ring's corner (how many are archived); nothing for none.
+  /// A number worn on the ring's corner (on Archive, how many archived conversations are unread); nothing for none.
   final int count;
 }
 
@@ -333,8 +333,8 @@ class _RingState extends State<_Ring> {
             children: [
               round,
               PositionedDirectional(
-                end: -6,
-                top: -6,
+                end: -4,
+                top: -4,
                 child: ExcludeSemantics(
                   child: Container(
                     // Large enough to read at a glance, and red: a count is the one thing on the pill that is not
@@ -343,12 +343,14 @@ class _RingState extends State<_Ring> {
                     // that is shown (itself ink) read as a hole in it. A line of the page's ground round it keeps
                     // it off the ring in either case.
                     // A size larger again (Matt, 2026-11-15: "make the notification count badges a bit bigger").
-                    // And larger once more (Matt, 2026-11-18: "The notification badges are too small").
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    // And larger once more (Matt, 2026-11-18: "The notification badges are too small"), which at
+                    // 26 across with 14-point words went past it (Matt, 2026-11-22: "the pill for unread count is too
+                    // big"): 20 across and 12-point, as a circle's count in the rail is near enough.
+                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(13), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(14, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                    decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(10), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                    child: Text(item.count > 99 ? '99+' : '${item.count}', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
                   ),
                 ),
               ),

@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'bounty.dart';
 import 'feedback.dart';
 import 'files.dart';
 import 'hub.dart';
 import 'market.dart';
 import 'sha256.dart';
+import 'web_app.dart';
+import 'ws_door.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
 /// out to when they are on different networks. It passes what one sends to the other while both are connected, and
@@ -22,7 +25,37 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web, this.appOrigin, WireBudget? wire})
+      : _now = now ?? DateTime.now,
+        wire = wire ?? hub?.wire ?? WireBudget.shared;
+
+  /// The address of the app in a browser served apart from this relay (`GHOST_APP_ORIGIN`, [appOriginFrom]; for
+  /// gogho.st, https://app.gogho.st), whose page sends two things here: a report to the Marketplace's review
+  /// (`POST /market/abuse`) and feedback (`POST /feedback`). A browser lets that page read their answers only where the
+  /// answers say so (CORS), and only those two say so, to that address alone. None where null: no answer says so.
+  final String? appOrigin;
+
+  /// The headers a request from [appOrigin] to those two may carry: what they are signed with, and the body's kind.
+  static const appHeaders = 'content-type, x-ghost-key, x-ghost-time, x-ghost-sig, x-ghost-body-sha256, x-ghost-body-length';
+
+  /// `GHOST_APP_ORIGIN` from [env], as a browser names an address in its `Origin` header: https and a host (a port
+  /// where one is said), or http to this machine, for a try here; lower case, no slash after. Null where it is unset,
+  /// or anything else (said on stderr).
+  static String? appOriginFrom(Map<String, String> env) {
+    final said = (env['GHOST_APP_ORIGIN'] ?? '').trim();
+    if (said.isEmpty) return null;
+    final origin = said.toLowerCase().replaceFirst(RegExp(r'/$'), '');
+    if (RegExp(r'^https://[a-z0-9.-]+(:[0-9]{1,5})?$').hasMatch(origin) || RegExp(r'^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?$').hasMatch(origin)) return origin;
+    stderr.writeln('relay: GHOST_APP_ORIGIN is not an address a browser names (https://host, or http://127.0.0.1:port): left off');
+    return null;
+  }
+
+  /// The app in a browser, as plain files (web_app.dart), served under `/app/`; none where null.
+  final WebApp? web;
+
+  /// What every connection may hold together, waiting to go out or half come in (ws_door.dart, [WireBudget]): the
+  /// hub's, so the pairings' door and the hub's count against one budget.
+  final WireBudget wire;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
@@ -32,6 +65,9 @@ class Relay {
 
   /// Feedback from the app, filed in a Notion board (feedback.dart), served under `/feedback`; none where null.
   final Feedback? feedback;
+
+  /// Bounties paid in souls by the bounty key (bounty.dart), under `/bounty`; none where null.
+  final Bounty? bounty;
 
   /// The Marketplace, plugins from other developers and their review (market.dart), served under `/market`; none where
   /// null.
@@ -48,6 +84,10 @@ class Relay {
   /// [authWait]: how long a new connection has to say its token before it is closed (4401).
   /// [maxChannels]: the most channels kept at once; past it a new one is refused.
   static const maxFrame = (1 << 20) + 64;
+
+  /// The longest message read at all: a frame past [maxFrame] closes the channel once it is read, and one past this
+  /// ends the connection before it is held (ws_door.dart).
+  static const maxMessage = maxFrame + (64 << 10);
   static const tempLife = Duration(minutes: 10);
   static const idleLife = Duration(days: 90);
   static const authWait = Duration(seconds: 10);
@@ -125,6 +165,11 @@ class Relay {
     }
   }
 
+  /// Whether [segments] is one of the two things the app's page sends from its own address ([appOrigin]), and this
+  /// relay takes it: `/market/abuse`, `/feedback`.
+  bool _fromTheApp(List<String> segments) =>
+      (segments.length == 2 && segments[0] == 'market' && segments[1] == 'abuse' && market != null) || (segments.length == 1 && segments[0] == 'feedback' && feedback != null);
+
   /// [status] and nothing else, where the answer hasn't begun: its headers sent already (or a WebSocket's), nothing.
   static Future<void> _answerOnly(HttpRequest request, int status) async {
     try {
@@ -143,6 +188,23 @@ class Relay {
   Future<void> _route(HttpRequest request, List<String> segments) async {
     final name = segments.isEmpty ? '' : segments.last;
     final upgrade = WebSocketTransformer.isUpgradeRequest(request);
+    // From the app's page at its own address ([appOrigin]): a report or feedback, its answer readable by that page.
+    if (!upgrade && appOrigin != null && _fromTheApp(segments)) {
+      request.response.headers.add(HttpHeaders.varyHeader, 'Origin');
+      if (request.headers.value('origin') == appOrigin) {
+        request.response.headers.set('access-control-allow-origin', appOrigin!);
+        // What the browser asks first, the headers being the app's own: yes, for a POST with them, for ten minutes.
+        if (request.method == 'OPTIONS') {
+          request.response
+            ..statusCode = HttpStatus.noContent
+            ..headers.set('access-control-allow-methods', 'POST')
+            ..headers.set('access-control-allow-headers', appHeaders)
+            ..headers.set('access-control-max-age', '600');
+          await request.response.close();
+          return;
+        }
+      }
+    }
     // The hub is its own thing with its own way in (hub.dart): `/hub`, behind whatever the web server puts before it.
     if (upgrade && name == 'hub' && hub != null) return hub!.accept(request);
     // Signing in with a network to link its handle (handles.dart): a browser's pages, under /link/.
@@ -157,10 +219,12 @@ class Relay {
     // it), so an error escaping the market would be unhandled in the root zone and end the relay, and every hub
     // connection with it: the market never throws, and this makes sure.
     if (!upgrade && segments.isNotEmpty && segments.first == 'market' && market != null) return market!.handle(request).catchError((Object _) {});
+    // The app in a browser (web_app.dart): its files, under /app/.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'app' && web != null) return web!.handle(request, segments.sublist(1));
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
-    // Anything else that is not a pairing's WebSocket gets one line saying what this is: 200 to a plain request, 404
-    // to a WebSocket at an address that is no channel.
+    // A bounty's souls (bounty.dart): one signed POST to /bounty.
+    if (!upgrade && segments.length == 1 && segments.first == 'bounty' && bounty != null) return bounty!.handle(request);
     if (!upgrade || !_hex(name, 32)) {
       request.response
         ..statusCode = upgrade ? HttpStatus.notFound : HttpStatus.ok
@@ -171,7 +235,11 @@ class Relay {
     }
     final WebSocket ws;
     try {
-      ws = await WebSocketTransformer.upgrade(request);
+      // No compression, as the hub (hub.dart, accept): a deflated message opens out before its length is looked at.
+      // And no message longer than a frame this door takes, with a margin, is held at all (ws_door.dart).
+      final up = await upgradeGuarded(request, most: maxMessage, budget: wire);
+      if (up == null) return;
+      ws = up;
     } catch (_) {
       return;
     }

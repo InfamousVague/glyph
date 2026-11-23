@@ -106,10 +106,21 @@ class Handles {
   final Map<String, String> _kept = {};
   static const maxKept = 256 * 1024;
 
+  /// The third-party sign-in cookies ("cURL entries") a Chrome extension captures and the app's devices sign in with
+  /// (Matt, 2026-11-21: "make a chrome plugin ... getting all the curl keys ... sync the cURL entries across all
+  /// devices so we don't need to login to things like instagram on every device"). Sealed with a key only the
+  /// account's devices have (derived from the backup's kept_key); this server can't read it. One blob per identity,
+  /// so all of an account's devices share the one slot, [maxCurl] at most.
+  final Map<String, String> _curl = {};
+  static const maxCurl = 128 * 1024;
+
   /// The public key each connected install proved itself with (hub.dart), for the username it claims.
   final Map<String, String> _keys = {};
 
-  /// When each install looked someone up, so the usernames cannot be walked through.
+  /// When each identity looked someone up, so the usernames cannot be walked through. An account's devices sign in as
+  /// one identity, so its devices share the [lookupsAnHour] (the app holds what it looks up of its own accord, the name
+  /// watch's lookups and the friend requests' checks, to a quarter of them, shared out among the account's devices:
+  /// lib/me/lookup_budget.dart).
   final Map<String, List<DateTime>> _lookups = {};
   static const lookupsAnHour = 120;
 
@@ -184,6 +195,14 @@ class Handles {
     return [for (final b in specialBadges) if (have.contains(b)) b].firstOrNull ?? have.first;
   }
 
+  /// Souls and badges given that the person's app has not yet said it showed them, by install, oldest first, at most
+  /// [unseenKept] each: {g (an id), at, souls or badge, why} (Matt, 2026-11-21: "notify a user when they have recieved
+  /// souls wiht a description for why like "bug bounty" etc it should notify them next time they connect to the app
+  /// (or immediatly if they're connected in real time)"). Said with the gift where they are connected, and again at
+  /// every hello until the app says `souls-seen`.
+  final Map<String, List<Map<String, Object?>>> _unseen = {};
+  static const unseenKept = 50;
+
   /// What the admin gave, newest last, at most [grantsKept]: {at, to, souls or badge, why}.
   final List<Map<String, Object?>> _grants = [];
   static const grantsKept = 2000;
@@ -210,6 +229,16 @@ class Handles {
 
   /// How many souls [id] has, and the special badges it was given.
   int soulsOf(String id) => _souls[id] ?? 0;
+
+  /// A bounty's souls, given by the bounty key (bounty.dart) as the admin page gives them: added, kept, logged with why
+  /// (`by: bounty`), and told to them where they are connected. Their total after.
+  int giveBounty(String to, int n, String why) {
+    _souls[to] = soulsOf(to) + n;
+    _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why, 'by': 'bounty'});
+    _changed();
+    _here[to]?.call(_soulsMessage(to, got: n, why: why));
+    return soulsOf(to);
+  }
   List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
 
   /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt:hash`, the
@@ -271,9 +300,7 @@ class Handles {
     return k == null ? null : _shown[k];
   }
 
-  /// `{"dir": "souls"}` as [id] is told it: its souls, badges and the one it shows; with [got], [why] and [badge] where
-  /// the admin has just given something.
-  Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge}) => {
+  Map<String, Object?> _soulsMessage(String id, {int? got, String? why, String? badge, String? gift}) => {
         'dir': 'souls',
         'n': soulsOf(id),
         'special': specialOf(id),
@@ -281,9 +308,27 @@ class Handles {
         'got': ?got,
         'why': ?why,
         'badge': ?badge,
+        'gift': ?gift,
       };
 
-  /// Notes in the admin's log that [id] was given [what], dropping the oldest past [grantsKept].
+  /// Keeps a gift for [id] until their app has shown it; its id.
+  String _keepUnseen(String id, Map<String, Object?> what) {
+    final g = hexOf([for (var i = 0; i < 8; i++) _random.nextInt(256)]);
+    final list = _unseen[id] ??= [];
+    list.add({'g': g, 'at': _now().toUtc().toIso8601String(), ...what});
+    while (list.length > unseenKept) {
+      list.removeAt(0);
+    }
+    return g;
+  }
+
+  /// The gifts [id]'s app has not shown, as said at hello; null for none.
+  Map<String, Object?>? _unseenMessage(String id) {
+    final list = _unseen[id];
+    if (list == null || list.isEmpty) return null;
+    return {'dir': 'souls-gifts', 'list': list, 'n': soulsOf(id), 'special': specialOf(id)};
+  }
+
   void _grant(String id, Map<String, Object?> what) {
     _grants.add({'at': _now().toUtc().toIso8601String(), 'to': id, ...what});
     while (_grants.length > grantsKept) {
@@ -462,12 +507,14 @@ class Handles {
         (all['pending'] as Map? ?? const {}).forEach((id, keys) => _pending[id as String] = (keys as List).cast<String>().toList());
         (all['names'] as Map? ?? const {}).forEach((k, v) => _names[k as String] = (v as Map).cast<String, String>());
         (all['kept'] as Map? ?? const {}).forEach((id, blob) => _kept[id as String] = blob as String);
+        (all['curl'] as Map? ?? const {}).forEach((id, blob) => _curl[id as String] = blob as String);
         (all['shown'] as Map? ?? const {}).forEach((k, name) => _shown[k as String] = name as String);
         (all['was'] as Map? ?? const {}).forEach((id, names) => _was[id as String] = [for (final n in names as List) '$n']);
         (all['souls'] as Map? ?? const {}).forEach((id, n) => _souls[id as String] = (n as num).toInt());
         (all['special'] as Map? ?? const {}).forEach((id, list) => _special[id as String] = (list as List).cast<String>().toList());
         (all['showcase'] as Map? ?? const {}).forEach((id, b) => _showcase[id as String] = b as String);
         _grants.addAll([for (final g in (all['grants'] as List? ?? const [])) (g as Map).cast<String, Object?>()]);
+        (all['unseen'] as Map? ?? const {}).forEach((id, list) => _unseen[id as String] = [for (final g in list as List) (g as Map).cast<String, Object?>()]);
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -507,12 +554,14 @@ class Handles {
         'pending': _pending,
         'names': _names,
         'kept': _kept,
+        'curl': _curl,
         'shown': _shown,
         'was': _was,
         'souls': _souls,
         'special': _special,
         'showcase': _showcase,
         'grants': _grants,
+        'unseen': _unseen,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}
@@ -621,6 +670,9 @@ class Handles {
             _shown[held] = tidyName(mine);
             _changed();
           }
+          // Souls and badges given while away, said until the app has shown them.
+          final away = _unseenMessage(id);
+          if (away != null) tell(away);
           for (final done in _done.remove(id) ?? const <Map<String, String>>[]) {
             tell({'dir': 'linked', ...done});
           }
@@ -642,6 +694,18 @@ class Handles {
           tell({'dir': 'keep', 'ok': true});
         case 'kept':
           tell({'dir': 'kept', 'blob': _kept[id]});
+        case 'curl-keep':
+          final blob = said['blob'];
+          if (blob is! String || blob.length > maxCurl) return err('That is more than can be kept.');
+          if (blob.isEmpty) {
+            _curl.remove(id);
+          } else {
+            _curl[id] = blob;
+          }
+          _changed();
+          tell({'dir': 'curl-keep', 'ok': true});
+        case 'curl-kept':
+          tell({'dir': 'curl-kept', 'blob': _curl[id]});
         case 'name':
           // Whether this install has a username here; the app keeps the words, this server only their hash.
           final mine = _nameOf[id];
@@ -683,11 +747,7 @@ class Handles {
           // Who holds a username: their hub name and public key, which is all it takes to write to them.
           final name = said['name'];
           if (name is! String || !goodName(name)) return tell({'dir': 'whois', 'name': name, 'none': true});
-          final now = _now();
-          final list = _lookups[id] ??= [];
-          list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
-          if (list.length >= lookupsAnHour) return err('Too many lookups. Try again in a while.');
-          list.add(now);
+          if (!mayLookUp(id)) return err('Too many lookups. Try again in a while.');
           final found = _names[nameKey(name)];
           if (found == null) return tell({'dir': 'whois', 'name': tidyName(name), 'none': true});
           // Looked up in words: the admin page can name its holder from now on, an install on an older app that never
@@ -729,6 +789,15 @@ class Handles {
         case 'souls?':
           // This install's own souls and badges.
           tell(_soulsMessage(id));
+        case 'souls-seen':
+          // The gifts the app has shown: kept no longer.
+          final ids = said['ids'];
+          final list = _unseen[id];
+          if (ids is List && list != null) {
+            list.removeWhere((g) => ids.contains(g['g']));
+            if (list.isEmpty) _unseen.remove(id);
+            _changed();
+          }
         case 'showcase':
           // The badge to show beside one's name: one of one's own, or '' for one's highest.
           final b = said['badge'];
@@ -772,9 +841,11 @@ class Handles {
               if (to is! String || to.isEmpty || n is! int || n == 0 || n.abs() > soulsAtOnce) return tell({'dir': 'admin-give', 'ok': false, 'err': 'Give between 1 and $soulsAtOnce souls, or take as many.'});
               final now = soulsOf(to) + n;
               _souls[to] = now < 0 ? 0 : now;
-              _grant(to, {'souls': n, 'why': why.length > 200 ? why.substring(0, 200) : why});
+              final short = why.length > 200 ? why.substring(0, 200) : why;
+              _grant(to, {'souls': n, 'why': short});
+              final gift = _keepUnseen(to, {'souls': n, 'why': short});
               _changed();
-              _here[to]?.call(_soulsMessage(to, got: n, why: why));
+              _here[to]?.call(_soulsMessage(to, got: n, why: short, gift: gift));
               tell({'dir': 'admin-give', 'ok': true, 'to': to, 'n': soulsOf(to)});
             case 'admin-badge':
               final to = said['to'], badge = said['badge'], on = said['on'] == true;
@@ -784,8 +855,9 @@ class Handles {
               if (!on) list.remove(badge);
               if (list.isEmpty) _special.remove(to);
               _grant(to, {'badge': badge, 'on': on});
+              final gift = on ? _keepUnseen(to, {'badge': badge}) : null;
               _changed();
-              _here[to]?.call(_soulsMessage(to, badge: on ? badge : null));
+              _here[to]?.call(_soulsMessage(to, badge: on ? badge : null, gift: gift));
               tell({'dir': 'admin-badge', 'ok': true, 'to': to, 'special': specialOf(to)});
           }
         case 'link':
@@ -952,6 +1024,38 @@ class Handles {
     _codeFor[k]?.remove(id);
     if (_codeFor[k]?.isEmpty ?? false) _codeFor.remove(k);
     return null;
+  }
+
+  /// Whether [id] may look someone up now, and that it has: at most [lookupsAnHour] an hour, so the usernames cannot
+  /// be walked through. One count for every kind of lookup an install makes, here or of another relay
+  /// (federation.dart).
+  bool mayLookUp(String id) {
+    final now = _now();
+    final list = _lookups[id] ??= [];
+    list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
+    if (list.length >= lookupsAnHour) return false;
+    list.add(now);
+    return true;
+  }
+
+  /// Who holds the username [name] here, their name and key: what another relay is told when one of its people asks
+  /// (federation.dart, which counts how often that relay asks). Null where nobody does.
+  ({String id, String key})? holder(String name) {
+    if (!goodName(name)) return null;
+    final found = _names[nameKey(name)];
+    final id = found?['id'], key = found?['key'];
+    return id == null || key == null ? null : (id: id, key: key);
+  }
+
+  /// Whether [id] holds a username here: someone who has signed in here (federation.dart keeps packets from other
+  /// relays only for such names).
+  bool holdsAName(String id) => _nameOf.containsKey(id);
+
+  /// The day [id] first claimed the username it holds (midnight UTC), or null where it holds none.
+  DateTime? nameHeldSince(String id) {
+    final k = _nameOf[id];
+    final at = k == null ? null : _names[k]?['at'];
+    return at == null ? null : DateTime.tryParse('${at}T00:00:00Z');
   }
 
   /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).

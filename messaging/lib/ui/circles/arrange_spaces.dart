@@ -10,7 +10,6 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
 import '../../kit/settings_type.dart';
-import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
 import 'circle_face.dart';
@@ -117,7 +116,7 @@ void showArrangeSpaceMenu(BuildContext context, Circle c, CircleSpace s) {
   showChoices(context, title: '${s.name} · ${spaceKindTitle(s.kind)}', choices: [
     Choice('Rename', Lucide.pencil, () => askCircleWords(context, title: 'Rename ${s.name}', initial: s.name, then: (name) => circles.updateSpace(c, s.seed, name: name))),
     Choice('Heading', Lucide.listTree, () => askCircleWords(context, title: 'Heading for ${s.name}', initial: s.section ?? '', hint: 'Spaces with the same heading are listed together. Leave it empty for none.', then: (h) => circles.updateSpace(c, s.seed, section: h.isEmpty ? null : h, clearSection: h.isEmpty))),
-    for (final k in SpaceKind.values)
+    for (final k in spaceKindsOffered)
       if (k != s.kind) Choice('Make it ${spaceKindTitle(k).toLowerCase()}', spaceKindIcon(k), () => circles.updateSpace(c, s.seed, kind: k), hint: spaceKindBlurb(k)),
     Choice('Delete space', Lucide.trash2, () => confirmRemoveCircleSpace(context, c, s), danger: true),
   ]);

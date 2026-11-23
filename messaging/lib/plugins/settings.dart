@@ -5,7 +5,7 @@
 /// setting, by name, and a hit opens the Marketplace at it (lib/ui/settings.dart).
 library;
 
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -17,8 +17,11 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import '../market/market_state.dart';
+import '../ui/inbox_ui.dart' show networkPluginCard;
 import '../ui/settings.dart';
 import '../ui/plugins_page/plugins_page.dart';
+import '../ui/plugins_page/plugin_sync_row.dart';
+import 'networks.dart';
 import 'plugin.dart';
 import 'registry.dart';
 
@@ -81,7 +84,10 @@ Widget pluginScreen(GhostPlugin plugin, [PluginRegistry? registry]) {
   return PluginScreen(registry: r, plugin: plugin, settingsOf: (context, p) => _ownOf(context, p, r), summaryOf: (context, p) => _summaryOf(context, p, r));
 }
 
-List<Widget> _ownOf(BuildContext context, GhostPlugin p, PluginRegistry r) => _own(context, p, r, AppStore(AppState.of(context)), title: null);
+List<Widget> _ownOf(BuildContext context, GhostPlugin p, PluginRegistry r) {
+  final n = p is NetworkPlugin ? p.connection : null;
+  return [if (n != null) networkPluginCard(context, n), ..._own(context, p, r, AppStore(AppState.of(context)), title: null)];
+}
 
 String? _summaryOf(BuildContext context, GhostPlugin p, PluginRegistry r) => p.settingsPage?.summary?.call(r.prefsOf(p, AppStore(AppState.of(context))));
 
@@ -140,7 +146,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
   return [
     PaneSection(
       title: 'Plugins',
-      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
+      description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
       footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in the Marketplace.') : null,
       children: [
         for (final p in registry.plugins)
@@ -155,6 +161,8 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     // A card here for each plugin that is on and keeps its settings on this page.
     for (final p in registry.plugins)
       if (registry.isOn(p, store) && p.settingsPage == null) ..._own(context, p, registry, store, title: p.name),
+    // Which are on, synced across the Ghost account's devices (GMFB-9): the app's own plugins', not a test's registry.
+    if (identical(registry, PluginRegistry.instance)) pluginSyncSection(context, app),
   ];
 }
 

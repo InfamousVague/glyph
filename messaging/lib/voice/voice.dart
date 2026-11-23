@@ -3,6 +3,7 @@ import '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
@@ -237,6 +238,54 @@ abstract class VoicePeer {
   Future<void> close();
 }
 
+/// Media whose connections say when they fail, and can be made to go through the relay alone (lib/voice/rtc.dart).
+///
+/// Matt, 2026-11-21: "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p
+/// fails please connect over voice through the relay", then "Try to negotiate over the relay first". Where the hub
+/// handed out a relay (relay/lib/turn.dart), a connection starts through it alone ([relayOnly]): that connects
+/// wherever the relay itself can be reached, whatever the routers between the two. Where that fails ([onFailed]: no
+/// way through, or not connected in time), the side that offered starts over once trying every path at once (direct,
+/// and the relay too) (VoiceSession._failed). With no relay handed out it is the other way round: every path first,
+/// then the relay alone if one has been handed out since.
+abstract class FallbackMedia implements VoiceMedia {
+  VoicePeer peerWith(String id, {required void Function(Map<String, dynamic> candidate) onCandidate, required void Function() onFailed, bool relayOnly = false});
+
+  /// Whether a relay for calls was handed out (no point starting over through it otherwise).
+  bool get hasRelay;
+}
+
+/// Media that can share this device's screen in a call (GMFB-27; lib/voice/rtc.dart). Apart from [VoiceMedia] so the
+/// stand-ins in tests need not.
+abstract class ScreenMedia {
+  /// This device can capture its screen: a computer, or Android.
+  bool get screenSupported;
+
+  /// What can be shared on a computer: each screen and window, with a picture of it. Empty on a phone, where the
+  /// system asks what to share itself.
+  Future<List<ScreenSource>> screenSources();
+
+  /// Starts sharing [source] (a screen or window from [screenSources]; the system's choice on a phone), or stops.
+  /// [onEnded] is told if it stops from outside the app. False when nothing was started.
+  Future<bool> setScreen(bool on, {String? source, void Function()? onEnded});
+
+  /// The screen this device is sending while it shares, for its own preview.
+  ValueListenable<MediaStream?> get localScreen;
+}
+
+/// A screen or window that can be shared, as a computer lists them.
+@immutable
+class ScreenSource {
+  const ScreenSource({required this.id, required this.name, required this.window, this.thumbnail});
+  final String id;
+  final String name;
+
+  /// A window, not a whole screen.
+  final bool window;
+
+  /// A JPEG of it, where the system gave one.
+  final Uint8List? thumbnail;
+}
+
 /// This device's microphone and camera, and the connections to the others (lib/voice/rtc.dart).
 abstract class VoiceMedia {
   /// How loud each one is now, 0 to 1: `me` for this device's microphone, and each other member by id. What the
@@ -273,9 +322,12 @@ class DiscordPerson {
 /// Someone in the call, as they said they are.
 @immutable
 class VoiceMember {
-  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false});
+  const VoiceMember(this.id, {this.name = '', this.muted = false, this.video = false, this.screen = false, this.guest = false, this.username, this.notices = false, this.recording, this.agreed = const {}, this.declined = const {}, this.captions = false, this.hand = false});
   final String id;
   final String name;
+
+  /// Listening on a stage, they raised their hand to speak ('h' in their 'me', GMFB-29).
+  final bool hand;
 
   /// Their app shows that a call is being recorded and asks before their voice is in it ('rs' in their 'me'). One that
   /// doesn't (an older build, the browser page, the Discord bridge) is never recorded: it can't have agreed.
@@ -295,17 +347,18 @@ class VoiceMember {
   final bool muted;
   final bool video;
 
+  /// What their picture shows is their screen, not their camera ('s' in their 'me', GMFB-27): drawn whole and large,
+  /// never cropped or mirrored. [video] is said too while they share, so an older build still shows the picture.
+  final bool screen;
+
   /// Joined from a browser by the link, with no username: a guest.
   final bool guest;
-
-  /// With what a 'me' says of them changed; the recording and caption fields are carried over as they were. A
-  /// username can be set, not cleared.
-  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? guest, String? username}) =>
-      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+  VoiceMember copyWith({String? name, bool? muted, bool? video, bool? screen, bool? guest, String? username, bool? hand}) =>
+      VoiceMember(id, name: name ?? this.name, muted: muted ?? this.muted, video: video ?? this.video, screen: screen ?? this.screen, guest: guest ?? this.guest, username: username ?? this.username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand ?? this.hand);
 
   /// With the recording and caption fields replaced whole (anything not given goes back to none).
   VoiceMember withRecording({required bool notices, String? recording, Set<String> agreed = const {}, Set<String> declined = const {}, bool captions = false}) =>
-      VoiceMember(id, name: name, muted: muted, video: video, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions);
+      VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand);
 }
 
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
@@ -343,11 +396,52 @@ class VoiceSession extends ChangeNotifier {
   /// Who is not answered at all (a hangout's banned: lib/voice/hangout.dart).
   bool Function(String id)? refuse;
 
+  /// Whether [id] (or this device, as [me]) listens on a stage (GMFB-29: HangoutRoom.listens): two who both listen
+  /// have nothing to send each other, so they make no connection, and a stage holds many more listeners than a call
+  /// where everyone connects to everyone. Null: everyone connects, as in any call.
+  bool Function(String id)? listens;
+
+  /// This device's hand raised, listening on a stage ([raiseHand]).
+  bool hand = false;
+
+  /// Raises or lowers this device's hand: said to everyone in the call, for whoever manages the stage.
+  void raiseHand(bool on) {
+    if (hand == on) return;
+    hand = on;
+    _sayState();
+    notifyListeners();
+  }
+
+  /// Whether this device and [id] connect: unless both listen on a stage.
+  bool _links(String id) {
+    final l = listens;
+    return l == null || !(l(route.me) && l(id));
+  }
+
+  /// The stage changed (someone brought up to speak, or sent back to listen): connections that are now wanted are made
+  /// (the lower id offers, so two never offer each other at once), and those between two who both listen let go.
+  void relink() {
+    if (!joined) return;
+    for (final id in members.keys.toList()) {
+      if (!_links(id)) {
+        if (_peers.containsKey(id)) {
+          _offered.remove(id);
+          unawaited(_peers.remove(id)?.close());
+        }
+      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
+        unawaited(_offer(id));
+      }
+    }
+  }
+
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
   final Map<String, VoicePeer> _peers = {};
   final List<StreamSubscription<Object?>> _subs = [];
   bool muted = false, deafened = false, video = false, joined = false;
+
+  /// This device is sharing its screen (GMFB-27): the picture it sends is the screen, in the camera's place.
+  bool screen = false;
 
   /// When this device came into the call.
   DateTime? since;
@@ -415,6 +509,12 @@ class VoiceSession extends ChangeNotifier {
   /// Says [what] of watching together to the call.
   void sayWatch(Map<String, Object?> what) => _say({'t': 'wt', ...what});
 
+  /// Told a soundboard's sound someone in the call played ('sb', lib/voice/soundboard.dart): who, and its id.
+  void Function(String from, String sound)? onSound;
+
+  /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
+  void saySound(String sound) => _say({'t': 'sb', 's': sound});
+
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
 
@@ -452,7 +552,8 @@ class VoiceSession extends ChangeNotifier {
     }
     _sayState();
     for (final id in members.keys.toList()) {
-      unawaited(_offer(id));
+      // On a stage, two who both listen make no connection (GMFB-29).
+      if (_links(id)) unawaited(_offer(id));
     }
     notifyListeners();
   }
@@ -471,6 +572,9 @@ class VoiceSession extends ChangeNotifier {
       await p.close();
     }
     _peers.clear();
+    _offered.clear();
+    _retried.clear();
+    _relayed.clear();
     members.clear();
     await media.stop();
     notifyListeners();
@@ -504,7 +608,31 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Someone came into or went out of the room, as the hub says.
+  /// Whether this device can share its screen at all: a computer or Android, with media that can capture one.
+  bool get canShareScreen => media is ScreenMedia && (media as ScreenMedia).screenSupported;
+
+  /// Shares this device's screen, or the window [source] on a computer (ScreenMedia.screenSources), or stops. Sent in
+  /// the camera's place, so turning it on or off asks nothing of the connections; the camera comes back when it
+  /// stops, if video is on. Held by the same rule as video (a role that may not show video may not share). False when
+  /// it did not start: the person said no to the system's question, or there is nothing to capture.
+  Future<bool> setScreen(bool on, {String? source}) async {
+    final m = media is ScreenMedia ? media as ScreenMedia : null;
+    if (m == null) return false;
+    if (on && videoLocked) return false;
+    if (!on && !screen) return true;
+    final started = await m.setScreen(on, source: source, onEnded: () {
+      // Stopped from outside the app (the system's own Stop sharing, the window closed).
+      if (!screen) return;
+      screen = false;
+      _sayState();
+      notifyListeners();
+    });
+    screen = on && started;
+    _sayState();
+    notifyListeners();
+    return started;
+  }
+
   void _event(RoomEvent e) {
     // Another device of this identity is not someone else in the call.
     if (e.came == route.me || e.went == route.me) return;
@@ -519,6 +647,9 @@ class VoiceSession extends ChangeNotifier {
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
+      _offered.remove(e.went);
+      _retried.remove(e.went);
+      _relayed.remove(e.went);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
@@ -526,12 +657,49 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The connection to [id], made on first use; the ways to connect it finds are said to them ('ice').
-  VoicePeer _peerFor(String id) => _peers[id] ??= media.peer(id, onCandidate: (c) => _say({'t': 'ice', 'to': id, 'c': c}));
+  VoicePeer _peerFor(String id, {bool relayOnly = false}) {
+    final had = _peers[id];
+    if (had != null) return had;
+    void cand(Map<String, dynamic> c) => _say({'t': 'ice', 'to': id, 'c': c});
+    final m = media;
+    late final VoicePeer made;
+    made = m is FallbackMedia ? m.peerWith(id, onCandidate: cand, onFailed: () => _failed(id, made), relayOnly: relayOnly) : media.peer(id, onCandidate: cand);
+    return _peers[id] = made;
+  }
 
-  Future<void> _offer(String id) async {
-    final sdp = await _peerFor(id).makeOffer();
-    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join});
+  /// Those this device offered to, and those it has started over with through the relay alone ([_failed]).
+  final Set<String> _offered = {}, _retried = {};
+
+  /// The connection to [id] found no way through ([FallbackMedia]). The side that offered starts over once, the other
+  /// way: through every path where the first try was the relay alone, through the relay alone where it was every path
+  /// (and a relay has been handed out since). The offer is marked `a` (again) so the other side lets go of its failed
+  /// connection first, and `r` where it is the relay alone; the other side waits for it. A second failure is left as it
+  /// is: they show in the call without sound, as before.
+  void _failed(String id, VoicePeer which) {
+    if (!joined || !identical(_peers[id], which)) return;
+    if (!_offered.contains(id) || _retried.contains(id) || !members.containsKey(id)) return;
+    final m = media;
+    if (m is! FallbackMedia) return;
+    final wasRelay = _relayed.contains(id);
+    if (!wasRelay && !m.hasRelay) return;
+    _retried.add(id);
+    _peers.remove(id);
+    unawaited(which.close());
+    unawaited(_offer(id, relayOnly: !wasRelay, again: true));
+  }
+
+  /// Those whose connection this device offered through the relay alone.
+  final Set<String> _relayed = {};
+
+  /// An offer to [id]: through the relay alone first where there is one (Matt, 2026-11-21: "Try to negotiate over the
+  /// relay first"), [relayOnly] said for a second try.
+  Future<void> _offer(String id, {bool? relayOnly, bool again = false}) async {
+    _offered.add(id);
+    final m = media;
+    final relay = relayOnly ?? (m is FallbackMedia && m.hasRelay);
+    relay ? _relayed.add(id) : _relayed.remove(id);
+    final sdp = await _peerFor(id, relayOnly: relay).makeOffer();
+    _say({'t': 'offer', 'to': id, 'sdp': highestOpus(sdp, kbps: kbps, stereo: stereo), 'j': _join, if (relay) 'r': 1, if (again) 'a': 1});
   }
 
   /// Says this device's state to the call ('me'): its name, muted (deafened counts), video, and the recording and
@@ -540,13 +708,16 @@ class VoiceSession extends ChangeNotifier {
         't': 'me',
         'n': name,
         'm': muted || deafened,
-        'v': video,
+        // Video is said while the screen is shared, so a build that knows nothing of sharing shows the picture.
+        'v': video || screen,
+        if (screen) 's': 1,
         if (username != null) 'u': username,
         'rs': 1,
         if (recording != null) 'r': recording,
         if (agreed.isNotEmpty) 'ry': [...agreed],
         if (declined.isNotEmpty) 'rn': [...declined],
         if (wantsCaptions) 'cw': 1,
+        if (hand) 'h': 1,
       });
 
   /// Sends [what] to the room, sealed with the channel's key. Nothing is sent before joining or after leaving.
@@ -601,11 +772,13 @@ class VoiceSession extends ChangeNotifier {
         final had = members[from] ?? VoiceMember(from);
         Set<String> ids(Object? l) => {for (final x in (l is List ? l : const [])) if (x is String) x};
         members[from] = had
-            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null)
+            .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null, hand: m['h'] == 1)
             .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1);
         notifyListeners();
       case 'wt':
         onWatch?.call(from, m);
+      case 'sb':
+        if (m['s'] is String) onSound?.call(from, m['s'] as String);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
@@ -614,8 +787,16 @@ class VoiceSession extends ChangeNotifier {
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
+        // Through the relay alone (the first try where there is one), and started over after no way through was
+        // found (_failed, marked a; an older build marks a second try r alone): the failed connection goes.
+        // Where both offered at once, this side's own connection is not let go of for a first try.
+        final relay = m['r'] == 1;
+        final again = m['a'] == 1 || (relay && !_offered.contains(from));
+        // They offered: this side answers, and waits for them to start over if it fails.
+        if (!again) _offered.remove(from);
+        if (again) await _peers.remove(from)?.close();
         _offerJoin[from] = j;
-        final answer = await _peerFor(from).takeOffer('${m['sdp']}');
+        final answer = await _peerFor(from, relayOnly: relay).takeOffer('${m['sdp']}');
         _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo), 'j': ?j});
         // Said again for the newcomer, who may have joined after it was said.
         _sayState();

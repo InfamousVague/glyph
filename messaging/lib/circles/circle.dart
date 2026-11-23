@@ -380,7 +380,7 @@ class CircleManifest {
     final gs = grantsSig;
     if (gs == null || owner.isEmpty) return false;
     try {
-      return NetCrypto.verify(NetCrypto.unhex(owner), grantsMessage(owner, grantsVersion, adminGrants), NetCrypto.unhex(gs));
+      return NetCrypto.verifyOnce(NetCrypto.unhex(owner), grantsMessage(owner, grantsVersion, adminGrants), NetCrypto.unhex(gs));
     } catch (_) {
       return false;
     }
@@ -414,7 +414,7 @@ class CircleManifest {
     final g = adminGrants[id];
     if (g == null || owner.isEmpty || !grantsTrusted) return false;
     try {
-      return NetCrypto.verify(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
+      return NetCrypto.verifyOnce(NetCrypto.unhex(owner), grantMessage(owner, id), NetCrypto.unhex(g));
     } catch (_) {
       return false;
     }

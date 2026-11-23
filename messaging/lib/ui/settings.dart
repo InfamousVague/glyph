@@ -111,6 +111,8 @@ class SettingsModel extends ChangeNotifier {
     _changes = Sms.instance.changes.stream.listen((_) => refresh());
     // The app's routes come and go on their own (lib/net/net.dart): Settings › Network is drawn again as they do.
     Net.instance.addListener(_say);
+    // And as the direct route's devices and links change (Settings › Routes › Direct).
+    Net.instance.direct.addListener(_say);
     Me.instance.addListener(_say);
     // The packs on this device (lib/plugins/pack): Settings › Developer's Plugins in development lists them, and the
     // search reads their switches.
@@ -169,6 +171,7 @@ class SettingsModel extends ChangeNotifier {
   void dispose() {
     _gone = true;
     Net.instance.removeListener(_say);
+    Net.instance.direct.removeListener(_say);
     Me.instance.removeListener(_say);
     _installed?.removeListener(_say);
     for (final w in _watching) {

@@ -15,7 +15,7 @@ library;
 
 import '../split_handle.dart';
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -30,11 +30,14 @@ import '../../kit/settings_type.dart';
 import '../../market/listing_plugin.dart';
 import '../../market/market_state.dart';
 import '../../plugins/pack/pack.dart' show DevPack, InstalledPack, InstalledPlugins, packAddressIssue, packIdOf, packLabels;
+import '../../inbox/inbox.dart' show InboxState;
+import '../../plugins/networks.dart';
 import '../../plugins/plugin.dart';
 import '../../plugins/registry.dart';
 import '../../sms.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../inbox_ui.dart' show turnOffNetwork;
 import '../market/dev_plugins.dart' show DevPluginScreen, devPackCounts;
 import '../market/market_flows.dart';
 import '../settings.dart' show SettingsSeek, settingsMatch;
@@ -42,6 +45,7 @@ import '../shell.dart' show AppShell;
 import 'market_parts.dart';
 import 'plugin_cards.dart';
 import 'plugin_detail.dart';
+import 'plugin_sync_row.dart';
 import 'plugins_band.dart';
 
 /// The plugins featured at the head of the page, in this order, those the app has.
@@ -51,7 +55,7 @@ const List<String> featuredPlugins = ['translate', 'codes', 'spam'];
 const double pluginsWide = 720;
 
 /// Where the plugins run, in a word.
-String pluginsHere() => Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone';
+String pluginsHere() => Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone';
 
 /// What plugins are, in a line: the band's.
 String pluginsLine() => 'Extras for your messages, built in or from other developers, each on this ${pluginsHere()} alone.';
@@ -227,6 +231,9 @@ class _PluginsPageState extends State<PluginsPage> {
     final store = AppStore(AppState.of(context));
     if (on) return _add(p);
     if (p is StuckPackPlugin || p.source == PluginSource.reviewed) return unawaited(removeStorePack(context, p));
+    // A network signed in to is signed out by removing it: asked first, as Settings › Connections asks.
+    final n = p is NetworkPlugin ? p.connection : null;
+    if (n != null && (n.state == InboxState.ready || n.state == InboxState.signingIn)) return unawaited(turnOffNetwork(context, n));
     _registry.setOn(p, store, false);
   }
 
@@ -550,11 +557,14 @@ class _PluginsPageState extends State<PluginsPage> {
       // Matt asked (2026-11-19: "Label plugins meant for circles in a separate section from the ones that are global").
       final on = [for (final p in added) if (!forCircles(p)) p];
       final onCircles = [for (final p in added) if (forCircles(p)) p];
-      if (on.isEmpty && onCircles.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false)];
+      // Under what is added, whether it is synced to the account's other devices (GMFB-9: lib/plugins/plugin_sync.dart).
+      final sync = Padding(padding: EdgeInsets.only(top: gap), child: pluginSyncSection(context, AppState.of(context)));
+      if (on.isEmpty && onCircles.isEmpty && stuck.isEmpty) return [nothing('Nothing added yet.', every: false), sync];
       return [
         if (on.isNotEmpty) shelfOf('Added', on, meta: '${on.length}', key: const ValueKey('plugins-shelf-added')),
         if (onCircles.isNotEmpty) shelfOf('For circles', onCircles, meta: '${onCircles.length}', icon: Lucide.circleDot, key: const ValueKey('plugins-shelf-added-circles')),
         if (stuck.isNotEmpty) shelfOf('Not running', stuck, meta: '${stuck.length}', key: const ValueKey('plugins-shelf-stuck')),
+        sync,
       ];
     }
 

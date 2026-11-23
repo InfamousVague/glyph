@@ -24,6 +24,8 @@
   :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; }
   @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; } }
   * { box-sizing: border-box; }
+  /* A hidden box stays hidden whatever its own display says (GMFB-15: the empty QR box showed as a white bar). */
+  [hidden] { display: none !important; }
   body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
   main { max-width: 34rem; margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem 2rem; }
   header { display: flex; align-items: center; gap: 0.75rem; }
@@ -115,6 +117,8 @@
       });
       hub.json.add((m) => { if (m.closed) state.textContent = 'The connection closed. Reload this page.'; });
       hub.say({ join: room, token });
+      // Nothing from the phone yet: say what to do rather than wait in silence.
+      setTimeout(() => { if (box.hidden && app === null) state.textContent = 'Nothing has come from your phone yet. Keep Ghost open on your phone, on the screen that showed the code, and this page fills in.'; }, 10000);
     } catch (e) {
       state.textContent = e.message;
     }

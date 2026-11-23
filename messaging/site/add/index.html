@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add a friend · Ghost Messaging</title>
+<meta name="description" content="Add someone as a friend on Ghost Messaging.">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!--
+  Someone's add-me link (GMFB-34: "A gogho.st/add/<username> link and QR code that opens a friend request"): one page
+  for every username (the site's web server sends each /add/<name> here; tool/deploy-site.mjs). Opened on a phone with
+  the app, Android opens the app itself (an App Link); otherwise this page says who it is and leads to the app, which
+  asks before sending the request (lib/friends/add_link.dart). What follows # (the start of their account's name) is
+  carried into the app as it is, and no server ever sees it.
+-->
+<style>
+  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --red: #dd3a30; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  main { max-width: 30rem; margin: 0 auto; min-height: 100%; padding: 1.5rem 1rem; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  img { width: 3.5rem; height: 3.5rem; border-radius: 1rem; margin: 0 auto 1.25rem; }
+  h1 { font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 0.4rem; overflow-wrap: anywhere; }
+  p { color: var(--ink2); margin: 0 0 1.25rem; }
+  .err { color: var(--red); }
+  .row { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+  a.btn { display: inline-block; background: var(--ink); color: var(--bg); font-weight: 650; padding: 0.8rem 1.5rem; border-radius: 999px; text-decoration: none; }
+  a.btn.quiet { background: var(--card); color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icon.png" alt="">
+  <h1 id="title">Add a friend</h1>
+  <p id="line">On Ghost Messaging.</p>
+  <div class="row">
+    <a class="btn" id="open" href="/">Open in Ghost Messaging</a>
+    <a class="btn quiet" href="/">Get the app</a>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  // The username as the app tidies it (lib/me/me.dart goodUsername: 3 to 20 letters, numbers, dots or underscores).
+  const name = decodeURIComponent(location.pathname.replace(/^\/add\//, '').replace(/\/$/, '')).trim().replace(/^@/, '').toLowerCase();
+  if (!/^[a-z0-9._]{3,20}$/.test(name)) {
+    $('title').textContent = 'That isn’t an add-me link';
+    $('line').textContent = 'A username is 3 to 20 letters, numbers, dots or underscores.';
+    $('line').className = 'err';
+    $('open').remove();
+    return;
+  }
+  document.title = `@${name} · Ghost Messaging`;
+  $('title').textContent = `Add @${name}`;
+  $('line').textContent = `@${name} would like to be friends on Ghost Messaging. Open it in the app to send them a request.`;
+  // The start of their account's name, after # (never sent to any server, this one included): carried into the app,
+  // which refuses the relay's answer for the username where its key doesn't begin so (lib/friends/add_link.dart).
+  const key = location.hash.replace(/^#/, '').toLowerCase();
+  // The app's own address for it (android ghostmsg://add/<name>): the app asks before sending anything.
+  $('open').href = `ghostmsg://add/${encodeURIComponent(name)}${/^[0-9a-f]{8,32}$/.test(key) ? '#' + key : ''}`;
+})();
+</script>
+</body>
+</html>

@@ -98,13 +98,16 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     setState(() => _problem = null);
     if (_me.username == null) return;
     final name = tidyHandle(_field.text);
-    if (!Me.goodUsername(name)) {
+    // A username here, or name@relay for someone on another relay (lib/net/home_record.dart).
+    if (!Buddies.goodAddress(name)) {
       setState(() {
         _looked = null;
         _found = null;
       });
       return;
     }
+    // A name on another relay is not asked of anyone as it is typed (lib/friends/buddies.dart lookup says so at once):
+    // only when Add is pressed.
     _wait = Timer(const Duration(milliseconds: 350), () => _look(name));
   }
 
@@ -152,7 +155,13 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     });
     try {
       final b = await _buddies.add(name);
-      if (mounted) toast(context, b.state == 'yes' ? 'You and @$name are friends' : 'Friend request sent to @$name');
+      if (!mounted) return;
+      if (_buddies.unreached(b)) {
+        // Found on their relay, but this app's relay couldn't pass the request to it.
+        setState(() => _problem = addUnreachedWords(b.username, _buddies.unreachedWhy(b)));
+      } else {
+        toast(context, b.state == 'yes' ? 'You and @${b.username} are friends' : 'Friend request sent to @${b.username}');
+      }
     } catch (e) {
       if (mounted) setState(() => _problem = '$e');
     } finally {
@@ -236,11 +245,17 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
         null => ('Looking…', null),
         BuddyLookup.nobody => ('Nobody has this username', null),
         BuddyLookup.you => ('That\'s you', null),
+        // On another relay: nobody there is asked until Add is pressed, so nothing is known of them yet.
+        BuddyLookup.elsewhere => switch (known?.state) {
+            'yes' => ('Friends already', null),
+            'asked' => ('Friend request sent', null),
+            _ => ('On ${name.substring(name.indexOf('@') + 1)}: Add asks that relay', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
+          },
         BuddyLookup.someone => switch (known?.state) {
             'yes' => ('Friends already', null),
             'asked' => ('Friend request sent', null),
             'invited' => ('Asked to be your friend', _Button(key: const ValueKey('add-found'), label: 'Accept', filled: true, onPress: _busy ? null : () => _add(name))),
-            _ => ('On Ghost Messaging', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
+            _ => (name.contains('@') ? 'On ${name.substring(name.indexOf('@') + 1)}' : 'On Ghost Messaging', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
           },
       };
       result = Padding(
@@ -259,7 +274,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
       );
     }
     return Column(key: const ValueKey('find-friend'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _title(t, 'Add a friend', 'Type their username. You\'re @${_me.username}.'),
+      _title(t, 'Add a friend', addFriendWords(_me.username ?? '')),
       GlacierSearchField(
         key: const ValueKey('find-friend-field'),
         controller: _field,
@@ -276,7 +291,15 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
   }
 }
 
-/// The drawer's pill button, as tall as the field beside it: inked when [filled], faded when it can't be pressed.
+/// What the add-friend drawer says above its field: how someone is found, here and on another relay.
+String addFriendWords(String mine) => 'Type their username. For someone on another relay, add the relay after it: @name@their.relay. You\'re @$mine.';
+
+/// What is said when someone was found on another relay but this app's relay could not pass the request to theirs.
+/// What is said where a request to someone on another relay could not be passed on: [why] as the relay said it where
+/// it said (their relay refused it, or is holding too much), else that the two relays don't talk; and that the request
+/// is kept and sent again by itself for two weeks.
+String addUnreachedWords(String username, [String? why]) => 'Found @$username, but ${why ?? 'your relay doesn\'t pass messages to theirs yet'}. The request is kept, and sent again by itself for two weeks.';
+
 class _Button extends StatelessWidget {
   const _Button({super.key, required this.label, this.icon, this.filled = false, this.onPress});
   final String label;

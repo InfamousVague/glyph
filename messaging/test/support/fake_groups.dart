@@ -31,6 +31,12 @@ class FakeGroupsPort implements GroupsPort {
   /// The numbers of this phone's friends (encryption on, and friends).
   final Set<String> friends = {};
 
+  /// The address the routes hold another phone under here, by its name, where it is not that phone's own number: on
+  /// Android, a member of a group is held under whatever the group's admin wrote for them.
+  final Map<String, String> listedAs = {};
+
+  String _addressOf(String id) => listedAs[id] ?? world.phones[id]!.number;
+
   bool up = true;
   bool here = true;
 
@@ -58,7 +64,7 @@ class FakeGroupsPort implements GroupsPort {
   }
 
   @override
-  Peer? peer(String id) => _reaches(id) ? Peer(id: id, key: Uint8List(32), address: world.phones[id]!.number) : null;
+  Peer? peer(String id) => _reaches(id) ? Peer(id: id, key: Uint8List(32), address: _addressOf(id)) : null;
 
   @override
   bool get internet => up;
@@ -79,7 +85,7 @@ class FakeGroupsPort implements GroupsPort {
   /// As the switchboard does: nothing is taken from a name the routes do not reach from here.
   void _arrive(String from, Envelope envelope) {
     if (!_reaches(from)) return;
-    _in.add(Received(Peer(id: from, key: Uint8List(32), address: world.phones[from]!.number), envelope, 'hub'));
+    _in.add(Received(Peer(id: from, key: Uint8List(32), address: _addressOf(from)), envelope, 'hub'));
   }
 
   /// This phone's app opens: what was kept for it is handed over.
@@ -93,8 +99,17 @@ class FakeGroupsPort implements GroupsPort {
 
   @override
   Stream<Received> get received => _in.stream;
+  /// A friend by the name of their key: the phone so named is one whose number is a friend's here (its record's key).
   @override
-  bool isFriend(String? address) => friends.contains(address);
+  bool isFriend(String id) => friends.contains(world.phones[id]?.number);
+
+  /// A friend's own number, as their record has it; nobody else's is known here but by a group.
+  @override
+  String? addressOf(String id) {
+    final number = world.phones[id]?.number;
+    return friends.contains(number) ? number : null;
+  }
+
   @override
   void wake(Peer peer) => woken.add(peer.id);
 

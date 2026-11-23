@@ -3,7 +3,7 @@
 /// itself), then one track per person, each named for them.
 ///
 /// **Whose voice.** A call is a mesh, so each other person's sound already comes to this device on its own; the native
-/// half (android CallRecorder.kt, macos and ios CallRecorder.swift) taps it after WebRTC has decoded it, before this
+/// half (android CallRecorder.kt, macos and ios CallRecorder.swift, windows/runner/call_recorder.cpp) taps it after WebRTC has decoded it, before this
 /// device's volume for them. Only someone whose own device said yes to this recording is tapped ('ry' in their state,
 /// VoiceSession): an older build, the browser page or the Discord bridge can't say yes and is never recorded. This
 /// device's own voice is in it as sent (after the noise removal), silence while muted.
@@ -21,7 +21,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
+import '../platform_info.dart';
+import '../aside.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -32,6 +33,7 @@ import '../desktop/store.dart' show DeskStore;
 import 'channels.dart';
 import '../plugins/record_call.dart' show RecordCallPlugin;
 import '../plugins/scribe.dart' show ScribePlugin;
+import 'mp4_merge.dart';
 import 'mp4_names.dart';
 import 'plugin_note.dart';
 import 'scribe.dart';
@@ -40,7 +42,7 @@ import 'voice.dart';
 /// One recording kept on this device.
 @immutable
 class Recording {
-  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = '', this.markers = const []});
+  const Recording({required this.id, required this.path, required this.space, required this.at, required this.seconds, required this.people, this.by = '', this.seed = '', this.markers = const [], this.mixedFrom});
 
   final String id;
 
@@ -64,7 +66,11 @@ class Recording {
   /// The moments its maker marked while recording, in seconds from its start.
   final List<double> markers;
 
-  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed, if (markers.isNotEmpty) 'markers': markers};
+  /// The recording this one was mixed again from in the mixer (lib/voice/recording_playback.dart); null for one made
+  /// in a call.
+  final String? mixedFrom;
+
+  Map<String, Object?> toJson() => {'id': id, 'path': path, 'space': space, 'at': at.millisecondsSinceEpoch, 'seconds': seconds, 'people': people, 'by': by, 'seed': seed, if (markers.isNotEmpty) 'markers': markers, 'from': ?mixedFrom};
 
   static Recording? fromJson(Object? j) {
     if (j is! Map || j['id'] is! String || j['path'] is! String || j['at'] is! int) return null;
@@ -78,6 +84,7 @@ class Recording {
       by: '${j['by'] ?? ''}',
       seed: '${j['seed'] ?? ''}',
       markers: [for (final m in (j['markers'] as List? ?? const [])) if (m is num) m.toDouble()],
+      mixedFrom: j['from'] is String ? j['from'] as String : null,
     );
   }
 }
@@ -96,6 +103,10 @@ class _Taking {
 
   /// The members tapped now.
   final Set<String> tapped = {};
+
+  /// The track each is tapped on: a connection started over (through the relay, or again directly) brings their
+  /// sound on a new one, which is tapped in its place.
+  final Map<String, String> trackOf = {};
 
   /// The moments marked, in seconds from the start.
   final List<double> markers = [];
@@ -215,6 +226,24 @@ class RecordingMeter extends ChangeNotifier {
     if (any) notifyListeners();
   }
 
+  /// A recording opened again (lib/voice/recording_playback.dart): every voice's whole waveform at once.
+  void load(Map<String, List<double>> all) {
+    clear();
+    levels.addAll(all);
+    notifyListeners();
+  }
+
+  /// Each voice's level at the playhead of a recording opened again; a voice at the top lights its clip lamp.
+  void at(Map<String, ({double peak, double rms})> given) {
+    var any = false;
+    for (final e in given.entries) {
+      if (now[e.key] != e.value) any = true;
+      now[e.key] = e.value;
+      if (e.value.peak >= clipAt && clipped.add(e.key)) any = true;
+    }
+    if (any) notifyListeners();
+  }
+
   /// [levels] as given, for a picture or a test; [live] is each voice now where it is not its last step.
   @visibleForTesting
   void seed(Map<String, List<double>> given, {Map<String, ({double peak, double rms})>? live, Set<String> clipping = const {}}) {
@@ -327,9 +356,27 @@ class RecordingMix extends ChangeNotifier {
   }
 }
 
-/// Records the call this device is in: drives the native half (channel 'ghost/recorder'), follows who has said yes,
-/// and on stopping mixes, encodes and names the MP4. Also keeps the list of recordings on this device.
-class CallRecorder extends ChangeNotifier {
+/// What the recording's timeline and mixer draw from and move (lib/ui/recording_float.dart): the recording being made
+/// ([CallRecorder]), or one kept on this device opened again to play and mix ([RecordingPlayback]).
+abstract interface class RecordingDesk implements Listenable {
+  /// Each voice's waveform, and its level now (live: as it is written; played: at the playhead).
+  RecordingMeter get meter;
+
+  /// Each voice's fader, mute and solo in the mix.
+  RecordingMix get mix;
+
+  /// The voices, in the file's order after the mix.
+  List<({String key, String name, bool live})> get tracks;
+
+  /// The moments marked, in seconds from the start.
+  List<double> get markers;
+
+  void setFader(String key, double value);
+  void setMuted(String key, bool on);
+  void setSolo(String key, bool on);
+}
+
+class CallRecorder extends ChangeNotifier implements RecordingDesk {
   CallRecorder._();
   static final CallRecorder instance = CallRecorder._();
 
@@ -343,19 +390,28 @@ class CallRecorder extends ChangeNotifier {
     t.markers.addAll(markers);
   }
 
+  /// For a test: the standing recording over, as a Stop or the call's end leaves it.
+  @visibleForTesting
+  void endForTest() {
+    _now = null;
+    notifyListeners();
+  }
+
   static const _channel = MethodChannel('ghost/recorder');
 
-  /// Whether this platform records calls: a phone and a Mac or iPhone; not Windows yet (its WebRTC library's sink for
-  /// another person's sound is not checked), nor a browser.
-  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS);
+  /// Whether this platform records calls: a phone, a Mac or iPhone, and Windows (windows/runner/call_recorder.cpp;
+  /// Matt, 2026-11-21: "my friend is not able to see plugins added for recording calls on his pc"); not a browser.
+  static bool get supported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isIOS || PlatformInfo.isWindows);
 
   _Taking? _now;
 
   /// Each voice's loudness as it is recorded (RecordingMeter), read every tenth of a second while recording.
+  @override
   final RecordingMeter meter = RecordingMeter();
   Timer? _metering;
 
   /// The recording's mixer: each voice's fader, mute and solo in the mix (RecordingMix).
+  @override
   final RecordingMix mix = RecordingMix();
 
   /// Where the recording is now, in samples from its start (the voices' files are kept in step by the clock).
@@ -368,12 +424,15 @@ class CallRecorder extends ChangeNotifier {
   /// The keys of the voices there are, for a solo, which moves every one of them.
   Iterable<String> get _keys => _now?.names.keys ?? const <String>[];
 
-  // The mixer's controls, each change stamped with where the recording is now.
+  @override
   void setFader(String key, double value) => mix.setFader(key, value, position);
+  @override
   void setMuted(String key, bool on) => mix.setMuted(key, on, position, among: _keys);
+  @override
   void setSolo(String key, bool on) => mix.setSolo(key, on, position, among: _keys);
 
   /// The moments marked so far, in seconds from the start.
+  @override
   List<double> get markers => List.unmodifiable(_now?.markers ?? const <double>[]);
 
   /// Marks this moment of the recording, to find again afterwards; the second marked, or null where nothing records.
@@ -388,6 +447,7 @@ class CallRecorder extends ChangeNotifier {
 
   /// The tracks being recorded, 'me' first: each voice's key, its name, and whether it is being taken now (false for
   /// someone who left or took back their yes; their track keeps what it has).
+  @override
   List<({String key, String name, bool live})> get tracks {
     final t = _now;
     if (t == null) return const [];
@@ -416,7 +476,7 @@ class CallRecorder extends ChangeNotifier {
 
   /// Where recordings are kept: the app's own folder (a phone's is cleared only with the app).
   static Directory folder() {
-    if (!kIsWeb && Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/recordings');
+    if (!kIsWeb && PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/recordings');
     return Directory('${DeskStore.defaultDir().path}/recordings');
   }
 
@@ -458,6 +518,10 @@ class CallRecorder extends ChangeNotifier {
     _kept.removeWhere((k) => k.id == r.id);
     try {
       File(r.path).deleteSync();
+    } catch (_) {}
+    // Its voices as the mixer decoded them (lib/voice/recording_playback.dart).
+    try {
+      Directory('${folder().path}/opened/${r.id}').deleteSync(recursive: true);
     } catch (_) {}
     _writeKept();
     notifyListeners();
@@ -518,6 +582,8 @@ class CallRecorder extends ChangeNotifier {
     return c.stream;
   }
 
+  Timer? _again;
+
   /// Taps whoever has said yes and whose sound has come; lets go of whoever has said no or gone; says this device's mute.
   Future<void> _follow(VoiceSession s) async {
     final t = _now;
@@ -532,22 +598,37 @@ class CallRecorder extends ChangeNotifier {
     for (final m in s.members.values) {
       final yes = m.agreed.contains(t.id) && !m.declined.contains(t.id);
       final track = remote[m.id]?.getAudioTracks().firstOrNull;
-      if (yes && track?.id != null && !t.tapped.contains(m.id)) {
+      // Tapped where they said yes and their sound has come, and again whenever it comes on another track (Matt,
+      // 2026-11-21: "recording is only recording my audio and not everyones audio tracks": since calls start through
+      // the relay and may start over, a voice's first track can end while the call goes on). The native half keeps
+      // writing the same file.
+      if (yes && track?.id != null && (!t.tapped.contains(m.id) || t.trackOf[m.id] != track!.id)) {
+        final id = track!.id!;
         t.tapped.add(m.id);
+        t.trackOf[m.id] = id;
         t.names[m.id] = Voice.instance.nameOf(m.id);
         try {
-          await _channel.invokeMethod('add', {'key': m.id, 'track': track!.id, 'path': '${t.dir}/${_safe(m.id)}.pcm'});
+          final ok = await _channel.invokeMethod<bool>('add', {'key': m.id, 'track': id, 'path': '${t.dir}/${_safe(m.id)}.pcm'});
+          // Not found yet (the track is announced before the native side holds it): tried again in a second.
+          if (ok == false) {
+            t.trackOf.remove(m.id);
+            _again?.cancel();
+            _again = Timer(const Duration(seconds: 1), () => unawaited(_follow(s)));
+          }
         } catch (_) {
           t.tapped.remove(m.id);
+          t.trackOf.remove(m.id);
         }
       } else if (!yes && t.tapped.contains(m.id)) {
         t.tapped.remove(m.id);
+        t.trackOf.remove(m.id);
         unawaited(_channel.invokeMethod('remove', {'key': m.id}).catchError((_) {}));
       }
       if (yes) t.names[m.id] = Voice.instance.nameOf(m.id);
     }
     for (final gone in t.tapped.where((k) => !s.members.containsKey(k)).toList()) {
       t.tapped.remove(gone);
+      t.trackOf.remove(gone);
       unawaited(_channel.invokeMethod('remove', {'key': gone}).catchError((_) {}));
     }
     notifyListeners();
@@ -580,15 +661,10 @@ class CallRecorder extends ChangeNotifier {
       final mix = '${t.dir}/mix.pcm';
       // The mix as its faders, mutes and solos were moved while it recorded; each voice's own track as recorded.
       final moved = [for (final k in keys) this.mix.points(k)];
-      await Isolate.run(() => mixPcm(paths, mix, gains: moved));
+      await runAside(() => mixPcm(paths, mix, gains: moved));
       final out = '${folder().path}/${t.id}.mp4';
-      await _channel.invokeMethod('mux', {
-        'out': out,
-        'inputs': [mix, ...paths],
-      });
       final names = ['Everyone', for (final k in keys) t.names[k]!];
-      await Mp4Names.apply(out, names);
-      // As long as its longest voice: the native half answers each voice's length in samples.
+      await makeMp4([mix, ...paths], out, names, work: t.dir);
       seconds = (counts.values.fold<int>(0, (a, b) => a > b ? a : b) / 48000).round();
       voices = keys.length;
       final r = Recording(id: t.id, path: out, space: t.space, at: t.started, seconds: seconds, people: names.skip(1).toList(), by: t.names['me']!, seed: t.seed, markers: List.of(t.markers));
@@ -625,6 +701,33 @@ class CallRecorder extends ChangeNotifier {
         }),
       );
     }
+  }
+
+  /// Makes [out], an MP4 with a track of AAC for each of [inputs] (48 kHz mono 16-bit files, the mix first), named
+  /// [names]; [work] is a folder for what is made on the way. Also what a recording mixed again in the mixer is saved
+  /// as (lib/voice/recording_playback.dart).
+  static Future<void> makeMp4(List<String> inputs, String out, List<String> names, {required String work}) async {
+    if (!kIsWeb && PlatformInfo.isWindows) {
+      // Windows makes each voice an AAC file of its own; they are put together here (lib/voice/mp4_merge.dart).
+      final parts = <String>[];
+      for (final (i, p) in inputs.indexed) {
+        final part = '$work/track$i.m4a';
+        await _channel.invokeMethod('encode', {'in': p, 'out': part});
+        parts.add(part);
+      }
+      await Mp4Merge.merge(parts, out);
+    } else {
+      await _channel.invokeMethod('mux', {'out': out, 'inputs': inputs});
+    }
+    await Mp4Names.apply(out, names);
+  }
+
+  /// Keeps [r] in the list of recordings on this device, the newest first (a recording mixed again in the mixer).
+  void keep(Recording r) {
+    _readKept();
+    _kept.insert(0, r);
+    _writeKept();
+    notifyListeners();
   }
 
   /// A file name for a member's key: their id is hex already; 'me' is 'me'.

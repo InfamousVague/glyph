@@ -1,22 +1,27 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 import '../names.dart';
 export '../names.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'cosmetics.dart';
 import 'picture_make.dart';
 import 'pictures.dart';
 
+import '../account/account_crypto.dart' show AccountCrypto;
 import '../app_state.dart';
 import '../invites/invite_seal.dart' show WaitingInvite;
 import '../invites/text_invites.dart';
+import '../inbox/curl_sync.dart';
 import '../kept_lists.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import '../net/net.dart';
 import '../plugins/codes.dart' show signInCode;
+import '../plugins/plugin_sync.dart';
 import '../sms.dart' show Sms;
 
 /// A network an account can be linked on (Matt, 2026-11-14: "allow linking popular social like telegram, discord, x,
@@ -305,7 +310,7 @@ class Me extends ChangeNotifier {
   String? _toldNumber;
   void _tellPhoneItsNumber() {
     final n = number;
-    if (n == null || n == _toldNumber || kIsWeb || !Platform.isAndroid || Sms.remote) return;
+    if (n == null || n == _toldNumber || kIsWeb || !PlatformInfo.isAndroid || Sms.remote) return;
     _toldNumber = n;
     unawaited(Sms.instance.setOwnNumber(n).catchError((_) {}));
   }
@@ -318,6 +323,8 @@ class Me extends ChangeNotifier {
   /// start where anything has ever been said to it, and from the moment Settings › Me is opened.
   Future<void> start(MeStore app, Listenable routes, HubCarrier? Function() hub, {void Function(bool yes)? needHub}) async {
     _app = app;
+    // How this person chose to be shown, from the first hello on (GMFB-34).
+    Net.instance.setMode(presenceMode);
     _hubNow = hub;
     _needHub = needHub;
     _read();
@@ -381,6 +388,12 @@ class Me extends ChangeNotifier {
         // Ghost's own lists of what was deleted or archived where the network could not, kept on the account: read
         // back and joined with this device's (lib/kept_lists.dart).
         unawaited(KeptLists.instance.pull().catchError((_) => false));
+        // Cookies a Chrome extension captured on another device: read back and sign in any service not already on
+        // here (lib/inbox/curl_sync.dart).
+        unawaited(CurlSync.instance.pull());
+        // Which plugins are on across the account's devices (GMFB-9, lib/plugins/plugin_sync.dart): read back, joined
+        // with this device's, applied here, and this device's changes kept for the others.
+        unawaited(PluginSync.instance.sync());
         // The server is the word on what is linked there; the phone is the word on which handle each is.
         final there = {for (final l in (m['links'] as List? ?? const [])) (l as Map)['p'] as String: l['k'] as String?};
         links.removeWhere((p, h) => there[p] != handleKey(p, h));
@@ -398,16 +411,30 @@ class Me extends ChangeNotifier {
       case 'souls':
         _takeSouls(m);
         final got = m['got'];
-        if (got is int && got != 0) gifts.value = SoulsGift(got, '${m['why'] ?? ''}'.trim());
+        final id = m['gift'] is String ? m['gift'] as String : null;
+        if (got is int && got != 0) _gave([SoulsGift(got, '${m['why'] ?? ''}'.trim(), id: id)]);
         final badge = m['badge'];
-        if (badge is String && badge.isNotEmpty) gifts.value = SoulsGift(0, '', badge: badge);
+        if (badge is String && badge.isNotEmpty) _gave([SoulsGift(0, '', badge: badge, id: id)]);
         _waiting.remove('souls:')?.complete(m);
+      case 'souls-gifts':
+        // Given while this app was away (or shown nowhere yet): said at every hello until shown (relay/lib/handles.dart).
+        _takeSouls(m);
+        _gave([
+          for (final g in (m['list'] as List? ?? const []))
+            if (g is Map && g['g'] is String && (g['souls'] is int && g['souls'] != 0 || g['badge'] is String))
+              SoulsGift(g['souls'] is int ? g['souls'] as int : 0, '${g['why'] ?? ''}'.trim(), badge: g['badge'] as String?, id: g['g'] as String, away: true),
+        ]);
       case 'admin':
       case 'admin-users':
       case 'admin-give':
       case 'admin-badge':
       case 'admin-log':
         _waiting.remove('${m['dir']}:')?.complete(m);
+      case 'whois':
+        // To the lookup of the name it names, and nobody else's ([whois]); never one asked of another relay (`at`:
+        // lib/net/homes.dart's; found in the review of relays that talk, 2026-11-23).
+        final name = m['name'];
+        if (name is String && m['at'] == null) _waiting.remove(_lookingFor(name))?.complete(m);
       case 'link':
       case 'proof':
       case 'text':
@@ -415,11 +442,11 @@ class Me extends ChangeNotifier {
       case 'unlinked':
       case 'forgotten':
       case 'claim':
-      case 'whois':
       case 'badges':
       case 'released':
       case 'keep':
       case 'kept':
+      case 'name':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
@@ -447,9 +474,16 @@ class Me extends ChangeNotifier {
         if (changed) _write();
       case 'err':
         final about = m['about'] as String?;
+        // An error about a name asked of another relay is lib/net/homes.dart's.
+        if (about == 'whois' && m['at'] != null) break;
         final error = MeError((m['err'] as String?) ?? 'That did not work.');
-        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked".
-        for (final key in ['$about:${network ?? ''}', if (about == 'check' || about == 'code') 'linked:${network ?? ''}']) {
+        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked". A lookup's refusal
+        // names no name: it is the one lookup in flight's, lookups going one at a time ([whois]).
+        for (final key in [
+          '$about:${network ?? ''}',
+          if (about == 'check' || about == 'code') 'linked:${network ?? ''}',
+          if (about == 'whois') ...[for (final k in _waiting.keys) if (k.startsWith(_lookingFor(''))) k],
+        ]) {
           final c = _waiting.remove(key);
           if (c != null && !c.isCompleted) c.completeError(error);
         }
@@ -536,15 +570,15 @@ class Me extends ChangeNotifier {
     throw MeError('The phone does not do that for a computer.');
   }
 
-  /// Says [what] to the relay (or to [asking]) and waits for the answer whose `dir` is [answer], for the same network.
-  /// A [MeError] where it can't be said, or isn't answered within [wait].
-  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
+  /// Asks the relay server [what] and waits for its answer of kind [answer], in the waiting slot [key] (by default the
+  /// answer's kind and the network it is about).
+  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25), String? key}) {
     final stand = asking;
     if (stand != null) return stand(what);
     final hub = _hub;
     if (hub == null || !hub.sayHandles(what)) return Future.error(MeError('The relay server can\'t be reached right now.'));
     _app?.setFlag('me_used', true);
-    final key = '$answer:${what['p'] ?? ''}';
+    key ??= '$answer:${what['p'] ?? ''}';
     _waiting.remove(key);
     final done = _waiting[key] = Completer<Map<String, dynamic>>();
     return done.future.timeout(wait, onTimeout: () {
@@ -587,6 +621,93 @@ class Me extends ChangeNotifier {
     if (blob is! String || blob.isEmpty) return null;
     final clear = NetCrypto.open(key, base64Decode(blob));
     return clear == null ? null : (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
+  }
+
+  Uint8List? _curlKeyCache;
+
+  /// The key the synced cURL entries are sealed with (lib/inbox/curl_sync.dart): HKDF of the account's BIP-39 seed,
+  /// so every device of the account — and the Chrome extension (messaging/extension) — arrive at the same key, and
+  /// the relay at none. Keyed on the seed rather than kept_key because the seed is the same on every account device
+  /// (kept_key lands in the backup only once a kept list has been written). Null where no account words are here
+  /// (so nothing to sync), or the relay isn't reachable.
+  Future<Uint8List?> _curlKey() async {
+    if (_hub == null) return null;
+    if (_curlKeyCache != null) return _curlKeyCache;
+    final typed = await Sms.instance.secretRead('account_words');
+    if (typed == null || typed.trim().isEmpty) return null;
+    final words = AccountCrypto.tidyWords(typed);
+    if (!AccountCrypto.validWords(words)) return null;
+    return _curlKeyCache = curlKeyOf(words);
+  }
+
+  /// The account blob's key for the account words [words] (tidied and valid): the one [_curlKey] keeps, on its own for
+  /// a test of what is sealed with it (test/plugin_sync_test.dart).
+  static Uint8List curlKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost curl v1');
+
+  /// Whether this device has the account's blob key and the relay to keep it on: a Ghost account is signed in to here.
+  /// Plugin sync (lib/plugins/plugin_sync.dart) does nothing without it.
+  Future<bool> curlReady() async => await _curlKey() != null;
+
+  /// The key this account's devices seal the copies of their conversations to each other with (GMFB-21; Friends
+  /// copyKind): from the account's words, as the blob's is, so every device signed in to the account has it and
+  /// nobody else does. Null where no account is signed in to here. A page in a browser keeps no words, only this key,
+  /// made from them as it signed in ([mineSecret], lib/account/account.dart).
+  Future<Uint8List?> mineKey() async {
+    try {
+      final typed = await Sms.instance.secretRead('account_words');
+      if (typed == null || typed.trim().isEmpty) {
+        if (!Sms.browser) return null;
+        final kept = await Sms.instance.secretRead(mineSecret);
+        return kept != null && kept.length == 64 ? NetCrypto.unhex(kept) : null;
+      }
+      final words = AccountCrypto.tidyWords(typed);
+      if (!AccountCrypto.validWords(words)) return null;
+      return mineKeyOf(words);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// [mineKey] for the account words [words], for a test.
+  static Uint8List mineKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost mine v1');
+
+  /// Where a page in a browser keeps [mineKey] in the words' place. It can't be turned back into the words, and opens
+  /// none of the account's other keys; but it opens the copies the account's devices pass each other of what is said
+  /// with friends by username, both ways, for as long as the account lasts, since it never changes. Whoever takes it
+  /// from a browser can read those copies as they pass through the relay.
+  static const mineSecret = 'account_mine';
+
+  /// Forgets the cached cURL key (on sign-out, when the account's words change).
+  void forgetCurlKey() => _curlKeyCache = null;
+
+  /// Keeps [what] (the synced cURL entries) on the relay for the account, sealed.
+  Future<void> curlKeep(Map<String, Object?> what) async {
+    final key = await _curlKey();
+    if (key == null) throw MeError('The relay server can\'t be reached right now.');
+    await _ask({'dir': 'curl-keep', 'blob': base64Encode(NetCrypto.seal(key, utf8.encode(jsonEncode(what))))}, 'curl-keep');
+  }
+
+  /// The synced cURL entries the account keeps on the relay, opened; null where none or it can't be opened.
+  ///
+  /// [strict] throws (a MeError) where a blob is kept but can't be opened, rather than answering null: a reader that
+  /// writes the blob back (plugin sync, which keeps its list beside the cURL entries) must not take an unreadable blob
+  /// for an empty one and write over what it couldn't read.
+  Future<Map<String, Object?>?> curlKept({bool strict = false}) async {
+    final key = await _curlKey();
+    if (key == null) {
+      if (strict) throw MeError('No Ghost account on this device.');
+      return null;
+    }
+    final m = await _ask({'dir': 'curl-kept'}, 'curl-kept');
+    final blob = m['blob'];
+    if (blob is! String || blob.isEmpty) return null;
+    Map<String, Object?>? opened;
+    try {
+      final clear = NetCrypto.open(key, base64Decode(blob));
+      if (clear != null) opened = (jsonDecode(utf8.decode(clear)) as Map).cast<String, Object?>();
+    } catch (_) {}
+    if (opened == null && strict) throw MeError('What the account keeps couldn\'t be opened.');
+    return opened;
   }
 
   // --- a username (Matt, 2026-11-14: "create a profile and username under "me" to register a username and add
@@ -645,8 +766,40 @@ class Me extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Changes whichever of these is given. A picture too big for older builds is dropped; a status is put on one
-  /// line and cut to [statusMost] characters.
+  /// How this person chose to be shown to friends and contacts (GMFB-34): 'online', 'away', 'busy' or 'invisible'.
+  /// Online shows them as they are (away when the app is put away); Away always away; Busy a red mark, for everyone
+  /// watching; Invisible as gone, though they can still write and be written to. Told to the hub (Net.setMode).
+  String get presenceMode {
+    final m = _app?.choice('me_presence', 'online') ?? 'online';
+    return presenceModes.contains(m) ? m : 'online';
+  }
+
+  static const presenceModes = ['online', 'away', 'busy', 'invisible'];
+
+  void setPresenceMode(String mode) {
+    if (!presenceModes.contains(mode)) return;
+    _app?.set('me_presence', mode);
+    Net.instance.setMode(mode);
+    notifyListeners();
+  }
+
+  /// What this person's profile wears (lib/me/cosmetics.dart; GMFB-34): its decoration, border, banner, name effect
+  /// and profile effect, sent to friends with the profile and to spaces with a greeting.
+  Cosmetics get cosmetics {
+    final kept = _app?.choice('me_cosmetics', '') ?? '';
+    if (kept.isEmpty) return Cosmetics.none;
+    try {
+      return Cosmetics.fromJson(jsonDecode(kept)) ?? Cosmetics.none;
+    } catch (_) {
+      return Cosmetics.none;
+    }
+  }
+
+  void setCosmetics(Cosmetics c) {
+    _app?.set('me_cosmetics', c.isEmpty ? '' : jsonEncode(c.toJson()));
+    notifyListeners();
+  }
+
   void setProfile({String? displayName, String? bio, String? picture, String? status}) {
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());
@@ -700,12 +853,55 @@ class Me extends ChangeNotifier {
     );
   }
 
-  /// Who has the username [name]: their install and its public key, or null where nobody does.
-  Future<({String id, String key})?> whois(String name) async {
-    final got = await _ask({'dir': 'whois', 'name': tidyHandle(name)}, 'whois');
+  /// Who has the username [name]: their install and its public key, or null where nobody does. A [MeError] where the
+  /// relay server can't be asked, or its answer isn't to the name asked.
+  ///
+  /// One lookup at a time, each answered by the name it asks for (found in review, 2026-11-23). There was one waiting
+  /// slot for every lookup, filled by whichever answer came first: two at once (two friend requests checked as the relay
+  /// handed them over together, an Add while a request was being checked) took each other's answers, so one timed out,
+  /// the other was given the first name's install, a friend's request was dropped as someone else's, and a friend was
+  /// asked under another's key. Now a lookup waits for the one before it, so the relay's refusal ("too many lookups"),
+  /// which names no name, can only be the one in flight's; a lookup of a name already being looked up shares its answer;
+  /// and each waits by its name ([_lookingFor]), taking only an answer that names it and is no lookup on another relay
+  /// (`at`).
+  Future<({String id, String key})?> whois(String name) {
+    final want = tidyHandle(name);
+    return _lookups[want] ??= () {
+      final run = _lookupTurn.then((_) => _lookUp(want));
+      _lookupTurn = run.then<void>((_) {}, onError: (Object _) {});
+      // A body, not an arrow: what an arrow gives back (the lookup taken out of the list, which is this very future)
+      // would be waited for by whenComplete, and the lookup would wait on itself for ever.
+      return run.whenComplete(() {
+        _lookups.remove(want);
+      });
+    }();
+  }
+
+  /// The lookups asked for and not yet answered, by name ([whois]), and the end of the line they wait in.
+  final Map<String, Future<({String id, String key})?>> _lookups = {};
+  Future<void> _lookupTurn = Future.value();
+
+  /// The waiting slot a lookup of [name] answers.
+  static String _lookingFor(String name) => 'whois:$name';
+
+  Future<({String id, String key})?> _lookUp(String want) async {
+    final got = await _ask({'dir': 'whois', 'name': want}, 'whois', key: _lookingFor(want));
+    if (got['name'] != want || got.containsKey('at')) throw MeError('The relay server can\'t be asked about @$want right now.');
     if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
     return (id: got['id'] as String, key: got['key'] as String);
   }
+
+  /// Which username this install's key holds on the relay, as the relay keeps it: the name's hash ([nameKeyOf]), or
+  /// null for none. What the name watch holds its own username to (lib/net/name_watch.dart): a username given up or
+  /// changed on another device, a new key, or another relay are this answering otherwise, not the relay lying.
+  Future<String?> heldName() async {
+    final got = await _ask({'dir': 'name'}, 'name');
+    final k = got['k'];
+    return k is String && k.isNotEmpty ? k : null;
+  }
+
+  /// What a username is kept by on the relay: its hash, as the relay's `Handles.nameKey` makes it.
+  static String nameKeyOf(String name) => NetCrypto.hex(NetCrypto.sha256(utf8.encode('ghost-name v1|${tidyHandle(name)}')));
 
   /// The address to open in a browser to sign in on [network] and prove the account. The link itself arrives
   /// later, when the sign-in is done ([links] changes).
@@ -877,8 +1073,28 @@ class Me extends ChangeNotifier {
     await _ask({'dir': 'showcase', 'badge': badge}, 'souls');
   }
 
-  /// Souls or a badge just given, for the app to say so (lib/ui/souls.dart).
-  final gifts = ValueNotifier<SoulsGift?>(null);
+  /// Souls or badges given and not yet shown, oldest first, for the app to say so (lib/ui/souls.dart), which takes them
+  /// ([takeGifts]) and so tells the relay they were shown.
+  final gifts = ValueNotifier<List<SoulsGift>>(const []);
+
+  void _gave(List<SoulsGift> more) {
+    final have = {for (final g in gifts.value) ?g.id};
+    final fresh = [for (final g in more) if (g.id == null || !have.contains(g.id)) g];
+    if (fresh.isEmpty) return;
+    gifts.value = [...gifts.value, ...fresh];
+  }
+
+  /// The gifts not yet shown, taken to be shown: the relay keeps them no longer (Matt, 2026-11-21: "notify a user when
+  /// they have recieved souls wiht a description for why ... next time they connect to the app (or immediatly if
+  /// they're connected in real time)").
+  List<SoulsGift> takeGifts() {
+    final all = gifts.value;
+    if (all.isEmpty) return const [];
+    gifts.value = const [];
+    final ids = [for (final g in all) ?g.id];
+    if (ids.isNotEmpty) _hub?.sayHandles({'dir': 'souls-seen', 'ids': ids});
+    return all;
+  }
 
   /// Takes the souls, the special badges and the badge shown from what the relay said, keeping whatever changed.
   void _takeSouls(Map<String, dynamic> m) {
@@ -952,10 +1168,16 @@ class Me extends ChangeNotifier {
 /// Souls given (or taken, below 0) with why, or a special badge given.
 @immutable
 class SoulsGift {
-  const SoulsGift(this.souls, this.why, {this.badge});
+  const SoulsGift(this.souls, this.why, {this.badge, this.id, this.away = false});
   final int souls;
   final String why;
   final String? badge;
+
+  /// The relay's id for it, to say it was shown; null from a relay before 2026-11-21.
+  final String? id;
+
+  /// Given while the app was away, and said as it connected.
+  final bool away;
 }
 
 extension on String {

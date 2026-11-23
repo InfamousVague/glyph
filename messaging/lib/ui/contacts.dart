@@ -275,7 +275,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
       child: Row(spacing: dialup ? t.space(1) : t.space(2), children: [
         chip('all', 'All', null),
         chip('friends', 'Friends', AppIcon(Lucide.userCheck, size: 15, wash: false, color: markInk('friends'))),
-        chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: markInk('phone'))),
+        // A page in a browser has no phone's contacts to show.
+        if (!Sms.browser) chip('phone', 'Phone', AppIcon(Lucide.smartphone, size: 15, wash: false, color: markInk('phone'))),
         for (final n in networks) chip(n.id, n.name, inboxMark(n, size: 16, badge: true)),
       ]),
     );
@@ -364,7 +365,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             ? (_filter == 'friends'
                                 ? 'People you add on Ghost Messaging appear here.'
                                 : _filter == 'all' || _filter == 'phone'
-                                    ? 'People in the phone\'s contacts appear here.'
+                                    ? (Sms.browser ? 'People you add on Ghost Messaging appear here.' : 'People in the phone\'s contacts appear here.')
                                     : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
                             : 'No name or number in your contacts matches "$_query".'),
                       ),
@@ -380,7 +381,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         if (i == rows.length) {
                           return Padding(
                             padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 0),
-                            child: Text('The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                            child: Text(Sms.browser ? 'Your friends on Ghost Messaging. Add another by their username.' : 'The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                           );
                         }
                         final row = rows[i];

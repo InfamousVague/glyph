@@ -12,6 +12,11 @@ class _Phone implements SmsCalls {
     {'u': 'bee', 'i': 'b' * 32, 'k': 'x', 'n': 'Bee', 'b': '', 's': 'yes', 'a': 0},
   ]);
 
+  /// The phone's encryption records (android E2e.list).
+  List<Object?> records = [
+    {'address': '+15551234567', 'state': 'on', 'friend': 'yes'},
+  ];
+
   @override
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
     asked.add(method);
@@ -26,9 +31,7 @@ class _Phone implements SmsCalls {
       'messages' => [
           {'id': 1, 'kind': 'sms', 'address': '+15551234567', 'body': 'a text', 'date': 5000, 'outgoing': false, 'state': 'received'},
         ],
-      'e2eList' => [
-          {'address': '+15551234567', 'state': 'on', 'friend': 'yes'},
-        ],
+      'e2eList' => records,
       'searchContacts' => [
           {'name': 'Sam', 'address': '+15551234567'},
         ],
@@ -135,6 +138,30 @@ void main() {
     await calls.invokeMethod('buddiesKeep', {'json': phone.buddies});
     expect(phone.asked, contains('buddiesKeep'), reason: 'the phone works out the sealing keys from it');
     expect((await calls.invokeMethod<Map>('contact', {'address': '@cee'}))!['name'], 'Cee');
+  });
+
+  // Found in review, 2026-11-23: who sent a friend's words, and where they go, is decided by the ids the records name
+  // (lib/friends/friends.dart), so a friend by username's record names them, and nothing else can be one.
+  test('friends by username are one record each, naming the install their username stands for and their others; a phone record under a username is no one\'s', () async {
+    phone.buddies = jsonEncode([
+      {'u': 'bee', 'i': 'b' * 32, 'k': 'x', 'n': 'Bee', 's': 'yes', 'a': 1},
+      // The same username again, an install of theirs that came with a new key: the newest stands for them.
+      {'u': 'bee', 'i': 'd' * 32, 'k': 'x', 'n': 'Bee', 's': 'yes', 'a': 2},
+      {'u': 'cee', 'i': 'c' * 32, 'k': 'x', 'n': 'Cee', 's': 'invited', 'a': 3},
+    ]);
+    await calls.invokeMethod('buddiesKeep', {'json': phone.buddies});
+    phone.records = [
+      {'address': '+15551234567', 'state': 'on', 'friend': 'yes', 'id': 'a' * 32},
+      // A text from a sender that named itself "@bee" (some networks let it): an encryption record under a username.
+      {'address': '@bee', 'state': 'on', 'friend': 'yes', 'id': 'e' * 32},
+    ];
+    final states = [for (final s in (await calls.invokeMethod<List>('e2eList'))!) E2eState.from(s as Map)];
+    expect(states.map((s) => s.address), ['+15551234567', '@bee']);
+    expect(states.map((s) => s.id), ['a' * 32, 'd' * 32]);
+    expect(states.last.otherIds, ['b' * 32]);
+    expect(states.last.isFriend, isTrue);
+    // The conversation's own word on where things stand is that one record too.
+    expect(E2eState.from((await calls.invokeMethod<Map>('e2e', {'address': '@bee'}))!).id, 'd' * 32);
   });
 
   test('deleting several: each kept where it is', () async {

@@ -13,6 +13,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/channels.dart';
+import '../voice/leveler.dart';
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -25,6 +26,7 @@ import 'hangout_screen.dart';
 import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
+import 'screen_share.dart';
 import '../kit/semantic_colors.dart';
 import '../backgrounds.dart' show strongFill;
 
@@ -155,14 +157,16 @@ class CallPanel extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     final levels = media?.levels ?? session.media.levels;
+    // The levels are listened to by each face alone (GMFB-6): the whole panel, video tiles and all, rebuilt at every
+    // reading while anyone spoke.
     return ListenableBuilder(
-      listenable: Listenable.merge([session, levels, ?media?.remote, ?media?.localVideo, ?v.hangoutFor(session.channel)]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.hangoutFor(session.channel)]),
       builder: (context, _) {
-        final loud = levels.value;
-        final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me})>[
-          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localVideo.value, me: true),
+        // A shared screen in the camera's place (GMFB-27), this device's own included.
+        final people = <({String id, String name, bool guest, bool muted, MediaStream? video, bool me, bool screen})>[
+          (id: 'me', name: 'You', guest: false, muted: session.muted || session.deafened, video: media?.localScreen.value ?? media?.localVideo.value, me: true, screen: media?.localScreen.value != null),
           for (final m in session.members.values)
-            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false),
+            (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted, video: m.video ? media?.remote.value[m.id] : null, me: false, screen: m.screen),
         ];
         final withVideo = [for (final p in people) if (p.video != null) p];
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
@@ -173,7 +177,7 @@ class CallPanel extends StatelessWidget {
               final across = withVideo.length == 1 ? 1 : (box.maxWidth / 240).floor().clamp(2, 4);
               final w = (box.maxWidth - t.space(2) * (across - 1)) / across;
               return Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me)),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: w * 0.75, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, stream: p.video, mirror: p.me && !p.screen, screen: p.screen)),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -193,10 +197,18 @@ class CallPanel extends StatelessWidget {
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
-                      RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                      LinkBadge(
+                        id: p.id,
+                        size: Sms.computer ? 52 : 40,
+                        child: ValueListenableBuilder<Map<String, double>>(
+                          valueListenable: levels,
+                          builder: (context, loud, _) => RippleAvatar(name: p.me ? (session.name.isEmpty ? 'You' : session.name) : p.name, level: loud[p.id] ?? 0, muted: p.muted, size: Sms.computer ? 52 : 40),
+                        ),
+                      ),
                       SizedBox(width: t.space(3)),
                       Expanded(
-                        child: Text.rich(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Text.rich(
                           TextSpan(children: [
                             TextSpan(
                               text: p.name,
@@ -209,6 +221,9 @@ class CallPanel extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')),
                         ),
+                          // How this device's connection to them stands, where it isn't simply through (GMFB-4).
+                          LinkWords(id: p.id),
+                        ]),
                       ),
                       if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(LucideMore.micOff, size: 16, wash: false, color: t.danger)),
@@ -231,7 +246,7 @@ class CallVideos extends StatelessWidget {
   /// Whether anyone in [session] has video on now, this device included.
   static bool any(VoiceSession session) {
     final media = Voice.instance.media;
-    if (media?.localVideo.value != null) return true;
+    if (media?.localVideo.value != null || media?.localScreen.value != null) return true;
     return session.members.values.any((m) => m.video && media?.remote.value[m.id] != null);
   }
 
@@ -241,14 +256,29 @@ class CallVideos extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
       builder: (context, _) {
-        final tiles = <({String name, MediaStream stream, bool muted, bool me})>[
-          if (media?.localVideo.value case final mine?) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true),
+        final mine = media?.localScreen.value ?? media?.localVideo.value;
+        final all = <({String name, MediaStream stream, bool muted, bool me, bool screen})>[
+          if (mine != null) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true, screen: media?.localScreen.value != null),
           for (final m in session.members.values)
-            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false),
+            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false, screen: m.screen),
         ];
-        if (tiles.isEmpty) return const SizedBox.shrink();
+        if (all.isEmpty) return const SizedBox.shrink();
+        // Someone else's shared screen takes the space, the rest in a strip under it (GMFB-27).
+        final shared = [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
+        final tiles = shared == null ? all : [for (final x in all) if (!identical(x, shared)) x];
+        Widget tile(({String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
+            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen, screen: x.screen);
+        if (shared != null) {
+          return Column(children: [
+            Expanded(flex: 3, child: tile(shared)),
+            if (tiles.isNotEmpty) ...[
+              SizedBox(height: t.space(2)),
+              Expanded(child: Row(spacing: t.space(2), children: [for (final x in tiles.take(4)) Expanded(child: tile(x))])),
+            ],
+          ]);
+        }
         final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
         final rows = (tiles.length / across).ceil();
         final gap = t.space(2);
@@ -261,7 +291,7 @@ class CallVideos extends StatelessWidget {
                   if (c > 0) SizedBox(width: gap),
                   Expanded(
                     child: r * across + c < tiles.length
-                        ? _Tile(name: tiles[r * across + c].name, muted: tiles[r * across + c].muted, stream: tiles[r * across + c].stream, mirror: tiles[r * across + c].me)
+                        ? tile(tiles[r * across + c])
                         : const SizedBox.shrink(),
                   ),
                 ],
@@ -334,6 +364,7 @@ class CallDock extends StatelessWidget {
                 kind: 'audiooutput',
               ),
               button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
+              if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),
@@ -346,11 +377,14 @@ class CallDock extends StatelessWidget {
 
 /// Someone's video in a call: their picture with the name along the foot, and a red mic-off mark while muted.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.name, required this.muted, this.stream, this.mirror = false});
+  const _Tile({required this.name, required this.muted, this.stream, this.mirror = false, this.screen = false});
   final String name;
   final bool muted;
   final MediaStream? stream;
   final bool mirror;
+
+  /// A shared screen: drawn whole on black.
+  final bool screen;
 
   @override
   Widget build(BuildContext context) {
@@ -358,9 +392,11 @@ class _Tile extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(t.radius('lg')),
       child: ColoredBox(
-        color: t.color('app-paper-3'),
+        color: screen ? const Color(0xFF000000) : t.color('app-paper-3'),
         child: Stack(fit: StackFit.expand, children: [
-          if (stream != null) StreamView(stream: stream!, mirror: mirror),
+          // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
+          // never carries on drawing whoever stood in that place before.
+          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror, contain: screen),
           Positioned(
             left: t.space(2),
             bottom: t.space(2),
@@ -378,9 +414,12 @@ class _Tile extends StatelessWidget {
 
 /// A picture from a call.
 class StreamView extends StatefulWidget {
-  const StreamView({super.key, required this.stream, this.mirror = false});
+  const StreamView({super.key, required this.stream, this.mirror = false, this.contain = false});
   final MediaStream stream;
   final bool mirror;
+
+  /// Drawn whole inside its space rather than filling it: a shared screen (GMFB-27), whose edges matter.
+  final bool contain;
 
   @override
   State<StreamView> createState() => _StreamViewState();
@@ -413,7 +452,7 @@ class _StreamViewState extends State<StreamView> {
   }
 
   @override
-  Widget build(BuildContext context) => _ready ? RTCVideoView(_renderer, mirror: widget.mirror, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
+  Widget build(BuildContext context) => _ready ? RTCVideoView(_renderer, mirror: widget.mirror, objectFit: widget.contain ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
 }
 
 /// A new channel: its name, and the friends it is shared with.
@@ -446,8 +485,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final missed = friends.isEmpty ? const <Buddy>[] : await v.share(c, friends);
     if (!mounted) return;
     toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length - missed.length}${missed.isEmpty ? '' : '; couldn\'t reach ${missed.map((f) => f.shown).join(', ')}'}');
-    // A texting or Files space has no call: its page opens, its chat ready.
-    if (!c.hasVoice) {
+    // A texting or Files space has no call: its page opens, its chat ready. As any space does in a browser, which has
+    // no calls yet (Sms.callsHere).
+    if (!c.hasVoice || !Sms.callsHere) {
       final shell = AppShell.maybeOf(context);
       if (shell != null) {
         v.view(c);
@@ -475,7 +515,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final friends = Buddies.instance.shownFriends;
+    final friends = Buddies.instance.roomFriends;
     return GhostPage(
       title: 'New space',
       body: SettingsPaneScope(
@@ -504,7 +544,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
               ),
               SizedBox(height: t.space(6)),
               PaneSection(children: [
-                _kind.hasVoice
+                _kind.hasVoice && Sms.callsHere
                     ? SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(LucideMore.phoneCall, size: 18), label: 'Start the call', onPress: _make)
                     : SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(Lucide.check, size: 18), label: 'Make the space', onPress: _make),
               ]),
@@ -542,30 +582,41 @@ class RingCard extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.all(t.space(3)),
                     child: Row(children: [
-                      AppIcon(r.invite ? Lucide.userPlus : LucideMore.phoneCall, size: 22, wash: false, color: t.color('app-paper')),
+                      AppIcon(r.invite ? Lucide.userPlus : (r.video ? Lucide.video : LucideMore.phoneCall), size: 22, wash: false, color: t.color('app-paper')),
                       SizedBox(width: t.space(3)),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                          Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : r.channel.name, maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
+                          Text(r.invite ? '${r.from} invited you to ${r.channel.name}' : (r.call != null ? r.from : r.channel.name), maxLines: r.invite ? 2 : 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-paper'))),
                           // A waiting invite is not in the spaces until Join (Voice.offers): anyone who knows a number could leave one.
-                          Text(r.offer ? 'Join to add it to your spaces' : (r.invite ? 'Now in your spaces' : '${r.from} is calling the group'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
+                          // A friend calling this device alone (GMFB-28): a phone's words.
+                          Text(r.call != null ? (r.video ? 'Video call' : 'Voice call') : (r.offer ? 'Join to add it to your spaces' : (r.invite ? 'Now in your spaces' : '${r.from} is calling the group')), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-paper'))),
                         ]),
                       ),
-                      IconTap(icon: Lucide.x, label: 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
+                      IconTap(key: const ValueKey('ring-decline'), icon: Lucide.x, label: r.call != null ? 'Decline' : 'Not now', color: t.color('app-paper'), onPressed: v.dismissRing),
                       SizedBox(width: t.space(1)),
                       GlacierPressable(
                         onPressed: () async {
                           try {
-                            await (r.offer ? v.acceptOffer(r) : v.join(r.channel));
+                            await (r.offer ? v.acceptOffer(r) : v.join(r.channel, video: r.video));
+                            // A friend's call answered: to the call (GMFB-28).
+                            if (r.call != null && context.mounted) {
+                              final shell = AppShell.maybeOf(context);
+                              if (shell != null) {
+                                shell.go('voice');
+                              } else {
+                                unawaited(push(context, (_) => const VoiceScreen()));
+                              }
+                            }
                           } catch (e) {
                             if (context.mounted) toast(context, 'Couldn\'t join: $e', tone: GlacierToastTone.danger);
                           }
                         },
-                        semanticLabel: 'Join',
+                        semanticLabel: r.call != null ? 'Answer' : 'Join',
                         builder: (context, state) => Container(
                           padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
                           decoration: BoxDecoration(color: t.online, borderRadius: BorderRadius.circular(t.radius('full'))),
-                          child: Text('Join', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFFFFFFFF))),
+                          key: const ValueKey('ring-answer'),
+                          child: Text(r.call != null ? 'Answer' : 'Join', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFFFFFFFF))),
                         ),
                       ),
                     ]),
@@ -895,6 +946,37 @@ class _PersonSheet extends StatelessWidget {
                                 SizedBox(width: 44, child: Text('${(v.volumeOf(id) * 100).round()}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
                               ]),
                             ),
+                            // What the auto leveler is doing to them, while it is on (lib/voice/leveler.dart).
+                            ListenableBuilder(
+                              listenable: AutoLeveler.instance,
+                              builder: (context, _) {
+                                final lv = AutoLeveler.instance;
+                                if (!lv.active) return const SizedBox.shrink();
+                                final db = lv.dbOf(id);
+                                final words = db.abs() < 0.5 ? 'Auto leveler: as they are' : 'Auto leveler: ${db > 0 ? 'up' : 'down'} ${db.abs().toStringAsFixed(0)} dB';
+                                return Padding(
+                                  key: const ValueKey('leveler-line'),
+                                  padding: EdgeInsets.only(left: 18 + t.space(3), bottom: t.space(2)),
+                                  child: Text(words, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                                );
+                              },
+                            ),
+                            // On a stage, whoever manages it brings people up to speak and sends them back to listen
+                            // (GMFB-29).
+                            Builder(builder: (context) {
+                              final room = v.hangoutFor(session.channel);
+                              if (room == null || !room.stage || !room.canManage || !room.roster.outranks(room.me, id)) return const SizedBox.shrink();
+                              final listening = room.listens(id);
+                              return SettingRow(
+                                key: const ValueKey('stage-speaker'),
+                                icon: AppIcon(listening ? Lucide.megaphone : LucideMore.headphones, size: 18),
+                                label: listening ? (m!.hand ? 'Bring up to speak (hand raised)' : 'Bring up to speak') : 'Move to the audience',
+                                onPress: () async {
+                                  final ok = await room.setSpeaker(id, listening);
+                                  if (context.mounted && !ok) toast(context, 'That couldn\'t be changed');
+                                },
+                              );
+                            }),
                             if (m!.username != null && friend?.state != 'yes')
                               SettingRow(
                                 icon: AppIcon(Lucide.userPlus, size: 18),
@@ -1146,6 +1228,77 @@ class SpaceLiveBar extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+
+/// How this device's connection to someone in a call stands, on their face (GMFB-4, @kevin: "show when users are
+/// connected to the call so they and others know if they are having audio issues or if they are just not connected to
+/// the call"): nothing while all is well; amber while connecting, reconnecting or slow; red where there is no way
+/// through. Read aloud with the face.
+class LinkBadge extends StatelessWidget {
+  const LinkBadge({super.key, required this.id, required this.child, this.size = 40});
+
+  /// Their id in the call (not `me`: this device has no connection to itself).
+  final String id;
+  final Widget child;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = Voice.instance.media;
+    if (media == null || id == 'me') return child;
+    return ValueListenableBuilder<Map<String, PeerLink>>(
+      valueListenable: media.links,
+      builder: (context, links, _) {
+        final link = links[id];
+        final words = link?.words;
+        if (link == null || words == null) return child;
+        final t = context.tokens;
+        final colour = link == PeerLink.failed ? t.danger : t.colorOf('#e08a1e');
+        final dot = (size * 0.36).clamp(12.0, 20.0);
+        return Semantics(
+          label: words,
+          child: Stack(clipBehavior: Clip.none, children: [
+            child,
+            Positioned(
+              left: -2,
+              bottom: -2,
+              child: Container(
+                key: ValueKey('link-$id-${link.name}'),
+                width: dot,
+                height: dot,
+                decoration: BoxDecoration(color: colour, shape: BoxShape.circle, border: Border.all(color: t.color('app-paper'), width: 2)),
+                alignment: Alignment.center,
+                child: AppIcon(link == PeerLink.failed ? LucideMore.wifiOff : (link == PeerLink.poor ? Lucide.wifi : Lucide.loaderCircle), size: dot * 0.55, strokeWidth: 2.6, wash: false, color: const Color(0xFFFFFFFF)),
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// What a person's row says of their connection, under their name; nothing while all is well (GMFB-4).
+class LinkWords extends StatelessWidget {
+  const LinkWords({super.key, required this.id});
+  final String id;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = Voice.instance.media;
+    if (media == null || id == 'me') return const SizedBox.shrink();
+    return ValueListenableBuilder<Map<String, PeerLink>>(
+      valueListenable: media.links,
+      builder: (context, links, _) {
+        final link = links[id];
+        final words = link?.words;
+        if (link == null || words == null) return const SizedBox.shrink();
+        final t = context.tokens;
+        return Text(words, key: ValueKey('link-words-$id'), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: link == PeerLink.failed ? t.danger : t.colorOf('#e08a1e')));
       },
     );
   }

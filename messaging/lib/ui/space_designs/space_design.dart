@@ -2,6 +2,7 @@ export 'call_plugins.dart' show SpaceExtra;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:glacier/glacier.dart';
@@ -22,6 +23,7 @@ import '../recording_ui.dart';
 import '../ripple_avatar.dart';
 import '../settings.dart';
 import '../shell.dart';
+import '../screen_share.dart';
 import '../space_invite.dart';
 import '../voice_screen.dart';
 import 'call_plugins.dart';
@@ -96,6 +98,7 @@ class SpacePerson {
     this.muted = false,
     this.guest = false,
     this.video = false,
+    this.screen = false,
     this.stream,
     this.role,
     this.owner = false,
@@ -113,6 +116,9 @@ class SpacePerson {
   /// Video turned on; [stream] is its picture once it arrives (null until then, and always in a test).
   final bool video;
   final MediaStream? stream;
+
+  /// What [stream] shows is their shared screen (GMFB-27): drawn whole, never cropped or mirrored.
+  final bool screen;
 
   /// Their role in the space, where it has roles (null for a group's channel).
   final Role? role;
@@ -148,6 +154,8 @@ class SpaceCall {
     this.video = false,
     this.micLocked = false,
     this.videoLocked = false,
+    this.screen = false,
+    this.onScreen,
     this.since,
     this.onMute,
     this.onDeafen,
@@ -162,6 +170,31 @@ class SpaceCall {
     this.bridged = false,
     this.extras = const [],
   });
+
+  /// A stage's items in the call's menu (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak,
+  /// many listen, with a listener count"): Raise hand for a listener, and, for whoever manages the space, making it a
+  /// stage or ending one, with how many are listening.
+  static List<SpaceExtra> stageExtras(VoiceSession s, HangoutRoom? room) {
+    if (room == null || !s.channel.hasVoice) return const [];
+    final listening = [if (room.listens(room.me)) room.me, for (final id in s.members.keys) if (room.listens(id)) id].length;
+    final hands = s.members.values.where((m) => m.hand).length;
+    return [
+      if (room.stage && s.locked)
+        SpaceExtra(label: s.hand ? 'Lower your hand' : 'Raise your hand', icon: LucideMore.hand, builtIn: true, run: (_) => s.raiseHand(!s.hand)),
+      if (room.canManage)
+        SpaceExtra(
+          label: room.stage ? 'End the stage · $listening listening${hands > 0 ? ' · $hands ✋' : ''}' : 'Make it a stage',
+          icon: Lucide.megaphone,
+          builtIn: true,
+          run: (context) async {
+            final ok = await room.setStage(!room.stage);
+            if (context.mounted) {
+              toast(context, !ok ? 'The stage couldn\'t be changed' : (room.stage ? 'It\'s a stage: newcomers listen until you bring them up to speak' : 'Everyone can speak again'));
+            }
+          },
+        ),
+    ];
+  }
 
   /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
   /// [room]), and in a space with roles only where this device's role may invite.
@@ -183,8 +216,9 @@ class SpaceCall {
         name: s.name.isEmpty ? 'You' : s.name,
         me: true,
         muted: s.muted || s.deafened,
-        video: s.video,
-        stream: media?.localVideo.value,
+        video: s.video || s.screen,
+        screen: media?.localScreen.value != null,
+        stream: media?.localScreen.value ?? media?.localVideo.value,
         role: roleOf(meId),
         owner: roster?.isOwner(meId) ?? false,
       ),
@@ -193,10 +227,12 @@ class SpaceCall {
         if (m.id != s.bridgeId)
         SpacePerson(
           id: m.id,
-          name: v.nameOf(m.id),
+          // A hand raised to speak on a stage, before the name, so every design shows it (GMFB-29).
+          name: m.hand ? '✋ ${v.nameOf(m.id)}' : v.nameOf(m.id),
           muted: m.muted || (room != null && !room.heard(m.id)),
           guest: m.guest,
           video: m.video,
+          screen: m.screen,
           stream: m.video ? media?.remote.value[m.id] : null,
           role: roleOf(m.id),
           owner: roster?.isOwner(m.id) ?? false,
@@ -210,7 +246,7 @@ class SpaceCall {
       channel: s.channel,
       people: people,
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, CallRecorder.instance]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, CallRecorder.instance]),
       bridged: s.channel.discord != null,
       room: room,
       muted: s.muted,
@@ -218,6 +254,8 @@ class SpaceCall {
       video: s.video,
       micLocked: s.locked,
       videoLocked: s.videoLocked,
+      screen: s.screen,
+      onScreen: s.canShareScreen ? (context) => unawaited(toggleScreenShare(context, s)) : null,
       since: s.since,
       onMute: () => s.setMuted(!s.muted),
       onDeafen: () => s.setDeafened(!s.deafened),
@@ -232,7 +270,12 @@ class SpaceCall {
       onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
-      extras: CallPlugins.extras(),
+      // Sharing the screen, first in every design's menu (GMFB-27), where this device can.
+      extras: [
+        if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
+        ...stageExtras(s, room),
+        ...CallPlugins.extras(),
+      ],
     );
   }
 
@@ -253,6 +296,10 @@ class SpaceCall {
   final HangoutRoom? room;
 
   final bool muted, deafened, video;
+
+  /// This device is sharing its screen (GMFB-27); [onScreen] starts or stops it, null where this device can't.
+  final bool screen;
+  final void Function(BuildContext context)? onScreen;
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn video on.
   final bool micLocked, videoLocked;
@@ -329,7 +376,12 @@ class SpaceFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
         valueListenable: call.levels,
-        builder: (context, now, _) => RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        // With how this device's connection to them stands, where it isn't simply through (GMFB-4).
+        builder: (context, now, _) => LinkBadge(
+          id: person.id,
+          size: size,
+          child: RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+        ),
       );
 }
 
@@ -345,7 +397,11 @@ class SpaceVideo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stream = person.stream;
-    if (stream != null) return StreamView(stream: stream, mirror: person.me);
+    // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
+    if (stream != null) {
+      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen, contain: person.screen);
+      return person.screen ? ColoredBox(color: const Color(0xFF000000), child: view) : view;
+    }
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));
   }
 }
@@ -446,6 +502,10 @@ class SpaceCallPage extends StatefulWidget {
 
 class _SpaceCallPageState extends State<SpaceCallPage> {
   VoiceChannel? _held;
+
+  /// Whose shared screen was put away with Back to call (GMFB-27): theirs stays a line over the call, with View,
+  /// until they share again or someone else does.
+  String? _putAway;
   Timer? _tick;
 
   @override
@@ -503,18 +563,19 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
         final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
         // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;
+        // Someone else's shared screen, large over the call until put away (GMFB-27).
+        final sharer = session == null ? null : sharerIn(session);
+        if (sharer == null && _putAway != null) _putAway = null;
+        final staged = sharer != null && sharer.id != _putAway;
         // A recording is told to everyone, whatever plugins are on (lib/ui/recording_ui.dart).
-        final banners = [if (session != null && RecordingBanner.shows(session)) const RecordingBanner(), ...CallPlugins.banners(context)];
-        if (banners.isEmpty) return page;
-        return Stack(children: [
-          page,
-          Positioned(
-            left: 0,
-            right: 0,
-            top: MediaQuery.paddingOf(context).top + 62,
-            child: Column(mainAxisSize: MainAxisSize.min, children: banners),
-          ),
-        ]);
+        final banners = [
+          if (session != null && RecordingBanner.shows(session)) const RecordingBanner(),
+          if (session != null && ScreenShareBanner.shows(session, viewing: staged)) ScreenShareBanner(session: session, onView: () => setState(() => _putAway = null)),
+          ...CallPlugins.banners(context),
+        ];
+        final stage = staged ? Positioned.fill(child: ScreenStage(name: sharer.name, stream: sharer.stream, onBack: () => setState(() => _putAway = sharer.id))) : null;
+        if (banners.isEmpty && stage == null) return page;
+        return Stack(children: [page, ?stage, if (banners.isNotEmpty) CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
       },
     );
   }
@@ -596,5 +657,133 @@ class MergedLevels implements ValueListenable<Map<String, double>> {
   void removeListener(VoidCallback listener) {
     a.removeListener(listener);
     b.removeListener(listener);
+  }
+}
+
+
+/// The lines over a call (the recording's, the plugins'), where they can be moved and folded (GMFB-16, @kevin, Android
+/// 0.11.5: "Audio recording banner covers ui elements in a way that makes them unusable and cannot be moved"): they
+/// stood over the call's header, its menu and the first people with no way out of the way. Drag them up or down the
+/// screen; the grip folds them to a small red chip at the side, which unfolds them again. Where they were left is
+/// kept while the app runs.
+class CallBanners extends StatefulWidget {
+  const CallBanners({super.key, required this.top, required this.children});
+
+  /// Where they start, from the top of the screen.
+  final double top;
+  final List<Widget> children;
+
+  /// Where they were moved to, and whether they are folded: for every call page while the app runs.
+  @visibleForTesting
+  static double? moved;
+  @visibleForTesting
+  static bool folded = false;
+
+  @override
+  State<CallBanners> createState() => _CallBannersState();
+}
+
+class _CallBannersState extends State<CallBanners> {
+  /// Whether any of the lines draws anything. A plugin's line is listed while the plugin is on (the soundboard's, the
+  /// voice changer's) and is empty until it has something to say, as the recording's is once it has stopped: with
+  /// nothing drawn, neither the grip nor the folded chip shows (Matt, 2026-11-22: "the recording pill gets stuck on
+  /// the screen even when not recording").
+  bool _drawn = false;
+
+  void _measured(double height) {
+    final drawn = height > 0.5;
+    if (drawn == _drawn) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _drawn != drawn) setState(() => _drawn = drawn);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final lines = _HeightOf(onHeight: _measured, child: Column(mainAxisSize: MainAxisSize.min, children: widget.children));
+    return LayoutBuilder(builder: (context, box) {
+      final pad = MediaQuery.paddingOf(context);
+      final most = (box.maxHeight - pad.bottom - 72).clamp(pad.top, double.infinity);
+      final top = (CallBanners.moved ?? widget.top).clamp(pad.top, most);
+      void drag(DragUpdateDetails d) => setState(() => CallBanners.moved = (top + d.delta.dy).clamp(pad.top, most));
+      if (!_drawn) return Offstage(child: lines);
+      if (CallBanners.folded) {
+        return Stack(children: [
+          // Still laid out, unseen, so that the chip goes when the lines have nothing more to say. Positioned, as an
+          // unpositioned child would size the stack to it (nothing) and leave the chip outside where it can be pressed.
+          Positioned(left: 0, right: 0, top: top, child: Offstage(child: lines)),
+          Positioned(
+            right: t.space(3),
+            top: top,
+            child: GestureDetector(
+              key: const ValueKey('call-banners-folded'),
+              onVerticalDragUpdate: drag,
+              child: GlacierPressable(
+                onPressed: () => setState(() => CallBanners.folded = false),
+                semanticLabel: 'Show the lines over this call',
+                builder: (context, state) => Container(
+                  padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                  decoration: BoxDecoration(color: RecordingBanner.red.withValues(alpha: state.pressed ? 0.8 : 1), borderRadius: BorderRadius.circular(999), boxShadow: t.shadowOf('0 4px 14px rgba(0,0,0,0.25)')),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const AppIcon(Lucide.circleDot, size: 14, strokeWidth: 2.4, color: Color(0xFFFFFFFF)),
+                    SizedBox(width: t.space(1)),
+                    const AppIcon(Lucide.chevronDown, size: 14, strokeWidth: 2.4, color: Color(0xFFFFFFFF)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ]);
+      }
+      return Stack(children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: top,
+          child: GestureDetector(
+            key: const ValueKey('call-banners'),
+            behavior: HitTestBehavior.deferToChild,
+            onVerticalDragUpdate: drag,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              lines,
+              // The grip: drag it (or any of the lines) to move them, press it to fold them away.
+              GlacierPressable(
+                onPressed: () => setState(() => CallBanners.folded = true),
+                semanticLabel: 'Fold the lines over this call',
+                builder: (context, state) => Container(
+                  key: const ValueKey('call-banners-grip'),
+                  padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(1)),
+                  child: Container(width: 36, height: 5, decoration: BoxDecoration(color: RecordingBanner.red.withValues(alpha: state.pressed ? 1 : 0.7), borderRadius: BorderRadius.circular(3))),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]);
+    });
+  }
+}
+
+/// Tells [onHeight] the height its child was laid out to, after each layout.
+class _HeightOf extends SingleChildRenderObjectWidget {
+  const _HeightOf({required this.onHeight, required super.child});
+  final void Function(double height) onHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHeightOf(onHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderHeightOf renderObject) => renderObject.onHeight = onHeight;
+}
+
+class _RenderHeightOf extends RenderProxyBox {
+  _RenderHeightOf(this.onHeight);
+  void Function(double height) onHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onHeight(size.height);
   }
 }

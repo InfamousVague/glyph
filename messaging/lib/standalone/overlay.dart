@@ -36,8 +36,8 @@ abstract class UsernameOverlay implements SmsCalls {
     chats = UsernameChats(base: base, save: _save, buddies: () => _buddies);
   }
 
-  /// Where the ids of the conversations and rows kept here start.
-  static const base = 1 << 40;
+  // 2^40, written out: `1 << 40` is 0 in a browser, where a shift keeps 32 bits (test/source_guards_test.dart).
+  static const base = 0x10000000000;
 
   /// What the one built on this answers itself, before anything here; [pass] for what it leaves to this.
   Future<Object?> answerOwn(String method, Map a) async => pass;
@@ -115,7 +115,10 @@ abstract class UsernameOverlay implements SmsCalls {
 
       // What friends write.
       case 'netTextOut' when _isName(a['address']):
-        return chats.textOut(a['address'] as String, '${a['body']}');
+        return chats.textOut(a['address'] as String, '${a['body']}', at: (a['at'] as num?)?.toInt());
+      case 'callNote' when _isName(a['address']):
+        chats.callNote(a['address'] as String, '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch, out: a['out'] == true);
+        return null;
       case 'netTextIn' when _isName(a['address']):
         final address = a['address'] as String, body = '${a['body']}';
         chats.textIn(address, body, (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);
@@ -138,7 +141,7 @@ abstract class UsernameOverlay implements SmsCalls {
 
       // Where encryption stands: friends by username are on, and friends.
       case 'e2eList':
-        return [...?(await inner.invokeMethod<List>('e2eList')), ...chats.states()];
+        return [...UsernameChats.phoneRecords(await inner.invokeMethod<List>('e2eList')), ...chats.states()];
       case 'e2e' when _isName(a['address']):
         final address = a['address'] as String;
         return chats.states().firstWhere((s) => s['address'] == address, orElse: () => {'address': address, 'state': 'none'});

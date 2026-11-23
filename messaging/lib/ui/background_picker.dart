@@ -254,7 +254,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                 // A picture is chosen from the phone's photos and kept by the app there: not from a computer.
                 if (!Sms.remote) ...[
                 SizedBox(height: t.space(5)),
-                PaneSection(
+                // Not in a browser, which can't choose a picture yet (Sms.browser).
+                if (!Sms.browser) PaneSection(
                   title: 'A picture',
                   footer: const Text('A copy is kept by the app on this phone. It is drawn under a light veil so messages stay readable.'),
                   children: [

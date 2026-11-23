@@ -1,5 +1,5 @@
 /// A call's captions (Matt, 2026-11-19: "Live captions"): each device writes out its own voice as it is said, on the
-/// device (android LiveCaptions.kt, macos/ios LiveCaptions.swift), and says the words in the call's room; whoever wants
+/// device (android LiveCaptions.kt, macos/ios LiveCaptions.swift, windows/runner/speech.cpp), and says the words in the call's room; whoever wants
 /// captions sees everyone's, named, translated into their own language where Translate is on.
 ///
 /// A device writes out its voice only while someone in the call wants captions ('cw' in their state,
@@ -7,7 +7,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
+import '../platform_info.dart';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
@@ -47,7 +47,7 @@ class CallCaptions extends ChangeNotifier {
   static const _channel = MethodChannel('ghost/captions');
 
   /// Whether this platform writes out a voice as it is said.
-  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isIOS);
+  static bool get supported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isIOS || PlatformInfo.isWindows);
 
   /// What a line from someone is shown as, where Translate would have it in another language (set by the plugin).
   static Future<String?> Function(String words)? translate;

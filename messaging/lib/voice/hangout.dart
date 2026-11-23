@@ -1,8 +1,10 @@
+import '../me/cosmetics.dart';
 import 'dart:async';
 import '../games/game_activity.dart';
 import '../names.dart';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -14,6 +16,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import 'channels.dart' show AppHangoutStore;
 import '../circles/welcome.dart' show ReadOnlyRoom;
+import '../circles/circle_keys.dart';
 import 'roles.dart';
 import 'voice.dart';
 import '../me/me.dart' show Me;
@@ -88,6 +91,7 @@ class HangoutRoom extends ChangeNotifier {
     _loadAbout();
     _loadVotes();
     _loadReactions();
+    _loadUnsaid();
   }
 
   /// The most messages a device keeps of one space's chat, and hands over to one that asks what it missed.
@@ -100,6 +104,88 @@ class HangoutRoom extends ChangeNotifier {
 
   /// What this install signs rosters with; null where it can't (it then changes nothing).
   final NetSigner? signer;
+
+  /// The circle keys a circle's space is sealed with (GMFB-26, lib/circles/circle_keys.dart): the app's own unless a
+  /// test gives its own. A space of no circle, or none here, is sealed with its seed's key alone, as before.
+  CircleKeys? get circleKeys => _circleKeys ?? CircleKeys.app;
+  set circleKeys(CircleKeys? k) => _circleKeys = k;
+  CircleKeys? _circleKeys;
+
+  /// [clear] sealed for this space: under the circle's newest key held, for a circle's space. Null where a newer key
+  /// of the circle is known than this device holds: never sealed under an older one, which someone put out may hold
+  /// (GMFB-26 review, finding 3); the caller keeps it until the key comes.
+  Uint8List? _seal(List<int> clear) {
+    final circle = channel.circle, k = circleKeys;
+    return circle == null || k == null ? NetCrypto.seal(channel.key, clear) : k.seal(circle, channel.key, 'space', clear);
+  }
+
+  /// [bytes] opened for this space: under an epoch of the circle's key, or the seed's key. One under a key this device
+  /// lacks is kept, opened again when the key comes, and the key asked for (finding 4).
+  Uint8List? _open(Uint8List bytes, String from, {bool reaction = false}) {
+    final circle = channel.circle, k = circleKeys;
+    if (circle == null || k == null) return NetCrypto.open(channel.key, bytes);
+    final o = k.open(circle, channel.key, 'space', bytes);
+    if (o.clear == null && o.unknown) {
+      _unread.add((from: from, bytes: bytes, reaction: reaction));
+      if (_unread.length > 200) _unread.removeAt(0);
+      k.missing(circle);
+    }
+    return o.clear;
+  }
+
+  /// What came under a key this device lacks, and what it would have said: both wait for the key.
+  final List<({String from, Uint8List bytes, bool reaction})> _unread = [];
+  final List<({Map<String, Object?> what, bool keep, bool reaction})> _unsaid = [];
+  static const mostUnsaid = 100;
+
+  /// What waits is kept with the space's other things (`:u`), so a restart doesn't lose it (B5).
+  void _keepUnsaid() {
+    final st = store;
+    if (st is HangoutVotesStore) (st as HangoutVotesStore).keepVotes('${channel.chatRoom}:u', jsonEncode([for (final w in _unsaid) {'w': w.what, 'k': w.keep, 'r': w.reaction}]));
+  }
+
+  void _loadUnsaid() {
+    final st = store;
+    if (st is! HangoutVotesStore) return;
+    try {
+      for (final j in jsonDecode((st as HangoutVotesStore).votesOf('${channel.chatRoom}:u') ?? '[]') as List) {
+        if (j is Map && j['w'] is Map) _unsaid.add((what: (j['w'] as Map).cast<String, Object?>(), keep: j['k'] == true, reaction: j['r'] == true));
+      }
+    } catch (_) {}
+  }
+
+  /// Queues [what] until the circle's key comes.
+  void _wait(Map<String, Object?> what, {bool keep = false, bool reaction = false}) {
+    _unsaid.add((what: what, keep: keep, reaction: reaction));
+    if (_unsaid.length > mostUnsaid) _unsaid.removeAt(0);
+    _keepUnsaid();
+    final circle = channel.circle;
+    if (circle != null) circleKeys?.missing(circle);
+    notifyListeners();
+  }
+
+  /// Whether what is said here waits for the circle's new key: the screen says so.
+  bool get waitingForKey => _unsaid.isNotEmpty || (channel.circle != null && (circleKeys?.lacking(channel.circle!) ?? false));
+
+  /// The circle's key came: what waited is said, and what couldn't be read is read.
+  void _keyCame() {
+    final circle = channel.circle, k = circleKeys;
+    // With no circle keys (switched off, or a space of no circle), what a build with them on left waiting goes now,
+    // under the seed's key, rather than wait for a key that never comes (third review, item 4).
+    if (circle != null && k != null && k.lacking(circle)) return;
+    final said = [..._unsaid];
+    _unsaid.clear();
+    _keepUnsaid();
+    for (final w in said) {
+      w.reaction ? _sendReaction(w.what) : _say(w.what, keep: w.keep);
+    }
+    final unread = [..._unread];
+    _unread.clear();
+    for (final u in unread) {
+      u.reaction ? _heardReaction(u.from, u.bytes) : _heard(u.from, u.bytes);
+    }
+    notifyListeners();
+  }
   String name;
   String? username;
 
@@ -156,6 +242,8 @@ class HangoutRoom extends ChangeNotifier {
     opened = true;
     putOut = roster.banned.contains(me) ? 'You were banned from this space.' : null;
     final at = _inRoom = hubRoom;
+    final circle = channel.circle, keys = circleKeys;
+    if (circle != null && keys != null) _subs.add(keys.taken.where((s) => s == circle).listen((_) => _keyCame()));
     _subs.add(route.packets.where((p) => p.room == at).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == at).listen(_event));
     // Reactions as packets of their own (relay/lib/hub.dart toRoomReaction): nothing else is taken from one.
@@ -175,6 +263,8 @@ class HangoutRoom extends ChangeNotifier {
     }
     _hi(ask: true);
     _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
+    // What waited from before a restart goes now, where the key is here.
+    if (_unsaid.isNotEmpty) _keyCame();
     notifyListeners();
   }
 
@@ -208,7 +298,7 @@ class HangoutRoom extends ChangeNotifier {
   /// nobody and saw those here without their names until they spoke.
   void _hi({bool ask = false}) {
     final me = Me.instance;
-    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson()});
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
   }
 
   /// Pictures asked for and not yet answered, by whose: one asking at a time for each person.
@@ -247,7 +337,25 @@ class HangoutRoom extends ChangeNotifier {
   // --- chat --------------------------------------------------------------------------------------------------------
 
   /// Writes [text] to the hangout; false where this device may not.
-  bool send(String text, {List<Mention> mentions = const []}) => sendWith(text: text, mentions: mentions);
+  bool send(String text, {List<Mention> mentions = const [], SpaceReply? reply, String? thread}) => sendWith(text: text, mentions: mentions, reply: reply, thread: thread);
+
+  /// The chat itself: every message but those in a thread (GMFB-36).
+  List<HangoutMessage> get timeline => [for (final m in messages) if (m.thread == null) m];
+
+  /// The messages in [root]'s thread, oldest first.
+  List<HangoutMessage> threadOf(String root) => [for (final m in messages) if (m.thread == root) m];
+
+  /// How many are in each thread, by the message it hangs from, and the newest of each: for the line under it.
+  Map<String, ({int count, HangoutMessage last})> get threads {
+    final out = <String, ({int count, HangoutMessage last})>{};
+    for (final m in messages) {
+      final root = m.thread;
+      if (root == null) continue;
+      final had = out[root];
+      out[root] = (count: (had?.count ?? 0) + 1, last: m);
+    }
+    return out;
+  }
 
   /// Whether this device may write here at all: the roster's Send messages, and not put out. Files and stickers are
   /// part of writing (Matt, 2026-11-18): whoever may write may send them (in a circle its roles say more:
@@ -261,7 +369,9 @@ class HangoutRoom extends ChangeNotifier {
   /// there is nothing to send. [id]: the one an [OutgoingMessage] was shown under.
   /// [mentions]: who is meant by an "@Name" in [text], counted in [text] as given (lib/mentions.dart).
   /// [note]: a plugin's, for it to draw as a card over [text] (lib/voice/plugin_note.dart); only with words alone.
-  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note}) {
+  /// [reply]: the message this answers (GMFB-13), shown over it as a quote.
+  /// [thread]: the message whose thread this goes in (GMFB-36); it quotes that message where nothing else is answered.
+  bool sendWith({String text = '', List<SpaceFile> files = const [], String? sticker, bool voice = false, String? id, List<Mention> mentions = const [], PluginChatNote? note, SpaceReply? reply, String? thread}) {
     var words = text.trim();
     if (sticker != null && !HangoutMessage.stickerPattern.hasMatch(sticker)) return false;
     final extra = files.isNotEmpty || sticker != null;
@@ -280,10 +390,18 @@ class HangoutRoom extends ChangeNotifier {
       // Counted in the words as sent: trimmed, and cut short where too long (a mention past the cut goes).
       mentions: Mention.checked(Mention.trimmed(mentions, text), words),
       note: extra ? null : note,
+      reply: reply ?? (thread == null ? null : _quoteOf(thread)),
+      thread: thread,
     ));
     _add([m]);
     _say({'t': 'msg', ...m.toJson()}, keep: true);
     return true;
+  }
+
+  /// The quote of the message [id], where it is held here.
+  SpaceReply? _quoteOf(String id) {
+    final m = messages.where((x) => x.id == id).firstOrNull;
+    return m == null ? null : SpaceReply.of(m);
   }
 
   // --- polls (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart) --------------------------------
@@ -356,23 +474,31 @@ class HangoutRoom extends ChangeNotifier {
     final at = DateTime.now().millisecondsSinceEpoch;
     if (!reactions.take(m.id, me, emoji, on: on, at: at)) return false;
     final what = {'t': 'react', 'id': m.id, 'e': emoji, 'on': on, 'at': at};
-    final r = route;
-    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
-      try {
-        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what))));
-      } catch (_) {}
-    } else {
-      // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
-      _say(what, keep: true);
-    }
+    _sendReaction(what);
     _keepReactions();
     notifyListeners();
     return true;
   }
 
+  /// Sends a reaction: as one where the relay takes them, else as a kept packet; waits for the circle's key where it
+  /// lacks it, as a reaction still (B10).
+  void _sendReaction(Map<String, Object?> what) {
+    final r = route;
+    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) return _wait(what, reaction: true);
+      try {
+        (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, sealed);
+      } catch (_) {}
+    } else {
+      // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
+      _say(what, keep: true);
+    }
+  }
+
   /// A packet that came as a reaction: taken only as one.
   void _heardReaction(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes, from, reaction: true);
     if (clear == null) return;
     try {
       final m = (jsonDecode(utf8.decode(clear)) as Map).cast<String, dynamic>();
@@ -505,7 +631,7 @@ class HangoutRoom extends ChangeNotifier {
 
   /// Sends [picked] (files on this device) up, sealed, with [text], and the message once they are all there; null where
   /// this device may not write here or nothing could be read. [voice]: the one file is a voice message.
-  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false, List<Mention> mentions = const []}) {
+  OutgoingMessage? sendFiles(List<({String path, bool owned})> picked, ChatUploads uploads, {String text = '', bool voice = false, List<Mention> mentions = const [], SpaceReply? reply}) {
     if (!mayWrite) return null;
     final files = <OutgoingFile>[];
     for (final p in picked.take(HangoutMessage.mostFiles)) {
@@ -515,14 +641,14 @@ class HangoutRoom extends ChangeNotifier {
       } catch (_) {
         continue;
       }
-      final cleaned = SpaceFile.cleanName(p.path.split(Platform.pathSeparator).last.split('/').last);
+      final cleaned = SpaceFile.cleanName(p.path.split(PlatformInfo.pathSeparator).last.split('/').last);
       final name = cleaned.isEmpty ? 'File' : cleaned;
       files.add(OutgoingFile(path: p.path, name: name, size: size, mime: FileKind.mimeOf(name), owned: p.owned));
     }
     if (files.isEmpty) return null;
     var words = text.trim();
     if (words.length > HangoutMessage.mostWordsWith) words = words.substring(0, HangoutMessage.mostWordsWith);
-    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1, mentions: Mention.trimmed(mentions, text));
+    final o = OutgoingMessage(id: NetCrypto.hex(NetCrypto.randomBytes(8)), text: words, files: files, at: DateTime.now().millisecondsSinceEpoch, voice: voice && files.length == 1, mentions: Mention.trimmed(mentions, text), reply: reply);
     outgoing.add(o);
     notifyListeners();
     unawaited(_push(o, uploads));
@@ -570,7 +696,7 @@ class HangoutRoom extends ChangeNotifier {
           }(),
     ]);
     if (!outgoing.contains(o) || o.files.any((f) => f.file == null)) return;
-    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice, mentions: o.mentions)) {
+    if (sendWith(id: o.id, text: o.text, files: [for (final f in o.files) f.file!], voice: o.voice, mentions: o.mentions, reply: o.reply)) {
       outgoing.remove(o);
     } else {
       o.error = putOut ?? 'Your role can\'t send messages here.';
@@ -610,6 +736,20 @@ class HangoutRoom extends ChangeNotifier {
   final Map<String, ({String from, String text, List<Mention> mentions, int at})> _pendingEdits = {};
   static const _pendingEditsKept = 200;
 
+  /// Deletions heard before the message they take away, by its id, and who said them, at most [_pendingEditsKept]: the
+  /// message is passed over as it comes, where whoever said it may delete it (found in the third review of relays that
+  /// talk, 2026-11-23: a relay hands a room's kept messages over a piece at a time, and a deletion said live meanwhile
+  /// could come first, and was passed over, the message then shown).
+  final Map<String, String> _pendingDeletes = {};
+
+  /// Whether [m] was deleted before it came, by someone who may: the deletion is used up by it.
+  bool _deletedEarly(HangoutMessage m) {
+    final by = _pendingDeletes[m.id];
+    if (by == null || !(m.from == by || roster.isOwner(by) || (roster.can(by, Perm.manageMessages) && roster.outranks(by, m.from)))) return false;
+    _pendingDeletes.remove(m.id);
+    return true;
+  }
+
   /// [id]'s words made [text] at [at], where that is newer than what it has.
   void _applyEdit(String id, String text, List<Mention> mentions, int at) {
     var changed = false;
@@ -644,6 +784,7 @@ class HangoutRoom extends ChangeNotifier {
     }
     final have = {for (final m in messages) m.id};
     var more = [for (final m in fresh) if (have.add(m.id)) m];
+    if (_pendingDeletes.isNotEmpty) more = [for (final m in more) if (!_deletedEarly(m)) m];
     if (more.isEmpty) return;
     // An edit that came before the message it changes (the hub hands over what it kept in its own order).
     if (_pendingEdits.isNotEmpty) {
@@ -802,6 +943,28 @@ class HangoutRoom extends ChangeNotifier {
     final assigned = {for (final e in roster.assigned.entries) if (e.value != roleId) e.key: e.value};
     return _publish(roster.next(roles: roles, assigned: assigned));
   }
+
+  // --- a stage (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak, many listen, with a
+  // listener count") ---------------------------------------------------------------------------------------------
+
+  /// Whether the space is a stage: whoever comes in listens, and speaks only once someone who manages it lets them.
+  bool get stage => roster.newcomer == Role.listener;
+
+  /// Makes the space a stage, or an ordinary space again. On: a Listener role (chat, no voice or video) is what
+  /// newcomers get, and whoever has no other role listens. Off: everyone who was listening is a member again.
+  Future<bool> setStage(bool on) async {
+    if (!canManage || on == stage) return false;
+    final roles = roster.roleById(Role.listener) == null ? [...roster.ranked, Role.listenerRole] : roster.ranked;
+    if (on) return _publish(roster.next(roles: roles, newcomer: Role.listener));
+    final assigned = {for (final e in roster.assigned.entries) if (e.value != Role.listener) e.key: e.value};
+    return _publish(roster.next(roles: roles, newcomer: Role.member, assigned: assigned));
+  }
+
+  /// Whether [id] listens on this stage rather than speaks: may neither speak nor show video.
+  bool listens(String id) => stage && !roster.can(id, Perm.speak) && !roster.can(id, Perm.video);
+
+  /// Brings [id] up to speak (a member) or back to the audience (a listener), as someone who manages the stage.
+  Future<bool> setSpeaker(String id, bool on) => setRole(id, on ? Role.member : Role.listener);
 
   /// The role people have until given another.
   Future<bool> setNewcomer(String roleId) async {
@@ -965,7 +1128,8 @@ class HangoutRoom extends ChangeNotifier {
   void _say(Map<String, Object?> what, {bool keep = false}) {
     if (!opened) return;
     try {
-      final sealed = NetCrypto.seal(channel.key, utf8.encode(jsonEncode(what)));
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) return _wait(what, keep: keep);
       final r = route;
       if (keep && r is HubVoiceRoute) {
         r.sendKept(_inRoom ?? hubRoom, sealed);
@@ -985,7 +1149,7 @@ class HangoutRoom extends ChangeNotifier {
   /// A packet from the chat room: opened with the space's key (anything that doesn't open is dropped) and acted on by
   /// its kind `t`. Every right is checked here against the roster, since the hub checks none.
   void _heard(String from, Uint8List bytes) {
-    final clear = NetCrypto.open(channel.key, bytes);
+    final clear = _open(bytes, from);
     if (clear == null) return;
     Map<String, dynamic> m;
     try {
@@ -1016,7 +1180,9 @@ class HangoutRoom extends ChangeNotifier {
             status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
             pictureHash: m['ph'] is String ? m['ph'] as String : '',
             // What they are playing, as their greeting says now (lib/games/game_activity.dart): none said, none.
-            game: GameActivity.fromJson(m['ga']));
+            game: GameActivity.fromJson(m['ga']),
+            // What their profile wears (lib/me/cosmetics.dart): ids alone, drawn from the art this build has.
+            cosmetics: Cosmetics.fromJson(m['cx']) ?? Cosmetics.none);
         if (m['u'] is String && (m['u'] as String).isNotEmpty) usernames[from] = m['u'] as String;
         notifyListeners();
         // Come in asking who is here (a person's second device, whom the relay announces to nobody): told, once.
@@ -1064,7 +1230,12 @@ class HangoutRoom extends ChangeNotifier {
       case 'del':
         final id = '${m['id']}';
         final msg = messages.where((x) => x.id == id).firstOrNull;
-        if (msg != null && (msg.from == from || roster.isOwner(from) || (roster.can(from, Perm.manageMessages) && roster.outranks(from, msg.from)))) _drop(id);
+        if (msg == null) {
+          // Before the message it takes away: held for it.
+          if (_pendingDeletes.length < _pendingEditsKept) _pendingDeletes[id] = from;
+        } else if (msg.from == from || roster.isOwner(from) || (roster.can(from, Perm.manageMessages) && roster.outranks(from, msg.from))) {
+          _drop(id);
+        }
       case 'sync?':
         if (_answers(from)) {
           final since = m['since'] is int ? m['since'] as int : 0;
@@ -1120,7 +1291,7 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String name;
   final String? username;
@@ -1132,6 +1303,9 @@ class HangoutPerson {
 
   /// What they said they are playing, when they last greeted the room; null for nothing.
   final GameActivity? game;
+
+  /// What their profile wears, as their greeting said.
+  final Cosmetics cosmetics;
   final bool inVoice;
   final bool guest;
 }
@@ -1151,7 +1325,7 @@ class HangoutPerson {
 /// (lib/files/files_store.dart, [ChatUploads]), but never written in its list: only the message knows of them.
 @immutable
 class HangoutMessage {
-  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited});
+  const HangoutMessage({required this.id, required this.from, required this.name, required this.text, required this.at, this.files = const [], this.sticker, this.voice = false, this.mentions = const [], this.poll, this.note, this.edited, this.reply, this.thread});
   final String id;
 
   /// Who wrote it (their id on the hub, as the hub said), and the name they wrote it under.
@@ -1186,6 +1360,15 @@ class HangoutMessage {
   /// When its writer last changed its words (ms), or null where never (`ed`; Matt, 2026-11-20: "I'd like to be able to
   /// edit messages sent in circles from any computer or phone connected to the account that sent it").
   final int? edited;
+
+  /// The message it answers, as it was when answered (`rp`; GMFB-13, @jerbo: "Please add a reply feature for messages
+  /// sent in group chats so I can specifically call out an individual"): a build from before shows the words alone.
+  final SpaceReply? reply;
+
+  /// The message whose thread this is in, by its id (`th`; GMFB-36, from the Uplink gap review: threads were promised
+  /// in Uplink #1434): shown in that thread's panel, not in the chat. It quotes that message too ([reply]), so a build
+  /// from before shows it in the chat as a reply to it.
+  final String? thread;
 
   /// Whether it may be edited at all: words, or files with words; not a poll, a sticker or a plugin's note.
   bool get editable => poll == null && sticker == null && note == null && !voice;
@@ -1235,6 +1418,8 @@ class HangoutMessage {
         poll: poll,
         note: note,
         edited: edited ?? this.edited,
+        reply: reply,
+        thread: thread,
       );
 
   /// As said in the room (the class comment has the fields). Who wrote it is not in it: the hub says who sent it.
@@ -1252,6 +1437,8 @@ class HangoutMessage {
         if (poll != null) 'pl': poll!.toJson(),
         if (note != null) 'pn': note!.toJson(),
         'ed': ?edited,
+        if (reply != null) 'rp': reply!.toJson(),
+        'th': ?thread,
       };
 
   /// From what [from] said: its id, words and time; null where it is not a message. A message whose files and sticker
@@ -1292,6 +1479,8 @@ class HangoutMessage {
       // A plugin's note is words with a card over them: never with files, a sticker or a poll.
       note: extras ? null : PluginChatNote.fromJson(j['pn']),
       edited: j['ed'] is int ? j['ed'] as int : null,
+      reply: SpaceReply.fromJson(j['rp']),
+      thread: j['th'] is String && (j['th'] as String).isNotEmpty && (j['th'] as String).length <= 64 && j['th'] != j['id'] ? j['th'] as String : null,
     );
   }
 
@@ -1332,8 +1521,11 @@ class OutgoingFile {
 /// A message with files, shown in the chat while they go up (Matt, 2026-11-18): sent once all of them are there, kept
 /// with a try again where one fails. Only on this device, and only while the app is open.
 class OutgoingMessage {
-  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false, this.mentions = const []});
+  OutgoingMessage({required this.id, required this.text, required this.files, required this.at, this.voice = false, this.mentions = const [], this.reply});
   final String id;
+
+  /// The message it answers, where it does (GMFB-13).
+  final SpaceReply? reply;
   final String text;
 
   /// Who [text] mentions, counted in [text].
@@ -1465,4 +1657,41 @@ class MemoryHangoutStore implements HangoutStore, HangoutAboutStore, HangoutVote
   Roster? roster(String room) => _rosters[room];
   @override
   void keepRoster(String room, Roster roster) => _rosters[room] = roster;
+}
+
+
+/// The message a space's message answers (GMFB-13), as it was when answered: its id, who wrote it and the start of its
+/// words, so the quote shows even where the message itself has gone or was never loaded here.
+@immutable
+class SpaceReply {
+  const SpaceReply({required this.id, required this.from, required this.name, required this.text});
+  final String id;
+  final String from;
+  final String name;
+
+  /// At most [most] characters of its words (or what it was, where it had none: "Sticker", "Photo").
+  final String text;
+
+  static const most = 140;
+
+  /// The quote of [m].
+  factory SpaceReply.of(HangoutMessage m) {
+    final words = m.summary.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return SpaceReply(id: m.id, from: m.from, name: m.name, text: words.length > most ? '${words.substring(0, most - 1)}…' : words);
+  }
+
+  Map<String, Object> toJson() => {'id': id, 'f': from, 'n': name, 'x': text};
+
+  static SpaceReply? fromJson(Object? j) {
+    if (j is! Map || j['id'] is! String || j['x'] is! String) return null;
+    final text = (j['x'] as String).trim();
+    final id = j['id'] as String;
+    if (id.isEmpty || id.length > 64) return null;
+    return SpaceReply(
+      id: id,
+      from: j['f'] is String ? j['f'] as String : '',
+      name: j['n'] is String ? bareName(j['n'] as String) : '',
+      text: text.length > most ? '${text.substring(0, most - 1)}…' : text,
+    );
+  }
 }

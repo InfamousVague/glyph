@@ -18,10 +18,12 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../net/net.dart';
+import '../platform_info.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'common.dart';
+import 'composer_box.dart' show composerSemantics;
 import 'drawer_head.dart' show DrawerHead;
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'settings_panes.dart' show appVersion;
@@ -269,7 +271,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       text: _text.text.trim(),
       username: _withName ? _username : null,
       platform: FeedbackReport.thisPlatform,
-      version: appVersion,
+      version: FeedbackReport.thisVersion(appVersion),
       shots: List.of(_shots),
     );
     setState(() => _sending = true);
@@ -285,6 +287,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       toast(context, e is FeedbackError ? e.message : 'Couldn\'t send your feedback: $e', tone: GlacierToastTone.danger);
     }
   }
+
+  /// A many-lined field's own semantics: in a browser [composerSemantics], elsewhere a label on a text field, as before.
+  static Widget _textSemantics({required String label, required FocusNode focus, required Widget child}) =>
+      PlatformInfo.isWeb ? composerSemantics(hint: label, onPress: focus.requestFocus, child: child) : Semantics(label: label, textField: true, child: child);
 
   @override
   Widget build(BuildContext context) {
@@ -341,9 +347,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                         child: Stack(children: [
                           if (_text.text.isEmpty) IgnorePointer(child: Text('Describe it here', style: ink.copyWith(color: t.color('app-ink-3')))),
-                          Semantics(
+                          // In a browser, named and focused as a composer's words are there (composerSemantics): a bare
+                          // EditableText under a label could be read and never written in with the page's tree for
+                          // screen readers on. Elsewhere as it was.
+                          _textSemantics(
                             label: 'What happened',
-                            textField: true,
+                            focus: _focus,
                             child: EditableText(
                               controller: _text,
                               focusNode: _focus,
@@ -368,7 +377,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               gap,
               PaneSection(
                 title: 'Screenshots',
-                footer: Text('Up to ${FeedbackReport.mostShots}.'),
+                footer: Sms.browser ? null : Text('Up to ${FeedbackReport.mostShots}.'),
                 children: [
                   if (_shots.isNotEmpty)
                     SettingRowBox(
@@ -376,7 +385,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         for (final (i, s) in _shots.indexed) _thumb(t, i, s),
                       ]),
                     ),
-                  if (_shots.length < FeedbackReport.mostShots)
+                  // Not in a browser, which can't choose a picture yet (Sms.browser): the words go alone there, and the
+                  // row says so (a plain row, which a screen reader reads; a switched-off one it doesn't).
+                  if (Sms.browser)
+                    SettingRow(
+                      key: const ValueKey('feedback-no-shots'),
+                      icon: AppIcon(Lucide.image, size: 18),
+                      label: 'Not from a browser yet',
+                      hint: const Text('Say what you saw in words, or send screenshots from the app on your phone or computer.'),
+                    )
+                  else if (_shots.length < FeedbackReport.mostShots)
                     SettingRow(
                       key: const ValueKey('feedback-add-shot'),
                       icon: AppIcon(Lucide.imagePlus, size: 18),

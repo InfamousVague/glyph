@@ -36,6 +36,12 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
       case "name":
         // "Matt's MacBook Pro", as System Settings › General › About has it.
         result(Host.current().localizedName ?? ProcessInfo.processInfo.hostName)
+      case "keptDir":
+        // Where this build keeps what no backup takes (lib/net/kept_files_io.dart: the ledger the relay is checked by):
+        // the person's Caches folder, which Time Machine leaves out, under the build's bundle id, as the app is outside
+        // the sandbox and has no folder of its own there otherwise.
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        result(caches?.appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.infamousvague.ghostmessaging.mac", isDirectory: true).path)
       case "keyRead":
         result(DeskChannels.keychain(read: args["account"] as? String ?? ""))
       case "keyWrite":

@@ -10,6 +10,8 @@ import 'setup.dart' show TextsStep;
 import 'api_pane.dart';
 import '../inbox/inbox.dart';
 import 'blocking.dart';
+import 'report_sheet.dart' show ReportsMadeList, reportsMadeKey;
+import '../safety/abuse_report.dart' show MadeReport;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -21,10 +23,12 @@ import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
 import '../emoji_sets.dart';
+import '../platform_info.dart';
 import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
 import '../kit/settings_type.dart';
+import '../custom_theme.dart';
 import '../looks.dart';
 import '../sms.dart';
 import '../sounds.dart';
@@ -46,6 +50,7 @@ import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart';
+import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
@@ -110,10 +115,13 @@ List<SettingsSection> _ownSections() => [
     group: 'look',
     summary: (m) {
       final look = m.app.look;
+      final own = CustomTheme.used(m.app);
+      if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textSize != 'default') '${m.app.textSize} text'].join(' · ');
       return [
         if (look != Look.ghost) look.label,
         if (look.forced == null) switch (m.app.theme) { 'light' => look.lightName, 'dark' => look.darkName, _ => 'System theme' },
         '${m.app.bubble == 'theme' ? (look == Look.ghost ? 'White' : look.label) : bubbleColor(m.app.bubble).name} bubbles',
+        if (m.app.font == 'readable') 'Readable font',
         if (m.app.textSize != 'default') '${m.app.textSize} text',
       ].join(' · ');
     },
@@ -135,7 +143,7 @@ List<SettingsSection> _ownSections() => [
     icon: _icon(LucideMore.smile),
     hue: 'amber',
     group: 'look',
-    summary: (m) => emojiSet(m.app.emoji).name,
+    summary: (m) => emojiSetInUse(m.app.emoji).name,
     page: _emoji,
   ),
   SettingsSection(
@@ -158,6 +166,8 @@ List<SettingsSection> _ownSections() => [
   ),
   SettingsSection(
     id: 'sounds',
+    // Played by the phone or the computer itself: a page in a browser plays none yet.
+    when: (m) => !Sms.browser,
     label: 'Sounds',
     icon: _icon(Lucide.audioLines),
     hue: 'mint',
@@ -202,6 +212,8 @@ List<SettingsSection> _ownSections() => [
   // and sound input devices etc etc"), on the phone and on a computer alike.
   SettingsSection(
     id: 'voice',
+    // Nothing to set where there are no calls (a browser, for now).
+    when: (m) => Sms.callsHere,
     label: 'Voice and video',
     icon: _icon(LucideMore.headphones),
     hue: 'mint',
@@ -238,6 +250,19 @@ List<SettingsSection> _ownSections() => [
       return n == 0 ? 'None' : '$n ${n == 1 ? 'person' : 'people'}';
     },
     page: _blocked,
+  ),
+  // Reports you've made (GMFB-40): kept on this device alone (lib/ui/report_sheet.dart).
+  SettingsSection(
+    id: 'reports',
+    label: 'Reports you\'ve made',
+    icon: _icon(Lucide.flag),
+    hue: 'amber',
+    group: 'privacy',
+    summary: (m) {
+      final n = MadeReport.readAll(m.app.choice(reportsMadeKey, '[]')).length;
+      return n == 0 ? 'None' : '$n';
+    },
+    page: (context, m) => const [ReportsMadeList()],
   ),
   SettingsSection(
     id: 'archived',
@@ -379,7 +404,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.10.6';
+const appVersion = '0.12.17';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -388,16 +413,42 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
   final app = m.app;
   final palette = PhonePalette.current != null;
   final look = app.look;
+  // A look of one's own in use (GMFB-41, lib/custom_theme.dart): it has one brightness, as some of the app's do.
+  final own = CustomTheme.used(app);
   return [
     // Looks for the whole app (Matt, 2026-11-16: "spend some time making a few themes for ghost"), above Theme, which
     // only a look with both a light and a dark half has.
     PaneSection(
       title: 'Look',
-      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below.'),
-      children: [SettingRowBox(child: LookPicker(app: app))],
+      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours, and share it as a code.'),
+      children: [
+        SettingRowBox(child: LookPicker(app: app)),
+        // Your own looks (GMFB-41, from the Uplink gap review: "custom CSS-style themes"): made from four colours, or
+        // taken in from a code someone shared.
+        SettingRow(
+          key: const ValueKey('make-own-look'),
+          icon: _icon(Lucide.palette),
+          label: 'Make your own look',
+          hint: const Text('Choose the background, surface, text and accent colours'),
+          onPress: () => push<void>(context, (_) => CustomThemeEditor(app: app)),
+        ),
+        SettingRow(
+          key: const ValueKey('paste-look'),
+          icon: _icon(Lucide.clipboardPaste),
+          label: 'Paste a look\'s code',
+          hint: const Text('One someone shared with you'),
+          onPress: () => pasteTheme(context, app),
+        ),
+      ],
     ),
     PaneSection(title: 'Theme', children: [
-      if (look.forced == null)
+      if (own != null)
+        SettingRow(
+          icon: _icon(Lucide.sunMoon),
+          label: 'Theme',
+          hint: Text('${own.name} is always ${own.dark ? 'dark' : 'light'}, whatever the phone is set to.'),
+        )
+      else if (look.forced == null)
         SettingRow(
           icon: _icon(Lucide.sunMoon),
           label: 'Theme',
@@ -435,7 +486,23 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
-    PaneSection(title: 'Text', footer: Text(Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'), children: [
+    PaneSection(title: 'Text', footer: Text('${Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'} Readable draws everything in Atkinson Hyperlegible Next, made so that no two letters look alike: easier for many people with dyslexia or low vision.'), children: [
+      // A face for reading (GMFB-41, from the Uplink gap review: "dyslexia font"), over any look's own.
+      SettingRow(
+        icon: _icon(LucideMore.type),
+        label: 'Font',
+        layout: SettingRowLayout.stacked,
+        control: GlacierSegmentedControl(
+          key: const ValueKey('font-choice'),
+          fullWidth: true,
+          value: app.font,
+          onValueChange: app.setFont,
+          options: const [
+            GlacierSegmentedOption(value: 'default', label: Text('Default')),
+            GlacierSegmentedOption(value: 'readable', label: Text('Readable')),
+          ],
+        ),
+      ),
       SettingRow(
         icon: _icon(LucideMore.type),
         label: 'Text size',
@@ -459,7 +526,12 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
 
 // --- Emoji ------------------------------------------------------------------------------------------------------------
 
-/// Settings › Emoji: which set emoji are drawn in, and whether a message of emoji alone is drawn large.
+/// [set], its font asked for where sets are fetched only once wanted (a browser: [ensureEmojiFont]).
+EmojiSet _fetched(EmojiSet set) {
+  if (set.family != null) ensureEmojiFont(set.family!);
+  return set;
+}
+
 List<Widget> _emoji(BuildContext context, SettingsModel m) {
   final t = context.tokens;
   final app = m.app;
@@ -468,7 +540,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
       title: 'Emoji set',
       footer: const Text('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
       children: [
-        for (final set in emojiSets)
+        for (final set in offeredEmojiSets)
           SettingRow(
             label: set.name,
             hint: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -483,7 +555,8 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
                   ),
               ]),
             ]),
-            control: Pick(checked: app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
+            // In a browser each set is fetched as its row is first shown, and the one drawn where none was chosen is ticked.
+            control: Pick(checked: PlatformInfo.isWeb ? emojiFamilyOf(app.emoji) == _fetched(set).family : app.emoji == set.id, label: 'Use ${set.name} emoji', onPress: () => app.setEmoji(set.id)),
           ),
       ],
     ),
@@ -710,8 +783,27 @@ List<Widget> _receipts(BuildContext context, SettingsModel m) {
 
 // --- Notifications ----------------------------------------------------------------------------------------------------
 
-/// Settings › Notifications: Android's own switches, what a notification shows, and, beside Google Messages, whose
-/// notifications are heard.
+/// Settings › Notifications › Bubbles' switch (android Bubbles.PREF): on unless switched off.
+const bubblesKey = 'notif_bubbles';
+
+/// Android's own bubble setting for the app ([SmsStatus.bubbles]), in a word or two.
+String bubbleSettingWords(String? system) => switch (system) {
+      'all' => 'All conversations',
+      'selected' => 'Chosen conversations',
+      'none' => 'Off',
+      _ => '',
+    };
+
+/// What Android's bubble setting means for Ghost's bubbles, under its row.
+String bubbleSettingHint(String? system, {required bool on}) {
+  if (!on) return 'Ghost\'s bubbles are switched off above. This is Android\'s page for them, where it decides which conversations may bubble.';
+  return switch (system) {
+    'all' => 'Every conversation can bubble. Tap to change it on Android\'s page.',
+    'none' => 'Android has bubbles off for Ghost, so none show. Tap to turn them on.',
+    _ => 'Only the conversations you choose bubble: press a notification\'s bubble button. Tap to let every one bubble.',
+  };
+}
+
 List<Widget> _notifications(BuildContext context, SettingsModel m) {
   final app = m.app;
   final s = m.status;
@@ -768,6 +860,30 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // Conversation bubbles (android Bubbles.kt, GMFB-8, from @kevin: "It would be nice to have message bubbles that just
+    // sit on the side of the screen like google messages and facebook messenger"; Matt asked for it to be built). On
+    // Android 11 and later, where the phone has them; Android's own setting decides which conversations may bubble.
+    if (s?.bubbles != null)
+      PaneSection(
+        title: 'Bubbles',
+        footer: const Text('A conversation\'s notification has a bubble button: press it to keep that conversation on the side of the screen. Drag a bubble to the X to put it away.'),
+        children: [
+          SettingRow(
+            icon: _icon(LucideMore.messageCircle),
+            label: 'Conversation bubbles',
+            hint: const Text('A conversation can sit on the side of the screen as a bubble and open over whatever you\'re doing.'),
+            control: GlacierSwitch(checked: app.flag(bubblesKey), onCheckedChange: (v) => app.setFlag(bubblesKey, v), ariaLabel: 'Conversation bubbles'),
+          ),
+          SettingRow(
+            icon: _icon(Lucide.settings),
+            label: 'Android\'s bubble setting',
+            hint: Text(bubbleSettingHint(s!.bubbles, on: app.flag(bubblesKey))),
+            value: Text(bubbleSettingWords(s.bubbles)),
+            // Asked again as the app comes back from Android's page (SettingsScreen.didChangeAppLifecycleState).
+            onPress: () => Sms.instance.bubbleSettings(),
+          ),
+        ],
+      ),
     // Beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I can turn off notifications from google messages
     // or hide them and proxy everything through ghost").
     if (m.status?.beside ?? false)

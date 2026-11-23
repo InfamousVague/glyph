@@ -1,13 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../friends/buddies.dart' show Buddy;
+import '../me/me.dart' show Me;
+import '../platform_info.dart';
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
+import 'forward_secrecy.dart';
+import 'homes.dart';
 import 'hub_carrier.dart';
+import 'hub_link.dart';
+import 'kept_files.dart';
+import 'ledger.dart';
+import 'p2p/node.dart';
+import 'p2p/p2p.dart';
 import 'packet.dart';
+import 'relay_choice.dart';
 import 'sms_carrier.dart';
 import 'switchboard.dart';
 
@@ -30,15 +42,28 @@ class NetEvent {
 ///
 /// What the person chooses is kept with their other choices: `net_on`, `net_hub` (the relay server's address),
 /// `net_off` (the routes switched off, by name).
+///
+/// **The direct route** (lib/net/p2p; docs/OPEN_NETWORK.md, section 2) is there where the build has its core
+/// ([p2pNode]): after the relay's hub in the order, linking only with this account's own devices and with friends
+/// ([friends]), and kept in step with the people, how the person chose to be shown, the app being put away and
+/// coming back, and the relay in use.
 class Net extends ChangeNotifier implements PeerBook {
   Net._();
   static final Net instance = Net._();
 
+  /// Makes this device's node on the direct network: the core's own (native/p2p, over lib/net/p2p/node_ffi.dart), set
+  /// before the routes are set up in a build that has it. Null, or answering null, there is no core here: no direct
+  /// route is made, and Settings › Routes shows none.
+  static P2pNode? Function()? p2pNode;
+
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
   static const defaultHub = 'wss://gogho.st/hub';
 
-  // The switchboard and this phone's two routes, once [start] has made them; and the people the routes reach, by
-  // their install's name.
+  /// The relay server an install uses where the person has chosen none: ours ([defaultHub]) on every phone and
+  /// computer. A page in a browser may speak only to the address it came from, so there it is that address's own hub,
+  /// put here before the routes start (lib/web/app.dart).
+  static String homeHub = defaultHub;
+
   AppState? _app;
   Switchboard? _board;
   HubCarrier? _hub;
@@ -52,11 +77,92 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Why the routes could not be set up, in words; null when they were.
   String? error;
 
+  /// Why this build's direct route is not there though it has a core, in words for Settings › Routes; null where it is
+  /// there, or where the build has none.
+  String? directProblem;
+
   /// The last things the routes did, newest first.
   final List<NetEvent> recent = [];
 
   Switchboard? get board => _board;
   HubCarrier? get hub => _hub;
+
+  /// This account's home record and what the relay is told of where friends live (homes.dart; docs/OPEN_NETWORK.md,
+  /// section 4): what lets someone on another relay be a friend. Null until the routes are set up, and where the
+  /// routes are a test's own.
+  Homes? get homes => _homes;
+  Homes? _homes;
+
+  /// Something small kept with the app's choices, and read back, without drawing anything again.
+  String recall(String key) => _app?.choice(key, '') ?? '';
+  void remember(String key, String value) => _app?.keep(key, value);
+
+  // --- the direct route (lib/net/p2p) ---------------------------------------------------------------------------------
+
+  P2p? _p2p;
+
+  /// The app's hold on the direct network; null where this build has no core, or the routes are not set up.
+  P2p? get p2p => _p2p;
+
+  /// Goes up whenever what Settings › Routes shows of the direct route changes: the devices known, the links, the
+  /// link helpers, what the ledger's comparisons found. Apart from the routes' own changes, which friends' unanswered
+  /// words are sent again on.
+  final ValueNotifier<int> direct = ValueNotifier(0);
+
+  void _directChanged() => direct.value++;
+
+  // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
+
+  Ledger? _ledger;
+  LedgerCheck? _check;
+
+  /// What went to each friend and came from them, and what comparing it over direct links found of the relay; null
+  /// where this build has no direct route (nothing could compare it), or the routes are not set up.
+  Ledger? get ledger => _ledger;
+  LedgerCheck? get check => _check;
+
+  /// Who else holds what was sent and is unanswered, to send it again where a friend's device says it never came
+  /// (Friends' list: lib/friends/friends.dart); kept here, so a check made later is given them too.
+  final List<Envelope? Function(String peer, String id)> _holders = [];
+
+  void addHolder(Envelope? Function(String peer, String id) holder) {
+    if (_holders.contains(holder)) return;
+    _holders.add(holder);
+    _check?.holders.add(holder);
+  }
+
+  /// Those of [people] who are friends: whom the direct route links with, and tells where this device is. Never
+  /// someone who has only asked or been asked, nor the other members of a group.
+  List<Peer> get friends => [for (final p in _peers.values) if (_friendIds.contains(p.id)) p];
+  Set<String> _friendIds = {};
+
+  HubCarrier? _helpersOf;
+
+  /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
+  void _helpersSaid() {
+    final hub = _helpersOf;
+    if (hub != null) _p2p?.setHelpers(hub.helpers.value);
+  }
+
+  void _followHelpers(HubCarrier? hub) {
+    _helpersOf?.helpers.removeListener(_helpersSaid);
+    _helpersOf = hub;
+    hub?.helpers.addListener(_helpersSaid);
+  }
+
+  Timer? _p2pTimer;
+
+  /// Reads what the direct network keeps, now and every half minute until it can be read (a secret store that is
+  /// locked, as [_fsAgain] waits out).
+  void _loadDirect(P2p p2p) {
+    unawaited(p2p.tryLoad().then((ok) {
+      if (ok || !identical(p2p, _p2p)) return;
+      _p2pTimer?.cancel();
+      _p2pTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+        if (!identical(p2p, _p2p) || p2p.loaded || await p2p.tryLoad()) t.cancel();
+      });
+    }));
+  }
 
   Map<String, Object?>? _push;
 
@@ -70,14 +176,29 @@ class Net extends ChangeNotifier implements PeerBook {
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
-  void _presenceChanged() => presence.value++;
+  void _presenceChanged() {
+    presence.value++;
+    // Whoever came is told this device's card now, where they had not been while away.
+    _p2p?.presenceChanged();
+  }
 
   /// [hub], set up for presence: listened to, told whether the app is away, and asked about the extra names.
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
     hub.awayNow = _away;
+    hub.mode = _mode;
     if (_alsoWatch.isNotEmpty) hub.watch(_alsoWatch);
     return hub;
+  }
+
+  String _mode = 'online';
+
+  /// How this person chose to be shown (GMFB-34; Me.presenceMode): Online, Away, Busy or Invisible, told to the hub
+  /// now and with every sign-in after.
+  void setMode(String mode) {
+    _mode = mode;
+    _hub?.mode = mode;
+    _p2p?.setMode(mode);
   }
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
@@ -85,6 +206,9 @@ class Net extends ChangeNotifier implements PeerBook {
   void setAway(bool away) {
     _away = away;
     _hub?.awayNow = away;
+    _p2p?.setAway(away);
+    // Put away, the app may not come back: what the ledger listed is written now.
+    if (away) unawaited(_ledger?.flush());
   }
 
   /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
@@ -95,14 +219,16 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// Whether someone on our own system, by their install's name, is using the app now, or when they last were; null
   /// where the hub has said nothing of them.
-  ({bool online, DateTime? lastSeen})? presenceOfId(String id) {
+  ({bool online, DateTime? lastSeen, bool away, bool busy})? presenceOfId(String id) {
     final hub = _hub;
     if (hub == null) return null;
     final here = hub.here.value.contains(id);
     final away = hub.away.value.contains(id);
+    final busy = here && hub.busy.value.contains(id);
     final seen = hub.seen[id];
     if (!here && seen == null) return null;
-    return (online: here && !away, lastSeen: here && !away ? null : seen);
+    // Busy shows as busy whether the app is in use or put away; away only where here.
+    return (online: here && !away, lastSeen: here && !away ? null : seen, away: here && away && !busy, busy: busy);
   }
 
   /// How the relay server may wake this app while it is closed (an iPhone's push token; [HubCarrier.push]): kept here
@@ -112,32 +238,36 @@ class Net extends ChangeNotifier implements PeerBook {
     _hub?.push = value;
   }
 
-  // The SMS route; the people the routes reach; whether the person has the network on; and the relay server's
-  // address (theirs where they gave one, else ours).
+  /// What [setPush] was last given.
+  Map<String, Object?>? get push => _push;
   SmsCarrier? get sms => _sms;
   List<Peer> get people => _peers.values.toList();
   bool get on => _app?.flag('net_on') ?? true;
   String get hubUrl {
     final own = _app?.choice('net_hub', '') ?? '';
-    return own.trim().isEmpty ? defaultHub : own.trim();
+    return own.trim().isEmpty ? homeHub : own.trim();
   }
 
   @override
-  Peer? byId(String id) => _peers[id];
-  @override
-  Peer? byAddress(String address) {
-    final want = _digits(address);
-    for (final p in _peers.values) {
-      if (_digits(p.address ?? '') == want) return p;
-    }
-    return null;
+  Peer? byId(String id) => id == this.id && _mineKey != null ? Peer(id: id, key: _mineKey) : _peers[id];
+
+  /// The key this account's devices seal copies to each other with (GMFB-21; Friends.copyKind), once read.
+  Uint8List? _mineKey;
+
+  /// This account's own other devices, as one peer: this install's name and the account's key. Null where no Ghost
+  /// account is signed in to here (or the routes aren't set up).
+  Future<Peer?> mine() async {
+    final me = id;
+    if (me == null) return null;
+    _mineKey ??= await Me.instance.mineKey();
+    final key = _mineKey;
+    return key == null ? null : Peer(id: me, key: key);
   }
 
-  /// A number as two phones agree on it whatever each wrote before it: its last ten digits.
-  static String _digits(String address) {
-    final d = address.replaceAll(RegExp(r'[^0-9]'), '');
-    return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
-  }
+  // No one is found here by an address (found in review, 2026-11-23). The people come from more than one list, and on
+  // Android a member of a group is among them under whatever address the group's admin wrote: a friend's number, or
+  // "@friend". The first address that matched sent a friend's words to that member. Who an address is, is the record
+  // for it to say (Friends.idOf, by the id its key makes), and the routes are asked by that id ([byId]).
 
   /// Notes something the routes did, for Settings › Network; the newest thirty are kept.
   void _note(String words, {String? via}) {
@@ -151,8 +281,18 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
-    // This install's own name among its identity's devices, made once and kept.
+    // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
+    // from another device (a backup restored here), a new one: they bring the name with them, so two devices would be
+    // one to the hub, to forward secrecy and to the circles' keys. It is known by the direct network's node key, which is
+    // kept where the install keeps its keys and does not come with a backup, while the node id made from it does.
     var device = app.choice('hub_device', '');
+    if (device.length == 32 && await _restoredHere(app)) {
+      device = '';
+      // What the other device said of its own place on the direct network is not this one's.
+      for (final name in [P2p.idName, P2p.cardName, P2p.toldName]) {
+        app.set(name, '');
+      }
+    }
     if (device.length != 32) {
       device = NetCrypto.hex(NetCrypto.randomBytes(16));
       app.set('hub_device', device);
@@ -162,18 +302,59 @@ class Net extends ChangeNotifier implements PeerBook {
       final me = await Sms.instance.netIdentity();
       id = me.id;
       await _readPeers();
+      final signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
       if (carriers != null) {
-        routes = carriers;
+        routes = [...carriers];
       } else {
-        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push);
+        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: signer)..push = _push);
+        // Where this account lives, said to the relay at every sign-in with where its friends on other relays do; its
+        // changes are the routes' (Settings › Routes says when the record couldn't be made).
+        _homes = Homes(signer: signer, read: (key) => app.choice(key, ''), write: app.keep)
+          ..attach(hub)
+          ..addListener(notifyListeners);
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
-      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes);
+      // The direct route, where this build has the core: its node key in the secret store beside the account's words,
+      // never in the account's backup; a computer's node up whenever the route is on, a phone's only while there is
+      // something to say. Made apart from the other routes: a core that fails to load (a library missing, or built for
+      // another machine) costs the direct route alone, and Settings › Routes says why (second review, M3).
+      var p2p = _p2p = _makeDirect(signer, device, app);
+      if (p2p != null) routes.add(p2p.carrier);
+      // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
+      // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
+      // Where it can't be read yet (an iPhone's Keychain before its first unlock), tried again every half minute and as
+      // the app comes back; until then everything is sealed the old way, with no prekey, which tells friends to do the
+      // same (ForwardSecrecy.sawOld), and forward-secret packets are passed on to a sibling device, not answered.
+      final fs = ForwardSecrecy(device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app));
+      if (!await fs.tryLoad()) _fsAgain(fs);
+      final board = _board = Switchboard(me: me.id, peers: this, carriers: routes, fs: fs);
       board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty));
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
+      if (p2p != null) {
+        try {
+          p2p
+            ..attach(board)
+            ..setMode(_mode)
+            ..setAway(_away)
+            ..addListener(_directChanged);
+          _followHelpers(_hub);
+          _loadDirect(p2p);
+        } catch (e) {
+          board.remove(p2p.carrier.id);
+          _followHelpers(null);
+          p2p.removeListener(_directChanged);
+          unawaited(p2p.shutdown().catchError((Object _) {}));
+          p2p = _p2p = null;
+          directProblem = _couldNot(e);
+        }
+      }
+      // The ledger, where there is a direct route to compare it over (docs/OPEN_NETWORK.md, section 3): told by the
+      // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices
+      // as direct links are proved. Without a core nothing could compare it, so nothing is listed.
+      if (p2p != null) _startLedger(board, p2p, me.id, device);
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -188,9 +369,97 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// Whether the choices came here from another device: they say a node id was made here, and no node key is kept
+  /// here. A secret store that can't be read says nothing either way.
+  static Future<bool> _restoredHere(AppState app) async {
+    if (app.choice(P2p.idName, '').isEmpty) return false;
+    try {
+      return (await Sms.instance.secretRead(P2p.keyName) ?? '').isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// This device's hold on the direct network, where the build has a core ([p2pNode]); null where it has none, or
+  /// where the core could not be made or held (then [directProblem] says why).
+  P2p? _makeDirect(NetSigner signer, String device, AppState app) {
+    directProblem = null;
+    try {
+      final node = p2pNode?.call();
+      if (node == null) return null;
+      return P2p(
+        node: node,
+        signer: signer,
+        device: device,
+        secrets: _SecretFsStore(),
+        plain: _ChoiceFsStore(app),
+        friends: () => friends,
+        mine: mine,
+        // Whom the relay says is connected now: nothing about the direct network is said to anyone it would only keep it
+        // for. Where there is no relay's route (a test's routes), anyone.
+        present: (id) => _hub == null || _hub!.here.value.contains(id),
+        policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy(),
+      );
+    } catch (e) {
+      directProblem = _couldNot(e);
+      return null;
+    }
+  }
+
+  static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
+
+  /// Where the ledger is kept: files of its own, out of any backup (kept_files.dart; the review, D6); under a test,
+  /// memory, so nothing is written where this computer's own app keeps its files (a test gives its own folder where
+  /// that is what it looks at). Null where there is nowhere (a browser): then no ledger is kept.
+  static FsStore? Function() ledgerStore = defaultLedgerStore;
+  static FsStore? defaultLedgerStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : ledgerFiles();
+
+  void _startLedger(Switchboard board, P2p p2p, String me, String device) {
+    try {
+      final store = ledgerStore();
+      if (store == null) return;
+      // Friends as they are each time it asks: the set is made anew whenever the people are read again.
+      final ledger = _ledger = Ledger(store: store, me: me, device: device, isFriend: (id) => _friendIds.contains(id));
+      board.log = ledger;
+      ledger.addListener(_directChanged);
+      unawaited(ledger.load());
+      final check = _check = LedgerCheck(ledger: ledger, board: board, p2p: p2p, relay: () => _hub);
+      check.holders.addAll(_holders);
+      check.addListener(_directChanged);
+      check.start();
+    } catch (_) {
+      board.log = null;
+      _ledger = null;
+      _check = null;
+    }
+  }
+
   /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
-  void resume(Duration away) => _hub?.nudge(away: away);
+  void resume(Duration away) {
+    _hub?.nudge(away: away);
+    final fs = _board?.fs;
+    if (fs != null && !fs.loaded) unawaited(fs.tryLoad());
+    // The network may be another than when the app was put away: the direct route's node looks at its paths again.
+    final p2p = _p2p;
+    if (p2p != null) {
+      if (p2p.loaded) {
+        p2p.networkChanged();
+      } else {
+        unawaited(p2p.tryLoad());
+      }
+    }
+  }
+
+  Timer? _fsTimer;
+
+  /// Tries [fs]'s load again every half minute until it works.
+  void _fsAgain(ForwardSecrecy fs) {
+    _fsTimer?.cancel();
+    _fsTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+      if (fs.loaded || await fs.tryLoad()) t.cancel();
+    });
+  }
 
   /// Reads from the phone who the routes reach, each with their name as the contacts have it.
   Future<void> _readPeers() async {
@@ -204,9 +473,42 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
+    // Who of them is a friend, which is the direct route's question, asked only where there is a direct route to ask
+    // for: whom the records that say so name, by the id their key makes, and never by an address. On Android the
+    // people come from those encryption is on with, the members of this phone's groups and friends by username
+    // together (MainActivity's netPeers), and a group member's address is whatever the group's admin wrote: "@anything",
+    // or a real friend's number (second review, M1).
+    final friends = p2pNode == null ? <String>{} : await _friendsAmong(found);
     _peers
       ..clear()
       ..addAll(found);
+    _friendIds = friends;
+  }
+
+  /// Those of [found] the records say are friends: friends by username in the state `yes` (lib/friends/buddies.dart),
+  /// by their id and only where their key makes it; and friends by number (E2eState.isFriend), by the id the key on
+  /// their record makes (android E2e.state). A record that can't be read now leaves whoever was a friend by it one.
+  Future<Set<String>> _friendsAmong(Map<String, Peer> found) async {
+    final friends = <String>{};
+    try {
+      for (final j in jsonDecode(await Sms.instance.buddiesKept()) as List) {
+        final b = Buddy.fromJson(j);
+        if (b == null || b.state != 'yes') continue;
+        try {
+          if (NetCrypto.idOf(base64Decode(b.key)) == b.id) friends.add(b.id);
+        } catch (_) {}
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    try {
+      for (final s in await Sms.instance.e2eList()) {
+        if (s.isFriend && s.id != null) friends.add(s.id!);
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    return friends.where(found.containsKey).toSet();
   }
 
   /// Stops the routes and forgets them: the app is closing, or a test is over.
@@ -215,18 +517,43 @@ class Net extends ChangeNotifier implements PeerBook {
       await s.cancel();
     }
     _subs.clear();
-    final board = _board;
+    _fsTimer?.cancel();
+    _fsTimer = null;
+    _p2pTimer?.cancel();
+    _p2pTimer = null;
+    final board = _board, p2p = _p2p, ledger = _ledger, check = _check;
     _board = null;
     _hub = null;
     _sms = null;
+    _p2p = null;
+    _ledger = null;
+    _check = null;
+    _followHelpers(null);
+    _homes?.dispose();
+    _homes = null;
+    if (check != null) {
+      check.removeListener(_directChanged);
+      await check.stop();
+    }
+    if (ledger != null) {
+      ledger.removeListener(_directChanged);
+      board?.log = null;
+      await ledger.shutdown();
+    }
     if (board != null) {
       board.changed.removeListener(notifyListeners);
       await board.stop();
-      await board.dispose();
     }
+    if (p2p != null) {
+      p2p.removeListener(_directChanged);
+      await p2p.shutdown();
+    }
+    await board?.dispose();
     _peers.clear();
+    _friendIds = {};
     recent.clear();
     id = null;
+    directProblem = null;
   }
 
   /// Reads the people again, and starts or stops the routes to suit: after encryption was turned on with someone,
@@ -237,6 +564,8 @@ class Net extends ChangeNotifier implements PeerBook {
       await _readPeers();
     } catch (_) {}
     await _apply();
+    // Someone became a friend, or is one no longer: the direct route tells the one its card and forgets the other's.
+    unawaited(_p2p?.refresh());
     notifyListeners();
   }
 
@@ -296,24 +625,66 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
+  /// Whether the relay in use is Ghost Messaging's own default one.
+  bool get onDefaultHub => hubUrl == defaultHub;
+
+  /// Moves to the relay at [typed] (GMFB-25; relay_choice.dart), but only once a Ghost Messaging relay answers there:
+  /// the address is tidied ([tidyRelayAddress]), asked ([checkRelay]), and [confirm], where given, asked with the
+  /// tidied address before anything changes. Empty, or our own address, is ours again and needs no check. Says why
+  /// it didn't move, or null where it did (or the person said no at [confirm]: then declined is true).
+  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm}) async {
+    final url = tidyRelayAddress(typed);
+    if (url == null) return (problem: 'That isn\'t a relay server\'s address. It looks like relay.example.com or wss://relay.example.com/hub.', declined: false);
+    if (url.isEmpty || url == defaultHub) {
+      if (!onDefaultHub) await setHub('');
+      return (problem: null, declined: false);
+    }
+    if (url == hubUrl) return (problem: null, declined: false);
+    final check = await checkRelay(url, connect: connect, timeout: timeout);
+    if (!check.ok) return (problem: check.problem, declined: false);
+    if (confirm != null && !await confirm(url)) return (problem: null, declined: true);
+    await setHub(url, relay: check.relay);
+    return (problem: null, declined: false);
+  }
+
   /// Uses another relay server ([url] empty: ours again). The route is taken out and one for the new address put
-  /// in its place: the rest of the app does not know.
-  Future<void> setHub(String url) async {
+  /// in its place: the rest of the app does not know. Settings › Routes goes through [useRelay], which checks first.
+  ///
+  /// Moving is signing a home record with the next count (homes.dart): it is made here, for the address the new relay
+  /// is known by ([relay], what it said of itself when it was checked, where it said anything), and given to the relay
+  /// being left while it is still connected, so that relay knows where this account lives now. The new relay is given
+  /// it as the app signs in there, and friends are told a few at a time (lib/friends/buddies.dart).
+  Future<void> setHub(String url, {HubRelay? relay}) async {
+    final next = Homes.addressOf(relay, url.trim().isEmpty ? defaultHub : url.trim());
+    try {
+      // (The relay being left answers the new record, and friends on it are told, before it is left: ten seconds.)
+      if (next != null) await _homes?.moveTo(next).timeout(const Duration(seconds: 10));
+    } catch (_) {}
     _app?.set('net_hub', url.trim());
     final board = _board, old = _hub, me = id;
     if (board == null || old == null || me == null) return;
     await old.stop();
     old.presence.removeListener(_presenceChanged);
     final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: old.signer)..push = _push);
+    _homes?.attach(hub);
     presence.value++;
+    // Another relay names its own link helpers as the app signs in to it; the one left behind's are not used on.
+    _p2p?.setHelpers(const []);
+    _followHelpers(hub);
     board.add(hub);
     await _apply();
     notifyListeners();
   }
 
-  /// What the switchboard brings: handed to everyone who asked to [listen]. A test is noted for Settings too.
+  /// What [p] is called in what the routes did ([recent]): their name, else their address, else the start of their
+  /// install's name. An empty address is none: a member of a group known here only by the group has one.
+  static String _who(Peer p) {
+    final name = p.name ?? '', address = p.address ?? '';
+    return name.isNotEmpty ? name : (address.isNotEmpty ? address : p.id.substring(0, p.id.length < 6 ? p.id.length : 6));
+  }
+
   void _received(Received r) {
-    final who = r.peer.name ?? r.peer.address ?? r.peer.id.substring(0, 6);
+    final who = _who(r.peer);
     if (r.envelope.kind == 'ping') _note('A test came from $who', via: r.via);
     for (final l in _listeners.toList()) {
       l(r);
@@ -340,7 +711,7 @@ class Net extends ChangeNotifier implements PeerBook {
     final began = DateTime.now();
     final d = await send(peer, Envelope(kind: 'ping'), metered: only == 'sms', only: only == null ? null : {only});
     final took = DateTime.now().difference(began);
-    final who = peer.name ?? peer.address ?? peer.id.substring(0, 6);
+    final who = _who(peer);
     _note(
       d.sent ? (d.acked ? 'A test reached $who in ${took.inMilliseconds} ms' : d.handed == Handed.held ? 'A test is kept for $who, who is away' : 'A test was sent to $who') : 'A test to $who could not be sent: ${d.tried.join('; ')}',
       via: d.via,
@@ -349,7 +720,24 @@ class Net extends ChangeNotifier implements PeerBook {
   }
 }
 
-/// Signs with the phone's own key, which never leaves where the phone keeps it: the native side does the signing.
+/// Where this device's prekeys are kept: the Keychain, Android's vault, as the account's words are (Sms.secretKeep).
+class _SecretFsStore implements FsStore {
+  @override
+  Future<String?> read(String name) => Sms.instance.secretRead(name);
+  @override
+  Future<void> write(String name, String value) => Sms.instance.secretKeep(name, value);
+}
+
+/// Where what others offered, and the packets seen, are kept: with the app's choices, drawing nothing again.
+class _ChoiceFsStore implements FsStore {
+  _ChoiceFsStore(this.app);
+  final AppState app;
+  @override
+  Future<String?> read(String name) async => app.choice(name, '');
+  @override
+  Future<void> write(String name, String value) async => app.keep(name, value);
+}
+
 class _PhoneSigner implements NetSigner {
   _PhoneSigner(this.id, this.publicKey);
   @override

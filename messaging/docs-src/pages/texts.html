@@ -4,7 +4,8 @@
 <ul>
   <li><b>Swipe</b> a conversation left to archive it; keep swiping to delete. Swipe right to pin it to the top.</li>
   <li><b>Long-press</b> one for pin, mute, block, delete and more, or to choose several.</li>
-  <li><b>Search</b> at the top finds names, numbers and words.</li>
+  <li><b>Search</b> at the top finds names, numbers and words, snoozed conversations too.</li>
+  <li><b>Snooze</b>: long-press a conversation and choose <b>Snooze…</b>. See <a href="#snooze">Snooze a conversation</a>.</li>
   <li><b>Mark all read</b> (the round button by the title) covers spaces, Telegram and Signal too.</li>
 </ul>
 <m-screen title="Messages" actions="check-check,plus">
@@ -19,6 +20,22 @@
   <m-bubble from="me" time="4:12">Yes! 7?</m-bubble>
   <m-row-raw><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#plus"/></svg></span><m-field placeholder="Text message"/><span class="m-iconbtn"><svg class="i"><use href="/docs/icons.svg#mic"/></svg></span></m-row-raw>
 </m-screen>
+
+<h2 id="formatting">Formatting</h2>
+<p>Write these round words in any message and Ghost draws them formatted, in chats with friends, in spaces and in Telegram, Signal and the other networks' chats:</p>
+<table>
+  <tr><th>Write</th><th>To get</th></tr>
+  <tr><td><code>**bold**</code></td><td><b>bold</b></td></tr>
+  <tr><td><code>*italic*</code> or <code>_italic_</code></td><td><i>italic</i></td></tr>
+  <tr><td><code>~~strike~~</code></td><td><s>strike</s></td></tr>
+  <tr><td><code>`code`</code></td><td><code>code</code></td></tr>
+  <tr><td><code>```</code> on lines before and after</td><td>a block of code</td></tr>
+  <tr><td><code>&gt; </code> at the start of a line</td><td>a quote</td></tr>
+  <tr><td><code>||spoiler||</code></td><td>hidden until tapped</td></tr>
+  <tr><td><code>[words](https://…)</code></td><td>a link under those words</td></tr>
+</table>
+<p>Links and @mentions still work inside formatting, and nothing inside code is formatted. Each kind stays on one line (except code blocks). To write a marker itself, put a backslash before it: <code>\*</code>.</p>
+<p>The markers go as you typed them, so a text, Telegram or an older Ghost shows the asterisks. While you type to a friend or in a space they are dimmed in the box, and in a chat with a friend, choosing words offers <b>Bold</b>, <b>Italic</b> and <b>Code</b>. Notifications show the words without the markers, and a spoiler as ▒.</p>
 
 <h2 id="ticks">Ticks</h2>
 <table>
@@ -41,6 +58,22 @@
   <li><b>Effects</b>: send it with a screen effect (confetti, hearts and 18 more), seen by anyone using Ghost.</li>
 </ul>
 
+<h2 id="snooze">Snooze a conversation</h2>
+<p>Long-press a conversation in Messages and choose <b>Snooze…</b>, then for how long: an hour, three hours, this evening, tomorrow morning, or next Monday.</p>
+<m-screen>
+  <m-menu title="Snooze Maya Chen">
+    <m-item icon="clock">For an hour</m-item>
+    <m-item icon="clock">For 3 hours</m-item>
+    <m-item icon="clock" tap>Until tomorrow (9 AM)</m-item>
+    <m-item icon="clock">Until next week (Monday, 9 AM)</m-item>
+  </m-menu>
+</m-screen>
+<p>It leaves Messages until then. Its messages still arrive, and search still finds it. When the time comes it's back at the top with a notification, and it stays at the top until you open it. Long-press it and choose <b>Unsnooze</b> to bring it back early. Snoozes are kept on the device you set them on, and the app needs to be running for one to end on time; if it was closed, the conversation comes back when the app next opens.</p>
+
+<h2 id="export">Export a conversation</h2>
+<p>In a conversation's settings, <b>Export conversation</b> saves every message as a Markdown file (<code>.md</code>), which any notes app or text editor opens. It has the conversation's name, a heading for each day, and each message with who sent it, when, and any pictures or files named under it. The pictures and files themselves aren't in it. On a phone you choose where to save it; on a Mac a save panel opens; on Windows and Linux it goes to Downloads.</p>
+<p>A space's chat exports the same way: <b>Export chat</b> in the space's settings, or long-press the space in Messages. Its threads come too.</p>
+
 <h2 id="settings">A conversation's settings</h2>
 <p>Tap the cog, or the conversation's name at the top:</p>
 <m-screen title="Maya Chen" back>
@@ -50,6 +83,7 @@
     <m-row icon="image" hue="purple" label="Chat background" chev/>
     <m-row icon="palette" hue="rose" label="Your bubbles here" chev/>
     <m-row icon="lock" hue="green" label="Encryption" chev/>
+    <m-row icon="download" hue="blue" label="Export conversation" chev/>
   </m-section>
 </m-screen>
 <p>A group text also has <b>Group name</b>, <b>Add people</b> and <b>Leave group</b>. A chat background syncs to the others if they use Ghost too.</p>

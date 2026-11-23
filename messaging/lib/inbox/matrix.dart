@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -9,6 +10,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 
 /// What the Matrix helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
 abstract class MatrixLink {
@@ -84,9 +86,7 @@ class Matrix extends InboxNetwork {
   /// Whether the recovery key has signed this device ([unlock]).
   bool get verified => _verified;
 
-  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
-  // the chats seen are kept in there.
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/matrix' : '${DeskStore.defaultDir().path}/matrix');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/matrix' : '${DeskStore.defaultDir().path}/matrix');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -122,17 +122,17 @@ class Matrix extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<MatrixLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'matrixsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_MATRIXSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_MATRIXSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\matrix-sidecar.exe' else '$exe/../Helpers/matrix-sidecar',
-        '${Directory.current.path}/build/matrix-sidecar/${Platform.isWindows ? 'windows/matrix-sidecar.exe' : 'mac/matrix-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\matrix-sidecar.exe' else '$exe/../Helpers/matrix-sidecar',
+        '${Directory.current.path}/build/matrix-sidecar/${PlatformInfo.isWindows ? 'windows/matrix-sidecar.exe' : 'mac/matrix-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -481,7 +481,7 @@ class Matrix extends InboxNetwork {
           mine: m['mine'] == true,
           sender: m['mine'] == true ? '' : _nameOf(m),
           state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
-          media: [for (final a in (m['media'] as List? ?? const [])) _mediaOf(a as Map)],
+          media: [for (final a in (m['media'] as List? ?? const [])) _mediaOf(a as Map, sticker: m['kind'] == 'm.sticker' || a['sticker'] == true)],
           reactions: matrixReactions(m['reactions'] as Map?, me: _me),
           replyTo: m['reply_to'] as String?,
           replyText: m['reply_to'] == null ? null : (byId[m['reply_to']]?['text'] as String?),
@@ -498,14 +498,13 @@ class Matrix extends InboxNetwork {
     return from.startsWith('@') && from.contains(':') ? from.substring(1, from.indexOf(':')) : from;
   }
 
-  /// An attachment as the screens show it. The number it goes by is its address's hash, kept to 30 bits so it is
-  /// never negative; what the helper said of it is kept under that number, to bring it down by.
-  InboxMedia _mediaOf(Map a) {
+  InboxMedia _mediaOf(Map a, {bool sticker = false}) {
     final key = '${a['mxc'] ?? a['local'] ?? ''}'.hashCode & 0x3fffffff;
     _media[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // An m.sticker event, or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: sticker),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -647,15 +646,18 @@ class Matrix extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = voice || ext == 'm4a'
+      // A voice message changed by Voice changer is an MP3 (lib/voice/voice_changer.dart), and says so.
+      final mime = ext == 'mp3'
+          ? 'audio/mpeg'
+          : voice || ext == 'm4a'
           ? 'audio/mp4'
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
-      final name = path.split(Platform.pathSeparator).last;
+      final name = path.split(PlatformInfo.pathSeparator).last;
       final text = i == paths.length - 1 ? caption : '';
       try {
         final r = (await _ask('send_media', {'room': chatId, 'path': path, 'mime': mime, 'name': name, 'text': text}) as Map?) ?? const {};
@@ -663,7 +665,7 @@ class Matrix extends InboxNetwork {
         // A copy kept in Matrix's own folder for the bubble (the picked file is a copy Android may clear); the media's
         // address and key come back with it, to fetch it again should the copy go.
         final kept = await _keepSent(path, now, i, name);
-        final media = {...(r['media'] as Map? ?? const {}).cast<String, Object?>(), 'local': kept};
+        final media = {...(r['media'] as Map? ?? const {}).cast<String, Object?>(), 'local': kept, if (sticker) 'sticker': true};
         final eventId = '${r['id'] ?? 'local-$now-$i'}';
         final list = _messages.putIfAbsent(chatId, () => []);
         final echoed = list.where((x) => x['id'] == eventId).firstOrNull;
@@ -791,31 +793,12 @@ class Matrix extends InboxNetwork {
     } catch (_) {}
   }
 
-  // Saving waits 400 ms for more changes, so a burst of them is written once.
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), _write);
-  }
-
-  /// Writes the file now: to a temporary one, then renamed over it, so a crash never leaves half a file.
-  void _write() {
-    try {
-      _file.parent.createSync(recursive: true);
-      final tmp = File('${_file.path}.tmp');
-      tmp.writeAsStringSync(jsonEncode(_keptNow()));
-      tmp.renameSync(_file.path);
-    } catch (_) {}
-  }
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _write();
-    }
-  }
+  void flush() => _writer.flush();
 
   /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {

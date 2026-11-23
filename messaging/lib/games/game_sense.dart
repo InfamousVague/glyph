@@ -16,6 +16,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -87,10 +88,10 @@ class GameSense {
   final bool? windows;
   final String? home;
 
-  bool get _windows => windows ?? Platform.isWindows;
+  bool get _windows => windows ?? PlatformInfo.isWindows;
 
   /// Whether this device can look at all.
-  static bool get supported => !kIsWeb && (Platform.isMacOS || Platform.isWindows);
+  static bool get supported => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows);
 
   /// The app's own runner: what the program wrote, '' where it failed; 12 seconds at most.
   static Future<String> _run(String program, List<String> args) async {

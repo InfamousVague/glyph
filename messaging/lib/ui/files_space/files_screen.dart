@@ -192,6 +192,16 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     ]);
   }
 
+  /// Asks before letting an unfinished upload go, saying what it holds.
+  void _removePart(FilesPart p) {
+    final by = _store.unfinishedBy(_c, p);
+    showChoices(context, title: 'Unfinished upload · ${fileSize(p.have)} of ${fileSize(p.size)}${by == null ? '' : ', started by $by'}\nIt can\'t go on from here. Removing it frees its ${fileSize(p.size)}; add the file again to send it.', choices: [
+      Choice('Remove it', Lucide.trash2, () async {
+        if (!await _store.removeUnfinished(_c, p)) _say('It couldn\'t be removed just now. Try again in a moment.');
+      }, danger: true),
+    ]);
+  }
+
   void _say(String words) {
     if (mounted) toast(context, words, tone: GlacierToastTone.danger);
   }
@@ -339,6 +349,9 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       shown = sort.apply(space.filesIn(here));
     }
     final going = [for (final x in _store.transfers) if (x.space.seed == _c.seed && x.up && !x.chat) x];
+    // Uploads the relay holds part of that nothing here is sending (FilesStore.unfinished): shown at the top of the space
+    // wherever its list is, each holding its room until removed.
+    final parts = _store.unfinished(_c);
     final canFolder = _store.canFolder(_c);
     final canUpload = _store.canUpload(_c);
 
@@ -394,7 +407,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
 
     // An empty space shows only what can be done in it: its Upload (in the body) and a new folder, not search, sort, list
     // or grid and an "All files 0" over nothing.
-    final empty = all.isEmpty && going.isEmpty && space.folders.isEmpty && (space.ready || !space.loading);
+    final empty = all.isEmpty && going.isEmpty && parts.isEmpty && space.folders.isEmpty && (space.ready || !space.loading);
     // Where the folder shown is, from the top: a chip for the top and one for each folder down to it (pressed, it is
     // shown; long pressed, its menu), then a new folder in it.
     final line = here == null ? const <String>[] : SpaceFile.folderLine(here);
@@ -436,7 +449,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       content = const Center(child: GhostSpinner());
     } else if (empty) {
       content = _Empty(canUpload: canUpload, onUpload: _pick, drop: FilePlatform.canDrop);
-    } else if (shown.isEmpty && subs.isEmpty && going.isEmpty) {
+    } else if (shown.isEmpty && subs.isEmpty && going.isEmpty && parts.isEmpty) {
       content = Center(
         child: Padding(
           padding: EdgeInsets.all(t.space(6)),
@@ -450,6 +463,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     } else {
       final head = [
         for (final x in going) _TransferRow(key: ValueKey('transfer-${x.id}'), transfer: x, onCancel: () => _store.cancel(x), onRetry: () => _store.retry(x)),
+        for (final p in parts) _PartRow(key: ValueKey('part-${p.id}'), part: p, by: _store.unfinishedBy(_c, p), onRemove: _store.canRemoveUnfinished(_c, p) ? () => _removePart(p) : null),
       ];
       content = view == 'grid' ? _grid(t, space, subs, shown, head, bottom, searching) : _list(t, space, subs, shown, head, bottom, searching);
     }
@@ -951,6 +965,50 @@ class _TransferRow extends StatelessWidget {
         // No Try again where trying again can never mend it (a file over the limit, a space without the room).
         if (failed && x.retryable) IconTap(icon: Lucide.rotateCw, label: 'Try again', size: 18, onPressed: onRetry),
         if (!done) IconTap(key: ValueKey('cancel-${x.id}'), icon: Lucide.x, label: 'Stop adding ${x.name}', size: 18, onPressed: onCancel),
+      ]),
+    );
+  }
+}
+
+/// An upload the relay holds part of that nothing on this device is sending (FilesStore.unfinished): how far it got,
+/// who started it, when it last moved, and Remove where this device may let it go.
+class _PartRow extends StatelessWidget {
+  const _PartRow({super.key, required this.part, required this.by, required this.onRemove});
+  final FilesPart part;
+  final String? by;
+  final VoidCallback? onRemove;
+
+  static String _ago(DateTime at) {
+    final d = DateTime.now().difference(at);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return d.inHours == 1 ? 'an hour ago' : '${d.inHours} hours ago';
+    return d.inDays == 1 ? 'a day ago' : '${d.inDays} days ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final bevel = isBevelChrome(t);
+    final p = part;
+    final words = '${fileSize(p.have)} of ${fileSize(p.size)} · stopped ${_ago(p.at)}${by == null ? '' : ' · ${by == 'you' ? 'yours' : 'by $by'}'}';
+    return Container(
+      margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
+      padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(1), t.space(2)),
+      child: Row(children: [
+        const FileBadge(kind: FileKind.other, size: 40),
+        SizedBox(width: t.space(3)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Unfinished upload', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 4, right: 8),
+              child: GlacierProgressBar(value: p.size <= 0 ? 0 : (p.have / p.size * 100).clamp(0, 100).toDouble(), size: GlacierProgressBarSize.sm, ariaLabel: 'How much of it is up'),
+            ),
+            Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+          ]),
+        ),
+        if (onRemove != null) IconTap(key: ValueKey('remove-part-${p.id}'), icon: Lucide.trash2, label: 'Remove the unfinished upload', size: 18, onPressed: onRemove!),
       ]),
     );
   }

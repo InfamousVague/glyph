@@ -1,7 +1,6 @@
 import 'blocking.dart';
 import 'dart:async';
 import 'dart:convert' show utf8;
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -24,6 +23,7 @@ import '../friends/groups.dart';
 import '../edits.dart';
 import '../kit/settings_type.dart';
 import '../links.dart';
+import '../message_format.dart';
 import '../plugins/conversation.dart';
 import '../plugins/plugin.dart' show MessageFacts;
 import '../reactions.dart';
@@ -33,6 +33,8 @@ import '../stickers.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
+import 'emoji_suggestions.dart';
+import 'markdown_field.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'profile_card.dart';
 import 'composer_box.dart';
@@ -42,8 +44,13 @@ import 'shell.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
+import '../voice/friend_calls.dart';
+import '../friends/buddies.dart';
+import '../me/me.dart' show Me;
 import 'encryption.dart';
 import 'message_popover.dart';
+import 'report_sheet.dart';
+import '../safety/abuse_report.dart' show ReportedMessage, withContext;
 import 'sticker_picker.dart';
 import 'video.dart';
 import 'voice.dart';
@@ -59,10 +66,13 @@ import 'paste_images.dart';
 
 /// One conversation: its messages oldest at the top, newest by the composer.
 class ThreadScreen extends StatefulWidget {
-  const ThreadScreen({super.key, required this.thread, required this.people, this.draft});
+  const ThreadScreen({super.key, required this.thread, required this.people, this.draft, this.onExpand});
   final int thread;
   final List<Person> people;
   final String? draft;
+
+  /// In a conversation's bubble (lib/bubble.dart): the header's way into the whole app, on this conversation.
+  final VoidCallback? onExpand;
 
   @override
   State<ThreadScreen> createState() => _ThreadScreenState();
@@ -73,8 +83,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   late List<Person> _people = widget.people;
   final Map<String, Person> _senders = {};
   StreamSubscription<int>? _changes;
-  late final TextEditingController _text = TextEditingController(text: widget.draft ?? '');
-  final _focus = FocusNode();
+  // Its formatting markers dimmed as they are typed to a friend or a group of them; a text shows them as written
+  // (GMFB-35, lib/ui/markdown_field.dart).
+  late final MarkdownController _text = MarkdownController(text: widget.draft ?? '')..dims = () => _isGhost || _byName;
+
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup"). Its list has the keys first while it is open, so Enter there picks rather than sends.
+  late final EmojiShortcodeSuggester _shortcodes;
+  late final _focus = FocusNode(onKeyEvent: (node, e) => _shortcodes.key(e) ?? KeyEventResult.ignored);
 
   /// What the plugins put in a conversation (lib/plugins/conversation.dart): buttons in the header and the
   /// composer's row, lines in a message's menu, a card under a message, replies over the composer (Matt, 2026-11-14:
@@ -215,6 +232,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // Friends (lib/friends/friends.dart): a request that came or was answered, or a relay server found to answer.
     Friends.instance.addListener(_friendsChanged);
     Groups.instance.addListener(_groupsChanged);
+    _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     _text.addListener(() {
       // The composer draws itself again as the words change (it listens to them): the messages above are not
       // redrawn for a keystroke.
@@ -246,6 +264,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // The spot itself was kept by the arrow (JumpToLatest) as it went; how many messages it took to get there goes with it.
     ScrollMemory.hold(_spot, _limit);
     _scroll.dispose();
+    _shortcodes.dispose();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -532,6 +551,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // A computer with friends of its own (lib/desktop/own_calls.dart) writes to a friend by username itself.
         final own = !Sms.paired || (Sms.ownNetwork && to.length == 1 && UsernameChats.isUsername(to.first));
         final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && own && await Friends.instance.sendText(to.first, body);
+        // A friend by username has no number: what the routes didn't take is never handed to texting (here, or on the
+        // phone a computer is paired with), which would write the words, unsealed, into the phone's own store of texts
+        // (or open Google Messages beside it) for an "@name" no carrier can deliver (found in review, 2026-11-23). It
+        // fails here with the reason, and what was written is put back.
+        if (!byRoute && to.any(UsernameChats.isUsername)) {
+          throw _NotSent(files.isNotEmpty
+              ? 'pictures and files can\'t be sent to a friend by username yet'
+              : own
+                  // A relay that refused them says why (their relay can't be reached from yours, or won't take them).
+                  ? Friends.instance.lastRefusal ?? 'no connection. A friend by username is reached over the internet, through the relay'
+                  : 'a friend by username is written to from the phone itself, or from a computer with an account of its own');
+        }
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
       // No sound for one's own message going: only one coming in is heard (Matt, 2026-11-18: "remove the sound for
@@ -581,7 +612,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         return;
       }
       if (limit == null) {
-        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        toast(context, micRefusedWords(), tone: GlacierToastTone.danger);
         return;
       }
       HapticFeedback.lightImpact();
@@ -799,6 +830,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
+      // Report (GMFB-40): someone else's message, in a chat by username or a group of friends.
+      if (_reportable && !m.outgoing && m.notice == null) Choice('Report', Lucide.flag, () => _report(m)),
       if (Sms.can('deleteMessage'))
         // At once, nothing asked (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message and show a poof
         // animation when one is deleted"): the bubble goes in a puff (Poof), then the message is deleted (_gone).
@@ -831,7 +864,37 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     );
   }
 
-  /// Sends a failed message again, with new words where [body] is given.
+  /// Whether a message here can be reported (GMFB-40): a chat by username, or a group of friends, both on Ghost. Texts
+  /// and the other networks have their own ways to report.
+  bool get _reportable => _byName || _isGhost;
+
+  /// Who wrote [m], by address: the person of a chat with one, else the address the message carries.
+  String _fromOf(Message m) => m.address.isNotEmpty ? m.address : (_people.length == 1 ? _people.first.address : '');
+
+  /// The report sheet for [m], with what was said round it, oldest first.
+  void _report(Message m) {
+    final shown = _folded.messages.reversed.where((x) => x.kind != 'pending' && x.notice == null).toList();
+    final index = shown.indexWhere((x) => x.key == m.key);
+    String nameOf(Message x) => x.outgoing ? 'You' : (_senders[x.address]?.label ?? (_people.length == 1 ? _people.first.label : (x.address.isEmpty ? 'They' : x.address)));
+    final list = [
+      for (final x in shown) ReportedMessage(from: x.outgoing ? (Me.instance.username == null ? 'me' : '@${Me.instance.username}') : _fromOf(x), name: nameOf(x), at: x.date.millisecondsSinceEpoch, text: x.body, mine: x.outgoing),
+    ];
+    final from = _fromOf(m);
+    final username = from.startsWith('@') ? from.substring(1).toLowerCase() : '';
+    final buddy = username.isEmpty ? null : Buddies.instance.all.where((b) => b.username.toLowerCase() == username).firstOrNull;
+    unawaited(showReportSheet(
+      context,
+      ReportTarget(
+        id: buddy?.id ?? '',
+        username: username,
+        name: nameOf(m),
+        place: 'chat',
+        placeName: _name ?? _ghost?.name ?? (_people.length == 1 ? _people.first.label : ''),
+        messages: index < 0 ? [ReportedMessage(from: from, name: nameOf(m), at: m.date.millisecondsSinceEpoch, text: m.body, reported: true)] : withContext(list, index),
+      ),
+    ));
+  }
+
   Future<void> _retry(Message m, {String? body}) async {
     try {
       if (_isGhost) {
@@ -873,6 +936,43 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   }
 
   /// Rings everyone in the group, and hops into its channel.
+  /// The friend by username this conversation is with, where they can be called: one person, a friend.
+  Buddy? get _callable {
+    if (_group || _people.length != 1 || !_people.first.address.startsWith('@')) return null;
+    final name = _people.first.address.substring(1).toLowerCase();
+    return Buddies.instance.all.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
+  }
+
+  Future<void> _callFriend({required bool video}) async {
+    final b = _callable;
+    if (b == null) return;
+    // A call's room is on one relay (docs/OPEN_NETWORK.md, section 4: rooms don't cross relays yet): a friend on
+    // another would ring and never be met in it, so they are not rung.
+    if (Buddies.instance.apart(b)) {
+      toast(context, callElsewhereWords(b.shown, Buddies.instance.relayOf(b)));
+      return;
+    }
+    bool rang;
+    try {
+      rang = await FriendCalls.instance.call(b, video: video);
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t call: $e', tone: GlacierToastTone.danger);
+      return;
+    }
+    if (!mounted) return;
+    if (!rang) {
+      toast(context, '${b.shown} can\'t be reached right now');
+      if (Voice.instance.session != null && FriendCalls.isCall(Voice.instance.session!.channel)) unawaited(Voice.instance.leave());
+      return;
+    }
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) {
+      shell.go('voice');
+    } else {
+      push(context, (_) => const VoiceScreen());
+    }
+  }
+
   Future<void> _callGroup() async {
     final g = _ghost;
     if (g == null) return;
@@ -936,10 +1036,16 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // A phone call needs a number: a friend by username (`@name`, lib/standalone) has none.
         if (!remote && !_group && _people.isNotEmpty && !_people.first.address.startsWith('@'))
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
+        // A friend by username rung with a voice or a video call, as a phone would (GMFB-28, from the Uplink gap review:
+        // "Ring one friend with a voice or video call, the way you would a phone, without making a space first").
+        if (_callable != null && Sms.callsHere) ...[
+          IconTap(key: const ValueKey('call-friend'), icon: LucideMore.phoneCall, label: 'Voice call', onPressed: () => _callFriend(video: false)),
+          IconTap(key: const ValueKey('video-call-friend'), icon: Lucide.video, label: 'Video call', onPressed: () => _callFriend(video: true)),
+        ],
         // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
         // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any
         // time with the option to call the group"; lib/voice).
-        if (_ghost != null && !_ghost!.gone) ...[
+        if (_ghost != null && !_ghost!.gone && Sms.callsHere) ...[
           ListenableBuilder(
             listenable: Voice.instance,
             builder: (context, _) {
@@ -950,6 +1056,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           ),
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
         ],
+        // A bubble's way into the whole app (GMFB-8: "message bubbles that just sit on the side of the screen").
+        if (widget.onExpand != null) IconTap(icon: Lucide.maximize, label: 'Open in Ghost Messaging', onPressed: widget.onExpand),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
         // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
         // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).
@@ -962,7 +1070,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
         // The group's call while others are in it: who, and Join.
-        if (_ghost != null && !_ghost!.gone)
+        if (_ghost != null && !_ghost!.gone && Sms.callsHere)
           Positioned(left: t.space(3), right: t.space(3), top: t.space(2), child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name)))),
       ]),
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
@@ -997,12 +1105,64 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final msgs = _folded.messages;
     final busy = background.busy;
     // Newest first, drawn bottom up.
-    final items = <Widget>[];
     String? lastOutgoingKey;
     for (final m in msgs) {
       if (m.outgoing && !_isLine(m)) { lastOutgoingKey = m.key; break; }
     }
-    for (var i = 0; i < msgs.length; i++) {
+    // What stands over the oldest message: "Say hello." in an empty conversation, the wait for earlier ones.
+    final tail = <Widget>[
+      if (msgs.isEmpty)
+        Padding(
+          padding: EdgeInsets.all(t.space(8)),
+          child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
+        ),
+      // Older ones are read as the reader nears the oldest held: said at the top while they come.
+      if (_older)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: t.space(4)),
+          child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
+        ),
+    ];
+    // Each message's place by its key, so a row keeps what it holds (a bubble leaving, words shown) when a newer
+    // message moves it down the list.
+    final places = <String, int>{for (var i = 0; i < msgs.length; i++) msgs[i].key: i};
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        // Drawn bottom up, so what lies after is the older end.
+        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
+        return false;
+      },
+      child: JumpToLatest(
+        controller: _scroll,
+        chat: _spot,
+        incoming: _incoming,
+        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+        // Built a row at a time, as each comes near the screen: every message held was made a widget at every build
+        // (120 at first, 300 more a page), with what the plugins find in each one's words
+        // (docs/performance-audit.md, finding 3).
+        child: ListView.builder(
+          controller: _scroll,
+          reverse: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+          itemCount: msgs.length + tail.length,
+          findChildIndexCallback: (key) => key is ValueKey<String> && key.value.startsWith('row-') ? places[key.value.substring(4)] : null,
+          itemBuilder: (context, i) {
+            if (i >= msgs.length) return tail[i - msgs.length];
+            final parts = _row(t, background, msgs, i, lastOutgoingKey);
+            // Bottom up in the list, so the first part made is the lowest on the page.
+            return Column(key: ValueKey('row-${msgs[i].key}'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: parts.reversed.toList());
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The message at [i] of [msgs] (newest first) as its row's parts, the lowest first: what the plugins put under it,
+  /// its bubble, the line over the first new one, the day over the day's first.
+  List<Widget> _row(Tokens t, ChatBackground background, List<Message> msgs, int i, String? lastOutgoingKey) {
+    final busy = background.busy;
+    final items = <Widget>[];
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
@@ -1013,13 +1173,13 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         final who = m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : (m.address.isEmpty ? 'They' : m.address)));
         items.add(_Notice(
           // A line about a group of friends itself ("Ann added Dan") is its own words.
-          icon: m.notice == 'group' ? Lucide.users : (m.notice == 'key' ? Lucide.keyRound : Lucide.image),
-          text: m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background'),
+          icon: m.notice == 'call' ? LucideMore.phoneCall : (m.notice == 'group' ? Lucide.users : (m.notice == 'key' ? Lucide.keyRound : Lucide.image)),
+          text: m.notice == 'group' || m.notice == 'call' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key' : '$who sent an encryption key') : '$who changed the chat background'),
           busy: busy,
           onLongPress: () => _messageMenu(m),
         ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
-        continue;
+        return items;
       }
       final firstOfRun = !joins(older, m) || !_sameDay(older!.date, m.date);
       final lastOfRun = !joins(newer, m) || !_sameDay(newer!.date, m.date);
@@ -1083,40 +1243,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       ))));
       if (_group && m.key == _firstNewKey) items.add(Padding(key: const ValueKey('new-messages'), padding: EdgeInsets.symmetric(horizontal: t.space(3)), child: const NewMessagesDivider()));
       if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
-    }
-    if (msgs.isEmpty) {
-      items.add(Padding(
-        padding: EdgeInsets.all(t.space(8)),
-        child: Center(child: OnBackground(busy: busy, child: Text('Say hello.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))),
-      ));
-    }
-    // Older ones are read as the reader nears the oldest held: said at the top while they come.
-    if (_older) {
-      items.add(Padding(
-        padding: EdgeInsets.symmetric(vertical: t.space(4)),
-        child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
-      ));
-    }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        // Drawn bottom up, so what lies after is the older end.
-        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
-        return false;
-      },
-      child: JumpToLatest(
-        controller: _scroll,
-        chat: _spot,
-        incoming: _incoming,
-        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
-        child: ListView(
-          controller: _scroll,
-          reverse: true,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
-          children: items,
-        ),
-      ),
-    );
+    return items;
   }
 
   /// [_list] as Dial-Up writes it: one transcript in a white well, each message a line, "Name: words", no faces and no
@@ -1140,7 +1267,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_isLine(m)) {
         final who = nameOf(m);
         items.add(HostLine(
-          m.notice == 'group' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key.' : '$who sent an encryption key.') : '$who changed the chat background.'),
+          m.notice == 'group' || m.notice == 'call' ? m.body : (m.notice == 'key' ? (m.outgoing ? 'You sent your encryption key.' : '$who sent an encryption key.') : '$who changed the chat background.'),
           onLongPress: () => _messageMenu(m),
         ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
@@ -1253,7 +1380,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
 
   /// Drawn as a line in the conversation, not a bubble: a text that carried a key or a chat background.
-  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group';
+  static bool _isLine(Message m) => m.notice == 'key' || m.notice == 'background' || m.notice == 'group' || m.notice == 'call';
 
   static const _evenLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 
@@ -1447,6 +1574,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // laid out, so the keyboard stays up as it changes.
           Builder(builder: (context) {
             final typing = _text.text.isNotEmpty || editing;
+            final hint = _isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message');
             final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
@@ -1463,11 +1591,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
+                          composerHint(IgnorePointer(child: Text(hint, style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading))),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
                         // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
                         // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
-                        PasteImages(
+                        // Named and pressed into in a browser's tree for screen readers (composerSemantics).
+                        composerSemantics(
+                          hint: hint,
+                          onPress: () {
+                            _focus.requestFocus();
+                            _field.currentState?.requestKeyboard();
+                          },
+                          child: PasteImages(
                           focusNode: _focus,
                           enabled: Sms.remote && _attachments.length < 5,
                           onImage: (path) => setState(() => _attachments.add(path)),
@@ -1496,6 +1631,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         ),
                           ),
                         ),
+                        ),
                       ]),
                     ),
                       ),
@@ -1508,7 +1644,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               hasSomething: _text.text.isNotEmpty || _attachments.isNotEmpty || editing,
               onAttach: Sms.can('sendPictures') && !_isGhost && !_byName && !editing && _attachments.length < 5 ? _attach : null,
               onSticker: Sms.can('sendSticker') && reach && !_sending && _attachments.isEmpty ? _sticker : null,
-              onRecord: Sms.can('sendVoice') && reach && !_sending && _attachments.isEmpty ? _record : null,
+              onRecord: Sms.can('sendVoice') && Sms.canRecordVoice && reach && !_sending && _attachments.isEmpty ? _record : null,
               onSend: canSend ? _send : null,
               emoji: Sms.remote,
               // The app's own picker (lib/ui/emoji_picker.dart), into the box where the cursor is.
@@ -1520,6 +1656,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onSendMenu: editing ? null : _sendMenu,
             );
             return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              EmojiSuggestions(suggester: _shortcodes),
               if (!editing) ScheduledStrip(to: _scheduleTarget),
               ComposerBox(field: field, typing: typing, plus: buttons.plus, ends: buttons.ends, below: buttons.below),
             ]);
@@ -1536,15 +1673,32 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   Widget _contextMenu(BuildContext context, EditableTextState state) {
     final t = context.tokens;
-    final items = state.contextMenuButtonItems;
+    // Words chosen to a friend: made bold, italic or code from here too (GMFB-35), the markers put round them.
+    final chosen = _text.selection;
+    final format = chosen.isValid && !chosen.isCollapsed && (_text.dims?.call() ?? true);
+    ContextMenuButtonItem wrap(String label, String marker) => ContextMenuButtonItem(
+          label: label,
+          onPressed: () {
+            _text.wrapSelection(marker);
+            state.hideToolbar();
+          },
+        );
+    final items = [
+      ...state.contextMenuButtonItems,
+      if (format) ...[wrap('Bold', '**'), wrap('Italic', '*'), wrap('Code', '`')],
+    ];
+    final width = MediaQuery.sizeOf(context).width;
+    final left = (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, math.max(8.0, width - 248)).toDouble();
     return Stack(children: [
       Positioned(
-        left: (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, MediaQuery.sizeOf(context).width - 248),
+        left: left,
         top: (state.contextMenuAnchors.primaryAnchor.dy - 56).clamp(8.0, double.infinity),
         child: Container(
+          constraints: BoxConstraints(maxWidth: math.max(0.0, width - left - 8)),
           padding: EdgeInsets.all(t.space(1)),
           decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('md'))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // More than fit across (with Bold, Italic and Code on a phone) scroll sideways.
+          child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(mainAxisSize: MainAxisSize.min, children: [
             for (final item in items)
               GlacierPressable(
                 onPressed: item.onPressed,
@@ -1553,7 +1707,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   child: Text(_label(item.type, item.label), style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-paper'))),
                 ),
               ),
-          ]),
+          ])),
         ),
       ),
     ]);
@@ -2199,6 +2353,10 @@ class _ReactionRow extends StatelessWidget {
 
 /// A message's words with its links underlined, and a press on one opening it in the browser (lib/links.dart).
 /// A long press is still the message's own, wherever it lands.
+///
+/// And drawn with the formatting written into them (GMFB-35, lib/message_format.dart): bold, italic, strike, code and
+/// blocks of it, quotes behind a bar, and spoilers as a block of ink until pressed. The markers are not drawn; links
+/// and mentions work inside formatting as outside it, and nothing in code is a link.
 class LinkedText extends StatefulWidget {
   const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const [], this.mentions = const [], this.mentionStyle, this.onMention});
   final String text;
@@ -2225,6 +2383,11 @@ class _LinkedTextState extends State<LinkedText> {
   final List<TapGestureRecognizer> _taps = [];
   List<Mention> _mentions = const [];
   final List<TapGestureRecognizer> _mentionTaps = [];
+  MessageFormat _format = MessageFormat.parse('');
+  final List<TapGestureRecognizer> _spoilerTaps = [];
+
+  /// The spoilers pressed open.
+  final Set<int> _revealed = {};
 
   @override
   void initState() {
@@ -2241,22 +2404,25 @@ class _LinkedTextState extends State<LinkedText> {
   /// Finds the links and mentions in the words and makes a tap for each; a link inside a mention is left to the
   /// mention. The old taps are let go first.
   void _read() {
-    for (final t in _taps) {
+    for (final t in [..._taps, ..._mentionTaps, ..._spoilerTaps]) {
       t.dispose();
     }
     _taps.clear();
-    for (final t in _mentionTaps) {
-      t.dispose();
-    }
     _mentionTaps.clear();
+    _spoilerTaps.clear();
+    _revealed.clear();
     _mentions = Mention.checked(widget.mentions, widget.text);
     bool inMention(MessageLink l) => _mentions.any((m) => l.start < m.end && l.end > m.start);
     _links = [for (final l in MessageLink.find(widget.text)) if (!inMention(l)) l];
+    _format = MessageFormat.parse(widget.text, keep: [for (final m in _mentions) (m.start, m.end)], links: [for (final l in _links) (l.start, l.end)]);
     for (final link in _links) {
       _taps.add(TapGestureRecognizer()..onTap = () => _open(link.address));
     }
     for (final m in _mentions) {
       _mentionTaps.add(TapGestureRecognizer()..onTap = () => widget.onMention?.call(m));
+    }
+    for (var i = 0; i < _format.spoilers; i++) {
+      _spoilerTaps.add(TapGestureRecognizer()..onTap = () => setState(() => _revealed.add(i)));
     }
   }
 
@@ -2270,46 +2436,100 @@ class _LinkedTextState extends State<LinkedText> {
 
   @override
   void dispose() {
-    for (final t in [..._taps, ..._mentionTaps]) {
+    for (final t in [..._taps, ..._mentionTaps, ..._spoilerTaps]) {
       t.dispose();
     }
     super.dispose();
   }
 
+  /// How a formatted stretch looks, over the words' own style.
+  TextStyle? _look(FormatRun r) {
+    if (r.flags == 0) return null;
+    final ink = widget.ink;
+    final size = widget.style.fontSize ?? 14;
+    final lines = <TextDecoration>[
+      if (r.has(Fmt.strike)) TextDecoration.lineThrough,
+      if (r.has(Fmt.link)) TextDecoration.underline,
+    ];
+    return TextStyle(
+      fontWeight: r.has(Fmt.bold) ? FontWeight.w700 : null,
+      fontStyle: r.has(Fmt.italic) ? FontStyle.italic : null,
+      decoration: lines.isEmpty ? null : TextDecoration.combine(lines),
+      decorationColor: lines.isEmpty ? null : ink,
+      color: r.has(Fmt.quote) ? ink.withValues(alpha: 0.72) : null,
+      fontFamily: r.has(Fmt.code) ? 'JetBrains Mono Variable' : null,
+      fontSize: r.has(Fmt.code) ? size * 0.9 : null,
+      backgroundColor: r.has(Fmt.code) ? ink.withValues(alpha: 0.1) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = widget.text;
+    final ink = widget.ink;
     final spans = <InlineSpan>[...widget.before];
-    var at = 0;
     // Links and mentions in the order they come in the words (none over another: a link in a mention was left out).
     final marks = <(int, int, bool, int)>[
       for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
       for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (start, end, mention, i) in marks) {
-      if (start > at) spans.add(TextSpan(text: text.substring(at, start)));
-      final words = text.substring(start, end);
-      if (mention) {
+    // Cut where a formatted stretch, a link or a mention begins or ends; each piece drawn as all three say.
+    final cuts = <int>{0, text.length, for (final r in _format.runs) ...[r.start, r.end], for (final m in marks) ...[m.$1, m.$2]}.toList()..sort();
+    var ri = 0, mi = 0;
+    for (var c = 0; c + 1 < cuts.length; c++) {
+      final a = cuts[c], b = cuts[c + 1];
+      if (b <= a) continue;
+      while (ri < _format.runs.length && _format.runs[ri].end <= a) {
+        ri++;
+      }
+      while (mi < marks.length && marks[mi].$2 <= a) {
+        mi++;
+      }
+      final r = ri < _format.runs.length ? _format.runs[ri] : FormatRun(a, b, 0);
+      if (r.marker) continue;
+      if (r.bar) {
+        // A quote's "> " as a bar at the line's start.
+        if (a == r.start) spans.add(TextSpan(text: '\u258D ', style: TextStyle(color: ink.withValues(alpha: 0.45), fontWeight: FontWeight.w700, fontStyle: FontStyle.normal)));
+        continue;
+      }
+      final words = text.substring(a, b);
+      final mark = mi < marks.length && marks[mi].$1 <= a && marks[mi].$2 >= b ? marks[mi] : null;
+      final hidden = r.spoiler >= 0 && !_revealed.contains(r.spoiler);
+      var style = _look(r);
+      if (r.spoiler >= 0) {
+        // Ink on ink until pressed; then a faint wash says it was one.
+        style = (style ?? const TextStyle()).merge(hidden ? TextStyle(color: ink, backgroundColor: ink, decorationColor: ink) : TextStyle(backgroundColor: ink.withValues(alpha: 0.1)));
+      }
+      if (hidden) {
+        spans.add(TextSpan(text: words, style: style, recognizer: _spoilerTaps[r.spoiler], mouseCursor: SystemMouseCursors.click, semanticsLabel: 'Spoiler, tap to reveal'));
+        continue;
+      }
+      // Nothing in code is a link.
+      final code = r.has(Fmt.code);
+      if (mark != null && mark.$3) {
+        final m = _mentions[mark.$4];
         final press = widget.onMention != null;
         spans.add(TextSpan(
           text: words,
-          style: widget.mentionStyle ?? const TextStyle(fontWeight: FontWeight.w600),
-          recognizer: press ? _mentionTaps[i] : null,
+          style: (style ?? const TextStyle()).merge(widget.mentionStyle ?? const TextStyle(fontWeight: FontWeight.w600)),
+          recognizer: press ? _mentionTaps[mark.$4] : null,
           mouseCursor: press ? SystemMouseCursors.click : null,
-          semanticsLabel: 'Mention: ${words.substring(1)}',
+          semanticsLabel: a == m.start && b == m.end ? 'Mention: ${words.substring(1)}' : null,
         ));
-      } else {
+      } else if ((mark != null && !code) || r.link >= 0) {
+        // A link as written, or the words of a [words](address) one.
+        final i = r.link >= 0 ? r.link : mark!.$4;
         spans.add(TextSpan(
           text: words,
-          style: TextStyle(decoration: TextDecoration.underline, decorationColor: widget.ink),
+          style: (style ?? const TextStyle()).merge(TextStyle(decoration: TextDecoration.underline, decorationColor: ink)),
           recognizer: _taps[i],
           mouseCursor: SystemMouseCursors.click,
-          semanticsLabel: 'Link: $words',
+          semanticsLabel: r.link >= 0 ? 'Link: $words, ${_links[i].address}' : 'Link: $words',
         ));
+      } else {
+        spans.add(TextSpan(text: words, style: style));
       }
-      at = end;
     }
-    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
     spans.addAll(widget.after);
     return Text.rich(TextSpan(children: spans), style: widget.style);
   }

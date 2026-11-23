@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../me/network_marks.g.dart';
+import '../plugins/company_marks.g.dart' show companyMarks;
 import '../sms.dart';
 import '../friends/buddies.dart';
 import '../friends/handover.dart' show DeskHandover;
@@ -31,7 +32,10 @@ Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 /// icons for discord telegram and X and bluesky and github etc"): Simple Icons' mark (lib/me/network_marks.g.dart),
 /// or its letter where the pack has none.
 class NetworkMark extends StatelessWidget {
-  const NetworkMark(this.network, {super.key, this.size = 18, this.badge = false});
+  const NetworkMark(this.network, {super.key, this.size = 18, this.badge = false, this.tint});
+
+  /// The colour it is drawn in, in place of the network's own: white on a plugin's tile (lib/ui/plugins_page).
+  final Color? tint;
   final Network network;
   final double size;
 
@@ -44,12 +48,13 @@ class NetworkMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ink = IconTheme.of(context).color ?? t.color('app-ink');
-    final logo = networkMarks[network.id] ?? inboxOnlyMarks[network.id];
+    // Messenger, Instagram and LinkedIn: the marks the Codes tab already carries (lib/plugins/company_marks.g.dart).
+    final logo = networkMarks[network.id] ?? inboxOnlyMarks[network.id] ?? companyMarks[_companyOf[network.id]];
     // In the network's own colour (Simple Icons' for each), where it has one that is not black: X and GitHub are
     // the page's ink, so they read on the dark page too. Dimmed with the row where it is not to be pressed.
     final brand = _brand[network.id];
-    final color = (brand ?? t.color('app-ink')).withValues(alpha: ink.a);
-    if (logo == null) return Text(network.mark, style: pageText(t, size, weight: 'bold', color: ink, height: 1.1));
+    final color = tint ?? (brand ?? t.color('app-ink')).withValues(alpha: ink.a);
+    if (logo == null) return Text(network.mark, style: pageText(t, size, weight: 'bold', color: tint ?? ink, height: 1.1));
     if (badge) {
       const white = Color(0xFFFFFFFF);
       final disc = _discs.contains(network.id);
@@ -75,9 +80,15 @@ class NetworkMark extends StatelessWidget {
   /// Marks that are a disc with the mark cut out of it.
   static const _discs = {'telegram'};
 
+  static const _companyOf = {'messenger': 'messenger.com', 'instagram': 'instagram.com', 'linkedin': 'linkedin.com', 'discord': 'discord.com', 'twitter': 'x.com', 'slack': 'slack.com'};
+
   static const _brand = {
+    'messenger': Color(0xFF0866FF),
+    'instagram': Color(0xFFE4405F),
+    'linkedin': Color(0xFF0A66C2),
     'signal': Color(0xFF3A76F0),
     'discord': Color(0xFF5865F2),
+    'slack': Color(0xFF4A154B),
     'telegram': Color(0xFF26A5E4),
     'bluesky': Color(0xFF1185FE),
     'mastodon': Color(0xFF6364FF),

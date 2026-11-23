@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_state.dart';
+import 'sms.dart' show Sms;
+import 'ui/markdown_field.dart';
 
 /// The app's keyboard commands and push to talk (Matt, 2026-11-20: "add push to talk and full keyboard commands with a
 /// keyboard shortcuts setting in settings"): what each does, the keys it is on unless changed, and the keys the person
@@ -29,7 +31,17 @@ enum KeyCommand {
   settings('Settings', null, group: 'Go to'),
   marketplace('Marketplace', null, group: 'Go to'),
   closePage('Close the page', 'The conversation or page open beside the list', group: 'Go to'),
-  shortcuts('Keyboard shortcuts', 'This list', group: 'Go to');
+  toggleSidebar('Show or hide the list', 'Beside a conversation, on a wide window', group: 'Go to'),
+  shortcuts('Keyboard shortcuts', 'This list', group: 'Go to'),
+  // GMFB-41 (from the Uplink gap review: "Customization: ... keybinds"): moving between conversations and formatting
+  // what is written.
+  quickSwitch('Jump to a conversation', 'Type a name to go straight there', group: 'Conversations'),
+  nextChat('Next conversation', 'The one below in the list', group: 'Conversations'),
+  previousChat('Previous conversation', 'The one above in the list', group: 'Conversations'),
+  markRead('Mark all as read', 'Every conversation in the tab shown', group: 'Conversations'),
+  bold('Bold', 'The words chosen, or what you type next', group: 'Writing'),
+  italic('Italic', 'The words chosen, or what you type next', group: 'Writing'),
+  code('Code', 'The words chosen, or what you type next', group: 'Writing');
 
   const KeyCommand(this.label, this.hint, {required this.group});
 
@@ -52,7 +64,7 @@ class KeyBinding {
   /// Ctrl as itself on a Mac, where [primary] is Cmd; on the others it is [primary].
   final bool control;
 
-  static bool get _mac => !kIsWeb && Platform.isMacOS;
+  static bool get _mac => !kIsWeb && PlatformInfo.isMacOS;
 
   /// Whether it holds a key that is not typed: it works while the cursor is in a field.
   bool get chord => primary || alt || control;
@@ -123,6 +135,11 @@ class KeyBinding {
     if (k == LogicalKeyboardKey.comma) return ',';
     if (k == LogicalKeyboardKey.slash) return '/';
     if (k == LogicalKeyboardKey.enter) return 'Enter';
+    if (k == LogicalKeyboardKey.backslash) return '\\';
+    if (k == LogicalKeyboardKey.arrowUp) return 'Up';
+    if (k == LogicalKeyboardKey.arrowDown) return 'Down';
+    if (k == LogicalKeyboardKey.arrowLeft) return 'Left';
+    if (k == LogicalKeyboardKey.arrowRight) return 'Right';
     final label = k.keyLabel;
     return label.isEmpty ? (k.debugName ?? '?') : (label.length == 1 ? label.toUpperCase() : label);
   }
@@ -158,7 +175,8 @@ class Keys extends ChangeNotifier {
     KeyCommand.toggleDeafen: KeyBinding(LogicalKeyboardKey.keyD, primary: true, shift: true),
     KeyCommand.leaveCall: KeyBinding(LogicalKeyboardKey.keyE, primary: true, shift: true),
     KeyCommand.newChat: KeyBinding(LogicalKeyboardKey.keyN, primary: true),
-    KeyCommand.search: KeyBinding(LogicalKeyboardKey.keyK, primary: true),
+    // Cmd+K jumps to a conversation, as most messengers have it; Search moved to Cmd+F for it (GMFB-41).
+    KeyCommand.search: KeyBinding(LogicalKeyboardKey.keyF, primary: true),
     KeyCommand.messages: KeyBinding(LogicalKeyboardKey.digit1, primary: true),
     KeyCommand.contacts: KeyBinding(LogicalKeyboardKey.digit2, primary: true),
     KeyCommand.archive: KeyBinding(LogicalKeyboardKey.digit3, primary: true),
@@ -167,9 +185,19 @@ class Keys extends ChangeNotifier {
     KeyCommand.marketplace: KeyBinding(LogicalKeyboardKey.digit5, primary: true),
     KeyCommand.closePage: KeyBinding(LogicalKeyboardKey.keyW, primary: true),
     KeyCommand.shortcuts: KeyBinding(LogicalKeyboardKey.slash, primary: true),
+    KeyCommand.toggleSidebar: KeyBinding(LogicalKeyboardKey.backslash, primary: true),
+    KeyCommand.quickSwitch: KeyBinding(LogicalKeyboardKey.keyK, primary: true),
+    KeyCommand.nextChat: KeyBinding(LogicalKeyboardKey.arrowDown, alt: true),
+    KeyCommand.previousChat: KeyBinding(LogicalKeyboardKey.arrowUp, alt: true),
+    KeyCommand.markRead: KeyBinding(LogicalKeyboardKey.keyR, primary: true, shift: true),
+    KeyCommand.bold: KeyBinding(LogicalKeyboardKey.keyB, primary: true),
+    KeyCommand.italic: KeyBinding(LogicalKeyboardKey.keyI, primary: true),
+    KeyCommand.code: KeyBinding(LogicalKeyboardKey.keyE, primary: true),
   };
 
-  /// Reads the person's choices from the app's ('keys'); what cannot be read leaves the defaults.
+  /// The formatting each of the Writing commands puts round the words chosen (lib/message_format.dart).
+  static const markers = {KeyCommand.bold: '**', KeyCommand.italic: '*', KeyCommand.code: '`'};
+
   void start(AppState app) {
     _app = app;
     _chosen.clear();
@@ -196,6 +224,23 @@ class Keys extends ChangeNotifier {
 
   /// Whether [c] is on other keys than its own: Settings then offers to put it back.
   bool changed(KeyCommand c) => _chosen.containsKey(c) && _chosen[c] != defaults[c];
+
+  /// What [b] already is to every text field or to the computer itself, where it is something a command must not take:
+  /// copy, paste and the like, and quitting. Null where it is free. Settings will not put a command on these
+  /// (lib/ui/settings_shortcuts.dart).
+  static String? reservedFor(KeyBinding b) {
+    if (!b.primary || b.alt || b.control) return null;
+    final k = b.key;
+    if (b.shift) return k == LogicalKeyboardKey.keyZ ? 'Redo' : null;
+    if (k == LogicalKeyboardKey.keyC) return 'Copy';
+    if (k == LogicalKeyboardKey.keyV) return 'Paste';
+    if (k == LogicalKeyboardKey.keyX) return 'Cut';
+    if (k == LogicalKeyboardKey.keyA) return 'Select all';
+    if (k == LogicalKeyboardKey.keyZ) return 'Undo';
+    if (k == LogicalKeyboardKey.keyQ) return 'Quit';
+    if (k == LogicalKeyboardKey.keyY && !KeyBinding._mac) return 'Redo';
+    return null;
+  }
 
   /// The command already on [b], other than [except]: what a new binding would take it from.
   KeyCommand? usedBy(KeyBinding b, {KeyCommand? except}) =>
@@ -232,10 +277,17 @@ class Keys extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether [c] is a command of something this device has: not the calls' where there are no calls (a browser, for
+  /// now: Sms.callsHere), nor the Marketplace where there is none (a browser, which has nowhere to keep a plugin). One
+  /// that isn't is on no key ([commandFor]), and in neither Settings' list of shortcuts nor the quick switcher
+  /// (lib/ui/settings_shortcuts.dart, lib/ui/shell.dart). Everywhere else, every one is.
+  static bool offered(KeyCommand c) => c.group == 'Calls' ? Sms.callsHere : c == KeyCommand.marketplace ? !Sms.browser : true;
+
   /// The command [e] is, given whether the cursor is in a text field ([typing]): one on a key alone is not taken
-  /// from someone typing.
+  /// from someone typing, and one of something this device hasn't got ([offered]) is no command here.
   KeyCommand? commandFor(KeyEvent e, {required bool typing}) {
     for (final c in KeyCommand.values) {
+      if (!offered(c)) continue;
       final b = of(c);
       if (b == null || !b.matches(e)) continue;
       if (typing && !b.chord) continue;
@@ -243,6 +295,31 @@ class Keys extends ChangeNotifier {
     }
     return null;
   }
+
+  /// The field the cursor is in, where it is one that formats its words (the composer of a chat that shows
+  /// formatting: not a text, which would show the asterisks as written). Null anywhere else.
+  static MarkdownController? get formatting {
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    if (ctx == null) return null;
+    final field = ctx.widget is EditableText ? ctx.widget as EditableText : ctx.findAncestorWidgetOfExactType<EditableText>();
+    final c = field?.controller;
+    if (c is! MarkdownController || !(c.dims?.call() ?? true)) return null;
+    return c;
+  }
+
+  /// Puts [command]'s markers round the words chosen in the field the cursor is in: false where it is in none that
+  /// formats, so the key goes on to whatever else wants it.
+  static bool format(KeyCommand command) {
+    final marker = markers[command];
+    final field = formatting;
+    if (marker == null || field == null) return false;
+    field.wrapSelection(marker);
+    return true;
+  }
+
+  /// Where Next and Previous conversation go in a list of [length]: [by] rows on from [at], held at the ends; the first
+  /// or the last where [at] is -1 (none of the list's is open).
+  static int stepTo(int length, int at, int by) => at < 0 ? (by > 0 ? 0 : length - 1) : (at + by).clamp(0, length - 1);
 
   /// Whether the cursor is in a text field now.
   static bool get typing {

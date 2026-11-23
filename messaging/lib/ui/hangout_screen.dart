@@ -1,7 +1,6 @@
 import '../circles/circles.dart' show Circles, CirclePerm, CircleSystemNote, CircleWelcome, slowModeLabel, slowModeLeft;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
-import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey, TextCapitalization;
@@ -20,10 +19,13 @@ import '../voice/hangout.dart';
 import '../voice/mention_alerts.dart';
 import '../voice/roles.dart';
 import '../voice/voice.dart';
+import '../voice/voice_changer.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
+import 'emoji_suggestions.dart';
 import 'plugin_note_card.dart';
 import 'profile_card.dart';
+import 'report_sheet.dart' show reportSpaceMessage;
 import '../app_state.dart';
 import '../backgrounds.dart';
 import '../sms.dart' show Person;
@@ -51,11 +53,13 @@ import 'recording_ui.dart' show RecordingBanner;
 import 'space_designs/call_plugins.dart' show CallPlugins;
 import '../voice/recorder.dart' show CallRecorder;
 import 'space_invite.dart';
+import 'space_thread.dart';
+import 'export_ui.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
 import 'space_chat_files.dart';
 import 'sticker_picker.dart';
-import 'voice.dart' show VoiceRecorder, voiceProblem;
+import 'voice.dart' show VoiceRecorder, micRefusedWords, voiceProblem;
 import '../files/file_platform.dart';
 import '../files/files_store.dart' show FilesStore;
 import '../stickers.dart' show stickerName;
@@ -69,6 +73,7 @@ import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
+import '../kit/picture_decode.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -243,9 +248,21 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // controls just make it appear like the bottom of all the compose windows look").
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
         // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
-        final chat = room == null ? _NoRoomYet(name: widget.channel.name) : HangoutChat(room: room, bottom: bottom);
-        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind).
-        if (s == null && !widget.channel.hasVoice) {
+        final chat = room == null
+            ? _NoRoomYet(name: widget.channel.name)
+            : room.waitingForKey
+                // The circle's key changed and this device hasn't got the new one yet (GMFB-26): what is written waits.
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
+                      child: Text('Waiting for the circle\'s new key. What you write goes once it arrives.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                    ),
+                    Expanded(child: HangoutChat(room: room, bottom: bottom)),
+                  ])
+                : HangoutChat(room: room, bottom: bottom);
+        // A texting or Files space has no call: no Join, no one "in voice", just its chat (SpaceKind). So has every
+        // space in a browser, which has no calls yet (Sms.callsHere).
+        if (s == null && (!widget.channel.hasVoice || !Sms.callsHere)) {
           return _page(room, actions: actions, body: chat);
         }
         if (s == null) {
@@ -374,7 +391,7 @@ class _HangoutStageState extends State<HangoutStage> {
     final room = _room ?? v.hangoutFor(widget.channel);
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?v.session]),
+      listenable: Listenable.merge([v, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.session]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);
@@ -500,6 +517,11 @@ class _HangoutChatState extends State<HangoutChat> {
   final _text = MentionController();
   late final _focus = FocusNode(onKeyEvent: _mentionKeys);
 
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup").
+  late final EmojiShortcodeSuggester _shortcodes;
+
   /// The "@…" being written and the people it finds, while the list over the composer is open; which of them is
   /// chosen for Enter; and the query Escape closed it on, which keeps it closed until the query changes.
   MentionQuery? _query;
@@ -516,7 +538,7 @@ class _HangoutChatState extends State<HangoutChat> {
   late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
 
   /// What others wrote, newest first, for the arrow to count while the person reads back.
-  Iterable<Object> _incoming(HangoutRoom room) => room.messages.reversed.where((m) => m.from != room.me).map((m) => m.id);
+  Iterable<Object> _incoming(HangoutRoom room) => room.timeline.reversed.where((m) => m.from != room.me).map((m) => m.id);
   bool _typing = false;
 
   /// Messages going in a puff, deleted once it has gone off (lib/ui/poof.dart).
@@ -597,6 +619,7 @@ class _HangoutChatState extends State<HangoutChat> {
     super.initState();
     widget.room.addListener(_roomChanged);
     _roomChanged(first: true);
+    _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(() {
       final typing = _text.text.isNotEmpty;
@@ -610,6 +633,7 @@ class _HangoutChatState extends State<HangoutChat> {
     if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
     _slowTimer?.cancel();
+    _shortcodes.dispose();
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -628,11 +652,25 @@ class _HangoutChatState extends State<HangoutChat> {
   /// messages sent in circles from any computer or phone connected to the account that sent it").
   HangoutMessage? _editing;
 
-  /// Puts [m]'s words and mentions in the box to be changed, where this device may edit it; files picked are dropped.
+  /// The message the next one answers, shown over the box (GMFB-13), or null.
+  SpaceReply? _replying;
+
+  void _startReply(HangoutMessage m) {
+    if (!widget.room.mayWrite) return;
+    setState(() {
+      _replying = SpaceReply.of(m);
+      _editing = null;
+    });
+    _focus.requestFocus();
+  }
+
+  void _stopReplying() => setState(() => _replying = null);
+
   void _startEdit(HangoutMessage m) {
     if (!widget.room.canEdit(m)) return;
     setState(() {
       _editing = m;
+      _replying = null;
       _picked.clear();
     });
     _text.load(m.text, m.mentions);
@@ -661,13 +699,19 @@ class _HangoutChatState extends State<HangoutChat> {
         toast(context, 'Your role here can\'t send files.', tone: GlacierToastTone.danger);
         return;
       }
-      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text, mentions: _text.mentions) != null) {
-        setState(_picked.clear);
+      if (room.sendFiles(List.of(_picked), _uploads, text: _text.text, mentions: _text.mentions, reply: _replying) != null) {
+        setState(() {
+          _picked.clear();
+          _replying = null;
+        });
         _text.clear();
       }
       return;
     }
-    if (room.send(_text.text, mentions: _text.mentions)) _text.clear();
+    if (room.send(_text.text, mentions: _text.mentions, reply: _replying)) {
+      _text.clear();
+      if (_replying != null) setState(() => _replying = null);
+    }
   }
 
   // --- mentions (Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix") ------------
@@ -735,11 +779,12 @@ class _HangoutChatState extends State<HangoutChat> {
   /// The box's keys: Escape out of editing, the mention list's own keys while it is open, and Enter otherwise.
   KeyEventResult _mentionKeys(FocusNode node, KeyEvent e) {
     // Escape stops editing a message, its words given back.
-    if (_editing != null && _query == null && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
+    if (_editing != null && _query == null && !_shortcodes.open && e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.escape) {
       _stopEditing();
       return KeyEventResult.handled;
     }
-    if (_query == null) return _enterKey(e);
+    // The emoji list over the box has the keys while it is open: Enter there picks, it does not send.
+    if (_query == null) return _shortcodes.key(e) ?? _enterKey(e);
     return mentionKey(
           e,
           count: _found.length,
@@ -863,17 +908,17 @@ class _HangoutChatState extends State<HangoutChat> {
     if (!widget.room.sendWith(sticker: stickerName(asset))) toast(context, 'Couldn\'t send the sticker.', tone: GlacierToastTone.danger);
   }
 
-  /// The microphone, on the phone itself (android/.../Voice.kt, as a Telegram chat records): recorded, then sent up as
-  /// a file and its message, as any other file here.
+  /// The microphone, on the phone (android/.../Voice.kt, as a Telegram chat records) or a computer's own
+  /// (lib/desktop/desk_voice.dart, GMFB-32): recorded, then sent up as a file and its message, as any other file here.
   Future<void> _record() async {
     try {
-      final limit = await Sms.instance.startVoice();
+      final limit = await Sms.instance.startVoice(file: true);
       if (!mounted) {
         if (limit != null) Sms.instance.cancelVoice().catchError((_) {});
         return;
       }
       if (limit == null) {
-        toast(context, 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.', tone: GlacierToastTone.danger);
+        toast(context, micRefusedWords(), tone: GlacierToastTone.danger);
         return;
       }
       HapticFeedback.lightImpact();
@@ -887,7 +932,10 @@ class _HangoutChatState extends State<HangoutChat> {
   Future<void> _sendVoice() async {
     setState(() => _recording = null);
     try {
-      final path = await Sms.instance.finishVoice();
+      // In another voice, where Voice changer is on (lib/voice/voice_changer.dart): never as it was, should that fail.
+      final changing = VoiceChanger.instance.active;
+      if (changing && mounted) toast(context, 'Changing your voice…');
+      final path = await VoiceChanger.instance.forSending(await Sms.instance.finishVoice());
       if (widget.room.sendFiles([(path: path, owned: true)], _uploads, voice: true) == null && mounted) toast(context, 'Couldn\'t send the voice message.', tone: GlacierToastTone.danger);
     } catch (e) {
       if (mounted) toast(context, 'Couldn\'t send the voice message: ${voiceProblem(e)}', tone: GlacierToastTone.danger);
@@ -926,9 +974,13 @@ class _HangoutChatState extends State<HangoutChat> {
   void _menu(HangoutMessage m) {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
+      if (widget.room.mayWrite) Choice('Reply', LucideMore.reply, () => _startReply(m)),
+      if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, widget.room, m)),
       if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
+      // Report (GMFB-40): someone else's message.
+      if (m.from != widget.room.me) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, widget.room, m)),
       if (widget.room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => setState(() => _poofing.add(m.id)), danger: true),
     ]);
   }
@@ -952,7 +1004,7 @@ class _HangoutChatState extends State<HangoutChat> {
     final c = DialupColors.of(context.tokens);
     final people = _people(room);
     final entries = <({int at, HangoutMessage? m, ({int at, String id, bool came})? e})>[
-      for (final m in room.messages) (at: m.at, m: m, e: null),
+      for (final m in room.timeline) (at: m.at, m: m, e: null),
       for (final e in _comings) (at: e.at, m: null, e: e),
     ]..sort((a, b) => a.at.compareTo(b.at));
     final list = entries.reversed.toList();
@@ -1083,8 +1135,10 @@ class _HangoutChatState extends State<HangoutChat> {
         // among its messages (Matt, 2026-11-20; lib/circles/welcome.dart): newest first, as the list runs.
         final welcome = circle != null && circle.manifest.welcomeSpace == room.channel.seed;
         final system = circle != null && circle.manifest.systemSpace == room.channel.seed;
+        // A thread's replies are in its page, not here (GMFB-36).
+        final threads = room.threads;
         final list = <Object>[
-          ...room.messages,
+          ...room.timeline,
           if (system) ...circles.systemNotesIn(circle),
         ];
         if (system) list.sort((a, b) => _atOf(a).compareTo(_atOf(b)));
@@ -1165,15 +1219,23 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onMention: _mentionPressed, onPerson: _openPerson),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onReply: () => _startReply(m), onMention: _mentionPressed, onPerson: _openPerson),
                       );
-                      if (!newDay) return message;
+                      // Its thread's line under it, where it has one (GMFB-36): on the left under the words.
+                      final thread = threads[m.id];
+                      final shown = thread == null
+                          ? message
+                          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                              message,
+                              ThreadLine(count: thread.count, last: thread.last, indent: t.lenOf('1.75rem') + t.space(2) + t.space(3), onOpen: () => openThread(context, room, m)),
+                            ]);
+                      if (!newDay) return shown;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         Padding(
                           padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
                           child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                         ),
-                        message,
+                        shown,
                       ]);
                     },
                   ),
@@ -1190,7 +1252,7 @@ class _HangoutChatState extends State<HangoutChat> {
               padding: composerFootPadding(t, bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? MediaQuery.viewInsetsOf(context).bottom : widget.bottom + MediaQuery.paddingOf(context).bottom),
               child: mayWrite
                   ? Builder(builder: (context) {
-                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice);
+                      if (_recording != null) return VoiceRecorder(limit: _recording!, onDiscard: _discardVoice, onSend: _sendVoice, note: VoiceChanger.instance.note, carrier: false);
                       // The same buttons in the same places as every other conversation (lib/ui/composer_box.dart): files,
                       // stickers and, on the phone itself, voice messages, as in other chats (Matt, 2026-11-18). Files
                       // only where the circle's roles let this person share them (spaceMayAttach).
@@ -1206,7 +1268,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         hasSomething: _text.text.isNotEmpty || _picked.isNotEmpty,
                         onAttach: _editing != null ? null : _plusAction(attach && FilePlatform.canPick && _picked.length < HangoutMessage.mostFiles, polls: !waiting),
                         onSticker: _picked.isEmpty && !waiting && _editing == null ? _sticker : null,
-                        onRecord: attach && !Sms.remote && _picked.isEmpty && !waiting && _editing == null ? _record : null,
+                        onRecord: attach && Sms.canRecordVoice && _picked.isEmpty && !waiting && _editing == null ? _record : null,
                         // An edit is saved whenever, slow mode or not: it is no new message.
                         onSend: _editing != null
                             ? (_text.text.trim().isEmpty && _editing!.files.isEmpty ? null : _send)
@@ -1244,7 +1306,9 @@ class _HangoutChatState extends State<HangoutChat> {
                         // and circles with the @user prefix").
                         if (_query != null && _found.isNotEmpty)
                           MentionSuggestions(people: _found, chosen: _chosen, onPick: _pickMention, inkOf: (p) => spaceNameInk(t, widget.room, p.id)),
+                        EmojiSuggestions(suggester: _shortcodes),
                         if (_editing != null) _EditingBar(words: _editing!.text, onClose: _stopEditing),
+                        if (_replying != null && _editing == null) _ReplyBar(reply: _replying!, me: widget.room.me, onClose: _stopReplying),
                         if (slow > 0 && _editing == null) _SlowModeLine(seconds: slow, left: left),
                         if (readOnly && _editing == null) const ReadOnlyAdminLine(),
                         if (_picked.isNotEmpty) SpacePickedStrip(files: _picked, onRemove: (p) => setState(() => _picked.remove(p))),
@@ -1292,6 +1356,63 @@ bool _sameDay(int a, int b) {
 }
 
 /// Over the box while a message's words are being changed: what is being edited, and the way to stop.
+/// Over the box while answering a message (GMFB-13): who wrote it and its start, and a way to stop.
+class _ReplyBar extends StatelessWidget {
+  const _ReplyBar({required this.reply, required this.me, required this.onClose});
+  final SpaceReply reply;
+  final String me;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final who = reply.from == me ? 'yourself' : (reply.name.isEmpty ? Voice.instance.nameOf(reply.from) : reply.name);
+    return Padding(
+      key: const ValueKey('space-replying'),
+      padding: EdgeInsets.only(bottom: t.space(2)),
+      child: Row(children: [
+        AppIcon(LucideMore.reply, size: 16, color: t.color('app-accent')),
+        SizedBox(width: t.space(2)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Replying to $who', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+            if (reply.text.isNotEmpty) Text(reply.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          ]),
+        ),
+        IconTap(key: const ValueKey('space-replying-stop'), icon: Lucide.x, label: 'Stop replying', size: 18, onPressed: onClose),
+      ]),
+    );
+  }
+}
+
+/// The message a message answers, quoted at its head (GMFB-13): a bar in the accent, the writer, and the start of their
+/// words.
+class SpaceQuote extends StatelessWidget {
+  const SpaceQuote({super.key, required this.reply, required this.me, required this.ink});
+  final SpaceReply reply;
+  final String me;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final who = reply.from == me ? 'You' : (reply.name.isEmpty ? Voice.instance.nameOf(reply.from) : reply.name);
+    return Container(
+      key: ValueKey('space-quote-${reply.id}'),
+      padding: EdgeInsets.fromLTRB(t.space(2), 2, t.space(2), 2),
+      decoration: BoxDecoration(
+        color: ink.withValues(alpha: 0.07),
+        border: Border(left: BorderSide(color: t.color('app-accent'), width: 3)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(who, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
+        if (reply.text.isNotEmpty) Text(reply.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
+      ]),
+    );
+  }
+}
+
 class _EditingBar extends StatelessWidget {
   const _EditingBar({required this.words, required this.onClose});
   final String words;
@@ -1493,7 +1614,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
 
 /// One message of a space's chat: a bubble, as in a conversation, or a channel's line ([flat]) in a circle.
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.flat = false, this.onMention, this.onPerson});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.onReply, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1513,6 +1634,9 @@ class _Message extends StatelessWidget {
 
   /// Its words put in the box to change, where it is this person's (HangoutRoom.canEdit).
   final VoidCallback? onEdit;
+
+  /// Answered: the next message quotes it (GMFB-13).
+  final VoidCallback? onReply;
 
   /// A mention in it pressed.
   final ValueChanged<Mention>? onMention;
@@ -1563,9 +1687,13 @@ class _Message extends StatelessWidget {
         Navigator.of(context, rootNavigator: true).pop();
         react(emoji);
       }) : null, choices: [
+        if (room.mayWrite && onReply != null) Choice('Reply', LucideMore.reply, () => onReply!.call()),
+        if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, room, m)),
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
+        // Report (GMFB-40): someone else's message.
+        if (!mine) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, room, m)),
         if (room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => onDelete?.call(), danger: true),
       ]);
     }
@@ -1586,7 +1714,13 @@ class _Message extends StatelessWidget {
             bottomRight: mine && !last ? tight : round,
           ),
         ),
-        child: _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink')),
+        child: m.reply == null
+            ? _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink'))
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                SpaceQuote(reply: m.reply!, me: room.me, ink: mine ? mineInk : t.color('app-ink')),
+                SizedBox(height: t.space(1)),
+                _words(t, shown, pageText(t, t.fontSize('md'), color: mine ? mineInk : t.color('app-ink'), height: 1.3), mine ? mineInk : t.color('app-ink')),
+              ]),
       ),
     );
     // A sticker on the page with no bubble; files over the words, the words' bubble only where there are any (Matt,
@@ -1697,6 +1831,7 @@ extension on _Message {
       body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
     } else {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        if (m.reply != null) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: SpaceQuote(reply: m.reply!, me: room.me, ink: ink)),
         if (m.files.isNotEmpty) ...[
           SpaceChatFiles(channel: room.channel, message: m, mine: false, maxWidth: maxWidth, ground: theirBubble(t, onBackground: false), ink: ink, rim: theirRim(t)),
           if (m.text.isNotEmpty) SizedBox(height: t.space(1)),
@@ -2027,6 +2162,8 @@ class RolesScreen extends StatelessWidget {
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
                   if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
+                  // Export (GMFB-36): the chat and its threads as a Markdown file.
+                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Text('Every message here, threads too, as a Markdown file.'), onPress: () => exportSpace(context, room)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                   // What the space is for, under its name in the header; the owner and admins write it (Matt, 2026-11-17).
                   SettingRow(
@@ -2394,6 +2531,7 @@ void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? 
   showChoices(context, title: channel.name, choices: [
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
+    if (room != null) Choice('Export chat', Lucide.download, () => exportSpace(context, room)),
     if ((room == null || room.can(Perm.invite)) && _circleInvites(channel)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),
     Choice('Delete space', Lucide.trash2, () => confirmDeleteHangout(context, channel), danger: true),
   ]);
@@ -2552,9 +2690,9 @@ class _SpaceFaceState extends State<SpaceFace> {
     final p = _picture();
     Widget? image;
     if (p != null && p.isNotEmpty) {
-      try {
-        image = Image.memory(base64Decode(p), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
-      } catch (_) {}
+      // The same bytes each build, unpacked at the face's size (lib/kit/picture_decode.dart): one a message row.
+      final bytes = pictureBytes(p);
+      if (bytes != null) image = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
     }
     if (image == null) return Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
     // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.

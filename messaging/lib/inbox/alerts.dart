@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'human_check.dart';
 import 'inbox.dart';
 import 'scams.dart';
 
@@ -68,6 +69,10 @@ class InboxAlerts {
   /// Looks at [n]'s list as it is now.
   @visibleForTesting
   void check(InboxNetwork n, Inbox inbox) {
+    // A first message from someone new on a network the Human check guards is held before anything is told of it
+    // (lib/inbox/human_check.dart; GMFB-23, Matt, Mac 0.12.6: "stay hidden from notificatoins"): held, it is not in
+    // shownChats below, whichever of the two heard of the change first.
+    HumanCheck.instance?.review(n);
     final alive = [for (final r in inbox.ready) r.name];
     if (!listEquals(alive, _alive)) {
       _alive = alive;
@@ -97,4 +102,8 @@ class InboxAlerts {
       notify(InboxAlert(key: key, network: n.name, title: c.title, body: c.snippet, group: c.group, count: c.unread));
     }
   }
+
+  /// [c] as it is now is not news: what it holds is not told when it next comes into the list. For a chat the person
+  /// let in by hand from the Human check's held list, while looking at it.
+  void seen(InboxNetwork n, InboxChat c) => _unread[n.id]?[c.id] = c.unread;
 }

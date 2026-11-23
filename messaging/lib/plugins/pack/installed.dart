@@ -8,7 +8,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
+import '../../platform_info.dart';
+import '../../aside.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -29,11 +30,11 @@ import 'review_keys.dart';
 /// folder lib/desktop/main.dart keeps everything else in (GHOST_DESK_DIR's where set). Under flutter test, a fresh
 /// folder in the system's temp, never the installed app's.
 Directory pluginsRoot() {
-  if (Platform.environment.containsKey('FLUTTER_TEST')) return Directory.systemTemp.createTempSync('ghost-plugins-');
-  if (Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/plugins');
-  final dir = Platform.environment['GHOST_DESK_DIR'];
+  if (PlatformInfo.environment.containsKey('FLUTTER_TEST')) return Directory.systemTemp.createTempSync('ghost-plugins-');
+  if (PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files/plugins');
+  final dir = PlatformInfo.environment['GHOST_DESK_DIR'];
   final base = dir == null || dir.isEmpty ? DeskStore.defaultDir() : Directory(dir);
-  return Directory('${base.path}${Platform.pathSeparator}plugins');
+  return Directory('${base.path}${PlatformInfo.pathSeparator}plugins');
 }
 
 /// Where a pack in development came from, so it can be loaded again.
@@ -47,7 +48,7 @@ class DevSource {
   static const kinds = ['file', 'paste', 'link', 'api'];
 
   /// A link, or a file with a path on a Mac or Windows.
-  bool get reloadable => (kind == 'link' && url != null) || (kind == 'file' && path != null && (Platform.isMacOS || Platform.isWindows));
+  bool get reloadable => (kind == 'link' && url != null) || (kind == 'file' && path != null && (PlatformInfo.isMacOS || PlatformInfo.isWindows));
 
   Map<String, Object?> toJson() => {'kind': kind, if (url != null) 'url': url, if (path != null) 'path': path, if (name != null) 'name': name};
 
@@ -163,7 +164,7 @@ class InstalledPlugins extends ChangeNotifier {
   /// Dart. A widget test's clock never lets an isolate's answer arrive, so under flutter test they are checked in
   /// place, unless a test asks for the isolate.
   @visibleForTesting
-  static bool verifyInIsolate = !Platform.environment.containsKey('FLUTTER_TEST');
+  static bool verifyInIsolate = !PlatformInfo.environment.containsKey('FLUTTER_TEST');
 
   /// The withdrawals and retirements this build carries (review_keys.dart), as [load] merges them: a test gives its
   /// own, since this build's are empty.
@@ -195,7 +196,7 @@ class InstalledPlugins extends ChangeNotifier {
 
   /// No store packs at all on an iPhone, whose App Store reads a storefront of other developers' features against its
   /// rules.
-  bool get storeAllowed => _storeAllowed ?? !Platform.isIOS;
+  bool get storeAllowed => _storeAllowed ?? !PlatformInfo.isIOS;
 
   /// No plugins in development in an App Store build.
   bool get devAllowed => _devAllowed ?? !packAppStoreBuild;
@@ -541,7 +542,7 @@ class InstalledPlugins extends ChangeNotifier {
     final k = List<String>.of(keys);
     final r = [for (final x in revs) x.toJson()];
     final t = [for (final x in rets) x.toJson()];
-    final out = verifyInIsolate ? await Isolate.run(() => _verifyBatch(k, r, t)) : _verifyBatch(k, r, t);
+    final out = verifyInIsolate ? await runAside(() => _verifyBatch(k, r, t)) : _verifyBatch(k, r, t);
     return (out[0], out[1]);
   }
 
@@ -550,7 +551,7 @@ class InstalledPlugins extends ChangeNotifier {
   static Future<List<(bool, bool)>> _approvalsHold(List<(PackApproval, String, String, String)> copies, List<String> keys, Set<String> retired) async {
     final a = [for (final c in copies) c.$1.toJson()];
     final ids = [for (final c in copies) [c.$2, c.$3, c.$4]];
-    final signed = verifyInIsolate ? await Isolate.run(() => _signedBatch(a, ids)) : _signedBatch(a, ids);
+    final signed = verifyInIsolate ? await runAside(() => _signedBatch(a, ids)) : _signedBatch(a, ids);
     return [for (var i = 0; i < copies.length; i++) (signed[i], keys.contains(copies[i].$1.key) && !retired.contains(copies[i].$1.key))];
   }
 
@@ -1137,7 +1138,7 @@ class InstalledPlugins extends ChangeNotifier {
     if (url.scheme == 'https') return url.host.isNotEmpty;
     if (url.scheme != 'http') return false;
     if (url.host == '127.0.0.1') return true;
-    return (Platform.isMacOS || Platform.isWindows || Platform.isLinux) && (url.host == 'localhost' || url.host == '::1');
+    return (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) && (url.host == 'localhost' || url.host == '::1');
   }
 
   /// The bytes at [url], or why there are none: ten seconds to connect, twenty for all of it.

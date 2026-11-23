@@ -14,23 +14,31 @@ import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../keys.dart';
+import '../sms.dart' show Sms;
 import 'common.dart';
 import 'settings.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
-/// The line under "Keyboard shortcuts" in the settings list: whether push to talk is on, and on which key.
-String shortcutsSummary(SettingsModel m) => Keys.instance.pushToTalk ? 'Push to talk on ${Keys.instance.of(KeyCommand.pushToTalk)?.label ?? 'no key'}' : 'Push to talk off';
+// Where there are no calls (a browser, for now: Sms.callsHere) there is no push to talk to speak of, nor the calls'
+// commands to put on keys.
+String shortcutsSummary(SettingsModel m) => !Sms.callsHere
+    ? 'Every command and its keys'
+    : Keys.instance.pushToTalk
+        ? 'Push to talk on ${Keys.instance.of(KeyCommand.pushToTalk)?.label ?? 'no key'}'
+        : 'Push to talk off';
 
 /// The pane's rows: the push to talk switch, every command under its group's heading, and "Put every shortcut back".
 List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   final keys = Keys.instance;
   final groups = <String, List<KeyCommand>>{};
+  // Only what this device has (Keys.offered): in a browser, no calls' commands and no Marketplace.
   for (final c in KeyCommand.values) {
+    if (!Keys.offered(c)) continue;
     (groups[c.group] ??= []).add(c);
   }
   return [
-    PaneSection(
+    if (Sms.callsHere) PaneSection(
       footer: Text('In a call your microphone stays off, and is on only while you hold ${keys.of(KeyCommand.pushToTalk)?.label ?? 'its key'}. It works while Ghost Messaging is the app in front.'),
       children: [
         SettingRow(
@@ -44,6 +52,11 @@ List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
     for (final group in groups.entries)
       PaneSection(
         title: group.key,
+        footer: group.key == 'Writing'
+            ? const Text('In a chat with a friend, a group or a space: the markers go round the words chosen. A text message shows them as written, so they are not added there.')
+            : group.key == 'Conversations'
+                ? const Text('Next and previous go down and up the list as it is shown. Jump finds any conversation by name or number, and the app\'s places.')
+                : null,
         children: [for (final c in group.value) _ShortcutRow(command: c)],
       ),
     PaneSection(
@@ -149,7 +162,7 @@ class _KeyRecorderState extends State<KeyRecorder> {
   /// Puts the command on the keys pressed and says so, naming the command that had them before, if one did.
   void _save() {
     final b = _got;
-    if (b == null) return;
+    if (b == null || Keys.reservedFor(b) != null) return;
     final keys = Keys.instance;
     final other = keys.usedBy(b, except: widget.command);
     keys.set(widget.command, b);
@@ -162,6 +175,8 @@ class _KeyRecorderState extends State<KeyRecorder> {
     final t = context.tokens;
     final got = _got;
     final taken = got == null ? null : Keys.instance.usedBy(got, except: widget.command);
+    // Copy, paste and the rest are every field's: never taken (Keys.reservedFor).
+    final reserved = got == null ? null : Keys.reservedFor(got);
     return GhostPage(
       title: widget.command.label,
       body: SettingsPaneScope(
@@ -171,7 +186,11 @@ class _KeyRecorderState extends State<KeyRecorder> {
           children: [
             PaneSection(
               description: Text(got == null ? 'Press the keys you want, all together. Esc leaves it as it was.' : 'Press other keys to change them, or save these.'),
-              footer: taken == null ? null : Text('${taken.label} is on these keys now. Saving takes them from it.', style: TextStyle(color: t.colorOf('#c27c0e'))),
+              footer: reserved != null
+                  ? Text('${got!.label} is $reserved everywhere you type. Choose other keys.', key: const ValueKey('reserved-keys'), style: TextStyle(color: t.colorOf('#c27c0e')))
+                  : taken == null
+                      ? null
+                      : Text('${taken.label} is on these keys now. Saving takes them from it.', key: const ValueKey('clashing-keys'), style: TextStyle(color: t.colorOf('#c27c0e'))),
               children: [
                 SettingRowBox(
                   child: Padding(
@@ -179,7 +198,7 @@ class _KeyRecorderState extends State<KeyRecorder> {
                     child: Center(child: Text(got?.label ?? 'Waiting for keys…', key: const ValueKey('recorded-keys'), style: pageText(t, t.lenOf('1.6rem'), weight: 'bold', color: t.color(got == null ? 'app-ink-3' : 'app-ink')))),
                   ),
                 ),
-                SettingRow(icon: _icon(Lucide.check), label: 'Save', disabled: got == null, onPress: _save),
+                SettingRow(icon: _icon(Lucide.check), label: 'Save', disabled: got == null || reserved != null, onPress: _save),
               ],
             ),
           ],

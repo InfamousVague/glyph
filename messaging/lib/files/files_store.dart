@@ -3,15 +3,18 @@ import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:pointycastle/export.dart' show SHA256Digest;
+import 'package:crypto/crypto.dart' as crypto;
 
 import '../desktop/store.dart' show DeskStore;
+import '../inbox/kept_writer.dart';
 import '../me/me.dart';
 import '../net/crypto.dart';
 import '../net/file_seal.dart';
@@ -20,6 +23,7 @@ import '../voice/channels.dart';
 import '../voice/roles.dart';
 import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
+import 'apple_sha.dart';
 import 'file_kinds.dart';
 import 'file_stream.dart';
 import 'files_api.dart';
@@ -27,7 +31,7 @@ import 'files_model.dart';
 
 export 'file_kinds.dart';
 export 'file_stream.dart' show FileStream, StreamedMedia;
-export 'files_api.dart' show FilesError, FilesInfo;
+export 'files_api.dart' show FilesError, FilesInfo, FilesPart;
 export 'files_model.dart';
 
 /// A Files space's files on this device (Matt, 2026-11-17: "add full functionality for filesharing in a space when the
@@ -257,16 +261,16 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// Where the app keeps what must last (the lists, the upload queue): its files folder on Android, the desktop
   /// store's folder elsewhere.
   static Directory _appDir() {
-    if (Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
+    if (PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
     return DeskStore.defaultDir();
   }
 
   /// Where files that came down are kept, since they can be brought down again: the app's cache folder on Android and
   /// a Mac, a cache folder inside the desktop store's elsewhere.
   static Directory _cacheDir() {
-    if (Platform.isAndroid) return Directory.systemTemp;
-    final home = Platform.environment['HOME'];
-    if (Platform.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
+    if (PlatformInfo.isAndroid) return Directory.systemTemp;
+    final home = PlatformInfo.environment['HOME'];
+    if (PlatformInfo.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
     return Directory('${DeskStore.defaultDir().path}/cache');
   }
 
@@ -324,6 +328,18 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     transfers.clear();
     _started = false;
     notifyListeners();
+  }
+
+  /// Everything of the Files spaces this device keeps deleted (lib/account/account.dart: signed out with everything
+  /// deleted, or removed from the account): what was going up stopped, the spaces' lists and the queue, and every
+  /// file brought down.
+  Future<void> wipe() async {
+    await clear();
+    for (final dir in [_data(), _cache()]) {
+      try {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      } catch (_) {}
+    }
   }
 
   /// Picks up what was going up when the app last closed.
@@ -677,6 +693,55 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return true;
   }
 
+  // --- unfinished uploads ------------------------------------------------------------------------------------------
+
+  /// Uploads to [c] the relay holds part of that nothing on this device is sending or can pick up (Matt, 2026-11-21:
+  /// "I need a way to see partially uploaded files, the oddysey uploaded partially but then disconnected when I
+  /// restarted the app it stopped uploading but kept the space reserved"): another device's, one this device's queue
+  /// lost (a file sent from a space's chat is never kept on the queue), or one from before an app was reinstalled. Each
+  /// holds its room until it is removed or the relay lets it go, a day after its last piece. One this device's queue
+  /// still has shows as its transfer instead, which goes on by itself or with Try again.
+  List<FilesPart> unfinished(VoiceChannel c) {
+    final held = {for (final t in transfers) if (t.blob != null && t.space.seed == c.seed) t.blob};
+    return [for (final p in of(c).info?.parts ?? const <FilesPart>[]) if (!held.contains(p.id)) p];
+  }
+
+  /// [p] as a file in the list would be, for the space's rules (who may remove it).
+  SpaceFile _asFile(FilesPart p) => SpaceFile(id: p.id, name: '', size: p.size, mime: '', sha: '', key: Uint8List(32), prefix: Uint8List(8), by: p.by, byName: '', at: p.at.millisecondsSinceEpoch);
+
+  /// Whether this device may let [p] go: whoever started it, the space's owner, or someone whose role may remove it.
+  bool canRemoveUnfinished(VoiceChannel c, FilesPart p) => canChange(c, _asFile(p));
+
+  /// Who started [p], as the space's list names them ("you" for this install), or null where it doesn't.
+  String? unfinishedBy(VoiceChannel c, FilesPart p) {
+    if (p.by == _me()) return 'you';
+    for (final f in of(c).files.values) {
+      if (f.by == p.by && f.byName.isNotEmpty) return f.byName;
+    }
+    return null;
+  }
+
+  /// Lets [p] go on the relay, freeing its room, as [delete] does a file's blob (the roster shown where it isn't this
+  /// device's or the owner's). Whether the relay let it go.
+  Future<bool> removeUnfinished(VoiceChannel c, FilesPart p) async {
+    if (!canRemoveUnfinished(c, p)) return false;
+    final api = _api(c);
+    if (api == null) return false;
+    final me = _me();
+    final roster = me == p.by || me == _ownerId(c) ? null : _trusted(c);
+    try {
+      await api.deleteBlob(p.id, roster: roster == null ? null : _proof(roster));
+    } on FilesError catch (e) {
+      // Already gone (finished elsewhere, or let go by the relay meanwhile): what was wanted.
+      if (e.status != HttpStatus.notFound) return false;
+    } catch (_) {
+      return false;
+    }
+    await of(c).refresh();
+    notifyListeners();
+    return true;
+  }
+
   // --- going up ------------------------------------------------------------------------------------------------------
 
   /// Adds files at [paths] (on this device) to [c], in [folder]. [owned] marks copies the app made (a phone's picks),
@@ -685,7 +750,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     for (final p in paths) {
       final f = File(p);
       if (!f.existsSync()) continue;
-      final name = SpaceFile.cleanName(p.split(Platform.pathSeparator).last.split('/').last);
+      final name = SpaceFile.cleanName(p.split(PlatformInfo.pathSeparator).last.split('/').last);
       transfers.add(Transfer._up(
         space: c,
         path: p,
@@ -783,7 +848,16 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
         t.status = 'Getting it ready';
         notifyListeners();
         final path = t.path!;
-        t.sha = await _shaAside(path);
+        // The whole file is read once for its checksum before any of it goes: said in hundredths, so a big one is
+        // seen to be moving.
+        var said = -1;
+        t.sha = await _shaAside(path, told: t.size < 64 << 20 ? null : (read) {
+          final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
+          if (pct == said) return;
+          said = pct;
+          t.status = 'Getting it ready · $pct%';
+          notifyListeners();
+        });
         t.fileKey ??= NetCrypto.randomBytes(32);
         t.prefix ??= NetCrypto.randomBytes(8);
         // Its small picture, for everyone's list and grid: a picture's own (a GIF's first frame), or a video's frame from
@@ -819,7 +893,27 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       // chunks still to go are sealed under the same key and nonces as before, so they must be the same words. A file
       // changed in place keeps its length and, on some disks, its time; only its hash tells. Changed, it is not sent on
       // (sealing other words under a nonce already used would give the key away).
-      Future<bool> unchanged() async => t.owned || await _shaAside(t.path!) == t.sha;
+      // A big file's check takes minutes (a film: tens of gigabytes), so it says how far it has got, and the bar shows
+      // what the relay already has, rather than the upload looking stopped after the app opens again.
+      Future<bool> unchanged() async {
+        if (t.owned) return true;
+        var said = -1;
+        final sha = await _shaAside(t.path!, told: t.size < 64 << 20 ? null : (read) {
+          final pct = t.size <= 0 ? 0 : (read * 100 ~/ t.size).clamp(0, 99);
+          if (pct == said) return;
+          said = pct;
+          t.status = 'Checking it before going on · $pct%';
+          notifyListeners();
+        });
+        t.status = null;
+        return sha == t.sha;
+      }
+
+      if (have > 0) {
+        t.done = math.min(t.size, (have / sealed * t.size).round());
+        if (t.size >= 64 << 20) t.status = 'Checking it before going on';
+        notifyListeners();
+      }
       if (have > 0 && !await unchanged()) {
         t._fail('The file changed while it was going up. Add it again.', retryable: false);
         await _settle(t);
@@ -1318,24 +1412,27 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 /// stream (zone 3, the internet) on Windows. Nothing elsewhere; a failure is no matter (the file is still there).
 Future<void> markFromInternet(String path) async {
   try {
-    if (Platform.isMacOS) {
+    if (PlatformInfo.isMacOS) {
       final secs = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toRadixString(16);
       await Process.run('xattr', ['-w', 'com.apple.quarantine', '0081;$secs;Ghost Messaging;', path]);
-    } else if (Platform.isWindows) {
+    } else if (PlatformInfo.isWindows) {
       await File('$path:Zone.Identifier').writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n');
     }
   } catch (_) {}
 }
 
-Future<String> _shaAside(String path) => Isolate.run(() => shaOfFile(path));
-Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
+Future<String> _shaAside(String path, {void Function(int read)? told}) => shaOfFileAside(path, told: told);
+Future<Uint8List> _sealAside(SealRun run) => runAside(() => FileSeal.sealRun(run));
 
 /// [run] sealed on as many isolates as there are cores to spare (up to four), each a share of its chunks: AES on one
 /// core runs at about 25 MB/s, under most connections (Matt, 2026-11-18, of uploading to a circle being slow).
 Future<Uint8List> _sealParallel(SealRun run) async {
   final n = FileSeal.chunks(run.size, chunkSize: run.chunkSize);
   final count = (run.plain.length + run.chunkSize - 1) ~/ run.chunkSize;
-  final ways = math.min(math.min(4, math.max(1, Platform.numberOfProcessors - 1)), count);
+  // In a call, two at most: the call's sound and pictures need the cores more than an upload needs to be quick
+  // (GMFB-6, @matt: "The app is super laggy when in a voice call and uploading a video to the files").
+  final most = Voice.instance.session != null ? 2 : 4;
+  final ways = math.min(math.min(most, math.max(1, PlatformInfo.numberOfProcessors - 1)), count);
   if (ways <= 1 || run.first + count > n) return _sealAside(run);
   final per = (count + ways - 1) ~/ ways;
   final parts = <Future<Uint8List>>[];
@@ -1350,26 +1447,120 @@ Future<Uint8List> _sealParallel(SealRun run) async {
   }
   return out.takeBytes();
 }
-Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
-Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
+Future<Uint8List?> _openAside(OpenRun run) => runAside(() => FileSeal.openRun(run));
+Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => runAside(() => checkAll(log, space));
 
 /// The SHA-256 of the file at [path], in hex, read a megabyte at a time: run on another isolate.
-String shaOfFile(String path) {
-  final digest = SHA256Digest();
+String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting bool plain = false}) {
+  // [plain]: the Dart reader even where the device has its own, for a test of it on a Mac.
+  final hash = (plain ? null : _AppleSha.open()) ?? _DartSha();
   final raf = File(path).openSync();
   try {
-    final buf = Uint8List(1 << 20);
+    final buf = Uint8List(4 << 20);
+    var read = 0;
     while (true) {
       final n = raf.readIntoSync(buf);
       if (n <= 0) break;
-      digest.update(buf, 0, n);
+      hash.add(buf, n);
+      read += n;
+      told?.call(read);
     }
+    return NetCrypto.hex(hash.end());
   } finally {
     raf.closeSync();
+    hash.close();
   }
-  final out = Uint8List(32);
-  digest.doFinal(out, 0);
-  return NetCrypto.hex(out);
+}
+
+/// [shaOfFile] off the screen's thread, saying how far it has read as it goes ([told], a few times a second at most).
+/// A big file takes minutes even at its fastest (Matt, 2026-11-21, of a 26 GB file: "it's taking a long time to
+/// 'getting file ready'"), so it has to be able to say where it is.
+Future<String> shaOfFileAside(String path, {void Function(int read)? told}) async {
+  if (told == null) return runAside(() => shaOfFile(path));
+  final port = ReceivePort();
+  final done = Completer<String>();
+  port.listen((m) {
+    if (m is int) {
+      told(m);
+    } else if (m is String) {
+      done.complete(m);
+    } else if (!done.isCompleted) {
+      done.completeError(m is List && m.isNotEmpty ? FileSystemException('${m.first}', path) : FileSystemException('The file could not be read.', path));
+    }
+  });
+  try {
+    await Isolate.spawn(_shaTelling, (path, port.sendPort), onError: port.sendPort, errorsAreFatal: true);
+    return await done.future;
+  } finally {
+    port.close();
+  }
+}
+
+void _shaTelling((String, SendPort) job) {
+  final (path, port) = job;
+  final clock = Stopwatch()..start();
+  var last = 0;
+  final sha = shaOfFile(path, told: (read) {
+    if (clock.elapsedMilliseconds - last < 250) return;
+    last = clock.elapsedMilliseconds;
+    port.send(read);
+  });
+  Isolate.exit(port, sha);
+}
+
+/// SHA-256 a piece at a time. The plain Dart one (package:crypto) reads about 100 MB a second, five times what
+/// pointycastle's did (19 MB/s: twenty minutes and more for a 26 GB file); a Mac's and an iPhone's own, on the
+/// processor's SHA instructions, reads faster than the disk gives it.
+abstract class _Sha {
+  void add(Uint8List bytes, int length);
+  Uint8List end();
+  void close() {}
+}
+
+class _DartSha implements _Sha {
+  _DartSha() {
+    _in = crypto.sha256.startChunkedConversion(_out);
+  }
+  final _DigestSink _out = _DigestSink();
+  late final ByteConversionSink _in;
+
+  @override
+  void add(Uint8List bytes, int length) => _in.addSlice(bytes, 0, length, false);
+  @override
+  Uint8List end() {
+    _in.close();
+    return Uint8List.fromList(_out.value!.bytes);
+  }
+
+  @override
+  void close() {}
+}
+
+class _DigestSink implements Sink<crypto.Digest> {
+  crypto.Digest? value;
+  @override
+  void add(crypto.Digest data) => value = data;
+  @override
+  void close() {}
+}
+
+/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final. They are reached
+/// through `dart:ffi`, which a browser's build can't name, so the calls themselves are in apple_sha.dart's two halves.
+class _AppleSha implements _Sha {
+  _AppleSha._(this._own);
+  final AppleSha _own;
+
+  static _AppleSha? open() {
+    final own = AppleSha.open();
+    return own == null ? null : _AppleSha._(own);
+  }
+
+  @override
+  void add(Uint8List bytes, int length) => _own.add(bytes, length);
+  @override
+  Uint8List end() => _own.end();
+  @override
+  void close() => _own.close();
 }
 
 /// What the roster of a space's chat room says of its files (lib/voice/roles.dart): adding needs Add files; renaming,
@@ -1475,14 +1666,21 @@ class FilesSpace {
     } catch (_) {}
   }
 
-  void _save() {
-    try {
-      final f = _file;
-      f.parent.createSync(recursive: true);
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'seq': seq, 'log': [for (final e in _log) e.toJson()], 'sa': ?_strictAfter, if (info != null) 'info': info!.toJson()}));
-      tmp.renameSync(f.path);
-    } catch (_) {}
-  }
+  /// The log is kept by another isolate, soon after it changes (lib/inbox/kept_writer.dart): the whole of it, which
+  /// only grows, was made JSON and written on the thread that draws at each refresh and each packet
+  /// (docs/performance-audit.md, finding 4).
+  late final KeptWriter _writer = KeptWriter(
+    file: () => _file,
+    snapshot: () => {'seq': seq, 'log': [for (final e in _log) e.toJson()], 'sa': ?_strictAfter, if (info != null) 'info': info!.toJson()},
+    wait: const Duration(milliseconds: 300),
+    most: const Duration(seconds: 2),
+  );
+
+  void _save() => _writer.save();
+
+  /// Writes the log now (a test that reads the file after).
+  @visibleForTesting
+  void flushKept() => _writer.flush();
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
   /// (the log's own rosters, or this device's), the rest under the roster as it is now (FilesList.read).

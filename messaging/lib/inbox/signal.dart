@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -9,6 +10,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 
 /// What the Signal helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
 abstract class SignalLink {
@@ -27,6 +29,9 @@ abstract class SignalLink {
 /// is the way Signal Desktop and mautrix-signal go, and may need mending when Signal changes. Offered as Coming soon
 /// until it has been proven.
 class Signal extends InboxNetwork {
+  @override
+  bool get official => true;
+
   Signal({this.soon = false, this.link, this.folder});
 
   @override
@@ -78,9 +83,7 @@ class Signal extends InboxNetwork {
   /// The `sgnl://linkdevice` address to draw as a QR code, while linking.
   String? get qr => _qr;
 
-  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
-  // the chats seen are kept in there.
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/signal' : '${DeskStore.defaultDir().path}/signal');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/signal' : '${DeskStore.defaultDir().path}/signal');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -108,17 +111,17 @@ class Signal extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<SignalLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'signalsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_SIGNALSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_SIGNALSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\signal-sidecar.exe' else '$exe/../Helpers/signal-sidecar',
-        '${Directory.current.path}/build/signal-sidecar/${Platform.isWindows ? 'windows/signal-sidecar.exe' : 'mac/signal-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\signal-sidecar.exe' else '$exe/../Helpers/signal-sidecar',
+        '${Directory.current.path}/build/signal-sidecar/${PlatformInfo.isWindows ? 'windows/signal-sidecar.exe' : 'mac/signal-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -131,7 +134,7 @@ class Signal extends InboxNetwork {
     try {
       // On the phone libsignal needs Android's shared C++ library, which goes beside the helper
       // (tool/build-signalsidecar.sh): the helper is started with its folder on the library path.
-      final env = Platform.isAndroid ? {'LD_LIBRARY_PATH': File(binary).parent.path} : null;
+      final env = PlatformInfo.isAndroid ? {'LD_LIBRARY_PATH': File(binary).parent.path} : null;
       return _ProcessLink(await Process.start(binary, ['--dir', _dir], environment: env));
     } catch (_) {
       return null;
@@ -417,7 +420,12 @@ class Signal extends InboxNetwork {
     if (group && name != null && name.isNotEmpty) _names[from] = name;
     final list = _messages.putIfAbsent(chat, () => []);
     final ts = (m['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
-    if (list.any((x) => x['ts'] == ts && x['from'] == from)) return;
+    // Here already? The list is in order of time, so one of the same time is at its end: looked for from there back,
+    // not through the whole chat (docs/performance-audit.md, finding 4).
+    for (var i = list.length - 1; i >= 0 && (list[i]['ts'] as int) >= ts; i--) {
+      if (list[i]['ts'] == ts && list[i]['from'] == from) return;
+    }
+    final inOrder = list.isEmpty || ts >= (list.last['ts'] as int);
     list.add({
       'ts': ts,
       'from': from,
@@ -429,7 +437,7 @@ class Signal extends InboxNetwork {
       if (m['mentions'] is List && (m['mentions'] as List).isNotEmpty) 'mentions': m['mentions'],
     });
     _nameMentioned(m['mentions'] as List?);
-    list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+    if (!inOrder) list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final fresh = !_chats.containsKey(chat);
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
     if (fresh && !group && (_names[chat]?.isEmpty ?? true)) unawaited(_nameChats());
@@ -657,7 +665,8 @@ class Signal extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // A Signal sticker (the helper marks it), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -698,16 +707,19 @@ class Signal extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = voice || ext == 'm4a'
+      // A voice message changed by Voice changer is an MP3 (lib/voice/voice_changer.dart), and says so.
+      final mime = ext == 'mp3'
+          ? 'audio/mpeg'
+          : voice || ext == 'm4a'
           ? 'audio/mp4'
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
       try {
-        final name = path.split(Platform.pathSeparator).last;
+        final name = path.split(PlatformInfo.pathSeparator).last;
         final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': i == paths.length - 1 ? caption : ''}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         // What was sent is kept for its bubble: a copy in Signal's own folder (the picked file is a copy Android may clear),
@@ -715,7 +727,7 @@ class Signal extends InboxNetwork {
         // sent showed "Bad state: the attachment has no key", the pointer kept having been only the picked file's path).
         final kept = await _keepSent(path, ts, i, name);
         final pointer = r['pointer'] is Map ? r['pointer'] : {'local': kept};
-        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}], 'state': 'sent'});
+        _messages.putIfAbsent(chatId, () => []).add({'ts': ts, 'from': '', 'mine': true, 'text': i == paths.length - 1 ? caption : '', 'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}], 'state': 'sent'});
         _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
         _chats.putIfAbsent(chatId, () => {'unread': 0})['last'] = ts;
       } catch (e) {
@@ -893,33 +905,15 @@ class Signal extends InboxNetwork {
     } catch (_) {}
   }
 
-  // Saving waits 400 ms for more changes, so a burst of them is written once: to a temporary file, then renamed
-  // over the real one, so a crash never leaves half a file.
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), () {
-      try {
-        _file.parent.createSync(recursive: true);
-        final tmp = File('${_file.path}.tmp');
-        tmp.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
-        tmp.renameSync(_file.path);
-      } catch (_) {}
-    });
-  }
+  /// What is kept, as it stands: handed to [_writer], which makes the file elsewhere (lib/inbox/kept_writer.dart).
+  Map<String, Object?> _keptNow() => {'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()};
+
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _saving = Timer(Duration.zero, () {});
-      try {
-        _file.parent.createSync(recursive: true);
-        _file.writeAsStringSync(jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()}));
-      } catch (_) {}
-    }
-  }
+  void flush() => _writer.flush();
 
   /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {

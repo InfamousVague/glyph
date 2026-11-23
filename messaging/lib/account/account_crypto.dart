@@ -1,12 +1,13 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
 
 import '../net/crypto.dart';
+import 'argon2_browser.dart';
 import 'bip39_words.dart';
+import 'gzip.dart';
 import '../net/fast_gcm.dart';
 
 /// The cryptography of a Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
@@ -249,7 +250,11 @@ class AccountCrypto {
   /// [passwordKey] off the main isolate: a phone's frames go on while 64 MiB are worked through.
   static Future<Uint8List> passwordKeyAway(String password, List<int> salt, {int memoryKiB = argonMemoryKiB, int passes = argonPasses, int lanes = argonLanes}) {
     final s = Uint8List.fromList(salt);
-    return Isolate.run(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
+    // In a browser the browser's own JavaScript does it, on a worker (argon2_browser.dart): Dart there would take most
+    // of a minute with the page frozen. Dart's all the same where that can't be had, since a slow sign-in is one still.
+    final browsers = browserArgon2id(Uint8List.fromList(utf8.encode(password)), s, memoryKiB: memoryKiB, passes: passes, lanes: lanes);
+    if (browsers != null) return browsers.then((key) => key, onError: (Object _) => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
+    return runAside(() => passwordKey(password, s, memoryKiB: memoryKiB, passes: passes, lanes: lanes));
   }
 
   // --- sealing ---------------------------------------------------------------------------------------------------------

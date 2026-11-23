@@ -1,17 +1,22 @@
 import 'linux_dialogs.dart';
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 
+import 'desk_player.dart';
+import 'desk_voice.dart' show m4aMillis;
 import 'link/link.dart';
+import '../sms.dart' show Sms;
 
 /// What the computer is called in the app's words: "Mac", or "PC" on Windows.
-String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone' : Platform.isLinux ? 'computer' : 'Mac';
+/// A page in a browser (Sms.browser) is none of those: "browser".
+String get computerWord => Sms.browser ? 'browser' : PlatformInfo.isWindows ? 'PC' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isLinux ? 'computer' : 'Mac';
 
 /// What the desktop app is for, in its name: "the Mac", or "Windows".
-String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : Platform.isLinux ? 'Linux' : 'the Mac';
+String get desktopName => Sms.browser ? 'a browser' : PlatformInfo.isWindows ? 'Windows' : PlatformInfo.isIOS ? 'the iPhone' : PlatformInfo.isLinux ? 'Linux' : 'the Mac';
 
 /// What the app asks of the system it runs on, over the "ghost_desktop/system" channel (on a Mac and an iPhone,
 /// DeskChannels.swift): opening a link, the computer's name, the Keychain, and recording and playing voice
@@ -24,17 +29,17 @@ class MacPlatform {
     // Exactly as given: an address with a space before it is refused rather than tidied (test/desk_link_test.dart).
     final uri = Uri.tryParse(url);
     if (uri == null || url != url.trim() || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return false;
-    if (Platform.isIOS) {
+    if (PlatformInfo.isIOS) {
       try {
         return await _system.invokeMethod<bool>('openLink', {'url': uri.toString()}) ?? false;
       } catch (_) {
         return false;
       }
     }
-    final opener = Platform.isMacOS ? 'open' : Platform.isWindows ? 'explorer' : 'xdg-open';
+    final opener = PlatformInfo.isMacOS ? 'open' : PlatformInfo.isWindows ? 'explorer' : 'xdg-open';
     try {
       // Windows' explorer answers 1 even when it opened the address.
-      return (await Process.run(opener, [uri.toString()])).exitCode == 0 || Platform.isWindows;
+      return (await Process.run(opener, [uri.toString()])).exitCode == 0 || PlatformInfo.isWindows;
     } catch (_) {
       return false;
     }
@@ -49,7 +54,7 @@ class MacPlatform {
       final name = await _system.invokeMethod<String>('name');
       if (name != null && name.trim().isNotEmpty) return name.trim();
     } catch (_) {}
-    return Platform.localHostname.replaceAll(RegExp(r'\.local\.?$'), '').replaceAll('-', ' ');
+    return PlatformInfo.localHostname.replaceAll(RegExp(r'\.local\.?$'), '').replaceAll('-', ' ');
   }
 
   /// The Keychain: what is kept under [account], or null; and [value] kept there, true where the Keychain took it.
@@ -74,7 +79,7 @@ class MacPlatform {
   /// The Mac's panel for choosing pictures: the paths chosen, none where it was put away.
   static Future<List<String>> pickPictures({int most = 5}) async {
     // Linux: the desktop's own chooser (lib/desktop/linux_dialogs.dart).
-    if (Platform.isLinux) return linuxPick(most: most, pictures: true);
+    if (PlatformInfo.isLinux) return linuxPick(most: most, pictures: true);
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickPictures', {'most': most})) ?? const []) '$p'];
     } catch (_) {
@@ -134,7 +139,9 @@ class MacPlatform {
     } catch (_) {}
   }
 
-  /// Ends the recording: its bytes (AAC in an `.m4a`), or null where there is nothing worth keeping.
+  /// Ends the recording: its bytes (AAC in an `.m4a`), or null where there is nothing worth keeping. Windows answers
+  /// these four too (windows/runner/desk_sound.cpp, GMFB-32), and says in `voiceStart`'s answer how many `seconds`
+  /// fit at its own rate.
   static Future<Uint8List?> voiceStop() async {
     try {
       return await _system.invokeMethod<Uint8List>('voiceStop');
@@ -143,8 +150,13 @@ class MacPlatform {
     }
   }
 
+  /// Windows and Linux play a voice message in Dart, by media_kit ([DeskPlayer], GMFB-32); the Mac and the iPhone
+  /// natively (DeskSound.swift).
+  static bool get _dartPlayer => PlatformInfo.isWindows || PlatformInfo.isLinux;
+
   /// Plays a message's sound ([bytes] the first time; null goes on with the one paused). Null, or why it cannot.
   static Future<String?> voicePlay(int part, Uint8List? bytes) async {
+    if (_dartPlayer) return DeskPlayer.play(part, bytes);
     try {
       return await _system.invokeMethod<String>('voicePlay', {'part': part, 'bytes': bytes});
     } on MissingPluginException {
@@ -155,18 +167,22 @@ class MacPlatform {
   /// Pauses the sound playing, to go on from there; [voiceHalt] stops it for good. [voiceLength] is how long a
   /// sound runs, in milliseconds as the phone gives it, or 0 where that cannot be told.
   static Future<void> voicePause() async {
+    if (_dartPlayer) return DeskPlayer.pause();
     try {
       await _system.invokeMethod('voicePause');
     } catch (_) {}
   }
 
   static Future<void> voiceHalt() async {
+    if (_dartPlayer) return DeskPlayer.halt();
     try {
       await _system.invokeMethod('voiceHalt');
     } catch (_) {}
   }
 
   static Future<int> voiceLength(Uint8List bytes) async {
+    // Read from the file itself where no native player is asked: an .m4a says how long it runs.
+    if (_dartPlayer) return m4aMillis(bytes);
     try {
       return (await _system.invokeMethod<num>('voiceLength', {'bytes': bytes}))?.toInt() ?? 0;
     } catch (_) {
@@ -177,6 +193,7 @@ class MacPlatform {
   /// Where the sound being played has got to, as the Mac says it (DeskSound.swift `heard`): handed to [heard].
   static void listenToVoice(void Function(Map state) heard) {
     _heard = heard;
+    DeskPlayer.heard = heard;
     _listen();
   }
 

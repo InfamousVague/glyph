@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
@@ -9,6 +10,7 @@ import '../app_state.dart';
 import '../desktop/store.dart';
 import '../sms.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 import 'signal.dart' show signalReactions;
 
 /// What the WhatsApp helper is to the app: lines out, lines in. A process in the app; a stand-in in a test.
@@ -93,9 +95,7 @@ class WhatsApp extends InboxNetwork {
   /// The eight-letter code to type on the phone instead, once asked for ([pairWithPhone]).
   String? get pairCode => _pairCode;
 
-  // The folder the helper's store is in (the app's files on Android, the desktop store's elsewhere), and the file
-  // the chats seen are kept in there.
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/whatsapp' : '${DeskStore.defaultDir().path}/whatsapp');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/whatsapp' : '${DeskStore.defaultDir().path}/whatsapp');
   File get _file => File('$_dir/chats.json');
 
   @override
@@ -123,17 +123,17 @@ class WhatsApp extends InboxNetwork {
   /// The helper: beside the app on a computer (Contents/Helpers on a Mac), the phone's native libraries on Android.
   Future<WhatsAppLink?> _process() async {
     String? binary;
-    if (Platform.isAndroid) {
+    if (PlatformInfo.isAndroid) {
       try {
         binary = await const MethodChannel('ghost_messaging/sms').invokeMethod<String>('helperPath', {'name': 'whatsappsidecar'});
       } catch (_) {}
-    } else if (Platform.isMacOS || Platform.isWindows) {
-      final named = Platform.environment['GHOST_WHATSAPPSIDECAR'];
-      final exe = File(Platform.resolvedExecutable).parent.path;
+    } else if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
+      final named = PlatformInfo.environment['GHOST_WHATSAPPSIDECAR'];
+      final exe = File(PlatformInfo.resolvedExecutable).parent.path;
       for (final c in [
         ?named,
-        if (Platform.isWindows) '$exe\\whatsapp-sidecar.exe' else '$exe/../Helpers/whatsapp-sidecar',
-        '${Directory.current.path}/build/whatsapp-sidecar/${Platform.isWindows ? 'windows/whatsapp-sidecar.exe' : 'mac/whatsapp-sidecar'}',
+        if (PlatformInfo.isWindows) '$exe\\whatsapp-sidecar.exe' else '$exe/../Helpers/whatsapp-sidecar',
+        '${Directory.current.path}/build/whatsapp-sidecar/${PlatformInfo.isWindows ? 'windows/whatsapp-sidecar.exe' : 'mac/whatsapp-sidecar'}',
       ]) {
         if (File(c).existsSync()) {
           binary = c;
@@ -213,6 +213,7 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
     _chats.clear();
     _messages.clear();
+    _ids.clear();
     _contacts.clear();
     _account = null;
     _state = InboxState.signedOut;
@@ -365,6 +366,7 @@ class WhatsApp extends InboxNetwork {
         notifyListeners();
       case 'deleted':
         _messages['${m['chat']}']?.removeWhere((x) => x['id'] == '${m['target_id']}');
+        _ids.remove('${m['chat']}');
         _save();
         notifyListeners();
     }
@@ -406,8 +408,11 @@ class WhatsApp extends InboxNetwork {
     }
     final list = _messages.putIfAbsent(chat, () => []);
     final mid = '${m['id'] ?? ''}';
-    if (mid.isNotEmpty && list.any((x) => x['id'] == mid)) return false;
+    final ids = _idsOf(chat, list);
+    if (mid.isNotEmpty && ids.contains(mid)) return false;
     final ts = (m['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+    final inOrder = list.isEmpty || ts >= (list.last['ts'] as int);
+    ids.add(mid.isEmpty ? 'in-$ts' : mid);
     list.add({
       'id': mid.isEmpty ? 'in-$ts' : mid,
       'ts': ts,
@@ -419,13 +424,24 @@ class WhatsApp extends InboxNetwork {
       if (m['quote'] is Map) 'quote': m['quote'],
       if (m['reactions'] is Map) 'reactions': m['reactions'],
     });
-    list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+    // Sorted only where it came out of order (history arrives oldest first, live messages newest last): a history
+    // sync of thousands sorted the whole chat for each one (docs/performance-audit.md, finding 4).
+    if (!inOrder) list.sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
     final c = _chats.putIfAbsent(chat, () => {'unread': 0});
     if (ts > ((c['last'] as int?) ?? 0)) c['last'] = ts;
     return true;
   }
 
-  /// The kept message [messageId] of [chatId]; null where it isn't held.
+  /// The ids of [chat]'s messages, for knowing one that is here already without looking through them all. Made from
+  /// the list when it is first wanted, and again whenever the two no longer agree (a message deleted, one's id changed
+  /// as it was sent).
+  final Map<String, Set<String>> _ids = {};
+  Set<String> _idsOf(String chat, List<Map<String, Object?>> list) {
+    final had = _ids[chat];
+    if (had != null && had.length == list.length) return had;
+    return _ids[chat] = {for (final x in list) '${x['id']}'};
+  }
+
   Map<String, Object?>? _find(String chatId, String messageId) => (_messages[chatId] ?? const []).where((x) => x['id'] == messageId).firstOrNull;
 
   /// A reaction put on a message or taken off: one a person, kept on the message as who gave which.
@@ -483,6 +499,7 @@ class WhatsApp extends InboxNetwork {
     try {
       final r = (await _ask('send', {'to': chatId, 'text': text, 'quote': ?quote}) as Map?) ?? const {};
       local['id'] = r['id'] ?? local['id'];
+      _ids.remove(chatId);
       local['ts'] = (r['ts'] as num?)?.toInt() ?? local['ts'];
       local['state'] = 'sent';
       _error = null;
@@ -576,7 +593,8 @@ class WhatsApp extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      kind: mime.startsWith('image/') ? 'photo' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file',
+      // A WhatsApp sticker (its pointer is one), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true || (a['pointer'] as Map?)?['kind'] == 'sticker'),
       fileId: key,
       path: _files[key],
       name: a['name'] as String?,
@@ -596,17 +614,20 @@ class WhatsApp extends InboxNetwork {
   bool get canSendFiles => true;
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final ext = path.split('.').last.toLowerCase();
-      final mime = voice
+      // A voice message changed by Voice changer is an MP3 (lib/voice/voice_changer.dart), and says so.
+      final mime = ext == 'mp3'
+          ? 'audio/mpeg'
+          : voice
           ? 'audio/ogg; codecs=opus'
           : const {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4a': 'audio/mp4', 'ogg': 'audio/ogg', 'pdf': 'application/pdf'}[ext] ??
               'application/octet-stream';
       final text = i == paths.length - 1 ? caption : '';
       try {
-        final name = path.split(Platform.pathSeparator).last;
+        final name = path.split(PlatformInfo.pathSeparator).last;
         final r = (await _ask('send_media', {'to': chatId, 'path': path, 'mime': mime, 'name': name, 'text': text}) as Map?) ?? const {};
         final ts = (r['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
         // What was sent is kept for its bubble: a copy in WhatsApp's own folder, and WhatsApp's pointer to fetch it again.
@@ -618,7 +639,7 @@ class WhatsApp extends InboxNetwork {
           'from': _jid ?? '',
           'mine': true,
           'text': text,
-          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer}],
+          'media': [{'local': kept, 'mime': mime, 'name': name, 'pointer': pointer, if (sticker) 'sticker': true}],
           'state': 'sent',
         });
         _files[jsonEncode(pointer).hashCode & 0x3fffffff] = kept;
@@ -716,6 +737,7 @@ class WhatsApp extends InboxNetwork {
       }
     }
     _messages[chatId]?.removeWhere((m) => m['id'] == messageId);
+    _ids.remove(chatId);
     _save();
     notifyListeners();
   }
@@ -754,6 +776,7 @@ class WhatsApp extends InboxNetwork {
   Future<void> deleteChat(String chatId) async {
     _chats.remove(chatId);
     _messages.remove(chatId);
+    _ids.remove(chatId);
     _save();
     notifyListeners();
   }
@@ -775,36 +798,15 @@ class WhatsApp extends InboxNetwork {
     } catch (_) {}
   }
 
-  /// Everything kept, as the file holds it.
-  String _kept() => jsonEncode({'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()});
+  /// What is kept, as it stands: handed to [_writer], which makes the file elsewhere (lib/inbox/kept_writer.dart).
+  Map<String, Object?> _keptNow() => {'chats': _chats, 'messages': _messages, 'names': _names, 'numbers': _numbers, 'groups': _groups.toList()};
 
-  // Saving waits 400 ms for more changes, so a burst of them is written once: to a temporary file, then renamed
-  // over the real one, so a crash never leaves half a file.
-  Timer? _saving;
-  void _save() {
-    _saving?.cancel();
-    _saving = Timer(const Duration(milliseconds: 400), () {
-      try {
-        _file.parent.createSync(recursive: true);
-        final tmp = File('${_file.path}.tmp');
-        tmp.writeAsStringSync(_kept());
-        tmp.renameSync(_file.path);
-      } catch (_) {}
-    });
-  }
+  late final KeptWriter _writer = KeptWriter(file: () => _file, snapshot: _keptNow);
+  void _save() => _writer.save();
 
   /// Writes what is kept now (a test's end, the app going).
   @visibleForTesting
-  void flush() {
-    if (_saving?.isActive ?? false) {
-      _saving!.cancel();
-      _saving = null;
-      try {
-        _file.parent.createSync(recursive: true);
-        _file.writeAsStringSync(_kept());
-      } catch (_) {}
-    }
-  }
+  void flush() => _writer.flush();
 
   /// Asks the helper to do [op] and waits for its answer; fails with the helper's reason, or where it never answers.
   Future<Object?> _ask(String op, [Map<String, Object?> args = const {}]) {

@@ -421,6 +421,16 @@ class _ControlBar extends StatelessWidget {
             look: call.videoLocked ? _Look.alarm : (call.video ? _Look.lit : _Look.plain),
           ),
           gap,
+          // Discord's Share Your Screen, beside the camera (GMFB-27), where this device can.
+          if (call.onScreen != null) ...[
+            _BarButton(
+              icon: LucideMore.screenShare,
+              label: call.screen ? 'Stop sharing' : 'Screen',
+              onPressed: call.videoLocked && !call.screen ? null : () => call.onScreen!(context),
+              look: call.screen ? _Look.lit : _Look.plain,
+            ),
+            gap,
+          ],
           _BarButton(
             icon: call.micLocked ? Lucide.lock : SpaceWords.muteIcon(call),
             label: call.micLocked ? 'Mic locked' : SpaceWords.mute(call),

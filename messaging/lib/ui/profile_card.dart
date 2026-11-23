@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'composer_box.dart' show ComposerBox, ComposerField;
-import 'dart:convert';
+import 'cosmetics_ui.dart';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../games/game_activity.dart';
 import '../art/lucide.g.dart';
@@ -14,23 +15,30 @@ import '../art/lucide_more.dart';
 import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../kit/settings_type.dart';
+import '../me/cosmetics.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../voice/hangout.dart';
 import 'common.dart';
+import 'report_sheet.dart' show ReportTarget, showReportSheet;
+import 'emoji_suggestions.dart';
 import 'inbox_ui.dart' show openInboxChat, inboxMark;
 import 'profile.dart';
 import 'shell.dart';
 import 'thread.dart';
 import 'special_badges.dart';
+import 'username_friends.dart' show acceptRequest;
 import 'verified_badge.dart';
+import 'name_watch_words.dart';
 import 'nav_bar.dart' show HoverTip;
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import '../me/verified_numbers.dart';
+import '../kit/picture_decode.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
 /// chats show this profile popup with actions available for the user in context of where it's placed"): someone on
@@ -80,7 +88,7 @@ Future<void> showProfile(BuildContext context, ProfileSubject who, {List<Choice>
 /// What is known here of someone on Ghost: a friend's own profile, else what they said in the space, else their
 /// username alone.
 class _Ghost {
-  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game});
+  _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String username;
   final String name;
@@ -92,6 +100,9 @@ class _Ghost {
   /// What they are playing, where they said so lately (lib/games/game_activity.dart): to this person as a friend, or
   /// to the space this was opened from.
   final GameActivity? game;
+
+  /// What their profile wears (lib/me/cosmetics.dart): their own as a friend said, or as their greeting in the space did.
+  final Cosmetics cosmetics;
 
   bool get friend => buddy?.state == 'yes';
 }
@@ -114,10 +125,14 @@ _Ghost _ghostOf(ProfileSubject who) {
     pictureHash: here?.pictureHash ?? '',
     me: me,
     game: me ? GameActivities.instance.mine : (GameActivities.instance.of(buddy?.id ?? who.id) ?? here?.game),
+    cosmetics: me ? Me.instance.cosmetics : (buddy != null && !buddy.cosmetics.isEmpty ? buddy.cosmetics : (here?.cosmetics ?? Cosmetics.none)),
   );
 }
 
-/// The name to call them by: what is known here, else the name given, else their username, else "them".
+/// What a friend's card says of the relay they are on, where it isn't this app's.
+/// A friend's relay, on their card: what reaches them, by whether this app's relay passes messages on ([talks]).
+String friendRelayWords(String host, {bool talks = true}) => talks ? 'On $host, another relay than yours. What you write to each other goes through your relay to theirs, where both pass messages on.' : 'On $host, another relay than yours, and yours doesn\'t pass messages to other relays: what you write doesn\'t reach them from here.';
+
 String _nameOf(ProfileSubject who, _Ghost? g) => (g?.name.isNotEmpty == true ? g!.name : (who.name.isNotEmpty ? who.name : (who.username.isNotEmpty ? who.username : 'them')));
 
 /// What can be done with [who] from here, under the card.
@@ -145,8 +160,11 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
             mark: inboxMark(Inbox.instance.named(e.key)!, size: 20), hint: e.value),
     if (!ghost.friend && ghost.buddy == null && ghost.username.isNotEmpty && Me.instance.username != null)
       Choice('Add @${ghost.username} as a friend', Lucide.userPlus, () => unawaited(_addFriend(context, ghost.username)), hint: 'You can write to them once they say yes'),
-    if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(Buddies.instance.accept(ghost.buddy!))),
+    if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(acceptRequest(context, ghost.buddy!))),
     if (ghost.username.isNotEmpty) Choice('Copy @${ghost.username}', Lucide.copy, () => _copy(context, '@${ghost.username}')),
+    // Report (GMFB-40): the person, from their card, with Block offered on the sheet.
+    if (ghost.id.isNotEmpty || ghost.username.isNotEmpty)
+      Choice('Report ${ghost.username.isNotEmpty ? '@${ghost.username}' : ghost.name}', Lucide.flag, () => unawaited(showReportSheet(context, ReportTarget(id: ghost.id, username: ghost.username, name: ghost.name, place: who.room != null ? 'space' : 'profile', placeName: who.room?.channel.name ?? '')))),
   ];
 }
 
@@ -227,17 +245,24 @@ class _ProfileCardState extends State<_ProfileCard> {
   String? _picture;
   bool _looking = true;
   final _dm = TextEditingController();
-  final _dmFocus = FocusNode();
+
+  /// The emoji a ":jo" being written finds, over the box, and a whole ":joy:" put in as 😂 (lib/ui/emoji_suggestions.dart;
+  /// GMFB-22, Matt, Mac 0.12.6: "typing :joy: or something should expand the emoji to the joy emoji and auto suggest
+  /// with a popup"). Its list has the keys first while it is open, so Enter there picks rather than sends.
+  late final EmojiShortcodeSuggester _shortcodes;
+  late final _dmFocus = FocusNode(onKeyEvent: (node, e) => _shortcodes.key(e) ?? KeyEventResult.ignored);
   bool _sending = false;
 
   @override
   void initState() {
     super.initState();
+    _shortcodes = EmojiShortcodeSuggester(_dm, app: () => mounted ? AppState.maybeOf(context) : null);
     unawaited(_look());
   }
 
   @override
   void dispose() {
+    _shortcodes.dispose();
     _dm.dispose();
     _dmFocus.dispose();
     super.dispose();
@@ -301,6 +326,8 @@ class _ProfileCardState extends State<_ProfileCard> {
     // profile popup to be more like discords"): a banner in their colour, the face over its lower edge in a ring of the
     // card's own colour, their badges' marks in a small tray to its right, the name large, then a panel of what is
     // known of them, About me, Badges by name, Where (this circle) and their links, and the field to write to them.
+    // What their profile wears (GMFB-34): only someone on Ghost has any.
+    final dress = g?.cosmetics ?? Cosmetics.none;
     final face = t.lenOf('5rem');
     final ringW = t.lenOf('0.375rem');
     final bannerH = t.lenOf('5.5rem');
@@ -322,8 +349,17 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
           )
         : const SizedBox.shrink();
+    // The relay a friend is on, where it isn't this app's (docs/OPEN_NETWORK.md, section 4).
+    final theirRelay = g?.buddy == null ? '' : Buddies.instance.relayOf(g!.buddy!);
+    // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
+    // still the key that was added; this only says so.
+    final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
     final panel = <Widget>[
+      // In the card's own ink: the usual reason is an ordinary one (they changed or gave up the name, and someone took it).
+      if (renamed != null)
+        section('Their username', Text(friendNameChangedWords(renamed.username, name.isEmpty ? '@${renamed.username}' : name), key: const ValueKey('profile-name-watch'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
+      if (theirRelay.isNotEmpty) section('Relay', Text(friendRelayWords(theirRelay, talks: Buddies.instance.relayTalks), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4)), key: const ValueKey('profile-relay')),
       badgeList,
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)
@@ -341,7 +377,7 @@ class _ProfileCardState extends State<_ProfileCard> {
           ]),
         ),
     ];
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       // The banner, with the face over its lower edge and the badges' tray under it at the right.
       SizedBox(
         height: bannerH + face / 2 + ringW,
@@ -352,7 +388,11 @@ class _ProfileCardState extends State<_ProfileCard> {
             right: 0,
             top: 0,
             height: bannerH,
-            child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+            // Their chosen banner (GMFB-34), else a band in their colour.
+            child: CosmeticBanner(
+              id: dress.banner,
+              fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+            ),
           ),
           Positioned(
             left: t.space(4) - ringW,
@@ -361,7 +401,7 @@ class _ProfileCardState extends State<_ProfileCard> {
               key: const ValueKey('profile-face'),
               padding: EdgeInsets.all(ringW),
               decoration: BoxDecoration(color: card, shape: BoxShape.circle),
-              child: ProfileFace(name: name, picture: _picture, file: n?.avatar, size: face),
+              child: DressedFace(size: face, cosmetics: dress, face: ProfileFace(name: name, picture: _picture, file: n?.avatar, size: face)),
             ),
           ),
           if (known)
@@ -378,7 +418,7 @@ class _ProfileCardState extends State<_ProfileCard> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Flexible(
-              child: Text(name.isEmpty ? 'Someone' : name, key: const ValueKey('profile-name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
+              child: NameEffectText(name.isEmpty ? 'Someone' : name, key: const ValueKey('profile-name'), id: dress.name, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
             ),
             // The verified-number mark beside the name, as Discord's verified badge is (Matt, 2026-11-19); the special
             // badges are in the tray and the panel, not here twice.
@@ -422,6 +462,7 @@ class _ProfileCardState extends State<_ProfileCard> {
             ),
           if (g != null && g.friend && !g.me) ...[
             SizedBox(height: t.space(3)),
+            EmojiSuggestions(suggester: _shortcodes),
             // The box every conversation writes in, Send inside it at its end (Matt, 2026-11-19: "move the send message
             // button inside the input like we have on the rest of the app as well within that drawer").
             ListenableBuilder(
@@ -450,6 +491,9 @@ class _ProfileCardState extends State<_ProfileCard> {
         ]),
       ),
     ]);
+    // Their profile effect drifting over the whole card, never in the way of a touch.
+    if (dress.effect.isEmpty) return body;
+    return Stack(children: [body, Positioned.fill(child: ProfileEffectLayer(key: const ValueKey('profile-effect'), id: dress.effect))]);
   }
 }
 
@@ -518,12 +562,11 @@ class ProfileFace extends StatelessWidget {
     Widget? image;
     final p = picture;
     if (p != null && p.isNotEmpty) {
-      try {
-        image = Image.memory(base64Decode(p), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true);
-      } catch (_) {}
+      final bytes = pictureBytes(p);
+      if (bytes != null) image = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
     }
     final f = file;
-    if (image == null && f != null && f.isNotEmpty && File(f).existsSync()) image = Image.file(File(f), width: size, height: size, fit: BoxFit.cover);
+    if (image == null && f != null && f.isNotEmpty && File(f).existsSync()) image = Image.file(File(f), width: size, height: size, fit: BoxFit.cover, cacheWidth: faceDecodeWidth(context, size));
     if (image != null) return ClipOval(child: SizedBox(width: size, height: size, child: image));
     final letter = name.trim().isEmpty ? '?' : String.fromCharCodes(name.trim().runes.take(1)).toUpperCase();
     return Container(

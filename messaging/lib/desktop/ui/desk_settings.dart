@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import '../../ui/whats_new.dart' show showWhatsNew;
 import 'package:flutter/widgets.dart';
 
@@ -18,6 +18,8 @@ import '../../ui/settings.dart';
 import '../../ui/settings_panes.dart' show aboutLicences, versionTapped;
 import '../../gm/google_signin.dart';
 import '../../gm/google_signin_flow.dart';
+import '../../gm/rcs_share.dart';
+import '../../sms.dart' show Sms;
 import '../gm_web.dart';
 import '../private_browser.dart';
 import '../link/link.dart';
@@ -172,12 +174,34 @@ String _updateShort(MacUpdates u) {
 
 /// Pairing with Google Messages, as messages.google.com is paired (Matt, 2026-11-15: "Yes, mautrix sidecar"): a QR
 /// code to scan in Google Messages on the phone, and how it stands once paired.
-class _GmPage extends StatelessWidget {
+class _GmPage extends StatefulWidget {
   const _GmPage();
+
+  @override
+  State<_GmPage> createState() => _GmPageState();
+}
+
+class _GmPageState extends State<_GmPage> {
+  /// How RCS stands on the paired phone (GMFB-11, lib/gm/rcs_share.dart); null until it answers, or where it can't.
+  RcsState? _phone;
+
+  /// Set up here as well, though the phone already carries RCS.
+  bool _here = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Sms.remote) {
+      RcsShare.ofPhone().then((s) {
+        if (mounted) setState(() => _phone = s);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final gm = GmWeb.instance;
+    final phone = _phone;
     return ListenableBuilder(
       listenable: gm,
       builder: (context, _) {
@@ -224,6 +248,24 @@ class _GmPage extends StatelessWidget {
                 ),
               ],
             )
+          else if (phone != null && phone.throughPhone && !_here) ...[
+            // RCS already comes through the phone (GMFB-11, @kevin: "Syncing the rcs setting between connected devices
+            // would be really cool"): said, rather than asking for this computer to be set up again.
+            PaneSection(
+              title: 'RCS through your phone',
+              description: const Text('Your phone has Google Messages set up in Ghost, so every conversation there, RCS and texts, already shows on this computer through it.'),
+              footer: const Text('Your phone needs to be on and online for them to arrive. Set up this computer as well if you want it to reach Google Messages without your phone being on.'),
+              children: [
+                SettingRow(
+                  key: const ValueKey('rcs-through-phone'),
+                  icon: _icon(phone.webConnected ? Lucide.circleCheck : Lucide.triangleAlert),
+                  label: phone.webConnected ? 'On, through your phone' : 'Set up on your phone, connecting',
+                  hint: Text([if (phone.phone.isNotEmpty) phone.phone, if (phone.rcsOn) 'RCS chats on in Google Messages'].join(' · ').ifEmpty('Google Messages answers your phone')),
+                ),
+                SettingRow(icon: _icon(Lucide.laptop), label: 'Set up this computer as well', onPress: () => setState(() => _here = true)),
+              ],
+            ),
+          ]
           else ...[
             // Google-account pairing, all in one place (lib/gm/google_signin_flow.dart; Matt, 2026-11-15: "Please make
             // setting up google messages a onboarding flow that is all in one place"): QR pairing is gone from Google
@@ -444,6 +486,18 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
           onPress: busy ? null : (ready ? u.restart : u.check),
         ),
         if (u.phase == MacUpdatePhase.downloading) SettingRowBox(child: GlacierProgressBar(value: u.progress * 100, ariaLabel: 'Getting the update')),
+        // Linux from the .deb (GMFB-32): the new one is here and checked; installing it is root's, so the command is
+        // offered to paste into a terminal.
+        if (u.installCommand != null)
+          SettingRow(
+            icon: _icon(Lucide.copy),
+            label: 'Copy the install command',
+            hint: Text(u.installCommand!),
+            onPress: () {
+              Clipboard.setData(ClipboardData(text: u.installCommand!));
+              toast(context, 'Copied. Paste it into a terminal, then open Ghost Messaging again.');
+            },
+          ),
       ],
     ),
   ];

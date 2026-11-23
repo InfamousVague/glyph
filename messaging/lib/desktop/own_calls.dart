@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -44,7 +45,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   Future<bool> Function() restart = _restartHere;
 
   static Future<bool> _restartHere() async {
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
+    if (PlatformInfo.environment.containsKey('FLUTTER_TEST')) return false;
     await restartApp();
     return true;
   }
@@ -238,7 +239,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
       case 'e2eList':
         List<Object?> phone;
         try {
-          phone = [...?(await inner.invokeMethod<List>('e2eList'))];
+          phone = UsernameChats.phoneRecords(await inner.invokeMethod<List>('e2eList'));
         } catch (_) {
           phone = const [];
         }

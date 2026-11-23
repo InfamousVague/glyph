@@ -8,7 +8,6 @@
 /// and dark, through the app's tokens.
 library;
 
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:io';
@@ -22,6 +21,7 @@ import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
+import '../../sms.dart' show Sms;
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
@@ -29,6 +29,7 @@ import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
 import 'new_circle.dart' show circleHueInk;
+import '../../kit/picture_decode.dart';
 
 /// [view] as the circle's page: [CirclePage] round its [CircleSpaceList].
 class CircleList extends StatelessWidget {
@@ -179,10 +180,12 @@ class _CircleBannerState extends State<CircleBanner> {
   }
 
   /// Brings the full picture down once, where the circle has one and it isn't here yet; the stand-in shows meanwhile.
+  /// A page in a browser keeps no files (Files is not in a page): the stand-in, which came with the circle, is its
+  /// picture there.
   void _fetch() {
     final c = widget.circle;
     final j = c.manifest.bannerFile;
-    final f = j == null ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
+    final f = j == null || Sms.browser ? null : SpaceFile.fromJson(j, by: c.manifest.by ?? '');
     if (f == null) {
       _full = null;
       return;
@@ -208,11 +211,10 @@ class _CircleBannerState extends State<CircleBanner> {
     final b = circle.banner;
     final full = _full;
     if (full != null) {
-      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => const SizedBox.shrink());
+      image = Image.file(File(full), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, cacheWidth: fillDecodeWidth(context), errorBuilder: (_, _, _) => const SizedBox.shrink());
     } else if (b != null) {
-      try {
-        image = Image.memory(base64Decode(b), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium);
-      } catch (_) {}
+      final bytes = pictureBytes(b);
+      if (bytes != null) image = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, cacheWidth: fillDecodeWidth(context));
     }
     // Set in from the edges with rounded corners, not edge to edge (Matt, 2026-11-19: "add just a bit of margin around
     // the sidebar banner header and add some border radius to them so it's not edge to edge").

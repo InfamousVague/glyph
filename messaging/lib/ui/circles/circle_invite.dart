@@ -115,7 +115,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                 child: ListenableBuilder(
                   listenable: widget.buddies,
                   builder: (context, _) {
-                    final friends = widget.buddies.shownFriends;
+                    final friends = widget.buddies.roomFriends;
                     final n = _chosen.length;
                     return SingleChildScrollView(
                       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [

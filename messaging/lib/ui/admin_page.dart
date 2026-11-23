@@ -29,6 +29,7 @@ import '../plugins/pack/pack.dart' show InstalledPlugins, isReviewKey, signRetir
 import '../sms.dart';
 import 'common.dart';
 import 'market/market_forms.dart' show openSettingsMe;
+import 'market/people_reports_page.dart';
 import 'market/review_queue.dart';
 import 'settings.dart';
 import 'souls.dart';
@@ -201,6 +202,9 @@ class _AdminPanelState extends State<AdminPanel> {
   /// The Review queue row's second line, from route 14 read once signed in; null while it is asked.
   String? _queue;
 
+  /// The Reports of people row's second line (GMFB-40), from the same read.
+  String? _people;
+
   Future<Map<String, dynamic>> _ask(Map<String, Object?> what) => (widget.ask ?? Me.instance.admin)(what);
 
   @override
@@ -229,6 +233,7 @@ class _AdminPanelState extends State<AdminPanel> {
       final q = await _market.reviewQueue();
       MarketState.instance.reviewQueueRead(q.waiting);
       line = '${q.waiting} waiting · ${q.reports} ${q.reports == 1 ? 'report' : 'reports'}';
+      if (mounted) setState(() => _people = q.abuse == 0 ? 'None open' : '${q.abuse} open');
     } on MarketError catch (e) {
       line = switch (e.code) {
         'no_identity' => 'This device has no Ghost identity of its own: review from your phone.',
@@ -335,6 +340,17 @@ class _AdminPanelState extends State<AdminPanel> {
             hint: Text(_queue ?? 'Asking the Marketplace…'),
             onPress: () async {
               await push<void>(context, (_) => ReviewQueueScreen(api: _market, ask: widget.ask));
+              if (mounted) unawaited(_readQueue());
+            },
+          ),
+          // Reports of people and messages (GMFB-40): sealed to this device's review key, opened here.
+          SettingRow(
+            key: const ValueKey('admin-people-reports'),
+            icon: AppIcon(Lucide.flag, size: 18),
+            label: 'Reports of people',
+            hint: Text(_people ?? 'Sealed for this device\'s review key'),
+            onPress: () async {
+              await push<void>(context, (_) => PeopleReportsScreen(api: _market, ask: widget.ask));
               if (mounted) unawaited(_readQueue());
             },
           ),

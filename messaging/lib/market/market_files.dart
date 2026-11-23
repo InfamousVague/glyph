@@ -9,6 +9,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -20,15 +21,17 @@ import '../plugins/pack/pack.dart' show PackLimits, cleanPng, pngProblem;
 import '../sms.dart';
 
 /// A plugin file as chosen: its name, its bytes (at most a package's limit and one more, so a larger one is said to be
-/// too large rather than cut), and its path where it can be read again (a Mac's; Android's picked copies are not kept).
+/// too large rather than cut), and its path where it can be read again (a computer's; Android's picked copies are not
+/// kept).
 typedef PickedPlugin = ({String name, Uint8List bytes, String? path});
 
-/// Where a plugin file can be chosen: Android's picker and a Mac's Open panel.
-bool get canPickPluginFile => Platform.isAndroid || Platform.isMacOS;
+/// Where a plugin file can be chosen: Android's picker, a Mac's Open panel and Windows' Open dialog (GMFB-7: Windows
+/// had none, so a downloaded plugin file could not be loaded there).
+bool get canPickPluginFile => PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows;
 
 /// A .ghostplugin chosen with the device's own picker; null where none was.
 Future<PickedPlugin?> pickPluginFile() async {
-  if (Platform.isAndroid) {
+  if (PlatformInfo.isAndroid) {
     final picked = await Sms.instance.pickFiles();
     if (picked.isEmpty) return null;
     final copy = await Sms.instance.cacheCopy(picked.first);
@@ -44,11 +47,11 @@ Future<PickedPlugin?> pickPluginFile() async {
       }
     }
   }
-  if (Platform.isMacOS) {
+  if (PlatformInfo.isMacOS || PlatformInfo.isWindows) {
     final paths = await FilePlatform.pickPaths(most: 1);
     if (paths.isEmpty) return null;
     final path = paths.first;
-    return (name: path.split(Platform.pathSeparator).last, bytes: await _readAtMost(File(path), PackLimits.packageBytes + 1), path: path);
+    return (name: path.split(PlatformInfo.pathSeparator).last, bytes: await _readAtMost(File(path), PackLimits.packageBytes + 1), path: path);
   }
   return null;
 }

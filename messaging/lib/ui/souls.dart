@@ -78,6 +78,8 @@ class _SoulsChipState extends State<SoulsChip> {
   void initState() {
     super.initState();
     Me.instance.gifts.addListener(_gift);
+    // Any that came before this was drawn (at the hello, as the app opened).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _gift());
   }
 
   @override
@@ -88,19 +90,21 @@ class _SoulsChipState extends State<SoulsChip> {
 
   /// Says a gift that came (souls, souls taken back, or a badge) in a toast, once: the gift is cleared as it is read.
   void _gift() {
-    final g = Me.instance.gifts.value;
-    if (g == null || !mounted) return;
-    Me.instance.gifts.value = null;
-    final badge = g.badge == null ? null : specialBadge(g.badge!);
-    final words = badge != null
-        ? 'You were given the ${badge.name} badge'
-        : g.souls > 0
-            ? 'You got ${soulsCount(g.souls)} ${g.souls == 1 ? 'soul' : 'souls'}${g.why.isEmpty ? '' : ': ${g.why}'}'
-            : '${soulsCount(-g.souls)} ${g.souls == -1 ? 'soul was' : 'souls were'} taken back';
-    // Above the app's pages (the Mac's title strip) there may be nothing to toast on: then the count says it alone.
-    try {
-      toast(context, words);
-    } catch (_) {}
+    if (!mounted || Me.instance.gifts.value.isEmpty) return;
+    final all = Me.instance.takeGifts();
+    // Given while the app was away: a card that waits to be read, each with why (Matt, 2026-11-21: "notify a user when
+    // they have recieved souls wiht a description for why like "bug bounty" etc it should notify them next time they
+    // connect to the app (or immediatly if they're connected in real time)"). Given now: said as it comes.
+    if (all.any((g) => g.away)) {
+      unawaited(showSoulsGifts(context, all));
+      return;
+    }
+    for (final g in all) {
+      // Above the app's pages (the Mac's title strip) there may be nothing to toast on: then the count says it alone.
+      try {
+        toast(context, giftWords(g));
+      } catch (_) {}
+    }
   }
 
   @override
@@ -151,6 +155,50 @@ class _SoulsChipState extends State<SoulsChip> {
       },
     );
   }
+}
+
+/// A gift in a sentence: "You got 40 souls: Bug bounty".
+String giftWords(SoulsGift g) {
+  final badge = g.badge == null ? null : specialBadge(g.badge!);
+  if (badge != null) return 'You were given the ${badge.name} badge';
+  if (g.souls > 0) return 'You got ${soulsCount(g.souls)} ${g.souls == 1 ? 'soul' : 'souls'}${g.why.isEmpty ? '' : ': ${g.why}'}';
+  return '${soulsCount(-g.souls)} ${g.souls == -1 ? 'soul was' : 'souls were'} taken back${g.why.isEmpty ? '' : ': ${g.why}'}';
+}
+
+/// A gift as a line of the card: "40 souls · Bug bounty".
+String giftLine(SoulsGift g) {
+  final badge = g.badge == null ? null : specialBadge(g.badge!);
+  if (badge != null) return 'The ${badge.name} badge';
+  final n = g.souls.abs();
+  final what = '${g.souls < 0 ? '−' : ''}${soulsCount(n)} ${n == 1 ? 'soul' : 'souls'}${g.souls < 0 ? ' taken back' : ''}';
+  return g.why.isEmpty ? what : '$what · ${g.why}';
+}
+
+/// What was given while the app was away, each with why, in a card that waits to be read; one press opens the souls.
+Future<void> showSoulsGifts(BuildContext context, List<SoulsGift> gifts) {
+  final t = context.tokens;
+  final got = gifts.fold<int>(0, (a, g) => a + (g.souls > 0 ? g.souls : 0));
+  final title = got > 0 ? 'You got ${soulsCount(got)} ${got == 1 ? 'soul' : 'souls'}' : (gifts.length == 1 ? giftWords(gifts.single) : 'Souls and badges');
+  return showChoices(
+    context,
+    title: title,
+    header: Padding(
+      key: const ValueKey('souls-gifts'),
+      padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final g in gifts)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: t.space(1)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SoulFlame(size: 16),
+              SizedBox(width: t.space(2)),
+              Expanded(child: Text(giftLine(g), style: pageText(t, t.fontSize('md'), color: t.color('app-ink')))),
+            ]),
+          ),
+      ]),
+    ),
+    choices: [Choice('See your souls', Lucide.flame, () => unawaited(showSouls(context)))],
+  );
 }
 
 /// What souls are, how many this person has, and their badges.

@@ -11,6 +11,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import 'friends/buddies.dart';
+import 'friends/friends.dart';
 import 'inbox/inbox.dart';
 import 'net/net.dart';
 
@@ -21,26 +22,34 @@ class Presence {
   /// Told whenever anyone's presence changes, on our own system or another network.
   static Listenable get changes => Listenable.merge([Net.instance.presence, Inbox.instance.presenceChanges]);
 
-  /// The install name on our own system of whoever [address] names: a friend by username (`@name`), or someone this
-  /// phone shares keys with, by their number. Null for anyone else.
+  /// The install name on our own system of whoever [address] names: a friend by username (`@name`), the one that
+  /// username stands for (Buddies.standingFor: never a request not yet answered, or someone blocked, that gave the same
+  /// username); or someone this phone shares keys with, by their number: the id the encryption record for that number
+  /// names (Friends.idOf), never whoever the routes happen to hold under it (a member of a group, under a number its
+  /// admin wrote). Both found in review, 2026-11-23. Null for anyone else.
   static String? ghostIdOf(String address) {
-    if (address.startsWith('@')) {
-      final name = address.substring(1).toLowerCase();
-      for (final b in Buddies.instance.all) {
-        if (b.username.toLowerCase() == name) return b.id;
-      }
-      return null;
-    }
+    if (address.startsWith('@')) return Buddies.instance.standingFor(address)?.id;
     if (address.contains(':')) return null;
-    return Net.instance.byAddress(address)?.id;
+    return Friends.instance.idOf(address);
+  }
+
+  /// Whether the install named [id] is on our own system now, or when it was last seen, as the relay's hub says: by
+  /// its name, for whoever is known by it already (one of the routes' people, a friend by username).
+  static InboxPresence? ofId(String id) {
+    // A friend on another relay: who is here doesn't cross relays yet (docs/OPEN_NETWORK.md, section 4), and what this
+    // relay last saw of them (before they moved away, say) would only mislead. Nothing is shown.
+    final buddy = Buddies.instance.byId(id);
+    if (buddy != null && Buddies.instance.apart(buddy)) return null;
+    final g = Net.instance.presenceOfId(id);
+    return g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen, away: g.away, busy: g.busy);
   }
 
   /// Whether whoever [address] names is on now, and where; or when they were last seen. Null where nothing is known.
   static InboxPresence? of(String address) {
     final id = ghostIdOf(address);
-    final g = id == null ? null : Net.instance.presenceOfId(id);
-    final ghost = g == null ? null : InboxPresence(network: 'Ghost Messaging', online: g.online, lastSeen: g.lastSeen);
-    if (ghost != null && ghost.online) return ghost;
+    final ghost = id == null ? null : ofId(id);
+    // Busy or away on Ghost is how they chose to be shown: it wins over being online elsewhere.
+    if (ghost != null && (ghost.online || ghost.busy || ghost.away)) return ghost;
     final other = Inbox.instance.presenceOfAddress(address);
     if (other != null && other.online) return other;
     if (ghost == null) return other;

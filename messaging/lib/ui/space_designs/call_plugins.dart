@@ -21,11 +21,14 @@ import '../common.dart';
 /// One thing a plugin offers in a call's menu, as a design draws it.
 @immutable
 class SpaceExtra {
-  const SpaceExtra({required this.label, required this.icon, required this.run, this.danger = false});
+  const SpaceExtra({required this.label, required this.icon, required this.run, this.danger = false, this.builtIn = false});
   final String label;
   final LucideIcon icon;
   final void Function(BuildContext context) run;
   final bool danger;
+
+  /// The app's own (Share screen), not a plugin's: a design that marks plugins doesn't mark it.
+  final bool builtIn;
 }
 
 /// What the plugins have for the call [Voice] is in and for a space's header, asked of the registry afresh each time.

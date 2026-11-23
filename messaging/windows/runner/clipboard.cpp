@@ -2,17 +2,21 @@
 // `pasteImage`; Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"): the path of an
 // image file copied in Explorer, or a copied picture (a screenshot, an image copied from a page) written out as a
 // BMP in the temporary folder, which the app makes a PNG. Nothing where there is neither, and the field pastes words.
+// Also Windows' Open dialog for choosing files and pictures (Pick, below).
 #include "clipboard.h"
+#include "desk_sound.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 
 #include <algorithm>
 #include <cwctype>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -84,12 +88,71 @@ std::string CopiedPicture() {
   return out;
 }
 
+// Windows' own Open dialog (lib/files/file_platform.dart `pickPaths`, lib/desktop/platform.dart `pickPictures`):
+// the paths chosen, at most [most], pictures alone where [pictures]. Windows had neither, so nothing could be chosen
+// here at all: no file into a circle's Files, no plugin file (GMFB-7, @kevin: "I cannot see any downloaded plugins on
+// windows").
+std::vector<std::string> Pick(int most, bool pictures) {
+  std::vector<std::string> out;
+  IFileOpenDialog* dialog = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) return out;
+  DWORD options = 0;
+  dialog->GetOptions(&options);
+  options |= FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST;
+  if (most > 1) options |= FOS_ALLOWMULTISELECT;
+  dialog->SetOptions(options);
+  if (pictures) {
+    COMDLG_FILTERSPEC spec[] = {{L"Pictures", L"*.png;*.jpg;*.jpeg;*.gif;*.webp;*.heic;*.bmp"}};
+    dialog->SetFileTypes(1, spec);
+  }
+  if (SUCCEEDED(dialog->Show(GetActiveWindow()))) {
+    IShellItemArray* items = nullptr;
+    if (SUCCEEDED(dialog->GetResults(&items))) {
+      DWORD count = 0;
+      items->GetCount(&count);
+      for (DWORD i = 0; i < count && static_cast<int>(out.size()) < most; i++) {
+        IShellItem* item = nullptr;
+        if (FAILED(items->GetItemAt(i, &item))) continue;
+        PWSTR path = nullptr;
+        if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+          out.push_back(Utf8(path));
+          CoTaskMemFree(path);
+        }
+        item->Release();
+      }
+      items->Release();
+    }
+  }
+  dialog->Release();
+  return out;
+}
+
+int MostOf(const flutter::EncodableValue* args, int fallback) {
+  if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
+    auto it = map->find(flutter::EncodableValue("most"));
+    if (it != map->end()) {
+      if (const auto* n = std::get_if<int32_t>(&it->second)) return *n;
+      if (const auto* n = std::get_if<int64_t>(&it->second)) return static_cast<int>(*n);
+    }
+  }
+  return fallback;
+}
+
 }  // namespace
 
 // "ghost_desktop/system" on Windows answers `pasteImage` alone: a copied file first, else a copied picture.
 void RegisterClipboard(flutter::BinaryMessenger* messenger) {
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(messenger, "ghost_desktop/system", &flutter::StandardMethodCodec::GetInstance());
   g_channel->SetMethodCallHandler([](const flutter::MethodCall<flutter::EncodableValue>& call, std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+    if (call.method_name() == "pickFiles" || call.method_name() == "pickPictures") {
+      const bool pictures = call.method_name() == "pickPictures";
+      flutter::EncodableList paths;
+      for (const auto& p : Pick(MostOf(call.arguments(), pictures ? 5 : 50), pictures)) paths.push_back(flutter::EncodableValue(p));
+      result->Success(flutter::EncodableValue(paths));
+      return;
+    }
+    // A voice message from Windows' microphone (desk_sound.cpp): this channel is the Mac's DeskChannels' too.
+    if (DeskSoundHandle(call, result)) return;
     if (call.method_name() != "pasteImage") {
       result->NotImplemented();
       return;

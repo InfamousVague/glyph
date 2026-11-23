@@ -14,6 +14,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../platform_info.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -50,7 +51,7 @@ import 'try_pack.dart';
 
 /// Where the form is drawn, as it decides what it offers: Android and a Mac choose files; Windows has no picture panel;
 /// a computer pastes pictures.
-String get _platform => SubmitPluginScreen.debugPlatform ?? (Platform.isAndroid ? 'android' : (Platform.isMacOS ? 'macos' : (Platform.isWindows ? 'windows' : (Platform.isIOS ? 'ios' : 'linux'))));
+String get _platform => SubmitPluginScreen.debugPlatform ?? (PlatformInfo.isAndroid ? 'android' : (PlatformInfo.isMacOS ? 'macos' : (PlatformInfo.isWindows ? 'windows' : (PlatformInfo.isIOS ? 'ios' : 'linux'))));
 bool get _canPickFile => SubmitPluginScreen.debugPlatform == null ? canPickPluginFile : (_platform == 'android' || _platform == 'macos');
 bool get _canChoosePicture => _platform != 'windows';
 bool get _computer => SubmitPluginScreen.debugPlatform == null ? Sms.computer : (_platform == 'macos' || _platform == 'windows' || _platform == 'linux');

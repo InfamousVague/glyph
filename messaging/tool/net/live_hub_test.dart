@@ -22,8 +22,6 @@ class _Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
-  @override
-  Peer? byAddress(String address) => null;
 }
 
 /// Starts a carrier and gives it ten seconds to reach the hub; fails with the carrier's own reason if it does not.

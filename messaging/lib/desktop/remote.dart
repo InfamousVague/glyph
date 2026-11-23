@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import '../plugins/shown_store.dart';
 import '../sounds.dart';
 import '../sms.dart';
 import 'cache.dart';
+import 'desk_voice.dart';
 import 'gm_web.dart';
 import 'link/crypto.dart';
 import 'link/link.dart';
@@ -627,7 +629,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
         return FilePlatform.pickPaths(most: 10);
       case 'openFile':
         final path = '${a['path']}';
-        await Process.run(Platform.isWindows ? 'explorer' : 'open', [path]);
+        await Process.run(PlatformInfo.isWindows ? 'explorer' : 'open', [path]);
         return null;
       case 'emoji':
         await MacPlatform.emoji();
@@ -637,22 +639,20 @@ class LinkCalls implements SmsCalls, CapableCalls {
         final sent = (await link.request('sendSticker', {'key': _name(), 'addresses': a['addresses'], 'name': a['name'], 'upload': await _handOver(sticker)})) as Map;
         return _went(sent);
       case 'voiceStart':
-        // How long one may run is the phone's carrier's to say; the Mac's recorder stops itself there.
-        final limit = (await link.request('voiceLimit')) as Map;
-        final began = await MacPlatform.voiceStart((limit['bytes'] as num).toInt());
-        if (began['ok'] == true) return {'ok': true, 'seconds': (limit['seconds'] as num).toInt()};
-        if (began['denied'] == true) return {'ok': false, 'denied': true};
-        throw PhoneError('${began['error'] ?? 'The microphone could not be started'}');
+        // For a text, how long one may run is the phone's carrier's to say, and the recorder stops itself there; for a
+        // file (a network's chat, a space, a friend: GMFB-32) no carrier holds it and the phone isn't asked.
+        final limit = a['file'] == true ? null : (await link.request('voiceLimit')) as Map;
+        return DeskVoice.start(carrier: limit);
       case 'voiceLevel':
-        final heard = await MacPlatform.voiceLevel();
-        if (heard['full'] == true) Sms.instance.voiceFull.add(null);
-        return (heard['level'] as num?)?.toDouble() ?? 0.0;
+        return DeskVoice.level();
       case 'voiceCancel':
-        await MacPlatform.voiceCancel();
+        await DeskVoice.cancel();
         return null;
+      // Kept as a file here, for a network's chat or a space to send (GMFB-32), as the phone's own voiceFinish does.
+      case 'voiceFinish':
+        return DeskVoice.finish();
       case 'voiceSend':
-        final sound = await MacPlatform.voiceStop();
-        if (sound == null) throw const PhoneError('That was too short to send');
+        final sound = await DeskVoice.stopBytes();
         final sent = (await link.request('sendVoice', {'key': _name(), 'addresses': a['addresses'], 'name': 'voice.m4a', 'upload': await _handOver(sound)})) as Map;
         return {'thread': _went(sent), 'millis': 0};
       case 'voicePlay':
@@ -841,6 +841,10 @@ class LinkCalls implements SmsCalls, CapableCalls {
         // The phone's Telegram approves this computer's sign-in (lib/inbox/telegram.dart answerComputer).
         if (!_caps.contains('telegram')) throw const PhoneError('Update Ghost Messaging on your phone to sign in to Telegram through it.');
         return link.request('telegram', a, const Duration(seconds: 40));
+      case 'rcs':
+        // How RCS stands on the phone (lib/gm/rcs_share.dart, GMFB-11).
+        if (!_caps.contains('rcs')) throw const PhoneError('Update Ghost Messaging on your phone to see its RCS here.');
+        return link.request('rcs', a, const Duration(seconds: 15));
       case 'voice':
         // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
         if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its spaces here.');

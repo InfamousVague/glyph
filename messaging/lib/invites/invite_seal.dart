@@ -20,7 +20,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart' show Scrypt, ScryptParameters;
@@ -141,7 +141,7 @@ WaitingInvite? openInvite(String e164, String blob, {DateTime? at}) {
 
 /// Where the slow sealing and opening are done: another isolate, so the screen keeps moving while a list of invites
 /// is sealed. A widget test, whose clock is its own, sets it to do the work in place.
-Future<R> Function<R>(FutureOr<R> Function() work) inviteWorker = Isolate.run;
+Future<R> Function<R>(FutureOr<R> Function() work) inviteWorker = runAside;
 
 /// Seals [invite] for each of [to] (a number with its public key and signature, where signed), off the screen's
 /// isolate.

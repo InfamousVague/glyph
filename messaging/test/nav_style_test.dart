@@ -132,6 +132,15 @@ void main() {
             expect(AppShellState.live!.circleOpen, isFalse);
         }
 
+        // What is unread in Messages is counted on its ring, the rail's Home or the pill's Messages (GMFB-17, Matt:
+        // "When messages have unreads the message bubble icon in the sidebar should show the count in a unread badge").
+        AppShellState.live!.messagesUnread.value = 3;
+        await tester.pump();
+        final ring = _key(style == NavStyle.rail ? 'rail-home' : 'nav-messages');
+        if (ring.evaluate().isNotEmpty) expect(find.descendant(of: ring, matching: find.text('3')), findsOneWidget, reason: 'the count on Messages');
+        AppShellState.live!.messagesUnread.value = 0;
+        await tester.pump();
+
         // Settings: the same navigation stays where it is unified, on a phone too.
         AppShellState.live!.settings();
         await settle(tester);

@@ -11,6 +11,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -94,9 +95,10 @@ class CallScribe extends ChangeNotifier {
   bool? _available;
 
   /// Whether this device can write out words: a phone with on-device speech recognition (Android 13 and up), a Mac or
-  /// an iPhone whose speech recognition runs on the device.
+  /// an iPhone whose speech recognition runs on the device, or Windows with a speech language installed
+  /// (windows/runner/speech.cpp).
   Future<bool> available() async {
-    if (kIsWeb || !(Platform.isAndroid || Platform.isMacOS || Platform.isIOS)) return false;
+    if (kIsWeb || !(PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isIOS || PlatformInfo.isWindows)) return false;
     try {
       return _available ??= await _channel.invokeMethod<bool>('available') ?? false;
     } catch (_) {
@@ -147,7 +149,7 @@ class CallScribe extends ChangeNotifier {
       final lines = mergeLines(per);
       // Only the Android phone has a summary model of its own.
       String? summary;
-      if (lines.isNotEmpty && !kIsWeb && Platform.isAndroid) {
+      if (lines.isNotEmpty && !kIsWeb && PlatformInfo.isAndroid) {
         summary = await Sms.instance.summarize([for (final l in lines) '${l.who}: ${l.text}'].join('\n'));
       }
       final t = Transcript(lines: lines, summary: summary);

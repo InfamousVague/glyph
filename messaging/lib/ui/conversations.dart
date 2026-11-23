@@ -1,4 +1,5 @@
 import 'blocking.dart';
+import '../snooze.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -6,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../keys.dart';
+import '../message_format.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/ghost_icons.dart';
@@ -25,6 +27,7 @@ import '../plugins/ui.dart' show FilterButton, MarkAllRead, PluginRow;
 import '../reactions.dart';
 import '../sms.dart';
 import '../summaries.dart';
+import 'account_screens.dart' show ShowWordsScreen, wordsLater;
 import 'common.dart';
 import 'voice_screen.dart';
 import 'hangout_screen.dart';
@@ -39,7 +42,6 @@ import '../voice/channels.dart';
 import 'update_banner.dart';
 import 'compose.dart';
 import 'dialup/dialup.dart';
-import 'files_space/files_screen.dart';
 import 'settings.dart';
 import 'shell.dart';
 import 'swipe_actions.dart';
@@ -88,11 +90,43 @@ class ConversationsScreen extends StatefulWidget {
   /// app: lib/ui/circles/circle_invite_card.dart): the list shows it, and sets this back to null.
   static final wantTab = ValueNotifier<String?>(null);
 
+  /// The main list on the screen, for the keyboard's commands to ask of (GMFB-41, lib/keys.dart): its conversations
+  /// in the order shown, all of them, opening one, and Mark all as read. Null while there is none; never the
+  /// Archived page.
+  static ConversationList? live;
+
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
 }
 
-class _ConversationsScreenState extends State<ConversationsScreen> {
+/// What the keyboard's commands ask of the main list (ConversationsScreen.live): the texts and Ghost's own
+/// conversations, which have a thread; another network's chats are not among them.
+abstract class ConversationList {
+  /// The tab shown, in the order it is drawn, whatever is typed in its search.
+  List<Conversation> get order;
+
+  /// Every conversation not archived, of every tab.
+  List<Conversation> get every;
+
+  void openConversation(Conversation c);
+
+  /// Every unread conversation in the tab shown marked read.
+  Future<void> markShownRead();
+}
+
+class _ConversationsScreenState extends State<ConversationsScreen> implements ConversationList {
+  @override
+  List<Conversation> get order => _shown;
+
+  @override
+  List<Conversation> get every => [for (final c in _all ?? const <Conversation>[]) if (!c.archived) c];
+
+  @override
+  void openConversation(Conversation c) => unawaited(_open(c));
+
+  @override
+  Future<void> markShownRead() => _markAllRead(_section);
+
   List<Conversation>? _all;
   String _query = '';
   StreamSubscription<int>? _changes;
@@ -164,12 +198,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   void initState() {
     super.initState();
+    if (!widget.archived) ConversationsScreen.live = this;
     // What was open in the pane has closed, or given way to something else: read again, as on coming back to the
     // list from a page.
     _shell = AppShell.maybeOf(context)?..closed.addListener(_back);
     // A summary made comes into its row; who is in a voice channel comes into its.
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
+    Snoozed.instance.addListener(_summed);
     Circles.instance.addListener(_summed);
     ConversationsScreen.wantTab.addListener(_wanted);
     _wanted();
@@ -208,8 +244,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   void dispose() {
+    if (identical(ConversationsScreen.live, this)) ConversationsScreen.live = null;
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
+    Snoozed.instance.removeListener(_summed);
     Circles.instance.removeListener(_summed);
     ConversationsScreen.wantTab.removeListener(_wanted);
     _inbox.removeListener(_summed);
@@ -267,8 +305,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             _selected.addAll(page.items.map((c) => c.id));
           }
         });
-        // The number on the pill's Archive follows what is taken back out here.
+        // The Archive ring's menu says how many are here; its number, how many of them are unread (GMFB-14).
         _shell?.archived.value = page.items.length;
+        _shell?.archivedUnread.value = page.items.where((c) => c.unread).length;
         return;
       }
       Sms.instance.archivedCount().then((n) {
@@ -276,6 +315,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         setState(() => _archived = n);
         _shell?.archived.value = n;
       }).catchError((_) {});
+      unawaited(_shell?.countArchivedUnread());
       final seen = <int>{};
       int? at = 0;
       while (at != null) {
@@ -389,6 +429,42 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     ]
       ..sort((a, b) => b.$1.compareTo(a.$1));
     return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+  }
+
+  /// Snoozed conversations out of the list until their time, and those back from a snooze at its top until opened
+  /// (GMFB-36). A search finds a snoozed one, and the archive is as it was.
+  List<Object> _snoozing(List<Object> rows) {
+    final z = Snoozed.instance;
+    if (widget.archived || (z.count == 0 && !rows.any((r) => r is Conversation && z.woken(Snoozed.text(r.id))))) return rows;
+    final searching = _query.isNotEmpty;
+    final woken = <Object>[], rest = <Object>[];
+    for (final r in rows) {
+      final key = r is Conversation ? Snoozed.text(r.id) : null;
+      if (key != null && z.hides(key) && !searching) continue;
+      (key != null && z.woken(key) ? woken : rest).add(r);
+    }
+    return [...woken, ...rest];
+  }
+
+  String? _snoozedUntil(Conversation c) {
+    final u = Snoozed.instance.until(Snoozed.text(c.id));
+    return u == null ? null : 'Until ${dayHeading(u)} ${clock(u)}';
+  }
+
+  Future<void> _snooze(Conversation c) async {
+    final key = Snoozed.text(c.id);
+    if (Snoozed.instance.hides(key)) {
+      Snoozed.instance.unsnooze(key);
+      toast(context, 'Back in Messages');
+      return;
+    }
+    await showChoices(context, title: 'Snooze ${c.title}: it leaves Messages and comes back at the top, with a notification.', choices: [
+      for (final o in Snoozed.choices(DateTime.now()))
+        Choice(o.label, Lucide.clock, () {
+          Snoozed.instance.snooze(key, o.at, title: c.title);
+          toast(context, 'Snoozed until ${dayHeading(o.at)} ${clock(o.at)}', action: GlacierToastAction(label: 'Undo', onPress: () => Snoozed.instance.unsnooze(key)));
+        }),
+    ]);
   }
 
   /// When [v] last had anything happen: now while anyone is in its call, else its newest message or its call's last.
@@ -533,16 +609,20 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final list = _section != null ? all : [...all.where((c) => c.pinned), ...all.where((c) => !c.pinned)];
     if (_query.trim().isEmpty) return list;
     final q = fold(_query.trim());
-    final digits = q.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = q.replaceAll(_notDigit, '');
+    // Each conversation's words and numbers are folded once for as long as it is held, not at every key pressed
+    // (docs/performance-audit.md, finding 8): a search of thousands is then a look through strings made already.
     return list.where((c) {
-      if (fold(c.snippet).contains(q) || (c.draft != null && fold(c.draft!).contains(q))) return true;
-      for (final p in c.people) {
-        if (fold(p.label).contains(q)) return true;
-        if (digits.length >= 3 && p.address.replaceAll(RegExp(r'[^0-9]'), '').contains(digits)) return true;
-      }
-      return false;
+      final (words, numbers) = _searched[c] ??= (
+        [fold(c.snippet), if (c.draft != null) fold(c.draft!), for (final p in c.people) fold(p.label)].join('\u001f'),
+        [for (final p in c.people) p.address.replaceAll(_notDigit, '')].join('\u001f'),
+      );
+      return words.contains(q) || (digits.length >= 3 && numbers.contains(digits));
     }).toList();
   }
+
+  static final RegExp _notDigit = RegExp(r'[^0-9]');
+  static final Expando<(String, String)> _searched = Expando();
 
   // --- the tabs --------------------------------------------------------------------------------------------------------
 
@@ -569,7 +649,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     // A Files space opens its files (lib/ui/files_space/), in the conversation's place.
     if (c.kind == SpaceKind.files) {
       final shell = AppShell.maybeOf(context);
-      final page = FilesSpaceScreen(key: ValueKey('files-space-${c.seed}'), channel: c);
+      final page = circleSpacePage(c, key: ValueKey('files-space-${c.seed}'));
       shell != null ? shell.show(page, showing: 'files:${c.seed}') : push<void>(context, (_) => page);
       return;
     }
@@ -600,9 +680,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// One tab's conversations (null: the main list's), whatever is typed in the search: not the archived ones.
   List<Conversation> _of(String? section) {
-    final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
-    return _plugins.pick(held, section, searching: false);
+    // Asked several times a build (the tabs' counts, Mark all read): worked out once for each list held.
+    if (!identical(_ofFor, _all)) {
+      _ofFor = _all;
+      _ofMemo.clear();
+    }
+    return _ofMemo[section] ??= () {
+      final held = (_all ?? const <Conversation>[]).where((c) => !c.archived).toList();
+      return _plugins.pick(held, section, searching: false);
+    }();
   }
+
+  List<Conversation>? _ofFor;
+  final Map<String?, List<Conversation>> _ofMemo = {};
 
   /// The row under the search field: the tabs as a segmented toggle (Matt, 2026-11-14: "change the messages and
   /// codes to a segmented toggle") and, at its end, the filter. With neither there is no row. Mark all read is at the
@@ -630,6 +720,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             count: unread,
             onPress: unread > 0 ? () => _markAllRead(_section) : null,
           ),
+          // In a browser too, words alone (it can't choose a picture yet), sent by the page's own fetch.
           if (!MacChrome.stripEnabled)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
           // An unreviewed pack's rows look like any other's, so the list says while one runs (Matt, 2026-11-20: "a
@@ -859,6 +950,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   /// Opens a conversation: in the frame's pane, or as a page over the list, which is read again on coming back.
   Future<void> _open(Conversation c) async {
+    Snoozed.instance.opened(Snoozed.text(c.id));
     final shell = _shell;
     if (shell != null) {
       shell.openThread(c.id, c.people);
@@ -887,6 +979,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       // Plugins: their own lines for this conversation ("Not spam").
       if (!widget.archived) ..._plugins.menu(context, c),
       Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () => _pin(c)),
+      // Snooze (GMFB-36): out of Messages until a time, then back at the top.
+      if (!widget.archived)
+        Choice(Snoozed.instance.hides(Snoozed.text(c.id)) ? 'Unsnooze' : 'Snooze…', Lucide.clock, () => unawaited(_snooze(c)),
+            hint: _snoozedUntil(c)),
       Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
         await Sms.instance.threadFlag('muted', c.id, !c.muted);
         await _load();
@@ -1025,6 +1121,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final app = AppState.of(context);
+    // What a tab holds is worked out again for each build (the filters may have changed), once ([_of]).
+    _ofMemo.clear();
     // Plugins: given the person's choices, then asked which section each conversation is in. A section that has
     // emptied gives way to the main list.
     if (!widget.archived) {
@@ -1049,7 +1147,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         // the filtering a bit more this message got through"); a search finds it.
         ? [
             for (final c in inbox.chats)
-              if ((_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
+              // Held by the Human check (lib/inbox/human_check.dart, GMFB-23): in its "held" row, not here.
+              if (!inbox.heldIds.contains(c.id) &&
+                  (_query.isEmpty || c.title.toLowerCase().contains(_query.toLowerCase()) || c.snippet.toLowerCase().contains(_query.toLowerCase())) &&
                   !_plugins.hidesChat('${c.network}:${c.id}', searching: _query.isNotEmpty) &&
                   (_spamHost == null || _query.isNotEmpty || (Inbox.instance.named(c.network)?.localList('notspam').contains(c.id) ?? false) || scamOf(c) == null))
                 c,
@@ -1060,7 +1160,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             : [
                 // Circle invites waiting, at the top of Messages where the rail has taken the Circles tab's place.
                 if (railed && _section == null && _query.isEmpty && !widget.archived && !_selecting) ...circleInviteRows(context, Circles.instance.invites),
-                ..._mixed(shown),
+                ..._snoozing(_mixed(shown)),
               ];
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -1069,6 +1169,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final gutter = t.space(4);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
     final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && !_beside && app.flag('rcs_notice');
+    // The recovery words put off at sign-up (GMFB-3): a reminder until they are seen in Settings › Me.
+    final wordsDue = !widget.archived && _query.isEmpty && !_selecting && _section == null && app.flag(wordsLater, fallback: false);
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
@@ -1085,6 +1187,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final card = dialup ? (inset: EdgeInsets.zero, radius: 0.0) : (inset: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')), radius: t.lenOf('1rem'));
 
     final unreadHere = _unreadTexts(_section).length + _unreadChats(_section).length + _unreadSpaces(_section).length;
+    // The Messages ring's number (GMFB-17): what is unread in Messages itself, whichever tab is open here.
+    if (!widget.archived && _all != null) {
+      final inMessages = _unreadTexts(null).length + _unreadChats(null).length + _unreadSpaces(null).length;
+      final shell = _shell;
+      if (shell != null && shell.messagesUnread.value != inMessages) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) shell.messagesUnread.value = inMessages;
+        });
+      }
+    }
     // Mark all read, Share feedback and the tabs' toggle scroll away with the list, the search staying (Matt, 2026-11-20:
     // "scroll the share feedback mark all as read and the segmented toggle when scrolling down"): the list's first row.
     // Dial-Up's list is a well sunk into the window, so there they stay over it.
@@ -1155,7 +1267,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ]);
     } else {
-      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0);
+      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0) + (wordsDue ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -1168,6 +1280,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           if (lead != null && i == 0) return lead;
           if (notice && i == (lead != null ? 1 : 0)) {
             return _RcsNotice(app: _arriving.app, onFix: () => _settings('android'), onDismiss: () => app.setFlag('rcs_notice', false));
+          }
+          if (wordsDue && i == (lead != null ? 1 : 0) + (notice ? 1 : 0)) {
+            return _WordsNotice(onShow: () => push(context, (_) => const ShowWordsScreen()), onDismiss: () => app.setFlag(wordsLater, false));
           }
           final at = i - extras;
           if (at < rows.length && rows[at] is InboxChat) {
@@ -1475,6 +1590,44 @@ class _RefreshableListState extends State<RefreshableList> {
 
 /// Over the list until it is dismissed, where the app this one replaced keeps RCS chats: why some people's texts may
 /// not be arriving, and the way to what to do about it (Settings › Android).
+/// The recovery words, put off at sign-up, still to be written down (GMFB-3): the way to them, or put away.
+class _WordsNotice extends StatelessWidget {
+  const _WordsNotice({required this.onShow, required this.onDismiss});
+  final VoidCallback onShow;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      key: const ValueKey('words-notice'),
+      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.keyRound, size: 18, color: t.color('app-ink-2'))),
+          SizedBox(width: t.space(3)),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('Write down your recovery words', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))),
+              SizedBox(height: t.lenOf('0.15rem')),
+              Text('Your username and password sign you in on another device. The 12 words are for when the password is lost.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
+              SizedBox(height: t.space(2)),
+              GlacierPressable(
+                onPressed: onShow,
+                semanticLabel: 'Show my recovery words',
+                builder: (context, state) => Text('Show them', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color(state.pressed ? 'app-ink-3' : 'app-ink')).copyWith(decoration: TextDecoration.underline)),
+              ),
+            ]),
+          ),
+          IconTap(icon: Lucide.x, label: 'Dismiss', size: 16, box: t.lenOf('2.25rem'), onPressed: onDismiss),
+        ]),
+      ),
+    );
+  }
+}
+
 class _RcsNotice extends StatelessWidget {
   const _RcsNotice({required this.app, required this.onFix, required this.onDismiss});
   final String app;
@@ -1668,7 +1821,7 @@ class ConversationRow extends StatelessWidget {
                                         ),
                                         TextSpan(text: summary),
                                       ])
-                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' ')),
+                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(c.snippet)).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),
@@ -1719,7 +1872,7 @@ class ConversationRow extends StatelessWidget {
                   ? TextSpan(text: '» $summary', style: const TextStyle(fontStyle: FontStyle.italic))
                   : c.error
                       ? TextSpan(text: 'Not sent', style: TextStyle(color: selected ? d.onHighlight : t.danger))
-                      : TextSpan(text: (reactionSnippet(c.snippet) ?? c.snippet).replaceAll('\n', ' '));
+                      : TextSpan(text: (reactionSnippet(c.snippet) ?? MessageFormat.plain(c.snippet)).replaceAll('\n', ' '));
           return DecoratedBox(
             decoration: BoxDecoration(
               color: selected ? d.highlight : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),

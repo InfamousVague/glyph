@@ -18,6 +18,10 @@ on:
       build:
         description: Build number (33)
         required: true
+      p2p:
+        description: The direct network's core (no leaves it out, and the app has no direct route)
+        required: false
+        default: 'yes'
 
 concurrency:
   group: messaging-windows-${{ github.ref }}
@@ -64,6 +68,29 @@ jobs:
       - name: Build the app
         run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
 
+      # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), from nothing but
+      # what its Cargo.lock names, with the Rust its rust-toolchain.toml names (rustup, on the runner, installs it):
+      # beside the app as ghost_p2p.dll, where the app looks for it, so in the installer and signed with the rest. Left
+      # out (p2p: no), the app has no direct route and is otherwise the same.
+      - name: Rust for the direct network's core
+        if: inputs.p2p != 'no'
+        working-directory: messaging/native/p2p
+        run: |
+          rustup toolchain install --no-self-update
+          rustc --version
+
+      - name: Build the direct network's core
+        if: inputs.p2p != 'no'
+        working-directory: messaging/native/p2p
+        run: cargo build --release --locked
+
+      - name: Put the direct network's core beside the app
+        if: inputs.p2p != 'no'
+        shell: pwsh
+        run: |
+          Copy-Item native\p2p\target\release\ghost_p2p.dll build\windows\x64\runner\Release\ghost_p2p.dll
+          Get-Item build\windows\x64\runner\Release\ghost_p2p.dll | Format-List Name, Length
+
       # The Google Messages sidecar (messaging/sidecar/gmessages, AGPL-3.0): beside the app, and so in the installer,
       # only once its source is public (sidecar/gmessages/SOURCE_URL).
       - uses: actions/setup-go@v5
@@ -82,6 +109,24 @@ jobs:
           Pop-Location
           Copy-Item sidecar\gmessages\LICENSE build\windows\x64\runner\Release\gmsidecar-LICENSE.txt
           Copy-Item sidecar\gmessages\SOURCE_URL build\windows\x64\runner\Release\gmsidecar-SOURCE.txt
+
+      # The account helpers (messaging/sidecar/<name>, AGPL-3.0; lib/inbox/account_helper.dart): Messenger, Instagram,
+      # Discord, X and Slack, each beside the app as <name>-sidecar.exe where the app looks for it, so in the installer
+      # and signed with the rest (Matt, 2026-11-21: "the windows app says coming soon"). Go alone, no cgo.
+      - name: Build the account helpers
+        shell: pwsh
+        run: |
+          $out = (Resolve-Path build\windows\x64\runner\Release).Path
+          $env:CGO_ENABLED = '0'
+          foreach ($name in @('messenger', 'instagram', 'discord', 'twitter', 'slack')) {
+            if (-not (Test-Path "sidecar\$name\SOURCE_URL")) { continue }
+            Push-Location "sidecar\$name"
+            go build -trimpath -ldflags=-s -o "$out\$name-sidecar.exe" .
+            if ($LASTEXITCODE -ne 0) { throw "the $name helper did not build" }
+            Pop-Location
+            Copy-Item "sidecar\$name\LICENSE" "$out\$name-sidecar-LICENSE.txt"
+            Copy-Item "sidecar\$name\SOURCE_URL" "$out\$name-sidecar-SOURCE.txt"
+          }
 
       # Signing, where the account is set up: the app's own files first (the exe, its DLLs, the sidecars), then the
       # installer and its uninstaller as Inno Setup writes them (windows/installer.iss, windows/sign.ps1).

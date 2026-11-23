@@ -53,12 +53,57 @@ class FakeCarrier implements Carrier {
     if (fail) throw CarrierError('it broke');
     carried.add(packet);
     if (hold) return Handed.held;
-    if (!lose) twin?._arrived.add(Arrived(id, packet, address: 'the-other-number'));
+    if (!lose) twin?.take(packet);
     return Handed.passed;
   }
 
+  /// [packet] comes by this route.
+  void take(Uint8List packet) => _arrived.add(Arrived(id, packet, address: 'the-other-number'));
+
   static (FakeCarrier, FakeCarrier) pair(String id, {CarrierTraits traits = const CarrierTraits(maxPacket: 4096, ackWait: Duration(milliseconds: 200))}) {
     final a = FakeCarrier(id, traits: traits), b = FakeCarrier(id, traits: traits);
+    a.twin = b;
+    b.twin = a;
+    return (a, b);
+  }
+}
+
+/// A route that holds links of its own, as the direct route does: [open] says one to the other end is open now.
+/// What went by the route's own send (which may dial) and what went by an open link alone are told apart.
+class LinkCarrier extends FakeCarrier implements LiveLinks {
+  LinkCarrier(super.id);
+  bool open = false;
+  final byLink = <Uint8List>[];
+
+  /// What went back on the link something came by: answers.
+  final byLine = <Uint8List>[];
+  @override
+  bool linked(Peer peer) => open;
+  @override
+  bool get linkedToSomeone => open;
+  @override
+  Future<Handed> sendLinked(Peer peer, Uint8List packet) async {
+    if (this.fail || !open) throw CarrierError('it broke');
+    byLink.add(packet);
+    twin?.take(packet);
+    return Handed.passed;
+  }
+
+  /// What comes by this route comes on a link, which an answer goes back on.
+  @override
+  void take(Uint8List packet) => _arrived.add(Arrived(id, packet, address: 'the-other-number', line: 'the link'));
+
+  @override
+  Future<Handed> sendOn(Peer peer, Object? line, Uint8List packet) async {
+    if (this.fail) throw CarrierError('it broke');
+    if (line != 'the link') return sendLinked(peer, packet);
+    byLine.add(packet);
+    twin?.take(packet);
+    return Handed.passed;
+  }
+
+  static (LinkCarrier, LinkCarrier) pair(String id) {
+    final a = LinkCarrier(id), b = LinkCarrier(id);
     a.twin = b;
     b.twin = a;
     return (a, b);
@@ -69,8 +114,17 @@ class Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
+}
+
+/// A phone's data texts stood in for: always able to send, and where each went.
+class _Texts implements SmsBridge {
+  final to = <String>[];
   @override
-  Peer? byAddress(String address) => all.values.where((p) => p.address == address).firstOrNull;
+  Future<bool> available() async => true;
+  @override
+  Future<void> send(String address, Uint8List bytes) async => to.add(address);
+  @override
+  Stream<({String address, Uint8List bytes})> get incoming => const Stream.empty();
 }
 
 /// Two installs that have exchanged keys, each with a switchboard over the routes given.
@@ -177,30 +231,61 @@ void main() {
         expect(joiner.add(Packet.parse(p)!), isNull, reason: 'its first piece was dropped ten minutes on');
       }
     });
+
+    // Found in review, 2026-11-23: the SMS route took any address that wasn't empty, a friend by username's "@maya"
+    // among them, and Android failed the data text without a word, so it read as passed on.
+    test('a data text goes only to a phone number: never a username, a stand-in, or a sender\'s name', () async {
+      for (final a in ['+1 (555) 000-2222', '5550002222', '+15550002222', '555.000.2222']) {
+        expect(SmsCarrier.isNumber(a), isTrue, reason: a);
+      }
+      for (final a in ['@maya', '@ben.5550002222', '', 'AMAZON', 'gghhiijjkkllmmnnooppaabbccddeeff@member.ghost-sms.com', '12345', 'x5550002222']) {
+        expect(SmsCarrier.isNumber(a), isFalse, reason: a);
+      }
+      final bridge = _Texts();
+      final sms = SmsCarrier(bridge);
+      await sms.start();
+      expect(sms.reaches(const Peer(id: 'x', address: '@maya')), isFalse);
+      expect(sms.reaches(const Peer(id: 'x', address: '')), isFalse);
+      expect(sms.reaches(const Peer(id: 'x', address: '+15550002222')), isTrue);
+      await expectLater(sms.send(const Peer(id: 'x', address: '@maya'), Uint8List(10)), throwsA(isA<CarrierError>()));
+      await sms.send(const Peer(id: 'x', address: '+15550002222'), Uint8List(10));
+      expect(bridge.to, ['+15550002222']);
+      await sms.stop();
+    });
   });
 
   group('the switchboard', () {
+    // The relay comes first, the direct route after it (docs/OPEN_NETWORK.md; Matt, 2026-11-22: "the relay as a primary
+    // source but have p2p as a secondary back up").
+    test('where the person has not said, the relay is tried first, then the direct route, the local network and SMS', () {
+      final sms = FakeCarrier.pair('sms'), lan = FakeCarrier.pair('lan'), p2p = FakeCarrier.pair('p2p'), hub = FakeCarrier.pair('hub'), new_ = FakeCarrier.pair('later');
+      final two = Two([new_, sms, lan, p2p, hub]);
+      expect(two.left.order, ['hub', 'p2p', 'lan', 'sms']);
+      expect(two.left.carriers.map((c) => c.id), ['hub', 'p2p', 'lan', 'sms', 'later'], reason: 'one not named comes after those that are');
+      expect(two.left.routes(two.toB).map((c) => c.id), ['hub', 'p2p', 'lan', 'sms', 'later']);
+    });
+
     test('sends by the first route in the person\'s order, sealed, and is told it arrived', () async {
       final lan = FakeCarrier.pair('lan'), hub = FakeCarrier.pair('hub');
-      final two = Two([hub, lan]);
+      final two = Two([lan, hub]);
       final d = await two.left.send(two.toB, Envelope(kind: 'text', body: {'t': 'hello'}));
-      expect([d.via, d.acked], ['lan', true]);
+      expect([d.via, d.acked], ['hub', true]);
       expect(two.got.single.envelope.body['t'], 'hello');
-      expect(two.got.single.via, 'lan');
-      expect(hub.$1.carried, isEmpty);
-      expect(utf8.decode(lan.$1.carried.single, allowMalformed: true).contains('hello'), isFalse, reason: 'what the route carried is sealed');
-      two.left.order = ['hub', 'lan'];
-      expect((await two.left.send(two.toB, Envelope(kind: 'text'))).via, 'hub');
+      expect(two.got.single.via, 'hub');
+      expect(lan.$1.carried, isEmpty);
+      expect(utf8.decode(hub.$1.carried.single, allowMalformed: true).contains('hello'), isFalse, reason: 'what the route carried is sealed');
+      two.left.order = ['lan', 'hub'];
+      expect((await two.left.send(two.toB, Envelope(kind: 'text'))).via, 'lan');
     });
 
     test('with no answer on one route the next is tried, and the other end passes it on once', () async {
       final lan = FakeCarrier.pair('lan'), hub = FakeCarrier.pair('hub');
       final two = Two([lan, hub]);
-      // The local network takes it and the answer is lost on the way back: sent again through the hub.
-      lan.$2.lose = true;
+      // The relay takes it and the answer is lost on the way back: sent again over the local network.
+      hub.$2.lose = true;
       final d = await two.left.send(two.toB, Envelope(kind: 'text', body: {'t': 'once'}));
-      expect([d.via, d.acked], ['hub', true]);
-      expect(d.tried, ['lan', 'hub']);
+      expect([d.via, d.acked], ['lan', true]);
+      expect(d.tried, ['hub', 'lan']);
       await _tick();
       expect(two.got.length, 1, reason: 'it came twice and was passed on once');
     });
@@ -208,17 +293,17 @@ void main() {
     test('a route that is off, down, broken or cannot reach them is passed over', () async {
       final lan = FakeCarrier.pair('lan'), p2p = FakeCarrier.pair('p2p'), hub = FakeCarrier.pair('hub');
       final two = Two([lan, p2p, hub]);
-      await two.left.setOn('lan', false);
+      await two.left.setOn('hub', false);
       p2p.$1.fail = true;
       var d = await two.left.send(two.toB, Envelope(kind: 'text'));
-      expect(d.via, 'hub');
-      expect(d.tried, ['p2p: it broke', 'hub']);
-      await two.left.setOn('lan', true);
-      lan.$1.reach = (_) => false;
+      expect(d.via, 'lan');
+      expect(d.tried, ['p2p: it broke', 'lan']);
+      await two.left.setOn('hub', true);
+      hub.$1.reach = (_) => false;
       p2p.$1.state.value = CarrierState.down;
       d = await two.left.send(two.toB, Envelope(kind: 'text'));
-      expect(d.via, 'hub');
-      hub.$1.state.value = CarrierState.down;
+      expect(d.via, 'lan');
+      lan.$1.state.value = CarrierState.down;
       d = await two.left.send(two.toB, Envelope(kind: 'text'));
       expect(d.sent, isFalse);
       expect(d.tried.single, 'no route reaches them now');
@@ -251,6 +336,79 @@ void main() {
       await _tick();
       expect(two.got.single.envelope.kind, 'call');
       expect(two.got.single.via, 'sms');
+    });
+
+    // docs/OPEN_NETWORK.md, "The switchboard": "When the hub only kept something (they are not connected to it) and a
+    // direct stream to one of their devices is open, it goes by that too, without waiting."
+    test('kept by the relay, with a link to their device open right now: it goes by the link too, once, unwaited, and is taken once', () async {
+      final hub = FakeCarrier.pair('hub'), direct = LinkCarrier.pair('p2p');
+      final two = Two([hub, direct]);
+      // The relay keeps it now and hands it over later, as it does for someone who comes back.
+      hub.$1.hold = true;
+      direct.$1.open = true;
+      final acked = <String>[];
+      two.left.acked.listen(acked.add);
+      final e = Envelope(kind: 'text', body: {'t': 'both ways'});
+      final d = await two.left.send(two.toB, e);
+      expect([d.via, d.handed, d.acked], ['hub', Handed.held, false], reason: 'what the relay said is still the answer: the link was not waited for');
+      expect(d.tried, ['hub', 'p2p']);
+      await _tick();
+      expect(direct.$1.byLink, hasLength(1), reason: 'once, by the open link');
+      expect(direct.$1.carried, isEmpty, reason: 'never by the route\'s own send, which would dial');
+      expect(two.got.single.envelope.body['t'], 'both ways');
+      expect(two.got.single.via, 'p2p');
+      expect(acked, [e.id], reason: 'answered over the link');
+      // They come back to the relay and are handed what it kept: the same envelope, answered again, passed on once.
+      hub.$2.take(hub.$1.carried.single);
+      await _tick();
+      expect(two.got, hasLength(1));
+      expect(hub.$2.carried, hasLength(1), reason: 'the second copy is answered too, by the route it came by');
+    });
+
+    test('kept by the relay, with no link open: the route of links is asked nothing, so nothing is dialled or started', () async {
+      final hub = FakeCarrier.pair('hub'), direct = LinkCarrier.pair('p2p');
+      final two = Two([hub, direct]);
+      hub.$1.hold = true;
+      final d = await two.left.send(two.toB, Envelope(kind: 'text'));
+      expect([d.via, d.handed], ['hub', Handed.held]);
+      expect(d.tried, ['hub']);
+      await _tick();
+      expect([direct.$1.carried, direct.$1.byLink], [isEmpty, isEmpty]);
+      // A link that is open is no reason to use it while the relay passes things on.
+      hub.$1.hold = false;
+      direct.$1.open = true;
+      expect((await two.left.send(two.toB, Envelope(kind: 'text'))).via, 'hub');
+      await _tick();
+      expect([direct.$1.carried, direct.$1.byLink], [isEmpty, isEmpty]);
+      // And with the relay away altogether, the route of links is a route like any other: it sends, dialling as it must.
+      hub.$1.state.value = CarrierState.down;
+      direct.$1.open = false;
+      expect((await two.left.send(two.toB, Envelope(kind: 'text'))).via, 'p2p');
+      expect([direct.$1.carried.length, direct.$1.byLink.length], [1, 0]);
+    });
+
+    test('kept by the relay and urgent: an open link carries it and is waited for; with none the route that wakes gets its turn at once', () async {
+      const text = CarrierTraits(maxPacket: 133, maxParts: 6, metered: true, live: false, wakes: true);
+      final hub = FakeCarrier.pair('hub'), direct = LinkCarrier.pair('p2p'), sms = FakeCarrier.pair('sms', traits: text);
+      final two = Two([hub, direct, sms]);
+      hub.$1.hold = true;
+      // No link: nothing is dialled for someone who is away, and the text that wakes their phone goes without waiting.
+      var d = await two.left.send(two.toB, Envelope(kind: 'call', body: {'o': 'ring'}), metered: true, urgent: true);
+      expect(d.tried, ['hub', 'sms']);
+      expect([direct.$1.carried, direct.$1.byLink], [isEmpty, isEmpty]);
+      // A link open: the ring goes by it, is answered, and no text is spent.
+      direct.$1.open = true;
+      final texts = sms.$1.carried.length;
+      d = await two.left.send(two.toB, Envelope(kind: 'call', body: {'o': 'ring'}), metered: true, urgent: true);
+      expect([d.via, d.acked], ['p2p', true]);
+      expect(d.tried, ['hub', 'p2p']);
+      expect(direct.$1.byLink, hasLength(1));
+      expect(direct.$1.carried, isEmpty);
+      expect(sms.$1.carried.length, texts);
+      // The link gone as it is used: said so, and the text goes.
+      direct.$1.fail = true;
+      d = await two.left.send(two.toB, Envelope(kind: 'call', body: {'o': 'ring'}), metered: true, urgent: true);
+      expect(d.tried, ['hub', 'p2p: it broke', 'sms']);
     });
 
     test('nothing unsealed is taken from someone a key is held for, and nothing at all from a stranger but a greeting', () async {
@@ -424,6 +582,40 @@ void main() {
       expect(hubC.away.value, {b.id});
       await hubB2.stop();
       await hubC.stop();
+      await hubA.stop();
+    });
+
+    // GMFB-34: Online, Away, Busy or Invisible, chosen by the person.
+    test('a chosen mode: away holds while in use, busy shows to watchers, invisible looks gone and comes in unseen', () async {
+      final a = NetKeys.generate(), b = NetKeys.generate();
+      final hubA = HubCarrier(url: url, signer: KeysSigner(a)), hubB = HubCarrier(url: url, signer: KeysSigner(b));
+      await up(hubA);
+      hubA.watch([b.id]);
+      await up(hubB);
+      await _tick(60);
+      hubB.mode = 'away';
+      await _tick(60);
+      expect(hubA.away.value, {b.id}, reason: 'away though the app is in use');
+      hubB.mode = 'busy';
+      await _tick(60);
+      expect(hubA.away.value, isEmpty);
+      expect(hubA.busy.value, {b.id});
+      hubB.mode = 'invisible';
+      await _tick(60);
+      expect(hubA.here.value, isEmpty, reason: 'looks gone');
+      expect(hubA.busy.value, isEmpty);
+      hubB.mode = 'online';
+      await _tick(60);
+      expect(hubA.here.value, {b.id});
+      expect(hubA.away.value, isEmpty);
+      expect(hubA.busy.value, isEmpty);
+      await hubB.stop();
+      // Signing in invisible: never seen to come.
+      final hubB2 = HubCarrier(url: url, signer: KeysSigner(b))..mode = 'invisible';
+      await up(hubB2);
+      await _tick(60);
+      expect(hubA.here.value, isEmpty);
+      await hubB2.stop();
       await hubA.stop();
     });
 

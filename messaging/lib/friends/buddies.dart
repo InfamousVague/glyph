@@ -6,9 +6,14 @@ import 'package:flutter/foundation.dart';
 import '../games/game_activity.dart';
 import '../invites/pending_invites.dart';
 import '../me/me.dart';
+import '../me/cosmetics.dart';
+import '../me/lookup_budget.dart';
 import '../me/pictures.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
+import '../net/home_record.dart';
+import '../net/homes.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
@@ -19,10 +24,26 @@ import '../sounds.dart';
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
-  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}});
+  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}, this.cosmetics = Cosmetics.none, this.home, this.check = ''});
 
-  /// Their username, as the relay server's directory has it.
+  /// Their username, as the relay server's directory has it: `maya`, or `maya@relay.example` for someone who was
+  /// added on another relay (lib/net/home_record.dart, splitUsername).
   final String username;
+
+  /// Their home record, as they signed it (lib/net/home_record.dart): where they live, which this app's relay is
+  /// given so it can pass packets on to theirs. Checked before it is kept; null where they have said none (a build
+  /// from before relays talked to each other).
+  final Map<String, Object?>? home;
+
+  /// The count of their home record; 0 with none.
+  int get homeCount => home?['n'] is int ? home!['n'] as int : 0;
+
+  /// The relay their record names, as a person reads it (`relay.example`); '' with no record.
+  String get homeHost {
+    final h = home?['h'];
+    if (h is! List) return '';
+    return h.whereType<String>().map(hostOfHome).firstWhere((x) => x.isNotEmpty, orElse: () => '');
+  }
 
   /// Their install's name (NetCrypto.idOf their key) and their public key in base64: what packets to them are sealed
   /// with, as the phone works it out (android Buddies.kt).
@@ -40,7 +61,9 @@ class Buddy {
   /// Their number (`phone`) and the accounts they linked (network to handle), where they chose to tell friends.
   final Map<String, String> links;
 
-  /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`.
+  /// Where the two stand: `asked` (this phone asked them), `invited` (they asked this phone), `yes`; or `blocked`
+  /// (GMFB-40): kept only so their friend requests and messages are dropped, never given a sealing key (android
+  /// Buddies.kt and Chats.peersOf take only the other three).
   final String state;
 
   /// When this phone asked them or was asked, ms since 1970.
@@ -49,11 +72,36 @@ class Buddy {
   /// Their name, else their username, with no "@" in front (bareName).
   String get shown => name.isEmpty ? bareName(username) : bareName(name);
 
-  Buddy copyWith({String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links}) => Buddy(
-      username: username, id: id, key: key, name: name ?? this.name, bio: bio ?? this.bio, state: state ?? this.state, at: at, picture: picture ?? this.picture, status: status ?? this.status, links: links ?? this.links);
+  /// What their profile wears, as they last said (lib/me/cosmetics.dart).
+  final Cosmetics cosmetics;
 
-  /// As kept on the phone, handed to a paired computer, and put in an account's backup.
-  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links};
+  /// What the relay's directory last said of [username], for a request (found in review, 2026-11-23): `ok`, it gives
+  /// [id] for it; `other`, it gives it to another install; `nobody`, it knows no such name (it may be another relay's);
+  /// '' not asked yet, or the relay couldn't be asked. A request names its own username, and anyone can send one: an
+  /// accepted request that named itself "maya" took what was written to @maya. So a new request is not kept where the
+  /// directory gives its name to someone else, and one is accepted only once it says `ok`; the rest are kept, shown as not
+  /// checked, and asked about again. Someone this phone asked was looked up by the asking.
+  final String check;
+
+  /// The directory gives [username] for this install ([check]).
+  bool get checked => check == 'ok';
+
+  Buddy copyWith({String? username, String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, Map<String, Object?>? home, String? check}) => Buddy(
+      username: username ?? this.username,
+      id: id,
+      key: key,
+      name: name ?? this.name,
+      bio: bio ?? this.bio,
+      state: state ?? this.state,
+      at: at,
+      picture: picture ?? this.picture,
+      status: status ?? this.status,
+      links: links ?? this.links,
+      cosmetics: cosmetics ?? this.cosmetics,
+      home: home ?? this.home,
+      check: check ?? this.check);
+
+  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links, if (!cosmetics.isEmpty) 'cx': cosmetics.toJson(), 'h': ?home, if (check.isNotEmpty) 'ck': check};
 
   /// Links as sent or kept: network to handle, short strings only; null where none were said.
   static Map<String, String>? _linksOf(Object? l) {
@@ -67,7 +115,8 @@ class Buddy {
     final u = j['u'], i = j['i'], k = j['k'];
     if (u is! String || i is! String || k is! String) return null;
     final p = j['p'] is String && (j['p'] as String).length <= ProfilePictures.most ? j['p'] as String : '';
-    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {});
+    final ck = j['ck'];
+    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {}, cosmetics: Cosmetics.fromJson(j['cx']) ?? Cosmetics.none, home: j['h'] is Map ? (j['h'] as Map).cast<String, Object?>() : null, check: ck == true ? 'ok' : (const {'ok', 'other', 'nobody'}.contains(ck) ? ck as String : ''));
   }
 }
 
@@ -95,8 +144,53 @@ abstract class BuddiesPort {
   Stream<({String from, Envelope envelope})> get greetings;
 }
 
+/// What a [BuddiesPort] adds where relays talk to each other (docs/OPEN_NETWORK.md, section 4): this account's home
+/// record and the giving of friends' records to the relay ([Homes]), and whether what was sent someone crossed to their
+/// relay. A port without it knows one relay only, as every port did before: nobody on another relay can be added
+/// through it, and nothing else changes.
+abstract class BuddiesAcross {
+  /// This account's home record and what the relay is told of where friends live; null until the routes are set up.
+  Homes? get homes;
+
+  /// Tells when [homes] is another one, or this account's record in it changed.
+  Listenable get homesChanged;
+
+  /// Whether the last thing sent to [id] was passed by this app's relay to another relay (or is kept for one). False
+  /// where the relay only kept it here, as it does for someone who lives on it.
+  bool passedOn(String id);
+
+  /// Why the last thing sent to [id] was refused, as the relay said it (their relay refused it, can't be reached, is
+  /// holding too much); null where it wasn't.
+  String? refusedWhy(String id);
+
+  /// Something small kept with the app's choices, and read back.
+  String recall(String key);
+  void remember(String key, String value);
+}
+
+/// Friends by username. Becoming friends is said over the routes as envelopes of kind `buddy`:
+///
+/// - **ask**, in the clear, as a greeting (`hello` with `buddy: ask`), carrying the asker's username, name, line and
+///   public key. Anyone can send it; the hub says who sent it, and the key is checked against that name, so it can't
+///   be sent in someone else's name. It is shown as a request, and nothing more is taken from it.
+/// - **yes**, sealed: the other said yes. Their name and line come with it. Two who ask each other are friends.
+/// - **no** and **end**, sealed: no, or no longer.
+/// - **me**, sealed: a friend changed their name or line.
+///
+/// The list is kept on the phone (`buddies`), and the phone works out the key each pair seals with from it, so the
+/// routes reach them as they reach anyone encryption is on with.
+///
+/// **Friends on another relay** (docs/OPEN_NETWORK.md, section 4; Matt, 2026-11-22: "I'd like the relays to be able to
+/// talk to each other"). `maya@relay.example` is asked of that relay ([Homes.whois]) and kept with her home record,
+/// which this app's relay is given so it can pass packets on to hers; nothing else about sending changes. The ask
+/// carries the asker's own record (`h`), so the answer can find its way back, and friends tell each other their
+/// record with a sealed envelope of kind `home` (`{"rec": …}`): when two become friends, and whenever it changes (the
+/// account moved to another relay), a friend at a time ([spread]). A record is kept only where it is that friend's
+/// own, by their key, and newer than the one held.
 /// What [Buddies.lookup] found.
-enum BuddyLookup { nobody, you, someone }
+/// What a username typed is: nobody's, this account's, someone's here, or a name on another relay, which is asked of
+/// that relay only when the person asks to add them ([Buddies.add]), never as they type.
+enum BuddyLookup { nobody, you, someone, elsewhere }
 
 /// Friends by username on this install: the list, the requests either way, and what friends are told of this
 /// person. On a computer paired with a phone it asks the phone for everything.
@@ -111,15 +205,24 @@ enum BuddyLookup { nobody, you, someone }
 /// The list is kept on the phone (`buddies`), and the phone works out the key each pair seals with from it, so
 /// the routes reach them as they reach anyone encryption is on with.
 class Buddies extends ChangeNotifier {
-  Buddies(this._port);
+  /// What the phone last said its friends are, as it said it ([refresh]).
+  String? _lastSaid;
+
+  /// [lookups]: the account's budget of lookups made of the app's own accord, which the name watch shares (the app's
+  /// own: LookupBudget.instance); one of its own where none is given.
+  Buddies(this._port, {this.spread = const Duration(seconds: 2), LookupBudget? lookups}) : _lookups = lookups ?? LookupBudget();
+
+  /// How long between one friend being told this account's new home record and the next: not all at once.
+  final Duration spread;
 
   static Buddies? _instance;
-  static Buddies get instance => _instance ??= Buddies(_AppBuddiesPort());
+  static Buddies get instance => _instance ??= Buddies(_AppBuddiesPort(), lookups: LookupBudget.instance);
 
   @visibleForTesting
   static set instance(Buddies? b) => _instance = b;
 
   final BuddiesPort _port;
+  final LookupBudget _lookups;
   final List<StreamSubscription<Object?>> _subs = [];
 
   /// Everyone a request has passed between, whatever its state.
@@ -134,6 +237,10 @@ class Buddies extends ChangeNotifier {
   /// that came again with a new key, or a list put together from a phone's and a computer's); the newest stands for
   /// them. [friends] keeps every id, for what is sent to each.
   List<Buddy> get shownFriends => onePerUsername(friends);
+
+  /// [shownFriends] who can come into a room on this app's relay: a circle's, a space's, a call's. Rooms don't cross
+  /// relays yet, so a friend on another relay is not offered for one (found in the review, 2026-11-23).
+  List<Buddy> get roomFriends => [for (final b in shownFriends) if (!elsewhere(b)) b];
 
   /// [list] with one [Buddy] for each username (letters' case aside), the latest ([Buddy.at]) of each, in [list]'s order.
   static List<Buddy> onePerUsername(List<Buddy> list) {
@@ -153,6 +260,42 @@ class Buddies extends ChangeNotifier {
   /// Those who asked this person and wait for an answer; and those this person asked.
   List<Buddy> get requests => [for (final b in all) if (b.state == 'invited') b];
   List<Buddy> get asked => [for (final b in all) if (b.state == 'asked') b];
+
+  /// Ghost people this phone blocked (GMFB-40: "Reporting a person also offers to block them").
+  List<Buddy> get blocked => [for (final b in all) if (b.state == 'blocked') b];
+
+  bool isBlocked(String id) => byId(id)?.state == 'blocked';
+
+  /// Blocks the Ghost person [id] ([username], [key] where known): no longer friends (they are told, as removing a
+  /// friend tells them), and their friend requests and messages are dropped here from now on. Asking them to be friends
+  /// again ([add]) takes the block away.
+  Future<void> block(String id, {String username = '', String key = ''}) async {
+    if (_remote) {
+      await _ask({'op': 'block', 'id': id, 'u': username, 'k': key});
+      return;
+    }
+    final had = byId(id);
+    if (had?.state == 'yes' || had?.state == 'asked') await _port.send(id, Envelope(kind: 'buddy', body: {'s': 'end'}));
+    if (had?.state == 'invited') await _port.send(id, Envelope(kind: 'buddy', body: {'s': 'no'}));
+    GameActivities.instance.heard(id, null);
+    final b = had == null
+        ? Buddy(username: tidyHandle(username), id: id, key: key, state: 'blocked', at: DateTime.now().millisecondsSinceEpoch)
+        : Buddy(username: had.username, id: id, key: had.key, name: had.name, state: 'blocked', at: DateTime.now().millisecondsSinceEpoch, picture: had.picture);
+    all = [for (final o in all) if (o.id != id) o, b];
+    _homes?.forget(id);
+    _unreached.remove(id);
+    await _save();
+  }
+
+  /// Takes the block on [b] away: they are forgotten here, as if never met.
+  Future<void> unblock(Buddy b) async {
+    if (_remote) {
+      await _ask({'op': 'unblock', 'id': b.id});
+      return;
+    }
+    all = [for (final o in all) if (o.id != b.id) o];
+    await _save();
+  }
 
   Buddy? byId(String id) {
     for (final b in all) {
@@ -193,8 +336,13 @@ class Buddies extends ChangeNotifier {
     }
     final list = r['list'];
     if (list is List) {
+      // Asked of the phone every twenty seconds: the listeners (the rail, people's faces) are told only when the
+      // friends are different from the last asking (docs/performance-audit.md, finding 8).
+      final said = jsonEncode(list);
+      final same = said == _lastSaid;
+      _lastSaid = said;
       all = [for (final j in list) ?Buddy.fromJson(j)];
-      notifyListeners();
+      if (!same) notifyListeners();
     }
     // What the phone's friends are playing (lib/games/game_activity.dart): said to the phone, so told here by it.
     if (r['ga'] is Map) GameActivities.instance.heardAll(r['ga']);
@@ -208,8 +356,18 @@ class Buddies extends ChangeNotifier {
     } catch (_) {
       return;
     }
+    // Where each lives, for the relay to route by: friends', and those this account asked; never a stranger's who
+    // only asked.
+    for (final b in all) {
+      if (b.home != null && _routed(b)) _homes?.give(b.home!);
+    }
     await _save();
   }
+
+  /// Whether [b]'s record is given to the relay to route by: a friend's, or one this account asked to be friends.
+  /// A stranger's request is not: their record is given only once it is answered yes (found in the review,
+  /// 2026-11-23: spam requests' records were said at every sign-in, and cost the relay's checks).
+  static bool _routed(Buddy b) => b.state == 'yes' || b.state == 'asked';
 
   /// The phone's list read again, on a computer; nothing anywhere else.
   Future<void> refresh() async {
@@ -227,7 +385,7 @@ class Buddies extends ChangeNotifier {
       case 'lookup':
         return {'found': (await lookup('${what['u'] ?? ''}')).name, 'list': list()};
       case 'add':
-        final b = await add('${what['u'] ?? ''}');
+        final b = await add('${what['u'] ?? ''}', keyPrefix: what['kp'] is String ? what['kp'] as String : null);
         return {'buddy': b.toJson(), 'list': list()};
       case 'accept':
         final b = await accept(want());
@@ -236,6 +394,10 @@ class Buddies extends ChangeNotifier {
         await decline(want());
       case 'remove':
         await remove(want());
+      case 'block':
+        await block('${what['id'] ?? ''}', username: '${what['u'] ?? ''}', key: '${what['k'] ?? ''}');
+      case 'unblock':
+        await unblock(want());
       case 'share':
         await shareProfile();
       case 'ga':
@@ -264,16 +426,341 @@ class Buddies extends ChangeNotifier {
     } catch (_) {
       all = [];
     }
-    _subs.add(_port.greetings.listen((g) => _greeting(g.from, g.envelope)));
+    _subs.add(_port.greetings.listen((g) => unawaited(_greeting(g.from, g.envelope))));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
+    // Home records: friends' are given to the relay, and friends are told this account's when they need it.
+    final across = _across;
+    if (across != null) {
+      across.homesChanged.addListener(_homesChanged);
+      _homesChanged();
+    }
     notifyListeners();
     // A request the hub was holding for someone away is lost when the relay restarts, and so is an answer, and nothing
     // asked again (Matt, 2026-11-19: "my friend request to morgan never went through i also sent one from her phone and
     // it didn't go out"; the relay restarted five times that evening, one deploy each). Each unanswered request is
     // asked again: a little after starting, once the hub is reached, and every few minutes, for two weeks. The other
     // side takes a request it holds already as the same one, and answers one it has said yes to again.
-    Timer(const Duration(seconds: 15), () => unawaited(askAgain()));
-    _again = Timer.periodic(askEvery, (_) => unawaited(askAgain()));
+    Timer(const Duration(seconds: 15), () => unawaited(askAgain().then((_) => checkRequests())));
+    _again = Timer.periodic(askEvery, (_) {
+      unawaited(askAgain().then((_) => checkRequests()));
+      // And whoever has not heard this account's home record yet (the relay was away when they were to be told).
+      _tellSoon();
+    });
+  }
+
+  // --- home records (docs/OPEN_NETWORK.md, section 4) ---------------------------------------------------------------
+
+  BuddiesAcross? get _across => _port is BuddiesAcross ? _port as BuddiesAcross : null;
+  Homes? get _homes => _across?.homes;
+
+  /// What is kept of telling friends this account's record, for one account (a second account on this device keeps
+  /// its own): the count of it each friend is known to hold (they said so: [_told]), the count last sent each
+  /// ([_sentHome]), and the relay the record named when friends were last told ([_toldWhere]). The keys of the build
+  /// before (`buddies_home_told`) counted a friend as told when the envelope merely went, and are not read.
+  static String _toldKey(String me) => 'buddies_home_told2:$me';
+
+  /// The count of this account's home record each friend holds, by their id, as they said themselves.
+  final Map<String, int> _told = {};
+
+  /// The count last sent each, so the same record is not sent again to a friend who never answers (an app from before
+  /// passes it over).
+  final Map<String, int> _sentHome = {};
+
+  /// The addresses the record named when friends were last told, and whose told-state is loaded.
+  List<String> _toldWhere = const [];
+  String? _toldFor;
+  final Map<String, DateTime> _repliedAt = {};
+
+  /// Those still to be told the record there is now, a friend at a time.
+  final List<String> _toTell = [];
+  Timer? _teller;
+  Homes? _givenTo;
+
+  /// Those whose friend request the relay could not pass to their relay when it was last sent.
+  final Set<String> _unreached = {};
+
+  /// Whether [b] lives on another relay than this app's, by their home record.
+  bool elsewhere(Buddy b) {
+    final homes = _homes;
+    final h = b.home?['h'];
+    return homes != null && h is List && h.isNotEmpty && !homes.namesHere(h.whereType<String>());
+  }
+
+  /// Whether this app's relay passes messages to other relays, as it said itself.
+  bool get relayTalks => _homes?.relayTalks ?? false;
+
+  /// Whether [b] is on another relay as far as who is here and calls go: [elsewhere], and only where this app's relay
+  /// talks to others. Where it doesn't, a friend can be reached through it only on it, so in doubt (a relay known by
+  /// more than one name) they are taken to be here (found in the review, 2026-11-23).
+  bool apart(Buddy b) => elsewhere(b) && (_homes?.relayTalks ?? false);
+
+  /// The relay [b] is on where it isn't this app's (`relay.example`), for their card; '' where it is, or isn't known.
+  String relayOf(Buddy b) => elsewhere(b) ? b.homeHost : '';
+
+  /// Whether the friend request to [b], who lives on another relay, could not be passed to their relay when it was
+  /// last sent: this app's relay doesn't talk to theirs. It is sent again by itself ([askAgain]), and goes when it can.
+  bool unreached(Buddy b) => _unreached.contains(b.id);
+
+  /// Why the request to [b] couldn't be passed on, as the relay said it; null where it only doesn't talk to theirs.
+  String? unreachedWhy(Buddy b) => _across?.refusedWhy(b.id);
+
+  /// A username as it can be added: `maya`, or `maya@relay.example` (with or without an `@` in front).
+  static bool goodAddress(String typed) {
+    final t = splitUsername(typed);
+    return Me.goodUsername(t.name) && (t.relay == null || goodRelayHost(t.relay!));
+  }
+
+  /// The routes were set up, or this account's home record changed.
+  void _homesChanged() {
+    final homes = _homes;
+    if (homes == null) return;
+    _loadTold(homes.signer.id);
+    homes.beforeLeaving = _tellBeforeLeaving;
+    if (!identical(homes, _givenTo)) {
+      _givenTo = homes;
+      for (final b in all) {
+        if (b.home != null && _routed(b)) homes.give(b.home!);
+      }
+    }
+    _tellSoon();
+  }
+
+  void _loadTold(String me) {
+    if (_toldFor == me) return;
+    _toldFor = me;
+    _told.clear();
+    _sentHome.clear();
+    _toldWhere = const [];
+    final across = _across;
+    if (across == null) return;
+    try {
+      final kept = jsonDecode(across.recall(_toldKey(me)));
+      if (kept is Map) {
+        for (final (into, from) in [(_told, kept['told']), (_sentHome, kept['sent'])]) {
+          if (from is Map) into.addAll({for (final e in from.entries) if (e.value is int) '${e.key}': e.value as int});
+        }
+        if (kept['where'] is List) _toldWhere = (kept['where'] as List).whereType<String>().toList();
+      }
+    } catch (_) {}
+  }
+
+  void _keepTold() {
+    final me = _toldFor, across = _across;
+    if (me == null || across == null) return;
+    _told.removeWhere((k, _) => byId(k) == null);
+    _sentHome.removeWhere((k, _) => byId(k) == null);
+    across.remember(_toldKey(me), jsonEncode({'told': _told, 'sent': _sentHome, 'where': _toldWhere}));
+  }
+
+  /// Queues the friends who need this account's record as it is now, a friend at a time ([spread]): all of them where
+  /// it names another relay than when they were last told (this account moved), else those on other relays (whose
+  /// relays route by it, and whose copy runs out); never the same record twice to one friend who never answered, and
+  /// none at all the first time, when every friend is on the relay this account is (found in the review, 2026-11-23: a
+  /// first start sent every friend an envelope, and each closed iPhone a "New message").
+  void _tellSoon() {
+    final mine = _homes?.mine;
+    if (mine == null || _toldFor == null) return;
+    final moved = _toldWhere.isNotEmpty && !_sameAddresses(_toldWhere, mine.h);
+    if (_toldWhere.isEmpty) {
+      _toldWhere = mine.h;
+      _keepTold();
+    }
+    for (final b in friends) {
+      if ((_told[b.id] ?? 0) >= mine.n || _sentHome[b.id] == mine.n || _toTell.contains(b.id)) continue;
+      if (moved || elsewhere(b)) _toTell.add(b.id);
+    }
+    if (moved) {
+      _toldWhere = mine.h;
+      _keepTold();
+    }
+    if (_toTell.isNotEmpty) _teller ??= Timer.periodic(spread, (_) => unawaited(tellNext()));
+  }
+
+  /// This account is moving, and still connected to the relay it leaves: each friend on that relay is told where it
+  /// lives now, through it, while they can be reached; once they hear it they answer with theirs (if this app holds
+  /// none of theirs), which follows this account to its new relay (found in the review, 2026-11-23: a friend whose
+  /// record this app never held could not be reached from the new relay, and what was written there waited for nobody).
+  Future<void> _tellBeforeLeaving() async {
+    final mine = _homes?.mine;
+    if (mine == null) return;
+    await Future.wait([
+      for (final b in friends)
+        if (!elsewhere(b) && _sentHome[b.id] != mine.n) _tellHome(b.id),
+    ]);
+  }
+
+  static bool _sameAddresses(List<String> a, List<String> b) => a.length == b.length && [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((x) => x);
+
+  /// Tells the next friend waiting this account's home record; true where there was one to tell. The timer calls it;
+  /// a test calls it itself.
+  @visibleForTesting
+  Future<bool> tellNext() async {
+    if (_toTell.isEmpty) {
+      _teller?.cancel();
+      _teller = null;
+      return false;
+    }
+    final id = _toTell.removeAt(0);
+    if (_toTell.isEmpty) {
+      _teller?.cancel();
+      _teller = null;
+    }
+    // Told already as this account left the relay they are on: not twice.
+    if (_sentHome[id] != _homes?.mine?.n) await _tellHome(id);
+    return true;
+  }
+
+  /// How many friends are still to be told, for a test.
+  @visibleForTesting
+  int get waitingToHear => _toTell.length;
+
+  /// Tells [id] this account's home record, sealed, with the count of theirs this app holds (`has`), so they can say
+  /// back whether they need ours and we can tell whether they hold it. Sent is not told: a friend counts as told only
+  /// when they say so ([_heardHome]); what is kept is that this record was sent them, so it is not sent again.
+  Future<void> _tellHome(String id) async {
+    final across = _across;
+    final mine = across?.homes?.mine;
+    final b = byId(id);
+    if (across == null || mine == null || b?.state != 'yes') return;
+    final bool sent;
+    try {
+      sent = await _port.send(id, Envelope(kind: 'home', body: {'rec': mine.toJson(), 'has': b!.homeCount}));
+    } catch (_) {
+      return;
+    }
+    if (!sent) return;
+    _sentHome[id] = mine.n;
+    _keepTold();
+  }
+
+  /// Of two records of one friend's (as JSON, already checked), the one believed (HomeRecord.order); null with none.
+  static Map<String, Object?>? _newerOf(Map<String, Object?>? x, Map<String, Object?>? y) {
+    final a = x == null ? null : HomeRecord.check(x, now: DateTime.fromMillisecondsSinceEpoch((x['t'] as int?) ?? 0));
+    final b = y == null ? null : HomeRecord.check(y, now: DateTime.fromMillisecondsSinceEpoch((y['t'] as int?) ?? 0));
+    if (a == null) return b == null ? null : y;
+    if (b == null) return x;
+    return a.newerThan(b) ? x : y;
+  }
+
+  /// A friend said where they live, and which of this account's records they hold (`has`): theirs is kept where it is
+  /// their own by their key and newer than the one held, and given to the relay, which routes by it; they count as
+  /// told up to what they hold; and where they don't hold this account's as it is now, they are told it, once a minute
+  /// at most. So a friend who first hears this account's, or one who moved, always ends up holding it, and one on an
+  /// app from before is sent it once and no more (found in the review, 2026-11-23).
+  void _heardHome(String from, Object? said, Object? has) {
+    final had = byId(from);
+    if (had == null || had.state == 'blocked') return;
+    final rec = HomeRecord.check(said, forId: from, forKey: had.key);
+    final held = had.home == null ? null : HomeRecord.check(had.home, forId: from, forKey: had.key, now: DateTime.fromMillisecondsSinceEpoch(had.home!['t'] as int? ?? 0));
+    if (rec != null && (held == null || rec.newerThan(held))) {
+      var b = had.copyWith(home: rec.toJson());
+      // Labelled by where they live now: name@their relay, or the bare name where that is this app's.
+      if (had.username.contains('@') || elsewhere(b)) {
+        final bare = splitUsername(had.username).name;
+        final host = elsewhere(b) ? b.homeHost : '';
+        b = Buddy(username: host.isEmpty ? bare : '$bare@$host', id: b.id, key: b.key, name: b.name, bio: b.bio, state: b.state, at: b.at, picture: b.picture, status: b.status, links: b.links, cosmetics: b.cosmetics, home: b.home);
+      }
+      _put(b);
+      if (_routed(b)) _homes?.give(rec.toJson());
+      unawaited(_save());
+    }
+    final mine = _homes?.mine;
+    if (has is int && _toldFor != null) {
+      if (has > (_told[from] ?? 0)) _told[from] = has;
+      _keepTold();
+    }
+    if (mine == null || byId(from)?.state != 'yes' || (has is int && has >= mine.n)) return;
+    final now = DateTime.now(), last = _repliedAt[from];
+    if (last != null && now.difference(last) < const Duration(minutes: 1)) return;
+    _repliedAt[from] = now;
+    unawaited(_tellHome(from));
+  }
+
+  /// The record [body] carries as `h`, where it is [from]'s own by the key [key], and newer than [had]'s; else null.
+  Map<String, Object?>? _homeIn(Map body, String from, String key, Buddy? had) {
+    final rec = HomeRecord.check(body['h'], forId: from, forKey: key);
+    if (rec == null) return null;
+    final held = had?.home == null ? null : HomeRecord.check(had!.home, forId: from, forKey: key, now: DateTime.fromMillisecondsSinceEpoch(had.home!['t'] as int? ?? 0));
+    return held == null || rec.newerThan(held) ? rec.toJson() : null;
+  }
+
+  /// What the directory says of [username] for the install [id] ([Buddy.check]): `ok`, `other`, `nobody`, or '' where
+  /// the relay can't be asked now (or answered about another name: Me.whois).
+  Future<String> _lookUp(String username, String id, {bool dial = false}) async => (await _lookUpWhy(username, id, dial: dial)).said;
+
+  /// [_lookUp], and whether the relay refused it as one too many in the hour: then nothing more is looked up of the
+  /// app's own accord for a while, the name watch's lookups included ([_lookups]).
+  Future<({String said, bool refused})> _lookUpWhy(String username, String id, {bool dial = false}) async {
+    try {
+      final at = splitUsername(username);
+      if (at.relay != null) {
+        // A name on another relay: asked of that relay through this app's own; dialled itself only where the person
+        // pressed Accept ([dial]), never of this phone's own accord for a stranger's request (lib/net/relay_ask.dart).
+        final homes = _homes;
+        if (homes == null) return (said: '', refused: false);
+        final found = await homes.whois(at.name, at.relay!, dial: dial);
+        return (said: found == null ? 'nobody' : (found.id == id ? 'ok' : 'other'), refused: false);
+      }
+      final found = await _port.whois(tidyHandle(username));
+      return (said: found == null ? 'nobody' : (found.id == id ? 'ok' : 'other'), refused: false);
+    } catch (e) {
+      final refused = LookupBudget.isRefusal(e);
+      if (refused) _lookups.refused();
+      return (said: '', refused: refused);
+    }
+  }
+
+  /// When each request, by install and username, last had an answer. The relay answers an account so many lookups an
+  /// hour, counted for all its devices together (relay/lib/handles.dart, lookupsAnHour: 120), and strangers' requests
+  /// could use them all, so that no request could be accepted and nobody added for an hour (found in review,
+  /// 2026-11-23): requests are looked up of the app's own accord within the account's budget, which the name watch
+  /// shares and the account's devices share out ([_lookups]: LookupBudget.forRequests an hour on this device), each
+  /// request once an hour; past that a request is looked up when Accept is pressed.
+  final Map<String, DateTime> _answered = {};
+
+  /// Whether this phone may look up the request [what] (`<id>:<username>`) of its own accord now: counted where it may.
+  bool _mayLookUp(String what) {
+    final last = _answered[what];
+    if (last != null && DateTime.now().difference(last) < const Duration(hours: 1)) return false;
+    return _lookups.take();
+  }
+
+  /// A request's lookup of this phone's own accord: [_lookUp], within [_mayLookUp]; null where it may not be made now.
+  Future<String?> _lookUpOwn(Buddy b) async {
+    final what = '${b.id}:${b.username}';
+    if (!_mayLookUp(what)) return null;
+    final said = await _lookUp(b.username, b.id);
+    if (said.isNotEmpty) _answered[what] = DateTime.now();
+    return said;
+  }
+
+  /// [b] in its place in the list, as it now is.
+  void _replace(Buddy b) => all = [for (final o in all) o.id == b.id ? b : o];
+
+  /// Asks the directory again about each request it hasn't said `ok` to ([Buddy.check]), of this phone's own accord and
+  /// so within the account's budget ([_mayLookUp]): what it says now is kept with each. None is forgotten on one answer: one whose username
+  /// it gives someone else stays, shown so and not to be accepted, until it is declined or the directory says otherwise.
+  /// How many changed.
+  @visibleForTesting
+  Future<int> checkRequests() async {
+    if (_remote) return 0;
+    var changed = 0;
+    for (final b in [for (final b in all) if (b.state == 'invited' && !b.checked) b]) {
+      final said = await _lookUpOwn(b);
+      final now = byId(b.id);
+      if (said == null || said.isEmpty || now == null || now.state != 'invited' || now.username != b.username || now.check == said) continue;
+      _replace(now.copyWith(check: said));
+      changed++;
+    }
+    if (changed > 0) await _save();
+    return changed;
+  }
+
+  /// The friend by username [username] stands for: of those who said yes under it, the one [onePerUsername] picks, which
+  /// is the record a conversation with `@username` is (UsernameChats.states). Never one who only asked, or was asked.
+  Buddy? standingFor(String username) {
+    final name = tidyHandle(username);
+    return onePerUsername(friends).where((b) => b.username.toLowerCase() == name).firstOrNull;
   }
 
   /// Sends each request still unanswered, newer than [askFor], again.
@@ -292,7 +779,7 @@ class Buddies extends ChangeNotifier {
     var sent = 0;
     for (final b in waiting) {
       try {
-        if (await _port.send(b.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': me.key, ..._profile()}), sealed: false)) sent++;
+        if (await _sendAsk(b, me.key)) sent++;
       } catch (_) {}
     }
     return sent;
@@ -316,66 +803,190 @@ class Buddies extends ChangeNotifier {
     final me = Me.instance;
     // `p`, the small picture, for builds from before 0.10.4; `pp`, the sharp one shown, for the rest.
     final sharp = me.pictureSharp;
-    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, if (sharp != me.picture) 'pp': sharp, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}};
+    return {'u': _port.username ?? '', 'n': _port.displayName, 'b': _port.bio, if (me.picture.isNotEmpty) 'p': me.picture, if (sharp != me.picture) 'pp': sharp, 'st': me.status, 'l': me.shareLinks ? me.links : const <String, String>{}, 'cx': me.cosmetics.toJson()};
   }
 
   /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
   @visibleForTesting
-  static ({String? picture, String? status, Map<String, String>? links}) saidOf(Map body) => _said(body);
+  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics}) saidOf(Map body) => _said(body);
 
-  static ({String? picture, String? status, Map<String, String>? links}) _said(Map body) {
+  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics}) _said(Map body) {
     final pp = body['pp'], p = body['p'];
     final picture = pp is String && pp.isNotEmpty && pp.length <= ProfilePictures.most ? pp : p;
-    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']));
+    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']), cosmetics: Cosmetics.fromJson(body['cx']));
   }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
   /// (lib/ui/add_friend_drawer.dart). Asks the same server [add] asks.
   Future<BuddyLookup> lookup(String username) async {
     if (_remote) return BuddyLookup.values.asNameMap()['${(await _ask({'op': 'lookup', 'u': username}))['found']}'] ?? BuddyLookup.nobody;
-    final found = await _port.whois(tidyHandle(username));
-    if (found == null) return BuddyLookup.nobody;
-    if (found.id == (await _port.me()).id) return BuddyLookup.you;
+    final typed = splitUsername(username);
+    final homes = _homes;
+    final String? foundId;
+    if (typed.relay != null && !(homes?.isHere(typed.relay!) ?? false)) {
+      // On another relay: nobody is asked while a name is typed (each look would be a question put to a server of
+      // someone else's choosing, and a host half typed is another server): that relay is asked when the person asks
+      // to add them (found in the review, 2026-11-23).
+      if (homes == null || !goodAddress(username)) return BuddyLookup.nobody;
+      if (!dialableRelayHost(typed.relay!)) return BuddyLookup.nobody;
+      return BuddyLookup.elsewhere;
+    } else {
+      foundId = (await _port.whois(typed.name))?.id;
+    }
+    if (foundId == null) return BuddyLookup.nobody;
+    if (foundId == (await _port.me()).id) return BuddyLookup.you;
     return BuddyLookup.someone;
   }
 
   /// Asks [username] to be friends. Throws a [MeError] where nobody has that username, or it is this install's.
-  Future<Buddy> add(String username) async {
-    if (_remote) return Buddy.fromJson((await _ask({'op': 'add', 'u': username}))['buddy'])!;
-    final name = tidyHandle(username);
+  ///
+  /// [keyPrefix], from an add-me link (lib/friends/add_link.dart): the first hex digits of the account name the person
+  /// who shared it has. The relay's answer is refused where its key doesn't make a name that begins so: it gave the
+  /// username to someone else, and nothing is kept or sent.
+  Future<Buddy> add(String username, {String? keyPrefix}) async {
+    if (_remote) return Buddy.fromJson((await _ask({'op': 'add', 'u': username, 'kp': ?keyPrefix}))['buddy'])!;
+    final typed = splitUsername(username);
+    var name = typed.name;
     if (_port.username == null) throw MeError('Choose your own username first.');
-    final found = await _port.whois(name);
-    if (found == null) throw MeError('Nobody has the username @$name.');
+    final homes = _homes;
+    final String id, key;
+    Map<String, Object?>? home;
+    // Whether this relay's own directory gave the answer (not another relay's): only then is it the name watch's.
+    var askedHere = false;
+    if (typed.relay != null && !(homes?.isHere(typed.relay!) ?? false)) {
+      // Someone on another relay (`maya@relay.example`): asked of that relay, and kept with where they live.
+      final host = typed.relay!;
+      if (!goodAddress(username)) throw MeError('That isn\'t a username on another relay. It looks like maya@relay.example.');
+      if (homes == null) throw MeError('People on other relays can\'t be added from here.');
+      final FoundOnRelay? found;
+      try {
+        found = await homes.whois(name, host);
+      } on HomeError catch (e) {
+        throw MeError(e.message);
+      }
+      if (found == null) throw MeError('Nobody has the username @$name on $host.');
+      id = found.id;
+      key = found.key;
+      askedHere = found.here;
+      final rec = found.home;
+      if (!found.here && (rec == null || !homes.livesHere(rec))) {
+        // Without their record no relay knows where to pass a packet for them; and a relay that passes nothing on
+        // reaches nobody elsewhere, whatever their app.
+        if (!found.talks) throw MeError('@$name is on $host, which doesn\'t pass messages to other relays.');
+        if (rec == null) throw MeError('@$name@$host can\'t be reached from another relay yet. They need a newer version of Ghost Messaging.');
+        name = '$name@$host';
+      }
+      home = rec?.toJson();
+    } else {
+      final found = await _port.whois(name);
+      if (found == null) throw MeError('Nobody has the username @$name.');
+      id = found.id;
+      key = found.key;
+      askedHere = true;
+    }
+    if (keyPrefix != null && !keyMatches((id: id, key: key), keyPrefix)) {
+      throw MeError('The relay gave @$name to a different key than the link names, so nothing was sent. Ask them for their link again, or check their username with them.');
+    }
     final me = await _port.me();
-    if (found.id == me.id) throw MeError('That\'s you.');
-    final had = byId(found.id);
+    if (id == me.id) throw MeError('That\'s you.');
+    final had = byId(id);
+    // The relay named their key under this username just now: what the name watch holds its answers to from here
+    // (lib/net/name_watch.dart), so a later answer naming another account is worth saying. Only this relay's own
+    // directory's answer: a name on another relay is that relay's to give.
+    if (askedHere && Buddies.keyMatches((id: id, key: key), id)) NameWatch.instance?.confirmed(id, name);
     if (had != null && had.state == 'yes') return had;
-    // They asked first: this is a yes.
-    if (had != null && had.state == 'invited') return accept(had);
-    final b = Buddy(username: name, id: found.id, key: found.key, state: 'asked', at: DateTime.now().millisecondsSinceEpoch);
+    // They asked first: this is a yes, under the username the directory just gave for them.
+    if (had != null && had.state == 'invited') return accept(had.copyWith(username: name, check: 'ok', home: _newerOf(home, had.home)));
+    final b = Buddy(username: name, id: id, key: key, state: 'asked', at: DateTime.now().millisecondsSinceEpoch, home: _newerOf(home, had?.home), check: 'ok');
     _put(b);
     await _save();
-    await _port.send(found.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': me.key, ..._profile()}), sealed: false);
+    // The relay is told where they live before the request goes, so it can pass it on.
+    if (b.home != null) homes?.give(b.home!);
+    await _sendAsk(b, me.key);
     return b;
   }
 
-  /// Yes to [b]: friends from now, and they are told, with this person's profile.
+  /// Sends [b] the friend request: this account's key, how it shows itself, and its own home record, so the answer
+  /// can find its way back from another relay. Where [b] lives on another relay, whether this app's relay passed it
+  /// on is kept ([unreached]).
+  Future<bool> _sendAsk(Buddy b, String myKey) async {
+    final mine = _homes?.mine;
+    final sent = await _port.send(b.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': myKey, ..._profile(), 'h': ?mine?.toJson()}), sealed: false);
+    if (elsewhere(b) && !(sent && (_across?.passedOn(b.id) ?? false))) {
+      if (_unreached.add(b.id)) notifyListeners();
+    } else if (_unreached.remove(b.id)) {
+      notifyListeners();
+    }
+    return sent;
+  }
+
+  /// Whether [found] (the relay's answer for a username) is the key an add-me link names by [keyPrefix]: the account
+  /// name is the one its key makes, and begins with those digits.
+  static bool keyMatches(({String id, String key}) found, String keyPrefix) {
+    final want = keyPrefix.toLowerCase();
+    if (want.isEmpty || !found.id.startsWith(want)) return false;
+    try {
+      return NetCrypto.idOf(base64Decode(found.key)) == found.id;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Says yes to [b]. A request is said yes to only where the relay's directory says its username is its sender's
+  /// ([Buddy.check]), asked now if it hasn't said so, whatever this phone's own lookups an hour have come to. Where it
+  /// doesn't, a [MeError] says why, and the request stays as it is, with what the directory said: it is never forgotten on
+  /// one answer (found in review, 2026-11-23).
   Future<Buddy> accept(Buddy b) async {
     if (_remote) return Buddy.fromJson((await _ask({'op': 'accept', 'id': b.id}))['buddy'])!;
-    final yes = b.copyWith(state: 'yes');
+    var it = b;
+    if (b.state == 'invited' && !b.checked) {
+      final (:said, :refused) = await _lookUpWhy(b.username, b.id, dial: true);
+      if (said != 'ok') {
+        final now = byId(b.id);
+        if (said.isNotEmpty && now != null && now.state == 'invited' && now.username == b.username && now.check != said) {
+          _replace(now.copyWith(check: said));
+          await _save();
+        }
+        throw MeError(switch (said) {
+          'other' => 'The relay gives @${b.username} to someone else, so this request didn\'t come from them. It stays until you decline it.',
+          'nobody' => 'The relay doesn\'t know the username @${b.username}, so this request can\'t be checked. It waits here.',
+          _ when refused => busyWords(b.username, _lookups.freesBy),
+          _ => '@${b.username} can\'t be checked with the relay server right now, so the request waits until it can be. Try again once you\'re connected.',
+        });
+      }
+      it = b.copyWith(check: 'ok');
+    }
+    // The relay's directory says the username is theirs (just now, or when it was last asked): what the name watch holds
+    // its answers to from here (lib/net/name_watch.dart), under the name looked up. Not someone on another relay
+    // (name@relay): this relay's directory isn't theirs.
+    if (b.state == 'invited' && splitUsername(it.username).relay == null) NameWatch.instance?.confirmed(b.id, tidyHandle(it.username));
+    final yes = it.copyWith(state: 'yes');
     _put(yes);
     await _save();
+    // Their record is given the relay now, just before the yes, so the yes is passed on to theirs.
+    if (yes.home != null) _homes?.give(yes.home!);
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()}));
+    // Friends now: they are told where this account lives.
+    await _tellHome(b.id);
     return yes;
   }
 
-  /// No to [b], who asked: off the list, and they are told.
+  /// What Accept says where the relay refused the lookup as one too many in the hour: the relay's hourly limit, and by
+  /// when one frees up at the latest ([LookupBudget.freesBy], ms; null for within the hour), never to connect.
+  @visibleForTesting
+  static String busyWords(String username, int? freesBy, {DateTime? now}) {
+    final left = freesBy == null ? 60 : ((freesBy - (now ?? DateTime.now()).millisecondsSinceEpoch) / 60000).ceil();
+    final within = left >= 60 ? 'within the hour' : (left <= 1 ? 'within a minute' : 'within $left minutes');
+    return 'The relay answers only so many lookups an hour, and this account has used them up for now, so @$username can\'t be checked yet. One frees up $within: try Accept again then. The request waits here.';
+  }
+
   Future<void> decline(Buddy b) async {
     if (_remote) {
       await _ask({'op': 'decline', 'id': b.id});
       return;
     }
     all = [for (final o in all) if (o.id != b.id) o];
+    _homes?.forget(b.id);
     await _save();
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'no'}));
   }
@@ -388,6 +999,8 @@ class Buddies extends ChangeNotifier {
     }
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'end'}));
     all = [for (final o in all) if (o.id != b.id) o];
+    _homes?.forget(b.id);
+    _unreached.remove(b.id);
     await _save();
   }
 
@@ -414,9 +1027,7 @@ class Buddies extends ChangeNotifier {
     }
   }
 
-  /// A request in the clear from [from]: checked, then kept as a request, or taken as a yes where this phone had
-  /// asked them too.
-  void _greeting(String from, Envelope e) {
+  Future<void> _greeting(String from, Envelope e) async {
     if (e.body['buddy'] != 'ask') return;
     final key = e.body['k'], username = e.body['u'];
     if (key is! String || username is! String || !Me.goodUsername(username)) return;
@@ -427,37 +1038,84 @@ class Buddies extends ChangeNotifier {
       return;
     }
     final had = byId(from);
+    // Blocked: their friend requests go nowhere.
+    if (had?.state == 'blocked') return;
     final name = '${e.body['n'] ?? ''}', bio = '${e.body['b'] ?? ''}';
     final said = _said(e.body);
+    // Where they live, as they signed it: the relay is given it before anything is answered, so the answer is passed
+    // on to theirs.
+    final home = _homeIn(e.body, from, key, had);
+    // Given the relay only for a friend or one this account asked: a stranger's record waits for a yes.
+    if (home != null && had != null && _routed(had)) _homes?.give(home);
     if (had?.state == 'yes') {
       // Asked again by a friend already: our yes was lost on its way (askAgain). Said again.
+      if (home != null) {
+        _put(had!.copyWith(home: home));
+        unawaited(_save());
+      }
       unawaited(_port.send(from, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()})));
       return;
     }
     if (had?.state == 'asked') {
-      // Both asked: friends.
-      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links)));
+      // Both asked: friends, under the username this phone looked up as it asked.
+      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics, home: home)).then((_) {}, onError: (_) {}));
       return;
     }
+    // A request names its own username, and anyone can send one: a new one is not kept where the relay's directory gives
+    // that username to another install (found in review, 2026-11-23: one that named itself "maya", accepted, took what
+    // was written to @maya). It is looked up of this phone's own accord, so once an hour for each request and within the
+    // hour's lookups ([_lookUpOwn]). Not looked up, or where the relay can't be asked or knows no such name, it is kept as
+    // not checked, says so, and is asked about again (checkRequests), or when Accept is pressed.
+    // Someone on another relay is checked, and kept, as name@relay, by the relay their own record names.
+    final probe = Buddy(username: '', id: from, key: key, home: home ?? had?.home);
+    final host = elsewhere(probe) ? probe.homeHost : '';
+    final claimed = host.isEmpty ? tidyHandle(username) : '${tidyHandle(username)}@$host';
+    var check = had?.state == 'invited' && had!.username == claimed ? had.check : '';
+    if (check != 'ok') {
+      final dir = await _lookUpOwn(Buddy(username: claimed, id: from, key: key));
+      // Answered meanwhile (accepted, blocked, or asked from here): that stands.
+      final now = byId(from);
+      if (now != null && now.state != 'invited') return;
+      if (dir == 'other') {
+        // A new request under someone else's username is not kept; one kept already under it stays, shown so: none is
+        // forgotten on one answer.
+        if (now == null || now.username != claimed) return;
+        check = 'other';
+      } else if (dir != null && dir.isNotEmpty) {
+        check = dir;
+      }
+    }
     // A request new to this phone: the friend request's sound (lib/sounds.dart), once.
-    if (had?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
-    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? '', links: said.links ?? const {}));
+    if (byId(from)?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
+    _put(Buddy(username: claimed, id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? '', links: said.links ?? const {}, cosmetics: said.cosmetics ?? Cosmetics.none, home: home ?? had?.home, check: check));
     unawaited(_save());
   }
 
   /// A sealed `buddy` envelope from someone on the list: their yes, no or end, a changed profile, or their game.
   void _sealed(String from, Envelope e) {
+    // Where a friend lives, as they signed it (kind `home`).
+    if (e.kind == 'home') return _heardHome(from, e.body['rec'], e.body['has']);
     if (e.kind != 'buddy') return;
     final had = byId(from);
-    if (had == null) return;
+    if (had == null || had.state == 'blocked') return;
     final name = e.body['n'] is String ? e.body['n'] as String : null, bio = e.body['b'] is String ? e.body['b'] as String : null;
     final said = _said(e.body);
+    // The username they say they go by now, in their own sealed profile: where it isn't the one they were added under,
+    // the name watch looks it up, and asks about it from then on where the relay names their key for it (they changed
+    // it, and their old one may be anyone's now). Not for a friend on another relay: their username is that relay's.
+    final u = e.body['u'];
+    if ((e.body['s'] == 'me' || e.body['s'] == 'yes') && u is String && Me.goodUsername(u) && tidyHandle(u) != had.username && splitUsername(had.username).relay == null && !elsewhere(had)) NameWatch.instance?.saidName(from, u);
     switch (e.body['s']) {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
-        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
+        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+        // Friends now: they are told where this account lives (they heard it with the request; again costs little).
+        if (had.state == 'asked') {
+          _unreached.remove(from);
+          unawaited(_tellHome(from));
+        }
       case 'me':
-        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links));
+        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
       case 'ga':
         // What a friend is playing, or that they stopped: kept in memory, never with the list.
         if (had.state == 'yes') GameActivities.instance.heard(from, e.body['ga']);
@@ -466,6 +1124,8 @@ class Buddies extends ChangeNotifier {
       case 'end':
         GameActivities.instance.heard(from, null);
         all = [for (final o in all) if (o.id != from) o];
+        _homes?.forget(from);
+        _unreached.remove(from);
       default:
         return;
     }
@@ -476,6 +1136,8 @@ class Buddies extends ChangeNotifier {
   void dispose() {
     _poll?.cancel();
     _again?.cancel();
+    _teller?.cancel();
+    _across?.homesChanged.removeListener(_homesChanged);
     for (final s in _subs) {
       s.cancel();
     }
@@ -483,13 +1145,30 @@ class Buddies extends ChangeNotifier {
   }
 }
 
-/// The app's own: the routes (lib/net/net.dart), Settings › Me and the phone.
-class _AppBuddiesPort implements BuddiesPort {
+class _AppBuddiesPort implements BuddiesPort, BuddiesAcross {
   _AppBuddiesPort() {
     Net.instance.listen((r) => _in.add((from: r.peer.id, envelope: r.envelope)));
     Net.instance.addListener(_follow);
     _follow();
   }
+
+  /// Tells when the routes' [Homes] is another one, or this account's record changed.
+  final _homesChanged = ValueNotifier<int>(0);
+  Homes? _homes;
+  void _homeMoved() => _homesChanged.value++;
+
+  @override
+  Homes? get homes => Net.instance.homes;
+  @override
+  Listenable get homesChanged => _homesChanged;
+  @override
+  bool passedOn(String id) => Net.instance.hub?.passedOn(id) ?? false;
+  @override
+  String? refusedWhy(String id) => Net.instance.hub?.refusedWhy[id];
+  @override
+  String recall(String key) => Net.instance.recall(key);
+  @override
+  void remember(String key, String value) => Net.instance.remember(key, value);
 
   final _in = StreamController<({String from, Envelope envelope})>.broadcast();
   final _hellos = StreamController<({String from, Envelope envelope})>.broadcast();
@@ -498,6 +1177,13 @@ class _AppBuddiesPort implements BuddiesPort {
 
   /// Listens to the switchboard's strangers (greetings in the clear), and again each time the routes are set up anew.
   void _follow() {
+    final homes = Net.instance.homes;
+    if (!identical(homes, _homes)) {
+      _homes?.removeListener(_homeMoved);
+      _homes = homes;
+      homes?.addListener(_homeMoved);
+      _homeMoved();
+    }
     final board = Net.instance.board;
     if (identical(board, _board)) return;
     _boardSub?.cancel();

@@ -19,9 +19,13 @@ import '../sounds.dart';
 import '../circles/circles.dart';
 import '../circles/sms_space.dart';
 import 'captions.dart';
+import 'friend_calls.dart';
 import 'hangout.dart';
 import 'mention_alerts.dart';
 import 'roles.dart';
+import 'leveler.dart';
+import 'live_changer.dart';
+import 'soundboard.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
 import 'voice.dart';
@@ -30,10 +34,16 @@ import 'voice_settings.dart';
 /// Someone calling a group: its channel, and who. Or, with [invite], a friend who invited this phone into a space.
 @immutable
 class VoiceRing {
-  const VoiceRing(this.channel, this.from, this.at, {this.invite = false, this.offer = false});
+  const VoiceRing(this.channel, this.from, this.at, {this.invite = false, this.offer = false, this.call, this.video = false, this.caller});
   final VoiceChannel channel;
   final String from;
   final DateTime at;
+
+  /// A friend calling this device alone (lib/voice/friend_calls.dart, GMFB-28): the call's id, whether it is a video
+  /// call, and the caller's install name.
+  final String? call;
+  final bool video;
+  final String? caller;
 
   /// Not a call but an invite: a friend gave this phone [channel] (Voice.share), to join now or later.
   final bool invite;
@@ -168,7 +178,8 @@ class Voice extends ChangeNotifier {
       await _keep();
     }
     notifyListeners();
-    if (c.hasVoice) await join(c);
+    // Its call is joined with it, where calls are (not in a browser yet: Sms.callsHere); its chat is there either way.
+    if (c.hasVoice && Sms.callsHere) await join(c);
     _raiseOffer();
   }
 
@@ -723,7 +734,13 @@ class Voice extends ChangeNotifier {
         _unmarkGone(c.seed);
         own = [...own, c];
         unawaited(_keep());
+      case 'call' || 'cancel' || 'decline' || 'answered':
+        // Calling one friend (lib/voice/friend_calls.dart, GMFB-28). Not rung where a call can't be answered: a page
+        // in a browser, which has no calls yet (Sms.callsHere); the account's other devices ring as they did.
+        if (!Sms.callsHere) return;
+        FriendCalls.instance.received(r, mine: r.peer.id == Net.instance.id);
       case 'ring':
+        if (!Sms.callsHere) return;
         final g = Groups.instance.all.where((g) => g.id == b['g'] && !g.gone).firstOrNull;
         if (g == null || g.member(r.peer.id) == null) return;
         final ring = ringing = VoiceRing(VoiceChannel.ofGroup(g.id, g.name), '${b['n'] ?? nameOf(r.peer.id)}', DateTime.now());
@@ -738,12 +755,41 @@ class Voice extends ChangeNotifier {
     }
   }
 
-  /// Puts away what is ringing (Not now, or unanswered).
+  /// A friend's call ringing here ([FriendCalls]) for [time] at most; [onUnanswered] where it rang out.
+  void ringFor(VoiceRing ring, Duration time, {required void Function() onUnanswered}) {
+    ringing = ring;
+    if (session?.channel.room != ring.channel.room) _ringIn(true);
+    _ringClears?.cancel();
+    _ringClears = Timer(time, () {
+      if (!identical(ringing, ring)) return;
+      clearRing(ring);
+      onUnanswered();
+    });
+    unawaited(Sms.instance.ringIncoming(ring.from, video: ring.video).catchError((_) {}));
+    notifyListeners();
+  }
+
+  /// [ring] put away without an answer from here (called off, answered on another device).
+  void clearRing(VoiceRing ring) {
+    if (!identical(ringing, ring)) return;
+    _ringClears?.cancel();
+    ringing = null;
+    _ringIn(false);
+    unawaited(Sms.instance.ringEnded().catchError((_) {}));
+    _raiseOffer();
+    notifyListeners();
+  }
+
   void dismissRing() {
     _ringClears?.cancel();
     // An offer put off is kept, and raised again when the app next opens; the next one waiting comes up now.
     final r = ringing;
     if (r != null && r.offer) _putOff.add(r.channel.seed);
+    // A friend's call: Decline, and the caller is told (GMFB-28).
+    if (r != null && r.call != null) {
+      FriendCalls.instance.decline(r);
+      unawaited(Sms.instance.ringEnded().catchError((_) {}));
+    }
     ringing = null;
     _ringIn(false);
     _raiseOffer();
@@ -874,12 +920,18 @@ class Voice extends ChangeNotifier {
     }
     s.locked = !room.heard(room.me);
     if (s.locked && !s.muted) s.setMuted(true);
+    // Brought up to speak on a stage: the hand goes down. And the connections the stage now wants (GMFB-29).
+    if (!s.locked && s.hand) s.raiseHand(false);
+    s.relink();
     s.videoLocked = !room.can(Perm.video);
     if (s.videoLocked && s.video) unawaited(s.setVideo(false));
+    if (s.videoLocked && s.screen) unawaited(s.setScreen(false));
   }
 
   /// Hops into [c], leaving any other first.
   Future<void> join(VoiceChannel c, {bool video = false}) async {
+    // Not in a browser yet (Sms.callsHere): the screens there offer no way in, and this holds whatever they miss.
+    if (!Sms.callsHere) throw StateError('Calls aren\'t in the browser yet.');
     final route = _route;
     if (route == null) throw StateError('The relay server isn\'t connected.');
     // A texting or Files space has no call (SpaceKind).
@@ -889,11 +941,22 @@ class Voice extends ChangeNotifier {
     if (session?.channel.room == c.room) return;
     await leave();
     if (ringing?.channel.room == c.room) {
+      // A friend's call answered here: this account's other devices stop ringing (GMFB-28).
+      final r = ringing!;
+      if (r.call != null) {
+        FriendCalls.instance.answered(r);
+        unawaited(Sms.instance.ringEnded().catchError((_) {}));
+      }
       ringing = null;
       _ringIn(false);
     }
     final settings = _app == null ? const VoiceSettings() : VoiceSettings.of(_app!);
-    final m = media = RtcMedia(settings: settings);
+    // The relay's TURN server, as the hub handed it out with the last room joined: a call falls back on it where the
+    // two devices can't reach each other directly (relay/lib/turn.dart).
+    final m = media = RtcMedia(settings: settings, relay: route is HubVoiceRoute ? () => route.hub.callRelay : null);
+    // Sharing the screen on the phone: the call's service takes on the media projection kind between the person
+    // agreeing and the capture starting, as Android 14 asks (android CallService.kt; GMFB-27).
+    m.screenService = (sharing) => Sms.instance.callStarted(c.name, video: session?.video ?? false, screen: sharing);
     for (final e in _volumes.entries) {
       m.setPeerVolume(e.key, e.value);
     }
@@ -917,11 +980,15 @@ class Voice extends ChangeNotifier {
         throw StateError(room.putOut!);
       }
       s.refuse = (id) => room.roster.banned.contains(id) || Circles.instance.putOutOf(c, id);
+      // On a stage two listeners make no connection (GMFB-29).
+      s.listens = (id) => room.listens(id == s.route.me ? room.me : id);
       room.sayMe(inVoice: true);
     }
     _saw(c.room);
     s.addListener(notifyListeners);
     s.addListener(_enforce);
+    // A friend this device is calling came in: it stops ringing out (GMFB-28).
+    if (FriendCalls.isCall(c)) s.addListener(() => s.members.isNotEmpty ? FriendCalls.instance.joined(c) : null);
     notifyListeners();
     try {
       final withVideo = video && (room == null || room.can(Perm.video));
@@ -937,6 +1004,12 @@ class Voice extends ChangeNotifier {
       CallCaptions.instance.follow();
       // And what the call watches together (watch_together.dart).
       WatchTogether.instance.follow();
+      // And its soundboard (soundboard.dart).
+      Soundboard.instance.follow();
+      // And the auto leveler (leveler.dart).
+      AutoLeveler.instance.follow();
+      // And the voice changer, live, where it is on (live_changer.dart).
+      unawaited(LiveChanger.instance.follow());
     } catch (e) {
       await leave();
       rethrow;
@@ -972,9 +1045,14 @@ class Voice extends ChangeNotifier {
     session = null;
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
+    Soundboard.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;
+    AutoLeveler.instance.follow();
+    unawaited(LiveChanger.instance.follow());
     if (s != null) unawaited(Sms.instance.callEnded());
+    // A call to a friend not answered yet is called off (GMFB-28).
+    if (s != null) FriendCalls.instance.left(s.channel);
     if (s != null) {
       s.removeListener(notifyListeners);
       s.removeListener(_enforce);

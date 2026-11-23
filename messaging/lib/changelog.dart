@@ -25,9 +25,144 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.17', '2026-11-23', [
+    'Remove a device: an iPhone or a computer with an account of its own now deletes everything of the account from itself when it is removed from the account (conversations, keys, recordings and the other networks\' sign-ins), and only when the removal carries the account\'s own signature: never because a relay was changed or lost what it kept. Where a relay doesn\'t know the device, Settings › Me says so and offers to list it again. Signing out says what stays on the device and offers to delete it all. Android phones, and computers paired with one, are as they were.',
+    'Safer starts: if an iPhone or a computer with an account of its own can\'t read what it keeps when it starts, it now says so and starts nothing, instead of starting empty and later writing over your messages.',
+    'Spaces: a message deleted while your device is catching up on a space\'s history now stays deleted, even when the deletion arrives before the message.',
+    'Friends on other relays: each account now signs which relay is its home, so once relays pass messages to each other, people on different relays can be friends, added as @maya@relay.example. Our relay doesn\'t pass messages on yet; the add-friend screen and Settings › Routes say what crosses relays today.',
+  ]),
+  ReleaseNotes('0.12.16', '2026-11-23', [
+    'Checking the relay: once a day, your devices ask the relay again who each friend\'s username belongs to, and check your own at sign-in. If the relay ever gives a friend\'s username to a different account, their card says so, calmly, and they\'re told: you\'re still talking to the friend you added. Settings › Routes shows what was checked.',
+    'Add-me links carry the friend\'s key, so a link only ever adds the person who made it, whatever the relay says.',
+  ]),
+  ReleaseNotes('0.12.15', '2026-11-23', [
+    'Friends are told apart by their keys: who a message is from, and where yours go, now come only from the key your records hold for that friend, never from the address someone else wrote. A group\'s admin could list a member under one of your friends\' numbers or usernames; their messages no longer land in your friend\'s conversation, and yours no longer go to them.',
+    'Friend requests by username are checked with the relay\'s directory before they can be accepted, so a request can\'t borrow someone else\'s name; group members show under who your phone knows them to be.',
+  ]),
+  ReleaseNotes('0.12.14', '2026-11-23', [
+    'Friends by username: when a message to one can\'t go (no connection, or a picture, which can\'t be sent to a friend by username yet), the conversation now says why and keeps what you wrote. Before, on Android, it was handed to texting, which kept the words unsealed with your texts and couldn\'t deliver them.',
+    'Steadier connections: the relay no longer takes compressed messages, which closes a way one message could have stopped it.',
+  ]),
+  ReleaseNotes('0.12.13', '2026-11-22', [
+    'Your own relay server: Settings › Routes can point the app at a relay you run yourself. It checks the address answers before switching, shows which relay is in use, and goes back to ours in one tap. People on different relays can\'t reach each other, and the docs say what else changes. The guide to running one is in the docs.',
+    'Make it yours: build your own look from four colours in Settings › Appearance and share it as a short code, or paste a friend\'s. There\'s a Readable font for easier reading, too.',
+    'Keyboard shortcuts: Cmd/Ctrl+K jumps to any conversation, Option/Alt+Up and Down move through the list, and Cmd/Ctrl+B, I and E format what you write. Search is now Cmd/Ctrl+F. Change any of them in Settings › Keyboard shortcuts.',
+    'Voice messages from your computer: the Mac and Windows apps record voice messages in chats, spaces and the networks\' chats, no phone needed, and Windows plays them too. On Linux, the app now updates itself (install this version once by hand).',
+    'Forward secrecy: messages between friends, and the copies your devices send each other, are now sealed with keys that each device changes daily and deletes after about two weeks. Someone who recorded them can\'t open them later, even with your recovery words. Friends on older versions still get your messages the earlier way. Circles aren\'t covered yet.',
+  ]),
+  ReleaseNotes('0.12.12', '2026-11-22', [
+    'Stages in spaces: whoever manages a space can make its call a stage, where newcomers listen until brought up to speak. Listeners raise a hand to ask, the menu counts listeners and hands, and a stage holds far more people than an ordinary call.',
+    'Formatting in messages: **bold**, *italic*, ~~strikethrough~~, `code`, quotes with "> " and ||spoilers|| that stay hidden until tapped. Choose words in a chat with a friend to make them bold, italic or code.',
+    'Report a person or a message: press and hold a message, or open someone\'s profile card, choose a reason and add a note if you like. The report is sealed so only the reviewer can read it, and you can block them at the same time. Settings › Privacy lists the reports you\'ve made. Nothing you send is ever scanned.',
+  ]),
+  ReleaseNotes('0.12.11', '2026-11-22', [
+    'Show me as: in Profile, choose Online, Away, Busy or Invisible. Friends see a green dot, an amber moon for Away or a red mark for Busy on your picture; Invisible shows you as offline while you keep chatting.',
+    'Your add-me link: Profile has a gogho.st/add link and QR code of your own. Anyone who opens it or scans it is asked whether to send you a friend request.',
+    'Threads in spaces and circles: long-press a message and choose Reply in thread to talk about it on its own page. A line under the message shows how many replies and who wrote last.',
+    'Snooze a conversation: long-press it in Messages and choose Snooze…. It leaves the list until the time you pick, then comes back at the top with a notification.',
+    'Export a conversation: a conversation\'s settings, or a space\'s, can save every message as a Markdown file.',
+  ]),
+  ReleaseNotes('0.12.10', '2026-11-22', [
+    'Dress your profile: in Profile › Look, choose an avatar decoration, a border for your picture, a banner, an effect on your name and an effect over your whole profile card. Friends and people in your spaces see them when they open your profile.',
+    'Calls: call a friend directly. A friend\'s chat has Voice call and Video call; their phone, Mac and PC ring with Answer and Decline, full screen on a locked Android phone. Missed, declined and unanswered calls are noted in the chat.',
+  ]),
+  ReleaseNotes('0.12.9', '2026-11-22', [
+    'Share your screen in a call: on a Mac, Windows or Linux pick a whole screen or one window; on Android the phone asks. Everyone else sees it large and whole, with Back to call to put it away and View to bring it back.',
+  ]),
+  ReleaseNotes('0.12.8', '2026-11-22', [
+    'Messages with friends by username reach every device on your Ghost account: what you send from your phone shows on your Mac and PC too, and what they send reaches all of them, even a device that was closed.',
+    'Emoji shortcodes: type :joy: and it becomes 😂; start typing :jo and matching emoji show over the box, to pick with the arrow keys and Enter, or a tap.',
+    'New plugin, Human check: on the networks you choose, someone new is held out of Messages and notifications until they answer a small question your app sends them, which weeds out bots and spam. You can let anyone in or block them from the Held list.',
+  ]),
+  ReleaseNotes('0.12.7', '2026-11-22', [
+    'Messages and circles show how many are unread: a count on the Messages icon, and on each circle in place of its dot (red where you are mentioned).',
+    'Notifications: a text the filter hides (a kind you have switched off in Messages, such as political texts or sales, or Spam) no longer notifies, even when the app is closed. It still arrives.',
+    'Calls on the Mac: testing your microphone in Settings › Voice and video starts and stops without the spinning wait.',
+  ]),
+  ReleaseNotes('0.12.6', '2026-11-22', [
+    'Calls: the red handle over a call no longer stays on screen after a recording stops, or when the soundboard or voice changer has nothing to show.',
+  ]),
+  ReleaseNotes('0.12.5', '2026-11-21', [
+    'Sign in once, signed in everywhere: a network plugin you sign in to on one device, in the app or with the browser extension, signs in on every device on your Ghost account, the Mac and Windows apps included. Each sign-in page also offers Use the sign-in from your browser.',
+    'Plugins you turn on or off reach your other devices within a couple of minutes, even a computer that stays open.',
+    'Network plugins on Windows: Messenger, Instagram, Discord, X and Slack now work in the Windows app too.',
+  ]),
+  ReleaseNotes('0.12.4', '2026-11-21', [
+    'Discord, X and Slack plugins in the Marketplace: your Discord direct messages and group chats, your X direct messages and a Slack workspace, read and answered in Messages. They sign in with your browser\'s session; the browser extension does it for every device. None of them allows other apps, so you agree to a warning first.',
+    'X\'s messages are end-to-end encrypted: Ghost asks once for your 4-digit X Chat passcode to open them, and doesn\'t keep it.',
+    'Browser extension: an account with a verified phone number can sign in. Enter the number, choose Text me a code, then type the code.',
+  ]),
+  ReleaseNotes('0.12.3', '2026-11-21', [
+    'Chat bubbles on Android: a conversation can float on the side of your screen, like Google Messages and Messenger. Turn them on or off in Settings › Notifications.',
+    'Plugins sync across your devices: turn one on, or add one from the Marketplace, and your other devices on the same Ghost account follow. Network plugins switch on and offer their sign-in; your sign-ins never leave a device. Settings › Plugins has the switch.',
+    'Google Messages in a tap: the browser extension can now sign in to Google for you, in a private window of its own, and Ghost pairs with it from Google Messages\' setup. No copying from the browser\'s developer tools. You still tap Google\'s emoji on your phone.',
+    'RCS messages on a computer: one paired with your phone now shows when RCS already comes through the phone, rather than asking you to set it up again.',
+    'Test your microphone and speaker in Settings › Voice and video: a live level bar, and Hear yourself through the speaker you chose.',
+    'In a call, each face shows when someone is still connecting, reconnecting, on a slow connection, or can\'t connect.',
+    'Reply to a message in circle and space chats: press and hold it, then Reply.',
+    'Sign up: your 12 recovery words can wait. Choose Later, and a reminder stays in your conversations until you see them.',
+  ]),
+  ReleaseNotes('0.12.2', '2026-11-21', [
+    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
+    'Calls: turning your video off no longer leaves your last frame frozen in your tile on the other side.',
+    'Calls: the lines over a call — the recording\'s, a plugin\'s — can be dragged out of the way and folded down to a chip.',
+    'Files: a large upload no longer makes the app stutter during a call.',
+    'Windows: you can pick files again — a plugin to load, and files and pictures anywhere the app asks for one.',
+    'The Archive ring counts only unread archived conversations now, so reading them clears it.',
+    'Signal: the code you share to another screen shows properly, or says why it can\'t, instead of a blank bar.',
+  ]),
+  ReleaseNotes('0.12.1', '2026-11-21', [
+    'Record call: open a saved recording in the mixer. In Recordings, tap one and choose Open in the mixer: every voice is a track with its waveform, meter, mute, solo and fader, as during the call. Play it to hear the mix as you set it, tap the tracks to jump around, and Save mix to keep it as a new recording beside the first.',
+    'Souls: when you\'re given souls or a badge, you\'re told why ("Bug bounty", say). Straight away if the app is open; if it isn\'t, a card shows what you were given and why the next time you open it.',
+  ]),
+  ReleaseNotes('0.12.0', '2026-11-21', [
+    'Videos from Files spaces can go full screen on your phone too: press the full-screen button and the bars hide and the phone turns to fit the video (upright for a tall one). Back, or the button again, leaves full screen.',
+  ]),
+  ReleaseNotes('0.11.7', '2026-11-21', [
+    'Record call: everyone\'s voice is recorded again, not just yours. Since calls can start through the relay and then reconnect, a person\'s sound could move to a new connection part way, and the recording kept listening to the old one.',
+  ]),
+  ReleaseNotes('0.11.6', '2026-11-21', [
+    'Files spaces: files over 4 GB show in the space again. A big film or backup could finish uploading and still not appear in the list.',
+    'Calls: video now shows on both ends. Until now each side saw only their own camera, never the other person\'s. Calls also connect through Ghost\'s relay first, which gets through almost any network, and only try a direct path if the relay can\'t be reached; a call that hasn\'t connected after 15 seconds tries the other way by itself.',
+    'Windows: the microphone you pick in a call or in Settings › Voice and video is the one used. Windows used the first microphone it found, whatever you chose.',
+    'Windows: calls no longer turn your other sounds down (music, videos, games). If you liked that, switch on Lower other sounds in calls in Settings › Voice and video.',
+  ]),
+  ReleaseNotes('0.11.5', '2026-11-21', [
+    'Files spaces: an upload that stopped part way and can\'t carry on now shows at the top of the space as Unfinished upload, with how much got there and who started it. It held the space\'s room without a word before; now whoever started it or the space\'s owner can remove it to free that room. An upload that does carry on after the app opens again shows how far it had got, and says it is checking the file before going on rather than looking stopped.',
+    'Voice changer in calls is instant now: your voice is changed on your own device as you speak, with no delay and nothing sent anywhere. Pick Feminine, Masculine, Deeper, Higher, Child, Older, Monster, Chipmunk, Robot or Radio in the plugin\'s settings: each moves your pitch and the size of your voice separately, so it sounds like a real person of that kind rather than a sped-up recording. ElevenLabs is still there under How calls are changed, for a realistic voice a second or two behind.',
+    'Windows: Record call, Live captions and Scribe now work on Windows. Captions and Scribe need Windows\' speech recognition for your language (Settings › Time & language › Speech).',
+  ]),
+  ReleaseNotes('0.11.4', '2026-11-21', [
+    'Calls: when you and someone else can\'t reach each other directly, on a mobile network or a strict workplace, school or hotel network, the call now goes through Ghost\'s relay by itself instead of never connecting. It stays encrypted between you: the relay can\'t hear or see it.',
+    'Files spaces: "Getting it ready" is far quicker for a big file, and shows a percentage. Checking a 26 GB file took over twenty minutes; it now takes seconds on a Mac or iPhone and about four minutes on Android and Windows. Checking a download is quicker the same way.',
+  ]),
+  ReleaseNotes('0.11.3', '2026-11-21', [
+    'LinkedIn is no longer a network here: LinkedIn kept signing people out of their own browsers when Ghost used the sign-in. It is gone from the Marketplace and from Settings › Connections, and its saved sign-in and chats are deleted from this device the next time the app starts.',
+  ]),
+  ReleaseNotes('0.11.2', '2026-11-21', [
+    'Networks: one you added (Instagram, LinkedIn and the others) no longer shows as removed after the app starts again while another network is slow to start. Each network now starts on its own.',
+  ]),
+  ReleaseNotes('0.11.1', '2026-11-20', [
+    'Voice changer, live in calls: turn on "Change my voice in calls, live" and everyone in a space\'s call hears you in the voice you chose, a second or two behind as each phrase is changed by ElevenLabs. Your own voice is never heard while it\'s on, nothing is sent while you\'re muted, and a line over the call shows whose voice you have, with a way back to your own.',
+    'Record call: the recording no longer floats over the app as a pill. Your red recording line over the call has a Mixer button beside Stop, which opens the tracks, meters and faders full screen.',
+  ]),
+  ReleaseNotes('0.11.0', '2026-11-20', [
+    'Marketplace: WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn are listed as plugins, on a Networks shelf. Add one and it is switched on in Settings › Connections too, ready to sign in to; remove it and it is signed out.',
+  ]),
+  ReleaseNotes('0.10.8', '2026-11-20', [
+    'Auto leveler: a new plugin that brings everyone in a call to about the same loudness on your device. Quiet voices come up and loud ones come down, a few seconds after each person starts talking, never more than about 9 dB either way. Nothing is sent and nobody else hears a difference. Add it from the Marketplace, or turn it on for a whole circle; press and hold someone in a call to see what it is doing to them.',
+    'Soundboard: a new plugin that puts pads in a call. Press one and everyone in the call hears it: an air horn, applause, a sad trombone and nine more. A circle\'s owner and admins can add sounds of the circle\'s own. Add it from the Marketplace, or turn it on for a whole circle in its Settings › Plugins; you choose how loud it is for you, or to hear none of it.',
+    'Voice changer: a new plugin that sends your voice messages in another voice, keeping how you said them: your timing, your tone, a laugh or a whisper. It uses your own ElevenLabs account, so each recording goes to ElevenLabs to be changed; if one can\'t be changed it isn\'t sent. In spaces and in chats on other networks, on an Android phone. Add it from the Marketplace, then paste your key and choose a voice in Settings › Voice changer.',
+    'Recording a call: the recording\'s pill, with its tracks, meters and mixer, now shows over the call itself (the call\'s page was covering it), and the red line over the call counts the time.',
+  ]),
+  ReleaseNotes('0.10.7', '2026-11-20', [
+    'Connections: Telegram and Signal are Ghost\'s official networks, there and ready to sign in to. The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn — are now plugins under Connections › Plugins: off until you switch one on, and not run until then. Anything you\'d already connected stays on. Your texts, through Google Messages, are unchanged.',
+  ]),
   ReleaseNotes('0.10.6', '2026-11-20', [
     'Spaces and circles: react to messages. Press and hold a message (or right-click on a computer) and pick an emoji; tap a reaction in a circle to add yours or take it off. Everyone can react in read-only spaces.',
     'Circles: a welcome message for new members and a welcome space they land in, read-only spaces where only the owner and admins post, and a system space that shows who joined, was kicked or banned, or became an admin. Set them in a circle\'s Settings › Welcome.',
+    'Messenger, Instagram and LinkedIn: your chats on each, among your messages, on a Mac and an Android phone. Connect one in Settings › Connections. None of the three supports other apps, so each asks you to read a warning first; you sign in with the session of a browser signed in to your account.',
+    'Faster and smoother everywhere, most of all on Linux: the chat list, long conversations and pictures do far less work, saving chats no longer pauses the screen, changing a setting no longer redraws the whole app, and the call banner no longer keeps the window drawing after a call has ended.',
   ]),
   ReleaseNotes('0.10.5', '2026-11-20', [
     'Game activity: a new plugin that shows friends and the spaces you\'re in which game you\'re playing on your Mac or Windows computer, and for how long. Add it from the Marketplace; it\'s off until you do, and you choose who is told.',

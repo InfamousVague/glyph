@@ -9,11 +9,13 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../inbox/inbox.dart' show InboxPresence;
 import '../presence.dart';
 import '../sms.dart';
 import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
 import 'window_chrome.dart';
+import '../kit/picture_decode.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
@@ -243,9 +245,12 @@ class _GhostSpinnerState extends State<GhostSpinner> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final arc = RotationTransition(
-      turns: _turn,
-      child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+    // Painted by itself: its turning does not have what stands round it painted again at every frame.
+    final arc = RepaintBoundary(
+      child: RotationTransition(
+        turns: _turn,
+        child: CustomPaint(size: Size.square(widget.size), painter: _ArcPainter(t.color('app-ink-2'), t.color('app-rule'))),
+      ),
     );
     return Semantics(
       label: widget.label ?? 'Loading',
@@ -676,23 +681,11 @@ class Avatar extends StatelessWidget {
       listenable: Presence.changes,
       builder: (context, _) {
         final p = Presence.of(address);
-        if (p == null || !p.online) return face;
+        if (p == null || !(p.online || p.busy || p.away)) return face;
         final dot = (size * 0.3).clamp(8.0, 16.0);
-        final t = context.tokens;
         return Stack(clipBehavior: Clip.none, children: [
           face,
-          Positioned(
-            top: size * 0.02,
-            right: size * 0.02,
-            child: Semantics(
-              label: 'Online on ${p.network}',
-              child: Container(
-                width: dot,
-                height: dot,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF34C759), border: Border.all(color: t.color('glacier-bg'), width: (dot * 0.18).clamp(1.5, 2.5))),
-              ),
-            ),
-          ),
+          Positioned(top: size * 0.02, right: size * 0.02, child: PresenceDot(presence: p, size: dot)),
         ]);
       },
     );
@@ -774,17 +767,17 @@ class _Face extends StatelessWidget {
         final photo = person.photo!;
         Widget clip(Widget child) => square ? ClipRect(child: child) : ClipOval(child: child);
         if (photo.startsWith('/')) {
-          return clip(Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.file(File(photo), width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size), errorBuilder: (_, _, _) => fallback));
         }
         if (photo.startsWith('https://')) {
-          return clip(Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, _, _) => fallback));
+          return clip(Image.network(photo, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size), errorBuilder: (_, _, _) => fallback));
         }
         return FutureBuilder<Uint8List?>(
           future: Sms.instance.photo(person.photo!),
           builder: (context, snap) {
             final bytes = snap.data;
             if (bytes == null) return fallback;
-            return clip(Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true));
+            return clip(Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size)));
           },
         );
       }),
@@ -830,9 +823,13 @@ String dayHeading(DateTime d, [DateTime? now]) {
 
 /// Opens a page from the right, as Ghost Keyboard's settings pages do. Under Dial-Up it simply appears, as the era's
 /// windows did.
-Future<T?> push<T>(BuildContext context, WidgetBuilder builder) {
+Future<T?> push<T>(BuildContext context, WidgetBuilder builder) => pushOn<T>(Navigator.of(context), context, builder);
+
+/// [push], on [navigator]: for what is drawn over the app's pages and so has no navigator above it (the recording's
+/// pill, lib/ui/recording_float.dart). [context] is only asked for the look.
+Future<T?> pushOn<T>(NavigatorState navigator, BuildContext context, WidgetBuilder builder) {
   final still = isBevelChrome(context.tokens);
-  return Navigator.of(context).push<T>(
+  return navigator.push<T>(
       PageRouteBuilder<T>(
         transitionDuration: still ? Duration.zero : const Duration(milliseconds: 260),
         reverseTransitionDuration: still ? Duration.zero : const Duration(milliseconds: 220),
@@ -1031,3 +1028,41 @@ void openDocs([String page = '']) => Sms.instance.openLink('https://gogho.st/doc
 
 /// The "?" in a screen's header that opens its page in the docs ([openDocs]).
 Widget docsButton(String page, {String label = 'Help with this'}) => IconTap(icon: Lucide.info, label: label, onPressed: () => openDocs(page));
+
+
+/// The mark on a face for how someone is (GMFB-34): green online, a red disc with a bar for Busy, an amber moon for
+/// Away, each ringed in the page's colour.
+class PresenceDot extends StatelessWidget {
+  const PresenceDot({super.key, required this.presence, required this.size});
+  final InboxPresence presence;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final p = presence;
+    final ring = t.color('glacier-bg');
+    final edge = (size * 0.18).clamp(1.5, 2.5);
+    final (colour, label) = p.busy
+        ? (const Color(0xFFED4245), 'Busy')
+        : p.online
+            ? (const Color(0xFF34C759), 'Online on ${p.network}')
+            : (const Color(0xFFF0B232), 'Away');
+    return Semantics(
+      label: label,
+      child: Container(
+        key: ValueKey('presence-${p.busy ? 'busy' : p.online ? 'online' : 'away'}'),
+        width: size,
+        height: size,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: colour, border: Border.all(color: ring, width: edge)),
+        child: p.busy
+            ? Center(child: Container(width: size * 0.42, height: (size * 0.14).clamp(1.5, 3.0), decoration: BoxDecoration(color: ring, borderRadius: BorderRadius.circular(2))))
+            : (!p.online
+                // A crescent: the disc with a bite of the page's colour out of its top right.
+                ? Align(alignment: const Alignment(0.7, -0.7), child: Container(width: size * 0.5, height: size * 0.5, decoration: BoxDecoration(shape: BoxShape.circle, color: ring)))
+                : null),
+      ),
+    );
+  }
+}

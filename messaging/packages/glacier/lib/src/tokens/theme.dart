@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 
@@ -31,7 +33,13 @@ double? debugFixturePixelRatio;
 /// light or dark. The tokens are worked out again when the window's width changes (the type and space scales are
 /// fluid) or its safe areas do.
 class GlacierTheme extends StatefulWidget {
-  const GlacierTheme({super.key, required this.sheet, this.attrs = const {}, this.typography = const GlacierTypography(), required this.child});
+  const GlacierTheme({super.key, required this.sheet, this.attrs = const {}, this.typography = const GlacierTypography(), this.resizeSettle, required this.child});
+
+  /// How long the window's size must stand still before the tokens are worked out for it. Null (the kit's own way):
+  /// at once, at every size. A desktop app whose window is dragged larger or smaller gives a moment here: the tokens
+  /// (and so everything drawn from them) were otherwise made anew at every frame of the drag. A change of anything
+  /// else (the theme, the density, the sheet, the safe areas) is always taken at once.
+  final Duration? resizeSettle;
 
   final TokenSheet sheet;
   final Map<String, String> attrs;
@@ -58,6 +66,17 @@ class _GlacierThemeState extends State<GlacierTheme> {
   Tokens? _tokens;
   Object? _key;
 
+  /// [_key] without the window's size, and the wait for a size being dragged to settle ([GlacierTheme.resizeSettle]).
+  Object? _keyButSize;
+  Timer? _settling;
+  Object? _waitingFor;
+
+  @override
+  void dispose() {
+    _settling?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -76,8 +95,25 @@ class _GlacierThemeState extends State<GlacierTheme> {
     };
     final css = CssContext(vw: media.size.width, vh: media.size.height, dpr: media.devicePixelRatio, lineDpr: debugFixturePixelRatio ?? media.devicePixelRatio);
     final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations, widget.typography);
-    if (_tokens == null || key != _key) {
+    final keyButSize = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), media.devicePixelRatio, debugFixturePixelRatio, media.disableAnimations, widget.typography);
+    final settle = widget.resizeSettle;
+    if (_tokens != null && key != _key && settle != null && keyButSize == _keyButSize) {
+      // Only the window's size changed: the tokens stand until it has been still for a moment, then are made once.
+      // A build for another reason while it waits (the same size still) does not start the wait again.
+      if (key != _waitingFor) {
+        _waitingFor = key;
+        _settling?.cancel();
+        _settling = Timer(settle, () {
+          _waitingFor = null;
+          if (mounted) setState(() => _keyButSize = null);
+        });
+      }
+    } else if (_tokens == null || key != _key) {
+      _settling?.cancel();
+      _settling = null;
+      _waitingFor = null;
       _key = key;
+      _keyButSize = keyButSize;
       _tokens = Tokens.root(widget.sheet, attrs: attrs, env: env, reducedMotion: media.disableAnimations, css: css, typography: widget.typography);
     }
     return _TokensScope(tokens: _tokens!, child: widget.child);

@@ -1,6 +1,7 @@
 import '../desktop/linux_dialogs.dart';
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -21,21 +22,21 @@ typedef PickedFile = ({String path, bool owned});
 ///   (`shareFile`); and files shared from other apps (`sharedFiles` and the `sharedFiles` event).
 /// - Mac (macos/Runner/DeskChannels.swift, MainFlutterWindow.swift): the Open and Save panels for any file, the share
 ///   menu, and files dragged onto the window while a Files space is showing.
-/// - Windows: its picture panel for choosing (all it has today), and a save into Downloads.
+/// - Windows (windows/runner/clipboard.cpp): its Open dialog for any file or pictures, and a save into Downloads.
 class FilePlatform {
   FilePlatform._();
 
   static const _system = MethodChannel('ghost_desktop/system');
   static const _drop = MethodChannel('ghost_desktop/drop');
 
-  static bool get _desktop => !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-  static bool get _phone => !kIsWeb && Platform.isAndroid;
+  static bool get _desktop => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
+  static bool get _phone => !kIsWeb && PlatformInfo.isAndroid;
 
   /// Whether this device can choose files at all.
   static bool get canPick => _phone || _desktop;
 
   /// Whether files can be dragged onto the window here.
-  static bool get canDrop => !kIsWeb && Platform.isMacOS;
+  static bool get canDrop => !kIsWeb && PlatformInfo.isMacOS;
 
   /// Files chosen with the device's own picker; none where it was put away.
   static Future<List<PickedFile>> pick() async {
@@ -53,11 +54,11 @@ class FilePlatform {
   /// (lib/desktop/remote.dart).
   static Future<List<String>> pickPaths({int most = 50}) async {
     // Linux: the desktop's own chooser (lib/desktop/linux_dialogs.dart).
-    if (!kIsWeb && Platform.isLinux) return linuxPick(most: most);
+    if (!kIsWeb && PlatformInfo.isLinux) return linuxPick(most: most);
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickFiles', {'most': most})) ?? const []) '$p'];
     } on MissingPluginException {
-      // A desktop build without the any-file panel (Windows today): its picture panel.
+      // A desktop build without the any-file panel: its picture panel.
       return MacPlatform.pickPictures(most: most);
     } catch (_) {
       return const [];
@@ -81,31 +82,31 @@ class FilePlatform {
   static Future<String?> save(String path, String name, String mime) async {
     if (!canSave) return null;
     if (_phone) return await Sms.instance.saveFile(path, name, mime) ? 'Saved' : null;
-    if (!kIsWeb && Platform.isMacOS) {
+    if (!kIsWeb && PlatformInfo.isMacOS) {
       final to = await _system.invokeMethod<String>('saveFile', {'name': name});
       if (to == null) return null;
       await File(path).copy(to);
       return 'Saved to ${to.split('/').reversed.skip(1).firstOrNull ?? 'your Mac'}';
     }
     // Elsewhere: into Downloads, under a name not already taken.
-    final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? Directory.systemTemp.path;
-    final dir = Directory('$home${Platform.pathSeparator}Downloads')..createSync(recursive: true);
-    var target = File('${dir.path}${Platform.pathSeparator}$name');
+    final home = PlatformInfo.environment['USERPROFILE'] ?? PlatformInfo.environment['HOME'] ?? Directory.systemTemp.path;
+    final dir = Directory('$home${PlatformInfo.pathSeparator}Downloads')..createSync(recursive: true);
+    var target = File('${dir.path}${PlatformInfo.pathSeparator}$name');
     final dot = name.lastIndexOf('.');
     for (var n = 2; target.existsSync(); n++) {
-      target = File('${dir.path}${Platform.pathSeparator}${dot > 0 ? '${name.substring(0, dot)} ($n)${name.substring(dot)}' : '$name ($n)'}');
+      target = File('${dir.path}${PlatformInfo.pathSeparator}${dot > 0 ? '${name.substring(0, dot)} ($n)${name.substring(dot)}' : '$name ($n)'}');
     }
     await File(path).copy(target.path);
     return 'Saved to Downloads';
   }
 
   /// Whether this device can share a file to another app.
-  static bool get canShare => _phone || (!kIsWeb && Platform.isMacOS);
+  static bool get canShare => _phone || (!kIsWeb && PlatformInfo.isMacOS);
 
   /// Hands the file at [path] to the system to share with another app: on Android and a Mac, nothing elsewhere.
   static Future<void> share(String path, String name, String mime) async {
     if (_phone) return Sms.instance.shareFile(path, name, mime);
-    if (!kIsWeb && Platform.isMacOS) await _system.invokeMethod('shareFile', {'path': path});
+    if (!kIsWeb && PlatformInfo.isMacOS) await _system.invokeMethod('shareFile', {'path': path});
   }
 
   /// Endings that run something when opened, rather than show something: a file another member added with one of these
@@ -132,9 +133,9 @@ class FilePlatform {
   static Future<void> open(String path, String name) async {
     if (runsCode(name)) return;
     if (_phone) return Sms.instance.openFile(path, name: name);
-    if (!kIsWeb && Platform.isWindows) {
+    if (!kIsWeb && PlatformInfo.isWindows) {
       await Process.run('explorer', [path]);
-    } else if (!kIsWeb && Platform.isLinux) {
+    } else if (!kIsWeb && PlatformInfo.isLinux) {
       await Process.run('xdg-open', [path]);
     } else {
       await Process.run('open', [path]);
@@ -143,7 +144,7 @@ class FilePlatform {
 
   /// Shows the file at [path] in the Finder (a computer only).
   static Future<void> reveal(String path) async {
-    if (!kIsWeb && Platform.isMacOS) await Process.run('open', ['-R', path]);
+    if (!kIsWeb && PlatformInfo.isMacOS) await Process.run('open', ['-R', path]);
   }
 
   // --- files dropped on the window -----------------------------------------------------------------------------------

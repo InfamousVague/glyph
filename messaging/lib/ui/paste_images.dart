@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -38,8 +38,8 @@ class PasteImages extends StatefulWidget {
   static bool _listening = false;
   static bool _told = false;
 
-  static bool get _mac => !kIsWeb && Platform.isMacOS;
-  static bool get _otherDesktop => !kIsWeb && (Platform.isWindows || Platform.isLinux);
+  static bool get _mac => !kIsWeb && PlatformInfo.isMacOS;
+  static bool get _otherDesktop => !kIsWeb && (PlatformInfo.isWindows || PlatformInfo.isLinux);
 
   /// The Mac window told whether a field that takes pictures has the cursor, once a change.
   static void _tell() {

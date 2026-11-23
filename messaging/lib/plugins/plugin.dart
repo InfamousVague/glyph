@@ -908,7 +908,10 @@ enum PluginShelf {
   organise('Organise'),
   safety('Safety'),
   messages('Messages'),
-  tools('Tools');
+  tools('Tools'),
+
+  /// The other networks, each a plugin (lib/plugins/networks.dart).
+  networks('Networks');
 
   const PluginShelf(this.label);
   final String label;
@@ -962,8 +965,15 @@ enum PluginSource {
   dev,
 }
 
-/// What every plugin is, built in or a pack: an id and a name, and whichever of the contract's parts it gives. Each
-/// part is empty unless a plugin overrides it, and the registry reads them once, when it takes the plugin.
+/// A plugin whose switch is kept somewhere of its own, not under `plugin_<id>`: a network's, which Settings ›
+/// Connections shows too (lib/plugins/networks.dart). [PluginRegistry.isOn] and [PluginRegistry.setOn] ask it.
+abstract interface class OwnSwitch {
+  bool get on;
+
+  /// Switches it; done once what that takes is (a network signed out).
+  Future<void> turn(bool on);
+}
+
 abstract class GhostPlugin {
   const GhostPlugin();
 

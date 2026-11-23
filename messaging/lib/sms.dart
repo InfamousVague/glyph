@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'platform_info.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -356,7 +356,7 @@ class GmChannel {
 /// What the phone lets the app do: whether it is the default texting app, and the permissions it has been given
 /// (the contacts, notifications, the phone).
 class SmsStatus {
-  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false});
+  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false, this.bubbles});
   final bool isDefault;
   final bool contacts;
   final bool notifications;
@@ -370,6 +370,10 @@ class SmsStatus {
 
   /// Google Messages is the default SMS app now (RCS works only there).
   final bool gmDefault;
+
+  /// Android's own setting for the app's conversation bubbles (android Bubbles.kt, GMFB-8): 'all', 'selected' (the
+  /// conversations the person chose), 'none', or null where the phone has none (before Android 11, or a computer).
+  final String? bubbles;
 
   /// Ghost beside Google Messages, not the default: its RCS chats come through its notifications.
   bool get beside => !isDefault && bridge && sms;
@@ -386,16 +390,31 @@ class SmsStatus {
         bridge: m['bridge'] == true,
         sms: m['sms'] == true,
         gmDefault: m['gmDefault'] == true,
+        bubbles: m['bubbles'] is String ? m['bubbles'] as String : null,
       );
 }
 
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = ''});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id, this.otherIds = const []});
   final String address;
   final String state;
   final bool verified;
+
+  /// Their install's name: the id the key held for them makes (android E2e.state), 32 hex digits; null where no key
+  /// of theirs is held, or the record came from somewhere that does not say. Who is a friend to the direct route, who
+  /// sent a friend's words and where they are sent are decided by this, never by an address (lib/net/net.dart,
+  /// lib/friends/friends.dart). For a friend by username, the install their username stands for (UsernameChats.states).
+  final String? id;
+
+  /// For a friend by username, their other installs that are friends here too, by name: one that came again with a
+  /// new key, kept beside the newest (Buddies.onePerUsername). What comes sealed from one of them is theirs as well;
+  /// what is sent goes to [id] alone. Empty for a number.
+  final List<String> otherIds;
+
+  /// The same record with [friend] changed, and everything else as it is.
+  E2eState withFriend(String friend) => E2eState(address: address, state: state, verified: verified, changed: changed, safety: safety, person: person, hasGhost: hasGhost, declined: declined, plain: plain, friend: friend, id: id, otherIds: otherIds);
 
   /// A different key arrived from someone already exchanged with.
   final bool changed;
@@ -439,7 +458,11 @@ class E2eState {
         declined: m['declined'] == true,
         plain: (m['plain'] as num?)?.toInt() ?? 0,
         friend: (m['friend'] as String?) ?? '',
+        id: _isId(m['id']) ? m['id'] as String : null,
+        otherIds: [for (final x in (m['others'] is List ? m['others'] as List : const [])) if (_isId(x)) x as String],
       );
+
+  static bool _isId(Object? x) => x is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(x);
 }
 
 /// Coming from another texting app (android/.../Arriving.kt): what can be seen of the app being left and of Android's
@@ -517,7 +540,7 @@ class UpdateState {
 
 /// What a notification or another app asked to open.
 class OpenRequest {
-  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox, this.circle});
+  const OpenRequest({this.thread, this.addresses = const [], this.body, this.computers = false, this.pairing, this.inbox, this.circle, this.add});
   final int? thread;
 
   /// A chat on Signal or Telegram (`network:chat`), from its notification (lib/inbox/alerts.dart).
@@ -534,6 +557,10 @@ class OpenRequest {
   /// A circle's invite link was opened (https://gogho.st/join/#c.…): its invite, to Join or put off
   /// (lib/ui/circles/circle_invite_card.dart).
   final String? circle;
+
+  /// Someone's add-me link was opened (https://gogho.st/add/maya; lib/friends/add_link.dart): asked whether to send
+  /// them a friend request.
+  final String? add;
   factory OpenRequest.from(Map m) => OpenRequest(
         thread: (m['thread'] as num?)?.toInt(),
         addresses: [for (final a in (m['addresses'] as List? ?? const [])) a as String],
@@ -542,6 +569,7 @@ class OpenRequest {
         pairing: m['pair'] as String?,
         inbox: m['inbox'] as String?,
         circle: m['circle'] as String?,
+        add: m['add'] as String?,
       );
 }
 
@@ -734,8 +762,32 @@ class Sms {
   /// on the phone's identity for its own network.
   static bool get followsPhone => paired && !ownNetwork;
 
+  /// Whether a voice message can be recorded here to go as a file (a network's chat, a space, a friend): the phone
+  /// itself, and the computers and the iPhone with a recorder of their own (DeskSound.swift on the Mac and the iPhone,
+  /// windows/runner/desk_sound.cpp on Windows; GMFB-32). Not Linux yet, which has none.
+  static bool get canRecordVoice => !remote || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isIOS;
+
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
-  static bool get computer => remote && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  static bool get computer => remote && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux || browserWide);
+
+  /// A page in a browser (lib/web; Matt: "the full web client"): a device of its own ([standalone]) that has no folder
+  /// to keep files in, no helper programs, nothing native behind the app's channels and, in this first version, no
+  /// calls. Screens leave out what would need one of those ([callsHere], and each place that asks this). Set before
+  /// anything is drawn; false on every phone and computer.
+  static bool browser = false;
+
+  /// What a page in a browser is called in the account's list of devices (lib/web/browser.dart: "Browser · Safari ·
+  /// Mac"), said by lib/web/app.dart as it starts. A page can't learn the computer's name, and is none of the five
+  /// platforms.
+  static String browserName = 'Browser';
+
+  /// Whether a voice or video call can be made or joined here. Not yet in a browser: the page's own WebRTC is not
+  /// joined to the app's calls yet, so nothing that would start one is offered there.
+  static bool get callsHere => !browser;
+
+  /// A page in a browser whose window is wide enough to be laid out as a computer's (lib/web/app.dart, which says so as
+  /// the window is sized): read at a computer's sizes then, and at a phone's in a narrow one. False everywhere else.
+  static bool browserWide = false;
 
   /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
@@ -760,11 +812,15 @@ class Sms {
   /// The call notification's Leave was pressed (android CallService.kt).
   final leaveCall = StreamController<void>.broadcast();
 
+  /// Answer or Decline pressed on a friend's call's notification (android IncomingCall.kt, GMFB-28): "answer", "decline".
+  final ringAction = StreamController<String>.broadcast();
+
   /// A call in a space began or ended: on the phone, its service keeps it going with the screen locked.
-  Future<void> callStarted(String name, {bool video = false}) async {
+  /// [screen]: the screen is being shared (GMFB-27), which Android 14 asks a service of its own kind for.
+  Future<void> callStarted(String name, {bool video = false, bool screen = false}) async {
     if (remote) return;
     try {
-      await _calls.invokeMethod('callStarted', {'name': name, 'video': video});
+      await _calls.invokeMethod('callStarted', {'name': name, 'video': video, 'screen': screen});
     } catch (_) {}
   }
 
@@ -775,9 +831,30 @@ class Sms {
     } catch (_) {}
   }
 
+  /// A friend calling (lib/voice/friend_calls.dart, GMFB-28): on the phone, a call's notification, full screen while
+  /// the phone is locked or the app is out of sight, until [ringEnded].
+  Future<void> ringIncoming(String from, {bool video = false}) async {
+    if (remote || !PlatformInfo.isAndroid) return;
+    try {
+      await _calls.invokeMethod('ringIncoming', {'from': from, 'video': video});
+    } catch (_) {}
+  }
+
+  Future<void> ringEnded() async {
+    if (remote || !PlatformInfo.isAndroid) return;
+    try {
+      await _calls.invokeMethod('ringEnded');
+    } catch (_) {}
+  }
+
+  /// A line in the conversation with a friend by username ([address], `@name`) about a call: missed, declined, no
+  /// answer (GMFB-28). [out]: a call this side made.
+  Future<void> callNote(String address, String words, int at, {required bool out}) =>
+      _calls.invokeMethod('callNote', {'address': address, 'body': words, 'at': at, 'out': out});
+
   /// A new message on Signal or Telegram (lib/inbox/alerts.dart): a notification that opens the chat.
   Future<void> notifyInbox(String key, {required String network, required String title, required String body, bool group = false}) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('notifyInbox', {'key': key, 'network': network, 'title': title, 'body': body, 'group': group});
     } catch (_) {}
@@ -785,7 +862,7 @@ class Sms {
 
   /// Takes the notification [notifyInbox] put up under [key] away.
   Future<void> cancelInbox(String key) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('cancelInbox', {'key': key});
     } catch (_) {}
@@ -794,7 +871,7 @@ class Sms {
   /// The networks signed in ([names]; none to stop): Android keeps Ghost running, connected to them, while there are
   /// any (android NetworksService.kt).
   Future<void> keepNetworks(List<String> names) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('keepNetworks', {'names': names});
     } catch (_) {}
@@ -830,6 +907,7 @@ class Sms {
       if (m['type'] == 'update') updates.add(UpdateState.from(m));
       if (m['type'] == 'prefs') prefsChanged.add(null);
       if (m['type'] == 'leaveCall') leaveCall.add(null);
+      if (m['type'] == 'ringAction' && m['do'] is String) ringAction.add(m['do'] as String);
       if (m['type'] == 'desk') computersChanged.add(null);
       if (m['type'] == 'voice') voice.add(VoicePlayback.from(m));
       if (m['type'] == 'voiceFull') voiceFull.add(null);
@@ -908,6 +986,11 @@ class Sms {
     }
   }
 
+  /// Everything a device of its own keeps deleted (lib/standalone: an iPhone, a computer with no phone, a page in a
+  /// browser): its conversations and choices, who it is, every secret; with [note] ('signed-out', 'removed') kept to be
+  /// said as it starts again. Asked only where [standalone] (lib/account/account.dart).
+  Future<void> wipeHere(String? note) => _calls.invokeMethod('wipeHere', {'note': note});
+
   // --- groups of friends (lib/friends/groups.dart, android Groups.kt) ------------------------------------------------
 
   /// The groups this phone is in, each as android Groups.view gives it.
@@ -939,7 +1022,7 @@ class Sms {
   Future<void> friendSet(String address, String state) => _calls.invokeMethod('friendSet', {'address': address, 'state': state});
 
   /// Keeps [body], on its way to [address] by the routes, with the phone's messages; its row, for [netTextState].
-  Future<int> netTextOut(String address, String body) async => ((await _calls.invokeMethod('netTextOut', {'address': address, 'body': body})) as num).toInt();
+  Future<int> netTextOut(String address, String body, {int? at}) async => ((await _calls.invokeMethod('netTextOut', {'address': address, 'body': body, 'at': ?at})) as num).toInt();
 
   /// What became of a row from [netTextOut]: 'sent', 'delivered' or 'failed'.
   Future<void> netTextState(int id, String state) => _calls.invokeMethod('netTextState', {'id': id, 'state': state});
@@ -1129,6 +1212,13 @@ class Sms {
   Future<List<Person>> blockedNumbers() async => [for (final m in (await _calls.invokeMethod<List>('blockedNumbers')) ?? const []) Person.from(m as Map)];
   Future<void> notificationSettings() => _calls.invokeMethod('notificationSettings');
 
+  /// Android's own page for the app's bubbles, which decides which conversations may bubble (Settings ›
+  /// Notifications › Bubbles; android Bubbles.kt).
+  Future<void> bubbleSettings() => _calls.invokeMethod('bubbleSettings');
+
+  /// From a conversation's bubble (lib/bubble.dart): the whole app, opened on [thread].
+  Future<void> openInApp(int thread) => _calls.invokeMethod('openInApp', {'thread': thread});
+
   /// Opens the calendar's new event with [title] at [begin] filled in (lib/plugins/actions.dart); false where the
   /// phone has no calendar to take it, or on a computer.
   Future<bool> addEvent({required String title, required DateTime begin, bool allDay = false, String notes = ''}) async {
@@ -1305,8 +1395,10 @@ class Sms {
 
   /// Starts recording a voice message with the phone's microphone, asking Android for it the first time. Answers the
   /// most seconds one may run (the carrier's limit on a message decides), or null where the microphone was refused.
-  Future<int?> startVoice() async {
-    final m = await _calls.invokeMethod('voiceStart') as Map?;
+  /// [file]: one that goes as a file ([finishVoice]: a network's chat, a space, a friend), which no carrier holds; a
+  /// computer then records it with its own microphone and needs no phone (lib/desktop/desk_voice.dart, GMFB-32).
+  Future<int?> startVoice({bool file = false}) async {
+    final m = await _calls.invokeMethod('voiceStart', file ? const {'file': true} : null) as Map?;
     if (m == null || m['ok'] != true) return null;
     return (m['seconds'] as num?)?.toInt() ?? 60;
   }
@@ -1449,8 +1541,9 @@ class Sms {
   Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
 
-  /// On a computer: the phone's voice channels asked for, or a channel made here given to it (the 'voice' call;
-  /// lib/voice/channels.dart, android DartAsk "voice").
+  /// On a computer: how RCS stands on its phone (lib/gm/rcs_share.dart; android DartAsk "rcs").
+  Future<Map<Object?, Object?>> rcsOfPhone() async => (await _calls.invokeMethod<Map>('rcs', {'what': const <String, Object?>{}})) ?? const {};
+
   Future<Map<String, dynamic>> voiceSync(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('voice', {'what': what})) ?? const {});
 

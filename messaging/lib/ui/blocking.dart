@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/lucide.g.dart';
+import '../friends/buddies.dart';
 import '../inbox/inbox.dart';
 import '../inbox/people.dart' show Reach;
 import '../kit/settings_kit.dart';
@@ -122,10 +123,35 @@ class _BlockedListState extends State<BlockedList> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Inbox.instance.changes,
+      listenable: Listenable.merge([Inbox.instance.changes, Buddies.instance]),
       builder: (context, _) {
+        final ghosts = Buddies.instance.blocked;
         final networks = [for (final n in Inbox.instance.networks) if (!n.soon && (n.state == InboxState.ready || n.blockedPeople.isNotEmpty)) n];
         final groups = <(String, List<Widget>, String?)>[
+          // Ghost people blocked with a report (GMFB-40): kept here, unblocked here.
+          if (ghosts.isNotEmpty)
+            (
+              'Ghost',
+              [
+                for (final b in ghosts)
+                  SettingRow(
+                    key: ValueKey('blocked-ghost-${b.id}'),
+                    icon: Avatar(people: [Person(address: '@${b.username}', name: b.shown)], size: 30),
+                    label: b.username.isEmpty ? b.shown : '@${b.username}',
+                    onPress: () => showChoices(context, title: 'Unblock ${b.username.isEmpty ? b.shown : '@${b.username}'}? They can ask to be friends again.', choices: [
+                      Choice('Unblock', Lucide.check, () async {
+                        try {
+                          await Buddies.instance.unblock(b);
+                          if (context.mounted) toast(context, 'Unblocked');
+                        } catch (e) {
+                          if (context.mounted) toast(context, 'Couldn\'t unblock: $e', tone: GlacierToastTone.danger);
+                        }
+                      }),
+                    ]),
+                  ),
+              ],
+              null,
+            ),
           if (Sms.can('setBlocked') && (_numbersFailed || (_numbers?.isNotEmpty ?? false)))
             (
               'Texts',
@@ -146,7 +172,7 @@ class _BlockedListState extends State<BlockedList> {
                 null,
               ),
         ];
-        const intro = Text('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat.');
+        const intro = Text('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat; a Ghost person when you report them.');
         if (groups.isEmpty) {
           return PaneSection(
             title: 'Blocked',

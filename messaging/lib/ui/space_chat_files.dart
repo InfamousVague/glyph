@@ -14,6 +14,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -29,6 +30,7 @@ import '../stickers.dart';
 import '../voice/hangout.dart';
 import '../voice/voice.dart' show VoiceChannel;
 import '../kit/semantic_colors.dart';
+import '../sms.dart' show Sms;
 import 'common.dart';
 import 'picture_overlay.dart';
 import 'files_space/file_badge.dart';
@@ -65,6 +67,9 @@ class SpaceChatFiles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A page in a browser keeps no files and opens none yet (Files is not in a page: lib/web/app.dart): each file is
+    // shown as what it is, a picture by the small picture that came in the message, and says where it opens.
+    if (Sms.browser) return SpaceFilesNotHere(message: message, mine: mine, maxWidth: maxWidth, ground: ground, ink: ink, rim: rim);
     final t = context.tokens;
     final s = store ?? FilesStore.instance;
     final pictures = [for (final f in message.files) if (drawsPicture(f) || f.kind == FileKind.video) f];
@@ -92,6 +97,62 @@ class SpaceChatFiles extends StatelessWidget {
 
   /// A lone picture as tall as its shape says, kept between half and one and a third of its width.
   static double _heightOf(SpaceFile f, double width) => f.width > 0 && f.height > 0 ? (width * f.height / f.width).clamp(width * 0.5, width * 1.34) : width * 0.75;
+}
+
+/// What a page in a browser shows of a message's files ([SpaceChatFiles]): a picture or video by the small picture
+/// that came in the message, where it did, and every file as a chip with its mark, name and size, saying it opens on a
+/// phone or a computer. Nothing is fetched or looked for on a disk, and a press says the same.
+class SpaceFilesNotHere extends StatelessWidget {
+  const SpaceFilesNotHere({super.key, required this.message, required this.maxWidth, required this.ground, required this.ink, this.mine = false, this.rim});
+  final HangoutMessage message;
+  final bool mine;
+  final double maxWidth;
+  final Color ground, ink;
+  final Border? rim;
+
+  static const words = 'Files can\'t be opened in a browser yet. This one opens in Ghost Messaging on a phone or a computer.';
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final width = math.min(maxWidth, t.lenOf('17rem'));
+    final round = BorderRadius.circular(lookCorner(t, '1rem', most: 1));
+    return Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      for (final f in message.files)
+        Padding(
+          padding: EdgeInsets.only(top: f == message.files.first ? 0 : t.space(1)),
+          child: GlacierPressable(
+            key: ValueKey('space-file-not-here-${f.id}'),
+            onPressed: () => toast(context, words),
+            semanticLabel: '${message.voice ? 'Voice message' : f.name}, ${fileSize(f.size)}. Opens on a phone or a computer',
+            builder: (context, state) => ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width),
+              child: Container(
+                decoration: BoxDecoration(color: ground, border: rim, borderRadius: round),
+                clipBehavior: Clip.antiAlias,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                  if ((drawsPicture(f) || f.kind == FileKind.video) && f.thumb != null)
+                    Image.memory(f.thumb!, width: width, height: SpaceChatFiles._heightOf(f, width), fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                  Padding(
+                    padding: EdgeInsets.all(t.space(2)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      FileBadge(kind: f.kind, size: 36),
+                      SizedBox(width: t.space(2)),
+                      Flexible(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                          Text(message.voice ? 'Voice message' : f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
+                          Text('${fileSize(f.size)} · opens on a phone or a computer', maxLines: 2, style: pageText(t, t.fontSize('xs'), color: ink.withValues(alpha: 0.7))),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+    ]);
+  }
 }
 
 /// A picture, GIF or video in a message: its small picture at once, the file itself once it is here (a picture brought
@@ -401,7 +462,7 @@ class SpacePickedStrip extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(right: t.space(2)),
             child: Builder(builder: (context) {
-              final name = p.path.split(Platform.pathSeparator).last.split('/').last;
+              final name = p.path.split(PlatformInfo.pathSeparator).last.split('/').last;
               final kind = FileKind.of(name, FileKind.mimeOf(name));
               return Stack(children: [
                 ClipRRect(

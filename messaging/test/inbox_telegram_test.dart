@@ -338,6 +338,24 @@ void main() {
     await tg.sendFiles('10', ['/cache/voice.m4a'], voice: true);
     final voice = td.sent.lastWhere((r) => r['@type'] == 'sendMessage')['input_message_content'] as Map;
     expect((voice['@type'], voice['title']), ('inputMessageAudio', 'Voice message'));
+
+    // A sticker is a sticker both ways, drawn with no bubble (Matt, 2026-11-20: "stickers in telegram chat and others
+    // render inside chat bubbles instead of transparent backgrounds when sent and when recieved").
+    td.say({
+      '@type': 'updateNewMessage',
+      'message': {
+        'id': 3, 'chat_id': 10, 'is_outgoing': false, 'date': 1763200020,
+        'content': {'@type': 'messageSticker', 'sticker': {'width': 512, 'height': 512, 'emoji': '😂', 'format': {'@type': 'stickerFormatWebp'}, 'sticker': file(11)}},
+      },
+    });
+    await settle();
+    expect(tg.messagesOf('10').firstWhere((m) => m.id == '3').media.single.kind, 'sticker');
+    await tg.sendFiles('10', ['/cache/ghost-sticker/01.webp'], sticker: true);
+    final stuck = td.sent.lastWhere((r) => r['@type'] == 'sendMessage')['input_message_content'] as Map;
+    expect((stuck['@type'], (stuck['sticker'] as Map)['path']), ('inputMessageSticker', '/cache/ghost-sticker/01.webp'));
+    await tg.sendFiles('10', ['/cache/ghost-sticker/01.png'], sticker: true);
+    final png = td.sent.lastWhere((r) => r['@type'] == 'sendMessage')['input_message_content'] as Map;
+    expect(png['@type'], 'inputMessagePhoto', reason: 'Telegram takes WEBP for a sticker; another picture goes as one');
     tg.dispose();
   });
 

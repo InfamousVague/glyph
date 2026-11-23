@@ -26,6 +26,22 @@ final class Scribe: NSObject {
       case "available":
         let r = SFSpeechRecognizer()
         result(r?.supportsOnDeviceRecognition ?? false)
+      case "decode":
+        // One track of a recording as 48 kHz mono 16-bit samples, written to a file, for the recording opened in the
+        // mixer (lib/voice/recording_playback.dart).
+        let path = args["path"] as? String ?? ""
+        let track = args["track"] as? Int ?? 0
+        let out = args["out"] as? String ?? ""
+        DispatchQueue.global(qos: .userInitiated).async {
+          do {
+            let pcm = try Scribe.decode(path: path, track: track, rate: 48000)
+            let data = pcm.withUnsafeBufferPointer { Data(buffer: $0) }
+            try data.write(to: URL(fileURLWithPath: out))
+            DispatchQueue.main.async { result(["rate": 48000, "channels": 1, "samples": pcm.count]) }
+          } catch {
+            DispatchQueue.main.async { result(FlutterError(code: "decode", message: "\(error)", details: nil)) }
+          }
+        }
       case "transcribe":
         let path = args["path"] as? String ?? ""
         let track = args["track"] as? Int ?? 0
@@ -68,8 +84,8 @@ final class Scribe: NSObject {
     return out
   }
 
-  /// [track] of [path] as 16 kHz mono 16-bit samples.
-  static func decode(path: String, track: Int) throws -> [Int16] {
+  /// [track] of [path] as mono 16-bit samples at [rate] (16 kHz for speech).
+  static func decode(path: String, track: Int, rate: Int = Scribe.rate) throws -> [Int16] {
     let asset = AVURLAsset(url: URL(fileURLWithPath: path))
     let tracks = asset.tracks(withMediaType: .audio)
     guard track < tracks.count else { throw Failure(description: "no track \(track)") }

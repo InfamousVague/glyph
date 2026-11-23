@@ -155,6 +155,7 @@ class SmsSpaces extends ChangeNotifier {
     _held.clear();
     _threads.clear();
     _asked.clear();
+    _answered.clear();
     _runKeys = null;
   }
 
@@ -256,6 +257,38 @@ class SmsSpaces extends ChangeNotifier {
   /// Who has been asked in each space this run: once each, as they come in.
   final Map<String, Set<String>> _asked = {};
 
+  /// Who has answered in each space this run: one answer to the one ask ([takesAnswer]).
+  final Map<String, Set<String>> _answered = {};
+
+  /// The most people in one space by their own device's word (members whose number is linked): each of them is texted
+  /// everything written there, on this phone's plan.
+  static const mostByThemselves = 20;
+
+  /// Who has been asked in [seed]'s space this run ([roomChanged] adds to it as members come in).
+  @visibleForTesting
+  Set<String> askedIn(String seed) => _asked.putIfAbsent(seed, () => {});
+
+  /// Whether an answer from [member] in [seed]'s space is taken: one from a member this phone asked this run, and only
+  /// their first (found in review, 2026-11-23: any member's answer was taken, as many as they sent, each with a number of
+  /// their choosing, and each number was texted everything written in the space on this phone's plan). Taking it counts
+  /// as their answer; they are asked again the next time the app runs.
+  @visibleForTesting
+  bool takesAnswer(String seed, String member) {
+    if (!(_asked[seed]?.contains(member) ?? false)) return false;
+    return _answered.putIfAbsent(seed, () => {}).add(member);
+  }
+
+  /// The people of a space once [member]'s own device has said their number is [number]: whatever number they said
+  /// before taken out, for this one to be put in its place ([add]). Null where it isn't taken: STOP took that number out
+  /// ([stopped]), it is in already, or [mostByThemselves] are in by their own word and [member] is not one of them.
+  @visibleForTesting
+  static List<TextedPerson>? makeRoomFor(List<TextedPerson> list, Set<String> stopped, String member, String number) {
+    if (stopped.contains(number) || list.any((p) => p.number == number)) return null;
+    final rest = [for (final p in list) if (p.member != member) p];
+    if (rest.length == list.length && list.where((p) => p.member != null).length >= mostByThemselves) return null;
+    return rest;
+  }
+
   /// Told when [room] changes: on the texter's phone, each member come in who has not been asked yet is asked.
   void roomChanged(HangoutRoom room) {
     if (_app == null) return;
@@ -286,10 +319,16 @@ class SmsSpaces extends ChangeNotifier {
         if (answer != null) room.signal({...answer, 'to': from});
       case 'sms#':
         if (texter != room.me || _runKeys == null) return;
+        // Only from a member asked this run, who hasn't answered yet ([takesAnswer]).
+        if (!(_asked[space.seed]?.contains(from) ?? false) || (_answered[space.seed]?.contains(from) ?? false)) return;
         final got = openNumberAnswer(_runKeys!, said);
         if (got == null) return;
         final number = tidyNumber(got.number);
-        if (!numberFits(number) || number == Me.instance.number) return;
+        if (!numberFits(number) || number == Me.instance.number || !takesAnswer(space.seed, from)) return;
+        // In place of any number they said before, and not past the most there may be by their own word.
+        final rest = makeRoomFor(people(space.seed), stopped(space.seed), from, number);
+        if (rest == null) return;
+        _keep(space.seed, rest);
         final named = got.name.trim();
         unawaited(add(space, named.isNotEmpty ? named : Voice.instance.nameOf(from), number, member: from));
     }

@@ -23,6 +23,7 @@ import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
 import '../plugins_page/plugin_art.dart';
 import 'market_forms.dart';
+import 'people_reports_page.dart';
 import 'reports_page.dart';
 import 'review_item.dart';
 
@@ -143,6 +144,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
       children.addAll([
         PaneSection(children: [
           SettingRow(key: const ValueKey('market-review-reports'), icon: const AppIcon(Lucide.flag, size: 18), label: 'Reports · ${q.reports} open', onPress: () => unawaited(push<void>(context, (_) => ReportsScreen(api: _api, ask: widget.ask)))),
+          // Reports of people and messages (GMFB-40), sealed to this device's key.
+          SettingRow(key: const ValueKey('market-review-people-reports'), icon: const AppIcon(Lucide.userRound, size: 18), label: 'Reports of people · ${q.abuse} open', onPress: () => unawaited(push<void>(context, (_) => PeopleReportsScreen(api: _api, ask: widget.ask)))),
         ]),
         gap,
       ]);

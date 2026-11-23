@@ -6,11 +6,16 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
+import '../inbox/inbox.dart' show InboxPresence;
 import '../me/me.dart';
+import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
+import 'add_me.dart';
 import 'common.dart';
+import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
 import 'sign_up_from.dart';
+import 'username_friends.dart' show acceptRequest, requestLine;
 import '../kit/semantic_colors.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
@@ -147,7 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: t.space(6)),
               // Matt, 2026-11-19: "build a profile section in the app that allows us to set profile pictures and status
               // messages".
-              PaneSection(
+              // Not in a browser, which can't choose a picture yet (Sms.browser).
+              if (!Sms.browser) PaneSection(
                 title: 'Picture',
                 description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
                 children: [
@@ -159,6 +165,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (me.picture.isNotEmpty) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove your picture', onPress: _removePicture),
                 ],
               ),
+              SizedBox(height: t.space(6)),
+              // How you are shown (GMFB-34): Online, Away, Busy or Invisible, as Discord has them.
+              PaneSection(
+                title: 'Show me as',
+                description: const Text('What friends and contacts see on your picture. Invisible looks offline; you can still send and get messages.'),
+                children: [
+                  for (final (mode, label, hint) in const [
+                    ('online', 'Online', 'Green while you use the app, away when you put it away'),
+                    ('away', 'Away', 'Away all the time'),
+                    ('busy', 'Busy', 'A red mark, so people know you\'re heads down'),
+                    ('invisible', 'Invisible', 'Shown as offline'),
+                  ])
+                    SettingRow(
+                      key: ValueKey('presence-mode-$mode'),
+                      icon: _ModeMark(mode: mode),
+                      label: label,
+                      hint: Text(hint),
+                      control: me.presenceMode == mode ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
+                      onPress: () => me.setPresenceMode(mode),
+                    ),
+                ],
+              ),
+              SizedBox(height: t.space(6)),
+              // What the profile wears (GMFB-34): decoration, border, banner, name effect, profile effect.
+              const CosmeticsSection(),
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'What friends see',
@@ -184,6 +215,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               if (me.username != null) ...[
+                SizedBox(height: t.space(6)),
+                // A link and QR code that open a friend request to you (GMFB-34).
+                AddMeSection(username: me.username!),
                 SizedBox(height: t.space(6)),
                 PaneSection(children: [
                   SettingRow(
@@ -294,9 +328,9 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
                     SettingRow(
                       icon: AppIcon(Lucide.userPlus, size: 18),
                       label: r.shown,
-                      hint: Text(r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}'),
+                      hint: Text(requestLine(r)),
                       onPress: () => showChoices(context, title: '${r.shown} wants to be friends.', choices: [
-                        Choice('Accept', Lucide.check, () => b.accept(r)),
+                        Choice('Accept', Lucide.check, () => acceptRequest(context, r, buddies: b)),
                         Choice('Decline', Lucide.x, () => b.decline(r), danger: true),
                       ]),
                     ),
@@ -335,5 +369,22 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
         ),
       ),
     );
+  }
+}
+
+
+/// The mark a mode shows on a face (PresenceDot), and Invisible's own: a hollow grey ring.
+class _ModeMark extends StatelessWidget {
+  const _ModeMark({required this.mode});
+  final String mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    const size = 16.0;
+    if (mode == 'invisible') {
+      return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.color('app-ink-3'), width: 3.5)));
+    }
+    return PresenceDot(presence: InboxPresence(network: 'Ghost Messaging', online: mode == 'online', away: mode == 'away', busy: mode == 'busy'), size: size);
   }
 }

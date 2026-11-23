@@ -6,6 +6,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../ui/common.dart';
+import '../inbox/curl_sync.dart';
 import 'google_signin.dart';
 import '../kit/semantic_colors.dart';
 
@@ -15,7 +16,12 @@ import '../kit/semantic_colors.dart';
 /// phone. The same on a computer (lib/desktop/ui/desk_settings.dart) and on the phone (lib/ui/gm_web_screen.dart),
 /// whose helpers pair the same way (sidecar/gmessages `pair_google`).
 class GoogleSignInFlow extends StatefulWidget {
-  const GoogleSignInFlow({super.key, required this.onPair, this.onOpenPrivate, this.emoji, this.problem, this.onPhone = false});
+  const GoogleSignInFlow({super.key, required this.onPair, this.onOpenPrivate, this.emoji, this.problem, this.onPhone = false, this.synced});
+
+  /// The Google sign-in the browser extension synced to this account (GMFB-10, @kevin: "Getting rcs is annoying due to
+  /// the workaround we are using so maybe making a chrome extension to automate is a better solution"): it does steps
+  /// 1 to 3 in a private window of its own. Read from CurlSync where not given (a test gives its own).
+  final Future<({Map<String, String> cookies, int at})?> Function()? synced;
 
   /// Hands the cookies to the helper; an error's words, or null once it is asked.
   final Future<String?> Function(Map<String, String> cookies) onPair;
@@ -47,6 +53,34 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
 
   /// The sign-in page was opened, or its link copied: the paste step is the current one from then.
   bool _opened = false;
+
+  /// The extension's synced Google sign-in, once read; null where there is none.
+  ({Map<String, String> cookies, int at})? _synced;
+
+  @override
+  void initState() {
+    super.initState();
+    (widget.synced ?? () => CurlSync.instance.entryOf('gmessages'))().then((e) {
+      final usable = e != null && googleCookiesMissing(e.cookies).isEmpty;
+      if (mounted && usable) setState(() => _synced = e);
+    });
+  }
+
+  Future<void> _pairSynced() async {
+    final e = _synced;
+    if (e == null) return;
+    setState(() {
+      _error = null;
+      _asking = true;
+    });
+    final why = await widget.onPair(e.cookies);
+    if (mounted) {
+      setState(() {
+        _asking = false;
+        _error = why == null ? null : '$why The sign-in may have ended: set up Google Messages again in the extension, or do the steps below.';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -152,7 +186,30 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
     }
 
     final pasting = _opened || _pasted.text.isNotEmpty;
+    final synced = _synced;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // The browser extension's sign-in, where it has synced one (GMFB-10); else where to get it.
+      Container(
+        key: const ValueKey('gm-synced'),
+        margin: EdgeInsets.only(bottom: t.space(3)),
+        padding: EdgeInsets.all(t.space(4)),
+        decoration: BoxDecoration(
+          color: t.color('app-paper-2'),
+          borderRadius: BorderRadius.circular(t.radius('lg')),
+          border: Border.all(color: synced != null ? t.color('app-ink') : t.color('app-rule'), width: synced != null ? 1.5 : 1),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(synced != null ? 'Your browser has signed in for you' : 'Or let your browser do steps 1 to 3', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+          SizedBox(height: t.space(1)),
+          if (synced != null) ...[
+            text('The Ghost Messaging keys extension signed in to Google in a private window and synced it to your account. Pair with it, then tap the emoji on your phone.'),
+            Row(children: [
+              button(_asking ? 'Asking Google…' : 'Use the Google sign-in from your browser', _asking ? null : _pairSynced, filled: true),
+            ]),
+          ] else
+            text('The Ghost Messaging keys extension for Chrome signs in to Google in a private window and hands the sign-in to all your devices: add it from gogho.st/docs/browser-extension, open it, and choose Set up Google Messages. This page then has a button for it.', small: true),
+        ]),
+      ),
       if (widget.onPhone)
         text('Google only lets this be done in a computer\'s browser (it needs the browser\'s developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (email or a note to yourself) and paste it in step 3. Or simpler: pair Ghost on your computer instead (Settings › Google Messages there).'),
       card(1, 'Sign in to Google in a private window', [

@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
 import '../desktop/store.dart';
 import 'inbox.dart';
+import 'kept_writer.dart';
 import 'td_json.dart';
 
 /// Telegram, as a Telegram app: TDLib (Telegram's own client library, lib/inbox/td_json.dart) signed in to the
@@ -21,6 +23,13 @@ import 'td_json.dart';
 /// `TELEGRAM_API_HASH`, which tool/release.mjs and tool/release-mac.mjs read from ~/.config/ghostmessaging/telegram.env)
 /// and are never in the repository. Without them, or without the library in the app, Telegram is [InboxState.unavailable].
 class Telegram extends InboxNetwork {
+  @override
+  bool get official => true;
+
+  // A private chat Telegram does not mark as a stranger's is a contact's: is_contact, or no "Report spam" bar.
+  @override
+  bool get marksStrangers => true;
+
   Telegram({this.transport, this.apiId = const int.fromEnvironment('TELEGRAM_API_ID'), this.apiHash = const String.fromEnvironment('TELEGRAM_API_HASH'), this.folder});
 
   /// A stand-in for TDLib, in tests. Null: TDLib itself, once [start] finds it.
@@ -70,7 +79,10 @@ class Telegram extends InboxNetwork {
   @override
   String? get account => _account;
   @override
-  List<InboxChat> get chats => _chats;
+  List<InboxChat> get chats {
+    _settle();
+    return _chats;
+  }
   @override
   List<InboxMessage> messagesOf(String chatId) => _messages[chatId] ?? const [];
 
@@ -295,15 +307,15 @@ class Telegram extends InboxNetwork {
       'api_id': apiId,
       'api_hash': apiHash,
       'system_language_code': 'en',
-      'device_model': Platform.isMacOS ? 'Mac' : 'Android',
-      'system_version': Platform.operatingSystemVersion,
+      'device_model': PlatformInfo.isMacOS ? 'Mac' : 'Android',
+      'system_version': PlatformInfo.operatingSystemVersion,
       'application_version': const String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: 'Ghost Messaging'),
     });
   }
 
   /// This app's own folder: Android's private data folder (the cache folder's parent), the Mac's support folder.
   static String _folder() {
-    if (Platform.isAndroid) return '${Directory.systemTemp.parent.path}/files/tdlib';
+    if (PlatformInfo.isAndroid) return '${Directory.systemTemp.parent.path}/files/tdlib';
     return '${DeskStore.defaultDir().path}/tdlib';
   }
 
@@ -609,7 +621,10 @@ class Telegram extends InboxNetwork {
   List<InboxChat> _archived = const [];
 
   @override
-  List<InboxChat> get archivedChats => _archived;
+  List<InboxChat> get archivedChats {
+    _settle();
+    return _archived;
+  }
 
   /// Whether [id] is a chat to write in: anything held but a channel.
   bool _writable(int id) {
@@ -702,11 +717,22 @@ class Telegram extends InboxNetwork {
 
   /// The chats the list shows: those in the main list that can be written in (private chats and groups, not
   /// channels), the newest first, as they stand among the texts.
+  /// The lists are stale: made again when next asked for ([_settle]), and the listeners told. TDLib says thousands of
+  /// things as it starts and signs in, each of which used to make and sort every chat here; now each only says so,
+  /// and the lists are made once for whoever next reads them (docs/performance-audit.md, finding 2).
   void _rebuild() {
+    _stale = true;
+    notifyListeners();
+  }
+
+  bool _stale = false;
+
+  void _settle() {
+    if (!_stale) return;
+    _stale = false;
     final ids = _order.keys.where(_writable).toList();
     _chats = [for (final id in ids) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
     _archived = [for (final id in _archOrder.keys.where((id) => _writable(id) && !_order.containsKey(id))) _chat(_chatsById[id]!)]..sort((a, b) => b.date.compareTo(a.date));
-    notifyListeners();
   }
 
   /// A chat as TDLib holds it, as the list shows it.
@@ -836,9 +862,13 @@ class Telegram extends InboxNetwork {
       // The newest thousand edited messages: enough to see what was said, never a file that only grows.
       final all = _versions;
       if (all.length > 1000) all.remove(all.keys.first);
-      f.writeAsStringSync(jsonEncode(all));
+      // Written elsewhere, a run of edits as one write (lib/inbox/kept_writer.dart): up to a thousand edits were
+      // written whole, here, for each message edited.
+      (_versionsWriter ??= KeptWriter(file: () => _versionsFile!, snapshot: () => _versions)).save();
     } catch (_) {}
   }
+
+  KeptWriter? _versionsWriter;
 
   /// A message edited: its words before kept, and it drawn again as it now is (its reactions as they stand here).
   void _edited(String chat, String id, Map<String, Object?> Function(Map<String, Object?> raw) change) {
@@ -1079,9 +1109,9 @@ class Telegram extends InboxNetwork {
         return [one('video', v['video'] as Map?, dims: {'width': v['length'], 'height': v['length']}, duration: (v['duration'] as num?)?.toInt() ?? 0, thumb: v['thumbnail'] as Map?)];
       case 'messageSticker':
         final st = c['sticker'] as Map;
-        // A still sticker is a picture; an animated one is not drawn here yet.
+        // A still sticker is drawn on its own, with no bubble; an animated one is not drawn here yet.
         if ((st['format'] as Map?)?['@type'] != 'stickerFormatWebp') return const [];
-        return [one('photo', st['sticker'] as Map?, dims: st)];
+        return [one('sticker', st['sticker'] as Map?, dims: st)];
       case 'messageDocument':
         final d = c['document'] as Map;
         return [one('file', d['document'] as Map?, name: d['file_name'] as String?, thumb: d['thumbnail'] as Map?)];
@@ -1177,12 +1207,16 @@ class Telegram extends InboxNetwork {
   }
 
   @override
-  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false}) async {
+  Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async {
     if (_state != InboxState.ready) return;
     for (final (i, path) in paths.indexed) {
       final words = i == paths.length - 1 && caption.trim().isNotEmpty ? {'caption': {'@type': 'formattedText', 'text': caption.trim()}} : const <String, Object?>{};
       final file = {'@type': 'inputFileLocal', 'path': path};
-      final content = voice
+      // A sticker of Ghost's goes as a Telegram sticker (WEBP is what Telegram takes for one), so it arrives as one
+      // there and comes back as one here; one in another format goes as the picture it is.
+      final content = sticker && path.toLowerCase().endsWith('.webp')
+          ? {'@type': 'inputMessageSticker', 'sticker': file, 'width': 512, 'height': 512}
+          : voice
           // Ghost records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
           ? {'@type': 'inputMessageAudio', 'audio': file, 'title': 'Voice message', ...words}
           : switch (kindOf(path)) {
@@ -1515,6 +1549,7 @@ class Telegram extends InboxNetwork {
   @override
   void dispose() {
     _disposed = true;
+    _versionsWriter?.flush();
     _sub?.cancel();
     _td?.close();
     super.dispose();

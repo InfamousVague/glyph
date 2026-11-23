@@ -2,6 +2,7 @@ import 'art/app_icon.dart' show LucideIcon;
 import 'art/lucide.g.dart';
 import 'art/lucide_more.dart';
 import 'app_state.dart';
+import 'custom_theme.dart';
 
 /// Looks for the whole app, chosen in Settings › Appearance (Matt, 2026-11-16: "spend some time making a few themes
 /// for ghost, base one of them heavily on the old AOL chatrooms").
@@ -110,4 +111,12 @@ enum Look {
 /// The page's `data-` attributes for [s]'s choices on [platform] ('mobile' or 'desktop'): the look, and the theme
 /// where it is not the phone's own ('system'). The app (lib/main.dart, lib/desktop/main.dart) and every test that
 /// draws a screen take them from here, so a choice in AppState is all a look needs.
-Map<String, String> ghostAttrs(AppState s, String platform) => Look.of(s).attrs(platform: platform, theme: s.theme == 'system' ? null : s.theme);
+///
+/// A look of the person's own in use (lib/custom_theme.dart) stamps its own preset and brightness in place of the
+/// look's; the Readable font (GMFB-41) stamps `data-font` over any look's own face.
+Map<String, String> ghostAttrs(AppState s, String platform) {
+  final custom = CustomTheme.used(s);
+  final attrs = custom != null ? custom.attrs(platform: platform) : Look.of(s).attrs(platform: platform, theme: s.theme == 'system' ? null : s.theme);
+  if (s.font == 'readable') attrs['font'] = 'readable';
+  return attrs;
+}

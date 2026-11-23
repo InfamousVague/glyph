@@ -30,6 +30,10 @@ class MarketStore {
   final Map<String, MarketDeveloper> developers = {};
   final Map<String, MarketReport> reports = {};
 
+  /// Reports of people and messages (GMFB-40), each sealed in the app to the review keys, in the order they came: the
+  /// relay keeps what it can't read.
+  final Map<String, MarketAbuse> abuse = {};
+
   /// PackRevocation and PackRetirement maps, as review signed them, oldest first.
   final List<Map<String, Object?>> revoked = [];
   final List<Map<String, Object?>> retired = [];
@@ -88,6 +92,7 @@ class MarketStore {
       submissions.addAll(got.submissions);
       developers.addAll(got.developers);
       reports.addAll(got.reports);
+      abuse.addAll(got.abuse);
       revoked.addAll(got.revoked);
       retired.addAll(got.retired);
       listingAt = got.listingAt;
@@ -108,6 +113,8 @@ class MarketStore {
         submissions: each('submissions', MarketSubmission.fromJson),
         developers: each('developers', MarketDeveloper.fromJson),
         reports: each('reports', MarketReport.fromJson),
+        // Missing from a state.json written before GMFB-40: none yet, never an unreadable file.
+        abuse: j['abuse'] == null ? {} : each('abuse', MarketAbuse.fromJson),
         revoked: maps('revoked'),
         retired: maps('retired'),
         listingAt: j['listingAt'] as int,
@@ -266,6 +273,7 @@ class MarketStore {
         'submissions': {for (final e in submissions.entries) e.key: e.value.toJson()},
         'developers': {for (final e in developers.entries) e.key: e.value.toJson()},
         'reports': {for (final e in reports.entries) e.key: e.value.toJson()},
+        'abuse': {for (final e in abuse.entries) e.key: e.value.toJson()},
         'revoked': [for (final r in revoked) Map<String, Object?>.of(r)],
         'retired': [for (final r in retired) Map<String, Object?>.of(r)],
         'listingAt': listingAt,
@@ -386,11 +394,12 @@ class MarketStore {
 
 /// What one state file held, read whole before any of it is taken into the store.
 class _Parsed {
-  _Parsed({required this.plugins, required this.submissions, required this.developers, required this.reports, required this.revoked, required this.retired, required this.listingAt});
+  _Parsed({required this.plugins, required this.submissions, required this.developers, required this.reports, required this.abuse, required this.revoked, required this.retired, required this.listingAt});
   final Map<String, MarketPlugin> plugins;
   final Map<String, MarketSubmission> submissions;
   final Map<String, MarketDeveloper> developers;
   final Map<String, MarketReport> reports;
+  final Map<String, MarketAbuse> abuse;
   final List<Map<String, Object?>> revoked, retired;
   final int listingAt;
 }
@@ -657,4 +666,22 @@ class MarketReport {
         done: _b(j, 'done'),
         doneAt: _in(j, 'doneAt'),
       );
+}
+
+/// A report of a person or a message (GMFB-40, from the Uplink gap review; Matt approved the reporting half): the app's
+/// sealed envelope as it came, opened only by a review key's holder (lib/safety/abuse_report.dart). Who sent it isn't
+/// kept, as with a plugin's report: the reporter's name and signature are inside, for the reviewer alone.
+class MarketAbuse {
+  MarketAbuse({required this.rid, required this.sealed, required this.at, this.done = false, this.doneAt});
+  final String rid;
+
+  /// Base64 of the envelope, as the app sent it.
+  final String sealed;
+  final int at;
+  bool done;
+  int? doneAt;
+
+  Map<String, Object?> toJson() => {'rid': rid, 'sealed': sealed, 'at': at, 'done': done, 'doneAt': doneAt};
+
+  factory MarketAbuse.fromJson(Map j) => MarketAbuse(rid: _s(j, 'rid'), sealed: _s(j, 'sealed'), at: _i(j, 'at'), done: _b(j, 'done'), doneAt: _in(j, 'doneAt'));
 }

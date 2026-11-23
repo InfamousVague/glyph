@@ -33,9 +33,13 @@ class CallService : Service() {
         /** Told when the notification's Leave is pressed: the app leaves the call (MainActivity). */
         @Volatile var onLeave: (() -> Unit)? = null
 
-        /** Starts the service, or brings its notification up to date, for a call in the space called [name]. */
-        fun start(context: Context, name: String, video: Boolean) {
-            val i = Intent(context, CallService::class.java).putExtra("name", name).putExtra("video", video)
+        /**
+         * [screen]: this device is sharing its screen (GMFB-27). Android 14 lets a screen be captured only under a
+         * foreground service of the media projection kind, started after the person agreed to share and before the
+         * capture begins, so the app says so between the two (lib/voice/rtc.dart, RtcMedia.setScreen).
+         */
+        fun start(context: Context, name: String, video: Boolean, screen: Boolean = false) {
+            val i = Intent(context, CallService::class.java).putExtra("name", name).putExtra("video", video).putExtra("screen", screen)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i) else context.startService(i)
             } catch (e: Exception) {
@@ -61,11 +65,13 @@ class CallService : Service() {
         }
         val name = intent?.getStringExtra("name")?.ifBlank { null } ?: "a space"
         val video = intent?.getBooleanExtra("video", false) ?: false
-        val n = notification(name, video)
+        val screen = intent?.getBooleanExtra("screen", false) ?: false
+        val n = notification(name, video, screen)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 if (video) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                if (screen) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
                 startForeground(NOTIFICATION, n, types)
             } else {
                 startForeground(NOTIFICATION, n)
@@ -95,8 +101,7 @@ class CallService : Service() {
         return START_NOT_STICKY
     }
 
-    /** The ongoing notification: the kind of call, the space's name, a press to open the app and Leave. */
-    private fun notification(name: String, video: Boolean): Notification {
+    private fun notification(name: String, video: Boolean, screen: Boolean): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Voice calls", NotificationManager.IMPORTANCE_LOW).apply {
@@ -108,7 +113,7 @@ class CallService : Service() {
         val leave = PendingIntent.getService(this, 1, Intent(this, CallService::class.java).setAction(LEAVE), PendingIntent.FLAG_IMMUTABLE)
         val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
         return b.setSmallIcon(R.drawable.ic_stat_ghost)
-            .setContentTitle(if (video) "In a video call" else "In a voice call")
+            .setContentTitle(if (screen) "Sharing your screen" else if (video) "In a video call" else "In a voice call")
             .setContentText(name)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_CALL)

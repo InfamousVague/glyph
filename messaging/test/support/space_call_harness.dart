@@ -84,7 +84,8 @@ class SpaceHarness {
   final levels = ValueNotifier<Map<String, double>>(const {'a': 0.42, 'me': 0.18});
 
   /// A space's chat with a few messages, this device its owner, Maya a moderator.
-  HangoutRoom room() {
+  /// [threaded]: Maya's first message has a thread of two replies (GMFB-36).
+  HangoutRoom room({bool threaded = false}) {
     final keys = NetKeys.generate();
     final channel = VoiceChannel.make('Friday hang', owner: NetCrypto.hex(keys.public));
     final store = MemoryHangoutStore();
@@ -94,6 +95,10 @@ class SpaceHarness {
       HangoutMessage(id: '2', from: 'a', name: 'Maya Chen', text: 'Bring snacks 🍿', at: at + 20000),
       HangoutMessage(id: '3', from: 'c', name: 'Riley', text: 'On my way!', at: at + 60000),
       HangoutMessage(id: '4', from: keys.id, name: 'Me', text: 'Saving you a seat', at: at + 90000),
+      if (threaded) ...[
+        HangoutMessage(id: 't1', from: 'c', name: 'Riley', text: 'Which movie?', at: at + 30000, thread: '1'),
+        HangoutMessage(id: 't2', from: 'a', name: 'Maya Chen', text: 'The new one with the robots', at: at + 40000, thread: '1'),
+      ],
     ]);
     store.keepRoster(channel.chatRoom, Roster.first(channel.owner).next(assigned: {'a': Role.moderator}));
     return HangoutRoom(channel: channel, route: _NoRoute(keys.id), name: 'Me', signer: KeysSigner(keys), store: store);
@@ -102,7 +107,7 @@ class SpaceHarness {
   /// A made-up call. [people]: how many besides this device (0 is alone, up to 7). [video]: who has video on (ids:
   /// `me`, `a` Maya, `b` Sam, `c` Riley, `d` Jordan, `e` Priya, `f` Alex, `g` Noor). Every button's press is written to
   /// [log] ("mute", "leave", "person a", ...), so a test can see the buttons do what they say.
-  SpaceCall call({int people = 4, Set<String> video = const {'c'}, bool muted = false, bool deafened = false, bool myVideo = false, bool withChat = true, List<String>? log, bool micLocked = false}) {
+  SpaceCall call({int people = 4, Set<String> video = const {'c'}, bool muted = false, bool deafened = false, bool myVideo = false, bool withChat = true, List<String>? log, bool micLocked = false, bool canShare = false, bool sharing = false}) {
     final room = withChat ? this.room() : null;
     final roster = room?.roster;
     const names = {'a': 'Maya Chen', 'b': 'Sam Ortiz', 'c': 'Riley', 'd': 'Jordan Lee', 'e': 'Priya Natarajan', 'f': 'Alex Kim', 'g': 'Noor Haddad'};
@@ -131,6 +136,8 @@ class SpaceHarness {
       deafened: deafened,
       video: myVideo || video.contains('me'),
       micLocked: micLocked,
+      screen: sharing,
+      onScreen: canShare || sharing ? (context) => say('screen') : null,
       since: DateTime.now().subtract(const Duration(minutes: 12, seconds: 5)),
       onMute: () => say('mute'),
       onDeafen: () => say('deafen'),

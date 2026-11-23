@@ -8,6 +8,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../platform_info.dart';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -29,6 +31,7 @@ import '../video_engine.dart';
 import '../video_screen.dart';
 import 'file_badge.dart';
 import 'files_screen.dart' show fileAction, fileWho, showFileMenu;
+import '../../kit/picture_decode.dart';
 
 /// Whether this device plays video in the app's own player (lib/ui/video_engine.dart): every one, Windows too since
 /// libmpv came in (Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app").
@@ -183,7 +186,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
               child: f.size <= 8 << 20
               // Decoded no wider than the screen's pixels (twice, for zooming in): a picture that claims to be tens of
               // thousands across is not unpacked whole.
-                  ? Image.memory(File(path).readAsBytesSync(), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
+                  ? Image.memory(fileBytes(path) ?? Uint8List(0), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
                   : Image.file(File(path), fit: BoxFit.contain, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path)),
             ),
           ),
@@ -237,7 +240,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
                 _Pill(label: 'Open', icon: Lucide.externalLink, strong: true, onPressed: () => FilePlatform.open(path, f.name)),
               if (FilePlatform.canSave) _Pill(label: FilePlatform.canShare ? 'Save' : 'Download', icon: LucideMore.download, onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
               if (FilePlatform.canShare) _Pill(label: 'Share', icon: Lucide.share2, onPressed: () => FilePlatform.share(path, f.name, f.mime)),
-              if (Platform.isMacOS) _Pill(label: 'Show in Finder', icon: Lucide.folderOpen, onPressed: () => FilePlatform.reveal(path)),
+              if (PlatformInfo.isMacOS) _Pill(label: 'Show in Finder', icon: Lucide.folderOpen, onPressed: () => FilePlatform.reveal(path)),
             ]),
           ]),
         ),

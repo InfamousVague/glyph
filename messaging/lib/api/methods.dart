@@ -3,7 +3,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import '../app_state.dart';
 import '../friends/buddies.dart';
@@ -137,8 +137,8 @@ List<ApiMethod> appMethods(AppState app) {
         final status = await Sms.instance.status();
         return {
           'version': appVersion,
-          'platform': Platform.operatingSystem,
-          'osVersion': Platform.operatingSystemVersion,
+          'platform': PlatformInfo.operatingSystem,
+          'osVersion': PlatformInfo.operatingSystemVersion,
           'defaultSms': status.usable,
           'username': Me.instance.username,
           'networks': [for (final n in Inbox.instance.networks) if (!n.soon) {'id': n.id, 'name': n.name, 'state': n.state.name, 'account': n.account}],
@@ -491,7 +491,8 @@ List<ApiMethod> appMethods(AppState app) {
 
     // --- our own system: friends and the relay server's hub ----------------------------------------------------------
     ApiMethod(name: 'friends.list', summary: 'Friends by username, those who asked you, and those you asked; with whether each is on.', returns: '[{"username", "name", "state", "presence"}...]', run: (_) async => [
-          for (final b in Buddies.instance.all) {'username': b.username, 'name': b.name, 'state': b.state, 'presence': presenceJson(Presence.of('@${b.username}'))},
+          // Each by its own install's name: never another entry under the same username (found in review, 2026-11-23).
+          for (final b in Buddies.instance.all) {'username': b.username, 'name': b.name, 'state': b.state, 'presence': presenceJson(Presence.ofId(b.id))},
         ]),
     ApiMethod(
       name: 'net.status',
@@ -504,7 +505,9 @@ List<ApiMethod> appMethods(AppState app) {
           'hub': net.hubUrl,
           'hubState': net.hub?.state.value.name,
           'routes': [for (final c in net.board?.carriers ?? const []) {'id': c.id, 'state': c.state.value.name}],
-          'peers': [for (final x in net.people) {'id': x.id, 'name': x.name, 'address': x.address, 'presence': presenceJson(Presence.of(x.address ?? ''))}],
+          // Each one's presence by its own install's name, not by the address the routes hold it under, which may be a
+          // group's word for it (found in review, 2026-11-23).
+          'peers': [for (final x in net.people) {'id': x.id, 'name': x.name, 'address': x.address, 'presence': presenceJson(Presence.ofId(x.id))}],
           'error': net.error,
         };
       },

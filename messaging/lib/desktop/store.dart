@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'link/link.dart';
 import 'platform.dart';
@@ -22,10 +23,10 @@ class DeskStore implements LinkStore {
 
   /// The app's own folder: inside its sandbox container on a Mac, the person's AppData on Windows.
   static Directory defaultDir() {
-    final appData = Platform.environment['APPDATA'];
-    if (Platform.isWindows && appData != null) return Directory('$appData\\Ghost Messaging');
+    final appData = PlatformInfo.environment['APPDATA'];
+    if (PlatformInfo.isWindows && appData != null) return Directory('$appData\\Ghost Messaging');
     // iOS gives a Flutter app no HOME: the container is the parent of its tmp folder.
-    final home = Platform.environment['HOME'] ?? (Platform.isIOS ? Directory.systemTemp.parent.path : Directory.systemTemp.path);
+    final home = PlatformInfo.environment['HOME'] ?? (PlatformInfo.isIOS ? Directory.systemTemp.parent.path : Directory.systemTemp.path);
     return Directory('$home/Library/Application Support/Ghost Messaging');
   }
 
@@ -61,7 +62,7 @@ class DeskStore implements LinkStore {
   /// account whatever each file's own mode. Windows has no chmod; its AppData is the person's already.
   Future<void>? _closed;
   Future<void> _private() => _closed ??= () async {
-        if (Platform.isWindows) return;
+        if (PlatformInfo.isWindows) return;
         try {
           await Process.run('/bin/chmod', ['700', dir.path]);
         } catch (_) {}

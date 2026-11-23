@@ -6,8 +6,8 @@ import 'sha256.dart';
 /// test/p256_test.dart holds it to that.
 ///
 /// A public key is 33 bytes, as the apps send them: 02 or 03 for y's parity, then x. A signature is 64 bytes: r,
-/// then s. Not constant-time: it handles nothing secret but in [sign], which the tests use and pushes.dart signs
-/// Apple's provider token with.
+/// then s. Not constant-time: it handles nothing secret but in [sign], which the tests use and, since relays talk to
+/// each other, the relay's own key (federation.dart: one signature for each link made, and links are counted).
 class P256 {
   /// The curve: the field's prime [p], the group's order [n], b of y² = x³ − 3x + b, and the base point.
   static final BigInt p = BigInt.parse('ffffffff00000001000000000000000000000000ffffffffffffffffffffffff', radix: 16);
@@ -112,12 +112,20 @@ class P256 {
   }
 
   /// A signature over [message] with the private key [scalar], using [nonce] (32 bytes, never used twice with one
-  /// key) as its secret number: for the tests, and for the token Apple's pushes are sent with (pushes.dart).
+  /// key) as its secret number: for the tests, and for the relay's own key (federation.dart).
+  ///
+  /// The secret number is multiplied in as itself plus the curve's order, once or twice, whichever is one bit longer
+  /// than the order: the same point, in the same number of steps whatever the number is, so how long a signature takes
+  /// does not say how long its secret number was. It is still not constant-time arithmetic.
   static List<int> sign(List<int> scalar, List<int> message, List<int> nonce) {
     final d = _int(scalar);
     final k = _int(nonce) % n;
-    final r = _affine(_times([_gx, _gy, BigInt.one], k))!.$1 % n;
+    if (k == BigInt.zero) throw ArgumentError('a secret number of nothing');
+    var steps = k + n;
+    if (steps.bitLength <= n.bitLength) steps += n;
+    final r = _affine(_times([_gx, _gy, BigInt.one], steps))!.$1 % n;
     final s = k.modInverse(n) * (_int(sha256(message)) + r * d) % n;
+    if (r == BigInt.zero || s == BigInt.zero) throw ArgumentError('a secret number that signs nothing');
     return [..._bytes(r), ..._bytes(s)];
   }
 }

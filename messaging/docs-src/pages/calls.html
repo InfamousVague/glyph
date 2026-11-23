@@ -10,16 +10,29 @@
 <h2 id="controls">In the call</h2>
 <m-screen title="Lounge" caption="The call's controls.">
   <m-row-raw><span class="m-avatar" data-hue="rose">MC</span><span class="m-avatar" data-hue="blue">JO</span><span class="m-avatar" data-hue="green">YOU</span></m-row-raw>
-  <m-row-raw><m-btn kind="secondary" icon="mic">Mute</m-btn><m-btn kind="secondary" icon="headphones">Deafen</m-btn><m-btn kind="secondary" icon="video"></m-btn><m-btn kind="danger" icon="phone-off">Leave</m-btn></m-row-raw>
+  <m-row-raw><m-btn kind="secondary" icon="mic">Mute</m-btn><m-btn kind="secondary" icon="headphones">Deafen</m-btn><m-btn kind="secondary" icon="video"></m-btn><m-btn kind="secondary" icon="screen-share"></m-btn><m-btn kind="danger" icon="phone-off">Leave</m-btn></m-row-raw>
 </m-screen>
 <table>
   <tr><th>Control</th><th>Does</th></tr>
   <tr><td>Mute</td><td>Stops your microphone.</td></tr>
   <tr><td>Deafen</td><td>Hear nobody, and say nothing. <b>Hear again</b> undoes it.</td></tr>
   <tr><td>Camera</td><td>Turns your video on or off.</td></tr>
+  <tr><td>Share screen</td><td>Shows everyone your screen, or one window. See <a href="#screen">Share your screen</a>.</td></tr>
   <tr><td>Leave</td><td>Leaves the call. The space and its chat stay.</td></tr>
 </table>
 <p>While you're in a call and look at something else, a small bubble of faces floats on top; tap it to go back.</p>
+
+<h2 id="screen">Share your screen</h2>
+<p>Press <b>Share screen</b> in the call. In some call designs it's in the call's menu instead. It works on Mac, Windows, Linux and Android.</p>
+<ul>
+  <li><b>On a computer</b>, pick a whole screen or one window. On a Mac, the first time, allow Ghost Messaging in <ui>System Settings › Privacy &amp; Security › Screen Recording</ui>, then try again.</li>
+  <li><b>On Android</b>, the phone asks before it shares, and you can choose one app or the whole screen. A notification says <b>Sharing your screen</b> while it's on.</li>
+</ul>
+<m-screen title="Lounge" caption="Someone's screen, large.">
+  <m-row-raw><m-btn kind="secondary" icon="screen-share">Maya Chen's screen</m-btn><m-btn kind="primary">Back to call</m-btn></m-row-raw>
+</m-screen>
+<p>Everyone else sees your screen large and whole, never cropped. <b>Back to call</b> puts it away, and a line over the call says who is sharing, with <b>View</b> to bring it back. While you share, a line says <b>You're sharing your screen</b>, with <b>Stop</b>.</p>
+<p>Your screen goes out in place of your camera: while you share, others see your screen, not your camera, and your camera is back when you stop. Sound from your computer isn't shared yet. If your role in a space can't show video, it can't share a screen either. Like the rest of the call, it goes encrypted between you: the relay can't see it.</p>
 
 <h2 id="people">Each person's volume</h2>
 <p>Press and hold someone in the call:</p>
@@ -33,6 +46,21 @@
 </m-screen>
 <p>A moderator also sees <b>Mute for everyone</b>, and can put someone out of the space if their role allows it.</p>
 
+<h2 id="stage">A stage: a few speak, many listen</h2>
+<p>For a talk, a show or a town hall. Whoever manages the space opens the call's menu and chooses <b>Make it a stage</b>. From then on, everyone who comes in listens: they hear the speakers and can write in the chat, but their microphone stays off.</p>
+<m-screen>
+  <m-menu title="Call">
+    <m-item icon="megaphone" tap>End the stage · 24 listening · 2 ✋</m-item>
+    <m-item icon="hand">Raise your hand</m-item>
+  </m-menu>
+</m-screen>
+<ul>
+  <li><b>Raise your hand</b> (a listener's menu) puts a ✋ by your name, so the hosts know you'd like to speak.</li>
+  <li>A host presses and holds someone and chooses <b>Bring up to speak</b>, or <b>Move to the audience</b> to send them back.</li>
+  <li>The menu says how many are listening and how many hands are up. <b>End the stage</b> lets everyone speak again.</li>
+</ul>
+<p>Listeners don't connect to each other, only to the speakers, so a stage holds far more people than an ordinary call.</p>
+
 <h2 id="sound">Sound settings</h2>
 <p><ui>Settings › Voice and video</ui> has your microphone and speaker, the sound's quality, stereo, music mode (for playing an instrument), and noise removal (RNNoise or DeepFilterNet), which cleans background noise off your voice before it's sent. The call's menu has <b>Voice settings…</b> too.</p>
 
@@ -44,7 +72,7 @@
   <m-row-raw><m-btn kind="secondary" icon="mic">Microphone</m-btn><m-btn kind="secondary" icon="video">Camera</m-btn></m-row-raw>
   <m-btn kind="primary" tap>Join</m-btn>
 </m-screen>
-<note kind="info" title="Strict networks"><p>Calls go directly between people. On some workplace or school networks that block this, a browser guest (or the app) may not connect.</p></note>
+<note kind="info" title="Strict networks"><p>Calls connect through Ghost's relay first, which gets through almost any network: a phone on a mobile network, a workplace, school or hotel network. If the relay can't be reached, the call tries a direct path between you instead, by itself. The relay passes the call along still encrypted between you: it can't hear or see it.</p></note>
 
 <h2 id="extras">With plugins</h2>
-<p>Add <a href="/docs/record-call/">Record call</a>, <a href="/docs/live-captions/">Live captions</a> or <a href="/docs/watch-together/">Watch together</a> for more in calls. They show in the call's menu, and Record call puts its button in the space's header.</p>
+<p>Add <a href="/docs/record-call/">Record call</a>, <a href="/docs/live-captions/">Live captions</a>, <a href="/docs/watch-together/">Watch together</a>, <a href="/docs/soundboard/">Soundboard</a> or <a href="/docs/auto-leveler/">Auto leveler</a> for more in calls. They show in the call's menu, and Record call and Soundboard put a button in the space's header.</p>

@@ -149,6 +149,32 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    /**
+     * The numbers this phone holds an encryption record for, whatever each stands at, by [norm]: who is at one of them
+     * is that record's to say (its key), never a group's (Groups.peers).
+     */
+    fun held(context: Context): Set<String> =
+        prefs(context).all.keys.filter { it.startsWith("peer:") }.map { it.removePrefix("peer:") }.toSet()
+
+    /**
+     * Each install encryption is on with, by its name (Net.idOf its key), at the number its record is for: who this
+     * phone's own records say an install is (Groups.known). One key on two numbers goes to the lower, as Dart's
+     * Friends.whoIs has it.
+     */
+    fun onIds(context: Context): Map<String, String> {
+        val out = HashMap<String, String>()
+        for (name in prefs(context).all.keys.filter { it.startsWith("peer:") }) {
+            val o = peer(context, name.removePrefix("peer:")) ?: continue
+            if (o.optString("state") != "on") continue
+            val pub = runCatching { Base64.getDecoder().decode(o.optString("pub", "")) }.getOrNull()?.takeIf { it.size == 33 } ?: continue
+            val address = o.optString("address", name.removePrefix("peer:"))
+            val id = Net.idOf(pub)
+            val had = out[id]
+            if (had == null || norm(address) < norm(had)) out[id] = address
+        }
+        return out
+    }
+
     // --- friends (Friends.kt, lib/friends/friends.dart) -----------------------------------------------------------------
 
     /**
@@ -237,6 +263,9 @@ object E2e {
             "hasGhost" to Backgrounds.allKnown(context, listOf(address)),
             "declined" to declined(context, address),
             "friend" to (o?.optString("friend", "") ?: ""),
+            // Their install's name, made from the key held for them: what Dart decides who is a friend by (the direct
+            // route links only with friends: lib/net/net.dart), never the address, which a group's admin can write.
+            "id" to pub?.let { Net.idOf(it) },
             // Texts that came from them plain while encryption is on, and have not been put away ([arrived]).
             "plain" to (if (state == "on") E2ePlain.unseen(o?.optInt("plain", 0) ?: 0, o?.optInt("plainSeen", 0) ?: 0) else 0),
         )

@@ -5,7 +5,7 @@
  * tool/release.mjs, for this app (Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the
  * domain to the same server ghost kbd uses").
  *
- *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection] [--again]
+ *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection] [--again] [--no-p2p]
  *
  * Put in /opt/ghost-sms-release, which ghost-sms.com's Caddy block (tool/deploy-site.mjs --caddy) serves at:
  *
@@ -32,12 +32,13 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { telegramDefines } from './telegram-defines.mjs';
 import { requireNotes } from './lib/notes.mjs';
+import { requireGuards } from './lib/guards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -180,6 +181,8 @@ const versionCode = Math.max((live?.versionCode ?? 0) + 1, pub.build);
 if (deploy && live && live.version === versionName && !args.includes('--again')) {
   fail(`${versionName} is live already (code ${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
 }
+// The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
+requireGuards(ROOT, fail);
 say(`> Building Ghost Messaging ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 // The Google Messages sidecar for the phone (sidecar/gmessages, AGPL-3.0; android GmWeb.kt), built fresh into
@@ -200,10 +203,31 @@ if (existsSync(join(ROOT, 'sidecar/whatsapp/SOURCE_URL'))) {
   say('> Building the WhatsApp helper for the phone');
   run('sh', [join(ROOT, 'tool/build-whatsappsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
 }
+// The account helpers for the phone (sidecar/messenger, sidecar/instagram, sidecar/linkedin;
+// lib/inbox/account_helper.dart), into jniLibs.
+// A LinkedIn helper built into jniLibs before it was removed is packed by no build.
+rmSync(join(ROOT, 'android/app/src/main/jniLibs/arm64-v8a/liblinkedinsidecar.so'), { force: true });
+// LinkedIn's is no longer carried (Matt, 2026-11-21: "remove the plugin"; lib/inbox/inbox.dart).
+for (const name of ['messenger', 'instagram', 'discord', 'twitter', 'slack']) {
+  if (!existsSync(join(ROOT, `sidecar/${name}/SOURCE_URL`))) continue;
+  say(`> Building the ${name} helper for the phone`);
+  run('sh', [join(ROOT, 'tool/build-accountsidecar.sh'), name, 'android', '--ship'], { cwd: ROOT });
+}
 // The Matrix helper for the phone (sidecar/matrix; lib/inbox/matrix.dart), into jniLibs.
 if (existsSync(join(ROOT, 'sidecar/matrix/SOURCE_URL'))) {
   say('> Building the Matrix helper for the phone');
   run('sh', [join(ROOT, 'tool/build-matrixsidecar.sh'), 'android', '--ship'], { cwd: ROOT });
+}
+// The direct network's core for the phone (native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), built into
+// build/p2p/android, which the app's jniLibs take in. --no-p2p leaves it out, and takes away one built before so that
+// an old one is not packed by mistake: the app then has no direct route and is otherwise the same.
+if (args.includes('--no-p2p')) {
+  rmSync(join(ROOT, 'build/p2p/android'), { recursive: true, force: true });
+  say('  (no direct network core: --no-p2p)');
+} else {
+  say('> The direct network\'s core for the phone');
+  const core = spawnSync('sh', [join(ROOT, 'tool/build-p2p.sh'), 'android'], { cwd: ROOT, stdio: 'inherit' });
+  if (core.error || core.status !== 0) fail('The direct network\'s core did not build (tool/build-p2p.sh android). Nothing was sent. To release without the direct route, pass --no-p2p.');
 }
 // Telegram's library for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source (reused while
 // the pinned commit is the same) into build/tdlib/android, which the app's jniLibs take in; and the app id.

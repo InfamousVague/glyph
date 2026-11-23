@@ -4,17 +4,22 @@
 /// Developer log, so a bad plugin costs its own part and not the list.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../app_state.dart';
 import '../sms.dart';
 import 'actions.dart';
+import 'auto_leveler.dart';
 import 'codes.dart';
 import 'cleaner.dart';
 import 'embeds.dart';
 import 'game_activity.dart';
+import 'human_check.dart';
 import 'kinds.dart';
 import 'live_captions.dart';
+import 'networks.dart';
 import 'pack/format.dart' show packMayAct;
 import 'pack/pack_plugin.dart' show PackPlugin;
 import 'quiet.dart';
@@ -23,9 +28,11 @@ import 'scribe.dart';
 import 'replies.dart';
 import 'strangers.dart';
 import 'plugin.dart';
+import 'soundboard.dart';
 import 'spam.dart';
 import 'translate.dart';
 import 'translate_host.dart';
+import 'voice_changer.dart';
 import 'watch_together.dart';
 
 /// The plugins the app ships with, in the order Settings › Plugins lists them and their sections are asked: a text
@@ -33,7 +40,7 @@ import 'watch_together.dart';
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
 // Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), GameActivityPlugin()];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), HumanCheckPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), AutoLevelerPlugin(), VoiceChangerPlugin(), GameActivityPlugin(), ...networkPlugins];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {
@@ -151,7 +158,10 @@ class Filing {
   /// The section [thread] is filed in, [main] for the main list, or null where it was never filed.
   String? of(int thread) => _by[thread];
 
-  /// This with [thread] filed in [section]; with null, no longer filed at all.
+  /// Every conversation filed by hand, and where: for the phone's side, which hushes the notifications of a conversation
+  /// filed in a kind the filter hides (lib/plugins/notify_hush.dart).
+  Map<int, String> get all => Map.unmodifiable(_by);
+
   Filing _with(int thread, String? section) {
     final by = {..._by};
     section == null ? by.remove(thread) : by[thread] = section;
@@ -361,11 +371,26 @@ class PluginRegistry with ChangeNotifier {
   /// Whether the person has [plugin] switched on; as the plugin starts ([GhostPlugin.onByDefault]) where they never
   /// chose.
   bool isOn(GhostPlugin plugin, PluginStore store) {
+    if (plugin is OwnSwitch) return (plugin as OwnSwitch).on;
     final value = store.read(switchKey(plugin));
     return value == null ? plugin.onByDefault : value == 'on';
   }
 
-  void setOn(GhostPlugin plugin, PluginStore store, bool on) => store.write(switchKey(plugin), on ? 'on' : 'off');
+  /// Told of every switch moved through [setOn]: the person's (a switch, Add, Remove, the app's API), and a pack added
+  /// switched on. Plugin sync listens (lib/plugins/plugin_sync.dart, GMFB-9) and tells its own moves from the person's.
+  static void Function(GhostPlugin plugin, bool on)? switched;
+
+  void setOn(GhostPlugin plugin, PluginStore store, bool on) {
+    try {
+      switched?.call(plugin, on);
+    } catch (_) {}
+    if (plugin is OwnSwitch) {
+      // Its own switch, which says so itself once it has moved (Inbox.notifyChange).
+      unawaited((plugin as OwnSwitch).turn(on));
+      return;
+    }
+    store.write(switchKey(plugin), on ? 'on' : 'off');
+  }
 
   /// Whether [plugin] is on where [circleOn] says what a circle has said of it: in a circle's space a plugin a circle
   /// may hold ([PluginScope.circle]) is on as the circle says (null: the circle has said nothing, so off), whatever this

@@ -638,6 +638,15 @@ class Files {
         // This relay puts an entry sent with `?after=` only right there (a newer app reads a signed entry out of its
         // place as moved, then); 0.9.2 reads past it.
         'cas': 1,
+        // Uploads not finished yet, each holding its room until it is or is let go (a day after its last piece; Matt,
+        // 2026-11-21: "I need a way to see partially uploaded files, the oddysey uploaded partially but then
+        // disconnected when I restarted the app it stopped uploading but kept the space reserved"). Only what the relay
+        // knows: its id, who started it, its size, how much is here and when it last moved; the name is sealed in the
+        // device's own queue. The newest hundred.
+        'parts': [
+          for (final b in (s.blobs.values.where((b) => !b.done).toList()..sort((a, b) => b.at.compareTo(a.at))).take(100))
+            {'id': b.id, 'by': b.by, 'z': b.size, 'h': b.have, 'at': b.at},
+        ],
       };
 
   /// Notes that [s] was opened today, which is what keeps it from the ninety days' sweep; saved once a day at most.

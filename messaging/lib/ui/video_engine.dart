@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -87,7 +88,7 @@ abstract class VideoEngine extends ValueNotifier<VideoNow> {
   static VideoEngine defaultEngine() => usesMediaKit ? MediaKitEngine() : VideoPlayerEngine();
 
   /// Whether this device plays through libmpv: the computers and the Android phone.
-  static bool get usesMediaKit => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  static bool get usesMediaKit => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
   /// Opens [path], a file or an http address (a Files-space file served as it comes down, lib/files/file_stream.dart);
   /// once it is ready [value] says so, or says why not in [VideoNow.error]. Never throws.

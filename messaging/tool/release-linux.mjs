@@ -3,7 +3,7 @@
  * Ghost Messaging for Linux on gogho.st (Matt, 2026-11-20: "add support on the website for linux based systems and
  * downloads").
  *
- *   node tool/release-linux.mjs --glyph ~/Development/Apps/glyph [--run <id>] [--ref <branch>] [--keep-connection] [--again]
+ *   node tool/release-linux.mjs --glyph ~/Development/Apps/glyph [--run <id>] [--ref <branch>] [--keep-connection] [--again] [--no-p2p]
  *
  * A Mac cannot build the Linux app: .github/workflows/messaging-linux.yml does, on an Ubuntu runner, for the version in
  * pubspec.yaml (this starts it, unless --run names one that already ran). Its two packages are fetched with `gh` and
@@ -75,9 +75,9 @@ let run = flag('run');
 if (!run) {
   const before = new Set(JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '20', '--json', 'databaseId'])).map((r) => r.databaseId));
   say(`> Building Ghost Messaging for Linux ${versionName} (${versionCode}) on GitHub`);
-  out('gh', ['workflow', 'run', WORKFLOW, '--ref', flag('ref') ?? 'main', '-f', `version=${versionName}`, '-f', `build=${versionCode}`]);
-  // Starting a workflow gives back no run id: the new run is the one that was not in the list before, looked for
-  // every four seconds for two minutes.
+  // --no-p2p: the runner leaves the direct network's core out (the workflow's own `p2p` input; the app then has no
+  // direct route). Not said at all otherwise, so a workflow from before the core is asked nothing it doesn't know.
+  out('gh', ['workflow', 'run', WORKFLOW, '--ref', flag('ref') ?? 'main', '-f', `version=${versionName}`, '-f', `build=${versionCode}`, ...(has('no-p2p') ? ['-f', 'p2p=no'] : [])]);
   for (let i = 0; i < 30 && !run; i++) {
     await sleep(4000);
     const fresh = JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '5', '--json', 'databaseId'])).find((r) => !before.has(r.databaseId));

@@ -11,6 +11,7 @@
 library;
 
 import 'dart:io';
+import '../../platform_info.dart';
 
 import '../../art/lucide.g.dart';
 import '../../sms.dart';
@@ -129,7 +130,7 @@ List<int> _versionParts(String version) {
 // --- what a pack sees ----------------------------------------------------------------------------------------------------
 
 /// 'phone', 'computer' or 'iPhone': where this app is, as the Plugins page says it (lib/ui/plugins_page pluginsHere).
-String packHere() => Sms.remote ? (Platform.isIOS ? 'iPhone' : 'computer') : 'phone';
+String packHere() => Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone';
 
 /// Whether a pack is shown [f] at all. A pack reads texts from a number not in the phone's contacts, one to one, and
 /// nothing else: a stranger's rules never see a contact's words, the person's own, a group's (whose last words may be

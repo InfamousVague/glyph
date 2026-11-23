@@ -8,7 +8,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart' as mk;
@@ -24,14 +24,14 @@ const frameLimit = Duration(seconds: 25);
 /// The frame by this platform's reader, with no time limit of its own; null where there is none or it failed.
 Future<Uint8List?> _videoFrame(String path) async {
   try {
-    if (Platform.isAndroid) return await const MethodChannel('ghost_messaging/sms').invokeMethod<Uint8List>('videoFrame', {'path': path});
-    if (Platform.isMacOS || Platform.isIOS) {
+    if (PlatformInfo.isAndroid) return await const MethodChannel('ghost_messaging/sms').invokeMethod<Uint8List>('videoFrame', {'path': path});
+    if (PlatformInfo.isMacOS || PlatformInfo.isIOS) {
       final native = await const MethodChannel('ghost_desktop/system').invokeMethod<Uint8List>('videoFrame', {'path': path});
       // AVFoundation reads no MKV: on a Mac, libmpv does (as the app's player plays them there).
-      if (native != null || Platform.isIOS) return native;
+      if (native != null || PlatformInfo.isIOS) return native;
       return await mediaKitFrame(path);
     }
-    if (Platform.isWindows || Platform.isLinux) return await mediaKitFrame(path);
+    if (PlatformInfo.isWindows || PlatformInfo.isLinux) return await mediaKitFrame(path);
   } catch (_) {}
   return null;
 }

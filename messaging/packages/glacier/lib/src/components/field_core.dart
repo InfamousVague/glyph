@@ -707,6 +707,16 @@ class GlacierFieldCoreState extends State<GlacierFieldCore> implements TextSelec
               if (!_controller.selection.isValid) _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
               _requestKeyboard();
             },
+      // In a browser, with the page's tree for screen readers on, a field is given the keyboard by focusing its element
+      // in the page, which Flutter's engine says as the focus action and not as a tap: there it is taken as the tap is.
+      // Without it a field the app had not focused itself took what was typed into its element and told the app
+      // nothing. Nothing is added elsewhere.
+      onFocus: !kIsWeb || widget.disabled || widget.readOnly
+          ? null
+          : () {
+              if (!_controller.selection.isValid) _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+              _requestKeyboard();
+            },
       // `:disabled { opacity: 0.5 }` is the input's own: the border, the ground and the words, not what is laid over.
       child: Opacity(opacity: widget.disabled ? 0.5 : 1, child: input),
     );

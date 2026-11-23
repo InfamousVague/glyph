@@ -60,6 +60,13 @@ const fail = (message) => { console.error(`x ${message}`); process.exit(1); };
 // shape of the ones that have one. A name that is not here is a slip of the hand, and is refused.
 const KNOWN = {
   GHOST_PUBLIC_URL: /^https:\/\/[A-Za-z0-9.-]+$/,
+  // The hosts the hub is reached at (relay/lib/hub.dart `names`): a sign-in is bound to the one the app dialled.
+  GHOST_HUB_NAMES: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
+  // What every connection may hold together, and when one is ended for it (relay/lib/ws_door.dart `WireBudget`).
+  GHOST_WIRE_MB: /^[0-9]{1,4}$/,
+  GHOST_WIRE_EACH_MB: /^[0-9]{1,4}$/,
+  GHOST_WIRE_STALL_S: /^[0-9]{1,3}$/,
+  GHOST_WIRE_IN_STALL_S: /^[0-9]{1,3}$/,
   GHOST_DISCORD_ID: /^[0-9]{15,22}$/,
   GHOST_DISCORD_SECRET: null,
   GHOST_X_ID: null,
@@ -98,6 +105,11 @@ const KNOWN = {
   GHOST_FILES_PART_HOURS: /^[0-9]{1,4}$/,
   GHOST_FILES_SPACES_PER_ADDRESS: /^[0-9]{1,5}$/,
   GHOST_FILES_PROMISED_PER_ADDRESS: /^[0-9]{1,13}$/,
+  // Bounties in souls without the admin page (relay/lib/bounty.dart): the bounty key's public half, 33 bytes in hex.
+  GHOST_BOUNTY_KEY: /^0[23][0-9a-fA-F]{64}$/,
+  // The app in a browser at an address of its own (relay/lib/relay.dart appOriginFrom; gogho.st's is https://app.gogho.st):
+  // its page may read the answers to a report and to feedback it sends the relay, and nothing else.
+  GHOST_APP_ORIGIN: /^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/,
   // The app's Share feedback, filed in Notion (relay/lib/feedback.dart): the integration's secret and the board's data source.
   GHOST_NOTION_TOKEN: /^(ntn_|secret_)[A-Za-z0-9]{20,80}$/,
   GHOST_NOTION_FEEDBACK: /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/,
@@ -131,17 +143,59 @@ const KNOWN = {
   GHOST_MARKET_REPORTS_A_DAY: /^[0-9]{1,6}$/,
   GHOST_MARKET_NEED_VERIFIED: /^[01]$/,
   GHOST_MARKET_REVIEW_KEYS: /^[A-Za-z0-9+\/]{44}(,[A-Za-z0-9+\/]{44})*$/,
+  // The media relay calls fall back on (relay/lib/turn.dart; Matt, 2026-11-21: "if p2p fails please connect over voice
+  // through the relay"): coturn's static-auth-secret, where it is (turn: and turns: addresses, commas between), and how
+  // long a username and password handed out work for, in seconds.
+  GHOST_TURN_SECRET: /^[A-Za-z0-9_-]{32,128}$/,
+  GHOST_TURN_URLS: /^turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?(,turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?)*$/,
+  GHOST_TURN_TTL: /^[0-9]{3,7}$/,
+  // Relays that talk to each other (relay/lib/federation.dart `FedConfig.fromEnvironment`; Matt, 2026-11-22: "I'd like
+  // the relays to be able to talk to each other"): off unless GHOST_FED is open or list. GHOST_PUBLIC_HUB is this
+  // relay's own hub address, which other relays dial to check it is who it says; ALLOW and BLOCK are hosts or relays'
+  // names (32 hex), commas between; the three limits are per linked relay; PORTS are ports dialled besides 443, PLAIN=1
+  // lets ws:// be dialled; VIA is for a relay with no address of its own; STANDING (off, open, or relays' names) lets
+  // relays with no address stay linked to this one. Its key (relay-key.json) and the home records it keeps
+  // (homes.json) are under ${DATA}, which ReadWritePaths below already covers.
+  GHOST_FED: /^(off|open|list)$/,
+  GHOST_PUBLIC_HUB: /^wss:\/\/[a-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~-]+)*\/hub$/,
+  GHOST_FED_ALLOW: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
+  GHOST_FED_BLOCK: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
+  GHOST_FED_VIA: /^wss?:\/\/[a-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~-]+)*\/hub$/,
+  GHOST_FED_PACKETS_A_MINUTE: /^[0-9]{1,7}$/,
+  GHOST_FED_BYTES_A_DAY: /^[0-9]{1,13}$/,
+  GHOST_FED_LOOKUPS_AN_HOUR: /^[0-9]{1,7}$/,
+  GHOST_FED_PORTS: /^[0-9]{1,5}(,[0-9]{1,5})*$/,
+  GHOST_FED_PLAIN: /^[01]$/,
+  GHOST_FED_STANDING: /^(off|open|[0-9a-f]{32}(,[0-9a-f]{32})*)$/,
+  // The link helpers the apps' direct links use (relay/lib/hub.dart `helpers`; docs/OPEN_NETWORK.md, section 2): https
+  // addresses, commas between, 4 at most, which the hub hands each app as it signs in.
+  GHOST_LINK_HELPERS: /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?(,https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?){0,3}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
   GHOST_TWILIO_TOKEN: '32 letters and digits',
   GHOST_TWILIO_VERIFY: 'VA and 32 more characters',
+  GHOST_APP_ORIGIN: 'https:// and the app\'s own host, no slash after (https://app.gogho.st)',
   GHOST_NOTION_TOKEN: 'ntn_ and the rest, from the integration\'s page',
   GHOST_NOTION_FEEDBACK: 'the board\'s data source id, a UUID',
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
+  GHOST_TURN_SECRET: '32 to 128 letters, digits, - or _',
+  GHOST_TURN_URLS: 'turn:host:3478?transport=udp and the like, commas between',
+  GHOST_HUB_NAMES: 'every host name the hub is reached at, commas between, no ports: gogho.st,www.gogho.st,ghost-sms.com,www.ghost-sms.com',
+  GHOST_WIRE_MB: 'megabytes, 8 to 4096 (64 unless set)',
+  GHOST_WIRE_EACH_MB: 'megabytes, 1 to 1024 (8 unless set)',
+  GHOST_WIRE_STALL_S: 'seconds, 2 to 600 (10 unless set)',
+  GHOST_WIRE_IN_STALL_S: 'seconds, 2 to 600 (20 unless set)',
+  GHOST_FED: 'off, open or list',
+  GHOST_PUBLIC_HUB: 'this relay\'s hub address, like wss://relay.example.com/hub',
+  GHOST_FED_ALLOW: 'hosts or relays\' names of 32 hex digits, commas between',
+  GHOST_FED_BLOCK: 'hosts or relays\' names of 32 hex digits, commas between',
+  GHOST_FED_VIA: 'a relay\'s hub address, like wss://relay.example.com/hub',
+  GHOST_FED_STANDING: 'off, open, or relays\' names of 32 hex digits, commas between',
+  GHOST_LINK_HELPERS: 'https://host addresses, commas between, 4 at most',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
-const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK']];
+const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK'], ['GHOST_TURN_SECRET', 'GHOST_TURN_URLS']];
 
 /** The file's values as the box's file will hold them, and their names. No value is ever part of a message. */
 function readEnvFile(file) {
@@ -158,7 +212,7 @@ function readEnvFile(file) {
     // Copied with quotes round it, or a curly pair an editor made of them.
     value = value.replace(/^["'\u201c\u2018](.*)["'\u201d\u2019]$/, '$1').trim();
     if (!value) continue;
-    if (!/^[A-Za-z0-9+_.,:\/@-]+$/.test(value)) fail(`${file}: the value of ${name} has a space, a quote or another mark a value does not have.`);
+    if (!/^[A-Za-z0-9+_.,:\/@?=-]+$/.test(value)) fail(`${file}: the value of ${name} has a space, a quote or another mark a value does not have.`);
     if (KNOWN[name] && !KNOWN[name].test(value)) fail(`${file}: the value of ${name} does not look right${SHAPES[name] ? ` (it is ${SHAPES[name]})` : ''}. Nothing was sent.`);
     if (values.has(name)) fail(`${file}: ${name} is there twice.`);
     values.set(name, value);

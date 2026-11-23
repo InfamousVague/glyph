@@ -3,7 +3,8 @@ import 'api/methods.dart';
 import 'api/remote.dart';
 import 'api/server.dart';
 import 'dart:async';
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
+import 'platform_info.dart';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'account/account.dart' show Account, AppAccountProfiles;
 import 'circles/circles.dart';
 import 'circles/pending_link.dart';
 import 'circles/sms_space.dart';
@@ -21,35 +23,46 @@ import 'me/me.dart';
 import 'accent.dart';
 import 'summaries.dart';
 import 'app_state.dart';
+import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
 import 'backgrounds.dart';
+import 'bubble.dart';
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
 import 'standalone/standalone.dart';
+import 'standalone/unreadable.dart';
 import 'standalone/wake.dart';
 import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
 import 'kit/settings_css.dart';
 import 'net/net.dart';
 import 'people.dart';
+import 'plugins/notify_hush.dart' show NotifyHush;
 import 'plugins/pack/pack.dart' show InstalledPlugins;
 import 'plugins/plugin.dart' show MessageFacts;
+import 'plugins/plugin_sync.dart' show PluginSync;
 import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
 import 'sounds.dart';
 import 'keys.dart';
+import 'gm/rcs_share.dart';
 import 'sms.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
+import 'ui/account_screens.dart' show RestartScreen;
+import 'ui/add_me.dart' show askToAdd;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
+import 'inbox/human_check.dart' show HumanCheck;
+import 'plugins/human_check.dart' show HumanCheckPlugin;
+import 'plugins/registry.dart' show AppStore, PluginRegistry;
 import 'files/files_store.dart';
 import 'inbox/inbox.dart';
 import 'inbox/telegram.dart';
@@ -89,7 +102,7 @@ void _logErrors() {
 /// app to be usable (its network, friends, the inbox) starts later, in [_HomeState._check].
 Future<void> main() async {
   // On a computer this is the companion to the phone's app (lib/desktop): the same screens, asking the phone.
-  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) return desktopMain();
+  if (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) return desktopMain();
   WidgetsFlutterBinding.ensureInitialized();
   // Each frame's times in the log, for a performance pass on an emulator (built with --dart-define=GHOST_FRAME_LOG=true;
   // left out of every other build): how long the frame took to build, to draw, and in all.
@@ -104,9 +117,17 @@ Future<void> main() async {
   // Ghost Messaging of its own: friends by username, groups and calls over the internet (lib/standalone; Matt,
   // 2026-11-15: "roll a version of the app that works without sms"). One already paired with an Android phone as a
   // computer is (lib/desktop) stays that phone's companion.
-  if (Platform.isIOS) {
+  if (PlatformInfo.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
-    await standaloneSetup();
+    // What an iPhone deletes everything of the person's under, when it does (lib/account/account.dart): the folder its
+    // store is in.
+    AppAccountProfiles.appFolder = StandaloneCalls.defaultDir().path;
+    try {
+      await standaloneSetup();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'iPhone'));
+    }
   } else {
     // The phone's friends by username are kept in Dart, beside its texts (lib/standalone/overlay.dart): an iPhone
     // writes to them by username (Matt, 2026-11-15: "Yes, Android next").
@@ -115,6 +136,7 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final state = AppState();
   KeptLists.instance.app = state;
+  CurlSync.instance.app = state;
   // The stylesheets, the person's choices and the wallpaper's colours (for a chat background and bubbles that follow
   // the phone) are asked for together: none waits on another.
   final loaded = await Future.wait<Object?>([
@@ -133,6 +155,13 @@ Future<void> main() async {
   // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
   // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
+  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // person's switches heard from here on; the account's list is met once the relay is reached.
+  PluginSync.instance.start(state);
+  // What the phone's side needs to keep a hidden kind's texts from notifying with the app closed (GMFB-18, Matt, Android
+  // 0.12.3: "If we dont have a specific kind of message enabled like political messages we shouldn't get notified via
+  // sms for those messages"): written now, and again as the choices it comes from change.
+  NotifyHush.start(state);
   // The app's API (lib/api), each way in started where Settings › API has it on (Matt, 2026-11-17: "build an entire API
   // that we can use to interact with every aspect of the app").
   Api.instance.registerAll(appMethods(state));
@@ -141,7 +170,11 @@ Future<void> main() async {
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
-/// The app's one navigator, for what opens pages from outside the tree: a notification pressed, a file shared in.
+/// A conversation's bubble on the side of the screen (android BubbleActivity.kt; GMFB-8): an engine of its own, started
+/// here with the conversation's thread, showing that conversation and nothing around it (lib/bubble.dart).
+@pragma('vm:entry-point')
+Future<void> bubbleMain(List<String> args) => runBubble(args);
+
 final _navigator = GlobalKey<NavigatorState>();
 
 /// With `adb shell setprop log.tag.GhostPerf VERBOSE` set before the app starts, how long frames take is written to
@@ -183,19 +216,23 @@ final Map<String, GlacierTypography> _typographies = {};
 GlacierTypography ghostTypography(String emoji) => _typographies[emoji] ??= _typography(emoji);
 
 GlacierTypography _typography(String emoji) {
-  final family = emojiSet(emoji).family;
+  final family = emojiFamilyOf(emoji);
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
-    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family]},
+    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family], 'Atkinson Hyperlegible Next Variable': [family]},
   );
 }
 
 /// The phone's app: the choices over everything ([AppScope]), then the theme made from them (stylesheet, look,
 /// emoji set), then [_Home]. Built again whenever a choice changes.
 class GhostMessagingApp extends StatelessWidget {
-  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents});
+  const GhostMessagingApp({super.key, required this.sheet, required this.state, this.accents, this.home});
   final TokenSheet sheet;
   final AppState state;
+
+  /// What the app shows: the walkthrough, then the conversations ([_Home]), where not given. A conversation's bubble
+  /// gives its one conversation (lib/bubble.dart), in the same look and choices.
+  final Widget? home;
 
   /// The stylesheets with the bubble colour chosen everywhere as the accent (lib/accent.dart); [sheet] alone where
   /// not given.
@@ -222,10 +259,12 @@ class GhostMessagingApp extends StatelessWidget {
             typography: ghostTypography(state.emoji),
             child: HapticsProvider(
               enabled: true,
+              // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
+              // (lib/ui/recording_float.dart); nothing floats over the pages.
               child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
             ),
           ),
-          home: const _Home(),
+          home: home ?? const _Home(),
         ),
       ),
     );
@@ -263,11 +302,19 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _check(first: true);
     _opens = Sms.instance.opens.stream.listen(_open);
+    // An iPhone of its own that deleted everything of its account (signed out with everything, or removed from another
+    // device) and can't start again by itself: only that it is to be opened again.
+    if (Sms.standalone) Account.instance.addListener(_accountChanged);
+  }
+
+  void _accountChanged() {
+    if (mounted && Account.instance.ended) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    Account.instance.removeListener(_accountChanged);
     _opens?.cancel();
     super.dispose();
   }
@@ -285,6 +332,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     Net.instance.resume(_left == null ? Duration.zero : DateTime.now().difference(_left!));
     _left = null;
     _check();
+    // A sign-in the browser extension synced while the app was away (Matt, 2026-11-21: "i hit sync but im not signed
+    // into discord on my phone"): read on the relay's hello alone, a connection that stayed up never saw it.
+    unawaited(CurlSync.instance.pull());
     // The wallpaper may have changed while the app was away: what is drawn from its palette is drawn again.
     PhonePalette.load().then((changed) {
       if (changed && mounted) AppState.of(context).changed();
@@ -337,6 +387,14 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         keepAlive: Sms.instance.keepNetworks,
         inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
       )..watch(Inbox.instance);
+      // First messages from someone new on the networks the Human check guards, held until they answer its question
+      // (lib/inbox/human_check.dart; GMFB-23, Matt, Mac 0.12.6: "have new messages from that platform stay hidden from
+      // notificatoins and my messages until they solve a small challenge").
+      HumanCheck.instance ??= HumanCheck(
+        choices: () => HumanCheckPlugin.choicesIn(PluginRegistry.instance, AppStore(app)),
+        read: (key) => app.choice(key, ''),
+        write: app.keep,
+      )..watch(Inbox.instance, choicesChanged: app);
       // Mentions of this device in spaces' chats, notified (lib/voice/mention_alerts.dart).
       MentionAlerts.instance ??= MentionAlerts(
         notify: (a) => Sms.instance.notifyInbox(a.key, network: a.where, title: a.title, body: a.body, group: true),
@@ -370,6 +428,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('handover', answerHandover);
       // A paired computer's voice channels are the phone's (lib/voice/channels.dart).
       Sms.answer('voice', Voice.instance.answerDesk);
+      // And how RCS stands here, for a paired computer to say so (lib/gm/rcs_share.dart, GMFB-11).
+      Sms.answer('rcs', (_) => RcsShare.answer(app));
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).
       Sms.answer('telegram', (args) async {
         final tg = Inbox.instance.named('telegram');
@@ -422,6 +482,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // A link cut short or bent says so, rather than opening a new message with the link in it (Matt, 2026-11-17:
       // "Finish the missing pieces that went unfinished").
       if (!openCircleLink(shell, req.circle!) && shell.mounted) toast(shell.context, 'That circle link isn\'t complete. Ask for it again.');
+    } else if (req.add != null) {
+      // Someone's add-me link (GMFB-34): asked first, then the friend request (lib/friends/add_link.dart).
+      askToAdd(shell.context, req.add!);
     } else if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
       shell.show(PairComputerScreen(offered: req.pairing));
@@ -460,6 +523,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     }
     // An iPhone of its own starts with a username (lib/standalone/welcome.dart); it is never asked to be the
     // default for texts, so the walkthrough above is not shown on one.
+    if (Sms.standalone && Account.instance.ended) return const RestartScreen();
     if (Sms.standalone && Me.instance.username == null) return StandaloneWelcome(onDone: () => setState(() {}));
     // A new Android install, past the texts step: the username and password next (Matt, 2026-11-20: "Yes, replace
     // it"). After the texts step, since the relay server is dialled only once the app has started (_check).

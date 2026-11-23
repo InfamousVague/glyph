@@ -161,8 +161,13 @@ class SpaceFile {
     }
   }
 
-  /// The largest file a space's list believes (the relay keeps up to about 2 GB); and the largest small picture.
-  static const maxSize = 4 << 30;
+  /// The largest file a space's list believes, and the largest small picture. Above the relay's own limit (50 GB a
+  /// file since 2026-11-17, relay/lib/files.dart `FilesConfig.maxFile`) with room to grow: at 4 GiB, left from when
+  /// the relay kept about 2 GB, a 26 GB film went up whole and was listed, and every device then passed over its entry
+  /// (Matt, 2026-11-21: "it shows that I uploaded the odyssey but I don't see the file in the movies folder").
+  /// 2^40 (a tebibyte), written out: `1 << 40` is 0 in a browser, where a shift keeps 32 bits, and every file would be
+  /// over it (test/source_guards_test.dart).
+  static const maxSize = 0x10000000000;
   static const maxThumb = 18 * 1024;
 
   /// A name as a file may have it, on every system it may be saved to: no slashes, no characters Windows refuses

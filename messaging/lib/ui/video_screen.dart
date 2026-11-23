@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -96,7 +97,7 @@ Route<void> videoRoute(Widget screen) => PageRouteBuilder<void>(
     );
 
 /// Whether this device is a computer, for the controls a computer gets.
-bool get _deskDevice => !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+bool get _deskDevice => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
 class _VideoScreenState extends State<VideoScreen> {
   VideoEngine? _engine;
@@ -237,7 +238,7 @@ class _VideoScreenState extends State<VideoScreen> {
     _hide?.cancel();
     _skipShown?.cancel();
     _focus.dispose();
-    if (_fullscreen) unawaited(defaultExitNativeFullscreen());
+    if (_fullscreen) unawaited(_desk ? defaultExitNativeFullscreen() : _leavePhoneFullscreen());
     final engine = _engine;
     final drop = widget.dropFile && !_handedOn ? _path : null;
     final stream = widget.stream;
@@ -405,7 +406,31 @@ class _VideoScreenState extends State<VideoScreen> {
 
   Future<void> _toggleFullscreen() async {
     setState(() => _fullscreen = !_fullscreen);
-    await (_fullscreen ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
+    if (_desk) {
+      await (_fullscreen ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
+      return;
+    }
+    await (_fullscreen ? _enterPhoneFullscreen() : _leavePhoneFullscreen());
+  }
+
+  /// Full screen on a phone (Matt, 2026-11-21: "add the ability to full screen videos played from files"): the status
+  /// and navigation bars hidden (a swipe from the edge shows them for a moment), and the phone turned the way the
+  /// picture is: on its side for a wide video, upright for a tall one. Going back, or the button again, puts both back.
+  static Future<void> _leavePhoneFullscreen() async {
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
+      await SystemChrome.setPreferredOrientations(const []);
+    } catch (_) {}
+  }
+
+  Future<void> _enterPhoneFullscreen() async {
+    final aspect = _now.aspect;
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky, overlays: const []);
+      await SystemChrome.setPreferredOrientations(aspect > 0 && aspect < 1
+          ? const [DeviceOrientation.portraitUp]
+          : const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+    } catch (_) {}
   }
 
   Future<void> _back() async {
@@ -426,7 +451,7 @@ class _VideoScreenState extends State<VideoScreen> {
       }).then((path) {
         if (!mounted) return;
         setState(() => _getting = null);
-        unawaited(FilePlatform.open(path, widget.title ?? path.split(Platform.pathSeparator).last));
+        unawaited(FilePlatform.open(path, widget.title ?? path.split(PlatformInfo.pathSeparator).last));
       }, onError: (Object e) {
         if (mounted) {
           setState(() {
@@ -440,7 +465,7 @@ class _VideoScreenState extends State<VideoScreen> {
     final path = _path;
     if (path == null) return;
     _handedOn = true;
-    unawaited(FilePlatform.open(path, path.split(Platform.pathSeparator).last));
+    unawaited(FilePlatform.open(path, path.split(PlatformInfo.pathSeparator).last));
   }
 
   /// A computer's keys (Matt, 2026-11-18): space plays and pauses, the arrows go back and on and turn the sound, F is
@@ -533,7 +558,7 @@ class _VideoScreenState extends State<VideoScreen> {
             title: widget.title ?? 'Video',
             onClose: () => unawaited(_back()),
             actions: [
-              if (_desk) DialupTool(icon: _fullscreen ? LucideMore.minimize : Lucide.maximize, label: _fullscreen ? 'Leave full screen' : 'Full screen', onPressed: () => unawaited(_toggleFullscreen()), size: 16, box: 32),
+              DialupTool(icon: _fullscreen ? LucideMore.minimize : Lucide.maximize, label: _fullscreen ? 'Leave full screen' : 'Full screen', onPressed: () => unawaited(_toggleFullscreen()), size: 16, box: 32),
             ],
           )
         : Row(children: [
@@ -549,7 +574,13 @@ class _VideoScreenState extends State<VideoScreen> {
               ),
           ]);
 
-    return Focus(
+    // A phone's back gesture leaves full screen first, as Esc does on a computer.
+    return PopScope(
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (popped, _) {
+        if (!popped && _fullscreen) unawaited(_toggleFullscreen());
+      },
+      child: Focus(
       focusNode: _focus,
       autofocus: true,
       onKeyEvent: _key,
@@ -572,7 +603,7 @@ class _VideoScreenState extends State<VideoScreen> {
                   onDoubleTap: () => _skip(_skippedRight),
                   child: _problem != null
                       ? Center(
-                          child: _Problem(look: look, words: _problem!, why: _problemWhy, getting: _getting, onOpen: (_path != null || widget.stream != null) && !Platform.isIOS ? _openElsewhere : null),
+                          child: _Problem(look: look, words: _problem!, why: _problemWhy, getting: _getting, onOpen: (_path != null || widget.stream != null) && !PlatformInfo.isIOS ? _openElsewhere : null),
                         )
                       : !ready
                           // Its picture under the spinner until the video is ready: the screen is there at once.
@@ -650,6 +681,7 @@ class _VideoScreenState extends State<VideoScreen> {
           ]),
         ),
       ),
+    ),
     );
   }
 }
@@ -789,9 +821,8 @@ class _Dock extends StatelessWidget {
         SizedBox(width: t.lenOf('6rem'), child: _Track(look: look, part: volume, label: 'Volume', onHold: onVolume, onLet: onVolume)),
         SizedBox(width: t.space(2)),
       ],
-      if (desk) ...[
-        if (!look.bevel) _Round(look: look, icon: fullscreen ? LucideMore.minimize : Lucide.maximize, label: fullscreen ? 'Leave full screen' : 'Full screen', onPressed: onFullscreen, size: 40, flat: true),
-      ],
+      // Full screen on a computer and a phone alike.
+      if (!look.bevel) _Round(look: look, icon: fullscreen ? LucideMore.minimize : Lucide.maximize, label: fullscreen ? 'Leave full screen' : 'Full screen', onPressed: onFullscreen, size: 40, flat: true),
     ]);
     if (look.bevel) {
       // Dial-Up: the window's silver panel along the foot, raised, its buttons the era's square ones.

@@ -1,7 +1,7 @@
 name: ghost_messaging
 description: "Ghost Messaging: an SMS and MMS app for Android, drawn with Glacier (Ghost.md's UI kit)."
 publish_to: 'none'
-version: 0.10.6+117
+version: 0.12.17+145
 
 environment:
   sdk: ^3.11.0
@@ -13,6 +13,11 @@ dependencies:
   glacier:
     path: packages/glacier
   pointycastle: ^4.0.0
+  # gzip for the account's backup in a browser, where dart:io's isn't (lib/account/gzip.dart). Already in every build,
+  # by way of `image`.
+  archive: ^4.7.1
+  # SHA-256 of a whole file, five times pointycastle's speed (lib/files/files_store.dart).
+  crypto: ^3.0.6
   image: ^4.13.1
   qr: ^4.0.1
   # Voice and video channels and group calls (lib/voice; Matt, 2026-11-14: "jump in audio chats like discord has
@@ -20,6 +25,8 @@ dependencies:
   flutter_webrtc: 1.6.3
   # TDLib's C functions for the Telegram inbox (lib/inbox/td_json.dart): Dart's own FFI helpers, already in the lock.
   ffi: ^2.1.0
+  # The browser's own WebSocket, for the hub's route in a web page (lib/net/hub_link_web.dart): already in the lock.
+  web: ^1.1.0
   # The video player on the phone (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
   # glacier UI right now it looks like a very old android core system player"): ExoPlayer under the app's own controls.
   video_player: ^2.14.1
@@ -62,6 +69,15 @@ flutter:
     - assets/art/
     # The interface sounds, made by tool/ui_sounds.py (lib/sounds.dart).
     - assets/sounds/
+    # The Soundboard plugin's own sounds (tool/soundboard_sounds.py; lib/voice/soundboard.dart).
+    - assets/soundboard/
+    # Profile cosmetics (GMFB-34; lib/me/cosmetics.dart): Lovart's art, from ~/Desktop/ghost-profile-cosmetics-prompts.md,
+    # one file per piece by its id. A piece without its file is drawn as a stand-in (lib/ui/cosmetics_ui.dart).
+    - assets/cosmetics/decorations/
+    - assets/cosmetics/borders/
+    - assets/cosmetics/banners/
+    - assets/cosmetics/names/
+    - assets/cosmetics/effects/
     # Every emoji with its names, keywords and skin tones, for the app's own picker (lib/emoji_data.dart; emojibase,
     # MIT, assets/emoji/LICENSE-emojibase).
     - assets/emoji/emoji.tsv
@@ -76,6 +92,14 @@ flutter:
     - family: Arimo
       fonts:
         - asset: assets/fonts/ArimoVariable.ttf
+    # The Readable font, for anyone who finds letters hard to tell apart (Settings › Appearance; GMFB-41): Atkinson
+    # Hyperlegible Next, drawn by the Braille Institute so that no two letters look alike, under the OFL
+    # (assets/fonts/OFL-Atkinson.txt). Latin, variable in weight, with its italic: 170 KB.
+    - family: Atkinson Hyperlegible Next Variable
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin.ttf
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin-Italic.ttf
+          style: italic
     # The emoji sets the person chooses between (lib/emoji_sets.dart, assets/emoji/LICENSES.md).
     - family: Ghost Emoji Noto
       fonts:

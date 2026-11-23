@@ -17,6 +17,7 @@ import '../sms.dart';
 import 'background_picker.dart';
 import 'common.dart';
 import 'encryption.dart';
+import 'export_ui.dart';
 
 /// One conversation's own settings, from the cog at its top (Matt, 2026-11-13: "we should have chat backgrounds be on
 /// a per chat setting, each chat should get it's own settings cog"): who is in it, its background and the colour of
@@ -79,7 +80,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   /// Add people: the friends who are not in it yet.
   void _addPeople(Group g) {
-    final inIt = {for (final m in g.members) Friends.digits(m.address)};
+    final inIt = {for (final m in g.members) Friends.digits(m.shown)};
     final can = Friends.instance.friends.where((f) => !inIt.contains(Friends.digits(f.address))).toList();
     if (can.isEmpty) {
       toast(context, 'Every friend of yours is in it already');
@@ -211,9 +212,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       for (final m in ghost.members)
                         SettingRow(
                           icon: AppIcon(m.admin ? Lucide.shieldCheck : Lucide.userRound, size: 18),
-                          label: m.me ? 'You' : (m.name ?? (m.address.isEmpty ? 'Someone' : m.address)),
+                          // As this phone knows them (GroupMember.shown), never the address the group's admin wrote.
+                          label: m.label,
                           value: m.admin ? const Text('Admin') : null,
-                          hint: m.name != null && !m.me ? Text(m.address) : null,
+                          hint: m.name != null && !m.me && !m.standIn ? Text(m.shown) : null,
                           onPress: ghost.amAdmin && !m.me ? () => _member(ghost, m) : null,
                         ),
                       if (ghost.amAdmin) SettingRow(icon: const AppIcon(Lucide.userPlus, size: 18), label: 'Add people', onPress: () => _addPeople(ghost)),
@@ -331,6 +333,13 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       await _load();
                       if (context.mounted) toast(context, to ? 'Archived' : 'Moved back to Messages');
                     },
+                  ),
+                  // Export (GMFB-36): the whole conversation as a Markdown file.
+                  SettingRow(
+                    icon: const AppIcon(Lucide.download, size: 18),
+                    label: 'Export conversation',
+                    hint: const Text('Every message as a Markdown file, to keep or open in another app.'),
+                    onPress: () => exportTexts(context, thread, c?.title ?? widget.people.map((p) => p.label).join(', '), widget.people),
                   ),
                 ]),
               ],

@@ -2,6 +2,7 @@ import 'links.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -35,6 +36,7 @@ import 'store.dart';
 import 'ui/shell.dart';
 import '../ui/update_banner.dart';
 import 'ui/wizard.dart';
+import '../inbox/curl_sync.dart';
 import '../inbox/inbox.dart';
 import '../ui/inbox_ui.dart';
 import '../circles/circles.dart';
@@ -43,15 +45,21 @@ import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
+import '../plugins/plugin_sync.dart' show PluginSync;
 import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
+import '../standalone/unreadable.dart';
 import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
-import '../ui/account_screens.dart' show SignInScreen;
+import '../ui/account_screens.dart' show RestartScreen, SignInScreen;
 import '../ui/common.dart' show push;
 import 'ui/link_offer.dart';
+
+/// How long a window's size stands still before the theme is worked out for it. Null in a test that sizes a window
+/// and looks at once.
+Duration? deskResizeSettle = const Duration(milliseconds: 120);
 
 /// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
 /// my phone to my desktop and then send back to the phone to send again"; docs/desktop.md). The phone's screens,
@@ -67,11 +75,13 @@ import 'ui/link_offer.dart';
 /// `GHOST_DESK_UPDATES=off` or [updates] is false, as it is for a test.
 Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool updates = true}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  final env = Platform.environment;
+  final env = PlatformInfo.environment;
   final dir = folder ?? env['GHOST_DESK_DIR'];
   // The Keychain holds the key in a release build. A build signed to run on this Mac alone loses its Keychain
   // items' trust each time it is rebuilt, so those keep the key in the app's own folder.
   final store = DeskStore(dir == null || dir.isEmpty ? DeskStore.defaultDir() : Directory(dir), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
+  // What a computer of its own deletes everything of the person's under, when it does (lib/account/account.dart).
+  AppAccountProfiles.appFolder = store.dir.path;
   final envPeers = peers ?? [for (final p in (env['GHOST_DESK_PEERS'] ?? '').split(',')) ?Peer.parse(p)];
   final prefs = await store.prefs();
   final link = PhoneLink(
@@ -79,7 +89,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
     name: await MacPlatform.computerName(),
     app: appVersion,
     // Bonjour is the Mac's and the iPhone's (DeskChannels.swift); on Windows the phone is found by its address or the relay.
-    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && (Platform.isMacOS || Platform.isIOS))) ? null : BonjourFinder(),
+    finder: !(bonjour ?? (env['GHOST_DESK_BONJOUR'] != 'off' && (PlatformInfo.isMacOS || PlatformInfo.isIOS))) ? null : BonjourFinder(),
     given: [...envPeers, ?Peer.parse(prefs['peer'] ?? '')],
   );
   final calls = LinkCalls(link, store);
@@ -91,7 +101,12 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final alone = await store.load() == null;
   if (alone) {
     final own = StandaloneCalls(Directory('${store.dir.path}/standalone'), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
-    await own.load();
+    try {
+      await own.loadAgain();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'computer'));
+    }
     Sms.calls = own;
     Sms.standalone = true;
   }
@@ -123,8 +138,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
   // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
   // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
-  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently.
-  final macUpdates = updates && (Platform.isMacOS || Platform.isWindows) ? MacUpdates.fromEnvironment(env, windows: Platform.isWindows) : null;
+  // hours. A Mac swaps in the Mac's zip; Windows runs the new installer from gogho.st, silently; Linux swaps in the
+  // folder's new archive, or for the .deb says the command that installs it (GMFB-32).
+  final macUpdates = updates && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) ? MacUpdates.fromEnvironment(env, windows: PlatformInfo.isWindows, linux: PlatformInfo.isLinux) : null;
   if (macUpdates != null) await checkAtLaunch(macUpdates, step);
   step.value = (words: 'Starting Ghost Messaging', progress: null);
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
@@ -173,8 +189,14 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Plugins from the Marketplace and in development (lib/plugins/pack; Matt, 2026-11-20: "I would like users to be able
   // to develop and submit their own plugins to our plugin marketplace"), read while the splash shows, from a plugins
   // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
-  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${Platform.pathSeparator}plugins'));
+  InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${PlatformInfo.pathSeparator}plugins'));
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
+  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // person's switches heard from here on; the account's list is met once the relay is reached.
+  PluginSync.instance.start(state);
+  // Sign-ins synced across the account (the browser extension's, and those made on another device): never set up on a
+  // computer before, so none reached one (Matt, 2026-11-21: "the curl should automatically be applied to all devices").
+  CurlSync.instance.app = state;
   // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
   // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
   await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);
@@ -305,6 +327,10 @@ class _DesktopAppState extends State<DesktopApp> {
   /// every copy (a static one) carried one copy's pages, with the link they were made with, into the next mounted.
   final _navigator = GlobalKey<NavigatorState>(debugLabel: 'desk');
 
+  /// [pages] as they are: a call being recorded shows in its banner over the call, whose Mixer opens the tracks full
+  /// screen (lib/ui/recording_float.dart); nothing floats over the pages.
+  Widget _recorded(Widget pages) => pages;
+
   @override
   void initState() {
     super.initState();
@@ -337,11 +363,15 @@ class _DesktopAppState extends State<DesktopApp> {
               sheet: accents?.of(state) ?? sheet,
               attrs: ghostAttrs(state, 'desktop'),
               typography: ghostTypography(state.emoji),
+              // A window being dragged larger or smaller keeps its tokens until it has stood still a moment: they,
+              // and all that is drawn from them, were made anew at every frame of the drag
+              // (docs/performance-audit.md, finding 8).
+              resizeSettle: deskResizeSettle,
               // A newer version says so with the card the phone has, at the top of the list (lib/ui/update_banner.dart).
               // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
               child: InkOverrides(
                 child: GlacierToastProvider(
-                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: child!)]) : child!,
+                  child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
                 ),
               ),
             ),
@@ -467,6 +497,9 @@ class _DeskHomeState extends State<DeskHome> {
           // Unpaired since it opened: the wizard, or the app of its own again.
           return _sized(false, _wizard(skipLabel: 'Use without a phone', onSkip: _restart));
         }
+        // Everything of its account deleted (signed out with everything, or removed from another device) on a computer
+        // that can't open itself again (Windows, Linux): only that it is to be opened again, offline.
+        if (Account.instance.ended) return _sized(true, const RestartScreen());
         // Linked from here or from Settings: the app opens again on the phone.
         if (linked) {
           _restart();

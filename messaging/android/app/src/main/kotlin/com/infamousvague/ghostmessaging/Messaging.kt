@@ -26,17 +26,23 @@ object Bus {
 
     /** The choices the screen reads (the "ui" preferences) were changed from this side: a background that arrived. */
     @Volatile var prefsListener: (() -> Unit)? = null
+    /**
+     * Conversations' bubbles (BubbleActivity, GMFB-8), each an engine of its own beside the app's: told the same as
+     * [listener] and [prefsListener], which stay the app's.
+     */
+    val others = java.util.concurrent.CopyOnWriteArrayList<(Long) -> Unit>()
+    val prefsOthers = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
     /** A conversation changed: the screen is told on the main thread, and so are the computers connected now. */
     fun changed(thread: Long) {
-        main.post { listener?.invoke(thread) }
+        main.post { listener?.invoke(thread); for (o in others) o(thread) }
         // And the computers paired with this phone that are connected now (Desk.kt).
         Desk.changed(thread)
     }
 
     /** For the phone's own screen alone: something a paired computer did that it need not be told back. */
-    fun changedOnPhone(thread: Long) { main.post { listener?.invoke(thread) } }
-    fun prefsChanged() { main.post { prefsListener?.invoke() } }
+    fun changedOnPhone(thread: Long) { main.post { listener?.invoke(thread); for (o in others) o(thread) } }
+    fun prefsChanged() { main.post { prefsListener?.invoke(); for (o in prefsOthers) o() } }
 }
 
 /** Mutable where the system adds its result extras to the intent it sends back (Android 12 asks that it be said). */
@@ -123,6 +129,10 @@ object Sender {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         require(clean.isNotEmpty()) { "No one to send to" }
+        // A friend by username ("@maya") has no number: never written into the phone's store of texts or handed to Google
+        // Messages, from this phone or from a computer paired with it (found in review, 2026-11-23). The app sends to
+        // them over the internet (lib/friends/friends.dart) and says so where it can't.
+        require(clean.none { it.startsWith("@") }) { "A friend by username has no number to text" }
         // Beside Google Messages (GmBridge): sent through it, or as a plain SMS. Android's database takes no writes from
         // an app that is not the default, so the way below (which writes the message there first) cannot be used.
         if (!GmBridge.isDefault(context)) {

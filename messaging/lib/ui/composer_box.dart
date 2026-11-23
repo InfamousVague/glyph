@@ -13,6 +13,7 @@ import 'common.dart' show IconTap;
 import 'nav_bar.dart' show NavPill;
 import 'shell.dart' show pillScrolledScale;
 import '../sms.dart' show Sms;
+import '../platform_info.dart';
 
 /// The box a message is written in, everywhere one is: a conversation of texts (lib/ui/thread.dart) and a chat on
 /// Telegram or Bluesky (lib/ui/inbox_ui.dart), so the two read and work the same (Matt, 2026-11-15: "Also use the
@@ -74,7 +75,7 @@ class _ComposerBoxState extends State<ComposerBox> {
     final row = t.lenOf('2.25rem');
     final gap = t.space(1);
     final words = t.space(3);
-    return Padding(
+    return _whole(Padding(
       padding: EdgeInsets.symmetric(horizontal: widget.flush ? 0 : t.space(1)),
       child: Container(
         constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
@@ -91,16 +92,16 @@ class _ComposerBoxState extends State<ComposerBox> {
                 left: typing || plus == null ? words : _plusWidth + gap,
                 right: typing || widget.ends.isEmpty ? words : _endsWidth,
               ),
-              child: widget.field,
+              child: _inOrder(0, widget.field),
             ),
             // The row the buttons come down into.
             AnimatedContainer(duration: ComposerBox.move, curve: ComposerBox.curve, height: typing ? row + gap : 0),
           ]),
-          if (plus != null) Positioned(left: 0, bottom: 0, child: _Measure(onSize: (s) => _measured(true, s), child: plus)),
+          if (plus != null) Positioned(left: 0, bottom: 0, child: _inOrder(1, _Measure(onSize: (s) => _measured(true, s), child: plus))),
           Positioned(
             right: 0,
             bottom: 0,
-            child: AnimatedSwitcher(
+            child: _inOrder(2, AnimatedSwitcher(
               duration: ComposerBox.move,
               // The buttons going fade out in the first half and the ones coming in fade in over the second, so the
               // two sets are never drawn over each other.
@@ -114,12 +115,21 @@ class _ComposerBoxState extends State<ComposerBox> {
                       onSize: (s) => _measured(false, s),
                       child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: widget.ends),
                     ),
-            ),
+            )),
           ),
         ]),
       ),
-    );
+    ));
   }
+
+  // In a browser (lib/web) the page's tree for screen readers keeps its nodes in the order they are read, which Flutter
+  // works out from where each one is, and the words go from beside the buttons to above them at the first letter
+  // typed: the field's node then came before the + where it had come after, Flutter's engine moved the field's element
+  // in the page to match, and moving it took the keyboard from it, a letter or two in. So there the composer is a part
+  // of the tree of its own whose three parts are read in one order wherever they stand: the words, the +, the buttons.
+  // Elsewhere nothing is added.
+  static Widget _whole(Widget box) => PlatformInfo.isWeb ? Semantics(container: true, child: box) : box;
+  static Widget _inOrder(double order, Widget part) => PlatformInfo.isWeb ? Semantics(container: true, sortKey: OrdinalSortKey(order), child: part) : part;
 }
 
 extension on _ComposerBoxState {
@@ -189,6 +199,18 @@ TextStyle composerTextStyle(Tokens t) => pageText(t, t.fontSize('md'), color: t.
 StrutStyle composerStrutStyle(Tokens t) => StrutStyle.fromTextStyle(composerTextStyle(t), forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
 const composerLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 
+/// A composer's words field as a screen reader finds it in a browser (lib/web), where an element of the page stands for
+/// it: named by [hint], said to be enabled, and focused by what that element passes on when it is pressed or given the
+/// keyboard, as a finger's press focuses it. A bare EditableText says none of the three, and Flutter's engine makes the
+/// element of a field not said to be enabled a disabled one: with the page's tree for screen readers on, the field could
+/// be read and never written in, and had no name. Elsewhere the tree is left as it has been.
+Widget composerSemantics({required String hint, required VoidCallback onPress, required Widget child}) =>
+    PlatformInfo.isWeb ? Semantics(container: true, enabled: true, label: hint, onTap: onPress, onFocus: onPress, child: child) : child;
+
+/// The words drawn in an empty composer ([hint]): left out of a browser's tree, where [composerSemantics] names the field
+/// by them; as they were elsewhere.
+Widget composerHint(Widget hint) => PlatformInfo.isWeb ? ExcludeSemantics(child: hint) : hint;
+
 /// The words' line of a [ComposerBox] where nothing more is wanted of it (a Telegram chat, a space's chat): the words,
 /// [hint] while there are none, and Enter as Settings › Messages › Enter sends says. A conversation of texts has its
 /// own, with more in it (lib/ui/thread.dart).
@@ -255,8 +277,14 @@ class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserv
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
             child: Stack(children: [
-              if (controller.text.isEmpty) IgnorePointer(child: Text(hint, style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
-              EditableText(
+              if (controller.text.isEmpty) composerHint(IgnorePointer(child: Text(hint, style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading))),
+              composerSemantics(
+                hint: hint,
+                onPress: () {
+                  focusNode.requestFocus();
+                  _field.currentState?.requestKeyboard();
+                },
+                child: EditableText(
                 key: _field,
                 controller: controller,
                 focusNode: focusNode,
@@ -272,6 +300,7 @@ class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserv
                 onSubmitted: (_) => widget.onSubmitted(),
                 onEditingComplete: enterSends ? () {} : null,
                 textCapitalization: TextCapitalization.sentences,
+              ),
               ),
             ]),
           ),
@@ -331,10 +360,12 @@ EdgeInsets composerFootPadding(Tokens t, {double bottom = 0}) => EdgeInsets.from
       if (emoji) emojiButton(),
       tap(Lucide.sticker, 'Stickers', onSticker, key: 'composer-stickers'),
       SizedBox(width: t.space(1)),
-      if (hasSomething) sendButton else tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+      // Nothing written: the microphone, but in a browser, which records no voice messages yet (Sms.browser), where
+      // Send stands there, waiting for something to send.
+      if (hasSomething || Sms.browser) sendButton else tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
     ],
     below: [
-      tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
+      if (!Sms.browser) tap(Lucide.mic, 'Record a voice message', onRecord, key: 'composer-mic'),
       if (emoji) emojiButton(),
       SizedBox(width: t.space(1)),
       sendButton,

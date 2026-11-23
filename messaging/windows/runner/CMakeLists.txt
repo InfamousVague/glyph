@@ -12,8 +12,13 @@ add_executable(${BINARY_NAME} WIN32
   "utils.cpp"
   "win32_window.cpp"
   "voice_fx.cpp"
+  "call_recorder.cpp"
+  "speech.cpp"
+  "main_thread.cpp"
   "sounds.cpp"
   "clipboard.cpp"
+  "desk_sound.cpp"
+  "ducking.cpp"
   "links.cpp"
   "splash.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
@@ -42,12 +47,19 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # PlaySound, for the interface sounds (sounds.cpp).
 target_link_libraries(${BINARY_NAME} PRIVATE "winmm.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+# Recording a call (call_recorder.cpp): Media Foundation's AAC encoder and file writer, and libwebrtc itself, whose
+# track kind comes back as its own string type (flutter_webrtc links it privately, so the app links it too).
+# Live captions and Scribe (speech.cpp): SAPI's recogniser, Media Foundation to read a recording's track.
+target_link_libraries(${BINARY_NAME} PRIVATE "mfplat.lib" "mfreadwrite.lib" "mfuuid.lib" "sapi.lib" "shlwapi.lib" "ole32.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_webrtc/third_party/libwebrtc/lib/libwebrtc.dll.lib")
 
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")
 file(GLOB VOICEFX_RNNOISE "${VOICEFX}/rnnoise/src/*.c")
-add_library(voicefx STATIC "${VOICEFX}/voicefx.c" ${VOICEFX_RNNOISE})
-target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
+add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
+target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}" "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
+# Signalsmith Stretch (stretch.cpp) is C++.
+set_source_files_properties("${VOICEFX}/stretch.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++17;/EHsc")
 target_compile_definitions(voicefx PRIVATE _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(${BINARY_NAME} PRIVATE voicefx)
 # DeepFilterNet, where the build made it (the workflow's "Build DeepFilterNet"): Rust's static library and what Rust's

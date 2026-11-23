@@ -12,7 +12,10 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
+import '../../me/me.dart' as me;
+import '../../plugins/networks.dart';
 import '../../plugins/plugin.dart';
+import '../me.dart' show NetworkMark;
 import '../dialup/bevel.dart';
 
 /// A hue's colours as the page draws them, from tokens that carry it (`t.child(attrs: {'hue': …})`).
@@ -113,6 +116,16 @@ Widget hueGlow(PluginHues c, {required double radius}) => IgnorePointer(
       ),
     );
 
+/// A plugin's symbol, [size] across in [color]: its icon, or for a network (lib/plugins/networks.dart) the network's
+/// own mark, as Settings › Connections draws it.
+Widget pluginSymbol(GhostPlugin plugin, double size, Color color, {double strokeWidth = 2}) {
+  if (plugin is NetworkPlugin) {
+    final known = me.networks.where((n) => n.id == plugin.network).firstOrNull ?? me.Network(plugin.network, plugin.name, 'blue', plugin.name[0], signIn: false);
+    return NetworkMark(known, size: size * 0.92, tint: color);
+  }
+  return AppIcon(plugin.icon, size: size, strokeWidth: strokeWidth, color: color, wash: false);
+}
+
 /// A plugin's own picture where it has one (a pack's icon, Matt, 2026-11-20: "a submission area with a form to accept
 /// an icon"), [size] across and filling it, decoded at the size it is drawn; else, and wherever it doesn't decode,
 /// [symbol]. A pack keeps one copy of its bytes, so the image cache finds it again on every build.
@@ -150,7 +163,7 @@ class PluginTile extends StatelessWidget {
     final t = context.tokens;
     if (isBevelChrome(t)) {
       final c = DialupColors.of(t);
-      final symbol = AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.onChrome, wash: false);
+      final symbol = pluginSymbol(plugin, size * 0.5, c.onChrome);
       return SizedBox.square(
         dimension: size,
         child: Bevel(child: Center(child: plugin.iconPng == null ? symbol : SizedBox.square(dimension: size * 0.7, child: pluginPicture(plugin, size * 0.7, symbol: symbol)))),
@@ -158,7 +171,7 @@ class PluginTile extends StatelessWidget {
     }
     final c = PluginHues.of(t, plugin.hue);
     final radius = pluginCorner(t, size * 0.28);
-    final symbol = Center(child: AppIcon(plugin.icon, size: size * 0.5, strokeWidth: 2, color: c.on, wash: false));
+    final symbol = Center(child: pluginSymbol(plugin, size * 0.5, c.on));
     return SizedBox.square(
       dimension: size,
       child: DecoratedBox(
@@ -198,7 +211,7 @@ class GlassChip extends StatelessWidget {
       decoration: BoxDecoration(color: c.glass, borderRadius: BorderRadius.circular(pluginCorner(t, size * 0.3)), border: Border.all(color: c.glassRing)),
       clipBehavior: plugin.iconPng == null ? Clip.none : Clip.antiAlias,
       // Its own picture, where it has one, fills the chip.
-      child: plugin.iconPng == null ? AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false) : pluginPicture(plugin, size, symbol: AppIcon(plugin.icon, size: size * 0.54, strokeWidth: 2, color: c.on, wash: false)),
+      child: plugin.iconPng == null ? pluginSymbol(plugin, size * 0.54, c.on) : pluginPicture(plugin, size, symbol: pluginSymbol(plugin, size * 0.54, c.on)),
     );
   }
 }

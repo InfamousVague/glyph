@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../aside.dart';
 import 'dart:typed_data';
 
-import '../net/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/foundation.dart' show immutable;
+
 import '../net/hub_carrier.dart' show NetSigner;
 
 /// Why the files server said no: its words, and what it answered (a 409 says where an upload has got to in [have]).
@@ -44,7 +47,15 @@ class FilesApi {
     return u.replace(scheme: u.scheme == 'ws' ? 'http' : (u.scheme == 'wss' ? 'https' : u.scheme), pathSegments: [...segments, 'files'], query: null, fragment: null);
   }
 
-  /// The path of a request about this space: the base's path, the space's name, then [rest].
+  /// The hex SHA-256 of a body to sign. A blob's piece is 4 MB: hashed on the UI's isolate with pointycastle that was
+  /// some 200 ms each, the app frozen for the whole of an upload (GMFB-6, @matt: "The app is super laggy when in a
+  /// voice call and uploading a video to the files"). A large body is hashed on another isolate, with package:crypto.
+  static Future<String> bodySha(List<int> body) async {
+    if (body.length < 256 * 1024) return crypto.sha256.convert(body).toString();
+    final bytes = body is Uint8List ? body : Uint8List.fromList(body);
+    return runAside(() => crypto.sha256.convert(bytes).toString());
+  }
+
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';
 
   /// Opens a request carrying the space's token; with [signBody], signed by this install's hub key too.
@@ -55,7 +66,7 @@ class FilesApi {
     if (signBody != null) {
       // Signed over what the relay sees: the method, the path with its query, the time and the body's hash.
       final time = DateTime.now().millisecondsSinceEpoch;
-      final sha = NetCrypto.hex(NetCrypto.sha256(signBody));
+      final sha = await bodySha(signBody);
       final words = 'ghost-files v1\n$method\n$path\n$time\n$sha';
       final sig = await signer.sign(utf8.encode(words));
       req.headers
@@ -189,11 +200,29 @@ class FilesApi {
 }
 
 /// What the relay says of a space: how much it holds and may hold, the largest file, and the log's last number.
-class FilesInfo {
-  const FilesInfo({this.seq = 0, this.used = 0, this.quota = 0, this.maxFile = 0, this.files = 0, this.owner = '', this.rv = 0, this.cas = false});
+/// An upload the relay holds part of and is not finished (relay/lib/files.dart `_info`'s `parts`): its blob's id, the
+/// install that started it, its sealed size, how much is there, and when it last moved. Its room is held until it is
+/// finished, removed, or let go by the relay a day after its last piece.
+@immutable
+class FilesPart {
+  const FilesPart({required this.id, required this.by, required this.size, required this.have, required this.at});
+  final String id, by;
+  final int size, have;
+  final DateTime at;
 
-  /// The log's last number; the sealed bytes held and allowed, and the largest file allowed (0 where the relay names
-  /// no limit); how many files; and the owner's key as the relay has it ('' where it has none).
+  static FilesPart? from(Object? j) {
+    if (j is! Map || j['id'] is! String || j['by'] is! String || j['z'] is! num) return null;
+    return FilesPart(id: j['id'] as String, by: j['by'] as String, size: (j['z'] as num).toInt(), have: (j['h'] as num?)?.toInt() ?? 0, at: DateTime.fromMillisecondsSinceEpoch((j['at'] as num?)?.toInt() ?? 0));
+  }
+
+  Map<String, Object?> toJson() => {'id': id, 'by': by, 'z': size, 'h': have, 'at': at.millisecondsSinceEpoch};
+}
+
+class FilesInfo {
+  const FilesInfo({this.seq = 0, this.used = 0, this.quota = 0, this.maxFile = 0, this.files = 0, this.owner = '', this.rv = 0, this.cas = false, this.parts = const []});
+
+  /// Uploads not finished on the relay (a relay from before 2026-11-21 says none).
+  final List<FilesPart> parts;
   final int seq, used, quota, maxFile, files;
   final String owner;
 
@@ -212,7 +241,7 @@ class FilesInfo {
         owner: m['owner'] is String ? m['owner'] as String : '',
         rv: (m['rv'] as num?)?.toInt() ?? 0,
         cas: m['cas'] == 1,
+        parts: [for (final p in (m['parts'] is List ? m['parts'] as List : const [])) ?FilesPart.from(p)],
       );
-  /// As kept with the list on this device: the numbers only, the rest is asked again.
-  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files};
+  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files, if (parts.isNotEmpty) 'parts': [for (final p in parts) p.toJson()]};
 }

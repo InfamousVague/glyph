@@ -15,7 +15,9 @@ import 'dart:typed_data';
 
 import '../net/hub_carrier.dart' show NetSigner;
 import '../net/net.dart';
+import '../platform_info.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins, PackIssue, PackLimits, PackRevocation, packHere, packIdPattern, sha256Hex;
+import '../web/http.dart' show pageHttp;
 import 'market_models.dart';
 
 /// Whether [hubUrl] is Ghost Messaging's own relay: its host is gogho.st or ghost-sms.com.
@@ -53,7 +55,8 @@ class MarketError implements Exception {
 }
 
 /// How a call reaches the relay: a method, an address, headers and a body, read back no further than [most] bytes.
-/// The app's own goes through dart:io; a test passes one of its own.
+/// The app's own goes through dart:io, and in a browser through the page's own fetch (lib/web/http.dart: a report is
+/// the one call made there); a test passes one of its own.
 typedef MarketTransport = Future<({int status, Map<String, String> headers, Uint8List body})> Function(String method, Uri url, Map<String, String> headers, List<int> body, {required int most});
 
 const String _unreachable = 'Couldn\'t reach the Marketplace. Try again in a moment.';
@@ -73,7 +76,7 @@ abstract final class MarketReads {
 /// Every failure is a [MarketError].
 class MarketApi {
   MarketApi({required this.hubUrl, this.signer, MarketTransport? transport, DateTime Function()? now})
-      : _transport = transport ?? _http,
+      : _transport = transport ?? (PlatformInfo.isWeb ? pageHttp : _http),
         _now = now ?? DateTime.now;
 
   /// Ghost Messaging's own relay whatever net_hub says (Net.instance.hubUrl where marketIsOwn, else Net.defaultHub):
@@ -186,6 +189,26 @@ class MarketApi {
     return DeveloperView.fromJson(j['developer'] is Map ? j['developer'] as Map : const {});
   }
 
+  // --- reports of people and messages (routes 23 to 25; GMFB-40) ------------------------------------------------------
+
+  /// Route 23: a report of a person or a message, already sealed to the review keys (lib/safety/abuse_report.dart);
+  /// its id on the relay. Signed with [signer] where given, else this api's.
+  Future<String> reportPerson(String sealed, {NetSigner? signer}) async {
+    final j = await _json('POST', const ['abuse'], body: {'sealed': sealed}, signer: signer ?? this.signer, who: _reporting);
+    return _text(j['id']);
+  }
+
+  /// Route 24: the reports of people, newest first, sealed: the reviewer opens them with this device's own key.
+  Future<List<SealedReportRow>> sealedReports() async {
+    final j = await _json('GET', const ['abuse'], who: _reviewing, most: 16 * 1024 * 1024);
+    return [for (final r in (j['reports'] is List ? j['reports'] as List : const [])) if (r is Map) ?SealedReportRow.fromJson(r)];
+  }
+
+  /// Route 25: a report of a person dealt with.
+  Future<void> resolveSealedReport(String rid) async {
+    await _json('POST', ['abuse', _rid(rid)], body: const {'done': true}, who: _reviewing);
+  }
+
   // --- how a call is made --------------------------------------------------------------------------------------------
 
   static String get _submitting => 'Submitting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.';
@@ -208,7 +231,7 @@ class MarketApi {
   static SubmissionView _submission(Map j) => SubmissionView.fromJson(j['submission'] is Map ? j['submission'] as Map : const {});
 
   /// Asks and reads a JSON answer: `ok: true`, or the relay's refusal thrown as a [MarketError].
-  Future<Map> _json(String method, List<String> path, {Object? body, String? who, NetSigner? signer, Duration answer = const Duration(seconds: 20)}) async => _decode(await _ask(method, path, body: body, who: who, signer: signer, most: MarketReads.other, answer: answer));
+  Future<Map> _json(String method, List<String> path, {Object? body, String? who, NetSigner? signer, Duration answer = const Duration(seconds: 20), int most = MarketReads.other}) async => _decode(await _ask(method, path, body: body, who: who, signer: signer, most: most, answer: answer));
 
   /// Asks for a file: its bytes where the answer is 200, else the relay's refusal.
   Future<Uint8List> _bytes(String method, List<String> path, {required int most, String? who}) async {

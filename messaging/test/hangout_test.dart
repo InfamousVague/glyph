@@ -217,6 +217,44 @@ void main() {
       expect(b.messages.map((m) => m.text), ['Who is around?', 'Me!']);
     });
 
+    test('a thread (GMFB-36): its replies reach everyone in it, off the chat, quoting where they hang for builds from before', () async {
+      final o = owner.room(channel), a = ann.room(channel);
+      await o.open();
+      await a.open();
+      await _settle();
+      expect(o.send('Plans for Friday?'), isTrue);
+      await _settle();
+      final root = a.messages.single;
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      expect(a.send('Dinner at 7', thread: root.id), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      expect(o.send('Works for me', thread: root.id), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      expect(a.send('Also: who has the key?'), isTrue);
+      await _settle();
+      for (final r in [o, a]) {
+        expect(r.timeline.map((m) => m.text), ['Plans for Friday?', 'Also: who has the key?']);
+        expect(r.threadOf(root.id).map((m) => m.text), ['Dinner at 7', 'Works for me']);
+        expect(r.threads[root.id]!.count, 2);
+        expect(r.threads[root.id]!.last.text, 'Works for me');
+      }
+      // Each quotes the message it hangs from, which is what a build that knows nothing of threads shows.
+      final reply = o.threadOf(root.id).first;
+      expect(reply.reply?.id, root.id);
+      expect(reply.reply?.text, 'Plans for Friday?');
+      // As it travels, and as a build from before reads it: `th` kept, and a message can't be its own thread.
+      final wire = reply.toJson();
+      expect(wire['th'], root.id);
+      expect(HangoutMessage.fromJson({...wire}, ann.id)!.thread, root.id);
+      expect(HangoutMessage.fromJson({...wire, 'th': wire['id']}, ann.id)!.thread, isNull);
+      // Someone coming in later has the thread too.
+      final b = bob.room(channel);
+      await b.open();
+      await _settle();
+      expect(b.threadOf(root.id).length, 2);
+      expect(b.timeline.length, 2);
+    });
+
     test('a member deletes their own message; a moderator deletes anyone\'s below them; a member can\'t delete others\'', () async {
       final o = owner.room(channel), a = ann.room(channel), b = bob.room(channel);
       for (final r in [o, a, b]) {
@@ -580,6 +618,43 @@ void main() {
       expect(await o.deleteRole('dj'), isFalse, reason: 'newcomers have it');
       await o.setNewcomer(Role.member);
       expect(await o.deleteRole('dj'), isTrue);
+    });
+
+    // GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak, many listen, with a listener count".
+    test('a stage: newcomers listen, someone brought up speaks, and ending it lets everyone speak again', () async {
+      final o = owner.room(channel), a = ann.room(channel), b = bob.room(channel);
+      await o.open();
+      await a.open();
+      await b.open();
+      await _settle();
+      expect(o.stage, isFalse);
+      expect(await a.setStage(true), isFalse, reason: 'only whoever manages the space');
+
+      expect(await o.setStage(true), isTrue);
+      await _settle();
+      for (final r in [o, a, b]) {
+        expect(r.stage, isTrue);
+        expect(r.listens(ann.id), isTrue);
+        expect(r.listens(bob.id), isTrue);
+        expect(r.listens(owner.id), isFalse, reason: 'the owner speaks');
+      }
+      expect(a.heard(ann.id), isFalse, reason: 'a listener is not heard');
+      expect(a.can(Perm.chat), isTrue, reason: 'a listener may still write in the chat');
+
+      expect(await o.setSpeaker(ann.id, true), isTrue);
+      await _settle();
+      expect(b.listens(ann.id), isFalse);
+      expect(b.heard(ann.id), isTrue);
+      expect(await o.setSpeaker(ann.id, false), isTrue);
+      await _settle();
+      expect(b.listens(ann.id), isTrue, reason: 'back to the audience');
+
+      expect(await o.setStage(false), isTrue);
+      await _settle();
+      expect(b.stage, isFalse);
+      expect(b.listens(ann.id), isFalse);
+      expect(b.heard(ann.id), isTrue, reason: 'everyone who was listening is a member again');
+      expect(b.roster.roleOf(ann.id).id, Role.member);
     });
   });
 

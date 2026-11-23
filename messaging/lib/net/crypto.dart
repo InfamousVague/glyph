@@ -77,18 +77,29 @@ class NetCrypto {
   /// The key the holder of [mine] and the holder of [theirs] (33 bytes) both arrive at, as E2eCrypto.conversationKey
   /// makes it: ECDH, then HKDF-SHA256 salted with both public keys in a fixed order. Null when [theirs] is no key.
   static Uint8List? conversationKey(NetKeys mine, List<int> theirs) {
+    final shared = agree(mine, theirs);
+    if (shared == null) return null;
+    final prk = hmac(_ordered(mine.public, theirs), shared);
+    return hmac(prk, [..._info, 1]);
+  }
+
+  /// Plain ECDH on P-256: the 32-byte x of [mine]'s private half times [theirs] (33 bytes, compressed). Null when
+  /// [theirs] is no point on the curve. What [conversationKey] stands on, and forward secrecy's one-off keys
+  /// (lib/net/forward_secrecy.dart); never a key on its own, always through [hkdf] first.
+  static Uint8List? agree(NetKeys mine, List<int> theirs) {
     if (theirs.length != 33 || (theirs[0] != 2 && theirs[0] != 3)) return null;
     try {
       final point = curve.curve.decodePoint(theirs);
       if (point == null || point.isInfinity) return null;
       final s = (ECDHBasicAgreement()..init(mine._private)).calculateAgreement(ECPublicKey(point, curve));
-      final shared = unhex(s.toRadixString(16).padLeft(64, '0'));
-      final prk = hmac(_ordered(mine.public, theirs), shared);
-      return hmac(prk, [..._info, 1]);
+      return unhex(s.toRadixString(16).padLeft(64, '0'));
     } catch (_) {
       return null;
     }
   }
+
+  /// HKDF-SHA256 (RFC 5869) for one 32-byte key: extract with [salt], expand with [info].
+  static Uint8List hkdf({required List<int> salt, required List<int> ikm, required List<int> info}) => hmac(hmac(salt, ikm), [...info, 1]);
 
   /// A key for one purpose made from another: a pair's key for the routes from its conversation key ('pair'), a
   /// room's name and token from its key ('room name', 'room token'). The same words on both ends give the same key.
@@ -124,8 +135,27 @@ class NetCrypto {
     return Uint8List.fromList([..._fixed(sig.r), ..._fixed(sig.s)]);
   }
 
+  /// [verify], with the answer remembered for the same key, message and signature (it can be no other): for what is
+  /// asked again and again of the same grant while a screen is drawn, a role's or an admin's. A check is several
+  /// milliseconds of arithmetic in Dart, and was made anew for every message row at every build
+  /// (docs/performance-audit.md, finding 7). The newest [_mostChecks] answers are kept.
+  static bool verifyOnce(List<int> publicKey, List<int> message, List<int> signature) {
+    final key = '${String.fromCharCodes(publicKey)}\u0000${String.fromCharCodes(signature)}\u0000${String.fromCharCodes(message)}';
+    final had = _checks[key];
+    if (had != null) return had;
+    if (_checks.length >= _mostChecks) _checks.remove(_checks.keys.first);
+    return _checks[key] = verify(publicKey, message, signature);
+  }
+
+  static const _mostChecks = 2048;
+  static final Map<String, bool> _checks = {};
+
+  /// How many signatures have been checked in full, for a test that counts them.
+  static int verifications = 0;
+
   /// Whether [signature] is the holder of [publicKey]'s over [message].
   static bool verify(List<int> publicKey, List<int> message, List<int> signature) {
+    verifications++;
     if (signature.length != 64 || publicKey.length != 33) return false;
     try {
       final point = curve.curve.decodePoint(publicKey);

@@ -94,7 +94,7 @@ class ApiRemote {
     state.value = 'connecting';
     final mine = _wantKey;
     try {
-      final ws = await WebSocket.connect('${relayBase()}/${seal.channel}').timeout(const Duration(seconds: 15));
+      final ws = await WebSocket.connect('${relayBase()}/${seal.channel}', compression: CompressionOptions.compressionOff).timeout(const Duration(seconds: 15));
       if (!_wanted || mine != _wantKey) {
         await ws.close();
         return;

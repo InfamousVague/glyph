@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
         ..clear()
         ..addAll(next);
       pluginsStamp++;
+      choicesChanged?.call(this);
       notifyListeners();
     } catch (_) {}
   }
@@ -45,8 +46,13 @@ class AppState extends ChangeNotifier {
     _prefs[key] = value;
     if (key.startsWith('plugin')) pluginsStamp++;
     Sms.instance.setPref(key, value);
+    if (key.startsWith('plugin') || key.startsWith('filter_')) choicesChanged?.call(this);
     notifyListeners();
   }
+
+  /// Told when a plugin's choice, a filter choice or a filing changes, or the choices are read again: the rules that
+  /// hush a hidden kind's notifications are written again from them (lib/plugins/notify_hush.dart, GMFB-18).
+  static void Function(AppState app)? choicesChanged;
 
   /// Something kept here that no screen draws from these choices: a store's own bookkeeping (when a space was last
   /// seen, a space's messages), whose owner tells its own listeners. Kept as [set] keeps, and nothing is drawn again
@@ -105,6 +111,11 @@ class AppState extends ChangeNotifier {
   String get textSize => choice('text_size', 'default');
   /// What a message's words are multiplied by for that size.
   double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
+
+  /// The face everything is drawn in: 'default', each look's own, or 'readable', Atkinson Hyperlegible Next, for
+  /// anyone who finds letters hard to tell apart (GMFB-41; lib/looks.dart stamps it).
+  String get font => choice('font', 'default');
+  void setFont(String v) => set('font', v);
 
   /// Whether messages set off their effects (lib/effects.dart).
   bool get effects => flag('effects');

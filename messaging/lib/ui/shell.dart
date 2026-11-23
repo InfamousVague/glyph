@@ -11,7 +11,7 @@ import 'circles/new_circle.dart';
 import 'split_handle.dart';
 import 'window_chrome.dart';
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show HardwareKeyboard, KeyDownEvent, KeyEvent, KeyRepeatEvent, KeyUpEvent, LogicalKeyboardKey;
@@ -27,6 +27,8 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../friends/buddies.dart';
+import '../net/name_watch.dart';
+import 'name_watch_words.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'new_group.dart';
@@ -36,6 +38,7 @@ import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
 import '../voice/channels.dart';
+import '../voice/friend_calls.dart';
 import '../voice/voice.dart' show VoiceChannel;
 import 'compose.dart';
 import 'dialup/dialup.dart';
@@ -44,7 +47,6 @@ import 'conversations.dart';
 import 'nav_bar.dart';
 import 'nav_rail.dart';
 import 'nav_style.dart';
-import 'recording_float.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart' show KeyRecorder;
 import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
@@ -111,6 +113,12 @@ class AppShell extends StatefulWidget {
     final most = (width - 360.0).clamp(260.0, double.infinity);
     return dragged.clamp(260.0, most);
   }
+
+  /// The list, or the pane, as a part of the accessibility tree of its own, in a browser. Every page in either has a
+  /// barrier under it that takes out of that tree whatever was drawn before it, and with nothing between them the
+  /// pane's reached the list and the list's reached the rail: neither could be found by a screen reader, or by a
+  /// script driving the page (tool/web/e2e.mjs). On the other platforms the tree is left as it has been.
+  static Widget _apart(Widget pages) => PlatformInfo.isWeb ? Semantics(container: true, child: pages) : pages;
 
   /// The shell this page is in, to open things with; null on a page shown with none (a test of one screen).
   static AppShellState? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell;
@@ -255,8 +263,31 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The section of Settings whose page is in the pane, or null: the row Settings' list marks.
   final settingsSection = ValueNotifier<String?>(null);
 
-  /// How many conversations are archived, as the list last counted them: the number on the pill's Archive.
+  /// How many conversations are archived, as the list last counted them: said in the Archive ring's menu.
   final archived = ValueNotifier<int>(0);
+
+  /// How many archived texts are unread, as the list last counted them ([countArchivedUnread]). The number on the
+  /// Archive ring is these and the networks' archived chats that are unread ([_archiveBadge]): the count of what is
+  /// in the archive never fell when it was read (GMFB-14, @kevin: "I have notifications showing on my archive but I
+  /// have read all of the messages in the archive to try to clear it and nothing happens").
+  final archivedUnread = ValueNotifier<int>(0);
+
+  /// How many conversations in Messages are unread, as the list last counted them: the number on the Messages ring
+  /// (GMFB-17, Matt, Android 0.12.3: "When messages have unreads the message bubble icon in the sidebar should show the
+  /// count in a unread badge same with circles"). Texts, network chats and spaces' chats alike, as the list's own Mark
+  /// all as read counts them, and only those Messages shows (a hidden kind's are not counted).
+  final messagesUnread = ValueNotifier<int>(0);
+
+  /// Counts the archived texts that are unread again; the list does as it loads, and so does marking them read.
+  Future<void> countArchivedUnread() async {
+    try {
+      final page = await Sms.instance.conversationsPage(archived: true);
+      archivedUnread.value = page.items.where((c) => c.unread).length;
+    } catch (_) {}
+  }
+
+  /// The number on the Archive ring: archived conversations with something unread, texts and networks' alike.
+  int get _archiveBadge => archivedUnread.value + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.where((c) => c.unread > 0).length);
 
   bool _wide = false;
 
@@ -291,6 +322,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     // The keyboard's commands and push to talk, heard on every page (lib/keys.dart).
     HardwareKeyboard.instance.addHandler(_key);
     Voice.instance.addListener(_voiceChanged);
+    FriendCalls.instance.ended.addListener(_callEnded);
+    _ringActions = Sms.instance.ringAction.stream.listen(_ringAction);
     Circles.instance.removedFrom.addListener(_removed);
     _joins = Circles.instance.joined.listen(_someoneJoined);
     Circles.instance.addListener(_landIfReady);
@@ -309,10 +342,22 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     });
     // The Marketplace's catalog, withdrawals and a developer's own submissions, read a little after starting and every
     // few hours (lib/market/market_state.dart): never under a test, never on an iPhone, which has no store packs.
-    if (!Platform.environment.containsKey('FLUTTER_TEST') && InstalledPlugins.instance.storeAllowed) unawaited(MarketState.instance.start());
+    if (!PlatformInfo.environment.containsKey('FLUTTER_TEST') && InstalledPlugins.instance.storeAllowed) unawaited(MarketState.instance.start());
     // What the packs and the Marketplace have to say as it happens: a pack withdrawn (with the way to its page), paused,
     // loaded from the API, and a developer's decisions.
     _notices = [InstalledPlugins.instance.notices.listen(_notice), MarketState.instance.notices.listen(_notice)];
+    // The name watch's word on this person's own username, the moment it comes (lib/net/name_watch.dart): the relay gave
+    // it to another key, by its own answer or as a friend's app saw.
+    _names = NameWatch.notices.listen(_nameNotice);
+  }
+
+  StreamSubscription<NameChange>? _names;
+
+  void _nameNotice(NameChange c) {
+    if (!mounted) return;
+    final by = c.by;
+    // Said once, calmly: the usual reasons are ordinary ones, and the words name them.
+    toast(context, nameNoticeWords(c, who: by == null ? null : (Buddies.instance.byId(by)?.shown ?? 'A friend')));
   }
 
   List<StreamSubscription<PackNotice>> _notices = const [];
@@ -323,7 +368,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// A key pressed anywhere in the app: a command of lib/keys.dart, or push to talk. True where it was one, so the
   /// page under it does not also take it. Not while Settings is waiting for keys to put a command on.
   bool _key(KeyEvent e) {
-    if (!mounted || KeyRecorder.listening) return false;
+    // The quick switcher open: its field and its list have the keys.
+    if (!mounted || KeyRecorder.listening || _switcher) return false;
     final keys = Keys.instance;
     final session = Voice.instance.session;
     // Letting go of push to talk: off again.
@@ -379,12 +425,101 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         }
       case KeyCommand.shortcuts:
         settings('shortcuts');
+      case KeyCommand.toggleSidebar:
+        // Only where the list stands beside the pane: on a phone the list is the page.
+        if (!_wide || _open == null) return false;
+        setState(() => _sideHidden = !_sideHidden);
+      case KeyCommand.quickSwitch:
+        quickSwitch();
+      case KeyCommand.nextChat:
+        return stepConversation(1);
+      case KeyCommand.previousChat:
+        return stepConversation(-1);
+      case KeyCommand.markRead:
+        final list = ConversationsScreen.live;
+        if (list == null) return false;
+        unawaited(list.markShownRead());
+      case KeyCommand.bold:
+      case KeyCommand.italic:
+      case KeyCommand.code:
+        return Keys.format(command);
     }
     return true;
   }
 
-  /// Word about a plugin pack from the installed plugins or the Marketplace, said in a toast; one withdrawn comes
-  /// with a way to its page.
+  /// The list put away beside a conversation (KeyCommand.toggleSidebar), the pane the whole window; back with the same
+  /// keys. Only on a wide window.
+  bool _sideHidden = false;
+
+  /// The quick switcher is up (KeyCommand.quickSwitch).
+  bool _switcher = false;
+
+  /// Opens the quick switcher: every conversation by name, and the app's places (GMFB-41).
+  void quickSwitch() => setState(() => _switcher = true);
+
+  /// Opens the conversation [by] rows below the one open (above, where negative) in the list as it is shown: the first
+  /// or the last where none of the list's is open. False where there is no list or nothing in it.
+  bool stepConversation(int by) {
+    final list = ConversationsScreen.live;
+    final order = list?.order ?? const <Conversation>[];
+    if (list == null || order.isEmpty) return false;
+    final at = order.indexWhere((c) => c.id == thread);
+    final next = Keys.stepTo(order.length, at, by);
+    if (next == at) return true;
+    list.openConversation(order[next]);
+    return true;
+  }
+
+  /// The places the quick switcher offers beside the conversations, with the keys each is on.
+  static const _places = [
+    ('new', 'Start something new', KeyCommand.newChat),
+    ('messages', 'Messages', KeyCommand.messages),
+    ('contacts', 'Contacts', KeyCommand.contacts),
+    ('archive', 'Archive', KeyCommand.archive),
+    ('voice', 'Spaces', KeyCommand.voice),
+    ('settings', 'Settings', KeyCommand.settings),
+    ('marketplace', 'Marketplace', KeyCommand.marketplace),
+    ('shortcuts', 'Keyboard shortcuts', KeyCommand.shortcuts),
+  ];
+
+  /// The most conversations the switcher lists: the newest, which are the ones jumped to.
+  static const _switchMost = 400;
+
+  List<CommandDescriptor> _switchCommands() {
+    final every = ConversationsScreen.live?.every ?? const <Conversation>[];
+    return [
+      for (final c in every.take(_switchMost))
+        CommandDescriptor(
+          id: 'c:${c.id}',
+          label: c.title,
+          group: 'Conversations',
+          keywords: [for (final p in c.people) p.address].join(' '),
+          detail: c.unread ? 'Unread' : null,
+        ),
+      // Only the places this device has (Keys.offered): no Marketplace in a browser.
+      for (final (id, label, command) in _places)
+        if (Keys.offered(command)) CommandDescriptor(id: 'go:$id', label: label, group: 'Go to', shortcut: Keys.instance.of(command)?.label),
+    ];
+  }
+
+  void _runSwitch(String id) {
+    if (id.startsWith('c:')) {
+      final want = int.tryParse(id.substring(2));
+      final list = ConversationsScreen.live;
+      final c = list?.every.where((c) => c.id == want).firstOrNull;
+      if (list != null && c != null) list.openConversation(c);
+      return;
+    }
+    switch (id.substring(3)) {
+      case 'settings':
+        settings();
+      case 'shortcuts':
+        settings('shortcuts');
+      case final place:
+        go(place);
+    }
+  }
+
   void _notice(PackNotice n) {
     if (!mounted) return;
     if (n.kind == 'withdrawn') {
@@ -433,8 +568,35 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     toast(context, 'You joined ${c.name}');
   }
 
+  StreamSubscription<String>? _ringActions;
+
+  /// Answer or Decline on a friend's call's notification (android IncomingCall.kt, GMFB-28).
+  Future<void> _ringAction(String what) async {
+    final v = Voice.instance;
+    final r = v.ringing;
+    if (r == null || r.call == null) return;
+    if (what == 'decline') return v.dismissRing();
+    try {
+      await v.join(r.channel, video: r.video);
+      if (mounted) go('voice');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t answer: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// A call to a friend that ended unanswered (GMFB-28): said, as a phone says it.
+  void _callEnded() {
+    final why = FriendCalls.instance.ended.value;
+    if (why == null || !mounted) return;
+    FriendCalls.instance.ended.value = null;
+    toast(context, why);
+  }
+
   @override
   void dispose() {
+    FriendCalls.instance.ended.removeListener(_callEnded);
+    _ringActions?.cancel();
+    unawaited(_names?.cancel());
     HardwareKeyboard.instance.removeHandler(_key);
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);
@@ -448,6 +610,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     _small.dispose();
     closed.dispose();
     archived.dispose();
+    archivedUnread.dispose();
+    messagesUnread.dispose();
     settingsSection.dispose();
     marketSection.dispose();
     super.dispose();
@@ -510,6 +674,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         _open = null;
         _thread = null;
         _showing = null;
+        _sideHidden = false;
       });
       settingsSection.value = null;
       marketSection.value = null;
@@ -753,6 +918,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// the section's own: a dev pack's id for `submit` (the form starts with that pack), a submission's sid for `mine`
   /// (marked and scrolled to).
   void marketplace({String? section, String? plugin, String? seek, String? arg}) {
+    // None in a browser, however it is asked for (a key, a link, an old way into Settings › Plugins): it has nowhere to
+    // keep a plugin (lib/web/app.dart).
+    if (Sms.browser) return;
     final side = _side.currentState;
     if (side == null) {
       // Asked for before the first frame (`ui.openSettings('plugins')`, a link): once there is a list.
@@ -827,8 +995,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New circle', Lucide.circle, () => show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new')),
           // Its invite link pasted: in at once, its spaces in the list's place.
           Choice('Join a circle by link', Lucide.link2, _joinByLink),
-          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
-          Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
+          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart): voice, so not in a
+          // browser, which has no calls yet (Sms.callsHere).
+          if (Sms.callsHere) Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
         ]);
       case 'contacts':
         contacts();
@@ -920,13 +1089,14 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         // A plain plus that says New: it starts a chat, a group or a space (Matt, 2026-11-17: "change the new chat
         // button to be a generic plus button and change the tooltip to simply say \"new\"").
         const NavItem(id: 'new', icon: Lucide.plus, label: 'New'),
-        const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+        NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages', count: messagesUnread.value),
         // Contacts with how many friend requests wait for an answer there (lib/ui/username_friends.dart).
         NavItem(id: 'contacts', icon: Lucide.contactRound, label: 'Contacts', count: Sms.paired ? 0 : Buddies.instance.requests.length),
         NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
         // The Marketplace, with how many updates wait (Matt, 2026-11-20: "Move plugins out of settings into a marketplace
         // button on the navigation rail with a marketplace icon"): "Market" on Dial-Up's taskbar, where six words share it.
-        NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
+        // Not in a browser, which has nowhere to keep a plugin and no texts for one to sort (Sms.browser).
+        if (!Sms.browser) NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
         NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
       ];
 
@@ -935,15 +1105,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   /// The rail (NavStyle.rail): Home, the circles, the app's places at its foot.
   Widget _rail() => ValueListenableBuilder<int>(
-        valueListenable: archived,
-        builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
+        valueListenable: archivedUnread,
+        builder: (context, _, _) => ListenableBuilder(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes, messagesUnread]),
           builder: (context, _) {
-            final rings = _appRings(count);
+            final rings = _appRings(_archiveBadge);
             return NavRail(
               circles: Circles.instance.all,
               openCircle: circleOpen ? _circleSeed : null,
-              home: const NavItem(id: 'messages', icon: Lucide.messageSquare, label: 'Messages'),
+              home: rings.firstWhere((r) => r.id == 'messages'),
               items: [for (final r in rings) if (r.id != 'messages') r],
               active: _activeRing,
               onSelect: _dockGo,
@@ -1032,8 +1202,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       }
     }
     if (!mounted) return;
-    // The lists read their conversations again.
+    // The lists read their conversations again, and the Archive ring counts what is still unread.
     closed.value++;
+    unawaited(countArchivedUnread());
     final n = unread.length + chats.length - failed;
     toast(
       context,
@@ -1056,9 +1227,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// The way round: a new chat, the messages, the contacts, the archive with how many are in it, Settings with how
   /// many watched for have joined (Settings › Friends joining).
   Widget _pill({required bool upright}) => ValueListenableBuilder<int>(
-        valueListenable: archived,
-        builder: (context, count, _) => ListenableBuilder(
-          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance]),
+        valueListenable: archivedUnread,
+        builder: (context, _, _) => ListenableBuilder(
+          listenable: Listenable.merge([Me.instance, Voice.instance, Buddies.instance, Circles.instance, MarketState.instance, InstalledPlugins.instance, Inbox.instance.changes, messagesUnread]),
           builder: (context, _) {
             // A circle in the list's place: its own dock, Home first (lib/ui/circles/circle_dock.dart).
             // Not where every page has the same navigation (NavStyle.unified): the app's own rings stay.
@@ -1077,7 +1248,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             upright: upright,
             active: _activeRing,
             onSelect: _dockGo,
-            items: _appRings(count),
+            items: _appRings(_archiveBadge),
           );
           },
         ),
@@ -1114,7 +1285,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       final railed = style == NavStyle.rail;
       final railW = railed ? NavRail.width(t) + MediaQuery.paddingOf(context).left : 0.0;
       final room = box.maxWidth - railW;
-      final side = wide ? AppShell.sideWidthAt(room, _dragged) : room;
+      // The list put away (KeyCommand.toggleSidebar): the pane takes its room. With nothing open the list comes back,
+      // so the window is never empty.
+      final hidden = wide && _sideHidden && _open != null;
+      final side = hidden ? 0.0 : wide ? AppShell.sideWidthAt(room, _dragged) : room;
       // A wide phone has the pill stood up at its right, where the window is tall enough for it (not a small phone
       // on its side). The strip is as wide as the pill and its room, and clear of anything cut into the screen's edge.
       final edges = MediaQuery.paddingOf(context);
@@ -1167,9 +1341,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                 left: railW + (railed ? 1 : 0),
                 top: 0,
                 bottom: 0,
-                width: side - (railed ? 1 : 0),
+                width: hidden ? 0 : side - (railed ? 1 : 0),
                 child: Offstage(
-                  offstage: covered,
+                  offstage: covered || hidden,
                   child: TickerMode(
                     enabled: !covered,
                     // The list is at the window's left: on the Mac its header leaves the window's three buttons room.
@@ -1188,10 +1362,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             },
                             child: NotificationListener<ScrollNotification>(
                               onNotification: _pillHeard,
-                              child: Navigator(
+                              child: AppShell._apart(Navigator(
                               key: _side,
                               onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const ConversationsScreen()),
-                            ),
+                            )),
                             ),
                           ),
                         ),
@@ -1294,33 +1468,34 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // divider line that we have on the dial up theme to the right of the sidebar, instead we should just use
               // the normal border here wrapping the whole sidebar in the standard border like we do for the rest of
               // elements").
-              if (wide && !dialup) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
+              if (wide && !dialup && !hidden) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
               Positioned(
                 key: const ValueKey('shell-pane'),
-                left: wide ? railW + side + (dialup ? 0 : 1) : 0,
+                left: wide ? railW + side + (dialup || hidden ? 0 : 1) : 0,
                 top: 0,
                 bottom: 0,
                 right: 0,
                 // With nothing open on a narrow screen the pane is empty air over the list: touches go through.
                 // Over all of a narrow window, a page is at the window's left too.
-                child: _lightsIf(!wide, IgnorePointer(
+                // With the list put away the pane is at the window's left, and leaves the Mac's three buttons room.
+                child: _lightsIf(!wide || (hidden && !railed), IgnorePointer(
                   ignoring: !wide && _open == null,
                   child: _sized(NotificationListener<NavigationNotification>(
                     onNotification: (n) {
                       if (n.canHandlePop != _paneBack) setState(() => _paneBack = n.canHandlePop);
                       return false;
                     },
-                    child: Navigator(
+                    child: AppShell._apart(Navigator(
                       key: _pane,
                       observers: widget.paneObservers,
                       onGenerateRoute: (_) => PageRouteBuilder<void>(opaque: false, pageBuilder: (context, _, _) => const _Base()),
-                    ),
+                    )),
                   )),
                 )),
               ),
               // The line between the list and the pane, dragged to make the list wider or narrower; double clicked,
               // as it was made. Over both, so the pointer finds it on either side of the line.
-              if (wide)
+              if (wide && !hidden)
                 Positioned(
                   key: const ValueKey('shell-split'),
                   left: railW + side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
@@ -1342,9 +1517,24 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
               // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
               const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
-              // A call being recorded: a pill that can be moved anywhere, opening into the tracks as an editor's
-              // timeline (lib/ui/recording_float.dart).
-              const Positioned.fill(child: RecordingFloat()),
+              // The quick switcher (KeyCommand.quickSwitch): it takes no room here and draws over everything while up.
+              Positioned(
+                left: 0,
+                top: 0,
+                width: 0,
+                height: 0,
+                child: GlacierCommandPalette(
+                  key: const ValueKey('quick-switcher'),
+                  open: _switcher,
+                  onOpenChange: (v) => setState(() => _switcher = v),
+                  // Its keys are Settings' to change (lib/keys.dart), not the kit's own Cmd+K.
+                  shortcut: false,
+                  placeholder: 'Jump to a conversation or a place…',
+                  emptyLabel: const Text('Nothing by that name'),
+                  commands: _switcher ? _switchCommands() : const [],
+                  onRun: _runSwitch,
+                ),
+              ),
             ]),
           ),
         ),

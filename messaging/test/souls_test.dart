@@ -40,9 +40,9 @@ void main() {
     expect(me.special, ['alpha']);
     me.hear({'dir': 'souls', 'n': 65, 'special': ['alpha'], 'got': 25, 'why': 'Found the Windows crash'});
     expect(me.souls, 65);
-    expect((me.gifts.value!.souls, me.gifts.value!.why), (25, 'Found the Windows crash'));
+    expect((me.gifts.value.last.souls, me.gifts.value.last.why), (25, 'Found the Windows crash'));
     me.hear({'dir': 'souls', 'n': 65, 'special': ['alpha', 'bughunter'], 'badge': 'bughunter'});
-    expect(me.gifts.value!.badge, 'bughunter');
+    expect(me.gifts.value.last.badge, 'bughunter');
     expect(specialBadgesOf(me.special).map((b) => b.name), ['Bug hunter', 'Alpha tester'], reason: 'in the order they are drawn');
   });
 
@@ -82,6 +82,46 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.textContaining('You got 25 souls: Found the crash'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
+    Me.instance.seedSouls(0);
+  });
+
+  // Matt, 2026-11-21: "add the ability to notify a user when they have recieved souls wiht a description for why like
+  // "bug bounty" etc it should notify them next time they connect to the app (or immediatly if they're connected in
+  // real time)".
+  test('gifts are kept until shown, said once each however often the relay says them, and the relay is told they were shown', () {
+    final me = Me.forTest();
+    me.hear({'dir': 'souls', 'n': 40, 'got': 40, 'why': 'Bug bounty', 'gift': 'g1'});
+    me.hear({'dir': 'souls-gifts', 'n': 40, 'list': [{'g': 'g1', 'souls': 40, 'why': 'Bug bounty'}, {'g': 'g2', 'badge': 'bughunter'}]});
+    expect([for (final g in me.gifts.value) (g.id, g.away)], [('g1', false), ('g2', true)]);
+    final shown = me.takeGifts();
+    expect(shown, hasLength(2));
+    expect(me.gifts.value, isEmpty);
+    expect(giftWords(shown.first), 'You got 40 souls: Bug bounty');
+    expect(giftWords(shown.last), 'You were given the Bug hunter badge');
+  });
+
+  testWidgets('given while away: a card on opening, each with why, and a way to the souls', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    Me.instance.seedSouls(140);
+    Me.instance.hear({
+      'dir': 'souls-gifts',
+      'n': 140,
+      'list': [
+        {'g': 'a1', 'souls': 100, 'why': 'Bug bounty: the Windows crash'},
+        {'g': 'a2', 'souls': 40, 'why': 'Helped test calls'},
+      ],
+    });
+    await h.shoot(tester, GhostPage(title: 'Messages', actions: const [SoulsChip()], body: const SizedBox.expand()), 'souls-away');
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.byKey(const ValueKey('souls-gifts')), findsOneWidget);
+    expect(find.text('You got 140 souls'), findsOneWidget);
+    expect(find.text('100 souls · Bug bounty: the Windows crash'), findsOneWidget);
+    expect(find.text('40 souls · Helped test calls'), findsOneWidget);
+    expect(find.text('See your souls'), findsOneWidget);
+    expect(Me.instance.gifts.value, isEmpty, reason: 'taken, and the relay told');
+    await h.again(tester, 'souls-away');
     Me.instance.seedSouls(0);
   });
 

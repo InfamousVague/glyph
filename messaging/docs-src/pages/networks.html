@@ -1,12 +1,13 @@
 <p>Link your other chat accounts and their conversations show in Messages beside your texts: read, reply, react, all in one place. Each is in <ui>Settings › Connections</ui>, one section per network. Your messages go between your device and that network directly, never through Ghost's server.</p>
 
+<h2 id="official-and-plugins">Official networks and plugins</h2>
+<p><b>Telegram</b> and <b>Signal</b> are Ghost's official networks: they're there from the start, under <ui>Settings › Connections</ui>, ready to sign in to. (Your texts, through Google Messages, are separate and on by default.)</p>
+<p>The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram, Discord, X and Slack — are <b>plugins</b>. They're off until you switch them on, and while off they don't run or show any chats. Open one under <ui>Connections › Plugins</ui> and turn on <b>Use <i>network</i></b> to connect it; turn it off and it's signed out and left alone. Plugins aren't official Ghost connections: each signs in the way that network's own website or app does, and some don't allow other apps at all, so you agree to a warning first. If you'd already connected one, it stays on when you update.</p>
+
 <m-screen title="Connections" back>
-  <m-section>
-    <m-row icon="send" hue="cyan" label="Telegram" hint="Not linked" chev tap/>
-    <m-row icon="message-square" hue="blue" label="Signal" hint="Not linked" chev/>
-    <m-row icon="message-circle" hue="green" label="WhatsApp" hint="Not linked" chev/>
-    <m-row icon="hash" hue="slate" label="Matrix" hint="Not linked" chev/>
-  </m-section>
+  <m-section title="Connected"><m-row icon="send" hue="cyan" label="Telegram" hint="Signed in as @you" chev tap/></m-section>
+  <m-section title="Official networks"><m-row icon="message-square" hue="blue" label="Signal" hint="Not signed in" chev/></m-section>
+  <m-section title="Plugins"><m-row icon="message-circle" hue="green" label="WhatsApp" hint="Off" chev/><m-row icon="hash" hue="slate" label="Matrix" hint="Off" chev/></m-section>
 </m-screen>
 
 <h2 id="telegram">Telegram</h2>
@@ -40,7 +41,7 @@
 <note kind="warn" title="WhatsApp doesn't support this"><p>WhatsApp has no official way for other apps to link, and it may ban accounts it sees using unofficial apps. Ghost tells you this before linking. Only link an account you could live without.</p></note>
 <steps>
 <step title="Read the warning">
-<p><ui>Settings › Connections › WhatsApp</ui> shows the warning first. Tap <b>I understand, link WhatsApp</b> if you want to go on.</p>
+<p>WhatsApp is a plugin: open <ui>Settings › Connections › WhatsApp</ui> and turn on <b>Use WhatsApp</b> first. It shows the warning; tap <b>I understand, link WhatsApp</b> to go on.</p>
 </step>
 <step title="Scan or type the code">
 <p>Scan the QR code with WhatsApp's <ui>Linked devices › Link a device</ui>, or tap <b>Link with phone number instead</b> and type the 8-character code into WhatsApp.</p>
@@ -63,3 +64,7 @@
 
 <h2 id="unlink">Unlinking</h2>
 <p>Open the network in <ui>Settings › Connections</ui> and sign out or unlink. Its chats leave Ghost; nothing is deleted from the network itself.</p>
+
+<h2 id="discord-x-slack">Discord, X and Slack</h2>
+<p>These three sign in with your browser's session, as Messenger and Instagram do: the <a href="/docs/browser-extension/">browser extension</a> does it for every device, or paste a request copied from the site's developer tools. <b>Discord</b> brings your direct messages and group chats (this is apart from linking a server's voice channels, which uses Ghost's bot). <b>X</b> brings your direct messages; they're end-to-end encrypted, so Ghost asks once for your 4-digit X Chat passcode (the one x.com/messages asks for) and doesn't keep it. <b>Slack</b> brings one workspace's channels and direct messages.</p>
+<p>None of them allows other apps. Discord's terms forbid automating a user account and Discord can disable an account that does; X may lock or limit an account; a Slack workspace's admins may sign the session out.</p>

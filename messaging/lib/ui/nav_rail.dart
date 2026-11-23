@@ -186,31 +186,27 @@ class _CircleRing extends StatelessWidget {
                     child: CircleFace.of(circle, size: ring, selected: open, ringed: false),
                   ),
                 ),
-                // Something unread there: a dot at the face's shoulder, while no mention says more.
-                if (unread > 0 && mentions == 0 && !open)
-                  Positioned(
-                    top: gap,
-                    right: (NavRail.width(t) - ring) / 2 - 1,
-                    child: ExcludeSemantics(
-                      child: Container(
-                        key: ValueKey('rail-unread-${circle.seed}'),
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle, border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                      ),
-                    ),
-                  ),
-                if (mentions > 0)
+                // How many are unread there, in a badge as the rings' counts are (GMFB-17, Matt: "the message bubble
+                // icon in the sidebar should show the count in a unread badge same with circles"); red where someone
+                // mentioned you, and then it is the mentions it counts.
+                if (mentions > 0 || (unread > 0 && !open))
                   Positioned(
                     right: t.space(3) - 6,
                     bottom: 0,
                     child: ExcludeSemantics(
                       child: Container(
+                        key: ValueKey(mentions > 0 ? 'rail-mentions-${circle.seed}' : 'rail-unread-${circle.seed}'),
                         constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                         padding: const EdgeInsets.symmetric(horizontal: 6),
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(color: t.danger, borderRadius: BorderRadius.circular(11), border: Border.all(color: t.color('glacier-bg'), width: 2)),
-                        child: Text(mentions > 99 ? '99+' : '$mentions', style: t.textAt(12, weight: 'bold', height: 1.15, color: const Color(0xFFFFFFFF))),
+                        decoration: BoxDecoration(color: mentions > 0 ? t.danger : t.color('app-ink'), borderRadius: BorderRadius.circular(11), border: Border.all(color: t.color('glacier-bg'), width: 2)),
+                        child: Text(
+                          () {
+                            final n = mentions > 0 ? mentions : unread;
+                            return n > 99 ? '99+' : '$n';
+                          }(),
+                          style: t.textAt(12, weight: 'bold', height: 1.15, color: mentions > 0 ? const Color(0xFFFFFFFF) : t.color('app-paper')),
+                        ),
                       ),
                     ),
                   ),

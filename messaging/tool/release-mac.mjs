@@ -9,6 +9,7 @@
  *   node tool/release-mac.mjs --notarize             # ...and have Apple notarise it and staple the ticket
  *   node tool/release-mac.mjs --publish [--glyph ~/path/to/glyph] [--keep-connection] [--again]
  *                                                    # ...and put the zip and its description on the box
+ *   --no-p2p          leave the direct network's core out (the app then has no direct route, and is otherwise the same)
  *   --version 0.6.2   the version's name (pubspec.yaml's otherwise)
  *   --build 455123    its number (see below)
  *   --replace         with --install: take the place of a copy already in /Applications
@@ -54,6 +55,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { telegramDefines } from './telegram-defines.mjs';
 import { requireNotes } from './lib/notes.mjs';
+import { requireGuards } from './lib/guards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -132,6 +134,8 @@ if (live && versionCode <= live.versionCode) fail(`Build ${versionCode} is not a
 if (has('publish') && live && live.version === versionName && !has('again')) {
   fail(`${versionName} is live already (${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
 }
+// The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
+requireGuards(ROOT, fail);
 say(`> Building Ghost Messaging for the Mac ${versionName} (${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"${IDENTITY}"`)) {
@@ -146,6 +150,15 @@ run('sh', [join(ROOT, 'native/voicefx/deepfilter/build.sh')], { cwd: ROOT });
 // TDLib for the Telegram inbox (lib/inbox/telegram.dart), built from Telegram's source, and the app id.
 say('> TDLib for the Telegram inbox');
 run('sh', [join(ROOT, 'tool/build-tdlib.sh'), 'mac'], { cwd: ROOT });
+// The direct network's core (native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), for both kinds of Mac in one file.
+const p2pCore = join(ROOT, 'build/p2p/mac/libghost_p2p.dylib');
+if (has('no-p2p')) {
+  say('  (no direct network core: --no-p2p)');
+} else {
+  say('> The direct network\'s core');
+  const core = spawnSync('sh', [join(ROOT, 'tool/build-p2p.sh'), 'mac'], { cwd: ROOT, stdio: 'inherit' });
+  if (core.error || core.status !== 0) fail('The direct network\'s core did not build (tool/build-p2p.sh mac). To build without the direct route, pass --no-p2p.');
+}
 const telegram = telegramDefines();
 say(telegram.said);
 run('flutter', ['build', 'macos', '--release', `--build-name=${versionName}`, `--build-number=${versionCode}`, ...telegram.args], { cwd: ROOT });
@@ -199,6 +212,24 @@ if (existsSync(waSource)) {
   run('ditto', [waSource, join(app, 'Contents/Resources/whatsapp-sidecar-SOURCE.txt')]);
 }
 
+// The account helpers (sidecar/messenger, sidecar/instagram, sidecar/linkedin; sidecar/ACCOUNT_HELPERS.md;
+// lib/inbox/account_helper.dart; Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice"), each
+// carried where it is in the checkout with its source's address, beside the others and signed with the rest below.
+const accountHelpers = [];
+// LinkedIn's is no longer carried (Matt, 2026-11-21: "remove the plugin"; lib/inbox/inbox.dart).
+for (const name of ['messenger', 'instagram', 'discord', 'twitter', 'slack']) {
+  const source = join(ROOT, `sidecar/${name}/SOURCE_URL`);
+  if (!existsSync(source)) continue;
+  say(`> Building the ${name} helper`);
+  run('sh', [join(ROOT, 'tool/build-accountsidecar.sh'), name, 'mac'], { cwd: ROOT });
+  mkdirSync(join(app, 'Contents/Helpers'), { recursive: true });
+  const helper = join(app, `Contents/Helpers/${name}-sidecar`);
+  run('ditto', [join(ROOT, `build/${name}-sidecar/mac/${name}-sidecar`), helper]);
+  run('ditto', [join(ROOT, `sidecar/${name}/LICENSE`), join(app, `Contents/Resources/${name}-sidecar-LICENSE.txt`)]);
+  run('ditto', [source, join(app, `Contents/Resources/${name}-sidecar-SOURCE.txt`)]);
+  accountHelpers.push(helper);
+}
+
 // The Matrix helper (sidecar/matrix, on mautrix-go with goolm's encryption; lib/inbox/matrix.dart; Matt, 2026-11-17:
 // "Let's add support for matrix"), beside Signal's, signed with the rest below.
 const matrixSource = join(ROOT, 'sidecar/matrix/SOURCE_URL');
@@ -216,6 +247,9 @@ if (existsSync(matrixSource)) {
 // only: on an Intel Mac Telegram says it isn't in this build.
 mkdirSync(join(app, 'Contents/Frameworks'), { recursive: true });
 run('ditto', [join(ROOT, 'build/tdlib/mac/libtdjson.dylib'), join(app, 'Contents/Frameworks/libtdjson.dylib')]);
+// The direct network's core beside it, where lib/net/p2p/node_ffi_io.dart opens it; signed with the rest below (its
+// own signature is nobody's: tool/build-p2p.sh). Left out with --no-p2p, and the app finds none.
+if (!has('no-p2p')) run('ditto', [p2pCore, join(app, 'Contents/Frameworks/libghost_p2p.dylib')]);
 
 // The built app is checked before it is signed: its id, its version, the local network's reason, Apple silicon.
 const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
@@ -258,6 +292,7 @@ if (existsSync(helper)) sign(helper);
 if (existsSync(signalHelper)) sign(signalHelper);
 if (existsSync(waHelper)) sign(waHelper);
 if (existsSync(matrixHelper)) sign(matrixHelper);
+for (const helper of accountHelpers) sign(helper);
 sign(app, ['--entitlements', entitlements]);
 
 const verified = spawnSync('codesign', ['--verify', '--deep', '--strict', app], { encoding: 'utf8' });
