@@ -52,8 +52,12 @@ class _Port implements BuddiesPort {
   /// The relay can't be asked: the directory answers nothing (Me.whois throws).
   bool directoryDown = false;
 
+  /// Told of each lookup asked of the directory.
+  void Function()? onWhois;
+
   @override
   Future<({String id, String key})?> whois(String username) async {
+    onWhois?.call();
     if (directoryDown) throw MeError('The relay server can\'t be reached right now.');
     final p = world.byName[username];
     return p == null ? null : (id: p.keys.id, key: base64Encode(p.keys.public));
@@ -262,29 +266,32 @@ void main() {
   // From the independent review of the who-sent fix (2026-11-23), its probe 4: a request names its own username, and
   // anyone can send one. Accepted, one that named itself "maya" stood for @maya (the newest install under a username
   // does), and took what was written to her.
-  test('a request is kept only where the directory says its username is its sender\'s: one that names itself after someone else is not', () async {
+  test('a request is not kept where the directory gives its username to someone else; one whose username it doesn\'t know waits, saying so', () async {
     final world = _World();
     final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
     final b = Buddies(sam);
     await b.start();
     await Buddies(maya).start();
-    // Eve asks Sam calling herself "maya", with her own key; then as a username nobody has; then as herself.
+    // Eve asks Sam calling herself "maya", with her own key; then as a username nobody has here (a friend's username
+    // can be another relay's: the review's follow-up S3); then as herself.
     void ask(_Port from, String calling) => sam._hellos.add((from: from.keys.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': calling, 'n': 'Maya', 'k': base64Encode(from.keys.public)})));
     ask(eve, 'maya');
-    ask(eve, 'nobody.here');
     await _settle();
     expect(b.requests, isEmpty, reason: 'not who it says');
+    ask(eve, 'nobody.here');
+    await _settle();
+    expect(b.requests.map((r) => (r.username, r.check)).toList(), [('nobody.here', 'nobody')]);
+    expect(requestLine(b.requests.single), contains('this relay doesn\'t know'));
     ask(eve, 'eve');
     await _settle();
-    expect(b.requests.single.username, 'eve');
-    expect(b.requests.single.checked, isTrue);
+    expect(b.requests.map((r) => (r.username, r.check)).toList(), [('eve', 'ok')]);
     // Maya herself, after: checked.
     ask(maya, 'maya');
     await _settle();
-    expect(b.requests.map((r) => (r.username, r.checked)).toSet(), {('eve', true), ('maya', true)});
+    expect(b.requests.map((r) => (r.username, r.check)).toSet(), {('eve', 'ok'), ('maya', 'ok')});
   });
 
-  test('where the relay can\'t be asked, a request waits unchecked and can\'t be accepted; asked again, it is checked or forgotten', () async {
+  test('where the relay can\'t be asked, a request waits unchecked and can\'t be accepted; asked again, what the directory says is kept with each', () async {
     final world = _World();
     final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
     final a = Buddies(maya), b = Buddies(sam);
@@ -294,20 +301,20 @@ void main() {
     await a.add('sam');
     sam._hellos.add((from: eve.keys.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'maya.c', 'k': base64Encode(eve.keys.public)})));
     await _settle();
-    expect(b.requests.map((r) => (r.username, r.checked)).toList(), [('maya', false), ('maya.c', false)]);
+    expect(b.requests.map((r) => (r.username, r.check)).toList(), [('maya', ''), ('maya.c', '')]);
     await expectLater(b.accept(b.requests.first), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('can\'t be checked'))));
     expect(b.friends, isEmpty);
-    // The relay answers again: Maya's is checked, and Eve's, under a username that isn't hers, is forgotten.
+    // The relay answers again: Maya's is checked, and Eve's, under a username it doesn't know, waits, saying so.
     sam.directoryDown = false;
     expect(await b.checkRequests(), 2);
-    expect(b.requests.map((r) => (r.username, r.checked)).toList(), [('maya', true)]);
-    await b.accept(b.requests.single);
+    expect(b.requests.map((r) => (r.username, r.check)).toList(), [('maya', 'ok'), ('maya.c', 'nobody')]);
+    await b.accept(b.requests.first);
     await _settle();
     expect(a.friends.single.username, 'sam');
     expect(b.friends.single.username, 'maya');
   });
 
-  test('a request not checked yet, accepted once the relay answers, is refused where its username is someone else\'s', () async {
+  test('a request not checked yet, accepted once the relay answers, is refused where its username is someone else\'s, and stays, shown so: never forgotten on one answer', () async {
     final world = _World();
     final sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
     _Port(world, 'maya');
@@ -319,7 +326,42 @@ void main() {
     expect(b.requests.single.checked, isFalse);
     sam.directoryDown = false;
     await expectLater(b.accept(b.requests.single), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('someone else'))));
-    expect(b.all, isEmpty);
+    expect(b.requests.map((r) => (r.username, r.check)).toList(), [('maya', 'other')]);
+    expect(requestLine(b.requests.single), contains('gives to someone else'));
+    // Asked about again, and the same: it stays.
+    await b.checkRequests();
+    expect(b.requests, hasLength(1));
+    expect(b.friends, isEmpty);
+  });
+
+  // The review's follow-up S2 (2026-11-23): the relay answers 120 lookups an hour for each install, and strangers'
+  // requests, each looked up as it came, could use them up: then nothing could be accepted or added for an hour.
+  test('requests are looked up of this phone\'s own accord thirty times an hour at most, each once; past that, only when Accept is pressed', () async {
+    final world = _World();
+    final sam = _Port(world, 'sam');
+    var asked = 0;
+    sam.onWhois = () => asked++;
+    final b = Buddies(sam);
+    await b.start();
+    final strangers = [for (var i = 0; i < Buddies.lookupsAnHour + 10; i++) NetKeys.generate()];
+    void ask(NetKeys from, int i) => sam._hellos.add((from: from.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'stranger.$i', 'k': base64Encode(from.public)})));
+    for (final (i, s) in strangers.indexed) {
+      ask(s, i);
+    }
+    await _settle();
+    expect(b.requests, hasLength(strangers.length), reason: 'every one is kept');
+    expect(asked, Buddies.lookupsAnHour);
+    // The same requests again (their apps ask again every few minutes): none is looked up again, nor asked about again.
+    for (final (i, s) in strangers.indexed) {
+      ask(s, i);
+    }
+    await _settle();
+    expect(await b.checkRequests(), 0);
+    expect(asked, Buddies.lookupsAnHour);
+    // Accept, pressed on one never looked up: it is looked up then.
+    final last = b.requests.firstWhere((r) => r.username == 'stranger.${strangers.length - 1}');
+    await expectLater(b.accept(last), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('doesn\'t know'))));
+    expect(asked, Buddies.lookupsAnHour + 1);
   });
 
   test('the friend by username a conversation and a face stand for is one who said yes, never a request or someone blocked under the same username', () async {

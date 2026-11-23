@@ -9,12 +9,15 @@ import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
 
-/// The line under a friend request: what they said of themselves, or that the relay hasn't yet said the username they
-/// gave is theirs (Buddy.checked; found in review, 2026-11-23), which is all a request not checked can be taken at.
-String requestLine(Buddy r) {
-  if (!r.checked) return '@${r.username}, not checked with the relay yet';
-  return r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}';
-}
+/// The line under a friend request: what they said of themselves, or what the relay's directory said of the username
+/// they gave where it hasn't said it is theirs (Buddy.check; found in review, 2026-11-23), which is all a request not
+/// checked can be taken at.
+String requestLine(Buddy r) => switch (r.check) {
+      'ok' => r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}',
+      'nobody' => '@${r.username}, a username this relay doesn\'t know',
+      'other' => '@${r.username}, a username the relay gives to someone else',
+      _ => '@${r.username}, not checked with the relay yet',
+    };
 
 /// Says yes to the friend request [r], and says why not where it can't be (the relay can't check the username yet, or
 /// it is someone else's: Buddies.accept).
