@@ -105,7 +105,11 @@ Future<void> _main(List<String> args) async {
   // The hosts the hub is reached at (GHOST_HUB_NAMES, commas between): with them it takes a sign-in bound to the host
   // the app dialled (hub.dart, greetingV2), and from a key that has signed in so, no other; without them, as before.
   final names = (Platform.environment['GHOST_HUB_NAMES'] ?? '').split(',');
-  final hub = Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn, helpers: helpers, federation: federation, names: names, dataDir: data);
+  // What is held for people away, and what rooms keep, kept on disk as well (hub.dart, keepHeld; held_store.dart):
+  // GHOST_HUB_KEEP_HELD=1, under the data folder's held/. Off unless set: it puts sealed packets, and who each is for
+  // and from, on this machine's disk for up to a week (README.md, "What it keeps").
+  final keepHeld = Platform.environment['GHOST_HUB_KEEP_HELD'] == '1';
+  final hub = Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn, helpers: helpers, federation: federation, names: names, dataDir: data, keepHeld: keepHeld);
   // The app in a browser (web_app.dart): the folder `flutter build web` made, where one is named (--web, or
   // GHOST_WEB_DIR); without it there is no /app/. The page and the hub are then one address, as a browser needs.
   final webDir = option('web', Platform.environment['GHOST_WEB_DIR'] ?? '');
@@ -115,7 +119,7 @@ Future<void> _main(List<String> args) async {
   final appOrigin = Relay.appOriginFrom(Platform.environment);
   final relay = Relay(dataDir: data, verbose: verbose, hub: hub, files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty), web: web, appOrigin: appOrigin);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; connections hold at most ${WireBudget.shared.most >> 20} MB together; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}${appOrigin == null ? '' : ', and at $appOrigin'}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; connections hold at most ${WireBudget.shared.most >> 20} MB together; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}${appOrigin == null ? '' : ', and at $appOrigin'}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; held for people away: ${keepHeld ? 'kept on disk too' : 'in memory'}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();
