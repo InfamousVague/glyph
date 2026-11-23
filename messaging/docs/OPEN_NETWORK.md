@@ -104,8 +104,10 @@ How it is set up, and why (researched 2026-11-22, iroh 1.5.0):
   stays up; a phone's is started for a send that fell back or a check, and stopped two minutes after its last
   stream closes.
 - **Dart talks to it through a small C interface** (`native/p2p/src/ffi.rs`, `lib/net/p2p/node_ffi.dart`), not a
-  generator: commands in, events out through one callback, bytes both ways. On Android the core is also loaded
-  from Kotlin once, to give iroh's DNS the app's context (`install_android_jni_context`).
+  generator: commands in as bytes, events out as messages to the isolate's port (never a call into Dart, so an
+  isolate that has gone cannot be called; its nodes go with it). Nothing of the core runs before a node is first
+  started: on Android that is when Kotlin loads it and gives iroh's DNS the app's context
+  (`install_android_jni_context`), so a person who never switches Direct on runs none of it.
 
 Dart reaches it through `lib/net/p2p/node.dart` (`P2pNode`): the real one over FFI, a stand-in mesh for tests
 (`test/support/fake_p2p.dart`), and in the browser none (the core as WASM reaches others only through a link

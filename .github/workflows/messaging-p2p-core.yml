@@ -1,0 +1,40 @@
+# The direct network's core (messaging/native/p2p, Rust on iroh; docs/OPEN_NETWORK.md, section 2): its own tests,
+# `cargo test --release --locked`, on Linux and Windows, which the Mac it is written on cannot run. By hand (Run
+# workflow, or `gh workflow run messaging-p2p-core.yml`), with the Rust its rust-toolchain.toml names. The tests link
+# nodes over each machine's loopback and its own address on the runner's network, and run a link helper inside the
+# test process; one listens on port 80, and where the runner gives it none it says so and passes.
+name: Direct network core tests
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: messaging-p2p-core-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: messaging/native/p2p
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust, as rust-toolchain.toml names it
+        run: |
+          rustup toolchain install --no-self-update
+          rustc --version
+
+      - name: The core's tests
+        run: cargo test --release --locked
+
+      - name: The core builds as the app carries it
+        run: cargo build --release --locked
