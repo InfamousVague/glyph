@@ -123,6 +123,10 @@ object Sender {
         val store = Store(context)
         val clean = addresses.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         require(clean.isNotEmpty()) { "No one to send to" }
+        // A friend by username ("@maya") has no number: never written into the phone's store of texts or handed to Google
+        // Messages, from this phone or from a computer paired with it (found in review, 2026-11-23). The app sends to
+        // them over the internet (lib/friends/friends.dart) and says so where it can't.
+        require(clean.none { it.startsWith("@") }) { "A friend by username has no number to text" }
         // Beside Google Messages (GmBridge): sent through it, or as a plain SMS. Android's database takes no writes from
         // an app that is not the default, so the way below (which writes the message there first) cannot be used.
         if (!GmBridge.isDefault(context)) {
