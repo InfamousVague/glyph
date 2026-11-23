@@ -67,6 +67,14 @@ Uint8List bytesOf(int n, int seed) {
 }
 
 void main() {
+  test('what the relay said of a space is kept whole: its owner, the roster\'s revision and cas come back from disk', () {
+    final said = FilesInfo.from({'seq': 7, 'used': 10, 'quota': 100, 'maxFile': 50, 'files': 2, 'owner': 'ab12', 'rv': 3, 'cas': 1});
+    final back = FilesInfo.from((jsonDecode(jsonEncode(said.toJson())) as Map).cast<String, dynamic>());
+    expect([back.seq, back.used, back.quota, back.maxFile, back.files, back.owner, back.rv, back.cas], [7, 10, 100, 50, 2, 'ab12', 3, true]);
+    // A relay from before them says none, and none are written.
+    expect(const FilesInfo(seq: 1).toJson().keys, isNot(anyOf(contains('owner'), contains('rv'), contains('cas'))));
+  });
+
 
   test('a file as big as the relay takes (a 26 GB film) is believed and listed, as one of 4 GB and more was not', () {
     final big = SpaceFile.fromJson({'id': 'f' * 32, 'n': 'The Odyssey.mkv', 'z': 26054267438 - 16 * 99389, 'k': base64Encode(List.filled(32, 7)), 'p': base64Encode(List.filled(8, 1)), 'd': 'Movies', 'at': 1}, by: 'x');

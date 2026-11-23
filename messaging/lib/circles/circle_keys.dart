@@ -73,10 +73,6 @@ class CircleKeys {
   /// live, so its 300 kept packets aren't filled with inboxes (review finding 8).
   final Map<String, int> _keptInbox = {};
 
-  /// The manifest each circle stands at here (set by Circles). Nothing here reads it now: a header is judged against
-  /// the circle's manifest once, as it is taken ([take]), and stays believed after ([_trusted]).
-  CircleManifest? Function(String seed)? manifestOf;
-
   /// Told the seed of a circle whose newest key this device lacks and needs (a space's packet it couldn't open), so its
   /// room asks for it.
   void Function(String seed)? onMissing;
@@ -84,10 +80,6 @@ class CircleKeys {
   /// The seed of each circle a key was taken for: what waited for it (posts, packets) goes on.
   final _taken = StreamController<String>.broadcast();
   Stream<String> get taken => _taken.stream;
-
-  /// How far past the newest epoch held a header could once be and still be taken (finding 6). Nothing holds to it
-  /// now: [take] takes any epoch up to [epochMost] (B4).
-  static const epochWindow = 4;
 
   /// The highest epoch there may be: the header's field is 32 bits.
   static const epochMost = 0xffff0000;

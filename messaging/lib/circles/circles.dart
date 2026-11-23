@@ -162,10 +162,9 @@ class Circles extends ChangeNotifier {
   /// where that store can't be read: every circle is then sealed with its seed's keys, as before.
   CircleKeys? keys;
 
-  /// Makes [k] this device's keys, believing a header only while its signer may change the circle as it stands here,
-  /// and asking in a circle's room for the key a space of it couldn't open with.
+  /// Makes [k] this device's keys, asking in a circle's room for the key a space of it couldn't open with. (A header
+  /// is judged against the circle's manifest as it is taken, CircleKeys.take, which is handed the circle.)
   CircleKeys _wireKeys(CircleKeys k) {
-    k.manifestOf = (seed) => bySeed(seed)?.manifest;
     k.onMissing = (seed) => unawaited(_rooms[seed]?.askKey());
     return keys = k;
   }

@@ -191,22 +191,37 @@ class Apns {
   /// The notification itself: words only, since the relay cannot read what came.
   static const payload = '{"aps":{"alert":{"title":"Ghost Messaging","body":"New message"},"sound":"default","thread-id":"ghost"}}';
 
+  /// What curl is run with to post [payload] to [url], and what it is given on its standard input: the headers, one
+  /// a line (`-H @-`), so the provider token [jwt] is never among the arguments, which anyone on the machine can read
+  /// in the list of processes.
+  static (List<String>, String) curlFor(String url, {required String jwt, required String topic}) => (
+        ['--http2', '-s', '-o', '/dev/stderr', '-w', '%{http_code}', '--max-time', '15', '-H', '@-', '-d', payload, url],
+        'authorization: bearer $jwt\napns-topic: $topic\napns-push-type: alert\napns-priority: 10\n',
+      );
+
+  /// Runs curl with [args], [input] on its standard input: what it printed on stdout and on stderr.
+  static Future<(String, String)> curl(List<String> args, String input) async {
+    final p = await Process.start('curl', args);
+    final out = p.stdout.transform(utf8.decoder).join(), err = p.stderr.transform(const Utf8Decoder(allowMalformed: true)).join();
+    try {
+      p.stdin.write(input);
+      await p.stdin.close();
+    } catch (_) {
+      // curl ended before it read them: its status says what happened.
+    }
+    await p.exitCode;
+    return (await out, await err);
+  }
+
   /// Asks Apple to show [payload] on the device with [token]; true where Apple took it (200). curl prints the status
   /// on stdout and Apple's answer on stderr, which is read for why a token was refused ([lastGone]).
   Future<bool> send(String token, {bool sandbox = false}) async {
     final host = sandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
     try {
-      final r = await Process.run('curl', [
-        '--http2', '-s', '-o', '/dev/stderr', '-w', '%{http_code}', '--max-time', '15',
-        '-H', 'authorization: bearer ${_jwtNow()}',
-        '-H', 'apns-topic: ${config.topic}',
-        '-H', 'apns-push-type: alert',
-        '-H', 'apns-priority: 10',
-        '-d', payload,
-        'https://$host/3/device/$token',
-      ]);
-      final status = '${r.stdout}'.trim();
-      lastGone = status == '410' || '${r.stderr}'.contains('BadDeviceToken') || '${r.stderr}'.contains('Unregistered');
+      final (args, input) = curlFor('https://$host/3/device/$token', jwt: _jwtNow(), topic: config.topic);
+      final (out, err) = await curl(args, input);
+      final status = out.trim();
+      lastGone = status == '410' || err.contains('BadDeviceToken') || err.contains('Unregistered');
       return status == '200';
     } catch (_) {
       return false;

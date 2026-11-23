@@ -816,10 +816,10 @@ void main() {
   // What else of the person's a device of its own keeps, deleted with its store when everything goes: Files spaces'
   // files, call recordings, the voice changer's key, and every other network's sign-in. Never the computer's own: the
   // test's folder stands in for the app's.
-  test('everything else of the person\'s on an iPhone or a computer goes too: recordings, the voice changer, other networks', () async {
+  test('everything else of the person\'s on an iPhone or a computer goes too: recordings, the voice changer, the relay it hosted, other networks', () async {
     final home = Directory.systemTemp.createTempSync('ghost-home');
     addTearDown(() => home.deleteSync(recursive: true));
-    for (final name in ['recordings', 'voicechanger', 'tdlib', 'signal', 'whatsapp', 'matrix', 'gmessages', 'space-files', 'unrelated']) {
+    for (final name in ['recordings', 'voicechanger', 'relay', 'tdlib', 'signal', 'whatsapp', 'matrix', 'gmessages', 'space-files', 'unrelated']) {
       Directory('${home.path}/$name').createSync();
       File('${home.path}/$name/kept').writeAsStringSync(name);
     }

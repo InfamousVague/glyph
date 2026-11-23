@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'files.dart';
 import 'files_roster.dart';
 import 'p256.dart';
 import 'sha256.dart';
@@ -77,6 +78,13 @@ class Feedback {
   static const perIdADay = 20;
   static const allADay = 300;
 
+  /// What is checked before any of a body is read, since who sent it is known only after: [perAddressAnHour] bodies
+  /// read from one address in an hour (several people may share one), [bodiesInFlight] being read at once (so at most
+  /// that many times [most] held for strangers), and [bodyWhole] for a body to arrive, however steadily it drips.
+  static const perAddressAnHour = 30;
+  static const bodiesInFlight = 4;
+  static const bodyWhole = Duration(minutes: 3);
+
   /// What the app sends for a report's kind and platform, and the board's name for each; and the pictures taken.
   static const types = {'bug': 'Bug', 'feature': 'Feature idea', 'confusing': 'Something confusing', 'praise': 'Praise', 'other': 'Other'};
   static const platforms = {'android': 'Android', 'iphone': 'iPhone', 'mac': 'Mac', 'windows': 'Windows', 'linux': 'Linux'};
@@ -91,6 +99,37 @@ class Feedback {
   final List<DateTime> _all = [];
   final Map<String, int> _replays = {};
 
+  // Bodies being read now, and how many each address had read in which hour (at most [_addressesMost] addresses, the
+  // longest unseen forgotten first).
+  int _reading = 0;
+  final Map<String, (int, int)> _byAddress = {};
+  static const _addressesMost = 10000;
+
+  /// Whether [address] may have one more body read this hour: counted where it may.
+  bool _mayRead(String address, int now) {
+    final hour = now - now % Duration.millisecondsPerHour;
+    final had = _byAddress.remove(address);
+    final n = had != null && had.$1 == hour ? had.$2 : 0;
+    _byAddress[address] = (hour, n < perAddressAnHour ? n + 1 : n);
+    while (_byAddress.length > _addressesMost) {
+      _byAddress.remove(_byAddress.keys.first);
+    }
+    return n < perAddressAnHour;
+  }
+
+  /// Whether [r] carries what a signed request does, before its body is read: a key and a signature of the right
+  /// sizes, and a time within [skew]. The signature itself is checked once the body's hash is known ([_who]).
+  bool _looksSigned(HttpRequest r) {
+    try {
+      final key = base64Decode(r.headers.value('x-ghost-key') ?? '');
+      final sig = base64Decode(r.headers.value('x-ghost-sig') ?? '');
+      final time = int.parse(r.headers.value('x-ghost-time') ?? '');
+      return key.length == 33 && sig.length == 64 && (_now().millisecondsSinceEpoch - time).abs() <= skew.inMilliseconds;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Takes a request for `/feedback`.
   Future<void> handle(HttpRequest r) async {
     Future<void> answer(int status, Map<String, Object?> body) async {
@@ -103,16 +142,49 @@ class Feedback {
 
     if (r.method != 'POST') return answer(HttpStatus.methodNotAllowed, {'error': 'Feedback is sent with POST.'});
     if (!config.on) return answer(HttpStatus.serviceUnavailable, {'error': 'Feedback isn\'t set up on this server yet.'});
-    // The body is read whole first: the signature is over its hash, so who sent it is known only after.
-    final bytes = <int>[];
+    // The signature is over the body's hash, so who sent it is known only after the body is read whole. What can be
+    // told before is, so a stranger can't have this server hold megabytes for nothing: the length it says, the
+    // headers a signed request has, how many its address has sent, and how many bodies are being read. Refused here it
+    // is refused unread: dart:io holds an answer back until the body is read, so the body (and the connection) is let go.
+    Future<void> unread(int status, Map<String, Object?> body) {
+      try {
+        r.listen(null).cancel();
+        r.response.persistentConnection = false;
+      } catch (_) {}
+      return answer(status, body);
+    }
+
+    const tooBig = {'error': 'That\'s too big to send. Try fewer or smaller screenshots.'};
+    if (r.contentLength > most) return unread(HttpStatus.requestEntityTooLarge, tooBig);
+    if (!_looksSigned(r)) return unread(HttpStatus.unauthorized, {'error': 'The app\'s signature didn\'t check out. Make sure your clock is right, then try again.'});
+    if (!_mayRead(Files.addressOf(r), _now().millisecondsSinceEpoch)) return unread(HttpStatus.tooManyRequests, {'error': 'That\'s a lot of feedback at once. Thank you! Try again in a while.'});
+    if (_reading >= bodiesInFlight) return unread(HttpStatus.serviceUnavailable, {'error': 'A lot of feedback is arriving just now. Try again in a moment.'});
+    // Into a BytesBuilder (never a List<int>, at 8 bytes a byte).
+    final Uint8List bytes;
+    final into = BytesBuilder(copy: false);
+    final since = Stopwatch()..start();
+    var over = false;
+    _reading++;
     try {
       await for (final piece in r.timeout(const Duration(seconds: 30))) {
-        bytes.addAll(piece);
-        if (bytes.length > most) return answer(HttpStatus.requestEntityTooLarge, {'error': 'That\'s too big to send. Try fewer or smaller screenshots.'});
+        if (into.length + piece.length > most) {
+          over = true;
+          break;
+        }
+        if (since.elapsed > bodyWhole) throw TimeoutException('too slow');
+        into.add(piece);
       }
     } catch (_) {
       return answer(HttpStatus.badRequest, {'error': 'The feedback didn\'t arrive whole. Try again.'});
+    } finally {
+      _reading--;
     }
+    if (over) {
+      // The rest of it is not waited for.
+      r.response.persistentConnection = false;
+      return answer(HttpStatus.requestEntityTooLarge, tooBig);
+    }
+    bytes = into.takeBytes();
     final id = _who(r, hexOf(sha256(bytes)));
     if (id == null) return answer(HttpStatus.unauthorized, {'error': 'The app\'s signature didn\'t check out. Make sure your clock is right, then try again.'});
     final now = _now();
@@ -228,12 +300,13 @@ class Feedback {
   /// Uploads one screenshot to Notion in its two steps (an upload is made, then the file sent to it as a form); the
   /// upload's id, which the page then names.
   Future<String> _upload(FeedbackShot s) async {
+    // The name goes into a header of the form: without its quotes and anything a line could be ended or begun with.
     final (st1, w1) = await _notion('POST', Uri.parse('https://api.notion.com/v1/file_uploads'), {..._headers, 'Content-Type': 'application/json'}, utf8.encode(jsonEncode({'filename': s.name, 'content_type': s.mime})));
     if (st1 != 200) throw _NotionError(st1, w1);
     final id = '${(jsonDecode(w1) as Map)['id']}';
     final boundary = 'ghost${Random.secure().nextInt(1 << 30)}${Random.secure().nextInt(1 << 30)}';
     final body = <int>[
-      ...utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="file"; filename="${s.name.replaceAll('"', '')}"\r\nContent-Type: ${s.mime}\r\n\r\n'),
+      ...utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="file"; filename="${s.name.replaceAll(RegExp(r'["\x00-\x1f\x7f]'), '')}"\r\nContent-Type: ${s.mime}\r\n\r\n'),
       ...s.bytes,
       ...utf8.encode('\r\n--$boundary--\r\n'),
     ];

@@ -51,6 +51,18 @@ class ApiServer {
     return made;
   }
 
+  /// Whether [a] is [b], taking as long wherever they first differ: how long a wrong token took to refuse says nothing
+  /// of how much of it was right (it matters with "Allow from Wi-Fi" on, where anyone on the network may try).
+  @visibleForTesting
+  static bool sameText(String a, String b) {
+    final x = utf8.encode(a), y = utf8.encode(b);
+    var differs = x.length ^ y.length;
+    for (var i = 0; i < y.length; i++) {
+      differs |= (i < x.length ? x[i] : 0) ^ y[i];
+    }
+    return differs == 0;
+  }
+
   /// A new token; whoever had the old one is shut out.
   static void newToken(AppState app) => app.set('api_token', DeskCrypto.hex(DeskCrypto.randomBytes(24)));
 
@@ -116,7 +128,7 @@ class ApiServer {
         return;
       }
       final auth = r.headers.value(HttpHeaders.authorizationHeader) ?? '';
-      if (auth != 'Bearer ${token(app)}') {
+      if (!sameText(auth, 'Bearer ${token(app)}')) {
         await send(401, {'ok': false, 'error': const ApiError('unauthorized', 'The token (Settings › API) is needed: "Authorization: Bearer <token>".').toJson()});
         return;
       }

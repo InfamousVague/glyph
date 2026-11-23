@@ -244,5 +244,7 @@ class FilesInfo {
         cas: m['cas'] == 1,
         parts: [for (final p in (m['parts'] is List ? m['parts'] as List : const [])) ?FilesPart.from(p)],
       );
-  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files, if (parts.isNotEmpty) 'parts': [for (final p in parts) p.toJson()]};
+  /// As the relay says it ([FilesInfo.from] reads it back): the owner, the roster's revision and `cas` with the rest,
+  /// so a space loaded from disk knows them before the relay is next asked.
+  Map<String, Object?> toJson() => {'seq': seq, 'used': used, 'quota': quota, 'maxFile': maxFile, 'files': files, if (owner.isNotEmpty) 'owner': owner, if (rv != 0) 'rv': rv, if (cas) 'cas': 1, if (parts.isNotEmpty) 'parts': [for (final p in parts) p.toJson()]};
 }

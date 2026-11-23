@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -241,5 +243,27 @@ func TestHistoryConversation(t *testing.T) {
 	}
 	if conversation(c, &waHistorySync.Conversation{ID: proto.String("status@broadcast")}) != nil {
 		t.Fatal("the status list was taken as a chat")
+	}
+}
+
+// A download that can't be moved into place (here a folder stands where the file should go) leaves no ".part" behind.
+func TestWriteWholeLeavesNoPart(t *testing.T) {
+	d := t.TempDir()
+	good := filepath.Join(d, "a.jpg")
+	if err := writeWhole(good, []byte("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(good); string(b) != "abc" {
+		t.Fatalf("written: %q", b)
+	}
+	taken := filepath.Join(d, "taken")
+	if err := os.MkdirAll(filepath.Join(taken, "in"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeWhole(taken, []byte("abc")); err == nil {
+		t.Fatal("written over a folder")
+	}
+	if _, err := os.Stat(taken + ".part"); !os.IsNotExist(err) {
+		t.Fatalf("the .part is left: %v", err)
 	}
 }

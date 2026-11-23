@@ -74,7 +74,8 @@ export class Hub {
     this.open();
   }
 
-  /** Closes the connection for good: no reconnecting until start() again. */
+  /** Closes the connection for good: no reconnecting until start() again. Joins still waiting fail here, since the
+   * socket's own close is no longer listened to. */
   stop() {
     this.stopped = true;
     this.clearTimer(this.again);
@@ -83,6 +84,8 @@ export class Hub {
     } catch {}
     this.ws = null;
     this.setUp(false);
+    for (const [, waiting] of this.joining) for (const w of waiting) w.fail(new Error('hub stopped'));
+    this.joining.clear();
   }
 
   setUp(up) {
@@ -127,7 +130,7 @@ export class Hub {
   /** Text or bytes to the hub; false when the socket is not open (nothing is queued). */
   send(message) {
     if (this.ws && this.ws.readyState === 1) {
-      this.ws.send(typeof message === 'string' ? message : message);
+      this.ws.send(message);
       return true;
     }
     return false;
@@ -192,9 +195,10 @@ export class Hub {
     });
   }
 
-  /** Leaves [room], and does not join it again after a reconnect. */
+  /** Leaves [room], and does not join it again after a reconnect. A join of it still waiting fails. */
   leave(room) {
     this.rooms.delete(room);
+    for (const w of this.joining.get(room) ?? []) w.fail(new Error('left the room'));
     this.joining.delete(room);
     if (this.up) this.say({ leave: room });
   }

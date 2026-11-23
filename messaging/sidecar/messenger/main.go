@@ -468,7 +468,7 @@ func adopt(c *conn, user types.UserInfo, tbl *table.LSTable) {
 	if err := c.cli.Connect(c.ctx); err != nil {
 		log.Err(err).Msg("connect")
 	}
-	time.AfterFunc(refreshEvery, func() { reload(c, "the page is a day old") })
+	time.AfterFunc(refreshEvery, func() { reload(c, "the page is 20 hours old") })
 }
 
 // current is whether [c] is still the connection in use: one replaced or signed out is no longer listened to.
