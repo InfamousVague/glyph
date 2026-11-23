@@ -89,8 +89,10 @@ const SEND_WINDOW: u64 = 4 * 1024 * 1024;
 /// A stream's queue of frames not yet written: past either, the stream is closed.
 pub const SEND_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 pub const SEND_QUEUE_FRAMES: usize = 4096;
-/// Every so many frames written, the app is told how far the writing has got (and whenever the queue is empty).
+/// Every so many frames written, the app is told how far the writing has got; and whenever the queue is empty, and
+/// whenever the next frame has not gone within a moment.
 const SAY_SENT_EVERY: u64 = 64;
+const SAY_SENT_WITHIN: Duration = Duration::from_millis(10);
 
 /// What a stream may have read that the app has not taken: a frame of the most, and a little.
 pub const TAKE_WINDOW: usize = MAX_FRAME + 64 * 1024;
@@ -480,6 +482,7 @@ async fn lifecycle(shared: Arc<Shared>, mut asked: mpsc::UnboundedReceiver<Act>,
                     Ok(up) => {
                         *shared.run.write().unwrap_or_else(|p| p.into_inner()) = Some(up.clone());
                         shared.say(Event::Up { node: *up.id.as_bytes() });
+                        up.go();
                         run = Some(up);
                         started_with = Some(config);
                     }
@@ -752,9 +755,14 @@ impl Run {
             handshakes: Arc::new(Semaphore::new(MOST_HANDSHAKES)),
             paths: Mutex::default(),
         });
-        run.tasks.spawn(run.clone().serve());
-        run.tasks.spawn(run.clone().tell_whereabouts());
         Ok(run)
+    }
+
+    /// Sets it going, once the app has been told it is up: taking callers, and saying where it is. (In that order,
+    /// so that nothing a node says of itself comes before "up".)
+    fn go(self: &Arc<Self>) {
+        self.tasks.spawn(self.clone().serve());
+        self.tasks.spawn(self.clone().tell_whereabouts());
     }
 
     /// Ends everything: the streams say so, every linked node is told, the sockets close.
@@ -1339,7 +1347,24 @@ impl Run {
                     return WriteEnd::Finished;
                 }
                 Out::Frame(bytes) => {
-                    if let Err(e) = send.write_all(&bytes).await {
+                    let writing = send.write_all(&bytes);
+                    tokio::pin!(writing);
+                    // Frames written and not yet said to be are said before this one is waited on for long: the other
+                    // end may not be reading, and what did go must not seem stuck behind what has not.
+                    let wrote = if written != said {
+                        tokio::select! {
+                            biased;
+                            wrote = &mut writing => wrote,
+                            _ = tokio::time::sleep(SAY_SENT_WITHIN) => {
+                                said = written;
+                                self.shared.say(Event::Sent { stream: st.id, frames: written });
+                                writing.await
+                            }
+                        }
+                    } else {
+                        writing.await
+                    };
+                    if let Err(e) = wrote {
                         return match e {
                             WriteError::Stopped(_) => WriteEnd::StoppedByThem,
                             _ => WriteEnd::Lost,

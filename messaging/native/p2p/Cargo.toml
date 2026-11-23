@@ -39,8 +39,16 @@ tokio = { version = "=1.54.1", features = ["rt-multi-thread", "sync", "time", "m
 opt-level = "s"
 lto = "thin"
 codegen-units = 1
+# Stripped: by the linker on Android, Linux and Windows. Not on a Mac, where tool/build-p2p.sh turns this off and has
+# the linker leave the symbols out instead: a library that Xcode 27's strip has been at is one macOS 27 will not load
+# ("mis-aligned LINKEDIT string pool").
 strip = true
 debug = false
 # Unwinding, never abort: every entry in src/ffi.rs catches a panic, so a bug here cannot take the app down; and on
 # Android iroh's DNS reader relies on catching one where the app's context was not handed over.
 panic = "unwind"
+
+# What is compiled only to run during the build (build scripts, proc macros) is never stripped: for the same reason,
+# a stripped proc macro is a library rustc cannot load on a Mac ("can't find crate"), and the build stops there.
+[profile.release.build-override]
+strip = false

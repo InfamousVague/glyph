@@ -457,6 +457,34 @@ async fn the_path_says_straight_and_none_once_an_idle_link_is_let_go() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn what_was_written_is_said_while_a_later_frame_waits() {
+    let (mut a, mut b, hint) = pair(33, 34).await;
+    let ours = a.open(1, b.id, 0, &hint).await.expect("a stream");
+    let (theirs, ..) = b.incoming().await;
+    // Three of the longest queued at once, to an app that is not taking: the first is read and handed over, the
+    // second is not read for want of room, and the sender is held in the middle of it.
+    b.takes = false;
+    let big = vec![3u8; MAX_FRAME];
+    for _ in 0..3 {
+        a.node.send(ours, &big).unwrap();
+    }
+    assert!(b.frame(theirs).await == big);
+    // The first is said to be written all the same, and no more than what was.
+    a.sent(ours, 1).await;
+    assert!(
+        !a.comes(Duration::from_millis(500), |e| matches!(e, Event::Sent { frames, .. } if *frames >= 3)).await,
+        "frames that were not read were said to be written"
+    );
+    assert!(!b.comes(Duration::from_millis(10), |e| e.as_frame().is_some()).await, "a frame was read that there was no room for");
+    // Taken, the rest follow.
+    b.takes = true;
+    b.node.taken(theirs, 1, MAX_FRAME as u32);
+    assert!(b.frame(theirs).await == big);
+    assert!(b.frame(theirs).await == big);
+    a.sent(ours, 3).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_queue_that_overflows_closes_the_stream_and_what_is_not_taken_is_not_read() {
     let (mut a, mut b, hint) = pair(18, 19).await;
     let ours = a.open(1, b.id, 0, &hint).await.expect("a stream");

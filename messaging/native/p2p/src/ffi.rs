@@ -297,9 +297,12 @@ mod tests {
         start.extend_from_slice(&secret);
         start.push(0);
         assert_eq!(command(node, &start), OK);
-        let (from, up) = next(ev::UP);
+        // The first thing a node says is that it is up, and who it is; where it is comes after.
+        let (from, up) = rx.recv_timeout(std::time::Duration::from_secs(20)).expect("an event");
         assert_eq!(from, node);
+        assert_eq!(up[0], ev::UP);
         assert_eq!(&up[1..], &id);
+        next(ev::WHEREABOUTS);
 
         // An open to a node nothing is known of fails at once, and says which request failed.
         let mut open = vec![cmd::OPEN];
