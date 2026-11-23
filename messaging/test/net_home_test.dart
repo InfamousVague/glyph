@@ -5,14 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
 import 'package:ghost_messaging/looks.dart';
 import 'package:ghost_messaging/main.dart' show InkOverrides;
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/home_record.dart';
+import 'package:ghost_messaging/net/homes.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
+import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/presence.dart';
 import 'package:ghost_messaging/ui/add_friend_drawer.dart';
 import 'package:ghost_messaging/ui/add_me.dart';
 import 'package:ghost_messaging/ui/network.dart';
@@ -48,6 +52,42 @@ class _Relay {
     hub.stop();
     await server.close(force: true);
   }
+}
+
+/// Friends as the phone keeps them, over the app's own routes ([Net.instance]) for where anyone lives.
+class _Friends implements BuddiesPort, BuddiesAcross {
+  _Friends(this.list);
+  String list;
+  @override
+  Homes? get homes => Net.instance.homes;
+  @override
+  Listenable get homesChanged => Net.instance;
+  @override
+  bool passedOn(String id) => false;
+  @override
+  String recall(String key) => '';
+  @override
+  void remember(String key, String value) {}
+  @override
+  Future<({String id, String key})> me() async => (id: 'me', key: 'k');
+  @override
+  String? get username => 'matt';
+  @override
+  String get displayName => '';
+  @override
+  String get bio => '';
+  @override
+  Future<({String id, String key})?> whois(String username) async => null;
+  @override
+  Future<void> keep(String json) async => list = json;
+  @override
+  Future<String> kept() async => list;
+  @override
+  Future<bool> send(String id, Envelope envelope, {bool sealed = true}) async => true;
+  @override
+  Stream<({String from, Envelope envelope})> get received => const Stream.empty();
+  @override
+  Stream<({String from, Envelope envelope})> get greetings => const Stream.empty();
 }
 
 Future<void> _until(bool Function() ok, String what) async {
@@ -150,6 +190,38 @@ void main() {
     await startOn(island);
     await _until(() => island.fed.homes.isOwn(keys.id), 'the relay was never given it');
     expect([Net.instance.hub!.relay!.fed, Net.instance.homes!.relayTalks], [false, false]);
+  });
+
+  test('who is here is not shown for a friend on another relay, though this relay saw them once; for a friend on it, it is', () async {
+    final one = await relay();
+    await startOn(one);
+    // Maya and Anna each signed in to this relay once and went: it knows when it last saw them.
+    final maya = KeysSigner(NetKeys.generate()), anna = KeysSigner(NetKeys.generate());
+    for (final who in [maya, anna]) {
+      final route = HubCarrier(url: one.url, signer: who);
+      await route.start();
+      await _until(() => route.state.value == CarrierState.up, 'never signed in');
+      await route.stop();
+    }
+    await _until(() => one.hub.seenOf(maya.id) != null && one.hub.seenOf(anna.id) != null, 'the relay never saw them go');
+    // Maya has since moved to another relay, as her record says; Anna lives on this one.
+    final moved = (await HomeRecord.make(maya, addresses: ['wss://b.example/hub'], count: 2)).toJson();
+    final here = (await HomeRecord.make(anna, addresses: [one.url], count: 1)).toJson();
+    Buddies.instance = Buddies(_Friends(jsonEncode([
+      Buddy(username: 'maya@b.example', id: maya.id, key: base64Encode(maya.publicKey), home: moved).toJson(),
+      Buddy(username: 'anna', id: anna.id, key: base64Encode(anna.publicKey), home: here).toJson(),
+    ])));
+    addTearDown(() {
+      Buddies.instance.dispose();
+      Buddies.instance = null;
+    });
+    await Buddies.instance.start();
+    expect([for (final b in Buddies.instance.friends) Buddies.instance.elsewhere(b)], [true, false]);
+    // Asked of the relay for both, as an app from before would: it says when it last saw each.
+    Net.instance.watchToo([maya.id, anna.id]);
+    await _until(() => Net.instance.presenceOfId(maya.id) != null && Net.instance.presenceOfId(anna.id) != null, 'the relay never said when it saw them');
+    expect(Presence.of('@anna')?.lastSeen, isNotNull, reason: 'a friend on this relay: last seen, as ever');
+    expect(Presence.of('@maya@b.example'), isNull, reason: 'a friend on another relay: nothing is shown, not even what this relay once saw');
   });
 
   group('the words on the screens', () {
