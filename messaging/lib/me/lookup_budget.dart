@@ -42,8 +42,9 @@ class LookupBudget {
     return n < 2 ? 2 : n;
   }
 
-  /// How many of them the friend requests' checks may take: all but a third, which is the name watch's.
-  int get forRequests => perDevice - perDevice ~/ 3;
+  /// How many of them the friend requests' checks may take: all but a third, which is the name watch's, and the watch
+  /// always keeps one, even at the floor of two (review, 2026-11-23).
+  int get forRequests => perDevice - (perDevice ~/ 3 < 1 ? 1 : perDevice ~/ 3);
 
   void _tidy(int now) {
     _made.removeWhere((t) => now - t >= _hour || t > now);
