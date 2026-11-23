@@ -139,6 +139,22 @@ const KNOWN = {
   GHOST_TURN_SECRET: /^[A-Za-z0-9_-]{32,128}$/,
   GHOST_TURN_URLS: /^turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?(,turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?)*$/,
   GHOST_TURN_TTL: /^[0-9]{3,7}$/,
+  // Relays that talk to each other (relay/lib/federation.dart `FedConfig.fromEnvironment`; Matt, 2026-11-22: "I'd like
+  // the relays to be able to talk to each other"): off unless GHOST_FED is open or list. GHOST_PUBLIC_HUB is this
+  // relay's own hub address, which other relays dial to check it is who it says; ALLOW and BLOCK are hosts or relays'
+  // names (32 hex), commas between; the three limits are per linked relay; PORTS are ports dialled besides 443, PLAIN=1
+  // lets ws:// be dialled; VIA is for a relay with no address of its own. Its key (relay-key.json) and the home
+  // records it keeps (homes.json) are under ${DATA}, which ReadWritePaths below already covers.
+  GHOST_FED: /^(off|open|list)$/,
+  GHOST_PUBLIC_HUB: /^wss:\/\/[a-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~-]+)*\/hub$/,
+  GHOST_FED_ALLOW: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
+  GHOST_FED_BLOCK: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
+  GHOST_FED_VIA: /^wss?:\/\/[a-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~-]+)*\/hub$/,
+  GHOST_FED_PACKETS_A_MINUTE: /^[0-9]{1,7}$/,
+  GHOST_FED_BYTES_A_DAY: /^[0-9]{1,13}$/,
+  GHOST_FED_LOOKUPS_AN_HOUR: /^[0-9]{1,7}$/,
+  GHOST_FED_PORTS: /^[0-9]{1,5}(,[0-9]{1,5})*$/,
+  GHOST_FED_PLAIN: /^[01]$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
@@ -149,6 +165,11 @@ const SHAPES = {
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
   GHOST_TURN_SECRET: '32 to 128 letters, digits, - or _',
   GHOST_TURN_URLS: 'turn:host:3478?transport=udp and the like, commas between',
+  GHOST_FED: 'off, open or list',
+  GHOST_PUBLIC_HUB: 'this relay\'s hub address, like wss://relay.example.com/hub',
+  GHOST_FED_ALLOW: 'hosts or relays\' names of 32 hex digits, commas between',
+  GHOST_FED_BLOCK: 'hosts or relays\' names of 32 hex digits, commas between',
+  GHOST_FED_VIA: 'a relay\'s hub address, like wss://relay.example.com/hub',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
 const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK'], ['GHOST_TURN_SECRET', 'GHOST_TURN_URLS']];

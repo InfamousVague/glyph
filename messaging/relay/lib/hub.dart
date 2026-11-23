@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'accounts.dart';
+import 'federation.dart';
 import 'handles.dart';
 import 'invites.dart';
 import 'invite_words.dart';
@@ -57,9 +58,11 @@ import 'sha256.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig()})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), this.federation})
       : _now = now ?? DateTime.now,
-        _random = random ?? Random.secure();
+        _random = random ?? Random.secure() {
+    federation?.bind(deliver: deliver, isHere: _isHere, handles: handles);
+  }
 
   final bool verbose;
 
@@ -86,6 +89,11 @@ class Hub {
   /// Ghost accounts (accounts.dart): the `{"dir": "acct-…"}` messages ([Accounts.dirs]) are its to answer. None where
   /// null, and they are then answered that there are none. An app from before accounts never says them.
   final Accounts? accounts;
+
+  /// Relays that talk to each other (federation.dart): this relay's own key and name, the home records people gave,
+  /// and, where its keeper switched it on, the links to other relays a packet for someone who lives elsewhere is passed
+  /// over. None where null: the hub is then exactly the one it was before any of it.
+  final Federation? federation;
 
   /// What is signed to connect: these words, then the hub's number.
   static const greeting = 'ghost-hub v1 ';
@@ -249,6 +257,7 @@ class Hub {
     invites?.load();
     words?.load();
     accounts?.load();
+    federation?.start();
     _sweeper ??= Timer.periodic(const Duration(minutes: 10), (_) {
       sweep();
       handles?.sweep();
@@ -267,6 +276,7 @@ class Hub {
     invites?.save();
     words?.save();
     accounts?.save();
+    federation?.stop();
     for (final end in _here.values.expand((l) => l).toList()) {
       end.ws.close(WebSocketStatus.goingAway);
     }
@@ -386,7 +396,11 @@ class Hub {
     // `peek`: this hub knows a look (below), so a closed app's check can sign in without being handed anything; a
     // hub from before would hand it all over, and the check does not sign in to one that does not say so.
     // `react`: this hub takes reactions ([toRoomReaction]); an app sends them as kept packets to one that doesn't say so.
-    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true});
+    // `relay`: this relay's own name and key, where it has them (federation.dart); an app from before passes over it.
+    _tell(socket, {'hello': hexOf(nonce), 'peek': true, 'react': true, 'relay': ?federation?.card});
+
+    // Another relay's link, once its hello has come in place of an app's: what it says from then on is federation's.
+    FedEnd? link;
 
     void leave() {
       waiting.cancel();
@@ -394,6 +408,8 @@ class Hub {
         counted = false;
         _open--;
       }
+      link?.gone();
+      link = null;
       final e = end;
       if (e == null) return;
       end = null;
@@ -441,6 +457,8 @@ class Hub {
     }
 
     socket.incoming.listen((data) {
+      final other = link;
+      if (other != null) return other.heard(data);
       final e = end;
       if (e == null) {
         // The first thing said: who this is, and the hub's number signed with their key.
@@ -448,6 +466,14 @@ class Hub {
         try {
           hello = data is String ? jsonDecode(data) as Map : null;
         } catch (_) {}
+        // Not an app but another relay (`"fed": 1`): federation's to answer, where this hub has any. One with none
+        // answers as it always answered a hello it could not read.
+        final fed = federation;
+        if (fed != null && hello != null && hello['fed'] == 1) {
+          waiting.cancel();
+          link = fed.incoming(socket, hello, nonce);
+          return;
+        }
         List<int>? key, sig;
         try {
           key = base64Decode(hello?['key'] as String);
@@ -528,6 +554,9 @@ class Hub {
         // This install's token for push notifications (an iPhone), or null to forget it.
         pushes?.said(e.id, said['push']);
         _tell(socket, {'push': pushes != null});
+      } else if (federation != null && said['dir'] is String && Federation.takes(said)) {
+        // A home record given or asked for, or a username on another relay (federation.dart).
+        federation!.said(e.id, said, e.tell);
       } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
         final a = accounts;
         if (a == null) {
@@ -628,18 +657,16 @@ class Hub {
         _tell(from.ws, {'ack': seq, 'here': true});
         return;
       }
-      final box = _mail[to] ??= [];
-      final size = box.fold<int>(0, (n, h) => n + h.frame.length);
-      if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + frame.length > heldBytes) {
-        if (box.isEmpty) _mail.remove(to);
+      // Nobody of that name is here. Where their home record names another relay it is passed to that relay, and the
+      // sender told what that relay said (`fed` in the answer says it went that way); never what an account sends its
+      // own name (federation.dart).
+      final fed = federation;
+      if (fed != null && to != from.id && fed.pass(to, from.id, data.sublist(21), (here, [err]) => _tell(from.ws, err != null ? {'nak': seq, 'err': err} : {'ack': seq, 'here': here == true, 'fed': true}))) return;
+      if (!_hold(to, frame, byDevice: to == from.id && from.device.isNotEmpty ? from.device : null)) {
         _tell(from.ws, {'nak': seq, 'err': 'full'});
         return;
       }
-      box.add(_Held(frame, _now(), byDevice: to == from.id && from.device.isNotEmpty ? from.device : null));
-      _held += frame.length;
       _tell(from.ws, {'ack': seq, 'here': false});
-      // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
-      pushes?.held(to);
     } else if (data[0] == toRoomReaction && data.length > 17) {
       // [4][the room, 16 bytes][a sealed reaction]: kept, and to everyone else in it, whoever may post there.
       if (data.length - 17 > maxReaction) return;
@@ -675,6 +702,38 @@ class Hub {
         }
       }
     }
+  }
+
+  /// Keeps [frame] for [to], who is not here, where there is room: at most [mailboxFrames] and [mailboxBytes] for one
+  /// person and [heldBytes] for everyone together. False where there is none.
+  bool _hold(String to, Uint8List frame, {String? byDevice}) {
+    final box = _mail[to] ??= [];
+    final size = box.fold<int>(0, (n, h) => n + h.frame.length);
+    if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + frame.length > heldBytes) {
+      if (box.isEmpty) _mail.remove(to);
+      return false;
+    }
+    box.add(_Held(frame, _now(), byDevice: byDevice));
+    _held += frame.length;
+    // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
+    pushes?.held(to);
+    return true;
+  }
+
+  /// A packet another relay passed here for [to], as from [from] (federation.dart, which has checked that relay speaks
+  /// for them): handed to every device of theirs that is here, or kept for them, exactly as one from a connection
+  /// here is, under the same limits. True where a device took it, false where it is kept, null where there is no room.
+  bool? deliver(String to, String from, List<int> packet) {
+    if (!_hex(to, 32) || !_hex(from, 32) || packet.isEmpty || packet.length > maxPacket + 32) return null;
+    final frame = Uint8List.fromList([toPeer, ..._unhex(from), ...packet]);
+    final there = [for (final t in _here[to] ?? const <_End>[]) if (t.ws.isOpen) t];
+    if (there.isNotEmpty) {
+      for (final t in there) {
+        t.ws.add(frame);
+      }
+      return true;
+    }
+    return _hold(to, frame) ? false : null;
   }
 
   /// Tells whoever looks at [name] with its token who is in it now.
