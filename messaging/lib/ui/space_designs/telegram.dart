@@ -13,6 +13,7 @@ import '../../kit/settings_type.dart';
 import '../../voice/roles.dart';
 import '../hangout_screen.dart' show roleInk;
 import '../ripple_avatar.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call laid out as Telegram's group voice chat (SpaceDesign.telegram, the app's default call screen):
@@ -533,7 +534,8 @@ class _MicMark extends StatelessWidget {
       );
 }
 
-/// Everyone with video on, two across (one alone, or the last of an odd number, across the whole width).
+/// Everyone with video on, two across, each tile 4:3 (one alone as wide as the panel; the last of an odd number centred
+/// under the rest at their size).
 class _VideoGrid extends StatelessWidget {
   const _VideoGrid({required this.call, required this.people, required this.room});
   final SpaceCall call;
@@ -549,14 +551,13 @@ class _VideoGrid extends StatelessWidget {
       final half = (box.maxWidth - gap) / 2;
       final rows = (people.length + 1) ~/ 2;
       final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
-      final pair = math.min(half * 0.82, fit);
-      final wide = math.min(math.min(box.maxWidth * 9 / 16, 200.0), fit);
-      return Wrap(spacing: gap, runSpacing: gap, children: [
-        for (var i = 0; i < people.length; i++)
-          if (people.length.isOdd && i == people.length - 1)
-            SizedBox(width: box.maxWidth, height: wide, child: _VideoTile(call: call, person: people[i]))
-          else
-            SizedBox(width: half, height: pair, child: _VideoTile(call: call, person: people[i])),
+      // 4:3, narrower where the list needs the height.
+      final h = math.min((people.length == 1 ? box.maxWidth : half) / tileAspect, fit);
+      return Column(spacing: gap, children: [
+        for (var r = 0; r < rows; r++)
+          Row(mainAxisAlignment: MainAxisAlignment.center, spacing: gap, children: [
+            for (final p in people.skip(r * 2).take(2)) SizedBox(width: h * tileAspect, height: h, child: _VideoTile(call: call, person: p)),
+          ]),
       ]);
     });
   }

@@ -7,6 +7,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call drawn after Google Meet (SpaceDesign.meet): soft rounded tiles on Meet's grey ground, each with a
@@ -205,8 +206,23 @@ class _MeetCallState extends State<MeetCall> {
     return LayoutBuilder(builder: (context, box) {
       final gap = t.space(2);
       final n = people.length;
-      // Columns: as Meet does, the arrangement whose tiles come out closest to 16:9 (a phone's may be taller).
-      final aim = wide ? 16 / 9 : 4 / 5;
+      // On a computer every tile 4:3, as many across as make them biggest, the grid centred.
+      if (wide) {
+        final fit = fitTiles(box.biggest, n, gap: gap);
+        return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          for (var r = 0; r < fit.rows; r++) ...[
+            if (r > 0) SizedBox(height: gap),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              for (final (i, p) in people.skip(r * fit.cols).take(fit.cols).indexed) ...[
+                if (i > 0) SizedBox(width: gap),
+                SizedBox(width: fit.size.width, height: fit.size.height, child: _MeetTile(c: c, call: call, person: p, small: fit.size.height < 150)),
+              ],
+            ]),
+          ],
+        ]));
+      }
+      // Columns on a phone: as Meet does, the arrangement whose tiles come out closest to 4:5, filling the screen.
+      const aim = 4 / 5;
       var cols = 1;
       var best = double.infinity;
       for (var k = 1; k <= n; k++) {
@@ -220,13 +236,8 @@ class _MeetCallState extends State<MeetCall> {
         }
       }
       final rows = (n / cols).ceil();
-      var w = (box.maxWidth - gap * (cols - 1)) / cols;
-      var h = (box.maxHeight - gap * (rows - 1)) / rows;
-      // On a computer no tile wider than 16:9 nor much taller than 4:3: the grid sits centred instead.
-      if (wide) {
-        w = math.min(w, h * 16 / 9);
-        h = math.min(h, w * 3 / 4);
-      }
+      final w = (box.maxWidth - gap * (cols - 1)) / cols;
+      final h = (box.maxHeight - gap * (rows - 1)) / rows;
       final lines = <Widget>[];
       for (var r = 0; r < rows; r++) {
         final row = people.skip(r * cols).take(cols).toList();
@@ -260,7 +271,8 @@ class _MeetCallState extends State<MeetCall> {
     final tile = _MeetTile(c: c, call: call, person: call.me, alone: true);
     if (wide) {
       return Stack(children: [
-        Positioned.fill(child: tile),
+        // Your tile 4:3 in the middle of the stage, the card over its corner.
+        Positioned.fill(child: Center(child: AspectRatio(aspectRatio: tileAspect, child: tile))),
         Positioned(left: t.space(5), bottom: t.space(12), child: card),
       ]);
     }

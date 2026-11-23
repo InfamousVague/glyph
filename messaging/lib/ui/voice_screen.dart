@@ -27,6 +27,7 @@ import 'space_groups_ui.dart';
 import 'space_designs/space_design.dart';
 import 'space_invite.dart';
 import 'screen_share.dart';
+import 'tile_grid.dart';
 import '../kit/semantic_colors.dart';
 import '../backgrounds.dart' show strongFill;
 
@@ -236,9 +237,9 @@ class CallPanel extends StatelessWidget {
   }
 }
 
-/// The pictures of whoever in [session] has video on, filling the space given: one alone, two to four two across,
-/// more three across (Matt, 2026-11-15: "when a video starts split the right side 50/50 showing the videos above the
-/// chat"). Nothing where nobody has video on ([any]).
+/// The pictures of whoever in [session] has video on, in the space given (Matt, 2026-11-15: "when a video starts split
+/// the right side 50/50 showing the videos above the chat"): each 4:3 and as large as fits (Matt, 2026-11-23), the
+/// grid centred. Nothing where nobody has video on ([any]).
 class CallVideos extends StatelessWidget {
   const CallVideos({super.key, required this.session});
   final VoiceSession session;
@@ -275,30 +276,11 @@ class CallVideos extends StatelessWidget {
             Expanded(flex: 3, child: tile(shared)),
             if (tiles.isNotEmpty) ...[
               SizedBox(height: t.space(2)),
-              Expanded(child: Row(spacing: t.space(2), children: [for (final x in tiles.take(4)) Expanded(child: tile(x))])),
+              Expanded(child: TileGrid(count: tiles.length < 4 ? tiles.length : 4, gap: t.space(2), tile: (i) => tile(tiles[i]))),
             ],
           ]);
         }
-        final across = tiles.length == 1 ? 1 : (tiles.length <= 4 ? 2 : 3);
-        final rows = (tiles.length / across).ceil();
-        final gap = t.space(2);
-        return Column(children: [
-          for (var r = 0; r < rows; r++) ...[
-            if (r > 0) SizedBox(height: gap),
-            Expanded(
-              child: Row(children: [
-                for (var c = 0; c < across; c++) ...[
-                  if (c > 0) SizedBox(width: gap),
-                  Expanded(
-                    child: r * across + c < tiles.length
-                        ? tile(tiles[r * across + c])
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ]),
-            ),
-          ],
-        ]);
+        return TileGrid(count: tiles.length, gap: t.space(2), tile: (i) => tile(tiles[i]));
       },
     );
   }

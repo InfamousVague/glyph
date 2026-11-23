@@ -7,6 +7,7 @@ import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/roles.dart';
 import '../ripple_avatar.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call as an audio stage, after Clubhouse and X (Twitter) Spaces (SpaceDesign.stage): the room's name with
@@ -493,7 +494,7 @@ class _Cameras extends StatelessWidget {
             builder: (context, state) => ClipRRect(
               borderRadius: BorderRadius.circular(t.radius('lg')),
               child: SizedBox(
-                width: h * 1.4,
+                width: h * tileAspect,
                 child: Stack(fit: StackFit.expand, children: [
                   SpaceVideo(
                     call: call,

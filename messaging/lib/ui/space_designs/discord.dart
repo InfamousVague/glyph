@@ -7,6 +7,7 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../tile_grid.dart';
 import 'space_design.dart';
 
 /// A space's call as Discord draws a voice channel (SpaceDesign.discord): rounded tiles on a dark stage, a crisp
@@ -197,7 +198,8 @@ class _Stage extends StatelessWidget {
       child: LayoutBuilder(builder: (context, box) {
         if (call.people.length <= 1) return _Alone(call: call, wide: wide, box: box);
         final n = call.people.length;
-        final fit = _fit(box.biggest, n, gap, wide ? 1.2 : 0.75, wide ? 16 / 9 : 1.6);
+        // 4:3 on a computer; on a phone between upright and a little wide, whichever makes them biggest.
+        final fit = _fit(box.biggest, n, gap, wide ? tileAspect : 0.75, wide ? tileAspect : 1.6);
         final rows = <Widget>[];
         for (var r = 0; r * fit.cols < n; r++) {
           final row = call.people.skip(r * fit.cols).take(fit.cols).toList();
@@ -242,8 +244,9 @@ class _Alone extends StatelessWidget {
     final t = context.tokens;
     final invite = call.onInvite;
     const words = 170.0;
-    final w = math.min(box.maxWidth, wide ? 560.0 : 420.0);
-    final h = math.min(w / (wide ? 16 / 9 : 4 / 3), math.max(120.0, box.maxHeight - words));
+    // 4:3, narrower where the window is too short for the whole width.
+    final h = math.min(math.min(box.maxWidth, wide ? 560.0 : 420.0) / tileAspect, math.max(120.0, box.maxHeight - words));
+    final w = h * tileAspect;
     return Center(
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [

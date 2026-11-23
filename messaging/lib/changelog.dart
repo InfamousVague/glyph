@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.20', '2026-11-23', [
+    'Video in calls is squarer: on a computer every camera is shown 4:3, in every call layout, and the tiles grow to fill the window instead of coming out wide and short. A shared screen keeps its own shape.',
+  ]),
   ReleaseNotes('0.12.19', '2026-11-23', [
     'Sign-ins synced from the browser extension now reach your other devices: the relay\'s answers were never passed on, so no device signed in with what the extension synced, and synced plugins never ran either (thanks, Kevin).',
     'Calls mend themselves: someone whose connection drops for a moment is connected again by itself, a connection that fails or gets stuck is offered again every couple of seconds, and two people joining at once no longer miss each other. Nobody has to leave and come back.',
