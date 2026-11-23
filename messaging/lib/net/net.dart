@@ -158,6 +158,12 @@ class Net extends ChangeNotifier implements PeerBook {
 
   void _directChanged() => direct.value++;
 
+  /// Goes up whenever the route that last carried something to or from someone changes (Switchboard.used): Settings ›
+  /// Routes draws which route each person is on from it.
+  final ValueNotifier<int> routesUsed = ValueNotifier(0);
+
+  void _routesUsedChanged() => routesUsed.value++;
+
   // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
 
   Ledger? _ledger;
@@ -388,6 +394,7 @@ class Net extends ChangeNotifier implements PeerBook {
       board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty && s != P2pCarrier.routeId));
       if (!madeDirect) board.off.add(P2pCarrier.routeId);
       board.changed.addListener(notifyListeners);
+      board.usedChanged.addListener(_routesUsedChanged);
       _subs.add(board.received.listen(_received));
       if (p2p != null) _holdDirect(board, p2p, me.id, device);
       // People come and go as keys are exchanged and encryption is turned on and off.
@@ -720,6 +727,7 @@ class Net extends ChangeNotifier implements PeerBook {
     }
     if (board != null) {
       board.changed.removeListener(notifyListeners);
+      board.usedChanged.removeListener(_routesUsedChanged);
       await board.stop();
     }
     if (p2p != null) {

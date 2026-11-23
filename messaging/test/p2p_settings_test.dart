@@ -104,9 +104,13 @@ void main() {
     model.addListener(() => drawn++);
     Net.instance.direct.value++;
     expect(drawn, 1);
+    // And when the route that last carried something to or from someone changes (Which route each person is on).
+    Net.instance.routesUsed.value++;
+    expect(drawn, 2);
     model.dispose();
     Net.instance.direct.value++;
-    expect(drawn, 1, reason: 'and no longer once the pages are gone');
+    Net.instance.routesUsed.value++;
+    expect(drawn, 2, reason: 'and no longer once the pages are gone');
   });
 
   group('Settings › Routes, as the app holds the routes', () {
@@ -155,6 +159,39 @@ void main() {
       addTearDown(model.dispose);
       await _pump(tester, state, Listenable.merge([Net.instance, Net.instance.direct]), (context) => networkPane(context, model));
     }
+
+    // GMFB-24: "Settings shows which route each conversation is using."
+    testWidgets('which route each person is on: none listed before anything went or came; then the route that last carried something each way, and when', (tester) async {
+      await open(tester, AppState());
+      final key = NetCrypto.netKey(NetCrypto.conversationKey(me, sam.public)!);
+      expect(find.text('WHICH ROUTE EACH PERSON IS ON'), findsNothing);
+      expect(find.byKey(ValueKey('used-${sam.id}')), findsNothing);
+      await tester.runAsync(() async {
+        await Net.instance.send(Net.instance.byId(sam.id)!, Envelope(kind: 'text', ack: false), only: {'hub'});
+        final sms = Net.instance.board!.carrier('sms')! as PlainCarrier;
+        sms.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(key, Envelope(kind: 'text', ack: false).encode())));
+        for (var i = 0; i < 400 && Net.instance.board!.used[sam.id]?.cameBy == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      });
+      final model = SettingsModel(AppState());
+      addTearDown(model.dispose);
+      await _pump(tester, AppState(), Listenable.merge([Net.instance, Net.instance.routesUsed]), (context) => networkPane(context, model));
+      expect(find.text('WHICH ROUTE EACH PERSON IS ON'), findsOneWidget);
+      expect(_words(tester, 'used-${sam.id}'), ['@sam', 'Last sent by Relay server, just now; last came by SMS, just now.']);
+      // What they send next by the relay is what is shown, as it comes.
+      await tester.runAsync(() async {
+        final hub = Net.instance.board!.carrier('hub')! as PlainCarrier;
+        hub.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(key, Envelope(kind: 'text', ack: false).encode())));
+        for (var i = 0; i < 400 && Net.instance.board!.used[sam.id]?.cameBy != 'hub'; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      });
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(_words(tester, 'used-${sam.id}').last, 'Last sent by Relay server, just now; last came by Relay server, just now.');
+      expect([routeName('hub'), routeName('p2p'), routeName('sms'), routeName('lan')], ['Relay server', 'Direct', 'SMS', 'Local network']);
+      await tester.pumpWidget(const SizedBox());
+    });
 
     testWidgets('a build with no core shows no Direct row at all, and nothing of the direct route', (tester) async {
       await open(tester, AppState());

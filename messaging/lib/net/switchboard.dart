@@ -44,6 +44,18 @@ class Received {
   final Arrived? arrived;
 }
 
+/// The route that last carried something to someone, and the one that last brought something from them, each with when
+/// (Settings › Routes, "Which route each person is on"; GMFB-24). Null where nothing has gone, or come, this run.
+@immutable
+class RouteUse {
+  const RouteUse({this.sentBy, this.sentAt, this.cameBy, this.cameAt});
+  final String? sentBy, cameBy;
+  final DateTime? sentAt, cameAt;
+
+  /// When anything last went or came.
+  DateTime get last => [?sentAt, ?cameAt].reduce((a, b) => a.isAfter(b) ? a : b);
+}
+
 /// Whoever keeps a ledger of what went to whom and what came from whom (lib/net/ledger.dart), as the switchboard tells
 /// it: what a route took and what the route said of it, what came and by which route, what was answered, and that
 /// something came from someone that could not be opened here. Only what was sealed for someone a key is held for; the
@@ -196,6 +208,32 @@ class Switchboard {
 
   /// Told whenever a route is added, taken out, or changes state: Settings draws from it.
   final changed = ValueNotifier<int>(0);
+
+  /// Which route last carried something to each person, and which brought something from them ([RouteUse]), by their
+  /// install's name: what this switchboard saw this run, in memory only, never written down or told anyone. Only what
+  /// was sealed for someone a key is held for (this account's own other devices among them, by its own name). No more
+  /// than [mostUsed] people, the longest quiet let go first.
+  Map<String, RouteUse> get used => UnmodifiableMapView(_used);
+  final LinkedHashMap<String, RouteUse> _used = LinkedHashMap();
+  static const mostUsed = 200;
+
+  /// Goes up whenever [used] changes: Settings › Routes draws from it.
+  final usedChanged = ValueNotifier<int>(0);
+
+  void _use(String peer, {String? sentBy, String? cameBy}) {
+    final had = _used.remove(peer);
+    final now = _now();
+    _used[peer] = RouteUse(
+      sentBy: sentBy ?? had?.sentBy,
+      sentAt: sentBy != null ? now : had?.sentAt,
+      cameBy: cameBy ?? had?.cameBy,
+      cameAt: cameBy != null ? now : had?.cameAt,
+    );
+    while (_used.length > mostUsed) {
+      _used.remove(_used.keys.first);
+    }
+    usedChanged.value++;
+  }
 
   /// What came, from people a key is held for.
   Stream<Received> get received => _received.stream;
@@ -392,7 +430,10 @@ class Switchboard {
         continue;
       }
       tried.add(c.id);
-      if (sealed) _logged(() => log?.sent(peer, envelope, via: c.id, handed: handed));
+      if (sealed) {
+        _use(peer.id, sentBy: c.id);
+        _logged(() => log?.sent(peer, envelope, via: c.id, handed: handed));
+      }
       if (handed == Handed.held) {
         away = true;
         // Kept for them, and not urgent: that is enough, but where a link to one of their devices is open right now
@@ -666,6 +707,7 @@ class Switchboard {
     }
     // From someone a key is held for, only what was sealed with it: anything else could be anyone's.
     if (!whole.sealed) return;
+    _use(peer.id, cameBy: a.carrier);
     // Only a prekey, taken above: what they have not answered goes again, sealed for it too.
     if (envelope.kind == fsAsk) {
       if (_fresh('${peer.id}:${envelope.id}')) maybeOld();

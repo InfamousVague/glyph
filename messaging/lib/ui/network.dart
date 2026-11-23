@@ -17,7 +17,7 @@ import '../net/p2p/node.dart';
 import 'name_watch_words.dart';
 import '../net/p2p/p2p.dart';
 import '../net/p2p/p2p_carrier.dart' show P2pCarrier;
-import '../net/switchboard.dart' show Switchboard;
+import '../net/switchboard.dart' show RouteUse, Switchboard;
 import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
@@ -217,6 +217,56 @@ String _ago(DateTime at) {
   if (s < 60) return 'just now';
   if (s < 3600) return '${s ~/ 60} min ago';
   return '${s ~/ 3600} h ago';
+}
+
+// --- Which route each person is on (GMFB-24) ------------------------------------------------------------------------
+
+/// A route's name as Settings › Routes says which one carried something: the names the routes go by, whether or not
+/// the route is still there (Direct switched off since, say).
+String routeName(String id) => switch (id) { 'hub' => 'Relay server', P2pCarrier.routeId => P2pCarrier.label, 'sms' => 'SMS', 'lan' => 'Local network', _ => id };
+
+/// What went to someone and came from them, and by which route, as the line under their name says it.
+String routeUseWords(RouteUse u, {required int now}) {
+  final sent = u.sentBy == null ? 'Nothing sent since the app started' : 'Last sent by ${routeName(u.sentBy!)}, ${agoWords(u.sentAt!.millisecondsSinceEpoch, now)}';
+  final came = u.cameBy == null ? 'nothing has come since the app started' : 'last came by ${routeName(u.cameBy!)}, ${agoWords(u.cameAt!.millisecondsSinceEpoch, now)}';
+  return '$sent; $came.';
+}
+
+/// The most people "Which route each person is on" lists: those heard from or sent to last.
+const routesUsedShown = 20;
+
+/// Settings › Routes › Which route each person is on (GMFB-24): each person this app has sent to or heard from since it
+/// started, newest first, with the route that last carried something each way and when. From what the switchboard saw
+/// ([Switchboard.used]), held in memory only: nothing is written or sent for it. [nameOf] names a person by their
+/// install's name.
+PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, {required String Function(String id) nameOf, int? now}) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final at = now ?? DateTime.now().millisecondsSinceEpoch;
+  final people = used.entries.toList()..sort((a, b) => b.value.last.compareTo(a.value.last));
+  return PaneSection(
+    title: 'Which route each person is on',
+    description: const Text('The route that last carried something to each person, and the one that last brought something from them, since the app started.'),
+    footer: Text('${people.length > routesUsedShown ? 'The $routesUsedShown heard from or sent to last. ' : ''}Kept on this device only, and forgotten when the app closes.'),
+    children: [
+      for (final e in people.take(routesUsedShown))
+        SettingRow(
+          key: ValueKey('used-${e.key}'),
+          icon: icon(_routeIcon(e.value.cameBy != null && (e.value.sentAt == null || e.value.cameAt!.isAfter(e.value.sentAt!)) ? e.value.cameBy! : e.value.sentBy ?? '')),
+          label: nameOf(e.key),
+          hint: Text(routeUseWords(e.value, now: at)),
+        ),
+    ],
+  );
+}
+
+/// Whom Settings › Routes names by [id], an install's name: this account's own other devices, else as the routes know
+/// them ([peerLabel]), else the start of the name.
+String _usedName(String id) {
+  final net = Net.instance;
+  if (id == net.id) return 'Your other devices';
+  final p = net.byId(id);
+  if (p != null) return peerLabel(p);
+  return id.length > 8 ? id.substring(0, 8) : id;
 }
 
 // --- Checking the relay (docs/OPEN_NETWORK.md, section 3) -----------------------------------------------------------
@@ -528,6 +578,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
             ),
         ],
       ),
+    // Which route each person is on: what the switchboard saw this run (GMFB-24).
+    if (board != null && board.used.isNotEmpty) routesUsedSection(context, board.used, nameOf: _usedName),
     if (net.recent.isNotEmpty)
       PaneSection(
         title: 'Lately',
