@@ -204,7 +204,8 @@ class VideoPlayerEngine extends VideoEngine {
     }
   }
 
-  /// The controller changed: its state again as a [VideoNow]. The tracks are read apart ([_readTracks]).
+  /// The controller changed: its state again as a [VideoNow]. The tracks are read apart ([_readTracks]) and chosen
+  /// apart, so they are carried over as they stand, not made empty again by every tick.
   void _changed() {
     final v = _video?.value;
     if (v == null) return;
@@ -217,6 +218,7 @@ class VideoPlayerEngine extends VideoEngine {
       error: v.hasError ? (v.errorDescription ?? 'unknown') : null,
       buffered: _bufferedFrom(v.buffered, v.position),
       buffering: v.isBuffering,
+      tracks: value.tracks,
     ));
   }
 

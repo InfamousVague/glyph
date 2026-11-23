@@ -115,7 +115,10 @@ class Handles {
   static const maxCurl = 128 * 1024;
 
   /// The public key each connected install proved itself with (hub.dart), for the username it claims.
+  /// Kept while any of the identity's connections is here ([_conns] counts them: an account's devices connect as one
+  /// identity with one key), and forgotten with the last, so it doesn't grow with everyone who ever connected.
   final Map<String, String> _keys = {};
+  final Map<String, int> _conns = {};
 
   /// When each identity looked someone up, so the usernames cannot be walked through. An account's devices sign in as
   /// one identity, so its devices share the [lookupsAnHour] (the app holds what it looks up of its own accord, the name
@@ -592,6 +595,7 @@ class Handles {
   /// several devices under one name, the one that came last is the one told what is not an answer.
   void came(String id, void Function(Map<String, Object?>) tell, {List<int>? key}) {
     _here[id] = tell;
+    _conns[id] = (_conns[id] ?? 0) + 1;
     if (key != null) _keys[id] = base64Encode(key);
   }
 
@@ -605,6 +609,13 @@ class Handles {
       if (conns.isEmpty) _adminConns.remove(id);
     }
     if (identical(_here[id], tell)) _here.remove(id);
+    final left = (_conns[id] ?? 1) - 1;
+    if (left > 0) {
+      _conns[id] = left;
+    } else {
+      _conns.remove(id);
+      _keys.remove(id);
+    }
   }
 
   /// How each network is linked here: "signin" or "proof", "text" for a phone number, or "off" where what it
@@ -1520,15 +1531,31 @@ bool _private(InternetAddress a) {
 /// Over https only, following no redirect, fifteen seconds and one megabyte at most.
 Future<Fetched> defaultFetch(String method, Uri url, {Map<String, String> headers = const {}, String? body, bool outside = false}) async {
   if (url.scheme != 'https') return const Fetched(0, '');
+  InternetAddress? at;
   if (outside) {
     try {
       final found = await InternetAddress.lookup(url.host).timeout(const Duration(seconds: 5));
       if (found.isEmpty || found.any(_private)) return const Fetched(0, '');
+      at = found.first;
     } catch (_) {
       return const Fetched(0, '');
     }
   }
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+  return fetchAt(method, url, at, headers: headers, body: body);
+}
+
+/// [defaultFetch]'s request itself. With [at], the connection is made to that address and no other, the name in
+/// [url] used only for the certificate and the Host header: the address that was checked is the one spoken to, so a
+/// name answered with a public address for the check and a private one a moment later (DNS rebinding) reaches
+/// nothing. No redirect is followed, so there is no second name to check. [context]: the certificates trusted, for a test.
+Future<Fetched> fetchAt(String method, Uri url, InternetAddress? at, {Map<String, String> headers = const {}, String? body, SecurityContext? context}) async {
+  final client = HttpClient(context: context)..connectionTimeout = const Duration(seconds: 8);
+  if (at != null) {
+    client.connectionFactory = (uri, _, _) async {
+      final dial = await Socket.startConnect(at, uri.port);
+      return ConnectionTask.fromSocket(dial.socket.then((s) => SecureSocket.secure(s, host: uri.host, context: context)), dial.cancel);
+    };
+  }
   try {
     final request = await client.openUrl(method, url).timeout(const Duration(seconds: 10));
     request.followRedirects = false;

@@ -243,4 +243,32 @@ void main() {
     final der = out.readAsBytesSync();
     expect(der.sublist(der.length - 33), P256.publicOf(scalar));
   }, skip: Platform.isWindows);
+
+  test('Apple\'s token is given to curl on its standard input, never among its arguments', () async {
+    final (args, input) = Apns.curlFor('https://api.push.apple.com/3/device/abc', jwt: 'aaa.bbb.ccc', topic: 'com.example.app');
+    expect(args.join(' '), isNot(contains('aaa.bbb.ccc')));
+    expect(args.join(' '), isNot(contains('bearer')));
+    expect(args, containsAllInOrder(['--http2', '-H', '@-', '-d', Apns.payload, 'https://api.push.apple.com/3/device/abc']));
+    expect(input, contains('authorization: bearer aaa.bbb.ccc\n'));
+    // curl itself, to a server here: every header arrives, with the body, and the status comes back.
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = <String, String?>{};
+    server.listen((r) async {
+      for (final h in ['authorization', 'apns-topic', 'apns-push-type', 'apns-priority']) {
+        seen[h] = r.headers.value(h);
+      }
+      seen['body'] = await utf8.decodeStream(r);
+      r.response
+        ..statusCode = 410
+        ..write('{"reason":"Unregistered"}');
+      await r.response.close();
+    });
+    final (localArgs, localInput) = Apns.curlFor('http://127.0.0.1:${server.port}/3/device/abc', jwt: 'aaa.bbb.ccc', topic: 'com.example.app');
+    // Without --http2: over plain http curl would ask to upgrade, which this server takes for a request with no body.
+    final (out, err) = await Apns.curl([...localArgs.where((a) => a != '--http2')], localInput);
+    expect(out.trim(), '410');
+    expect(err, contains('Unregistered'));
+    expect(seen, {'authorization': 'bearer aaa.bbb.ccc', 'apns-topic': 'com.example.app', 'apns-push-type': 'alert', 'apns-priority': '10', 'body': Apns.payload});
+  }, skip: Platform.isWindows);
 }

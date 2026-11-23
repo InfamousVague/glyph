@@ -7,8 +7,10 @@ package main
 
 import _ "github.com/mattn/go-sqlite3"
 
+// sqliteDriver is the name mattn/go-sqlite3 registers with database/sql.
 const sqliteDriver = "sqlite3"
 
+// sqliteURI is the address of the store at [path], with the settings spelled as mattn/go-sqlite3 reads them.
 func sqliteURI(path string) string {
 	return "file:" + path + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000&_txlock=immediate"
 }

@@ -446,6 +446,11 @@ class Me extends ChangeNotifier {
       case 'released':
       case 'keep':
       case 'kept':
+      // The account's synced blob (the extension's cURL entries and the plugin list: lib/inbox/curl_sync.dart,
+      // lib/plugins/plugin_sync.dart). Without these the relay's answer reached nobody, so [curlKept] and [curlKeep]
+      // timed out every time and no device ever read or wrote what the extension synced.
+      case 'curl-keep':
+      case 'curl-kept':
       case 'name':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':

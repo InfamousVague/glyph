@@ -72,8 +72,9 @@ void main() {
       'lib/files/files_http.dart',
       'lib/files/file_sink.dart',
       'lib/files/browser_files.dart',
+      'lib/relay_host/relay_host.dart',
     });
-    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/voice/call_sound_none.dart', 'lib/voice/call_sound_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart', 'lib/web/http_none.dart', 'lib/web/http_web.dart', 'lib/net/p2p/node_ffi_io.dart', 'lib/net/p2p/node_ffi_web.dart', 'lib/net/file_seal_async_io.dart', 'lib/net/file_seal_async_web.dart', 'lib/files/files_http_io.dart', 'lib/files/files_http_web.dart', 'lib/files/file_sink_none.dart', 'lib/files/file_sink_web.dart', 'lib/files/browser_files_none.dart', 'lib/files/browser_files_web.dart']));
+    expect(halves.keys, containsAll(['lib/platform_info_io.dart', 'lib/platform_info_web.dart', 'lib/aside_io.dart', 'lib/aside_web.dart', 'lib/net/fast_gcm_64.dart', 'lib/net/fast_gcm_web.dart', 'lib/account/gzip_io.dart', 'lib/account/gzip_web.dart', 'lib/inbox/td_json_io.dart', 'lib/inbox/td_json_web.dart', 'lib/files/apple_sha_io.dart', 'lib/files/apple_sha_web.dart', 'lib/net/hub_link_io.dart', 'lib/net/hub_link_web.dart', 'lib/voice/mpv_property_io.dart', 'lib/voice/mpv_property_web.dart', 'lib/voice/call_sound_none.dart', 'lib/voice/call_sound_web.dart', 'lib/account/argon2_browser_none.dart', 'lib/account/argon2_browser_web.dart', 'lib/web/browser_none.dart', 'lib/web/browser_web.dart', 'lib/web/http_none.dart', 'lib/web/http_web.dart', 'lib/net/p2p/node_ffi_io.dart', 'lib/net/p2p/node_ffi_web.dart', 'lib/net/file_seal_async_io.dart', 'lib/net/file_seal_async_web.dart', 'lib/files/files_http_io.dart', 'lib/files/files_http_web.dart', 'lib/files/file_sink_none.dart', 'lib/files/file_sink_web.dart', 'lib/files/browser_files_none.dart', 'lib/files/browser_files_web.dart', 'lib/relay_host/relay_host_io.dart', 'lib/relay_host/relay_host_web.dart']));
 
     final found = <String>[];
     for (final path in files) {
@@ -134,6 +135,21 @@ void main() {
     expect(File('lib/voice/mpv_property.dart').readAsStringSync(), contains("export 'mpv_property_io.dart' if (dart.library.js_interop) 'mpv_property_web.dart';"));
     expect(File('lib/voice/mpv_property_io.dart').existsSync(), isTrue);
     expect(File('lib/voice/mpv_property_web.dart').existsSync(), isTrue);
+  });
+
+  // The relay itself (relay/: dart:io, and dart:ffi for its key file's mode) is in the app for the relay it can host
+  // (lib/relay_host; docs/OPEN_NETWORK.md, section 5), and a browser's build would stop at it wherever it is named: so it
+  // is named by the half of lib/relay_host/relay_host.dart a browser's build leaves out, and nothing else.
+  test('the relay package is named only by the half a browser\'s build leaves out', () {
+    final named = RegExp(r'''^\s*(?:import|export)\s+['"]package:ghost_relay/''');
+    final found = <String>{};
+    var files = 0;
+    for (final file in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      files++;
+      if (file.readAsLinesSync().any(named.hasMatch)) found.add(file.path.replaceAll('\\', '/'));
+    }
+    expect(files, greaterThan(300));
+    expect(found, {'lib/relay_host/relay_host_io.dart'}, reason: 'name lib/relay_host/relay_host.dart instead, which chooses the half');
   });
 
   // In a browser an integer is JavaScript's number, and `<<`, `>>` and `>>>` keep 32 bits of it: `1 << 40` is 0 there,

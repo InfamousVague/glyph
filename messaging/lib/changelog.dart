@@ -26,6 +26,8 @@ class ReleaseNotes {
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.18', '2026-11-23', [
+    'Human check on computers: on a Mac, Windows or Linux computer, a first message from someone new on the networks you chose for it now waits out of Messages until they answer its question, as it does on a phone. Before, only phones asked, so strangers and bots got straight through on a computer.',
+    'Direct, in Settings › Routes: your devices and your friends\' can link straight to each other, as a second route beside the relay server and a way to check what the relay says. It is off until you switch it on, and the page says how each link stands. Routes also lists the people you have reached this session and which route carried each.',
     'Your account key: Profile shows the key your account is known by, written as a did:key, with Copy and Share; a friend\'s profile shows theirs. Sign a statement turns a few words into a signed block you can paste anywhere to show an account elsewhere is yours, and Check a statement says whose a pasted one is. Anyone can check one with standard tools, without asking us.',
     'Vouch for a friend: on a friend\'s profile, Vouch for them to say the account is really them. A vouch lasts a year and can be renewed, or taken back whenever you like. A profile shows how many of your own friends vouch for someone, with their names on a tap, and never a count of everyone. You can hide the vouches you hold in Profile.',
   ]),

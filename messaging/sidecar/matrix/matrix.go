@@ -598,7 +598,7 @@ func (s *appSyncer) ProcessResponse(ctx context.Context, res *mautrix.RespSync, 
 // stateOf reads a room's name, alias, picture and encryption out of [evts] into [info], and returns who invited the
 // person and whether as a direct chat, where an invite to them is among the events. Called with mu held.
 func stateOf(evts []*event.Event, info *roomInfo) (inviter id.UserID, inviteDirect bool) {
-	me := ownID()
+	me := ownIDLocked()
 	for _, evt := range evts {
 		if evt.StateKey == nil {
 			continue
@@ -679,8 +679,16 @@ func onSync(ctx context.Context, res *mautrix.RespSync, since string) bool {
 	return true
 }
 
-// ownID is the signed-in person's id, empty when signed out. Takes no lock.
+// ownID is the signed-in person's id, empty when signed out. Not called with mu held: the event handlers and the ops
+// ask it while stop may be clearing sess.
 func ownID() id.UserID {
+	mu.Lock()
+	defer mu.Unlock()
+	return ownIDLocked()
+}
+
+// ownIDLocked is ownID for a caller that holds mu.
+func ownIDLocked() id.UserID {
 	if sess != nil {
 		return sess.UserID
 	}
@@ -868,7 +876,7 @@ func others(c *mautrix.Client, info *roomInfo, me id.UserID) []id.UserID {
 func roomJSON(rid id.RoomID) map[string]any {
 	mu.Lock()
 	c := cli
-	me := ownID()
+	me := ownIDLocked()
 	info := rooms[rid]
 	var cp roomInfo
 	if info != nil {

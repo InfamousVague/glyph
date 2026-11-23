@@ -900,7 +900,7 @@ class Inbox {
     try {
       await n.start(n.listStore!);
     } catch (e) {
-      debugPrint('inbox: ${n.id} did not start: \$e');
+      debugPrint('inbox: ${n.id} did not start: $e');
     }
     notifyChange();
   }

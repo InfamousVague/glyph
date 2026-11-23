@@ -251,3 +251,42 @@ test('the hub not answering is a "hub" error', async () => {
   void fake;
   hub.stop();
 });
+
+test('Discord drops the bot while the bridge is still joining: ensure fails as "voice" and nothing is left behind', async () => {
+  const { bridges, discord, fake, me, hub, store } = await setup();
+  const k = spaceKeys(store.seedFor(G, C));
+  // The voice connection is made, the space lets the bridge in, and Discord drops the bot before start() goes on.
+  const join = discord.joinVoice;
+  discord.joinVoice = async (guildId, channelId, on) => {
+    const link = await join(guildId, channelId, on);
+    await until(() => fake.members(k.voiceRoom).includes(me.id), 2000, 'in the space');
+    on.lost();
+    return link;
+  };
+  await assert.rejects(bridges.ensure(G, C), (e) => e.code === 'voice');
+  assert.equal(discord.links[0].destroyed, true);
+  assert.equal(bridges.find(G, C), null);
+  assert.deepEqual([...bridges.bridged(G)], []);
+  await until(() => !fake.members(k.voiceRoom).includes(me.id), 2000, 'left the space');
+  hub.stop();
+});
+
+test('stopAll stops a bridge that is still joining too', async () => {
+  const { bridges, discord, fake, me, hub, store } = await setup();
+  const k = spaceKeys(store.seedFor(G, C));
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const join = discord.joinVoice;
+  discord.joinVoice = async (guildId, channelId, on) => { await held; return join(guildId, channelId, on); };
+  const asked = bridges.ensure(G, C).then(() => 'in', (e) => e.code);
+  await until(() => fake.members(k.voiceRoom).includes(me.id), 2000, 'in the space');
+  const stopped = bridges.stopAll('test');
+  release();
+  await stopped;
+  assert.equal(await asked, 'voice');
+  assert.equal(discord.links[0].destroyed, true);
+  assert.equal(bridges.find(G, C), null);
+  assert.equal(bridges.starting.size, 0);
+  await until(() => !fake.members(k.voiceRoom).includes(me.id), 2000, 'left the space');
+  hub.stop();
+});

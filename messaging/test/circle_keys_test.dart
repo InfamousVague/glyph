@@ -453,7 +453,7 @@ void main() {
       expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id), isTrue);
       await _until(() => hers.keys!.current(c.seed) != null);
       // Maya's computer: in the room, knowing the new header, without its key yet.
-      final laterKeys = CircleKeys.fresh()..manifestOf = (seed) => hers.bySeed(seed)?.manifest;
+      final laterKeys = CircleKeys.fresh();
       final h = hers.keys!.current(c.seed)!;
       laterKeys.take(hers.bySeed(c.seed)!, maya.id, {'h': h.toJson(), 'x': []});
       expect(laterKeys.lacking(c.seed), isTrue);
