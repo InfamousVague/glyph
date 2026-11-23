@@ -146,6 +146,13 @@ object E2e {
 
     fun isOn(context: Context, address: String): Boolean = peer(context, address)?.optString("state") == "on"
 
+    /**
+     * The numbers this phone holds an encryption record for, whatever each stands at, by [norm]: who is at one of them
+     * is that record's to say (its key), never a group's (Groups.peers).
+     */
+    fun held(context: Context): Set<String> =
+        prefs(context).all.keys.filter { it.startsWith("peer:") }.map { it.removePrefix("peer:") }.toSet()
+
     // --- friends (Friends.kt, lib/friends/friends.dart) -----------------------------------------------------------------
 
     /**

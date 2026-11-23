@@ -369,10 +369,12 @@ open class MainActivity : FlutterActivity() {
 // The app's routes (lib/net; Net.kt, NetSms.kt): who this phone is, who it can reach, a signature for a
                 // hub, and data texts.
                 "netIdentity" -> bg { Net.identity(applicationContext) }
-                // With the members of this phone's groups, whose keys came with the group (Groups.peers).
+                // Each once, by id: those encryption is on with (Net.peers), friends by username (Buddies.peers), then the
+                // members of this phone's groups, whose keys came with the group (Groups.peers). A friend who is in a group
+                // too is under their own record's address, never the one the group lists (found in review, 2026-11-23).
                 "netPeers" -> bg {
-                    Net.peers(applicationContext).let { known -> known + Groups.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
-                        .let { known -> known + Buddies.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
+                    Net.peers(applicationContext).let { known -> known + Buddies.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
+                        .let { known -> known + Groups.peers(applicationContext, known.map { it["id"] as String }.toSet()) }
                 }
                 // Friends by username (Buddies.kt).
                 "buddiesKeep" -> bg { Buddies.keep(applicationContext, call.argument<String>("json") ?: "[]"); null }

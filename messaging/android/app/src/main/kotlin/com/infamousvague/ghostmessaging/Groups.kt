@@ -166,12 +166,15 @@ object Groups {
     }
 
     /**
-     * The members of this phone's groups as people the routes reach (Net.peers has those encryption is on with):
-     * their name, number, and the key packets to and from them are sealed with, made from their key and this
-     * phone's as a conversation's is. Members of a group this phone has left are not among them.
+     * The members of this phone's groups as people the routes reach (Net.peers has those encryption is on with, and
+     * Buddies.peers friends by username: each comes before these, under their own record's address): their name, the
+     * address their group lists them under where it is no one else's ([listed]), and the key packets to and from them
+     * are sealed with, made from their key and this phone's as a conversation's is. Members of a group this phone has
+     * left are not among them.
      */
     fun peers(context: Context, already: Set<String>): List<Map<String, Any?>> {
         val mine = me(context)
+        val held = E2e.held(context)
         val out = LinkedHashMap<String, Map<String, Any?>>()
         for (o in all(context)) {
             if (o.optBoolean("gone", false)) continue
@@ -180,11 +183,22 @@ object Groups {
                 if (id == mine || id in already || id in out) continue
                 val pub = runCatching { Base64.getDecoder().decode(m.optString("k")) }.getOrNull()?.takeIf { it.size == 33 && Net.idOf(it) == id } ?: continue
                 val pair = E2e.pairKey(context, pub) ?: continue
-                out[id] = mapOf("id" to id, "address" to m.optString("a"), "key" to Net.netKey(pair))
+                out[id] = mapOf("id" to id, "address" to listed(m.optString("a"), held), "key" to Net.netKey(pair))
             }
         }
         return out.values.toList()
     }
+
+    /**
+     * The address a member of a group is reached under on the routes: the one the group lists them under ([written],
+     * whatever its admin wrote), unless it belongs to a record of this phone's own: a number it holds an encryption
+     * record for ([held], by [E2e.norm]), or any `@username`, which only a friend by username's record gives. Then it
+     * is nobody's to them, and they are reached by their key alone (found in review, 2026-11-23: an admin could list a
+     * stranger under a friend's number, or as "@friend", and the routes found the stranger by it). What the group's
+     * screens show is the record as it is ([view]).
+     */
+    fun listed(written: String, held: Set<String>): String =
+        if (written.isEmpty() || written.startsWith("@") || E2e.norm(written) in held) "" else written
 
     /** Whether [address] is someone this phone is in a group with, and that group's conversation: for the wake. */
     fun threadWith(context: Context, address: String): Long? {
