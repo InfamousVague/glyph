@@ -112,6 +112,30 @@ void main() {
     expect(Net.instance.board!.carrier('p2p'), isNull);
   });
 
+  // The second review, M3 (R2-K): the node and the direct network were made inside the one try that sets every route
+  // up, so a core that failed to load took the relay's route down with it.
+  test('a core that fails to load leaves the other routes as they are, and Settings is told why there is no Direct', () async {
+    for (final broken in [
+      FakeP2pMesh.broken(StateError('the direct network\'s library could not be loaded')),
+      // One that loads and then breaks node.dart's word at once: its getters throw.
+      () => node..throws.addAll({'state', 'paths', 'opened'}),
+    ]) {
+      Net.p2pNode = broken;
+      final hub = PlainCarrier('hub'), sms = PlainCarrier('sms');
+      await Net.instance.start(AppState(), carriers: [hub, sms]);
+      expect([Net.instance.board, Net.instance.error], [isNotNull, isNull], reason: 'the routes were set up');
+      expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'sms']);
+      expect(Net.instance.p2p, isNull);
+      expect(Net.instance.directProblem, contains('could not be started'));
+      // The relay's route carries as ever.
+      await _until(() => hub.state.value == CarrierState.up, 'the relay\'s route started');
+      final d = await Net.instance.send(Peer(id: sam.id, key: keyWith(sam)), Envelope(kind: 'ping', ack: false));
+      expect(d.via, 'hub');
+      await Net.instance.shutdown();
+      expect(Net.instance.directProblem, isNull, reason: 'said of the routes as they were set up, and gone with them');
+    }
+  });
+
   test('with a core: the route comes after the relay\'s, its key is with the secrets, and only friends are told the card', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub'), sms = PlainCarrier('sms', traits: const CarrierTraits(maxPacket: 133, maxParts: 6, metered: true, live: false, wakes: true));

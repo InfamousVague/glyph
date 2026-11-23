@@ -66,6 +66,10 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Why the routes could not be set up, in words; null when they were.
   String? error;
 
+  /// Why this build's direct route is not there though it has a core, in words for Settings › Routes; null where it is
+  /// there, or where the build has none.
+  String? directProblem;
+
   /// The last things the routes did, newest first.
   final List<NetEvent> recent = [];
 
@@ -252,11 +256,9 @@ class Net extends ChangeNotifier implements PeerBook {
       }
       // The direct route, where this build has the core: its node key in the secret store beside the account's words,
       // never in the account's backup; a computer's node up whenever the route is on, a phone's only while there is
-      // something to say.
-      final node = p2pNode?.call();
-      final p2p = _p2p = node == null
-          ? null
-          : P2p(node: node, signer: signer, device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app), friends: () => friends, mine: mine, policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy());
+      // something to say. Made apart from the other routes: a core that fails to load (a library missing, or built for
+      // another machine) costs the direct route alone, and Settings › Routes says why (second review, M3).
+      var p2p = _p2p = _makeDirect(signer, device, app);
       if (p2p != null) routes.add(p2p.carrier);
       // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
       // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
@@ -270,13 +272,22 @@ class Net extends ChangeNotifier implements PeerBook {
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
       if (p2p != null) {
-        p2p
-          ..attach(board)
-          ..setMode(_mode)
-          ..setAway(_away)
-          ..addListener(_directChanged);
-        _followHelpers(_hub);
-        _loadDirect(p2p);
+        try {
+          p2p
+            ..attach(board)
+            ..setMode(_mode)
+            ..setAway(_away)
+            ..addListener(_directChanged);
+          _followHelpers(_hub);
+          _loadDirect(p2p);
+        } catch (e) {
+          board.remove(p2p.carrier.id);
+          _followHelpers(null);
+          p2p.removeListener(_directChanged);
+          unawaited(p2p.shutdown().catchError((Object _) {}));
+          p2p = _p2p = null;
+          directProblem = _couldNot(e);
+        }
       }
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
@@ -291,6 +302,22 @@ class Net extends ChangeNotifier implements PeerBook {
     }
     notifyListeners();
   }
+
+  /// This device's hold on the direct network, where the build has a core ([p2pNode]); null where it has none, or
+  /// where the core could not be made or held (then [directProblem] says why).
+  P2p? _makeDirect(NetSigner signer, String device, AppState app) {
+    directProblem = null;
+    try {
+      final node = p2pNode?.call();
+      if (node == null) return null;
+      return P2p(node: node, signer: signer, device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app), friends: () => friends, mine: mine, policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy());
+    } catch (e) {
+      directProblem = _couldNot(e);
+      return null;
+    }
+  }
+
+  static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
 
   /// The app has come back after [away] (main.dart): the relay server's connection is made again where it may have
   /// died meanwhile, and what friends were sent and have not answered goes again once it is up (Friends).
@@ -380,6 +407,7 @@ class Net extends ChangeNotifier implements PeerBook {
     _friendIds = {};
     recent.clear();
     id = null;
+    directProblem = null;
   }
 
   /// Reads the people again, and starts or stops the routes to suit: after encryption was turned on with someone,
