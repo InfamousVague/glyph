@@ -151,6 +151,73 @@ they need a TURN server to relay through. Without one on your relay such calls d
    `turn:relay.example.com:3478?transport=udp,turn:relay.example.com:3478?transport=tcp`, and restart the relay.
    It then hands each call short-lived credentials made with that secret.
 
+### A link helper for direct links (optional)
+
+The apps also make direct links between a person's own devices and their friends' devices (`OPEN_NETWORK.md`, section
+2): a second way through beside the relay, and how an app checks what the relay tells it. Two devices on one network
+link by themselves. Across networks they need a **link helper**: a server both can reach, which tells each the address
+the internet sees it at, passes their first packets, and carries their traffic for as long as no straight path can be
+made. It is iroh's relay server, `iroh-relay`. It is not the Ghost Messaging relay, and the two know nothing of each
+other.
+
+iroh's makers run public ones, for "development and hobby use only", so the app ships with none: it uses the ones its
+relay names, and with none named its devices link only on one network. A link helper sees which device ids link, from
+which addresses, and how much they send. It never sees an account's name or what is said: the traffic is sealed
+between the two devices.
+
+1. **Build it.** `tool/build-link.sh host` on the server itself (Rust 1.91 or later) gives
+   `build/link/host/iroh-relay`. From another machine with zig and cargo-zigbuild, `tool/build-link.sh` gives
+   `build/link/iroh-relay` for Linux on x86-64 (glibc 2.31 or later: Ubuntu 20.04, Debian 11, and newer). Either way
+   it is `iroh-relay` 1.5.0's source as crates.io holds it, taken by its checksum and built with the lock file its
+   authors published. Nothing prebuilt is fetched.
+2. **Its settings.** Copy `relay/deploy/link-helper.toml.example` to `/etc/ghost-link/config.toml` and put your
+   relay's name in it. Each line says why it is there. As written the helper shares a machine with the web server
+   that has ports 80 and 443, so it takes a port of its own and apps reach it at `https://relay.example.com:7843`.
+   The server passes over a setting it does not know without a word: copy the names, don't retype them.
+3. **A certificate** for that name, as two PEM files where the settings say
+   (`/etc/ghost-link/certs/relay.example.com.crt` and `.key`, readable by the helper's user). The web server already
+   has one. Caddy keeps it in `/var/lib/caddy/.local/share/caddy/certificates/<issuer>/<name>/` (with the Compose
+   file, under `/data/caddy/certificates/` in the `caddy-data` volume); certbot in `/etc/letsencrypt/live/<name>/`
+   (`fullchain.pem` and `privkey.pem`). Copy the pair, and copy it again whenever it is renewed, each file by
+   renaming a finished copy over the old one: the helper reads the two files again once a day, so nothing needs
+   restarting. `node tool/deploy-link.mjs --print` shows the few lines of shell and the daily timer that do it on
+   our own server.
+4. **The service.** `relay/deploy/ghost-link.service`, with the steps at its top: a user of its own with no shell,
+   nothing writable but its own folder, 300 MB and one processor at most.
+5. **Ports.** Open TCP 7843 (where apps reach it) and UDP 7842 (where it tells a device its address; keep that
+   number, apps look for it there). 7844 and 7845 are for the machine itself and stay closed.
+6. **Tell the relay.** In the relay's env file, `GHOST_LINK_HELPERS=https://relay.example.com:7843`, and restart the
+   relay. Its hub hands the address to each app as it signs in.
+
+Then check it:
+
+```sh
+curl https://relay.example.com:7843/healthz          # {"status":"ok","version":"1.5.0","git_hash":"unknown"}
+cd messaging/native/link-check
+cargo run -- https://relay.example.com:7843          # two devices sign in, link through it and straight; exits 0
+cargo run                                            # the same against one started on this machine (needs `build-link.sh host`)
+curl -s http://127.0.0.1:7845/metrics                # on the server: what it has carried, and for how many devices
+```
+
+What to know before relying on it:
+
+- **Anyone who knows the address can link through it**, Ghost Messaging or not: the apps' device ids are known to no
+  server, so there is no list to hold a caller to. What bounds it is the limit in the settings (one device may send
+  256 KiB a second through it, after a first megabyte) and the service's memory and processor. A device that sends
+  more than that is slowed, not cut off, and whatever else it is sending through the helper waits behind the load
+  while it lasts. The server can ask for a token instead (`access.shared_token`); the apps have no way to be handed
+  one yet.
+- **A network that lets nothing out but ports 80 and 443** cannot reach a helper on 7843. Devices there link only
+  where they can reach each other's addresses as they are; the relay carries everything else, as it always did.
+- **A name of its own instead.** Where the helper can have a name whose ports 80 and 443 are its own (another
+  address, or a machine with no web server), it can get its own certificate: in the settings,
+  `http_bind_addr = "[::]:80"`, and under `[tls]` `https_bind_addr = "[::]:443"`, `cert_mode = "LetsEncrypt"`,
+  `hostname`, `contact` and `cert_dir = "/var/lib/ghost-link"`; in the service,
+  `AmbientCapabilities=CAP_NET_BIND_SERVICE`. Apps then reach it at `https://link.example.com`. We don't run ours
+  that way: this much is read from `iroh-relay`'s source, not from use.
+- **Updating** is building again, installing the program over the old one and `sudo systemctl restart ghost-link`.
+  A restart drops every device signed in to it at that moment; each signs in again by itself.
+
 ## Pointing the app at it
 
 On each phone: **Settings › Routes › Relay server**. Type your relay's address (`relay.example.com` is enough; it

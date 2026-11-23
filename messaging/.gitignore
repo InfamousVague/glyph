@@ -70,3 +70,5 @@ app.*.map.json
 # platform (which /build/ above already covers; named here so nobody wonders).
 /native/p2p/target/
 /build/p2p/
+# The link helper's proof (native/link-check, a crate of its own): cargo's output. The helper itself is built into build/.
+/native/link-check/target/

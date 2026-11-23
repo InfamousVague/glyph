@@ -35,7 +35,7 @@ class RelaySocket {
 
   Future<void> connect({Duration timeout = const Duration(seconds: 8)}) async {
     try {
-      final ws = await WebSocket.connect(url).timeout(timeout);
+      final ws = await WebSocket.connect(url, compression: CompressionOptions.compressionOff).timeout(timeout);
       if (closed) {
         ws.close();
         return;
