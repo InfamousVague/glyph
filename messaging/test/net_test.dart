@@ -690,7 +690,8 @@ void main() {
 
     test('what is held for everyone together has a limit, and what was handed over no longer counts', () async {
       await relay.stop();
-      relay = Relay(hub: Hub(heldBytes: 2500));
+      // Room for two packets of a thousand bytes, each counted with what holding it costs (Hub.heldOverhead), not three.
+      relay = Relay(hub: Hub(heldBytes: 2500 + 2 * Hub.heldOverhead));
       url = 'ws://127.0.0.1:${await relay.start(port: 0)}/hub';
       final a = NetKeys.generate(), b = NetKeys.generate(), c = NetKeys.generate();
       final hubA = HubCarrier(url: url, signer: KeysSigner(a));
@@ -705,7 +706,7 @@ void main() {
       final got = hubB.arrived.first;
       await up(hubB);
       await got.timeout(const Duration(seconds: 3));
-      expect(relay.hub!.holding, lessThan(1100));
+      expect(relay.hub!.holding, lessThan(1100 + Hub.heldOverhead));
       expect(await hubA.send(Peer(id: c.id), packet), Handed.held);
       await hubA.stop();
       await hubB.stop();
