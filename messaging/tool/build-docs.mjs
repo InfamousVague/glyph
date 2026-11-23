@@ -46,7 +46,18 @@
  *                                                                        name, line, "By @x" with the Reviewed mark or
  *                                                                        "In development", and Add or Added at its end
  *   <m-tri label on=deny|inherit|allow tap=…/>                          a space's three-way permission
+ * An open space (docs-src/pages/open-spaces.html; places and sizes in percent of the floor, see openSpaceTags):
+ *   <m-floor walls="far left right near" hint say newgroup dock h ratio inset caption>…</m-floor>
+ *                                                                        the floor from above: its dots, the walls in view,
+ *                                                                        the hint, the chat's box, New group, the call's controls
+ *   <m-standing name hue x y talking muted heard you ring mark/>          a person where they stand: picture, ripple, name,
+ *                                                                        as faint as heard; `you` with the hearing ring
+ *   <m-group name hue x y r count mine tap>…bubbles…</m-group>           a group's circle and name, bubbles over it
+ *   <m-floor-bubbles side x y>…</m-floor-bubbles>  <m-floor-bubble name you seen>words</m-floor-bubble>
+ *                                                                        the chat's bubbles at the floor's side, or anywhere
+ *   <m-screen … full>  a computer's screen with the rail wide enough for a list and a pane beside it
  *   <m-words/>  <m-qr/>  <m-code value/>  <m-switch on/>  <m-avatar name hue/>  <m-space kind name line unread/>
+ *                                                                        (a space's row; kind voice, text, files, sms or open)
  *   <steps><step title>…</step></steps>   numbered steps        <note kind=tip|warn|alpha|soon title>…</note>
  *   <ui>Settings › Me</ui>  a place in the app                 <soon/>  a Coming soon badge
  *   <icon-names/>  every icon name a plugin may use, read from lib/art/lucide.g.dart
@@ -142,13 +153,75 @@ const tile = (a) => `<span class="m-tile" data-hue="${a.hue ?? hueOf(a.name ?? a
 // A submission's status, in My submissions' words (lib/ui/market/my_submissions.dart).
 const STATUSES = ['submitted', 'in_review', 'changes_requested', 'approved', 'rejected', 'withdrawn', 'superseded'];
 
+// An open space's floor and what stands on it, as lib/ui/open_space_view.dart draws them (Matt, 2026-11-23: "please add
+// docs with components from open spaces that explains how they work"). Everything on a floor is placed by percentages
+// of the floor's box (x across from its left, y down from its top), so a mock reads the same at a phone's width and a
+// computer's. Sizes (a circle's radius, the hearing ring's) are percentages of the floor's width, as CSS draws them.
+function openSpaceTags() {
+  const num = (v, fallback, what) => {
+    const n = Number(v ?? fallback);
+    if (!Number.isFinite(n)) throw new Error(`${what} "${v}" is not a number`);
+    return n;
+  };
+  const place = (a, tag) => `left:${num(a.x, 50, `${tag} x`)}%;top:${num(a.y, 50, `${tag} y`)}%`;
+  const letters = (name) => esc(String(name).split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase());
+  const WALLS = ['far', 'left', 'right', 'near'];
+  // The call's controls (lib/ui/voice_screen.dart's CallDock): Mute and Deafen as pills with their device chevrons,
+  // the camera, Share screen, and Leave in red.
+  const callDock = () =>
+    `<div class="m-calldock" role="img" aria-label="The call's controls: Mute, Deafen, camera, Share screen, Leave"><span class="m-cpill">${icon('mic')}${icon('chevron-up', 'i m-cchev')}</span><span class="m-cpill">${icon('headphones')}${icon('chevron-up', 'i m-cchev')}</span><span class="m-cbtn">${icon('video-off')}</span><span class="m-cbtn">${icon('screen-share')}</span><span class="m-cbtn leave">${icon('phone-off')}</span></div>`;
+  return {
+    // The floor seen from above: its dots, the walls that are in view (`walls="far left right near"`: the view stops
+    // at a wall, so a wall in view is at the view's edge), the hint at its head, the chat's box and New group at its
+    // foot, and the call's controls over the foot (`dock`). `inset` leaves out the figure round it (inside a screen).
+    'm-floor': (a, inner) => {
+      const walls = String(a.walls ?? '').split(/[\s,]+/).filter(Boolean);
+      for (const w of walls) if (!WALLS.includes(w)) throw new Error(`m-floor wall "${w}" is not one of ${WALLS.join(', ')}`);
+      const cls = ['m-floor', ...walls.map((w) => `w-${w}`), a.dock ? 'has-dock' : '', a.wide ? 'wide' : ''].filter(Boolean).join(' ');
+      const style = [a.h ? `height:${a.h}` : '', a.ratio ? `aspect-ratio:${a.ratio}` : ''].filter(Boolean).join(';');
+      const hint = a.hint ? `<span class="m-fpill m-fhint${a.hintfade ? ' fading' : ''}">${esc(a.hint)}</span>` : '';
+      const say = a.say ? `<span class="m-fsay${a.say === 'tap' ? ' tap' : ''}">Say something</span>` : '';
+      const group = a.newgroup ? `<span class="m-fpill m-fnew${a.newgroup === 'tap' ? ' tap' : ''}">${icon('target')}New group</span>` : '';
+      const floor = `<div class="${cls}"${style ? ` style="${style}"` : ''} role="group" aria-label="${esc(a.label ?? 'An open space\'s floor, seen from above')}">${walls.map((w) => `<span class="m-wall ${w}"></span>`).join('')}${inner}${hint}${say}${group}${a.dock ? callDock() : ''}</div>`;
+      return a.inset ? floor : `<figure class="mock m-floor-mock${a.wide ? ' wide' : ''}">${floor}${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
+    },
+    // A person where they stand: their picture, the ripple while they talk (`talking`, or how loud, 0 to 1), their name
+    // under it with a crossed microphone while `muted`, and as faint as the app draws them for how much of them is
+    // heard (`heard`, 0 to 1: 0.4 + 0.6 of it). `you` is this device, with the ring of how far it hears (`ring`, its
+    // radius in percent of the floor's width). `mark` adds the docs' own label of how much of them is heard (never the
+    // app's): `mark` alone says the percentage, `mark="words"` says those.
+    'm-standing': (a) => {
+      const you = Boolean(a.you);
+      const name = you ? 'You' : String(a.name ?? '?');
+      const heard = you ? 1 : Math.min(1, Math.max(0, num(a.heard, 1, 'm-standing heard')));
+      const level = a.talking === true ? 0.6 : Math.min(1, Math.max(0, num(a.talking, 0, 'm-standing talking')));
+      const ring = you && a.ring !== 'none' ? `<span class="m-hearing" style="${place(a, 'm-standing')};width:${2 * num(a.ring, 40, 'm-standing ring')}%" aria-hidden="true"></span>` : '';
+      const label = a.mark === true ? `${Math.round(heard * 100)}%` : a.mark;
+      const mark = a.mark ? `<span class="m-heardmark${heard === 0 ? ' none' : ''}">${icon(heard === 0 ? 'volume-x' : 'volume-2')}${esc(label)}</span>` : '';
+      const talk = level > 0 ? ` talking" style="--lv:${level}` : '';
+      return `${ring}<div class="m-standing${you ? ' you' : ''}" style="${place(a, 'm-standing')};--seen:${(0.4 + 0.6 * heard).toFixed(2)}"><span class="m-face${talk}" data-hue="${a.hue ?? hueOf(name)}">${letters(a.name ?? name)}</span><span class="m-tag">${esc(name)}${a.muted ? icon('mic-off', 'i m-tagmute') : ''}</span>${mark}</div>`;
+    },
+    // A group: its circle (`r`, its radius in percent of the floor's width; `mine` while this device stands in it) and its
+    // name over it with how many are in it (`count`). Between its tags, the chat's bubbles over it.
+    'm-group': (a, inner) => {
+      const hue = a.hue ?? 'purple';
+      const stack = inner && inner.trim() ? `<div class="m-fstack over">${inner}</div>` : '';
+      return `<div class="m-group${a.mine ? ' mine' : ''}" data-hue="${hue}" style="${place(a, 'm-group')};width:${2 * num(a.r, 14, 'm-group r')}%"><span class="m-gname${a.tap ? ' tap' : ''}"><b>${esc(a.name ?? 'Group')}</b><span>${esc(a.count ?? '0')}</span></span>${stack}</div>`;
+    },
+    // The chat's bubbles at the side of the floor, oldest at the top (`side`), or anywhere by x and y.
+    'm-floor-bubbles': (a, inner) => `<div class="m-fstack${a.side ? ' side' : ''}"${a.side ? '' : ` style="${place(a, 'm-floor-bubbles')}"`}>${inner}</div>`,
+    // One bubble: the writer's name (`you`: You) and their words, as strongly drawn as `seen` says (0.08 to 1; 1, whole).
+    'm-floor-bubble': (a, inner) => `<div class="m-fbubble" style="opacity:${Math.min(1, Math.max(0.08, num(a.seen, 1, 'm-floor-bubble seen')))}"><b>${a.you ? 'You' : esc(a.name ?? '?')}</b> ${inner}</div>`,
+  };
+}
+
 const render = {
   'm-screen': (a, inner) => {
     const actions = String(a.actions ?? '').split(',').filter(Boolean).map((n) => `<span class="m-iconbtn">${icon(n.trim())}</span>`).join('');
     const head = a.title === undefined && !a.back ? '' : `<div class="m-head">${a.back ? `<span class="m-iconbtn">${icon('arrow-left')}</span>` : ''}<span class="m-title">${esc(a.title ?? '')}</span>${actions}</div>`;
     const main = `${head}<div class="m-body">${inner}</div>`;
     const screen = a.rail === undefined ? `<div class="m-screen">${main}</div>` : `<div class="m-screen has-rail">${rail(a)}<div class="m-main">${main}</div></div>`;
-    return `<figure class="mock${a.wide ? ' wide' : ''}">${screen}${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
+    return `<figure class="mock${a.wide ? ' wide' : ''}${a.full ? ' full' : ''}">${screen}${a.caption ? `<figcaption>${esc(a.caption)}</figcaption>` : ''}</figure>`;
   },
   'm-section': (a, inner) => `<div class="m-section">${a.title ? `<div class="m-section-title">${esc(a.title)}</div>` : ''}<div class="m-card">${inner}</div>${a.foot ? `<p class="m-foot">${esc(a.foot)}</p>` : ''}</div>`,
   'm-row': (a) => {
@@ -192,10 +265,11 @@ const render = {
   'm-switch': (a) => `<span class="m-switch${a.on ? ' on' : ''}${tap(a)}"></span>`,
   'm-avatar': (a) => `<span class="m-avatar" data-hue="${a.hue ?? hueOf(a.name ?? '?')}">${esc(String(a.name ?? '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase())}</span>`,
   'm-space': (a) => {
-    const ic = { voice: 'headphones', text: 'message-circle', files: 'folder', sms: 'smartphone' }[a.kind ?? 'text'];
-    const hue = { voice: 'green', text: 'blue', files: 'amber', sms: 'orange' }[a.kind ?? 'text'];
+    const ic = { voice: 'headphones', text: 'message-circle', files: 'folder', sms: 'smartphone', open: 'compass' }[a.kind ?? 'text'];
+    const hue = { voice: 'green', text: 'blue', files: 'amber', sms: 'orange', open: 'purple' }[a.kind ?? 'text'];
     return `<div class="m-spacerow${tap(a)}"><span class="m-ico" data-hue="${hue}">${icon(ic)}</span><span class="m-txt"><b>${esc(a.name)}</b>${a.line ? `<small>${esc(a.line)}</small>` : ''}</span>${a.unread ? `<span class="m-count">${esc(a.unread)}</span>` : ''}</div>`;
   },
+  ...openSpaceTags(),
   'm-words': () => {
     const words = ['orbit', 'lantern', 'velvet', 'canyon', 'mosaic', 'ripple', 'harbor', 'ember', 'quartz', 'meadow', 'tundra', 'falcon'];
     return `<ol class="m-words">${words.map((w) => `<li>${w}</li>`).join('')}</ol>`;

@@ -445,3 +445,147 @@ figure.shot figcaption { margin-top: .5rem; font-size: .875rem; opacity: .75; }
 .verb.delete { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 /* The way from one book to the other (the docs, the developer docs), at the sidebar's foot. */
 .nav-other { margin-top: .4rem; padding-top: .9rem !important; border-top: 1px solid var(--rule); border-radius: 0 !important; color: var(--ink-3) !important; }
+
+/* --- an open space (docs-src/pages/open-spaces.html; tool/build-docs.mjs's openSpaceTags) ------------------------------
+   The floor as lib/ui/open_space_view.dart draws it: the room's ground under a grid of faint dots, glass walls in the
+   app's accent (a see-through wash of it, hard lines of it at full strength), groups as circles in their colour, and
+   people as their pictures with their names under them, fainter the less of them is heard. */
+.m-floor-mock { align-items: stretch; }
+.m-floor {
+  --accent: var(--teal); --online: #22a35a; --face: 2.6rem; --wall: .55rem; --far: 2.3rem; --nearface: 1.5rem;
+  position: relative; overflow: hidden; width: min(100%, 34rem); aspect-ratio: 4 / 3; border-radius: var(--r-xl);
+  border: 1px solid var(--rule-2); box-shadow: var(--shadow); color: var(--app-ink); font-size: .9rem; line-height: 1.3;
+  background-color: color-mix(in srgb, var(--app-bg) 94%, var(--app-ink));
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--app-ink-3) 30%, transparent) 1.2px, transparent 1.6px);
+  background-size: 1.9rem 1.9rem; background-position: .95rem .95rem;
+}
+.m-floor-mock.wide .m-floor { width: min(100%, 44rem); aspect-ratio: 16 / 9; }
+/* Inside a screen: edge to edge under its head, no frame of its own. */
+.m-screen .m-floor { width: auto; aspect-ratio: auto; border: 0; border-radius: 0; box-shadow: none; }
+.m-body > .m-floor { margin: 0 -.8rem -1rem; }
+
+/* The walls in view. The far wall shows its top and its face, ruled into panels, with its colour on the floor at its
+   foot; the side walls show their tops; the near wall its top and, under it, its face, fainter. */
+.m-wall { position: absolute; pointer-events: none; z-index: 0; }
+.m-wall.far {
+  left: 0; right: 0; top: 0; height: calc(var(--wall) + var(--far));
+  background:
+    linear-gradient(color-mix(in srgb, var(--accent) 40%, transparent), color-mix(in srgb, var(--accent) 40%, transparent)) top / 100% var(--wall) no-repeat,
+    linear-gradient(to right, transparent calc(100% - 1px), color-mix(in srgb, var(--accent) 55%, transparent) 0) 0 var(--wall) / 25% var(--far) repeat-x,
+    linear-gradient(color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 24%, transparent)) 0 var(--wall) / 100% var(--far) no-repeat;
+  border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+}
+.m-wall.far::before { content: ''; position: absolute; left: 0; right: 0; top: var(--wall); border-top: 2px solid var(--accent); }
+.m-wall.far::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 2.2rem; margin-top: 2px; background: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), transparent); }
+.m-wall.left, .m-wall.right {
+  top: 0; bottom: 0; width: var(--wall); background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.m-wall.left { left: 0; border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+.m-wall.right { right: 0; border-right: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+.m-wall.near {
+  left: 0; right: 0; bottom: 0; height: calc(var(--wall) + var(--nearface));
+  background:
+    linear-gradient(color-mix(in srgb, var(--accent) 40%, transparent), color-mix(in srgb, var(--accent) 40%, transparent)) top / 100% var(--wall) no-repeat,
+    linear-gradient(to right, transparent calc(100% - 1px), color-mix(in srgb, var(--accent) 40%, transparent) 0) 0 var(--wall) / 25% var(--nearface) repeat-x,
+    linear-gradient(color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 14%, transparent)) 0 var(--wall) / 100% var(--nearface) no-repeat;
+  border-top: 2px solid var(--accent); border-bottom: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.m-wall.near::before { content: ''; position: absolute; left: 0; right: 0; top: var(--wall); border-top: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); }
+/* A side wall's top runs down from the far wall's and stops at the near wall's. */
+.m-floor.w-far .m-wall.left, .m-floor.w-far .m-wall.right { top: var(--wall); }
+.m-floor.w-near .m-wall.left, .m-floor.w-near .m-wall.right { bottom: var(--nearface); }
+
+/* How far you hear: a faint ring round you; nobody past it is heard. */
+.m-hearing { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: 1px solid color-mix(in srgb, var(--app-ink-3) 45%, transparent); pointer-events: none; z-index: 1; }
+
+/* A group: a circle in its colour over a see-through wash of it, stronger while you stand in it, and its name above. */
+.m-group { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: 1; background: color-mix(in srgb, var(--hue) 11%, transparent); border: 1.8px solid color-mix(in srgb, var(--hue) 70%, transparent); }
+.m-group.mine { background: color-mix(in srgb, var(--hue) 20%, transparent); border: 2.5px solid color-mix(in srgb, var(--hue) 95%, transparent); }
+.m-gname {
+  position: absolute; left: 50%; top: 0; transform: translate(-50%, calc(-100% - .3rem)); display: inline-flex; align-items: center; gap: .5rem;
+  padding: .15rem .7rem; border-radius: 999px; background: var(--app-card); border: 1.5px solid var(--hue); white-space: nowrap; font-size: .82rem;
+}
+.m-gname b { font-weight: 700; }
+.m-gname span { color: var(--hue); font-weight: 650; }
+.m-gname.tap { outline-offset: 3px; }
+
+/* A person: their picture, the ripple while they talk, and their name. Placed by the middle of their picture. */
+.m-standing { position: absolute; display: flex; flex-direction: column; align-items: center; gap: .25rem; transform: translate(-50%, calc(var(--face) / -2)); z-index: 2; width: 7rem; }
+.m-standing.you { z-index: 3; }
+/* As faint as the app draws them for how much of them is heard; the docs' own mark under them stays whole. */
+.m-standing > .m-face, .m-standing > .m-tag { opacity: var(--seen, 1); }
+.m-face {
+  width: var(--face); height: var(--face); border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .85rem;
+  background: color-mix(in srgb, var(--hue) 22%, var(--app-card)); color: var(--hue); border: 1px solid var(--app-line);
+}
+.m-face.talking {
+  border: 2.5px solid color-mix(in srgb, var(--online) calc(40% + var(--lv) * 60%), transparent);
+  box-shadow: 0 0 0 calc(var(--lv) * .45rem) color-mix(in srgb, var(--online) 30%, transparent), 0 0 0 calc(var(--lv) * .9rem) color-mix(in srgb, var(--online) 13%, transparent);
+}
+.m-tag { display: inline-flex; align-items: center; gap: .2rem; max-width: 100%; padding: .05rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--app-card) 90%, transparent); font-size: .72rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-tagmute { width: .75rem; height: .75rem; color: var(--danger); }
+/* The docs' own label of how much of someone is heard: dashed, in the page's ink, so it never reads as part of the app. */
+.m-heardmark { display: inline-flex; align-items: center; gap: .2rem; padding: 0 .4rem; border: 1px dashed var(--ink-3); border-radius: .4rem; background: var(--paper); color: var(--ink-2); font-size: .68rem; font-weight: 650; white-space: nowrap; }
+.m-heardmark .i { width: .8rem; height: .8rem; }
+.m-heardmark.none { color: var(--ink-3); }
+
+/* The pills over the floor (the hint, New group), the chat's box, and the call's controls over its foot. */
+.m-fpill { position: absolute; display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .8rem; border-radius: 999px; background: var(--app-card); border: 1px solid var(--app-line); font-size: .8rem; z-index: 4; }
+.m-fhint { left: .7rem; top: .7rem; right: auto; max-width: calc(100% - 1.4rem); color: var(--app-ink-2); }
+.m-fhint.fading { opacity: .35; }
+.m-fnew { right: .7rem; bottom: .7rem; font-weight: 650; }
+.m-fnew .i { width: 1rem; height: 1rem; }
+.m-fsay { position: absolute; left: .7rem; bottom: .7rem; width: min(13rem, 46%); padding: .4rem .75rem; border-radius: .7rem; background: var(--app-card); border: 1px solid var(--app-line); color: var(--app-ink-3); font-size: .8rem; z-index: 4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-floor.has-dock .m-fnew, .m-floor.has-dock .m-fsay { bottom: 4.1rem; }
+.m-floor.w-near .m-fnew, .m-floor.w-near .m-fsay { bottom: calc(var(--wall) + var(--nearface) + .5rem); }
+.m-calldock {
+  position: absolute; left: 50%; bottom: .6rem; transform: translateX(-50%); display: flex; gap: .35rem; padding: .35rem; z-index: 5;
+  background: color-mix(in srgb, var(--app-card) 82%, transparent); border: 1px solid var(--app-line); border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.m-cbtn, .m-cpill { height: 2.3rem; display: inline-flex; align-items: center; justify-content: center; gap: .15rem; border-radius: 999px; background: var(--app-bg); border: 1px solid var(--app-line); color: var(--app-ink); }
+.m-cbtn { width: 2.3rem; }
+.m-cpill { padding: 0 .55rem; }
+.m-cbtn .i, .m-cpill .i { width: 1.05rem; height: 1.05rem; }
+.m-cpill .m-cchev { width: .75rem; height: .75rem; color: var(--app-ink-3); }
+.m-cbtn.leave { background: var(--danger); border-color: transparent; color: #fff; }
+
+/* The chat over the floor: stacks of bubbles, oldest at the top, over a group's name or at the side above the box. */
+.m-fstack { position: absolute; display: flex; flex-direction: column; gap: .25rem; z-index: 4; pointer-events: none; }
+.m-fstack:not(.side):not(.over) { transform: translate(-50%, -100%); align-items: center; }
+.m-fstack.over { left: 50%; top: 0; transform: translate(-50%, calc(-100% - 2.2rem)); align-items: center; width: max-content; max-width: 15rem; }
+.m-fstack.side { left: .7rem; bottom: 3.3rem; width: min(16rem, 62%); align-items: flex-start; }
+.m-floor.has-dock .m-fstack.side { bottom: 6.7rem; }
+.m-fbubble { padding: .35rem .65rem; border-radius: .85rem; background: var(--app-card); border: 1px solid var(--app-line); font-size: .8rem; line-height: 1.3; }
+.m-fbubble b { font-weight: 700; }
+
+/* A computer's window: the circle's list beside the space's page (m-screen full). */
+.mock.wide.full .m-screen, .mock.wide.full .m-screen.has-rail { width: min(100%, 44rem); }
+.mock.full .m-main, .mock.full .m-body { display: flex; flex-direction: column; flex: 1; }
+.m-split { flex: 1; display: grid; grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr); margin: -.3rem -.8rem -1rem; min-height: 26rem; }
+.m-split-list { border-right: 1px solid var(--app-line); padding: .8rem .5rem; display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.m-split-list .m-spacerow { padding: .45rem .5rem; min-height: 2.6rem; gap: .5rem; }
+.m-split-list .m-ico { width: 1.7rem; height: 1.7rem; }
+.m-split-list .m-section-title { margin: .1rem .4rem .3rem; }
+.m-split-pane { display: flex; flex-direction: column; min-width: 0; }
+.m-split-pane > .m-floor { flex: 1; }
+.m-pane-head { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid var(--app-line); }
+.m-pane-head .m-ico { width: 1.9rem; height: 1.9rem; }
+.m-pane-head b { font-weight: 650; }
+.m-pane-head small { display: block; color: var(--app-ink-3); font-size: .74rem; }
+@media (max-width: 34rem) {
+  .m-split { grid-template-columns: 5.6rem minmax(0, 1fr); }
+  .m-split-list { padding: .6rem .3rem; }
+  .m-split-list .m-txt small, .m-split-list .m-section-title { display: none; }
+  .m-split-list .m-spacerow { flex-direction: column; gap: .2rem; text-align: center; }
+  .m-split-list .m-txt b { font-size: .72rem; }
+  .m-floor { --face: 2.2rem; font-size: .82rem; }
+  .m-standing { width: 5.5rem; }
+  /* A floor on its own stands taller on a phone's page, so what is on it has room. */
+  .m-floor-mock .m-floor { aspect-ratio: 4 / 5; }
+  /* A computer's window on a phone's page: the rail left out, so the list and the floor both fit. */
+  .mock.full .m-screen.has-rail { grid-template-columns: minmax(0, 1fr); }
+  .mock.full .m-rail { display: none; }
+  .m-split .m-calldock { transform: translateX(-50%) scale(.8); transform-origin: bottom center; }
+  .m-split .m-fsay { width: 38%; }
+  .m-split .m-fnew { padding: .3rem .6rem; }
+}
