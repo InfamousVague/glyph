@@ -33,6 +33,10 @@ class WebApp {
   /// The folder: what `flutter build web` wrote, `index.html` at its top.
   final Directory dir;
 
+  /// Beside the page: answered with `Clear-Site-Data: "storage"` and nothing else (the app's lib/web/browser_web.dart asks
+  /// for it as it wipes; app.gogho.st's block in tool/deploy-site.mjs answers the same).
+  static const clearPath = 'clear-site-data';
+
   /// The policy of a page whose `<meta>` gives none (a build that isn't the app's): its own address and nothing else.
   static const fallbackPolicy =
       "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'";
@@ -147,6 +151,16 @@ class WebApp {
       response
         ..statusCode = HttpStatus.movedPermanently
         ..headers.set(HttpHeaders.locationHeader, '${request.uri.path}/${request.uri.hasQuery ? '?${request.uri.query}' : ''}');
+      return response.close();
+    }
+    // What the page asks for as it signs out or is removed, once it has deleted its store (the app's lib/web/browser_web.dart):
+    // the browser is told to clear everything this address keeps, which in Chromium also takes the deleted store's
+    // bytes off the disk, where deleting the database alone leaves them for a while.
+    if (parts.length == 1 && parts.single == clearPath) {
+      response
+        ..statusCode = HttpStatus.noContent
+        ..headers.set('Clear-Site-Data', '"storage"')
+        ..headers.set(HttpHeaders.cacheControlHeader, 'no-store');
       return response.close();
     }
     final names = parts.isEmpty ? const ['index.html'] : parts;

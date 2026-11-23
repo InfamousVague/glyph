@@ -28,4 +28,6 @@ class _NoBrowser implements Browser {
   String? takeNote() => _none();
   @override
   bool openTab(String url) => _none();
+  @override
+  void onVisible(void Function() then) => _none();
 }

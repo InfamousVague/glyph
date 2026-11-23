@@ -113,6 +113,24 @@ void main() {
     expect((await raw('/app/argon2id.js')).headers['content-security-policy'], "${WebApp.fallbackPolicy}; frame-ancestors 'none'");
   });
 
+  // What the page asks for as it signs out or is removed (the app's lib/web/browser_web.dart): the browser told to clear
+  // everything this address keeps, which in Chromium takes a deleted store's bytes off the disk too.
+  test('/app/clear-site-data tells the browser to clear what this address keeps, and nothing else', () async {
+    final got = await raw('/app/clear-site-data');
+    expect(got.status, 204);
+    expect(got.headers['clear-site-data'], '"storage"');
+    expect(got.headers['cache-control'], 'no-store');
+    expect(got.body, isEmpty);
+    // With the app's own headers, as every answer here.
+    expect(got.headers['x-frame-options'], 'DENY');
+    expect(got.headers['content-security-policy'], endsWith("frame-ancestors 'none'"));
+    // Nowhere else: no file of the folder clears anything.
+    for (final path in ['/app/', '/app/main.dart.js', '/app/nothing-here.js']) {
+      expect((await raw(path)).headers.containsKey('clear-site-data'), isFalse, reason: path);
+    }
+    expect((await raw('/app/clear-site-data', method: 'POST', headers: {'Content-Length': '0'})).status, 405);
+  });
+
   test('each file is said to be what it is', () async {
     for (final (path, type) in const [
       ('/app/main.dart.js', 'text/javascript; charset=utf-8'),

@@ -195,6 +195,16 @@ class _PageBrowser implements Browser {
   }
 
   @override
+  void onVisible(void Function() then) {
+    web.document.addEventListener(
+      'visibilitychange',
+      ((web.Event _) {
+        if (web.document.visibilityState == 'visible') then();
+      }).toJS,
+    );
+  }
+
+  @override
   bool openTab(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || url != url.trim() || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return false;
@@ -381,6 +391,16 @@ class _PageStore implements BrowserStore {
     // Held up by a connection in another page (one that has not let go yet): that page is told (versionchange) and
     // closes its own, and the deletion goes on. Waited for, so the page doesn't start again with the database there.
     await done.future.timeout(const Duration(seconds: 15), onTimeout: () {});
+    // And the browser told, by the page's own address, to clear everything it keeps for it (relay/lib/web_app.dart,
+    // app.gogho.st's block: `Clear-Site-Data: "storage"`): Chromium leaves a deleted database's bytes, its key among
+    // them, in the profile's files until it next tidies them, and this takes them away. A server that doesn't answer
+    // it leaves them; what the app says of that is in lib/web/store.dart.
+    try {
+      await web.window
+          .fetch('clear-site-data'.toJS, web.RequestInit(method: 'GET', cache: 'no-store', credentials: 'same-origin'))
+          .toDart
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {}
   }
 
   @override

@@ -86,6 +86,9 @@ abstract class Browser {
 
   /// [url] opened in a tab beside this one, with no way back to this page from it; whether the browser did.
   bool openTab(String url);
+
+  /// [then] each time the page is looked at again (its tab brought back to the front, the window shown again).
+  void onVisible(void Function() then);
 }
 
 /// Being the one tab of the app. Held until the page goes.
@@ -205,6 +208,18 @@ class MemoryBrowser implements Browser {
     opened.add(url);
     return true;
   }
+
+  final List<void Function()> _visible = [];
+
+  @override
+  void onVisible(void Function() then) => _visible.add(then);
+
+  /// The page is looked at again, as a tab brought back to the front is.
+  void becomeVisible() {
+    for (final f in [..._visible]) {
+      f();
+    }
+  }
 }
 
 class MemoryBrowserProfile {
@@ -234,13 +249,19 @@ class MemoryBrowserStore implements BrowserStore {
   /// Writes let go unwritten after [close] or [wipe].
   int dropped = 0;
 
+  /// Set to have every read, or every write, fail as a browser's store can (busy, or full).
+  bool failReads = false, failWrites = false;
+
   @override
   void Function(String name)? onLost;
 
   static String _seal(String value) => 'sealed:${String.fromCharCodes(value.codeUnits.reversed)}';
 
   @override
-  Future<String?> readPlain(String name) async => plain[name];
+  Future<String?> readPlain(String name) async {
+    if (failReads) throw StateError('the browser\'s store: busy');
+    return plain[name];
+  }
 
   @override
   Future<void> delete(String name) async {
@@ -251,6 +272,7 @@ class MemoryBrowserStore implements BrowserStore {
 
   @override
   Future<String?> readSealed(String name) async {
+    if (failReads) throw StateError('the browser\'s store: busy');
     final kept = sealed[name];
     if (kept == null) return null;
     if (!kept.startsWith('sealed:')) {
@@ -266,6 +288,7 @@ class MemoryBrowserStore implements BrowserStore {
       dropped++;
       return;
     }
+    if (failWrites) throw StateError('the browser\'s store: full');
     plain.remove(name);
     sealed[name] = _seal(value);
   }

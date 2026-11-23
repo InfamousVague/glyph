@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/account/account.dart';
+import 'package:ghost_messaging/me/me.dart' show MemoryMeStore;
 import 'package:ghost_messaging/desktop/platform.dart' show computerWord, desktopName;
 import 'package:ghost_messaging/emoji_sets.dart';
 import 'package:ghost_messaging/files/file_kinds.dart' show FileKind;
@@ -208,6 +209,38 @@ void main() {
     }
   });
 
+  // The second review: a browser removed while its tab stayed open went on reading and writing until it was loaded
+  // again. It asks every few minutes, whenever it is looked at again, and as the hub comes back (no more than every half
+  // minute): Account.check, which deletes only on the account's signed removal.
+  test('a page left open asks whether it is still the account\'s: when looked at again, and every few minutes', () async {
+    final before = Account.instance;
+    final relay = _HelloCount();
+    final store = MemoryMeStore()..set('acct_address', '0x${'a' * 40}');
+    Account.instance = Account(relay: relay, port: _NoPort(), store: store, profiles: _NoProfiles());
+    addTearDown(() => Account.instance = before);
+    var now = DateTime(2026, 11, 23, 12);
+    final browser = MemoryBrowser();
+    removalCheckEvery = const Duration(milliseconds: 40);
+    addTearDown(() => removalCheckEvery = const Duration(minutes: 3));
+    final stop = watchForRemoval(browser, now: () => now);
+    addTearDown(stop);
+    browser.becomeVisible();
+    await Future<void>.delayed(Duration.zero);
+    expect(relay.hellos, 1);
+    // Brought back again at once: not asked again.
+    browser.becomeVisible();
+    await Future<void>.delayed(Duration.zero);
+    expect(relay.hellos, 1);
+    // Half a minute on: asked, by the clock alone too.
+    now = now.add(const Duration(seconds: 31));
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(relay.hellos, 2);
+    now = now.add(const Duration(seconds: 31));
+    browser.becomeVisible();
+    await Future<void>.delayed(Duration.zero);
+    expect(relay.hellos, 3);
+  });
+
   test('the hub is beside the app: the page\'s own address, /hub where the page is /app/', () {
     expect(hubFor(Uri.parse('https://gogho.st/app/')), 'wss://gogho.st/hub');
     expect(hubFor(Uri.parse('https://gogho.st/app/index.html')), 'wss://gogho.st/hub');
@@ -302,6 +335,37 @@ void main() {
       expect(welcomeNote('signed-out'), contains('signed out'));
       expect(welcomeNote('lost'), contains('couldn\'t be opened'));
       expect(welcomeNote(''), isNull);
+    });
+
+    testWidgets('a store that can\'t be read just now is said so, and nothing is written over it', (tester) async {
+      final profile = MemoryBrowserProfile();
+      final c = StandaloneCalls.on(WebStandaloneStore(profile.store));
+      await c.load();
+      await c.invokeMethod('netTextIn', {'address': '@sam', 'body': 'kept', 'at': 1000});
+      await c.flushed();
+      final kept = {...profile.store.sealed};
+      profile.store.failReads = true;
+      final browser = MemoryBrowser(profile: profile);
+      // Tried again a moment apart, on the real clock.
+      await tester.runAsync(() => webMain(browser: browser));
+      await tester.pump();
+      expect(find.text('Ghost Messaging couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
+      expect(profile.store.sealed, kept);
+      expect(profile.store.wipes, 0);
+      expect(browser.reloads, 0);
+      expect(Sms.browser, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a plain record from before that can\'t be sealed just now (the store full) is left as it was', (tester) async {
+      final profile = MemoryBrowserProfile();
+      profile.store.plain[WebStandaloneStore.stateName] = jsonEncode({'prefs': {'theme': 'dark'}, 'buddies': '[]'});
+      profile.store.failWrites = true;
+      await tester.runAsync(() => webMain(browser: MemoryBrowser(profile: profile)));
+      await tester.pump();
+      expect(find.text('Ghost Messaging couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
+      expect(profile.store.plain[WebStandaloneStore.stateName], contains('dark'));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the button is pressed once while what it does runs', (tester) async {
@@ -508,7 +572,7 @@ void main() {
       // An iPhone or a computer of its own: what stays is said, and deleting it too is offered.
       Sms.browser = false;
       words = await said();
-      expect(words.join('\n'), contains('Your conversations, your spaces and your choices stay on this device, unless you delete everything here too.'));
+      expect(words.join('\n'), contains('Your conversations, your spaces and your choices stay on this device, unless you delete everything here too, which also signs out of your other networks here'));
       expect(words, containsAll(['Sign out', 'Sign out and delete everything here']));
       // A phone: its texts and conversations stay, as they always have.
       Sms.standalone = false;
@@ -556,4 +620,26 @@ class _Themed extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A relay that counts how often a device asks whether it is still listed, and says it is.
+class _HelloCount implements AccountRelay {
+  var hellos = 0;
+  @override
+  String get hubId => 'test';
+  @override
+  Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
+    if (what['dir'] == 'acct-hello') hellos++;
+    return {'dir': what['dir'], 'known': true, 'account': true};
+  }
+}
+
+class _NoPort implements AccountPort {
+  @override
+  dynamic noSuchMethod(Invocation i) => Future<Object?>.value();
+}
+
+class _NoProfiles implements AccountProfiles {
+  @override
+  dynamic noSuchMethod(Invocation i) => Future<Object?>.value();
 }

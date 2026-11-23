@@ -12,6 +12,8 @@ import '../kit/settings_css.dart';
 import '../looks.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../me/me.dart';
+import '../net/carrier.dart' show CarrierState;
+import '../net/hub_carrier.dart' show HubCarrier;
 import '../net/net.dart';
 import '../people.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
@@ -145,9 +147,19 @@ Future<void> _start(Browser b) async {
   };
   calls.openLink = (url) async => b.openTab(url);
   try {
-    await calls.load();
+    await calls.loadAgain();
   } on StoreLost {
     return _lost(b, kept);
+  } catch (_) {
+    // Couldn't be read just now (the browser's store busy, or full): said, with a way to try again, and nothing written,
+    // so nothing is put over what is there.
+    kept.close();
+    return runApp(WebNotice(
+      words: 'Ghost Messaging couldn\'t read what this browser keeps for it just now.',
+      more: 'Nothing was changed. Try again in a moment; if it keeps happening, the browser may be short of space.',
+      action: 'Try again',
+      onAction: () async => b.reload(),
+    ));
   }
   // Found while the app runs: the same.
   kept.onLost = (_) => unawaited(_lost(b, kept));
@@ -181,7 +193,59 @@ Future<void> _start(Browser b) async {
   SettingsSources.add(browserSettings);
   startPeople(state);
   SpaceGroups.instance.start(state);
+  watchForRemoval(b);
   runApp(WebApp(state: state, accents: accents));
+}
+
+/// How often a page left open asks whether its browser is still on the account's list.
+@visibleForTesting
+Duration removalCheckEvery = const Duration(minutes: 3);
+
+/// A browser removed from the account while its tab stays open (a library's computer) stops being the account within
+/// a few minutes, as soon as the page is looked at again, or as the hub's connection comes back, not only when it is
+/// next loaded: Account.check, which deletes only on the account's own signed removal. Asked no more than every half
+/// minute however often the tab is brought back.
+@visibleForTesting
+void Function() watchForRemoval(Browser b, {DateTime Function()? now}) {
+  final clock = now ?? DateTime.now;
+  DateTime? last;
+  void ask() {
+    final at = clock();
+    if (last != null && at.difference(last!) < const Duration(seconds: 30)) return;
+    last = at;
+    unawaited(Account.instance.check());
+  }
+
+  final every = Timer.periodic(removalCheckEvery, (_) => ask());
+  b.onVisible(ask);
+  // The hub's connection back up after it went down (not its first: the page asked as it started).
+  HubCarrier? hub;
+  var wasUp = false, everUp = false;
+  void stateChanged() {
+    final up = hub?.state.value == CarrierState.up;
+    if (up && !wasUp && everUp) ask();
+    if (up) everUp = true;
+    wasUp = up;
+  }
+
+  void netChanged() {
+    final now = Net.instance.hub;
+    if (identical(now, hub)) return;
+    hub?.state.removeListener(stateChanged);
+    hub = now;
+    wasUp = false;
+    now?.state.addListener(stateChanged);
+    stateChanged();
+  }
+
+  Net.instance.addListener(netChanged);
+  netChanged();
+  // For a test: stopped.
+  return () {
+    every.cancel();
+    Net.instance.removeListener(netChanged);
+    hub?.state.removeListener(stateChanged);
+  };
 }
 
 /// The app in the page: the one frame every device has (lib/ui/shell.dart), which puts the list and what is open side
