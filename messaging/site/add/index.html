@@ -12,7 +12,8 @@
   Someone's add-me link (GMFB-34: "A gogho.st/add/<username> link and QR code that opens a friend request"): one page
   for every username (the site's web server sends each /add/<name> here; tool/deploy-site.mjs). Opened on a phone with
   the app, Android opens the app itself (an App Link); otherwise this page says who it is and leads to the app, which
-  asks before sending the request (lib/friends/add_link.dart).
+  asks before sending the request (lib/friends/add_link.dart). What follows # (the start of their account's name) is
+  carried into the app as it is, and no server ever sees it.
 -->
 <style>
   :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --red: #dd3a30; }
@@ -55,8 +56,11 @@
   document.title = `@${name} · Ghost Messaging`;
   $('title').textContent = `Add @${name}`;
   $('line').textContent = `@${name} would like to be friends on Ghost Messaging. Open it in the app to send them a request.`;
+  // The start of their account's name, after # (never sent to any server, this one included): carried into the app,
+  // which refuses the relay's answer for the username where its key doesn't begin so (lib/friends/add_link.dart).
+  const key = location.hash.replace(/^#/, '').toLowerCase();
   // The app's own address for it (android ghostmsg://add/<name>): the app asks before sending anything.
-  $('open').href = `ghostmsg://add/${encodeURIComponent(name)}`;
+  $('open').href = `ghostmsg://add/${encodeURIComponent(name)}${/^[0-9a-f]{8,32}$/.test(key) ? '#' + key : ''}`;
 })();
 </script>
 </body>

@@ -151,6 +151,13 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// Whether a stream to [account]'s device at [nodeId] is open and proved.
   bool linkedTo(String account, String nodeId) => _nodes[nodeId]?.proved(account) != null;
 
+  /// The proved stream open to [account]'s device at [nodeId], as a link to say something on ([Switchboard.sendOn]);
+  /// null where none is open.
+  Object? lineTo(String account, String nodeId) => _nodes[nodeId]?.proved(account);
+
+  /// The node at the other end of [line] (one [Arrived.line] came on), while it is open and proved; null otherwise.
+  String? nodeOf(Object? line) => line is _Line && !line.closed && line.account != null ? line.stream.nodeId : null;
+
   @override
   bool linked(Peer peer) => _wanted && p2p.devicesOf(peer.id).any((d) => linkedTo(peer.id, d.nodeId));
 

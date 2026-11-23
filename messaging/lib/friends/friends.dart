@@ -639,6 +639,15 @@ class Friends extends ChangeNotifier {
   @visibleForTesting
   int get unanswered => _out.length;
 
+  /// What went to [peerId] as [id] and is still waiting for an answer, as it went (the same name, words and time): a
+  /// device of theirs said over a direct link that it never came, and it goes again straight (lib/net/ledger.dart).
+  /// Null where it was answered, given up on, or went to someone else.
+  Envelope? heldFor(String peerId, String id) {
+    final o = _out[id];
+    if (o == null || _port.peer(o.address)?.id != peerId) return null;
+    return Envelope(id: o.id, kind: 'text', body: {'t': o.words}, at: o.first.millisecondsSinceEpoch);
+  }
+
   // --- what goes ------------------------------------------------------------------------------------------------------
 
   /// Sends [words] to a friend by the routes. True when a route took them: they are kept with the conversation and

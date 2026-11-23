@@ -3,13 +3,17 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../friends/buddies.dart';
 import '../friends/groups.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/carrier.dart';
 import '../net/hub_link.dart';
+import '../net/ledger.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../net/p2p/node.dart';
+import 'name_watch_words.dart';
 import '../net/p2p/p2p.dart';
 import '../net/relay_choice.dart';
 import 'common.dart';
@@ -134,6 +138,153 @@ String _ago(DateTime at) {
   return '${s ~/ 3600} h ago';
 }
 
+// --- Checking the relay (docs/OPEN_NETWORK.md, section 3) -----------------------------------------------------------
+
+/// How long ago [at] was from [now] (both ms), in words.
+String agoWords(int at, int now) {
+  final s = (now - at) ~/ 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return '${s ~/ 60} min ago';
+  if (s < 2 * 86400) return '${s ~/ 3600} h ago';
+  return '${s ~/ 86400} days ago';
+}
+
+/// The day [ms] fell on, as a row says it: "21 Nov".
+String dayWords(int ms) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  return '${d.day} ${months[d.month - 1]}';
+}
+
+/// When the relay was last checked over direct links, and with how many friends' devices.
+String relayCheckedWords(int at, int devices, {required int now}) =>
+    at <= 0 ? 'Not checked yet' : 'Last checked ${agoWords(at, now)}, with ${devices == 1 ? '1 device' : '$devices devices'}';
+
+/// How many messages both ends agreed on this week.
+String relayMatchedWords(int matched) => '${matched == 1 ? '1 message' : '$matched messages'} matched this week';
+
+/// How many had to come straight with the relay not at fault.
+/// How many came straight after the relay didn't bring them, and of those how many were lost when it started again: only
+/// what did come straight is counted (the review, D7).
+String relayMadeUpWords(int madeUp, {int restarts = 0}) => madeUp == 0
+    ? 'None had to come straight.'
+    : '${madeUp == 1 ? '1 came' : '$madeUp came'} straight after the relay didn\'t bring ${madeUp == 1 ? 'it' : 'them'}${restarts == 0 ? '' : restarts == madeUp ? ', lost when it started again' : ' ($restarts lost when it started again)'}.';
+
+/// One thing the relay got wrong, said as whose word it is (the review, D5): what the relay told the friend [who]'s
+/// device, held to what happened here, put down only once the message came straight.
+String relayWrongWords(LedgerWrong w, String who) => switch (w.kind) {
+      LedgerWrongKind.passed => '$who\'s device says the relay passed on a message to you, and it never came by the relay',
+      LedgerWrongKind.kept => '$who\'s device says the relay kept a message for you, and it never handed it over',
+      LedgerWrongKind.away => '$who\'s device says the relay told it you were away while you were connected',
+      LedgerWrongKind.gone => 'The relay said $who was gone while their device said it was connected',
+    };
+
+/// What the name watch does, in a line, and when it last asked.
+String nameWatchWords(int friends) => friends == 0 ? 'No friends added by username yet' : 'Asks the relay about ${friends == 1 ? '1 friend\'s username' : '$friends friends\' usernames'} each day';
+
+String nameWatchHint(int lastAsked, {required int now}) => lastAsked <= 0
+    ? 'Each is asked at a time of its own through the day, and the answer held against the key you added.'
+    : 'Last asked ${agoWords(lastAsked, now)}. Each answer is held against the key you added; nothing the relay says changes who your friends are.';
+
+/// Settings › Routes › Checking the relay (docs/OPEN_NETWORK.md, section 3; Matt, 2026-11-22: "p2p as a secondary back
+/// up that validates everything our relay says"). Per relay, plainly: when it was last checked over direct links and
+/// with how many devices, how many messages matched and how many were made up for, each thing it got wrong with its
+/// day, and "Check now" (once a minute at most). Then the name watch, which needs no direct route. In a build with no
+/// direct route ([ledger] null) it says the relay is checked only by the name watch, shows that alone, and dials
+/// nothing.
+PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, required LedgerCheck? check, required NameWatch? watch, required String relay, bool directOn = true, String Function(String id)? nameOf, int? now}) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final at = now ?? DateTime.now().millisecondsSinceEpoch;
+  String who(String id) {
+    final n = nameOf?.call(id);
+    return n == null || n.isEmpty ? (id.length >= 6 ? id.substring(0, 6) : id) : n;
+  }
+
+  final compares = ledger != null && check != null;
+  final rows = <Widget>[];
+  if (compares) {
+    final records = ledger.relays;
+    final r = records[relay];
+    rows.add(SettingRow(
+      key: const ValueKey('relay-checked'),
+      icon: icon(Lucide.shieldCheck),
+      label: relayCheckedWords(r?.lastChecked ?? 0, r?.devices ?? 0, now: at),
+      hint: Text('Of ${relayInUseWords(relay)}, over direct links with your friends\' devices.'),
+    ));
+    if (r != null && r.lastChecked > 0) {
+      rows.add(SettingRow(
+        key: const ValueKey('relay-matched'),
+        icon: icon(Lucide.check),
+        label: relayMatchedWords(r.matched(at)),
+        hint: Text(relayMadeUpWords(r.madeUp(at), restarts: r.restarts(at))),
+      ));
+      final wrong = r.wrong.reversed.toList();
+      if (wrong.isEmpty) {
+        rows.add(SettingRow(key: const ValueKey('relay-wrong-none'), icon: icon(Lucide.circleCheck), label: 'It got nothing wrong'));
+      }
+      for (final (i, w) in wrong.indexed) {
+        rows.add(SettingRow(key: ValueKey('relay-wrong-$i'), icon: icon(Lucide.circleAlert), label: relayWrongWords(w, who(w.friend)), hint: Text(dayWords(w.at))));
+      }
+    }
+    // Relays this device used before, with what was found of them.
+    for (final o in records.values.where((o) => o.url != relay)) {
+      rows.add(SettingRow(
+        key: ValueKey('relay-before-${o.url}'),
+        icon: icon(Lucide.history),
+        label: 'Before: ${relayInUseWords(o.url)}',
+        hint: Text('${relayCheckedWords(o.lastChecked, o.devices, now: at)}. ${relayMatchedWords(o.matched(at))}; ${o.wrong.length == 1 ? '1 thing' : '${o.wrong.length} things'} wrong.'),
+      ));
+    }
+    final may = directOn && check.canCheckNow;
+    rows.add(SettingRow(
+      key: const ValueKey('relay-check-now'),
+      icon: icon(Lucide.refreshCw),
+      label: 'Check now',
+      hint: Text(!directOn
+          ? 'Switch Direct on above to compare.'
+          : may
+              ? 'Dials the friends the relay says are here, and compares.'
+              : 'Checked a moment ago. Again in a minute.'),
+      disabled: !may,
+      onPress: may
+          ? () async {
+              final n = await check.checkNow();
+              if (!context.mounted) return;
+              toast(context, n == 0 ? 'Nobody the relay says is here can be compared with now' : 'Comparing with ${n == 1 ? '1 friend' : '$n friends'}');
+            }
+          : null,
+    ));
+  }
+  // The name watch: what needs no direct route.
+  if (watch != null) {
+    rows.add(SettingRow(
+      key: const ValueKey('names-watched'),
+      icon: icon(Lucide.atSign),
+      label: nameWatchWords(watch.watching),
+      hint: Text(nameWatchHint(watch.lastAsked, now: at)),
+    ));
+    // In the rows' own ink, with what usually causes each said (the review, M1 and M2).
+    final own = watch.own;
+    if (own != null) rows.add(SettingRow(key: const ValueKey('names-own'), icon: icon(Lucide.info), label: ownNameWords(own), hint: Text('${dayWords(own.at)}. ${ownNameHint(own)}')));
+    for (final (i, t) in watch.toldMe.reversed.indexed) {
+      rows.add(SettingRow(key: ValueKey('names-told-$i'), icon: icon(Lucide.info), label: toldWords(who(t.by ?? ''), t.username), hint: Text('${dayWords(t.at)}. $toldHint')));
+    }
+    for (final (i, c) in watch.changes.indexed) {
+      rows.add(SettingRow(key: ValueKey('names-changed-$i'), icon: icon(Lucide.info), label: friendNameChangedLabel(c.change.username), hint: Text('${dayWords(c.change.at)}. ${friendNameChangedHint(who(c.friend))}')));
+    }
+  }
+  return PaneSection(
+    title: 'Checking the relay',
+    description: Text(compares
+        ? 'Your devices and your friends\' compare what went between them, over direct links, to find anything the relay dropped or kept back. Friends\' usernames are asked of it again each day.'
+        : 'This device has no direct route, so the relay is checked only by the name watch: friends\' usernames are asked of it again each day, and your own each time you connect. Nothing is dialled.'),
+    footer: Text(compares
+        ? 'What is compared is which messages went and came, and when: never their words. It goes only to the friend it concerns, sealed, over a direct link.'
+        : 'Only the relay you use is asked. A friend whose username it now gives to another account is told, sealed, through the relay.'),
+    children: rows,
+  );
+}
+
 /// Settings › Network: the app's routes (Matt, 2026-11-14: "implement a full relay system for the app that's
 /// replacable and swappable ... The goal will be to have multiple sources to feed data to eachother from wifi
 /// locally, p2p, internet, sms, etc"). Each route with how it stands and a switch, the relay server's address, the
@@ -203,6 +354,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(title: 'Direct', children: [
         SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
       ]),
+    // Checking the relay: what comparing over direct links found, and the name watch, which needs no direct route.
+    if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, nameOf: _friendName),
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',
@@ -293,6 +446,15 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+/// A friend's name as Settings says it: their name or username as friends by username keep it, else as the routes know
+/// them.
+String _friendName(String id) {
+  final b = Buddies.instance.byId(id);
+  if (b != null) return b.shown;
+  final p = Net.instance.byId(id);
+  return p?.name ?? p?.address ?? '';
 }
 
 /// What a relay of one's own does and doesn't reach, in Settings › Routes (GMFB-25; docs/SELF_HOSTING.md).

@@ -59,8 +59,15 @@ import 'sha256.dart';
 class Hub {
   Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const []})
       : _now = now ?? DateTime.now,
+        started = (now ?? DateTime.now)(),
         _random = random ?? Random.secure(),
         helpers = linkHelpers(helpers);
+
+  /// When this hub started, by its own clock. Said with each sign-in (`"since"`, beside its time now, `"now"`): what it
+  /// kept for someone lives in memory and goes with a restart, so an app that knows when the relay started knows a
+  /// packet it was told was kept before then is gone with it, and is no fault of the relay's (the app's
+  /// docs/OPEN_NETWORK.md, section 3). An app from before passes over both.
+  final DateTime started;
 
   /// The link helpers this relay's people use for direct links between their devices (the app's
   /// docs/OPEN_NETWORK.md, section 2): servers that help two devices find each other and carry their sealed traffic
@@ -515,7 +522,7 @@ class Hub {
         _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
-        _tell(socket, {'ok': true, 'held': fresh.length, if (helpers.isNotEmpty) 'helpers': helpers});
+        _tell(socket, {'ok': true, 'held': fresh.length, 'now': _now().millisecondsSinceEpoch, 'since': started.millisecondsSinceEpoch, if (helpers.isNotEmpty) 'helpers': helpers});
         for (final h in fresh) {
           socket.add(h.frame);
         }

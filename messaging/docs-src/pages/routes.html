@@ -65,6 +65,27 @@
 <li><b>If it can't start</b> on your device, <ui>Settings › Routes</ui> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
+<h2 id="checked">How the relay is checked</h2>
+<p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
+<ul>
+<li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay that once gave a friend's username to them now gives it to another account, their profile says so; usually it's because they changed or gave up their username and someone else took it. Either way you're still talking to the friend you added: the relay can't swap them for someone else. If a friend tells their app they go by a new username, and the relay agrees, that's the one looked up from then on. Their app is told too, through the relay and over a direct link where one is open. Each relay is its own directory, so on a relay of your own nobody's username is held against what ours said. If you use Ghost Messaging on several devices, they take turns: your friends are still looked up once a day between them, and each of your devices shows what was found. These lookups and the checks on friend requests use at most a quarter of what the relay answers your account in an hour, leaving the rest for adding friends and accepting requests. If the relay ever says that's used up, <b>Accept</b> tells you by when it frees up.</li>
+<li><b>Your own username.</b> If the relay gives it to another account, you're told once, calmly, with the usual reasons: you gave it up or changed it on another of your devices, made a new key for this phone (the old key still holds it), or use another relay.</li>
+<li><b>Add-me links</b> carry your account's name (made from your key) after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
+<li><b>Messages</b> <soon/>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything your device never got is sent again straight. Only once it has come is anything held against the relay, and then as the friend's device's word. A device that was away while another of yours took a message, or a message lost when the relay restarted, isn't counted against it.</li>
+</ul>
+
+<m-screen title="Routes" back caption="Settings › Routes, Checking the relay, in a build with Direct.">
+  <m-section title="Checking the relay" foot="What is compared is which messages went and came, and when: never their words.">
+    <m-row icon="shield-check" hue="green" label="Last checked 5 min ago, with 3 devices" hint="Of Ghost Messaging's relay (gogho.st), over direct links with your friends' devices."/>
+    <m-row icon="check" hue="green" label="212 messages matched this week" hint="1 came straight after the relay didn't bring it."/>
+    <m-row icon="circle-alert" hue="red" label="Maya's device says the relay passed on a message to you, and it never came by the relay" hint="21 Nov"/>
+    <m-row icon="refresh-cw" hue="blue" label="Check now" hint="Dials the friends the relay says are here, and compares." chev/>
+    <m-row icon="at-sign" hue="blue" label="Asks the relay about 4 friends' usernames each day" hint="Last asked 2 h ago."/>
+  </m-section>
+</m-screen>
+
+<p>Without Direct, the relay is checked by the username lookups alone, and <ui>Settings › Routes</ui> says so. <b>Check now</b> dials the friends the relay says are online, once a minute at most; with no direct link in use, a few are checked by themselves while the app is open.</p>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 

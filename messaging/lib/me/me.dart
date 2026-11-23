@@ -420,6 +420,7 @@ class Me extends ChangeNotifier {
       case 'released':
       case 'keep':
       case 'kept':
+      case 'name':
         _waiting.remove('${m['dir']}:${network ?? ''}')?.complete(m);
       case 'linked':
         if (network != null && m['handle'] is String) {
@@ -846,6 +847,18 @@ class Me extends ChangeNotifier {
     if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
     return (id: got['id'] as String, key: got['key'] as String);
   }
+
+  /// Which username this install's key holds on the relay, as the relay keeps it: the name's hash ([nameKeyOf]), or
+  /// null for none. What the name watch holds its own username to (lib/net/name_watch.dart): a username given up or
+  /// changed on another device, a new key, or another relay are this answering otherwise, not the relay lying.
+  Future<String?> heldName() async {
+    final got = await _ask({'dir': 'name'}, 'name');
+    final k = got['k'];
+    return k is String && k.isNotEmpty ? k : null;
+  }
+
+  /// What a username is kept by on the relay: its hash, as the relay's `Handles.nameKey` makes it.
+  static String nameKeyOf(String name) => NetCrypto.hex(NetCrypto.sha256(utf8.encode('ghost-name v1|${tidyHandle(name)}')));
 
   /// The address to open in a browser to sign in on [network] and prove the account. The link itself arrives
   /// later, when the sign-in is done ([links] changes).
