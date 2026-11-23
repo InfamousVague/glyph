@@ -60,11 +60,12 @@ import 'ws_door.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, WireBudget? wire})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure(),
         helpers = linkHelpers(helpers),
-        names = hubNames(names) {
+        names = hubNames(names),
+        wire = wire ?? WireBudget.shared {
     federation?.bind(deliver: deliver, isHere: _isHere, knows: _knows, ownNumber: _nonces.contains, handles: handles);
   }
 
@@ -144,6 +145,10 @@ class Hub {
 
   /// Where the names of the keys that have signed in with v2 are kept across restarts (`hub-v2.json`); none in memory.
   final Directory? dataDir;
+
+  /// What every connection through the hub's door may hold together, waiting to go out or half come in (ws_door.dart,
+  /// [WireBudget]): the whole process's unless given one.
+  final WireBudget wire;
 
   /// The keys that have signed in here with v2, the latest last: from any of them a v1 signature is refused. The most
   /// kept is [maxSignsV2]; the one that signed in longest ago goes first.
@@ -487,7 +492,7 @@ class Hub {
       // No compression: a message is held whole before its length is looked at, and a deflated one of a few hundred
       // kilobytes opens out to hundreds of megabytes (found in review, 2026-11-22). Sealed packets don't shrink anyway.
       // And a ceiling on a message's length in front of the parser, for one sent as it is (ws_door.dart).
-      final up = await upgradeGuarded(request, most: maxMessage);
+      final up = await upgradeGuarded(request, most: maxMessage, budget: wire);
       if (up == null) return;
       ws = up;
     } catch (_) {

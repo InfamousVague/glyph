@@ -215,6 +215,12 @@ or asked a name of, from signing in to yours as them. An app that dialled a name
 them all; without the setting, sign-ins are taken as they always were. On Windows and elsewhere the names it has seen
 sign in so are kept in `hub-v2.json` in the data folder.
 
+### How much the relay holds
+
+What every connection holds together, a message half come in or what waits for a peer that doesn't read, is kept under
+64 MB, and what waits to go out to one connection under 8 MB: past them the connection holding the most is ended. With
+the 96 MB kept for people who are away, that keeps the relay inside a few hundred megabytes however many connect.
+
 ### Calls through your own TURN server (optional)
 
 Calls go straight between the two devices where they can. Where they can't (two strict NATs, some mobile networks),

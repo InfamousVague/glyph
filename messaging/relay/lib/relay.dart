@@ -25,10 +25,16 @@ import 'ws_door.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web, WireBudget? wire})
+      : _now = now ?? DateTime.now,
+        wire = wire ?? hub?.wire ?? WireBudget.shared;
 
   /// The app in a browser, as plain files (web_app.dart), served under `/app/`; none where null.
   final WebApp? web;
+
+  /// What every connection may hold together, waiting to go out or half come in (ws_door.dart, [WireBudget]): the
+  /// hub's, so the pairings' door and the hub's count against one budget.
+  final WireBudget wire;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
@@ -175,7 +181,7 @@ class Relay {
     try {
       // No compression, as the hub (hub.dart, accept): a deflated message opens out before its length is looked at.
       // And no message longer than a frame this door takes, with a margin, is held at all (ws_door.dart).
-      final up = await upgradeGuarded(request, most: maxMessage);
+      final up = await upgradeGuarded(request, most: maxMessage, budget: wire);
       if (up == null) return;
       ws = up;
     } catch (_) {

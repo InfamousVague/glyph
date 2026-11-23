@@ -44,6 +44,10 @@ class FrameGuard {
   /// Why it said no, once it has.
   String? why;
 
+  /// The bytes of the message not yet finished that have come in: what Dart's parser holds until its last frame comes
+  /// ([WireBudget] counts them). Nothing once it is finished, and nothing for a control frame, which is read at once.
+  int holding = 0;
+
   static const _head = 0, _length = 1, _moreLength = 2, _mask = 3, _payload = 4;
   int _at = _head;
   bool _fin = false, _control = false, _masked = false;
@@ -111,6 +115,7 @@ class FrameGuard {
           final step = min(_left, n - i);
           i += step;
           _left -= step;
+          if (!_control) holding += step;
           if (_left == 0) _frameDone();
       }
     }
@@ -140,7 +145,10 @@ class FrameGuard {
   }
 
   void _frameDone() {
-    if (!_control && _fin) _inMessage = false;
+    if (!_control && _fin) {
+      _inMessage = false;
+      holding = 0;
+    }
     _at = _head;
   }
 
@@ -150,27 +158,167 @@ class FrameGuard {
   }
 }
 
+/// What every connection through these doors may hold in memory at once, together (found in the review of relays
+/// that talk, 2026-11-23): the part of a message that has come in and isn't finished (which Dart's parser holds whole,
+/// up to the door's ceiling), and what waits to go out to a peer that doesn't read, pongs to its pings included (Dart
+/// answers each ping by itself, and holds the answer for as long as the peer leaves it unread). One door's ceiling
+/// bounds one connection, but twenty thousand connections at a megabyte each would be twenty gigabytes, where the relay
+/// has 300 MB in all.
+///
+/// So each connection's share is counted here: past [eachOut] waiting to go out, a connection is ended (its peer isn't
+/// reading); and where everyone together would pass [most], the connection holding the most is ended, and the next,
+/// until the rest fit. A peer that reads what it is sent and sends whole messages holds next to nothing, so it is the
+/// one holding a lot that goes.
+class WireBudget {
+  WireBudget({this.most = 64 << 20, this.eachOut = 8 << 20});
+
+  /// The budget every door uses unless given another: the whole process's.
+  static final shared = WireBudget();
+
+  /// All connections together, in bytes: 64 MB of the relay's 300, beside the 96 MB the hub keeps for people who are
+  /// away. And what may wait to go out to one connection: 8 MB, past anything the hub sends at once (what it kept for
+  /// someone is a megabyte at most) and room for a pairing's frames to a computer slower than the phone sending them.
+  final int most;
+  final int eachOut;
+
+  int _used = 0;
+  final Set<WireHold> _holding = {};
+
+  /// What is held now, all connections together; and how many connections hold anything.
+  int get used => _used;
+  int get holders => _holding.length;
+
+  /// How many connections were ended for it, for a test and the log.
+  int ended = 0;
+
+  /// A connection's share, ended by [end] where it must go.
+  WireHold open(void Function() end) => WireHold._(this, end);
+
+  bool _set(WireHold h, int incoming, int outgoing) {
+    if (h._gone) return false;
+    if (outgoing > eachOut) {
+      _end(h);
+      return false;
+    }
+    _used += incoming + outgoing - h._in - h._out;
+    h._in = incoming;
+    h._out = outgoing;
+    if (incoming + outgoing > 0) {
+      _holding.add(h);
+    } else {
+      _holding.remove(h);
+    }
+    while (_used > most && _holding.isNotEmpty) {
+      final top = _holding.reduce((a, b) => b.held > a.held ? b : a);
+      _end(top);
+      if (identical(top, h)) return false;
+    }
+    return true;
+  }
+
+  void _drop(WireHold h) {
+    if (h._gone) return;
+    h._gone = true;
+    _used -= h._in + h._out;
+    h._in = h._out = 0;
+    _holding.remove(h);
+  }
+
+  void _end(WireHold h) {
+    if (h._gone) return;
+    _drop(h);
+    ended++;
+    h._end();
+  }
+}
+
+/// One connection's share of a [WireBudget].
+class WireHold {
+  WireHold._(this.budget, this._end);
+  final WireBudget budget;
+  final void Function() _end;
+  int _in = 0, _out = 0;
+  bool _gone = false;
+
+  /// What it holds now, in bytes.
+  int get held => _in + _out;
+
+  /// The part of a message that has come in and isn't finished is now [n] bytes: false where the connection is ended.
+  bool incoming(int n) => budget._set(this, n, _out);
+
+  /// [n] more bytes wait to go out: false where the connection is ended.
+  bool queued(int n) => budget._set(this, _in, _out + n);
+
+  /// [n] bytes have gone to the socket.
+  void sent(int n) {
+    if (!_gone) budget._set(this, _in, max(0, _out - n));
+  }
+
+  /// The connection is over: nothing of it is held.
+  void close() => budget._drop(this);
+}
+
 /// A socket whose every incoming byte passes a [FrameGuard] before anything else reads it; one past the guard's limit
-/// destroys the socket, and what reads it is told it is done. Everything else is the socket's own.
+/// destroys the socket, and what reads it is told it is done. What it holds counts against [budget] ([WireBudget]):
+/// the part of a message that has come in, and everything written to it until the socket has taken it (nothing is
+/// left waiting where it can't be counted). Everything else is the socket's own.
 class GuardedSocket extends Stream<Uint8List> implements Socket {
-  GuardedSocket(this._socket, this.guard, {Stream<Uint8List>? incoming}) : _incoming = incoming ?? _socket;
+  GuardedSocket(this._socket, this.guard, {Stream<Uint8List>? incoming, WireBudget? budget}) : _incoming = incoming ?? _socket {
+    _hold = (budget ?? WireBudget.shared).open(_socket.destroy);
+    _socket.done.then((_) => _hold.close(), onError: (_) => _hold.close());
+  }
 
   final Socket _socket;
   final FrameGuard guard;
   final Stream<Uint8List> _incoming;
+  late final WireHold _hold;
 
   @override
   StreamSubscription<Uint8List> listen(void Function(Uint8List event)? onData, {Function? onError, void Function()? onDone, bool? cancelOnError}) {
     var ended = false;
     return _incoming
-        .transform(StreamTransformer<Uint8List, Uint8List>.fromHandlers(handleData: (data, sink) {
-          if (ended) return;
-          if (guard.take(data)) return sink.add(data);
-          ended = true;
-          _socket.destroy();
-          sink.close();
-        }))
+        .transform(StreamTransformer<Uint8List, Uint8List>.fromHandlers(
+          handleData: (data, sink) {
+            if (ended) return;
+            if (guard.take(data) && _hold.incoming(guard.holding)) return sink.add(data);
+            ended = true;
+            _socket.destroy();
+            sink.close();
+          },
+          handleDone: (sink) {
+            // Nothing more comes in; what waits to go out is still counted until the socket is done.
+            _hold.incoming(0);
+            sink.close();
+          },
+        ))
         .listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+  }
+
+  /// What the WebSocket writes (Dart's WebSocket gives its socket one stream of frames, pongs among them). It is read
+  /// at once, never paused, so nothing waits where it isn't counted: what the socket hasn't taken yet waits here, each
+  /// chunk counted until the socket takes it, and past the budget the connection is ended and what waited dropped.
+  @override
+  Future addStream(Stream<List<int>> stream) {
+    final waiting = StreamController<List<int>>();
+    late final StreamSubscription<List<int>> from;
+    from = stream.listen(
+      (chunk) {
+        if (waiting.isClosed) return;
+        if (_hold.queued(chunk.length)) return waiting.add(chunk);
+        from.cancel();
+        waiting.close();
+      },
+      onError: (Object e, StackTrace s) {
+        if (!waiting.isClosed) waiting.addError(e, s);
+      },
+      onDone: () {
+        if (!waiting.isClosed) waiting.close();
+      },
+    );
+    return _socket.addStream(waiting.stream.map((chunk) {
+      _hold.sent(chunk.length);
+      return chunk;
+    }));
   }
 
   @override
@@ -181,8 +329,6 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
   void add(List<int> data) => _socket.add(data);
   @override
   void addError(Object error, [StackTrace? stackTrace]) => _socket.addError(error, stackTrace);
-  @override
-  Future addStream(Stream<List<int>> stream) => _socket.addStream(stream);
   @override
   Future close() => _socket.close();
   @override
@@ -198,7 +344,10 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
   @override
   void writeln([Object? object = '']) => _socket.writeln(object);
   @override
-  void destroy() => _socket.destroy();
+  void destroy() {
+    _hold.close();
+    _socket.destroy();
+  }
   @override
   bool setOption(SocketOption option, bool enabled) => _socket.setOption(option, enabled);
   @override
@@ -218,7 +367,7 @@ class GuardedSocket extends Stream<Uint8List> implements Socket {
 /// Upgrades [request] to a WebSocket as Dart's own upgrade does (WebSocketTransformer.upgrade: the same answer,
 /// without compression), with a [FrameGuard] holding each message to [most] bytes, the first to [first], before Dart's
 /// parser reads it. Null where it is not a WebSocket's request (answered 400) or the socket could not be had.
-Future<WebSocket?> upgradeGuarded(HttpRequest request, {required int most, int first = firstMost}) async {
+Future<WebSocket?> upgradeGuarded(HttpRequest request, {required int most, int first = firstMost, WireBudget? budget}) async {
   final key = request.headers.value('sec-websocket-key');
   if (!WebSocketTransformer.isUpgradeRequest(request) || key == null) {
     try {
@@ -239,7 +388,7 @@ Future<WebSocket?> upgradeGuarded(HttpRequest request, {required int most, int f
   } catch (_) {
     return null;
   }
-  return WebSocket.fromUpgradedSocket(GuardedSocket(socket, FrameGuard(most: most, first: first)), serverSide: true, compression: CompressionOptions.compressionOff);
+  return WebSocket.fromUpgradedSocket(GuardedSocket(socket, FrameGuard(most: most, first: first), budget: budget), serverSide: true, compression: CompressionOptions.compressionOff);
 }
 
 /// Why a WebSocket this relay dialled was not made ([dialGuarded]).
@@ -257,7 +406,7 @@ const _mostHead = 8192;
 /// made here (RFC 6455, section 4.1), asking for no extension and no protocol, and taken only where the answer is
 /// `101` with the accept the key asks for and neither of them; nothing else is followed anywhere (a redirect is a
 /// refusal). Then each message is held to [most] bytes, the first to [first], before Dart's parser reads it.
-Future<WebSocket> dialGuarded(Socket socket, Uri url, {required int most, int first = firstMost, Random? random}) async {
+Future<WebSocket> dialGuarded(Socket socket, Uri url, {required int most, int first = firstMost, Random? random, WireBudget? budget}) async {
   final r = random ?? Random.secure();
   final key = base64Encode([for (var i = 0; i < 16; i++) r.nextInt(256)]);
   final usual = url.scheme == 'wss' ? 443 : 80;
@@ -319,7 +468,7 @@ Future<WebSocket> dialGuarded(Socket socket, Uri url, {required int most, int fi
     // What came after the head goes first, through the guard like everything else.
     if (bytes.length > end + 4) rest.add(Uint8List.sublistView(bytes, end + 4));
     sub.resume();
-    return WebSocket.fromUpgradedSocket(GuardedSocket(socket, FrameGuard(most: most, first: first), incoming: rest.stream), serverSide: false, compression: CompressionOptions.compressionOff);
+    return WebSocket.fromUpgradedSocket(GuardedSocket(socket, FrameGuard(most: most, first: first), incoming: rest.stream, budget: budget), serverSide: false, compression: CompressionOptions.compressionOff);
   } catch (_) {
     await sub.cancel();
     socket.destroy();

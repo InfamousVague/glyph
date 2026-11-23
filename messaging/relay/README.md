@@ -53,6 +53,16 @@ keys, about 340 KB), a pairing's door a frame of a megabyte and 64 KB, a link th
 message at any door (a hello) 16 KB; no door a message in more than 1,024 pieces, a control frame over 125 bytes, or
 bits an extension would use.
 
+**Nor more than the relay has, all connections together** (`WireBudget` in `lib/ws_door.dart`, found in the second look
+of 2026-11-23). A door's ceiling bounds one connection, but twenty thousand connections at a megabyte each would be far
+more than the relay's 300 MB. So what every connection holds is counted against one budget for the whole process: the
+part of a message that has come in and isn't finished, and what waits to go out to a peer that doesn't read (the
+answers to its pings included: Dart answers each ping by itself, and holds the answer for as long as it isn't read).
+Everything written to a connection waits where it is counted, never inside Dart's own WebSocket. Past 8 MB waiting to
+go out, a connection is ended (its peer isn't reading); and where all of them together would pass 64 MB, the
+connection holding the most is ended, and the next, until the rest fit. An app that reads what it is sent and sends
+whole messages holds next to nothing, so it is never the one that goes.
+
 **Signing in.** An app signs the hub's number with its key. Before 2026-11-23 that signature (v1) was the words
 `ghost-hub v1 ` and the number, and said nothing of where it was made, so a relay an app was pointed at, or asked a
 name of, could hand the app the number of the app's own relay and sign in there as the app with the answer. So a hub
