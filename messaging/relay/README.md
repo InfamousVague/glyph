@@ -8,6 +8,7 @@ ghost-sms.com: `wss://ghost-sms.com/relay` and `wss://ghost-sms.com/hub`.
 ```sh
 dart pub get                                   # the test package only; nothing the relay itself runs
 dart run bin/relay.dart --port 8787 --verbose  # ws://127.0.0.1:8787
+dart run bin/relay.dart --web ../build/web     # and the app in a browser at http://127.0.0.1:8787/app/
 dart test                                      # the relay and its SHA-256
 dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server
 ```
@@ -18,6 +19,19 @@ Use the `dart` that comes with Flutter (`$(dirname $(which flutter))/dart`) wher
 `deploy/` a Compose file with Caddy, a systemd unit, Caddy and nginx configs, a coturn config, and `relay.env.example`
 listing every variable the relay reads (none is required). Relays don't talk to each other: people reach each other
 through a relay only when both use the same one.
+
+## The app in a browser (`/app/`)
+
+`--web <folder>` (or `GHOST_WEB_DIR`) names a folder holding the app built for a browser (`node tool/build-web.mjs`
+in the app's folder writes `build/web`), and the relay serves it as plain files under `/app/` (`lib/web_app.dart`).
+A page may speak only to the address it came from and the hub sends no headers that would let another site's page
+in, so the page and the hub are one address: in a browser the app dials `/hub` where its page came from. Only GET
+and HEAD; only what is in the folder (no `..`, no names starting with a dot, no links leading out of it); no lists
+of a folder; each file said to be what it is (`application/wasm`, `text/javascript`, ...); `index.html` and every
+file whose name doesn't say what is in it asked for again each time (`no-cache`, with a tag), a file with a hash of
+its contents in its name kept for a year; and `name.br` or `name.gz` sent in a file's place where it lies beside it
+and the browser reads that packing. Behind a web server, pass `/app/` on to the relay beside `/hub`. Without the
+option there is no `/app/`.
 
 ## The hub
 

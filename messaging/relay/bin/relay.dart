@@ -13,8 +13,9 @@ import 'package:ghost_relay/invite_words.dart';
 import 'package:ghost_relay/market.dart';
 import 'package:ghost_relay/relay.dart';
 import 'package:ghost_relay/turn.dart';
+import 'package:ghost_relay/web_app.dart';
 
-/// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]`
+/// `dart run bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--web <folder>] [--verbose]`
 ///
 /// Listens on this machine alone unless told otherwise: on a server it sits behind the web server that holds the
 /// certificate (README.md). An error nothing else caught is a line on stderr, never the end of the relay: one request's
@@ -38,7 +39,7 @@ Future<void> _main(List<String> args) async {
   }
 
   if (args.contains('--help') || args.contains('-h')) {
-    stdout.writeln('Ghost Messaging relay\n  --host <address>  where to listen (127.0.0.1)\n  --port <number>   (8787, or \$PORT)\n  --data <folder>   where channels.json is kept (relay-data)\n  --verbose         say when an end joins or leaves (never an address)');
+    stdout.writeln('Ghost Messaging relay\n  --host <address>  where to listen (127.0.0.1)\n  --port <number>   (8787, or \$PORT)\n  --data <folder>   where channels.json is kept (relay-data)\n  --web <folder>    the app built for a browser, served under /app/ (\$GHOST_WEB_DIR; none)\n  --verbose         say when an end joins or leaves (never an address)');
     return;
   }
   final host = option('host', '127.0.0.1');
@@ -76,9 +77,13 @@ Future<void> _main(List<String> args) async {
   // The media relay calls fall back on where two devices can't reach each other (turn.dart): coturn's shared secret
   // and where it is (GHOST_TURN_SECRET, GHOST_TURN_URLS); without them calls are direct only.
   final turn = TurnConfig.fromEnvironment(Platform.environment);
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn), files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty));
+  // The app in a browser (web_app.dart): the folder `flutter build web` made, where one is named (--web, or
+  // GHOST_WEB_DIR); without it there is no /app/. The page and the hub are then one address, as a browser needs.
+  final webDir = option('web', Platform.environment['GHOST_WEB_DIR'] ?? '');
+  final web = webDir.isEmpty ? null : WebApp(Directory(webDir));
+  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn), files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty), web: web);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();

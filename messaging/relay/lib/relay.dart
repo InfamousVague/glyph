@@ -8,6 +8,7 @@ import 'files.dart';
 import 'hub.dart';
 import 'market.dart';
 import 'sha256.dart';
+import 'web_app.dart';
 
 /// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
 /// out to when they are on different networks. It passes what one sends to the other while both are connected, and
@@ -23,7 +24,10 @@ import 'sha256.dart';
 /// - A channel is removed when either end says so (unpairing), or after ninety days unused. One made for pairing
 ///   (`temp`) lives ten minutes at most, goes as soon as both ends have left it, and is never written to disk.
 class Relay {
-  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty}) : _now = now ?? DateTime.now;
+  Relay({this.dataDir, DateTime Function()? now, this.verbose = false, this.hub, this.files, this.feedback, this.market, this.bounty, this.web}) : _now = now ?? DateTime.now;
+
+  /// The app in a browser, as plain files (web_app.dart), served under `/app/`; none where null.
+  final WebApp? web;
 
   /// Where people's apps find each other (hub.dart), served at any address ending in `/hub`; none where null.
   final Hub? hub;
@@ -148,6 +152,8 @@ class Relay {
     // it), so an error escaping the market would be unhandled in the root zone and end the relay, and every hub
     // connection with it: the market never throws, and this makes sure.
     if (!upgrade && segments.isNotEmpty && segments.first == 'market' && market != null) return market!.handle(request).catchError((Object _) {});
+    // The app in a browser (web_app.dart): its files, under /app/.
+    if (!upgrade && segments.isNotEmpty && segments.first == 'app' && web != null) return web!.handle(request, segments.sublist(1));
     // The app's Share feedback (feedback.dart): one POST to /feedback.
     if (!upgrade && segments.length == 1 && segments.first == 'feedback' && feedback != null) return feedback!.handle(request);
     // A bounty's souls (bounty.dart): one signed POST to /bounty.
