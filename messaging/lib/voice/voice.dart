@@ -138,10 +138,12 @@ class VoiceChannel {
   /// its kind (`.text`, `.files`), which can't be taken for a name or a key, so the page knows not to offer voice.
   String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}';
 
-  /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them.
+  /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them. An open
+  /// space's ends `.open` ([link]) and is read as one; before 0.12.21 it was refused as no link at all, as builds from
+  /// then still refuse it.
   static VoiceChannel? fromLink(String link) {
     final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
-    final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files))?$').firstMatch(hash);
+    final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$').firstMatch(hash);
     if (m == null) return null;
     var name = 'Space';
     try {

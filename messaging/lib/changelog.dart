@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.21', '2026-11-23', [
+    'Open spaces open as their floor everywhere: on a computer, from the call\'s banner and from the Spaces page on a phone, and with any call layout chosen, where they showed as a normal call. The floor is there the moment you join, saying it is connecting until the call is in, and an open space\'s invite link now opens it.',
+  ]),
   ReleaseNotes('0.12.20', '2026-11-23', [
     'Video in calls is squarer: on a computer every camera is shown 4:3, in every call layout, and the tiles grow to fill the window instead of coming out wide and short. A shared screen keeps its own shape.',
     'Open spaces: a new kind of space you walk around in. Everyone stands somewhere on a floor seen from above, and you hear people louder the nearer they stand. Walk with W A S D or the arrow keys on a computer, or press where you want to go. Make groups on the floor (a game, a chat, a film): inside one you hear everyone in it, and its circle grows as people step in. Choose Open space when you make a space.',
