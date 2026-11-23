@@ -56,6 +56,7 @@ import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
 import 'ui/account_screens.dart' show RestartScreen;
 import 'ui/add_me.dart' show askToAdd;
+import 'ui/relay_host_section.dart' show askToUseRelay;
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
@@ -472,6 +473,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
     } else if (req.add != null) {
       // Someone's add-me link (GMFB-34): asked first, then the friend request (lib/friends/add_link.dart).
       askToAdd(shell.context, req.add!);
+    } else if (req.relay != null) {
+      // A relay's link, from the QR code of one hosted from someone's app (lib/relay_host): asked first, then used.
+      if (shell.mounted) unawaited(askToUseRelay(shell.context, req.relay!));
     } else if (req.pairing != null) {
       // A computer's pairing link, opened by the camera: the pairing page, which asks first.
       shell.show(PairComputerScreen(offered: req.pairing));

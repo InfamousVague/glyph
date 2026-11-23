@@ -51,6 +51,10 @@ abstract class RelayHosting implements Listenable {
   /// Whether this app uses it now (Settings › Routes' relay is [ownUrl]).
   bool get inUse;
 
+  /// The relay this app used before it moved onto this one, which it goes back to when this is switched off: empty for
+  /// Ghost Messaging's own.
+  String get usedBefore;
+
   /// Switches it on or off: on starts it (and keeps the choice), off stops it, moving this app back to the relay it
   /// used before where it was using this one. What it keeps is said in lib/relay_host/words.dart (keptWords).
   Future<void> setOn(bool on);

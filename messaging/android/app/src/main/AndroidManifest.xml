@@ -99,6 +99,9 @@
                 <data android:scheme="ghostmsg" android:host="join" />
                 <!-- Someone's add-me link, from the page's Open in Ghost Messaging (site/add; GMFB-34). -->
                 <data android:scheme="ghostmsg" android:host="add" />
+                <!-- A relay's link, from the QR code of a relay hosted from someone's app (ghostmsg://relay?a=…;
+                     lib/relay_host): the app asks whether to use it. -->
+                <data android:scheme="ghostmsg" android:host="relay" />
             </intent-filter>
             <!-- A circle's invite link (https://gogho.st/join/#c.…): the circle's invite in the app. Verified as an App
                  Link (Matt, 2026-11-17: invites texted to contacts should open the app straight away once it is set

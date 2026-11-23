@@ -250,6 +250,9 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   bool get inUse => isMine(_hubUrl());
 
   @override
+  String get usedBefore => _read(beforeKey);
+
+  @override
   ViaLink get viaLink {
     final fed = _fed;
     final l = _state == HostState.up ? fed?.viaLink : null;

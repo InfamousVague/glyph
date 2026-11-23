@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import '../circles/pending_link.dart';
 import '../ui/circles/circle_invite_card.dart' show openCircleLink;
 import '../ui/common.dart' show toast;
+import '../ui/relay_host_section.dart' show askToUseRelay;
 import '../ui/shell.dart';
 
 class DeskLinks {
@@ -53,6 +54,13 @@ class DeskLinks {
 
   /// [url] was opened into the app.
   static Future<void> opened(String url) async {
+    // A relay's link (`ghostmsg://relay?a=…`, a relay hosted from someone's app; lib/relay_host): asked whether to use
+    // it, once the app is set up; before that, there is no relay to switch from, and it is let go.
+    if (url.trim().toLowerCase().startsWith('ghostmsg://relay')) {
+      final shell = AppShellState.live;
+      if (shell != null && shell.mounted) await askToUseRelay(shell.context, url.trim());
+      return;
+    }
     final link = normalise(url);
     final shell = AppShellState.live;
     if (shell == null || !shell.mounted) {

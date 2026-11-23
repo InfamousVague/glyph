@@ -827,6 +827,15 @@ open class MainActivity : FlutterActivity() {
             }
         }
         intent.data?.let { link ->
+            // A relay's link (ghostmsg://relay?a=…, what the QR code of a relay hosted from someone's app holds): the app
+            // asks whether to use it, and what it means, before anything changes (lib/ui/relay_host_section.dart).
+            if (link.scheme.equals("ghostmsg", ignoreCase = true) && link.host == "relay") {
+                setIntent(Intent(intent).setData(null))
+                if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return null
+                return mapOf("relay" to link.toString())
+            }
+        }
+        intent.data?.let { link ->
             // A circle's invite word (https://gogho.st/c/bookclub): the app asks the relay for the circle it is
             // (lib/circles/invite_word.dart), as it does for one typed into Join a circle.
             if (link.scheme == "https" && link.host == "gogho.st" && (link.path ?: "").startsWith("/c/")) {
