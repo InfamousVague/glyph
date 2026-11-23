@@ -5,6 +5,7 @@ import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/ledger.dart';
+import 'package:ghost_messaging/net/p2p/p2p.dart' show P2pPolicy;
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/net/switchboard.dart';
 import 'package:ghost_relay/hub.dart';
@@ -200,7 +201,8 @@ void main() {
       // Put down as the relay's: it said it passed it on while Sam's computer was connected.
       final r = _record(w, b)!;
       expect([for (final x in r.wrong) [x.kind, x.friend]], [[LedgerWrongKind.passed, a.account.id]]);
-      expect([r.matched(w.clock.ms), r.madeUp(w.clock.ms), r.devices], [2, 0, 1]);
+      // It came straight: counted as that, now that it did (the review, D7).
+      expect([r.matched(w.clock.ms), r.madeUp(w.clock.ms), r.devices], [2, 1, 1]);
       expect(b.ledger!.missingFrom(a.account.id).single.kind, 'passed');
       // Sent again, it was answered: nothing waits for it at Maya's.
       final entry = a.ledger!.sentTo(b.account.id).firstWhere((x) => x.id == lost.id);
@@ -217,7 +219,7 @@ void main() {
       expect(_record(w, b)!.wrong, hasLength(1));
     });
 
-    test('one the relay kept and never handed over: the account\'s only device signed in after, and it was not among what came', () async {
+    test('one the relay kept and lost when it started again: put down as that, which is no fault of the relay\'s, once it came straight (D2)', () async {
       final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
       w.friends(a, b);
       await a.start();
@@ -226,9 +228,10 @@ void main() {
       await b.stop();
       final kept = await a.text(b.account, 'kept for sam');
       expect([kept.via, kept.handed], ['hub', Handed.held]);
-      // The relay starts again, and what it kept goes with it.
+      await w.clock.pass(const Duration(minutes: 1));
+      // The relay starts again, and what it kept goes with it. It says when it started at each sign-in.
       final old = w.memory;
-      w.memory = MemoryHub(Hub());
+      w.memory = MemoryHub(Hub(now: w.clock.now));
       for (final p in old.pairs) {
         p.cut();
       }
@@ -236,8 +239,8 @@ void main() {
       a.hub.nudge();
       await w.settle();
       await w.clock.pass(const Duration(seconds: 15));
-      // Sam's computer signs in after: nothing is handed over. Something comes on that connection a while after.
       await b.start();
+      expect(b.hub.relayStartedAt, greaterThan(w.clock.ms - const Duration(seconds: 20).inMilliseconds), reason: 'it said it started just now');
       await w.clock.pass(const Duration(seconds: 3));
       expect((await a.text(b.account, 'later')).acked, isTrue);
       await w.clock.pass(const Duration(minutes: 3));
@@ -247,8 +250,42 @@ void main() {
       await w.until(() => b.texts.contains('kept for sam'), 'the kept one came straight');
       await w.settle();
       expect(_textsBy(b), ['hello by hub', 'later by hub', 'straight by p2p', 'kept for sam by p2p']);
-      expect([for (final x in _record(w, b)!.wrong) x.kind], [LedgerWrongKind.kept]);
-      expect(_record(w, b)!.madeUp(w.clock.ms), 0);
+      final r = _record(w, b)!;
+      expect([r.wrong, r.madeUp(w.clock.ms), r.restarts(w.clock.ms)], [isEmpty, 1, 1]);
+      expect(b.ledger!.missingFrom(a.account.id).single.kind, 'restart');
+    });
+
+    test('PROBE 9, fixed: kept, and another of the account\'s devices signed in first and was handed it: nothing is put down against the relay (D3)', () async {
+      final sam = w.account('sam');
+      final a = w.install(w.account('maya'), computer: true), b1 = w.install(sam, computer: true), b2 = w.install(sam, computer: true, ledger: false);
+      // Sam's second device has Direct switched off (as a build without the core, or a browser, has no direct route).
+      b2.startOff = true;
+      w.friends(a, b1);
+      w.friends(a, b2);
+      await a.start();
+      await b1.start();
+      expect((await a.text(sam, 'hello')).acked, isTrue);
+      await b1.stop();
+      final kept = await a.text(sam, 'kept for sam');
+      expect([kept.via, kept.handed], ['hub', Handed.held]);
+      // His other device signs in first: the relay hands it what it kept.
+      await b2.start();
+      await w.settle();
+      expect(b2.texts, contains('kept for sam'));
+      await b2.stop();
+      await w.clock.pass(const Duration(seconds: 15));
+      await b1.start();
+      await w.clock.pass(const Duration(seconds: 3));
+      expect((await a.text(sam, 'later')).acked, isTrue);
+      await w.clock.pass(const Duration(minutes: 3));
+      final sending = a.text(sam, 'straight', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      await sending;
+      await w.until(() => (_record(w, b1)?.checks.length ?? 0) > 0, 'Sam\'s first device compared');
+      await w.settle();
+      final r = _record(w, b1)!;
+      expect(r.wrong, isEmpty, reason: 'an honest relay not blamed');
+      expect(b1.ledger!.missingFrom(a.account.id).single.kind, 'made');
     });
 
     test('one made up for: another device of the account took it while this one was away, and nothing is put down against the relay', () async {
@@ -274,8 +311,9 @@ void main() {
       await w.until(() => (_record(w, b1)?.checks.length ?? 0) > 0, 'Sam\'s first computer compared');
       await w.settle();
       final r = _record(w, b1)!;
-      expect([r.wrong, r.madeUp(w.clock.ms)], [isEmpty, 1]);
-      expect(b1.ledger!.missingFrom(a.account.id).single.kind, 'made');
+      // Nothing came straight (his other device has it): not counted as having come, nor as the relay's (D7).
+      expect([r.wrong, r.madeUp(w.clock.ms)], [isEmpty, 0]);
+      expect([b1.ledger!.missingFrom(a.account.id).single.kind, b1.ledger!.missingFrom(a.account.id).single.came], ['made', false]);
       // Asked for, it is held by nobody now (it was answered), so nothing is sent again.
       expect(b1.texts, ['hello', 'straight']);
       // His second computer, which had it, finds it matched.
@@ -308,26 +346,99 @@ void main() {
       expect(b.texts.where((t) => t == 'its answer is lost'), hasLength(1));
     });
 
-    test('the relay wrong about who is here: Maya\'s device says it is connected to the same relay, which tells Sam\'s she is gone', () async {
-      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+    /// Maya's and Sam's computers, their direct link kept open, the relay telling Sam's nothing of Maya being here from
+    /// his next sign-in on; then two sums from Maya's a quarter of an hour apart. [setup] does what the test is about to
+    /// Maya's computer first; [fresh]: Maya's hears from the relay just before each sum.
+    Future<(Install, Install)> twoSums(World w, {void Function(Install a)? setup, bool fresh = true}) async {
+      const open = P2pPolicy(stayUp: true, quiet: Duration(hours: 2));
+      final a = w.install(w.account('maya'), policy: open), b = w.install(w.account('sam'), policy: open);
       w.friends(a, b);
       await a.start();
       await b.start();
       expect((await a.text(b.account, 'hello')).acked, isTrue);
-      // From Sam's next sign-in the relay tells his computer nothing of Maya being here.
       b.dropToApp = (said) => said is String && (said.startsWith('{"here"') || said.contains('"came":"${a.account.id}"'));
       b.pair!.cut();
       await w.settle();
       b.hub.nudge();
       await w.settle();
       expect([b.hub.state.value, b.hub.here.value.contains(a.account.id), a.hub.here.value.contains(b.account.id)], [CarrierState.up, false, true]);
+      setup?.call(a);
+      await w.settle();
       await w.clock.pass(const Duration(minutes: 2));
+      if (fresh) expect((await a.text(b.account, 'through the relay', only: {'hub'})).acked, isTrue);
       expect((await a.text(b.account, 'straight', only: {'p2p'})).acked, isTrue);
-      await w.until(() => (_record(w, b)?.wrong.length ?? 0) > 0, 'put down');
+      await w.until(() => (_record(w, b)?.checks.length ?? 0) > 0, 'Sam\'s compared once');
+      await w.clock.pass(const Duration(minutes: 14, seconds: 30));
+      if (fresh) expect((await a.text(b.account, 'through the relay again', only: {'hub'})).acked, isTrue);
+      await w.clock.pass(const Duration(minutes: 1));
+      await w.until(() => (_record(w, b)?.checks.length ?? 0) > 1, 'Sam\'s compared twice');
+      return (a, b);
+    }
+
+    test('the relay wrong about who is here: Maya\'s device says, in two sums in a row, that it is connected to the same relay and heard from it just now, and the relay tells Sam\'s she is gone', () async {
+      final (a, b) = await twoSums(w);
       expect([for (final x in _record(w, b)!.wrong) [x.kind, x.friend]], [[LedgerWrongKind.gone, a.account.id]]);
       // Maya's computer, told the truth of Sam, puts nothing down.
-      await w.until(() => (_record(w, a)?.checks.length ?? 0) > 0, 'Maya\'s compared');
       expect(_record(w, a)!.wrong, isEmpty);
+    });
+
+    test('one sum alone is not enough to say the relay is wrong about who is here (D4)', () async {
+      const open = P2pPolicy(stayUp: true, quiet: Duration(hours: 2));
+      final a = w.install(w.account('maya'), policy: open), b = w.install(w.account('sam'), policy: open);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      b.dropToApp = (said) => said is String && (said.startsWith('{"here"') || said.contains('"came":"${a.account.id}"'));
+      b.pair!.cut();
+      await w.settle();
+      b.hub.nudge();
+      await w.settle();
+      await w.clock.pass(const Duration(minutes: 2));
+      expect((await a.text(b.account, 'through the relay', only: {'hub'})).acked, isTrue);
+      expect((await a.text(b.account, 'straight', only: {'p2p'})).acked, isTrue);
+      await w.until(() => (_record(w, b)?.checks.length ?? 0) > 0, 'Sam\'s compared');
+      expect(_record(w, b)!.wrong, isEmpty);
+    });
+
+    test('PROBE 5, fixed: a friend who chose Invisible says nothing of being connected, and the relay hiding her is not put down (D1)', () async {
+      final (_, b) = await twoSums(w, setup: (a) => a.hub.mode = 'invisible');
+      expect(_record(w, b)!.wrong, isEmpty, reason: 'an honest relay not blamed');
+    });
+
+    test('a friend\'s device whose connection to the relay has heard nothing for a while is not taken at its word that it is connected (D4)', () async {
+      final (_, b) = await twoSums(w, fresh: false);
+      expect(_record(w, b)!.wrong, isEmpty);
+    });
+
+    test('D5: what a friend\'s device says it sent that never came puts nothing down against the relay until the message comes; then it is put down as that device\'s word', () async {
+      final sam = w.account('sam');
+      final a = w.install(w.account('maya'), computer: true, ledger: false), b = w.install(sam, computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect((await a.text(sam, 'hello')).acked, isTrue);
+      await w.clock.pass(const Duration(minutes: 3));
+      expect((await a.text(sam, 'straight', only: {'p2p'})).acked, isTrue);
+      await w.settle();
+      // A sum from Maya's device that claims three messages the relay passed on while Sam's was connected, none sent.
+      final now = w.clock.ms;
+      final made = [for (var i = 0; i < 3; i++) NetCrypto.hex(NetCrypto.randomBytes(8))];
+      expect((await a.board.send(a.to(sam), Envelope(kind: LedgerCheck.kind, ack: false, body: {
+        't': 'sum',
+        'w': [now - 600000, now],
+        's': [for (final id in made) [id, now - 150000, 'p']],
+        'g': <String>[],
+        'h': {'u': w.memory.url, 'up': true, 't': now - 600000, 'heard': now},
+      }), only: {'p2p'})).via, 'p2p');
+      await w.settle();
+      expect(b.ledger!.missingFrom(a.account.id).map((m) => m.kind).toSet(), {'passed'});
+      expect([_record(w, b)!.wrong, _record(w, b)!.madeUp(w.clock.ms)], [isEmpty, 0], reason: 'their word alone puts nothing down');
+      // One of them comes, straight, as Maya's device sends it: so it was sent, and the relay's word is held against it.
+      await a.board.send(a.to(sam), Envelope(id: made.first, kind: 'text', body: {'t': 'it was sent'}, at: now - 150000), only: {'p2p'});
+      await w.settle();
+      final r = _record(w, b)!;
+      expect([for (final x in r.wrong) [x.kind, x.friend]], [[LedgerWrongKind.passed, a.account.id]]);
+      expect(r.madeUp(w.clock.ms), 1);
     });
 
     test('nothing is compared over the relay: a sum that comes by it is not weighed, and nothing of the comparing goes by it', () async {

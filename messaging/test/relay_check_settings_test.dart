@@ -61,13 +61,19 @@ void main() {
     expect(relayCheckedWords(now - 5 * 60000, 1, now: now), 'Last checked 5 min ago, with 1 device');
     expect(relayCheckedWords(now - 3 * 3600000, 3, now: now), 'Last checked 3 h ago, with 3 devices');
     expect([relayMatchedWords(1), relayMatchedWords(212)], ['1 message matched this week', '212 messages matched this week']);
+    // Only what came straight is said to have (the review, D7), and what was lost to a restart is said as that.
     expect(relayMadeUpWords(0), 'None had to come straight.');
-    expect(relayMadeUpWords(2), startsWith('2 were made up for: it came straight because this device was away'));
+    expect([relayMadeUpWords(1), relayMadeUpWords(2, restarts: 2), relayMadeUpWords(3, restarts: 1)], [
+      '1 came straight after the relay didn\'t bring it.',
+      '2 came straight after the relay didn\'t bring them, lost when it started again.',
+      '3 came straight after the relay didn\'t bring them (1 lost when it started again).',
+    ]);
+    // Whose word each is (D5).
     expect([for (final k in LedgerWrongKind.values) relayWrongWords(LedgerWrong(k, now, 'x'), 'Maya')], [
-      'Said it passed on a message from Maya, and it never came',
-      'Kept a message from Maya and never handed it over',
-      'Told Maya you were away while you were connected',
-      'Said Maya was gone while their device was connected',
+      'Maya\'s device says the relay passed on a message to you, and it never came by the relay',
+      'Maya\'s device says the relay kept a message for you, and it never handed it over',
+      'Maya\'s device says the relay told it you were away while you were connected',
+      'The relay said Maya was gone while their device said it was connected',
     ]);
     expect(dayWords(DateTime(2026, 11, 21, 9).millisecondsSinceEpoch), '21 Nov');
     expect([nameWatchWords(0), nameWatchWords(1), nameWatchWords(4)], ['No friends added by username yet', 'Asks the relay about 1 friend\'s username each day', 'Asks the relay about 4 friends\' usernames each day']);
@@ -222,8 +228,8 @@ void main() {
       });
       addTearDown(() => tester.runAsync(w.stop));
       await _pump(tester, AppState(), b.ledger!, (context) => [relayCheckSection(context, ledger: b.ledger, check: b.check, watch: null, relay: w.memory.url, nameOf: (id) => id == a.account.id ? 'Maya' : '', now: w.clock.ms)]);
-      expect(_words(tester, 'relay-matched'), ['2 messages matched this week', 'None had to come straight.']);
-      expect(_words(tester, 'relay-wrong-0'), ['Said it passed on a message from Maya, and it never came', dayWords(w.clock.ms)]);
+      expect(_words(tester, 'relay-matched'), ['2 messages matched this week', '1 came straight after the relay didn\'t bring it.']);
+      expect(_words(tester, 'relay-wrong-0'), ['Maya\'s device says the relay passed on a message to you, and it never came by the relay', dayWords(w.clock.ms)]);
       expect(find.byKey(const ValueKey('relay-wrong-none')), findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 5));

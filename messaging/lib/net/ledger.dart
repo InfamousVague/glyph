@@ -18,8 +18,9 @@ enum LedgerWrongKind {
   /// It said it passed a friend's message on to this device, which was connected to it then, and the message never came.
   passed,
 
-  /// It said it kept a friend's message for this device, the account's only one, and never handed it over though the
-  /// device signed in after.
+  /// It said it kept a friend's message for this device and never handed it over. Not put down for now (the review,
+  /// D3): the relay hands what it kept to whichever of the account's devices signs in first, and nothing here can yet
+  /// prove no other did. Kept for what an earlier build wrote.
   kept,
 
   /// It told a friend's device that this device was away when its message came, while this device was connected to it.
@@ -82,37 +83,44 @@ class LedgerGot {
   }
 }
 
-/// Something a friend's device said it sent that never came here, as it was put down: made up for (`made`), or the
-/// relay's fault (a [LedgerWrongKind]'s name). Each is put down once.
-@immutable
+/// Something a friend's device said it sent that never came here, as it was put down: not the relay's doing (`made`:
+/// another of the account's devices took it, it couldn't be opened here, another route took it), lost when the relay
+/// started again (`restart`), or what the relay got wrong by that device's word (a [LedgerWrongKind]'s name); with the
+/// relay it concerns, and whether it then came straight ([came]). Each is put down once. Only one that came is counted
+/// (the review, D5 and D7): a friend's device can say anything of what it sent, and only what is then sent straight
+/// shows it was so; a wrong is the relay's only then, and "came straight" is said only of what did.
 class LedgerMissing {
-  const LedgerMissing(this.id, this.at, this.kind);
+  LedgerMissing(this.id, this.at, this.kind, {this.relay = '', this.came = false});
   final String id;
   final int at;
   final String kind;
+  final String relay;
+  bool came;
 
-  List<Object> toJson() => [id, at, kind];
+  List<Object> toJson() => [id, at, kind, relay, came ? 1 : 0];
 
   static LedgerMissing? fromJson(Object? j) {
     if (j is! List || j.length < 3 || j[0] is! String || j[1] is! int || j[2] is! String) return null;
-    return LedgerMissing(j[0] as String, j[1] as int, j[2] as String);
+    return LedgerMissing(j[0] as String, j[1] as int, j[2] as String, relay: j.length > 3 && j[3] is String ? j[3] as String : '', came: j.length > 4 && j[4] == 1);
   }
 }
 
-/// A connection this device had to a relay: its address, when it signed in, and when anything last came on it (ms).
-/// It was alive from [signedIn] to at least [heard]: nothing later is claimed for it.
+/// A connection this device had to a relay: its address, when it signed in, when anything last came on it, and when
+/// the relay said it had started (ms, this device's clock; 0 where it didn't say). It was alive from [signedIn] to at
+/// least [heard]: nothing later is claimed for it.
 @immutable
 class RelaySession {
-  const RelaySession(this.url, this.signedIn, this.heard);
+  const RelaySession(this.url, this.signedIn, this.heard, {this.started = 0});
   final String url;
   final int signedIn;
   final int heard;
+  final int started;
 
-  List<Object> toJson() => [url, signedIn, heard];
+  List<Object> toJson() => [url, signedIn, heard, if (started > 0) started];
 
   static RelaySession? fromJson(Object? j) {
     if (j is! List || j.length < 3 || j[0] is! String || j[1] is! int || j[2] is! int) return null;
-    return RelaySession(j[0] as String, j[1] as int, j[2] as int);
+    return RelaySession(j[0] as String, j[1] as int, j[2] as int, started: j.length > 3 && j[3] is int ? j[3] as int : 0);
   }
 }
 
@@ -125,7 +133,8 @@ class RelayRecord {
   /// Each comparison: when, with whom, and a short name of the device (its node id's first 16 hex digits).
   final List<({int at, String friend, String device})> checks = [];
 
-  /// For each day (yyyy-mm-dd, UTC): messages matched, and made up for.
+  /// For each day (yyyy-mm-dd, UTC): messages matched; that came straight after the relay didn't bring them; and of
+  /// those, lost when the relay started again.
   final Map<String, List<int>> days = {};
   final List<LedgerWrong> wrong = [];
 
@@ -138,13 +147,15 @@ class RelayRecord {
     return {for (final c in checks) if (last - c.at <= const Duration(days: 1).inMilliseconds) c.device}.length;
   }
 
-  /// Messages matched, and made up for, in the [within] days before [now].
+  /// Messages matched; that came straight after the relay didn't bring them; and of those, lost when the relay started
+  /// again; in the [within] days before [now].
   int matched(int now, {int within = 7}) => _sum(now, within, 0);
   int madeUp(int now, {int within = 7}) => _sum(now, within, 1);
+  int restarts(int now, {int within = 7}) => _sum(now, within, 2);
 
   int _sum(int now, int n, int at) {
     final from = Ledger.dayOf(now - Duration(days: n - 1).inMilliseconds);
-    return days.entries.where((e) => e.key.compareTo(from) >= 0).fold(0, (s, e) => s + e.value[at]);
+    return days.entries.where((e) => e.key.compareTo(from) >= 0).fold(0, (s, e) => s + (e.value.length > at ? e.value[at] : 0));
   }
 
   Map<String, Object> toJson() => {
@@ -163,7 +174,7 @@ class RelayRecord {
     if (d is Map) {
       for (final e in d.entries) {
         final v = e.value;
-        if (e.key is String && v is List && v.length >= 2 && v[0] is int && v[1] is int) r.days[e.key as String] = [v[0] as int, v[1] as int];
+        if (e.key is String && v is List && v.length >= 2 && v.every((x) => x is int)) r.days[e.key as String] = [v[0] as int, v[1] as int, v.length > 2 ? v[2] as int : 0];
       }
     }
     for (final w in (j['w'] is List ? j['w'] as List : const [])) {
@@ -216,10 +227,12 @@ class _Book {
 /// Only what asks for an answer is listed ([listed]): not typing, tests, cards or the comparing's own messages, and
 /// never a word of any message. Not this account's own devices yet (later), nor anyone who is not a friend.
 ///
-/// Beside the lists: this device's own connections to the relay ([RelaySession]: when each signed in, and when
-/// anything last came on it), what came that could not be opened here, and what each relay was found to do
-/// ([RelayRecord]). Kept with the app's choices ([indexName], [bookName], [relayName]); the device it was kept on is
-/// named in it, so choices restored on another device (Android's backup) are not taken for that device's own.
+/// Beside the lists: this device's own connections to the relay ([RelaySession]: when each signed in, when anything
+/// last came on it, and when the relay said it had started), what came that could not be opened here, what a friend's
+/// device said it sent that never came ([LedgerMissing], counted once it comes straight), and what each relay was found
+/// to do ([RelayRecord]). Kept in files of its own, out of any backup (lib/net/kept_files.dart: [indexName], [bookName],
+/// [relayName]); the device it was kept on is named in it all the same, so what another device kept is never taken for
+/// this one's.
 class Ledger extends ChangeNotifier implements SendLog {
   Ledger({required FsStore store, required this.me, required this.device, bool Function(String account)? isFriend, DateTime Function()? now, LedgerTimer? timer})
       : _store = store,
@@ -265,7 +278,6 @@ class Ledger extends ChangeNotifier implements SendLog {
   final Map<String, int> _since = {};
   final List<RelaySession> _sessions = [];
   final Map<String, RelayRecord> _relays = {};
-  int _sibling = 0;
   bool _loaded = false, _wiped = false, _gone = false;
   Timer? _saving;
   final Set<String> _dirty = {};
@@ -332,15 +344,39 @@ class Ledger extends ChangeNotifier implements SendLog {
 
   @override
   void came(Peer peer, Envelope envelope, {required String via}) {
-    if (peer.id == me && peer.key != null) {
-      _sibling = nowMs;
-      return;
-    }
     if (!_takes(peer.id) || !listed(envelope)) return;
     final b = _book(peer.id);
     if (b.got.any((x) => x.id == envelope.id)) return;
     b.got.add(LedgerGot(envelope.id, nowMs, via));
+    // One put down as missing that came after all, straight: counted now, and where it was the relay's doing by their
+    // device's word, put down against it now (it was so).
+    final m = b.missing.where((x) => x.id == envelope.id && !x.came).firstOrNull;
+    if (m != null) {
+      m.came = true;
+      _cameStraight(peer.id, m);
+    }
     _trim(peer.id, b);
+  }
+
+  void _cameStraight(String account, LedgerMissing m) {
+    if (m.relay.isEmpty || _wiped || _gone) return;
+    final r = _relays[m.relay] ??= RelayRecord(m.relay);
+    final now = nowMs;
+    final counts = r.days[dayOf(now)] ??= [0, 0, 0];
+    while (counts.length < 3) {
+      counts.add(0);
+    }
+    counts[1]++;
+    if (m.kind == 'restart') counts[2]++;
+    final kind = LedgerWrongKind.values.asNameMap()[m.kind];
+    if (kind != null) {
+      r.wrong.add(LedgerWrong(kind, now, account));
+      while (r.wrong.length > mostWrong) {
+        r.wrong.removeAt(0);
+      }
+    }
+    _relayDirty = true;
+    _saveSoon();
   }
 
   @override
@@ -353,10 +389,6 @@ class Ledger extends ChangeNotifier implements SendLog {
 
   @override
   void unopened(Peer peer, {required String via}) {
-    if (peer.id == me) {
-      _sibling = nowMs;
-      return;
-    }
     if (!_takes(peer.id)) return;
     final b = _book(peer.id);
     b.unopened.add(nowMs);
@@ -415,9 +447,6 @@ class Ledger extends ChangeNotifier implements SendLog {
   /// When a packet from [account] that could not be opened here came within [within] of [at].
   bool unopenedNear(String account, int at, Duration within) => (_books[account]?.unopened ?? const <int>[]).any((t) => (t - at).abs() <= within.inMilliseconds);
 
-  /// When a packet last came from another device of this account (ms; 0 never, since this run started).
-  int get siblingHeard => _sibling;
-
   /// What [account]'s device is told of this one's lists, for a comparison: the window they cover (from, now), what was
   /// sent (name, when, and what the relay said: `p` passed, `k` kept, `o` another route took it) and the names of what
   /// came.
@@ -456,26 +485,27 @@ class Ledger extends ChangeNotifier implements SendLog {
   /// Whether [id] from [account] was put down as missing before.
   bool wasMissing(String account, String id) => _books[account]?.missing.any((x) => x.id == id) ?? false;
 
-  /// Puts down [id] from [account] as missing: made up for (`made`) or the relay's fault.
-  void putMissing(String account, String id, String kind) {
+  /// Puts down [id] from [account] as missing, of [relay]: `made`, `restart`, or what the relay got wrong by their
+  /// device's word. Counted only once it comes ([came]).
+  void putMissing(String account, String id, String kind, {String relay = ''}) {
     final b = _book(account);
     if (b.missing.any((x) => x.id == id)) return;
-    b.missing.add(LedgerMissing(id, nowMs, kind));
+    b.missing.add(LedgerMissing(id, nowMs, kind, relay: relay));
     _trim(account, b);
   }
 
   // --- this device's connections to the relay -------------------------------------------------------------------------
 
-  /// The connection to [url] that signed in at [signedIn] has heard something as late as [heard]: kept, or brought up
-  /// to then.
-  void relay(String url, int signedIn, int heard) {
+  /// The connection to [url] that signed in at [signedIn] has heard something as late as [heard], and the relay said at
+  /// that sign-in it had started at [started] (0: it didn't say): kept, or brought up to then.
+  void relay(String url, int signedIn, int heard, {int started = 0}) {
     if (signedIn <= 0 || _wiped || _gone) return;
     final i = _sessions.lastIndexWhere((s) => s.url == url && s.signedIn == signedIn);
     if (i >= 0) {
       if (_sessions[i].heard >= heard) return;
-      _sessions[i] = RelaySession(url, signedIn, heard);
+      _sessions[i] = RelaySession(url, signedIn, heard, started: _sessions[i].started > 0 ? _sessions[i].started : started);
     } else {
-      _sessions.add(RelaySession(url, signedIn, heard < signedIn ? signedIn : heard));
+      _sessions.add(RelaySession(url, signedIn, heard < signedIn ? signedIn : heard, started: started));
     }
     final old = nowMs - keepFor.inMilliseconds;
     _sessions.removeWhere((s) => s.heard < old);
@@ -493,9 +523,13 @@ class Ledger extends ChangeNotifier implements SendLog {
   /// the same connection [slack] after (frames come in order, so what the relay put on it at [at] came before that).
   bool connectedAt(String url, int at, {required Duration slack}) => _sessions.any((s) => s.url == url && s.signedIn <= at - slack.inMilliseconds && s.heard >= at + slack.inMilliseconds);
 
-  /// Whether this device signed in to [url] after [at] and its connection then lived long enough for what the relay
-  /// hands over at a sign-in to have come: something came on it [handedOver] after it signed in.
-  bool signedInAfter(String url, int at, {required Duration slack, required Duration handedOver}) => _sessions.any((s) => s.url == url && s.signedIn >= at + slack.inMilliseconds && s.heard >= s.signedIn + handedOver.inMilliseconds);
+  /// Whether the relay at [url] started again after [at]: the first time this device signed in to it after [at], it
+  /// said it had started since (the review, D2). What it kept before then went with the restart.
+  bool restartedAfter(String url, int at, {required Duration slack}) {
+    final after = _sessions.where((s) => s.url == url && s.signedIn >= at + slack.inMilliseconds).toList()..sort((a, b) => a.signedIn.compareTo(b.signedIn));
+    final first = after.firstOrNull;
+    return first != null && first.started > at + slack.inMilliseconds;
+  }
 
   // --- what was found of each relay ----------------------------------------------------------------------------------------
 
@@ -514,7 +548,7 @@ class Ledger extends ChangeNotifier implements SendLog {
       r.checks.removeAt(0);
     }
     final day = dayOf(now);
-    final counts = r.days[day] ??= [0, 0];
+    final counts = r.days[day] ??= [0, 0, 0];
     counts[0] += matched;
     counts[1] += madeUp;
     final oldest = dayOf(now - const Duration(days: 8).inMilliseconds);
@@ -709,8 +743,10 @@ class Ledger extends ChangeNotifier implements SendLog {
 /// be answered:
 ///
 ///     {"t":"sum", "w":[from, now], "s":[[name, when, "p"|"k"|"o"], …], "g":[name, …],
-///      "h":{"u": my relay, "up": whether I'm connected to it, "t": since when}}
+///      "h":{"u": my relay, "up": whether I'm connected to it, "t": since when, "heard": when it last heard from it}}
 ///     {"t":"dif", "want":[name, …]}            I never got these: send them straight
+///
+/// (`up` is left out while the person chose Invisible: the relay hides them from friends then, on purpose.)
 ///
 /// `s` is what was sent to the other account in the window, with when and what the relay said of each as it took it
 /// (`p` passed on, `k` kept for them; `o` another route took it), `g` the names of what came from them. Section 3's
@@ -723,13 +759,17 @@ class Ledger extends ChangeNotifier implements SendLog {
 ///   (the switchboard's unanswered, Friends' own list of what is unanswered: [holders]; a call that has stopped ringing
 ///   is not), on the stream that asked.
 /// - What came there and was never answered here is taken as answered ([Switchboard.answeredBy]): the answer was lost.
-/// - Each thing that had to come straight is put down once as one of: **made up for** (this device was away and
-///   another of the account's took it, or it could not be opened here, or another route took it), **the relay said
-///   it passed it on and it never came** (this device was connected to it then, by the proof [Ledger.connectedAt]
-///   asks), **the relay kept it and never handed it over** (this is the account's only device, it signed in after, and
-///   it was not among what came), or **the relay said this device was away** while it was connected.
-/// - A friend whose device says it is connected to the same relay while the relay says they are gone is put down as the
-///   relay being wrong about who is here.
+/// - Each thing that never came here is put down once as one of: nobody's doing (this device was away and another of
+///   the account's took it, it could not be opened here, another route took it, or the relay kept it and may have
+///   handed it to another of the account's devices: the relay hands what it kept to whichever signs in first, and
+///   nothing here can prove none did, so "kept it and never handed it over" is not put down for now), **lost when the
+///   relay started again** (it kept it, and said at the next sign-in that it had started since), **the relay said it
+///   passed it on and it never came** (this device was connected to it then, by the proof [Ledger.connectedAt] asks),
+///   or **the relay said this device was away** while it was connected. Each is counted, and a wrong put down against
+///   the relay, only once the message then comes straight (Ledger.came): a friend's device can say anything of what it
+///   sent, and what it then sends shows it was so. What is put down is that device's word, and said as such.
+/// - A friend whose device says, in two sums in a row, that it is connected to the same relay and heard from it just
+///   now, while the relay says they are gone, is put down as the relay being wrong about who is here.
 ///
 /// **Bounded.** A `sum` of more than [Ledger.most] names in either list, a name longer than [Ledger.longestId], or a
 /// `dif` of more than [mostWant], is refused whole. No more than one `sum` from a device is weighed every [sumEvery],
@@ -740,9 +780,8 @@ class Ledger extends ChangeNotifier implements SendLog {
 /// use a round runs by itself while the app is on screen ([roundsComputer], [roundsPhone]): up to [roundMost] friends
 /// not compared in a day.
 class LedgerCheck extends ChangeNotifier {
-  LedgerCheck({required this.ledger, required this.board, required this.p2p, required HubCarrier? Function() relay, bool Function()? alone, DateTime Function()? now, LedgerTimer? timer})
+  LedgerCheck({required this.ledger, required this.board, required this.p2p, required HubCarrier? Function() relay, DateTime Function()? now, LedgerTimer? timer})
       : _relay = relay,
-        _alone = alone,
         _now = now ?? DateTime.now,
         _timer = timer ?? Timer.new;
 
@@ -750,9 +789,6 @@ class LedgerCheck extends ChangeNotifier {
   final Switchboard board;
   final P2p p2p;
   final HubCarrier? Function() _relay;
-
-  /// Whether this device is the account's only one, as far as it knows; null: nobody else's are known of.
-  final bool Function()? _alone;
   final DateTime Function() _now;
   final LedgerTimer _timer;
 
@@ -770,15 +806,13 @@ class LedgerCheck extends ChangeNotifier {
   /// long after.
   static const slack = Duration(seconds: 10);
 
-  /// What the relay hands over at a sign-in is held to have come once something came this long after it signed in.
-  static const handedOver = Duration(seconds: 2);
-
   /// An unopened packet this near a message's time is taken for that message.
   static const unopenedNear = Duration(seconds: 30);
 
   /// How long a friend's device must have said it is connected, and this one been connected, before the relay saying
-  /// they are gone counts against it; and how often that is put down for one friend.
-  static const goneAfter = Duration(minutes: 1), goneEvery = Duration(hours: 6);
+  /// they are gone counts against it; how lately their device must have heard from the relay as it said so; and how
+  /// often that is put down for one friend (two of their sums in a row must say so).
+  static const goneAfter = Duration(minutes: 1), heardWithin = Duration(minutes: 2), goneEvery = Duration(hours: 6);
 
   /// A device's clock this far from this one's is not compared with: the times would mean nothing.
   static const mostSkew = Duration(days: 1);
@@ -803,7 +837,7 @@ class LedgerCheck extends ChangeNotifier {
   final Map<String, Timer> _again = {};
   final Map<String, int> _sumSent = {}, _sumHeard = {};
   final Map<String, List<int>> _sums = {}, _difs = {}, _sentAgain = {};
-  final Map<String, int> _goneSaid = {};
+  final Map<String, int> _goneSaid = {}, _goneRun = {};
   int _checkedNow = 0;
   Timer? _round;
   StreamSubscription<Received>? _heard;
@@ -862,7 +896,7 @@ class LedgerCheck extends ChangeNotifier {
 
   void _noteRelay() {
     final hub = _hub;
-    if (hub != null && hub.signedInAt > 0) ledger.relay(hub.url, hub.signedInAt, hub.heardAt);
+    if (hub != null && hub.signedInAt > 0) ledger.relay(hub.url, hub.signedInAt, hub.heardAt, started: hub.relayStartedAt);
   }
 
   // --- links -----------------------------------------------------------------------------------------------------------------
@@ -908,7 +942,10 @@ class LedgerCheck extends ChangeNotifier {
     final body = {
       't': 'sum',
       ...ledger.summary(account),
-      if (hub != null) 'h': {'u': hub.url, 'up': hub.state.value == CarrierState.up, 't': hub.signedInAt},
+      // Whether this device is connected to the relay, since when, and when it last heard anything on that connection
+      // (a connection that died unsaid says nothing for long: the review, D4). Nothing of it while the person chose
+      // Invisible: the relay hides them from their friends then, on purpose, and that is no fault of its (D1).
+      if (hub != null) 'h': {'u': hub.url, if (hub.mode != 'invisible') 'up': hub.state.value == CarrierState.up, 't': hub.signedInAt, 'heard': hub.heardAt},
     };
     _quietly(board.sendOn(peer, Envelope(kind: kind, body: body, ack: false), via: p2p.carrier.id, line: line));
   }
@@ -987,7 +1024,7 @@ class LedgerCheck extends ChangeNotifier {
     _noteRelay();
     final horizon = ledger.horizon(account);
     final got = {for (final x in ledger.gotFrom(account)) x.id};
-    var matched = 0, madeUp = 0;
+    var matched = 0;
     final wrong = <LedgerWrong>[], want = <String>[];
     for (final x in sent) {
       // Still on its way, or from before this device's list of them begins.
@@ -998,14 +1035,9 @@ class LedgerCheck extends ChangeNotifier {
         if (ledger.matchGot(account, x.id)) matched++;
         continue;
       }
-      // Never came here.
-      final kind = _kindOf(account, at, x.said, same: same, relay: relay);
-      ledger.putMissing(account, x.id, kind?.name ?? 'made');
-      if (kind == null) {
-        madeUp++;
-      } else {
-        wrong.add(LedgerWrong(kind, now, account));
-      }
+      // Never came here: put down for what it was, and counted only once it comes straight (Ledger.came): their
+      // device's word alone shows nothing (the review, D5).
+      ledger.putMissing(account, x.id, _kindOf(account, at, x.said, same: same, relay: relay), relay: relay ?? '');
       want.add(x.id);
     }
     // What came there: matched, and answered where the answer never came here.
@@ -1014,15 +1046,20 @@ class LedgerCheck extends ChangeNotifier {
       if (m.matched) matched++;
       if (m.answered) board.answeredBy(account, id);
     }
-    // They say they are connected to this same relay, and it says they are gone.
-    if (same && h is Map && h['up'] == true && h['t'] is int && hub != null && hub.state.value == CarrierState.up && hub.watching(account) && !hub.here.value.contains(account)) {
-      final since = (h['t'] as int) + skew;
-      if (since > 0 && now - since >= goneAfter.inMilliseconds && now - hub.signedInAt >= goneAfter.inMilliseconds && now - (_goneSaid[account] ?? 0) >= goneEvery.inMilliseconds) {
-        _goneSaid[account] = now;
-        wrong.add(LedgerWrong(LedgerWrongKind.gone, now, account));
-      }
+    // They say they are connected to this same relay and heard from it just now, and it says they are gone: put down
+    // only where two of their sums in a row say so (the review, D4), and once in [goneEvery].
+    var gone = false;
+    if (same && h is Map && h['up'] == true && h['t'] is int && h['heard'] is int && hub != null && hub.state.value == CarrierState.up && hub.watching(account) && !hub.here.value.contains(account)) {
+      final since = (h['t'] as int) + skew, heard = h['heard'] as int;
+      gone = since > 0 && now - since >= goneAfter.inMilliseconds && theirNow - heard <= heardWithin.inMilliseconds && heard <= theirNow && now - hub.signedInAt >= goneAfter.inMilliseconds;
     }
-    if (relay != null) ledger.checked(relay, account, nodeId, matched: matched, madeUp: madeUp, wrong: wrong);
+    final run = _goneRun[account] = gone ? (_goneRun[account] ?? 0) + 1 : 0;
+    if (run >= 2 && now - (_goneSaid[account] ?? 0) >= goneEvery.inMilliseconds) {
+      _goneSaid[account] = now;
+      _goneRun[account] = 0;
+      wrong.add(LedgerWrong(LedgerWrongKind.gone, now, account));
+    }
+    if (relay != null) ledger.checked(relay, account, nodeId, matched: matched, wrong: wrong);
     if (!_started) return;
     notifyListeners();
     final peer = r.peer;
@@ -1034,31 +1071,22 @@ class LedgerCheck extends ChangeNotifier {
   }
 
   /// What became of a message [account] sent at [at] (this device's clock), which the relay said [said] of and which
-  /// never came here: null where it was made up for, else what the relay got wrong.
-  LedgerWrongKind? _kindOf(String account, int at, String said, {required bool same, required String? relay}) {
+  /// never came here: `made` where it was nobody's fault, `restart` where the relay started again after keeping it, else
+  /// what the relay got wrong (a [LedgerWrongKind]'s name).
+  String _kindOf(String account, int at, String said, {required bool same, required String? relay}) {
     // Another route took it, or their relay is another: nothing this relay said.
-    if (relay == null || !same || (said != 'p' && said != 'k')) return null;
+    if (relay == null || !same || (said != 'p' && said != 'k')) return 'made';
     // It came, and could not be opened here: sealed for another device of this account, which it was passed on to.
-    if (ledger.unopenedNear(account, at, unopenedNear)) return null;
+    if (ledger.unopenedNear(account, at, unopenedNear)) return 'made';
     final here = ledger.connectedAt(relay, at, slack: slack);
-    if (said == 'p') return here ? LedgerWrongKind.passed : null;
-    // Kept: for someone the relay held to be away.
-    if (here) return LedgerWrongKind.away;
-    if (_onlyDevice() && ledger.signedInAfter(relay, at, slack: slack, handedOver: handedOver)) return LedgerWrongKind.kept;
-    return null;
-  }
-
-  /// Whether this is the account's only device, as far as anything here knows: no other told its card, no packet from
-  /// one came in a week, and whoever made this says so.
-  bool _onlyDevice() {
-    if (p2p.ownDevices > 0) return false;
-    final heard = ledger.siblingHeard;
-    if (heard > 0 && nowMs - heard < Ledger.keepFor.inMilliseconds) return false;
-    try {
-      return _alone?.call() ?? true;
-    } catch (_) {
-      return false;
-    }
+    if (said == 'p') return here ? LedgerWrongKind.passed.name : 'made';
+    // Kept: for someone the relay held to be away, while this device was connected to it.
+    if (here) return LedgerWrongKind.away.name;
+    // Kept, and the relay started again after: gone with the restart, what it keeps living in memory (the review, D2).
+    if (ledger.restartedAfter(relay, at, slack: slack)) return 'restart';
+    // Kept and never handed over to this device: the relay hands what it kept to whichever of the account's devices signs
+    // in first, and nothing here can prove none did, so it is not put down against the relay (D3).
+    return 'made';
   }
 
   static bool _sameRelay(String a, String b) {

@@ -12,6 +12,7 @@ import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/net/kept_files.dart';
 import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
@@ -517,8 +518,14 @@ void main() {
   });
 
   // Checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3).
-  test('the ledger the relay is checked by: made with the direct route, told by the switchboard, listing friends as the records say each time, and forgotten at sign-out', () async {
+  test('the ledger the relay is checked by: made with the direct route, kept in its own files and never with the choices, told by the switchboard, listing friends as the records say each time, and forgotten at sign-out', () async {
     Net.p2pNode = () => node;
+    // Its own files, out of any backup (lib/net/kept_files.dart; the review, D6): here a folder of the test's own.
+    final folder = Directory.systemTemp.createTempSync('ledger');
+    addTearDown(() => folder.deleteSync(recursive: true));
+    final files = FilesFsStore(folder);
+    Net.ledgerStore = () => files;
+    addTearDown(() => Net.ledgerStore = Net.defaultLedgerStore);
     final hub = PlainCarrier('hub');
     final app = AppState();
     await Net.instance.start(app, carriers: [hub]);
@@ -538,15 +545,15 @@ void main() {
     await Net.instance.send(Net.instance.byId(asker.id)!, again, only: {'hub'});
     expect([for (final x in ledger.sentTo(asker.id)) x.id], [again.id]);
     await ledger.flush();
-    expect([app.choice(Ledger.indexName, ''), app.choice(Ledger.bookName(sam.id), ''), app.choice(Ledger.bookName(asker.id), '')], everyElement(isNotEmpty));
-    expect(app.choice(Ledger.bookName(sam.id), ''), isNot(contains('hi')), reason: 'no words');
+    expect([for (final name in [Ledger.indexName, Ledger.bookName(sam.id), Ledger.bookName(asker.id)]) await files.read(name)], everyElement(isNotEmpty));
+    expect(await files.read(Ledger.bookName(sam.id)), isNot(contains('hi')), reason: 'no words');
+    // Nothing of it with the app's choices, which Android's backup copies.
+    expect(app.withPrefix('ldg'), isEmpty);
     // Signing out (the relay says this device is no longer the account's): nothing of it is left.
     final account = Account(relay: _Gone(), port: SmsAccountPort(), store: AppMeStore(app), profiles: AppAccountProfiles());
     app.set('acct_address', '0x52908400098527886E0F7030069857D2E4169EE7');
     await account.check();
-    for (final name in [Ledger.indexName, Ledger.relayName, Ledger.bookName(sam.id), Ledger.bookName(asker.id)]) {
-      expect(app.choice(name, ''), isEmpty, reason: name);
-    }
+    expect(folder.listSync(), isEmpty);
     expect(ledger.sentTo(sam.id), isEmpty);
   });
 

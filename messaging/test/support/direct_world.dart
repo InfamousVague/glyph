@@ -30,7 +30,11 @@ import 'hub_pair.dart';
 ///   await w.relayGone();                  // nothing answers at the relay
 ///   await a.text(b.account, 'still here') // …so it goes straight
 class World {
-  World({List<String> helpers = const [], this.ledgers = false}) : memory = MemoryHub(Hub(helpers: helpers));
+  World({List<String> helpers = const [], this.ledgers = false}) {
+    // Where the installs keep ledgers, the relay keeps the test's time too: what it says of when it started is held to
+    // the installs' clocks (lib/net/ledger.dart).
+    memory = MemoryHub(Hub(helpers: helpers, now: ledgers ? clock.now : null));
+  }
 
   /// Whether each install keeps a ledger and compares it over direct links (lib/net/ledger.dart), as the app does where
   /// it has the direct route. Off unless asked for: what it says over links would be counted in the direct route's own
@@ -41,7 +45,7 @@ class World {
   late final mesh = FakeP2pMesh(clock: clock);
 
   /// The relay's hub, in memory. Put another in its place to stand for a relay that started again.
-  MemoryHub memory;
+  late MemoryHub memory;
   final installs = <Install>[];
 
   Account account(String name) => Account(name);
@@ -178,9 +182,6 @@ class Install implements PeerBook {
   /// unanswered does: given to the comparing to send again ([LedgerCheck.holders]).
   final outbox = <String, Envelope>{};
 
-  /// Whether it is the account's only device, as forward secrecy would say ([LedgerCheck]'s alone); null: as the
-  /// comparing works it out by itself.
-  bool? alone;
 
   /// The connection to the relay it dialled last, as the relay's end holds it: a test makes the relay drop what it says
   /// on it ([HubPair.dropToApp]). Each new one is given [dropToApp] as it is made.
@@ -255,7 +256,7 @@ class Install implements PeerBook {
       final l = ledger = Ledger(store: plain, me: account.id, device: device, isFriend: (id) => friends.any((f) => f.id == id), now: world.clock.now, timer: world.clock.timer);
       board.log = l;
       await l.load();
-      check = LedgerCheck(ledger: l, board: board, p2p: p2p, relay: () => hub, alone: alone == null ? null : () => alone!, now: world.clock.now, timer: world.clock.timer)
+      check = LedgerCheck(ledger: l, board: board, p2p: p2p, relay: () => hub, now: world.clock.now, timer: world.clock.timer)
         ..holders.add((peer, id) => outbox[id])
         ..start();
     }

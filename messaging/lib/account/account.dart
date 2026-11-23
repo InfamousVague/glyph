@@ -452,7 +452,13 @@ class Account extends ChangeNotifier {
     try {
       await Net.instance.ledger?.wipe();
     } catch (_) {}
+    // And where none is running, its files: they are kept apart, out of any backup (lib/net/kept_files.dart).
+    try {
+      final files = Net.ledgerStore();
+      if (files != null) await Ledger.forget(files);
+    } catch (_) {}
     NameWatch.instance?.wipe();
+    // (A build before the ledger had files of its own kept it with the choices.)
     for (final name in [...Ledger.keptIn(store.choice(Ledger.indexName, '')), ...NameWatch.keptNames]) {
       if (store.choice(name, '').isNotEmpty) store.set(name, '');
     }

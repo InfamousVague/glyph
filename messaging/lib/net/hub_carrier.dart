@@ -62,6 +62,11 @@ class HubCarrier implements Carrier {
   /// order on it, so whatever the relay put on it before that frame came first (lib/net/ledger.dart).
   int signedInAt = 0, heardAt = 0;
 
+  /// When the relay last started, by this device's clock, as it said at the last sign-in (`since`, with its `now`): what
+  /// it kept for someone before then went with the restart (relay/lib/hub.dart). 0 where it didn't say (a relay from
+  /// before).
+  int relayStartedAt = 0;
+
   /// Whether this install asked to be told when [id] comes and goes ([watch]): only then does [here] say anything of
   /// them.
   bool watching(String id) => _watched.contains(id);
@@ -350,6 +355,8 @@ class HubCarrier implements Carrier {
       _tries = 0;
       problem = null;
       signedInAt = heardAt = _now().millisecondsSinceEpoch;
+      final relayNow = m['now'], since = m['since'];
+      relayStartedAt = relayNow is int && since is int && since <= relayNow ? signedInAt - (relayNow - since) : 0;
       // Before the route is up: whoever acts on its coming up has the helpers this hub names.
       final named = m['helpers'];
       _helpers.value = List.unmodifiable([

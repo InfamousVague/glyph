@@ -6,12 +6,14 @@ import 'package:flutter/foundation.dart';
 import '../app_state.dart';
 import '../friends/buddies.dart' show Buddy;
 import '../me/me.dart' show Me;
+import '../platform_info.dart';
 import '../sms.dart';
 import 'carrier.dart';
 import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'hub_link.dart';
+import 'kept_files.dart';
 import 'ledger.dart';
 import 'p2p/node.dart';
 import 'p2p/p2p.dart';
@@ -337,7 +339,7 @@ class Net extends ChangeNotifier implements PeerBook {
       // The ledger, where there is a direct route to compare it over (docs/OPEN_NETWORK.md, section 3): told by the
       // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices
       // as direct links are proved. Without a core nothing could compare it, so nothing is listed.
-      if (p2p != null) _startLedger(board, p2p, app, me.id, device, fs);
+      if (p2p != null) _startLedger(board, p2p, me.id, device);
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -391,16 +393,22 @@ class Net extends ChangeNotifier implements PeerBook {
 
   static String _couldNot(Object e) => 'The direct route could not be started on this device ($e). The other routes work as before.';
 
-  void _startLedger(Switchboard board, P2p p2p, AppState app, String me, String device, ForwardSecrecy fs) {
+  /// Where the ledger is kept: files of its own, out of any backup (kept_files.dart; the review, D6); under a test,
+  /// memory, so nothing is written where this computer's own app keeps its files (a test gives its own folder where
+  /// that is what it looks at). Null where there is nowhere (a browser): then no ledger is kept.
+  static FsStore? Function() ledgerStore = defaultLedgerStore;
+  static FsStore? defaultLedgerStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : ledgerFiles();
+
+  void _startLedger(Switchboard board, P2p p2p, String me, String device) {
     try {
+      final store = ledgerStore();
+      if (store == null) return;
       // Friends as they are each time it asks: the set is made anew whenever the people are read again.
-      final ledger = _ledger = Ledger(store: _ChoiceFsStore(app), me: me, device: device, isFriend: (id) => _friendIds.contains(id));
+      final ledger = _ledger = Ledger(store: store, me: me, device: device, isFriend: (id) => _friendIds.contains(id));
       board.log = ledger;
       ledger.addListener(_directChanged);
       unawaited(ledger.load());
-      // The account's only device, as far as forward secrecy knows: no other of its devices offered a prekey in a week.
-      // While it has not loaded, not held to be the only one (nothing is put down as the relay keeping something back).
-      final check = _check = LedgerCheck(ledger: ledger, board: board, p2p: p2p, relay: () => _hub, alone: () => fs.loaded && fs.devicesOf(me).isEmpty);
+      final check = _check = LedgerCheck(ledger: ledger, board: board, p2p: p2p, relay: () => _hub);
       check.holders.addAll(_holders);
       check.addListener(_directChanged);
       check.start();

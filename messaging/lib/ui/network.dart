@@ -149,16 +149,19 @@ String relayCheckedWords(int at, int devices, {required int now}) =>
 String relayMatchedWords(int matched) => '${matched == 1 ? '1 message' : '$matched messages'} matched this week';
 
 /// How many had to come straight with the relay not at fault.
-String relayMadeUpWords(int madeUp) => madeUp == 0
+/// How many came straight after the relay didn't bring them, and of those how many were lost when it started again: only
+/// what did come straight is counted (the review, D7).
+String relayMadeUpWords(int madeUp, {int restarts = 0}) => madeUp == 0
     ? 'None had to come straight.'
-    : '${madeUp == 1 ? '1 was' : '$madeUp were'} made up for: it came straight because this device was away while another of yours took it, or couldn\'t open it.';
+    : '${madeUp == 1 ? '1 came' : '$madeUp came'} straight after the relay didn\'t bring ${madeUp == 1 ? 'it' : 'them'}${restarts == 0 ? '' : restarts == madeUp ? ', lost when it started again' : ' ($restarts lost when it started again)'}.';
 
-/// One thing the relay got wrong, said of the friend [who] it concerns.
+/// One thing the relay got wrong, said as whose word it is (the review, D5): what the relay told the friend [who]'s
+/// device, held to what happened here, put down only once the message came straight.
 String relayWrongWords(LedgerWrong w, String who) => switch (w.kind) {
-      LedgerWrongKind.passed => 'Said it passed on a message from $who, and it never came',
-      LedgerWrongKind.kept => 'Kept a message from $who and never handed it over',
-      LedgerWrongKind.away => 'Told $who you were away while you were connected',
-      LedgerWrongKind.gone => 'Said $who was gone while their device was connected',
+      LedgerWrongKind.passed => '$who\'s device says the relay passed on a message to you, and it never came by the relay',
+      LedgerWrongKind.kept => '$who\'s device says the relay kept a message for you, and it never handed it over',
+      LedgerWrongKind.away => '$who\'s device says the relay told it you were away while you were connected',
+      LedgerWrongKind.gone => 'The relay said $who was gone while their device said it was connected',
     };
 
 /// What the name watch does, in a line, and when it last asked.
@@ -207,7 +210,7 @@ PaneSection relayCheckSection(BuildContext context, {required Ledger? ledger, re
         key: const ValueKey('relay-matched'),
         icon: icon(Lucide.check),
         label: relayMatchedWords(r.matched(at)),
-        hint: Text(relayMadeUpWords(r.madeUp(at))),
+        hint: Text(relayMadeUpWords(r.madeUp(at), restarts: r.restarts(at))),
       ));
       final wrong = r.wrong.reversed.toList();
       if (wrong.isEmpty) {
