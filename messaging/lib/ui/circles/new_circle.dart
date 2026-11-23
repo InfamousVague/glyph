@@ -378,6 +378,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
         SpaceKind.voice => 'Voice',
         SpaceKind.text => 'Chat',
         SpaceKind.files => 'Files',
+        SpaceKind.open => 'Open',
       };
 
   @override
