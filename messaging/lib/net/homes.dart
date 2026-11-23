@@ -417,9 +417,10 @@ class Homes extends ChangeNotifier {
   /// person asks to add them, never while they type. Of this app's own relay where it talks to other relays; where it
   /// says it won't or can't talk to that one, that is the answer (this app doesn't go around it); where it doesn't talk
   /// to others at all, or couldn't reach that one, of that relay itself, under a key made for the one question. Only a
-  /// host a relay would dial: a name with a dot, port 443, not an address on this network. Null where nobody has the
-  /// name there; a [HomeError] where nobody could be asked.
-  Future<FoundOnRelay?> whois(String name, String host) async {
+  /// host a relay would dial: a name with a dot, port 443, not an address on this network; and with [dial] false (a
+  /// request checked as it comes), never that relay itself. Null where nobody has the name there; a [HomeError] where
+  /// nobody could be asked.
+  Future<FoundOnRelay?> whois(String name, String host, {bool dial = true}) async {
     final url = hubOfHost(host);
     if (url == null) throw HomeError('"$host" isn\'t a relay\'s address.');
     if (!dialableRelayHost(host)) throw HomeError('"$host" isn\'t a relay this app can ask: a relay\'s address is a name on the internet, on the usual port.');
@@ -442,6 +443,8 @@ class Homes extends ChangeNotifier {
         }
       }
     }
+    // Not dialled of this app's own accord (a stranger's request checked as it comes: the host is theirs to name).
+    if (!dial) throw HomeError('$host can\'t be asked through your relay just now.');
     final FoundThere? found;
     try {
       found = await whoisAt(url, name, dial: _dial);

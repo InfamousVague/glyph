@@ -31,6 +31,7 @@ import 'profile.dart';
 import 'shell.dart';
 import 'thread.dart';
 import 'special_badges.dart';
+import 'username_friends.dart' show acceptRequest;
 import 'verified_badge.dart';
 import 'nav_bar.dart' show HoverTip;
 import 'plugins_page/plugin_art.dart' show PluginHues;
@@ -155,7 +156,7 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
             mark: inboxMark(Inbox.instance.named(e.key)!, size: 20), hint: e.value),
     if (!ghost.friend && ghost.buddy == null && ghost.username.isNotEmpty && Me.instance.username != null)
       Choice('Add @${ghost.username} as a friend', Lucide.userPlus, () => unawaited(_addFriend(context, ghost.username)), hint: 'You can write to them once they say yes'),
-    if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(Buddies.instance.accept(ghost.buddy!))),
+    if (ghost.buddy?.state == 'invited') Choice('Accept friend request', Lucide.userCheck, () => unawaited(acceptRequest(context, ghost.buddy!))),
     if (ghost.username.isNotEmpty) Choice('Copy @${ghost.username}', Lucide.copy, () => _copy(context, '@${ghost.username}')),
     // Report (GMFB-40): the person, from their card, with Block offered on the sheet.
     if (ghost.id.isNotEmpty || ghost.username.isNotEmpty)

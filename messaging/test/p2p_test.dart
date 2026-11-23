@@ -92,8 +92,6 @@ class _Book implements PeerBook {
   final Map<String, Peer> by;
   @override
   Peer? byId(String id) => by[id];
-  @override
-  Peer? byAddress(String address) => null;
 }
 
 void main() {

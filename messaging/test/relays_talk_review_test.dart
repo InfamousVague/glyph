@@ -289,17 +289,23 @@ void main() {
     await hub.start();
     link.start();
     await until(() => hub.state.value == CarrierState.up && homes.relayTalks, 'never signed in to a relay that talks');
+    // The same name asked of another relay and here at once: each takes its own answer, whichever comes first.
     final far = homes.whois('maya', 'b.test');
     await pumpEventQueue();
-    final near = me.whois('bob');
-    final other = me.whois('cara');
+    final near = me.whois('maya');
     await pumpEventQueue();
-    final maya = NetKeys.generate(), bob = NetKeys.generate(), cara = NetKeys.generate();
-    link.tell({'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'id': maya.id, 'key': base64Encode(maya.public)});
-    link.tell({'dir': 'whois', 'name': 'cara', 'id': cara.id, 'key': base64Encode(cara.public)});
+    final mayaThere = NetKeys.generate(), mayaHere = NetKeys.generate(), bob = NetKeys.generate(), cara = NetKeys.generate();
+    link.tell({'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'id': mayaThere.id, 'key': base64Encode(mayaThere.public)});
+    link.tell({'dir': 'whois', 'name': 'maya', 'id': mayaHere.id, 'key': base64Encode(mayaHere.public)});
+    expect((await far)!.id, mayaThere.id);
+    expect((await near)!.id, mayaHere.id, reason: 'the other relay\'s answer for the same name is not this lookup\'s');
+    // Two names asked here: one at a time, each its own answer (Me.whois).
+    final bobLooked = me.whois('bob'), caraLooked = me.whois('cara');
+    await until(() => link.saidByApp.any((m) => m['dir'] == 'whois' && m['name'] == 'bob'), 'bob was never asked');
     link.tell({'dir': 'whois', 'name': 'bob', 'id': bob.id, 'key': base64Encode(bob.public)});
-    expect((await far)!.id, maya.id);
-    expect([(await near)!.id, (await other)!.id], [bob.id, cara.id], reason: 'each name its own answer');
+    await until(() => link.saidByApp.any((m) => m['dir'] == 'whois' && m['name'] == 'cara'), 'cara was never asked');
+    link.tell({'dir': 'whois', 'name': 'cara', 'id': cara.id, 'key': base64Encode(cara.public)});
+    expect([(await bobLooked)!.id, (await caraLooked)!.id], [bob.id, cara.id], reason: 'each name its own answer');
     // An error about a name asked of another relay is that lookup's alone: one asked here still gets its own answer.
     final farAgain = homes.whois('dan', 'b.test');
     await pumpEventQueue();
@@ -340,11 +346,16 @@ void main() {
 
   test('a stranger\'s request doesn\'t make this app say their record at sign-in; a yes does', () async {
     final net = RelayNet();
-    final a = net.relay('a.test');
+    final a = net.relay('a.test'), b = net.relay('b.test');
     final alex = RelayApp(net, 'alex', a);
     apps.add(alex);
     await alex.start();
-    final strangers = [for (var i = 0; i < 5; i++) KeysSigner(NetKeys.generate())];
+    // Someone on relay b asks, whose name b's directory gives them (so the request can be checked, and said yes to).
+    final pat = RelayApp(net, 'patrick', b);
+    apps.add(pat);
+    await pat.start();
+    await pat.buddies.add('alex@a.test');
+    final strangers = [for (var i = 0; i < 4; i++) KeysSigner(NetKeys.generate())];
     for (final s in strangers) {
       final rec = await HomeRecord.make(s, addresses: ['wss://far${strangers.indexOf(s)}.example/hub'], count: 1);
       final carrier = HubCarrier(url: a.url, signer: s, dial: a.dial);
@@ -354,11 +365,11 @@ void main() {
       await carrier.send(Peer(id: alex.id), Packet.wrap(from: s.id, sealed: false, payload: hello.encode()));
       await carrier.stop();
     }
-    await until(() => alex.buddies.requests.length == strangers.length, 'the requests never came');
+    await until(() => alex.buddies.requests.length == strangers.length + 1, 'the requests never came');
     List<Map> others() => [for (final m in alex.hub.onSignIn!()) if ((m['rec'] as Map)['a'] != alex.id) m];
     expect(others(), isEmpty, reason: 'nobody answered them: their records are not said');
-    await alex.buddies.accept(alex.buddies.requests.first);
-    expect(others(), hasLength(1), reason: 'one said yes to: theirs is');
+    await alex.buddies.accept(alex.buddies.requests.firstWhere((r) => r.id == pat.id));
+    expect([for (final m in others()) (m['rec'] as Map)['a']], [pat.id], reason: 'one said yes to: theirs is');
   });
 
   test('a friend told once while on an app from before is told again when they are first heard from, and counts as told only when they say so', () async {

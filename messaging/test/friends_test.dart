@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/friends/friends.dart';
+import 'package:ghost_messaging/net/carrier.dart' show Peer;
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/sms.dart' show E2eState;
 
 import 'support/fake_friends.dart';
 
@@ -249,6 +251,195 @@ void main() {
     final texts = a.sent.where((x) => x.envelope.kind == 'text').toList();
     expect(texts, hasLength(2));
     expect(texts.last.envelope.id, texts.first.envelope.id, reason: 'the same id, so it is known for the same one');
+  });
+
+  // Found in review, 2026-11-23: who sent something was the address the routes had for them, and where something went
+  // the first install the routes had under an address. On Android the routes hold the members of this phone's groups
+  // too, each under whatever its admin wrote. test/who_sent_test.dart holds the app's own routes to the same.
+  test('what comes is from whoever the record naming the key that sealed it is for, never the address the routes have for the sender', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.stand('@cat', friend: 'yes');
+    // Someone in a group with Ann whose admin listed them under Ben's number, and someone listed as "@cat".
+    a.arriveFrom('eve', ben, Envelope(kind: 'text', body: {'t': 'from Eve'}));
+    a.arriveFrom('eve', ben, Envelope(kind: 'friend', body: {'do': 'end'}));
+    a.arriveFrom('ivy', '@cat', Envelope(kind: 'text', body: {'t': 'from Ivy'}));
+    a.arriveFrom('ivy', '@cat', Envelope(kind: 'friend', body: {'do': 'end'}));
+    // And Ben, under an address that is nobody's: known by his key.
+    a.arriveFrom(FakePort.idAt(ben), '', Envelope(kind: 'text', body: {'t': 'from Ben'}));
+    await until(() => a.came.isNotEmpty);
+    await settle();
+    expect(a.came, [(address: ben, words: 'from Ben')]);
+    expect(a.friendSets, isEmpty);
+    expect([annsPhone.isFriend(ben), annsPhone.isFriend('@cat')], [isTrue, isTrue]);
+    // Who each is, both ways.
+    expect(annsPhone.idOf(ben), FakePort.idAt(ben));
+    expect(annsPhone.addressOf(FakePort.idAt(ben)), ben);
+    expect([annsPhone.addressOf('eve'), annsPhone.isFriendId('eve'), annsPhone.isFriendId(FakePort.idAt(ben))], [isNull, isFalse, isTrue]);
+  });
+
+  test('what waits for an answer from an install whose key has changed is said to have failed at once, and never sealed again for the new key', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.lost = true;
+    expect(await annsPhone.sendText(ben, 'first'), isTrue);
+    await settle();
+    expect(annsPhone.unanswered, 1);
+    expect(a.rows.values.single.state, 'sent');
+    // Ben's record names another key now (his phone was reset, and the person said yes to the new one).
+    a.book[ben] = E2eState(address: ben, state: 'on', friend: 'yes', hasGhost: true, id: 'another-key');
+    await annsPhone.refresh();
+    expect(annsPhone.unanswered, 0, reason: 'not three days on');
+    expect(a.rows.values.single.state, 'failed');
+    a.lost = false;
+    a.bump();
+    await settle();
+    await settle();
+    expect(a.sent.where((s) => s.envelope.kind == 'text'), hasLength(1));
+    expect(b.came, isEmpty);
+  });
+
+  // The review's follow-ups (2026-11-23), each in a test of its own.
+  test('a device that isn\'t the phone never asks, or asks again, for the phone\'s numbers: they are the phone\'s to act on', () async {
+    for (final phone in [true, false]) {
+      final port = FakePort(ann)
+        ..other = FakePort(ben)
+        ..numbers = phone
+        ..stand(ben, friend: 'want')
+        ..stand('+15550003333', friend: 'asked');
+      final friends = Friends(port);
+      await friends.start();
+      await settle();
+      final asks = {for (final s in port.sent) if (s.envelope.kind == 'friend' && s.envelope.body['do'] == 'ask') s.to};
+      expect(asks, phone ? {ben, '+15550003333'} : isEmpty, reason: phone ? 'the phone' : 'a paired computer');
+      expect(port.friendSets.map((s) => '${s.address} ${s.state}'), phone ? ['$ben asked'] : isEmpty);
+      await friends.shutdown();
+    }
+  });
+
+  test('words from an install no record names are answered "end", straight to it, once in a while; never anything else, never anyone in the list of friends by username, and never from a device that isn\'t the phone', () async {
+    for (final phone in [true, false]) {
+      // Ben a friend by username: both the phone and a computer paired with it act on that record. Pat is in the list of
+      // friends by username too, only asking here (said yes to on a paired computer, say, or her yes was lost).
+      final port = FakePort(ann)
+        ..other = FakePort('@ben')
+        ..numbers = phone
+        ..stand('@ben', friend: 'yes')
+        ..buddies.add('pat');
+      final friends = Friends(port);
+      await friends.start();
+      // Eve, in a group with Ann and listed as "@ben" by its admin, writes as a friend would, twice, and says end.
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'text', body: {'t': 'hi'}));
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'text', body: {'t': 'hi again'}));
+      port.arriveFrom('eve', '@ben', Envelope(kind: 'friend', body: {'do': 'end'}));
+      port.arriveFrom('ivy', '@ben', Envelope(kind: 'friend', body: {'do': 'no'}));
+      // An ask, and a yes, from members of a group whose key texts haven't come (the review's follow-up E1): not ended.
+      port.arriveFrom('dan', '+15550004444', Envelope(kind: 'friend', body: {'do': 'ask'}));
+      port.arriveFrom('cal', '+15550005555', Envelope(kind: 'friend', body: {'do': 'yes'}));
+      // Pat writes as the friend she is on the computer: not ended either.
+      port.arriveFrom('pat', '', Envelope(kind: 'text', body: {'t': 'from Pat'}));
+      // Ben writes too: nothing is said back to him.
+      port.arriveFrom(FakePort.idAt('@ben'), '@ben', Envelope(kind: 'text', body: {'t': 'from Ben'}));
+      await until(() => port.came.isNotEmpty);
+      await settle();
+      final ends = [for (final s in port.sent) if (s.envelope.kind == 'friend' && s.envelope.body['do'] == 'end') s.id];
+      expect(ends, phone ? ['eve'] : isEmpty, reason: phone ? 'the phone' : 'a paired computer');
+      expect(port.came.map((c) => c.words), ['from Ben']);
+      await friends.shutdown();
+    }
+  });
+
+  // The review's follow-up E1 (2026-11-23): Buddies says where two stand by username; a Friends "end" or "no" marked one
+  // no friend here until the records were read again.
+  test('a friend by username\'s "end" or "no" changes nothing where the two stand: Buddies decides that', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.stand('@cat', friend: 'yes');
+    a.arriveFrom(FakePort.idAt('@cat'), '@cat', Envelope(kind: 'friend', body: {'do': 'end'}));
+    a.arriveFrom(FakePort.idAt('@cat'), '@cat', Envelope(kind: 'friend', body: {'do': 'no'}));
+    await settle();
+    expect(annsPhone.isFriend('@cat'), isTrue);
+    expect(a.friendSets, isEmpty);
+    // A friend by number's "end" still ends it, as ever.
+    b.otherHere = true;
+    await bensPhone.remove(ann);
+    await settle();
+    expect(annsPhone.isFriend(ben), isFalse);
+  });
+
+  test('installs no record names, however many and however often, have the records read again once in a while, not each time', () async {
+    final port = FakePort(ann)
+      ..other = FakePort(ben)
+      ..stand(ben, friend: 'yes');
+    final friends = Friends(port);
+    await friends.start();
+    final before = port.statesRead;
+    for (var i = 0; i < 20; i++) {
+      port.arriveFrom('member-$i', ben, Envelope(kind: 'text', body: {'t': 'spam $i'}));
+    }
+    await settle();
+    expect(port.statesRead - before, 1);
+    await friends.shutdown();
+  });
+
+  test('the wake goes only to the number this phone\'s own record gives that install, never to one a group lists', () async {
+    final port = FakePort(ann)
+      ..other = FakePort(ben)
+      ..stand(ben, friend: 'yes');
+    final friends = Friends(port);
+    await friends.start();
+    // A member known only through a group, under the number its admin wrote; and Ben, under another address the routes
+    // happen to hold for him.
+    friends.wake(Peer(id: 'eve', address: '+15550009999'));
+    friends.wake(Peer(id: FakePort.idAt(ben), address: '+15550008888'));
+    final wakes = [for (final s in port.sent) if (s.envelope.kind == 'wake') (s.id, s.to)];
+    expect(wakes, [(FakePort.idAt(ben), ben)]);
+    await friends.shutdown();
+  });
+
+  test('one person, a friend by number and by username with the one key: heard in the number\'s conversation on a phone, as before, and in the username\'s on a computer paired with it, whose routes carry no numbers', () async {
+    for (final computer in [false, true]) {
+      final port = FakePort(ann)
+        ..numbers = !computer
+        ..stand(ben, friend: 'yes');
+      // Ben's username, as his phone's install's key names it.
+      port.book['@ben'] = E2eState(address: '@ben', state: 'on', friend: 'yes', hasGhost: true, id: FakePort.idAt(ben));
+      final phone = Friends(port);
+      await phone.start();
+      port.arriveFrom(FakePort.idAt(ben), computer ? '@ben' : ben, Envelope(kind: 'text', body: {'t': 'hello'}));
+      await until(() => port.came.isNotEmpty);
+      expect(port.came.single.address, computer ? '@ben' : ben, reason: computer ? 'on the computer' : 'on the phone');
+      await phone.shutdown();
+    }
+  });
+
+  test('who an install is where two records name it: the one encryption is on with, then the one being friends has gone furthest with, then a number\'s; two alike, the lower address, never nobody', () {
+    const k = 'the-key';
+    E2eState r(String address, {String state = 'on', String friend = '', String? id = k, List<String> others = const []}) => E2eState(address: address, state: state, friend: friend, id: id, otherIds: others);
+    // A key someone sent from a number that isn't theirs: the friend's record stands, in either order.
+    expect(Friends.whoIs([r('+15550000001', friend: 'yes'), r('+15550000009')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000009'), r('+15550000001', friend: 'yes')]), {k: '5550000001'});
+    // A record waiting for the person's yes stands for nobody where another is on.
+    expect(Friends.whoIs([r('+15550000009', state: 'pending', friend: 'yes'), r('+15550000001')]), {k: '5550000001'});
+    // One person's number and username, with the one install's key in both: the number, as before; the username where
+    // it alone is a friend.
+    expect(Friends.whoIs([r('@maya', friend: 'yes'), r('+15550000001', friend: 'yes')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('@maya', friend: 'yes'), r('+15550000001')]), {k: '@maya'});
+    // How far being friends has gone counts (the review's probe 5): asked or invited above nothing, meant to ask (want)
+    // between, a friend above them all.
+    expect(Friends.whoIs([r('+15550000009'), r('+15550000001', friend: 'asked')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000009', friend: 'want'), r('+15550000001', friend: 'invited')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000001', friend: 'want'), r('+15550000009')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000009', friend: 'yes'), r('+15550000001', friend: 'asked')]), {k: '5550000009'});
+    // Two alike: one of them, the lower, whatever order they came in (probes 2 and 3: one person's two numbers).
+    expect(Friends.whoIs([r('+15550000002'), r('+15550000001')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000003', friend: 'yes'), r('+15550000001', friend: 'yes'), r('+15550000002', friend: 'yes')]), {k: '5550000001'});
+    // ...unless one ranks above the rest.
+    expect(Friends.whoIs([r('+15550000001'), r('+15550000002'), r('+15550000003', friend: 'yes')]), {k: '5550000003'});
+    // One number written two ways is one record, and a username is never a number, whatever digits it holds (probe 1).
+    expect(Friends.whoIs([r('+1 555 000 0001'), r('5550000001')]), {k: '5550000001'});
+    expect(Friends.digits('@ben.5550000001'), '@ben.5550000001');
+    expect(Friends.whoIs([r('@Ben.5550000001', friend: 'yes')]), {k: '@ben.5550000001'});
+    // A friend by username's other installs are theirs too; a record that names no key names nobody.
+    expect(Friends.whoIs([r('@maya', friend: 'yes', others: ['old-key'])]), {k: '@maya', 'old-key': '@maya'});
+    expect(Friends.whoIs([r('+15550000001', id: null)]), isEmpty);
   });
 
   test('the same message twice (its answer was lost) is kept once', () async {

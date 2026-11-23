@@ -10,7 +10,8 @@ import 'package:ghost_messaging/sms.dart';
 // A stand-in for what Friends stands on (lib/friends/friends.dart, FriendsPort): the routes and the phone of one
 // install, with what it sends handed to another's. For test/friends_test.dart and the screens' pictures.
 
-typedef Sent = ({String to, Envelope envelope, bool metered, bool sealed, Set<String>? only});
+/// What was sent: to the address the peer was held under ([to]) and to whom by name ([id]).
+typedef Sent = ({String to, String id, Envelope envelope, bool metered, bool sealed, Set<String>? only});
 
 class FakePort implements FriendsPort {
   FakePort(this.me);
@@ -21,6 +22,15 @@ class FakePort implements FriendsPort {
 
   /// Where this phone stands with the other, as android E2e keeps it.
   final Map<String, E2eState> book = {};
+
+  /// The phone keeps the records for numbers; every other device of the account doesn't.
+  @override
+  bool numbers = true;
+
+  /// The installs in this device's list of friends by username, whatever each stands at.
+  final buddies = <String>{};
+  @override
+  bool knows(String id) => buddies.contains(id);
 
   /// The relay server's route is up; the other phone is connected to it; it takes what it is given.
   bool up = true;
@@ -52,13 +62,23 @@ class FakePort implements FriendsPort {
   final _acks = StreamController<String>.broadcast();
   final _changed = ValueNotifier<int>(0);
 
+  /// The name of the install at [address], as its key would give it: what the record for that address names, and
+  /// what the routes know it by.
+  static String idAt(String address) => 'name-of-$address';
+
   void stand(String address, {String state = 'on', String friend = '', bool hasGhost = true}) {
-    book[address] = E2eState(address: address, state: state, friend: friend, hasGhost: hasGhost);
+    book[address] = E2eState(address: address, state: state, friend: friend, hasGhost: hasGhost, id: idAt(address));
     _changed.value++;
   }
 
+  /// The routes reach whoever encryption is on with, by the name of their key, under the address of their record.
   @override
-  Peer? peer(String address) => book[address]?.on == true ? Peer(id: 'name-of-$address', key: Uint8List(32), address: address) : null;
+  Peer? peer(String id) {
+    for (final s in book.values) {
+      if (s.on && s.id == id) return Peer(id: id, key: Uint8List(32), address: s.address);
+    }
+    return null;
+  }
 
   @override
   bool get internet => up;
@@ -81,9 +101,11 @@ class FakePort implements FriendsPort {
 
   @override
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only}) async {
-    sent.add((to: peer.address!, envelope: envelope, metered: metered, sealed: sealed, only: only));
+    sent.add((to: peer.address ?? '', id: peer.id, envelope: envelope, metered: metered, sealed: sealed, only: only));
     // A data text: on its way, and nothing more is known.
     if (only != null && only.contains('sms')) return Delivery(envelope.id, via: 'sms', handed: Handed.passed);
+    // Someone who is not the other phone (a member of a group, in a test): the relay takes it, and that is all.
+    if (peer.id != idAt(other.me)) return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
     final why = refusedWhy;
     if (why != null) return Delivery(envelope.id, tried: ['hub: $why']);
     if (!up || refuses) {
@@ -103,7 +125,11 @@ class FakePort implements FriendsPort {
   /// [envelope] arrives at this phone again from [from], as a resend would bring it.
   void arriveAgain(String from, Envelope envelope) => _arrive(from, envelope, true);
 
-  void _arrive(String from, Envelope envelope, bool sealed) => _in.add(Received(Peer(id: 'name-of-$from', address: from), envelope, 'hub', sealed: sealed));
+  void _arrive(String from, Envelope envelope, bool sealed) => _in.add(Received(Peer(id: idAt(from), address: from), envelope, 'hub', sealed: sealed));
+
+  /// [envelope] arrives sealed by the install named [id], which the routes hold under [address]: on Android, a member of
+  /// a group under whatever its admin wrote.
+  void arriveFrom(String id, String address, Envelope envelope) => _in.add(Received(Peer(id: id, key: Uint8List(32), address: address), envelope, 'hub'));
 
   /// The other phone's app opens: what the relay server kept is handed over, and each is answered.
   void otherBack() {
@@ -119,14 +145,24 @@ class FakePort implements FriendsPort {
   Stream<Received> get received => _in.stream;
   @override
   Stream<String> get acked => _acks.stream;
+  /// How many times the records were read.
+  int statesRead = 0;
+
   @override
-  Future<List<E2eState>> states() async => book.values.toList();
+  Future<List<E2eState>> states() async {
+    statesRead++;
+    return book.values.toList();
+  }
+
+  /// What [setFriend] was asked, in order.
+  final friendSets = <({String address, String state})>[];
 
   @override
   Future<void> setFriend(String address, String state) async {
+    friendSets.add((address: address, state: state));
     final s = book[address];
     if (s == null) return;
-    book[address] = E2eState(address: address, state: s.state, friend: state, hasGhost: s.hasGhost);
+    book[address] = s.withFriend(state);
   }
 
   @override
@@ -134,7 +170,7 @@ class FakePort implements FriendsPort {
     keysSent.add(address);
     // android E2e.offered: on where their key is already here, waiting for it where it is not.
     final s = book[address];
-    book[address] = E2eState(address: address, state: s?.state == 'pending' ? 'on' : 'offered', friend: s?.friend ?? '', hasGhost: true);
+    book[address] = E2eState(address: address, state: s?.state == 'pending' ? 'on' : 'offered', friend: s?.friend ?? '', hasGhost: true, id: s?.id ?? idAt(address));
   }
 
   @override
@@ -160,8 +196,8 @@ class FakePort implements FriendsPort {
   @override
   Future<bool> probe() async => answers;
 
-  /// The addresses whose last packet the relay said waits on it for their relay.
+  /// The addresses whose last packet the relay said waits on it for their relay (each install named as [idAt] names it).
   final Set<String> waiting = {};
   @override
-  bool waitingAtRelay(String address) => waiting.contains(address);
+  bool waitingAtRelay(String id) => waiting.any((address) => idAt(address) == id);
 }

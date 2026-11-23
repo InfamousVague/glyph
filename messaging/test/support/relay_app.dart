@@ -141,9 +141,6 @@ class RelayApp implements PeerBook, BuddiesPort, BuddiesAcross {
     return pair == null ? null : Peer(id: id, key: NetCrypto.netKey(pair), address: '@${b.username}');
   }
 
-  @override
-  Peer? byAddress(String address) => null;
-
   // --- what Buddies stands on ----------------------------------------------------------------------------------------
   @override
   Future<({String id, String key})> me() async => (id: id, key: base64Encode(keys.public));
