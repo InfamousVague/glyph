@@ -22,7 +22,9 @@ class IoFilesHttp implements FilesHttp {
         req.contentLength = 0;
       }
       final res = await req.close();
-      return (status: res.statusCode, body: res as Stream<List<int>>);
+      // A connection cut while the answer is read is the relay out of reach too, as it was before the split (the review
+      // of web-files, F1): an upload then waits and tries again rather than standing still.
+      return (status: res.statusCode, body: res.transform<List<int>>(StreamTransformer.fromHandlers(handleError: (e, st, sink) => sink.addError(_offline(e), st))));
     } on SocketException catch (e) {
       throw FilesError(0, 'Can\'t reach the files server (${e.osError?.message ?? e.message}).');
     } on HttpException catch (e) {
@@ -33,6 +35,16 @@ class IoFilesHttp implements FilesHttp {
       throw FilesError(0, 'Can\'t reach the files server securely.');
     }
   }
+
+  /// What went wrong reaching the relay, as FilesError's status 0 where it is the connection's.
+  static Object _offline(Object e) => switch (e) {
+        FilesError() => e,
+        SocketException() => FilesError(0, 'Can\'t reach the files server (${e.osError?.message ?? e.message}).'),
+        HttpException() => FilesError(0, 'Can\'t reach the files server (${e.message}).'),
+        TimeoutException() => FilesError(0, 'The files server didn\'t answer.'),
+        HandshakeException() => FilesError(0, 'Can\'t reach the files server securely.'),
+        _ => e,
+      };
 
   @override
   void close({bool force = false}) => _http.close(force: force);
