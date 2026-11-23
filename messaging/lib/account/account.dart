@@ -657,6 +657,15 @@ class Account extends ChangeNotifier {
     for (final name in P2p.keptNames) {
       if (store.choice(name, '').isNotEmpty) store.set(name, '');
     }
+    // And the relay this device hosts (lib/relay_host): stopped and switched off, everyone on it seeing it gone, its pass
+    // phrase forgotten and its folder kept (its key, where its people said they live); this app's relay set back to the
+    // one before it. And the pass phrase given for someone else's relay.
+    try {
+      await Net.instance.relayHost?.signedOut();
+    } catch (_) {}
+    try {
+      if ((await port.secretRead(Net.joinPassName) ?? '').isNotEmpty) await port.secretKeep(Net.joinPassName, '');
+    } catch (_) {}
     // And the ledger the relay is checked by, and what the name watch kept (lib/net/ledger.dart, name_watch.dart): what
     // went to whom and came from whom, and what the relay said of friends' usernames, are nothing of the next account's.
     try {

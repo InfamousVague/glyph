@@ -3,9 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../relay_host/address.dart';
 import 'carrier.dart';
 import 'crypto.dart';
 import 'hub_link.dart';
+import 'hub_pass.dart';
 
 /// Who this install is to a hub: its name, its public key, and a way to sign with the private one, which stays
 /// wherever it is kept (Android's keystore on a phone).
@@ -128,8 +130,12 @@ class HubCarrier implements Carrier {
   /// relay reached by that host, and a relay that has seen this account sign in with v2 takes no v1 from it again.
   static const greetingV2 = 'ghost-hub v2 ';
 
-  /// The host a v2 sign-in names for [url]: lower case, with its port where it is not the scheme's own.
+  /// The host a v2 sign-in names for [url]: lower case, with its port where it is not the scheme's own. For a relay
+  /// hosted from someone's app (`ghost-relay://…`, lib/relay_host/address.dart), the node id of the device it is
+  /// dialled at over Direct, which the direct network's handshake proves, or for the app it runs in its own name.
   static String hostOf(String url) {
+    final hosted = GhostRelayAddress.parse(url);
+    if (hosted != null) return hosted.signedHost;
     final u = Uri.parse(url);
     final usual = u.scheme == 'wss' ? 443 : 80;
     final host = u.host.toLowerCase();
@@ -198,6 +204,25 @@ class HubCarrier implements Carrier {
 
   /// What the relay said of itself in its hello, at the last sign-in; null from a relay from before.
   HubRelay? relay;
+
+  /// Whether the relay said, in its last hello, that it runs in someone's app (relay/lib/hub.dart `hosted`;
+  /// lib/relay_host): whoever runs it sees which installs talk and when, and it is up only while their app is.
+  bool hosted = false;
+
+  /// Whether the relay asks for a pass phrase (relay/lib/hub.dart `pass`), as its last hello said.
+  bool asksPass = false;
+
+  /// The pass phrase for this relay, where the person gave one (the routes keep it: lib/net/net.dart); asked each time
+  /// the relay asks for one, so a phrase given since is the one used. Nothing of it is said but a proof made for the one
+  /// connection ([HubPass]).
+  String? Function()? pass;
+
+  /// Why the relay refused this app's pass phrase at the last sign-in, where it did: `needed` (none given), `wrong`, or
+  /// `busy` (too many wrong ones lately, from here or from anywhere). The route then waits, and is not tried again by
+  /// itself: a phrase wrong a minute ago is wrong now, and each try would count against everyone ([nudge] tries again
+  /// once one is given); after `busy`, in [passBusyWait]. Null once it signs in.
+  String? passRefused;
+  static const passBusyWait = Duration(minutes: 10);
 
   /// What is said first at every sign-in, before anything else can be sent: this account's home record and its
   /// friends' (lib/net/homes.dart), so the relay can route from the first packet on.
@@ -341,10 +366,22 @@ class HubCarrier implements Carrier {
   /// phone may have let it die without saying so (the relay server would hand it messages that go nowhere).
   void nudge({Duration away = Duration.zero, Duration stale = const Duration(seconds: 45)}) {
     if (!_wanted) return;
+    // Refused for its pass phrase: waits for one to be given ([passAgain]), not for the app to come back.
+    if (passRefused != null && _ws == null) return;
     if (_ws != null && away < stale) return;
     _again?.cancel();
     _tries = 0;
     if (_ws != null) _drop('made again after the app was away');
+    unawaited(_connect());
+  }
+
+  /// A pass phrase was given (or changed) for this relay: tried at once, wherever the route stood.
+  void passAgain() {
+    passRefused = null;
+    if (!_wanted) return;
+    _again?.cancel();
+    _tries = 0;
+    if (_ws != null) _drop('made again with a pass phrase');
     unawaited(_connect());
   }
 
@@ -384,6 +421,12 @@ class HubCarrier implements Carrier {
 
   Future<void> _connect() async {
     if (!_wanted || _ws != null) return;
+    // Refused for its pass phrase, wrong or not given: not dialled again, the route started anew or not, until one is
+    // given ([passAgain]).
+    if (passRefused == 'wrong' || passRefused == 'needed') {
+      state.value = CarrierState.down;
+      return;
+    }
     state.value = CarrierState.connecting;
     final HubLink ws;
     try {
@@ -406,11 +449,18 @@ class HubCarrier implements Carrier {
     _lost('The connection to the relay server was lost');
   }
 
-  void _lost(String why) {
+  /// The connection is down for [why]. Dialled again by itself: sooner at first, then every half minute; or once,
+  /// after [again], for a refused pass phrase that was given too often (`busy`), and not at all for one that was wrong
+  /// or not given ([passRefused]), until [nudge].
+  void _lost(String why, {Duration? again}) {
     if (!_wanted) return;
     problem = why;
     state.value = CarrierState.down;
     _again?.cancel();
+    if (passRefused != null) {
+      if (again != null) _again = Timer(again, _connect);
+      return;
+    }
     // Sooner at first, then every half minute: a phone that is offline for hours does not hammer at it.
     final wait = _retry * (_tries < 4 ? 1 << _tries : 10);
     _tries++;
@@ -440,23 +490,43 @@ class HubCarrier implements Carrier {
     if (m['hello'] is String && !_ready) {
       takesReactions = m['react'] == true;
       relay = HubRelay.from(m['relay']);
+      hosted = m['hosted'] == true;
+      asksPass = m['pass'] == true;
       // The hub's number, signed: only the holder of this install's key connects under its name. To a hub that takes
       // it, bound to the host dialled ([greetingV2]); to one from before, as ever.
       final v2 = m['v2'] == true;
       final nonce = NetCrypto.unhex(m['hello'] as String);
       final host = hostOf(url);
       final sig = await signer.sign(v2 ? signedV2(host, nonce) : [...utf8.encode(greeting), ...nonce]);
+      // A hub that asks for a pass phrase is shown a proof of it for this connection ([HubPass]), where one was given;
+      // with none it is told nothing, and says so.
+      final phrase = asksPass ? pass?.call()?.trim() : null;
+      String? proof;
+      if (phrase != null && phrase.isNotEmpty) {
+        try {
+          proof = HubPass.proof(await HubPass.keyOf(phrase), nonce, signer.id);
+        } catch (_) {}
+      }
       if (!identical(_ws, ws)) return;
-      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
+      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode, 'pass': ?proof}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');
+        final kind = m['pass'];
+        if (kind is String) {
+          // The pass phrase: not tried again by itself, but once a phrase is given (or, too many wrong lately, a while
+          // on): each try with the same would be refused the same, and count.
+          passRefused = kind;
+          _lost(m['err'] is String ? m['err'] as String : 'This relay asks for a pass phrase.', again: kind == 'busy' ? passBusyWait : null);
+          return;
+        }
         _lost('The relay server refused this app: ${m['err'] ?? 'no reason given'}');
         return;
       }
       _ready = true;
       _tries = 0;
       problem = null;
+      passRefused = null;
       signedInAt = heardAt = _now().millisecondsSinceEpoch;
       final relayNow = m['now'], since = m['since'];
       relayStartedAt = relayNow is int && since is int && since <= relayNow ? signedInAt - (relayNow - since) : 0;
