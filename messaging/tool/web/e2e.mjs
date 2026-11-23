@@ -905,7 +905,10 @@ async function run(engine) {
         await s.shot(`${engine}-Sam-12c-camera`);
         await m.shot(`${engine}-Maya-12c-camera`);
         // Sam mutes Maya for himself alone: her sound still arrives, and is not played (call_sound.dart).
-        await s.press(`^${maya.username}(, .*)?$`, { like: true, last: true });
+        // Her row in the list under the picture: in a window this tall the picture (4:3) leaves it under the call's
+        // buttons, so the window is made taller for the press, and put back after.
+        await s.page.setViewportSize({ width: 1180, height: 1100 });
+        await s.press(maya.username, { last: true });
         await s.press(`Mute ${maya.username} for me`);
         const until2 = Date.now() + 15000;
         for (;;) {
@@ -918,6 +921,7 @@ async function run(engine) {
         await s.press(`Mute ${maya.username} for me`);
         await s.hears('Maya again');
         await s.page.keyboard.press('Escape');
+        await s.page.setViewportSize({ width: 1180, height: 780 });
         await m.press('^Leave( call)?$', { like: true });
         await s.press('^Leave( call)?$', { like: true });
       });
