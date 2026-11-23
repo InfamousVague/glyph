@@ -6,6 +6,7 @@ import '../art/lucide.g.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/carrier.dart';
+import '../net/hub_link.dart';
 import '../net/net.dart';
 import '../net/relay_choice.dart';
 import 'common.dart';
@@ -219,8 +220,8 @@ class RelayAddressField extends StatefulWidget {
   const RelayAddressField({super.key, required this.net, this.connect});
   final Net net;
 
-  /// A test's stand-in for opening the WebSocket.
-  final RelayConnect? connect;
+  /// A test's stand-in for dialling the relay.
+  final HubDial? connect;
 
   @override
   State<RelayAddressField> createState() => _RelayAddressFieldState();

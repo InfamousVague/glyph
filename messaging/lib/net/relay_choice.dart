@@ -10,8 +10,8 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'hub_link.dart';
 import 'net.dart';
 
 /// Whether [url] is Ghost Messaging's own relay (gogho.st, or ghost-sms.com from before the move).
@@ -69,24 +69,22 @@ class RelayCheck {
   bool get ok => problem == null;
 }
 
-/// Opens a WebSocket to [url] (a test's stand-in where given).
-typedef RelayConnect = Future<WebSocket> Function(String url);
-
 /// Asks [url] (already tidied) whether a Ghost Messaging relay's hub is there: it connects and waits for the hub's
 /// greeting (`{"hello": <hex>}`, relay/lib/hub.dart), then closes without signing in. Nothing about this install is
-/// sent. A server that answers something else, or nothing within [timeout], is not one.
-Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(seconds: 8), RelayConnect? connect}) async {
+/// sent. A server that answers something else, or nothing within [timeout], is not one. It is dialled with [connect]
+/// where one is given (a test's stand-in, or another way to a hub), and with [dialHub]'s WebSocket where not.
+Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(seconds: 8), HubDial? connect}) async {
   final started = DateTime.now();
-  WebSocket ws;
+  HubLink ws;
   try {
-    ws = await (connect ?? WebSocket.connect)(url).timeout(timeout);
+    ws = await (connect ?? dialHub)(url).timeout(timeout);
   } on TimeoutException {
     return const RelayCheck.failed('Nothing answered there in time.');
   } catch (e) {
     return RelayCheck.failed('Couldn\'t connect: ${_short(e)}');
   }
   final greeted = Completer<bool>();
-  final sub = ws.listen(
+  final sub = ws.said.listen(
     (data) {
       if (greeted.isCompleted) return;
       try {
@@ -113,13 +111,12 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   return RelayCheck.answered(DateTime.now().difference(started));
 }
 
-Future<void> _close(WebSocket ws, StreamSubscription<dynamic> sub) async {
+Future<void> _close(HubLink ws, StreamSubscription<dynamic> sub) async {
   await sub.cancel().catchError((_) {});
   await ws.close().timeout(const Duration(seconds: 2)).catchError((_) {});
 }
 
 String _short(Object e) {
-  final s = e is SocketException ? e.message.isEmpty ? '$e' : e.message : e is WebSocketException ? e.message : '$e';
-  final line = s.split('\n').first.trim();
+  final line = dialProblem(e).split('\n').first.trim();
   return line.length > 120 ? '${line.substring(0, 120)}…' : line;
 }

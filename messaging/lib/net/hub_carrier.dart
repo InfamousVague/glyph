@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import 'carrier.dart';
 import 'crypto.dart';
+import 'hub_link.dart';
 
 /// Who this install is to a hub: its name, its public key, and a way to sign with the private one, which stays
 /// wherever it is kept (Android's keystore on a phone).
@@ -49,7 +49,7 @@ class RoomEvent {
 /// A packet for someone who is not connected is kept by the hub and handed over when they next are. The hub sees
 /// names and sizes, never contents. It also keeps rooms ([join]), which a voice room and a group are made on.
 class HubCarrier implements Carrier {
-  HubCarrier({required this.url, required this.signer, Duration? retry}) : _retry = retry ?? const Duration(seconds: 3);
+  HubCarrier({required this.url, required this.signer, Duration? retry, HubDial? dial}) : _retry = retry ?? const Duration(seconds: 3), _dial = dial ?? dialHub;
 
   /// Which of its identity's devices this install is, said in the hello (Net.start sets it): a phone and its computer
   /// can be here at once under one identity, each handed what is sent to it (relay/lib/hub.dart). Empty, as an app
@@ -60,6 +60,9 @@ class HubCarrier implements Carrier {
   final String url;
   final NetSigner signer;
   final Duration _retry;
+
+  /// How the hub is reached (hub_link.dart): a WebSocket to [url] where nothing else was given.
+  final HubDial _dial;
 
   static const greeting = 'ghost-hub v1 ';
 
@@ -100,7 +103,7 @@ class HubCarrier implements Carrier {
   /// Sends a reaction to a room this install is in, kept for whoever comes later (relay/lib/hub.dart toRoomReaction).
   void sendReaction(String room, Uint8List packet) {
     if (!_ready || !_joined.containsKey(room)) throw CarrierError('not in that room');
-    _ws?.add([4, ...NetCrypto.unhex(room), ...packet]);
+    _ws?.say([4, ...NetCrypto.unhex(room), ...packet]);
   }
 
   /// What the server's keeper of handles says to this install (relay/lib/handles.dart): every message that starts
@@ -111,7 +114,7 @@ class HubCarrier implements Carrier {
   bool sayHandles(Map<String, Object?> what) {
     final ws = _ws;
     if (ws == null || !_ready) return false;
-    ws.add(jsonEncode(what));
+    ws.say(jsonEncode(what));
     return true;
   }
 
@@ -139,7 +142,7 @@ class HubCarrier implements Carrier {
     if (value == _awayNow) return;
     final was = _awaySaid;
     _awayNow = value;
-    if (_ready && _awaySaid != was) _ws?.add(jsonEncode({'away': _awaySaid}));
+    if (_ready && _awaySaid != was) _ws?.say(jsonEncode({'away': _awaySaid}));
   }
 
   /// How this person chose to be shown (GMFB-34): 'online', 'away', 'busy' or 'invisible'. Away is said as the app put
@@ -153,14 +156,14 @@ class HubCarrier implements Carrier {
     final wasAway = _awaySaid;
     _mode = m;
     if (!_ready) return;
-    _ws?.add(jsonEncode({'mode': _hubMode}));
-    if (_awaySaid != wasAway) _ws?.add(jsonEncode({'away': _awaySaid}));
+    _ws?.say(jsonEncode({'mode': _hubMode}));
+    if (_awaySaid != wasAway) _ws?.say(jsonEncode({'away': _awaySaid}));
   }
 
   bool get _awaySaid => _awayNow || _mode == 'away';
   String get _hubMode => _mode == 'busy' || _mode == 'invisible' ? _mode : 'online';
 
-  WebSocket? _ws;
+  HubLink? _ws;
   bool _wanted = false;
   bool _ready = false;
   Timer? _again;
@@ -186,12 +189,12 @@ class HubCarrier implements Carrier {
   /// route is lost and comes back. [token] is the room's own: a wrong one is told nothing.
   void look(String room, String token) {
     _looked[room] = token;
-    if (_ready) _ws?.add(jsonEncode({'look': room, 'token': token}));
+    if (_ready) _ws?.say(jsonEncode({'look': room, 'token': token}));
   }
 
   void unlook(String room) {
     looking.remove(room);
-    if (_looked.remove(room) != null && _ready) _ws?.add(jsonEncode({'unlook': room}));
+    if (_looked.remove(room) != null && _ready) _ws?.say(jsonEncode({'unlook': room}));
   }
   final Map<String, Completer<List<String>>> _joining = {};
 
@@ -250,9 +253,9 @@ class HubCarrier implements Carrier {
   Future<void> _connect() async {
     if (!_wanted || _ws != null) return;
     state.value = CarrierState.connecting;
-    final WebSocket ws;
+    final HubLink ws;
     try {
-      ws = await WebSocket.connect(url).timeout(const Duration(seconds: 10));
+      ws = await _dial(url);
     } catch (e) {
       _lost('The relay server could not be reached');
       return;
@@ -262,11 +265,10 @@ class HubCarrier implements Carrier {
       return;
     }
     _ws = ws;
-    ws.pingInterval = const Duration(seconds: 25);
-    ws.listen((data) => _said(ws, data), onDone: () => _gone(ws), onError: (_) => _gone(ws), cancelOnError: true);
+    ws.said.listen((data) => _said(ws, data), onDone: () => _gone(ws), onError: (_) => _gone(ws), cancelOnError: true);
   }
 
-  void _gone(WebSocket ws) {
+  void _gone(HubLink ws) {
     if (!identical(_ws, ws)) return;
     _drop('the connection was lost');
     _lost('The connection to the relay server was lost');
@@ -283,7 +285,7 @@ class HubCarrier implements Carrier {
     _again = Timer(wait, _connect);
   }
 
-  Future<void> _said(WebSocket ws, dynamic data) async {
+  Future<void> _said(HubLink ws, Object data) async {
     if (!identical(_ws, ws)) return;
     if (data is List<int>) {
       if (data.length > 17 && data[0] == 1) {
@@ -307,7 +309,7 @@ class HubCarrier implements Carrier {
       // The hub's number, signed: only the holder of this install's key connects under its name.
       final sig = await signer.sign([...utf8.encode(greeting), ...NetCrypto.unhex(m['hello'] as String)]);
       if (!identical(_ws, ws)) return;
-      ws.add(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
+      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');
@@ -318,14 +320,14 @@ class HubCarrier implements Carrier {
       _tries = 0;
       problem = null;
       state.value = CarrierState.up;
-      if (_watched.isNotEmpty) ws.add(jsonEncode({'watch': _watched.toList()}));
-      if (_awaySaid) ws.add(jsonEncode({'away': true}));
-      if (_push != null) ws.add(jsonEncode({'push': _push}));
+      if (_watched.isNotEmpty) ws.say(jsonEncode({'watch': _watched.toList()}));
+      if (_awaySaid) ws.say(jsonEncode({'away': true}));
+      if (_push != null) ws.say(jsonEncode({'push': _push}));
       for (final e in _joined.entries) {
-        ws.add(jsonEncode({'join': e.key, 'token': e.value, 'ro': ?_readOnly[e.key]}));
+        ws.say(jsonEncode({'join': e.key, 'token': e.value, 'ro': ?_readOnly[e.key]}));
       }
       for (final e in _looked.entries) {
-        ws.add(jsonEncode({'look': e.key, 'token': e.value}));
+        ws.say(jsonEncode({'look': e.key, 'token': e.value}));
       }
     } else if (m['dir'] is String) {
       _handles.add(m);
@@ -409,7 +411,7 @@ class HubCarrier implements Carrier {
     final had = _push;
     _push = value;
     final ws = _ws;
-    if (_ready && ws != null && (value != null || had != null)) ws.add(jsonEncode({'push': value}));
+    if (_ready && ws != null && (value != null || had != null)) ws.say(jsonEncode({'push': value}));
   }
 
   /// A hub reaches anyone: someone who is not connected to it is kept for.
@@ -425,7 +427,7 @@ class HubCarrier implements Carrier {
       ..setUint8(0, 1)
       ..setUint32(1, seq);
     final done = _sent[seq] = Completer<Handed>();
-    ws.add([...head.buffer.asUint8List(), ...NetCrypto.unhex(peer.id), ...packet]);
+    ws.say([...head.buffer.asUint8List(), ...NetCrypto.unhex(peer.id), ...packet]);
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
       _sent.remove(seq);
       throw CarrierError('the relay server did not answer');
@@ -435,7 +437,7 @@ class HubCarrier implements Carrier {
   /// Asks to be told when these names come and go ([here]).
   void watch(Iterable<String> ids) {
     final fresh = ids.where(_watched.add).toList();
-    if (fresh.isNotEmpty && _ready) _ws?.add(jsonEncode({'watch': fresh}));
+    if (fresh.isNotEmpty && _ready) _ws?.say(jsonEncode({'watch': fresh}));
   }
 
   /// Joins a room, giving who is in it. It is joined again by itself after the route is lost and comes back.
@@ -458,7 +460,7 @@ class HubCarrier implements Carrier {
     final done = _joining[room] ??= Completer<List<String>>();
     final ws = _ws;
     if (ws == null || !_ready) return done.future;
-    ws.add(jsonEncode({'join': room, 'token': token, 'ro': ?ro}));
+    ws.say(jsonEncode({'join': room, 'token': token, 'ro': ?ro}));
     return done.future.timeout(const Duration(seconds: 8), onTimeout: () {
       if (identical(_joining[room], done)) _joining.remove(room);
       throw CarrierError('the relay server did not answer');
@@ -467,7 +469,7 @@ class HubCarrier implements Carrier {
 
   void leave(String room) {
     _readOnly.remove(room);
-    if (_joined.remove(room) != null && _ready) _ws?.add(jsonEncode({'leave': room}));
+    if (_joined.remove(room) != null && _ready) _ws?.say(jsonEncode({'leave': room}));
   }
 
   /// What each read-only room this install is in was joined with ([join]'s `ro`), to join it so again on reconnecting.
@@ -478,7 +480,7 @@ class HubCarrier implements Carrier {
     final ro = _readOnly[room];
     if (ro == null) return;
     _readOnly[room] = {...ro, ...grants};
-    if (_ready) _ws?.add(jsonEncode({'anchor': room, ...grants}));
+    if (_ready) _ws?.say(jsonEncode({'anchor': room, ...grants}));
   }
 
   /// Sends a packet to everyone else in a room this install is in.
@@ -487,6 +489,6 @@ class HubCarrier implements Carrier {
   /// what a space's members wrote reaches a phone that was closed at the time.
   void sendRoom(String room, Uint8List packet, {bool keep = false}) {
     if (!_ready || !_joined.containsKey(room)) throw CarrierError('not in that room');
-    _ws?.add([keep ? 3 : 2, ...NetCrypto.unhex(room), ...packet]);
+    _ws?.say([keep ? 3 : 2, ...NetCrypto.unhex(room), ...packet]);
   }
 }
