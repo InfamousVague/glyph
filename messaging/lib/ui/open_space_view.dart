@@ -57,7 +57,7 @@ class OpenSpaceFloor extends StatelessWidget {
 
 /// An open space's floor seen from above (lib/voice/open_space.dart; Matt, 2026-11-23: "a top down view and lets you
 /// move around in the space ... allow walking around with wasd or arrow keys"). This device stays in the middle of the
-/// view and the floor moves under it. Walk with W A S D or the arrow keys while the floor has the keyboard, or press
+/// view and the floor moves under it, until the view reaches a wall: it stops there, and this device walks on ([cameraFor]). Walk with W A S D or the arrow keys while the floor has the keyboard, or press
 /// (or drag) where to go. Groups are drawn as circles that grow with who is in them; press a group's name for
 /// what can be done with it. Everyone else is drawn where they said they stand, eased between their words, and fainter
 /// the less of them is heard from here.
@@ -73,6 +73,23 @@ class OpenSpaceView extends StatefulWidget {
   /// How many of the screen's units one of the floor's is, for a view [size] big: a little smaller on a phone, so
   /// about as much floor is seen.
   static double scaleFor(Size size) => (size.shortestSide / 760).clamp(0.6, 1.1);
+
+  /// The point of the floor at the view's [centre] for someone standing at [me]: [me], held back so that a view
+  /// [size] big at [scale] never shows past the walls' outer edge. Where the room is narrower than the view, the room
+  /// is centred.
+  static Offset cameraFor(Offset me, Size size, Offset centre, double scale) {
+    double held(double at, double low, double high, double before, double after) {
+      // The furthest the view's middle may go each way with its edges still inside the room.
+      final least = low + before / scale, most = high - after / scale;
+      return least > most ? (low + high) / 2 + (before - after) / (2 * scale) : at.clamp(least, most);
+    }
+
+    const t = _FloorPainter.wallThick, up = _FloorPainter.wallHigh;
+    return Offset(
+      held(me.dx, -t, OpenWorld.width + t, centre.dx, size.width - centre.dx),
+      held(me.dy, -up - t, OpenWorld.height + t + up, centre.dy, size.height - centre.dy),
+    );
+  }
 
   @override
   State<OpenSpaceView> createState() => _OpenSpaceViewState();
@@ -257,7 +274,11 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
         final me = _shown[OpenSpace.meId] ?? Offset(floor.me.at.x, floor.me.at.y);
         // This device in the middle of what is seen above the dock.
         final centre = Offset(size.width / 2, (size.height - widget.bottomInset) / 2);
-        Offset onScreen(Offset world) => centre + (world - me) * scale;
+        // What the view is centred on: this device, until that would show past a wall; then the view stays put and
+        // this device walks on towards its edge (Matt, 2026-11-23: "when we get to the wall stop moving the camera so
+        // we don't see past the wall").
+        final cam = OpenSpaceView.cameraFor(me, size, centre, scale);
+        Offset onScreen(Offset world) => centre + (world - cam) * scale;
         final face = (56 * scale).clamp(40.0, 60.0);
         final groups = floor.groups;
         final people = floor.people;
@@ -270,11 +291,11 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
             // A press, or a finger dragged: walk to there. Also takes the keyboard back from the chat's box.
             onTapUp: (d) {
               _focus.requestFocus();
-              final w = me + (d.localPosition - centre) / scale;
+              final w = cam + (d.localPosition - centre) / scale;
               floor.walkTo(Offset2(w.dx, w.dy));
             },
             onPanUpdate: (d) {
-              final w = me + (d.localPosition - centre) / scale;
+              final w = cam + (d.localPosition - centre) / scale;
               floor.walkTo(Offset2(w.dx, w.dy));
             },
             child: ClipRect(
@@ -282,7 +303,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _FloorPainter(
-                      me: me,
+                      me: cam,
+                      self: me,
                       centre: centre,
                       scale: scale,
                       ground: t.color('app-paper'),
@@ -461,8 +483,9 @@ class _GroupName extends StatelessWidget {
 /// circle, an outline in its colour over a see-through wash of it (Matt, 2026-11-23: "remove the extra decorations like
 /// a crosshair on the circles just make a circle outline with the semiopaque infill").
 class _FloorPainter extends CustomPainter {
-  _FloorPainter({required this.me, required this.centre, required this.scale, required this.ground, required this.floor, required this.rule, required this.ink, required this.wallA, required this.wallB, required this.groups});
-  final Offset me, centre;
+  _FloorPainter({required this.me, required this.self, required this.centre, required this.scale, required this.ground, required this.floor, required this.rule, required this.ink, required this.wallA, required this.wallB, required this.groups});
+  /// [me]: the point of the floor at the view's [centre] (OpenSpaceView.cameraFor). [self]: where this device stands.
+  final Offset me, self, centre;
   final double scale;
   final Color ground, floor, rule, ink;
 
@@ -499,7 +522,7 @@ class _FloorPainter extends CustomPainter {
     // How far this device hears: nobody past this ring is heard. (The ring inside which everyone is whole is not
     // drawn: it sat just inside a small group's edge and read as part of the group.)
     canvas.drawCircle(
-        centre,
+        _at(self),
         OpenWorld.far * scale,
         Paint()
           ..style = PaintingStyle.stroke
@@ -556,7 +579,7 @@ class _FloorPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FloorPainter old) => old.me != me || old.centre != centre || old.scale != scale || old.ground != ground || old.floor != floor || old.wallA != wallA || old.wallB != wallB || !_same(old.groups, groups);
+  bool shouldRepaint(_FloorPainter old) => old.me != me || old.self != self || old.centre != centre || old.scale != scale || old.ground != ground || old.floor != floor || old.wallA != wallA || old.wallB != wallB || !_same(old.groups, groups);
 
   static bool _same(List<({Offset at, double radius, Color color, bool mine})> a, List<({Offset at, double radius, Color color, bool mine})> b) {
     if (a.length != b.length) return false;

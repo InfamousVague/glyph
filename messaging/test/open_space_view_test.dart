@@ -192,6 +192,32 @@ void main() {
       }
     });
   }
+  test('the view never shows past the walls: it follows this device until an edge of it reaches one, then stays (Matt, 2026-11-23: "when we get to the wall stop moving the camera so we don\'t see past the wall")', () {
+    const size = Size(1000, 720), centre = Offset(500, 360);
+    final scale = OpenSpaceView.scaleFor(size);
+    // What of the floor is at the view's four edges, for someone standing at [me].
+    Rect seen(Offset me) {
+      final cam = OpenSpaceView.cameraFor(me, size, centre, scale);
+      return Rect.fromLTRB(cam.dx - centre.dx / scale, cam.dy - centre.dy / scale, cam.dx + (size.width - centre.dx) / scale, cam.dy + (size.height - centre.dy) / scale);
+    }
+
+    // In the middle of the room the view is centred on this device.
+    expect(OpenSpaceView.cameraFor(const Offset(1200, 800), size, centre, scale), const Offset(1200, 800));
+    // Anywhere on the floor, corners included, no edge of the view is past the walls' outside.
+    const walls = Rect.fromLTRB(-30, -134, OpenWorld.width + 30, OpenWorld.height + 134);
+    for (final me in [Offset.zero, const Offset(OpenWorld.width, 0), const Offset(0, OpenWorld.height), const Offset(OpenWorld.width, OpenWorld.height), const Offset(300, 1500), const Offset(2399, 20)]) {
+      final r = seen(me);
+      expect(r.left, greaterThanOrEqualTo(walls.left - 0.001), reason: '$me');
+      expect(r.top, greaterThanOrEqualTo(walls.top - 0.001), reason: '$me');
+      expect(r.right, lessThanOrEqualTo(walls.right + 0.001), reason: '$me');
+      expect(r.bottom, lessThanOrEqualTo(walls.bottom + 0.001), reason: '$me');
+    }
+    // A view bigger than the room shows the room in its middle.
+    const huge = Size(4000, 3000), mid = Offset(2000, 1500);
+    final all = OpenSpaceView.cameraFor(const Offset(10, 10), huge, mid, 1);
+    expect(all, const Offset(OpenWorld.width / 2, OpenWorld.height / 2));
+  });
+
   // The walls (Matt, 2026-11-23: "add 3d walls to the edges so it shows a 2.5d wall around the edges"): the far wall's
   // face and the side wall's top at the far corner, and the near wall's top and outer face at the near one.
   for (final dark in [false, true]) {
@@ -204,6 +230,10 @@ void main() {
         }
         await beat(tester);
         expect(s.a.me.at, at);
+        // The view stopped at the walls: this device is drawn off its middle, towards the corner it walked to.
+        final drawn = centreOf(tester, 'open-person-me');
+        at.x < OpenWorld.width / 2 ? expect(drawn.dx, lessThan(450)) : expect(drawn.dx, greaterThan(550));
+        at.y < OpenWorld.height / 2 ? expect(drawn.dy, lessThan(330)) : expect(drawn.dy, greaterThan(400));
         if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
       }
       await s.end();
