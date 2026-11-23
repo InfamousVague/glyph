@@ -113,6 +113,15 @@ open class MainActivity : FlutterActivity() {
     private lateinit var store: Store
 
     /**
+     * The direct network's core is given the app's context (P2pCore.kt) before there is any engine, and so before any
+     * Dart that could start a node: this screen's engine and a bubble's are both made inside `super.onCreate`.
+     */
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        P2pCore.install(applicationContext)
+        super.onCreate(savedInstanceState)
+    }
+
+    /**
      * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Ghost is
      * out of sight: "Yes, build them"): Dart, and with it Signal's helper and Telegram's TDLib, goes on when Android
      * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened

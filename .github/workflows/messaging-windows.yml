@@ -18,6 +18,10 @@ on:
       build:
         description: Build number (33)
         required: true
+      p2p:
+        description: The direct network's core (no leaves it out, and the app has no direct route)
+        required: false
+        default: 'yes'
 
 concurrency:
   group: messaging-windows-${{ github.ref }}
@@ -63,6 +67,22 @@ jobs:
 
       - name: Build the app
         run: flutter build windows --release --build-name=${{ inputs.version }} --build-number=${{ inputs.build }} --dart-define=GHOST_BUILD=${{ inputs.build }} --dart-define=GHOST_VERSION=${{ inputs.version }}
+
+      # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), by the runner's own
+      # Rust and from nothing but what its Cargo.lock names: beside the app as ghost_p2p.dll, where the app looks for
+      # it, so in the installer and signed with the rest. Left out (p2p: no), the app has no direct route and is
+      # otherwise the same.
+      - name: Build the direct network's core
+        if: inputs.p2p != 'no'
+        working-directory: messaging/native/p2p
+        run: cargo build --release --locked
+
+      - name: Put the direct network's core beside the app
+        if: inputs.p2p != 'no'
+        shell: pwsh
+        run: |
+          Copy-Item native\p2p\target\release\ghost_p2p.dll build\windows\x64\runner\Release\ghost_p2p.dll
+          Get-Item build\windows\x64\runner\Release\ghost_p2p.dll | Format-List Name, Length
 
       # The Google Messages sidecar (messaging/sidecar/gmessages, AGPL-3.0): beside the app, and so in the installer,
       # only once its source is public (sidecar/gmessages/SOURCE_URL).
