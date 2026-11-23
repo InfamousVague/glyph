@@ -21,16 +21,21 @@ import '../sounds.dart';
 enum SpaceKind {
   voice('Chat and voice', 'Talk any time, with a chat beside it'),
   text('Texting', 'A chat, no voice'),
-  files('Files', 'Share files, with a chat beside them');
+  files('Files', 'Share files, with a chat beside them'),
+
+  /// A call you walk around in (lib/voice/open_space.dart): everyone has a place on a floor seen from above, and is
+  /// heard louder or quieter by how near they are. A build from before this kind takes it for a voice space where it
+  /// stands alone (everyone heard, nobody placed) and for a chat in a circle ([of], CircleSpace.fromJson).
+  open('Open space', 'Walk around, and hear who is near you');
 
   const SpaceKind(this.label, this.hint);
   final String label;
   final String hint;
 
-  /// Its word on the wire: `voice`, `text`, `files`.
+  /// Its word on the wire: `voice`, `text`, `files`, `open`.
   String get wire => name;
 
-  bool get hasVoice => this == voice;
+  bool get hasVoice => this == voice || this == open;
 
   /// From its word; voice for anything else (missing, or a kind from a newer build).
   static SpaceKind of(Object? wire) {
@@ -370,6 +375,13 @@ abstract class LinkedMedia {
   bool? linkUp(String id);
 }
 
+/// Media that can play each person at a gain for where they stand in an open space, under their own volume
+/// (lib/voice/open_space.dart). lib/voice/rtc.dart's is one; a test's may be.
+abstract class PlacedMedia {
+  /// 0 to 1; 1 takes it away.
+  void setPlaceGain(String id, double gain);
+}
+
 /// How long a call waits before it mends a connection ([VoiceSession]'s `mend`): short in a test.
 @immutable
 class MendTimes {
@@ -555,6 +567,13 @@ class VoiceSession extends ChangeNotifier {
 
   /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
   void saySound(String sound) => _say({'t': 'sb', 's': sound});
+
+  /// Told what someone said of an open space's floor ('os': where they stand; 'osg': its groups;
+  /// lib/voice/open_space.dart).
+  void Function(String from, Map<String, dynamic> what)? onPlace;
+
+  /// Says [what] of an open space's floor to the call.
+  void sayPlace(Map<String, Object?> what) => _say(what);
 
   /// Says [words] of this device's voice to the call; [done]: the line is finished.
   void sayCaption(String words, {required bool done}) => _say({'t': 'cap', 'x': words.length > 600 ? words.substring(words.length - 600) : words, 'f': done});
@@ -951,6 +970,8 @@ class VoiceSession extends ChangeNotifier {
         onWatch?.call(from, m);
       case 'sb':
         if (m['s'] is String) onSound?.call(from, m['s'] as String);
+      case 'os' || 'osg':
+        onPlace?.call(from, m);
       case 'cap':
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
