@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ghost Messaging",
-    "description": "The app's API and the relay server's HTTP routes. Made by tool/build-docs.mjs from the app's own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/dev-api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/dev-hub/.",
+    "description": "The app's API and the relay server's HTTP routes. Made by tool/build-docs.mjs from the app's own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -54,7 +54,7 @@
   "item": [
     {
       "name": "App API",
-      "description": "Version 1. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/",
+      "description": "Version 1. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/app-api/",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -1587,7 +1587,7 @@
     },
     {
       "name": "Relay server API",
-      "description": "Plain HTTP on the relay server. https://gogho.st/docs/dev-relay-api/",
+      "description": "Plain HTTP on the relay server. https://gogho.st/docs/developer/relay-api/",
       "auth": {
         "type": "noauth"
       },

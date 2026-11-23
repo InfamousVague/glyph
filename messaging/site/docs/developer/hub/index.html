@@ -1,4 +1,36 @@
-<p>The relay server speaks two WebSocket protocols. The <b>hub</b> is where installs find each other: any address ending in <code>/hub</code>, so <code>wss://gogho.st/hub</code>. A <b>pairing channel</b> joins one phone to one of its computers: an address ending in 32 hex digits, <code>wss://gogho.st/relay/&lt;channel&gt;</code>. Both pass sealed bytes the server can't read. Its plain HTTP routes are in <a href="/docs/dev-relay-api/">the relay's HTTP routes</a>, and how the app uses all of this is in <a href="/docs/dev-architecture/#routes">Routes</a>.</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The hub and pairing protocols · Ghost Messaging developer docs</title>
+<meta name="description" content="What an app says to the relay server over a WebSocket: signing in, packets, presence, rooms and the directory.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/docs/glacier-tokens.css">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-search="/docs/developer/search.json">
+<a class="skip" href="#main">Skip to the page</a>
+<header class="top">
+  <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand-docs" href="/docs/developer/">Developer docs</a>
+  <div class="search">
+    <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
+    <input id="search" type="search" placeholder="Search the developer docs" aria-label="Search the developer docs" autocomplete="off">
+    <div class="results" id="results" role="listbox" hidden></div>
+  </div>
+  <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
+  <a class="get" href="/#get">Get the app</a>
+</header>
+<div class="frame">
+  <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">The source</div><a href="/docs/developer/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#braces"/></svg><span>Developer docs</span></a><a href="/docs/developer/architecture/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#network"/></svg><span>How the app is built</span></a><a href="/docs/developer/flows/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#workflow"/></svg><span>How the parts work together</span></a><a href="/docs/developer/build/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#terminal"/></svg><span>Build, test and run it</span></a></div><div class="nav-group"><div class="nav-title">APIs</div><a href="/docs/developer/api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#book-open"/></svg><span>API overview and Postman</span></a><a href="/docs/developer/app-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#code"/></svg><span>App API</span></a><a href="/docs/developer/relay-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Relay server API</span></a><a href="/docs/developer/hub/" aria-current="page"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>The hub and pairing protocols</span></a></div><a class="nav-other" href="/docs/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg><span>Back to the docs</span></a></aside>
+  <main id="main" class="page">
+    <div class="crumb">APIs</div>
+    <h1>The hub and pairing protocols</h1>
+    <p class="lede">What an app says to the relay server over a WebSocket: signing in, packets, presence, rooms and the directory.</p>
+    <p>The relay server speaks two WebSocket protocols. The <b>hub</b> is where installs find each other: any address ending in <code>/hub</code>, so <code>wss://gogho.st/hub</code>. A <b>pairing channel</b> joins one phone to one of its computers: an address ending in 32 hex digits, <code>wss://gogho.st/relay/&lt;channel&gt;</code>. Both pass sealed bytes the server can't read. Its plain HTTP routes are in <a href="/docs/developer/relay-api/">the relay's HTTP routes</a>, and how the app uses all of this is in <a href="/docs/developer/architecture/#routes">Routes</a>.</p>
 <p>On both, a text frame is one JSON object and a binary frame is a sealed packet. The server pings each socket every 30 seconds. The code is <code>relay/lib/hub.dart</code> and <code>relay/lib/relay.dart</code>; the app's side of the hub is <code>lib/net/hub_carrier.dart</code>.</p>
 
 <h2 id="identity">Who an install is</h2>
@@ -51,7 +83,7 @@
 
 <h3>After signing in</h3>
 <p>A text frame is known by its keys, tried in this order: <code>ping</code>, <code>push</code>, <code>dir</code>, <code>watch</code>, <code>away</code>, <code>join</code>, <code>anchor</code>, <code>leave</code>, <code>look</code>, <code>unlook</code>. The first that matches decides. <code>{"ping": 1}</code> is answered <code>{"pong": 1}</code>, with whatever value was sent.</p>
-<note kind="info" title="No answer means ignored"><p>A frame that isn't a JSON object, a <code>dir</code> the server doesn't know, an unknown first byte and a binary frame too short for its kind all get no answer. A client can't tell ignored from lost.</p></note>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>No answer means ignored</b><p>A frame that isn't a JSON object, a <code>dir</code> the server doesn't know, an unknown first byte and a binary frame too short for its kind all get no answer. A client can't tell ignored from lost.</p></div></aside>
 
 <h2 id="packets">Packets to a person</h2>
 <p>A binary frame's first byte is its kind. Kind <code>0x01</code> is a packet to one name. The payload is sealed by the apps; the hub doesn't read it. The hub puts the sender's name in itself, so nobody can send under another's.</p>
@@ -75,7 +107,7 @@
 </table>
 <h3>Held for someone away</h3>
 <p>The hub holds up to 200 frames and 1 MiB for one name, 96 MiB for everyone together, for 7 days. When the name next signs in, its mailbox is emptied and everything not too old is handed over, right after <code>{"ok": true, "held": n}</code>. An <code>ack</code> means the hub took the packet, not that the other app opened it.</p>
-<note kind="warn" title="Held in memory"><p>Held packets are kept in memory only. A restart of the server loses them.</p></note>
+<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>Held in memory</b><p>Held packets are kept in memory only. A restart of the server loses them.</p></div></aside>
 
 <h2 id="presence">Presence</h2>
 <p>A connection asks about names with <code>watch</code>, and from then on is told when they come and go. Watches add up for the life of the connection, to 500 names. There is no message to stop watching.</p>
@@ -138,7 +170,7 @@
   <tr><td><code>0x04</code></td><td>Keeps it and passes it to everyone else in the room, readers too. One over 512 bytes is dropped without a word.</td></tr>
 </table>
 <p>A room keeps its newest 300 frames for 7 days, within 256 MiB over all rooms. A device that joins with the token they were kept under is handed them, in order, after the answer to its <code>join</code>.</p>
-<note kind="tip" title="Older hubs"><p>A hub that doesn't say <code>"react": true</code> in its hello doesn't know kind <code>0x04</code>. The app sends a reaction to one as a kept packet instead.</p></note>
+<aside class="note tip"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#lightbulb"/></svg><div><b>Older hubs</b><p>A hub that doesn't say <code>"react": true</code> in its hello doesn't know kind <code>0x04</code>. The app sends a reaction to one as a kept packet instead.</p></div></aside>
 
 <h3 id="read-only">Read-only rooms</h3>
 <p>In a read-only room only the owner and the admins the owner named may post. Its name is tied to the owner's key, so nobody else can open it first. Join with an <code>ro</code> object:</p>
@@ -366,3 +398,12 @@
   <tr><td>Both: server pings</td><td>Every 30 seconds</td></tr>
 </table>
 <p>Neither protocol checks the size of a text frame in its own code.</p>
+
+    <nav class="prevnext"><a class="prev" href="/docs/developer/relay-api/"><small>Previous</small>Relay server API</a></nav>
+    <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
+  </main>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#identity">Who an install is</a><a href="#sign-in">Signing in to the hub</a><a href="#packets">Packets to a person</a><a href="#presence">Presence</a><a href="#rooms">Rooms</a><a href="#pushes">Pushes</a><a href="#directory">The directory</a><a href="#pairing">Pairing channels</a><a href="#limits">Limits</a></nav>
+</div>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

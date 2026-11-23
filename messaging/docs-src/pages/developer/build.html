@@ -19,7 +19,7 @@ flutter build macos</code></pre>
 dart pub get                                   # the test package only
 dart run bin/relay.dart --port 8787 --verbose  # ws://127.0.0.1:8787/hub and /relay/&lt;channel&gt;
 dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server</code></pre>
-<p>Put it behind a web server that holds the certificate and passes <code>/hub</code>, <code>/relay/*</code>, <code>/files*</code>, <code>/market*</code>, <code>/link/*</code>, <code>/word/*</code> and <code>/feedback</code> to it. Then point an app at it: <ui>Settings › Routes</ui> takes the hub's address. <a href="/docs/dev-relay-api/#own">Running your own</a> lists what it reads from its environment.</p>
+<p>Put it behind a web server that holds the certificate and passes <code>/hub</code>, <code>/relay/*</code>, <code>/files*</code>, <code>/market*</code>, <code>/link/*</code>, <code>/word/*</code> and <code>/feedback</code> to it. Then point an app at it: <ui>Settings › Routes</ui> takes the hub's address. <a href="/docs/developer/relay-api/#own">Running your own</a> lists what it reads from its environment.</p>
 
 <h2 id="tests">Tests</h2>
 <table>
@@ -38,7 +38,7 @@ dart compile exe bin/relay.dart -o ghost-relay # one file to run on a server</co
 <table>
   <tr><th>Script</th><th>What it does</th></tr>
   <tr><td><code>tool/build-docs.mjs</code></td><td>Builds these docs from <code>docs-src</code> into <code>site/docs</code>, with the API reference and the Postman collection. <code>--check</code> fails where <code>site/docs</code> isn't what <code>docs-src</code> makes.</td></tr>
-  <tr><td><code>tool/ghost-api.mjs</code></td><td>A command-line client for <a href="/docs/developer/">the app's API</a>.</td></tr>
+  <tr><td><code>tool/ghost-api.mjs</code></td><td>A command-line client for <a href="/docs/developer/app-api/">the app's API</a>.</td></tr>
   <tr><td><code>tool/release*.mjs</code></td><td>Build, check and publish a release for Android, Mac, Windows and Linux. Each ends by publishing the source.</td></tr>
   <tr><td><code>tool/deploy-relay.mjs</code>, <code>deploy-site.mjs</code>, <code>deploy-discord.mjs</code></td><td>Put the relay, the site and the Discord bot on a server.</td></tr>
   <tr><td><code>tool/build-*sidecar.sh</code>, <code>build-tdlib.sh</code></td><td>Build the helper programs and Telegram's library for each platform.</td></tr>
