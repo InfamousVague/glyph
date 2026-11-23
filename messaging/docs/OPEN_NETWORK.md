@@ -318,7 +318,7 @@ What stood in the way, surveyed 2026-11-22, and what answers each:
 In the first version: signing in, friends and groups of friends, circles and their spaces' chat, calls (the
 browser's WebRTC, as `site/join/voice.js` already proves the room protocol in one), who is here, profiles,
 reporting, formatting, forward secrecy. Not in it: texts through a phone, the other networks' chats (they need
-helper programs), files in a space's chat, plugins and the Marketplace, recording, the voice changer and noise removal, screen
+helper programs), Files spaces unless the build has them (below), files in a space's chat, plugins and the Marketplace, recording, the voice changer and noise removal, screen
 sharing, the local API, and the direct route (so the browser doesn't check the relay). A closed tab gets nothing:
 there is no push to a browser yet.
 
