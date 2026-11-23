@@ -42,7 +42,7 @@ class FilesFsStore implements FsStore {
   /// name is never a path out of [dir].
   File _file(String name) {
     final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-    return File('${dir.path}${Platform.pathSeparator}${RegExp(r'^\.*$').hasMatch(safe) ? '_$safe' : safe}');
+    return File('${dir.path}${PlatformInfo.pathSeparator}${RegExp(r'^\.*$').hasMatch(safe) ? '_$safe' : safe}');
   }
 
   @override
