@@ -17,6 +17,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
+import '../platform_info.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
@@ -41,6 +42,8 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
     toast(context, 'Your role in this space can\'t share video');
     return;
   }
+  // Taken now: the menu this was pressed in may be gone by the time there is something to say.
+  final toasts = GlacierToast.of(context);
   String? source;
   if (Sms.computer) {
     final media = s.media;
@@ -49,29 +52,142 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
     if (source == null) return;
   }
   final started = await s.setScreen(true, source: source);
-  if (!started && context.mounted) toast(context, 'Your screen wasn\'t shared');
+  if (!started) toasts.toast(message: const Text('Your screen wasn\'t shared'));
 }
 
 /// Asks which screen or window to share, from [sources]: each with a picture of it. The chosen one's id; null if
 /// none was chosen.
-Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Function() sources) async {
-  final found = await sources();
-  if (!context.mounted) return null;
-  if (found.isEmpty) {
-    toast(context, 'There\'s nothing to share. On a Mac, allow Ghost Messaging in System Settings › Privacy & Security › Screen Recording.');
-    return null;
-  }
+///
+/// The sheet opens at once and looks for the screens itself (Matt, 2026-11-23: "screen sharing on mac and pc doesn't
+/// show anything to select"). It used to ask [sources] first and open afterwards, and by then the menu the press
+/// came from (the Voice chat and Meeting designs close theirs as they run a row) had gone, its context with it, so
+/// nothing opened and nothing was said. [mac] is for the tests: the words for an empty list on a Mac.
+Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Function() sources, {bool? mac}) async {
   String? chosen;
   await showChoices(
     context,
     title: 'Share your screen',
-    header: ScreenPicker(sources: found, onPick: (id) {
-      chosen = id;
-      Navigator.of(context, rootNavigator: true).pop();
-    }),
+    header: ScreenChoices(sources: sources, mac: mac, onPick: (id) => chosen = id),
     choices: [Choice('Cancel', Lucide.x, () {})],
   );
   return chosen;
+}
+
+/// The inside of [pickScreen]'s sheet: looks for the screens and windows, says so while it does, shows them, and
+/// keeps looking while it is open. Never blank: with nothing found it says why and what to do, with Try again.
+class ScreenChoices extends StatefulWidget {
+  const ScreenChoices({super.key, required this.sources, required this.onPick, this.mac});
+  final Future<List<ScreenSource>> Function() sources;
+
+  /// Told the chosen one's id; the sheet is closed here.
+  final void Function(String id) onPick;
+
+  /// Whether the words for an empty list are a Mac's (its Screen Recording permission). Null: as this device is.
+  final bool? mac;
+
+  /// How many times an empty answer is asked again before saying nothing was found, and how long between: the
+  /// system's list can come a moment after it is first asked for (flutter_webrtc reports screens as it finds them).
+  static const tries = 4;
+  static const soon = Duration(milliseconds: 500);
+
+  /// How often the list is asked for again while the sheet is open: a window opened since, a picture that was not
+  /// ready the first time, the permission just given.
+  static const again = Duration(seconds: 2);
+
+  @override
+  State<ScreenChoices> createState() => _ScreenChoicesState();
+}
+
+class _ScreenChoicesState extends State<ScreenChoices> {
+  /// What was found; null while still looking the first time (or after Try again).
+  List<ScreenSource>? _found;
+  int _asked = 0;
+  Timer? _next;
+  bool _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_look());
+  }
+
+  @override
+  void dispose() {
+    _next?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _look() async {
+    if (_asking) return;
+    _asking = true;
+    _next?.cancel();
+    List<ScreenSource> list;
+    try {
+      list = await widget.sources();
+    } catch (e) {
+      debugPrint('screen share: the screens could not be listed: $e');
+      list = const [];
+    }
+    _asking = false;
+    if (!mounted) return;
+    _asked++;
+    // An empty answer is not believed until it has been given [ScreenChoices.tries] times.
+    final sure = list.isNotEmpty || _asked >= ScreenChoices.tries;
+    // Once something was found, a later empty answer (a list asked for mid-change) does not blank the sheet.
+    final keep = list.isEmpty && (_found?.isNotEmpty ?? false);
+    if (sure && !keep) setState(() => _found = list);
+    _next = Timer(sure ? ScreenChoices.again : ScreenChoices.soon, () => unawaited(_look()));
+  }
+
+  void _retry() {
+    setState(() {
+      _found = null;
+      _asked = 0;
+    });
+    unawaited(_look());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final found = _found;
+    Widget words(String s) => Padding(
+          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+          child: Text(s, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
+        );
+    if (found == null) return words('Looking for your screens and windows…');
+    if (found.isEmpty) {
+      final mac = widget.mac ?? PlatformInfo.isMacOS;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        words(mac
+            ? 'No screens or windows were found. Your Mac has to allow it: open System Settings › Privacy & Security › Screen & System Audio Recording and turn on Ghost Messaging. If macOS asks, quit and reopen Ghost Messaging, then try again.'
+            : 'No screens or windows were found. Try again; if there is still nothing, close Ghost Messaging, open it again and share from there.'),
+        Padding(
+          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: GlacierPressable(
+              onPressed: _retry,
+              semanticLabel: 'Try again',
+              builder: (context, state) => Container(
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                decoration: BoxDecoration(color: t.color(state.pressed || state.hovered ? 'app-paper-3' : 'app-paper'), borderRadius: BorderRadius.circular(999), border: Border.all(color: t.color('app-rule'))),
+                child: Text('Try again', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
+              ),
+            ),
+          ),
+        ),
+      ]);
+    }
+    return ScreenPicker(
+      sources: found,
+      onPick: (id) {
+        widget.onPick(id);
+        // The sheet's own navigator, from the sheet's own context: the one that asked may be gone.
+        Navigator.of(context).pop();
+      },
+    );
+  }
 }
 
 /// The screens, then the windows, two across, each a picture and its name.
@@ -116,6 +232,7 @@ class _SourceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final pic = source.thumbnail;
+    final icon = Center(child: AppIcon(source.window ? LucideMore.appWindow : LucideMore.monitor, size: 28, wash: false, color: const Color(0xFF8A8A90)));
     return GlacierPressable(
       onPressed: onPick,
       semanticLabel: 'Share ${source.name}',
@@ -132,9 +249,8 @@ class _SourceTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(t.radius('md')),
               child: ColoredBox(
                 color: const Color(0xFF1C1C1F),
-                child: pic != null && pic.isNotEmpty
-                    ? Image.memory(pic, fit: BoxFit.contain, gaplessPlayback: true)
-                    : Center(child: AppIcon(source.window ? LucideMore.appWindow : LucideMore.monitor, size: 28, wash: false, color: const Color(0xFF8A8A90))),
+                // A picture that can't be read (the Mac's are TIFF) is the icon, not a hole.
+                child: pic != null && pic.isNotEmpty ? Image.memory(pic, fit: BoxFit.contain, gaplessPlayback: true, errorBuilder: (_, _, _) => icon) : icon,
               ),
             ),
           ),

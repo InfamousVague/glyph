@@ -17,6 +17,7 @@ import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import 'hangout_screen.dart' show SpaceFace;
+import 'open_space_chat.dart';
 import 'ripple_avatar.dart';
 import 'voice_screen.dart' show LinkBadge, showPerson;
 
@@ -106,7 +107,15 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
 
   /// The floor and the call as one thing to listen to: made once for each floor, never anew at each drawing, so a
   /// floor let go of while this is still on the screen for a frame is not listened to again.
-  late Listenable _both = Listenable.merge([widget.floor, widget.session]);
+  late FloorBubbles _bubbles = FloorBubbles(widget.floor);
+  late Listenable _both = Listenable.merge([widget.floor, widget.session, _bubbles]);
+
+  /// What is being written to the space's chat from the floor.
+  final TextEditingController _saying = TextEditingController();
+
+  /// This device has walked since the floor opened: the words saying how are no longer needed and fade away (Matt,
+  /// 2026-11-23: "when we move with wasd or click fade away the tooltip").
+  bool _walked = false;
 
   /// The keys held that walk: which ways are wanted.
   final Set<LogicalKeyboardKey> _held = {};
@@ -130,7 +139,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
     if (identical(old.floor, widget.floor)) return;
     old.floor.removeListener(_wake);
     widget.floor.addListener(_wake);
-    _both = Listenable.merge([widget.floor, widget.session]);
+    _bubbles.dispose();
+    _bubbles = FloorBubbles(widget.floor);
+    _both = Listenable.merge([widget.floor, widget.session, _bubbles]);
     _shown.clear();
     _radius.clear();
     _wake();
@@ -147,6 +158,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
   @override
   void dispose() {
     _ticker.dispose();
+    _bubbles.dispose();
+    _saying.dispose();
     widget.floor.removeListener(_wake);
     _focus.removeListener(_focusChanged);
     _focus.dispose();
@@ -206,6 +219,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
   }
 
   KeyEventResult _key(FocusNode node, KeyEvent e) {
+    // While the chat's box has the keyboard its letters are words, not steps.
+    if (!node.hasPrimaryFocus) return KeyEventResult.ignored;
     final k = e.logicalKey;
     if (!_left.contains(k) && !_right.contains(k) && !_up.contains(k) && !_down.contains(k)) return KeyEventResult.ignored;
     // With Ctrl, Alt or Cmd it is a command of the app's, not a step.
@@ -218,6 +233,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
     }
     double way(Set<LogicalKeyboardKey> plus, Set<LogicalKeyboardKey> minus) => (_held.any(plus.contains) ? 1.0 : 0.0) - (_held.any(minus.contains) ? 1.0 : 0.0);
     widget.floor.head(way(_right, _left), way(_down, _up));
+    if (!_walked && _held.isNotEmpty) setState(() => _walked = true);
     return KeyEventResult.handled;
   }
 
@@ -265,6 +281,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
     if (floor.gone) return const SizedBox.expand();
     final voice = Voice.instance;
     final room = voice.hangoutFor(session.channel);
+    _bubbles.follow(room);
     final levels = voice.media?.levels ?? session.media.levels;
     return ListenableBuilder(
       listenable: _both,
@@ -291,6 +308,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
             // A press, or a finger dragged: walk to there. Also takes the keyboard back from the chat's box.
             onTapUp: (d) {
               _focus.requestFocus();
+              if (!_walked) setState(() => _walked = true);
               final w = cam + (d.localPosition - centre) / scale;
               floor.walkTo(Offset2(w.dx, w.dy));
             },
@@ -311,9 +329,10 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       floor: t.color('app-paper-2'),
                       rule: t.color('app-rule'),
                       ink: t.color('app-ink-3'),
-                      // The kind's own purple at the left, running to cyan at the right.
-                      wallA: t.hueSwatch('purple'),
-                      wallB: t.hueSwatch('cyan'),
+                      // One colour, the app's own (Matt, 2026-11-23: "make the walls a solid color like the primary
+                      // color (still keep different opaqueness and lines)").
+                      wallA: t.color('app-accent'),
+                      wallB: t.color('app-accent'),
                       groups: [for (final g in groups) (at: Offset(g.at.x, g.at.y), radius: _radius[g.id] ?? floor.radiusOf(g.id), color: t.hueSwatch(g.hue), mine: floor.groupOf(OpenSpace.meId) == g.id)],
                     ),
                   ),
@@ -379,15 +398,64 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                   right: t.space(3),
                   child: Align(
                     alignment: Alignment.topLeft,
-                    child: _Pill(
+                    // Gone once this device has walked; the word that the call is coming stays until it has.
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        key: const ValueKey('open-hint'),
+                        opacity: _walked && session.joined ? 0 : 1,
+                        duration: const Duration(milliseconds: 500),
+                        child: _Pill(
                       child: Text(
                         // Before the relay has answered the floor is already here, and says the call is coming.
                         !session.joined ? 'Connecting…' : Sms.computer ? (_focus.hasFocus ? 'Walk with W A S D or the arrow keys, or press where to go' : 'Press the floor, then walk with W A S D or the arrow keys') : 'Press where to go. The nearer someone is, the louder they are.',
                         style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),
                       ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
+                // The chat over the floor ([FloorBubbles]): over each group its own, the rest at the side.
+                for (final g in groups)
+                  if (_bubbles.over(g.id).isNotEmpty)
+                    () {
+                      final top = onScreen(Offset(g.at.x, g.at.y - (_radius[g.id] ?? floor.radiusOf(g.id))));
+                      return Positioned(
+                        key: ValueKey('open-bubbles-${g.id}'),
+                        left: top.dx - 150,
+                        width: 300,
+                        // Stacked upwards from just above the group's name.
+                        bottom: size.height - (top.dy - 40),
+                        child: IgnorePointer(child: _BubbleStack(bubbles: _bubbles.over(g.id), opacityOf: _bubbles.opacityOf, align: CrossAxisAlignment.center)),
+                      );
+                    }(),
+                if (_bubbles.side.isNotEmpty)
+                  Positioned(
+                    key: const ValueKey('open-bubbles-side'),
+                    left: t.space(3),
+                    width: math.min(320, size.width * 0.62),
+                    bottom: t.space(3) + widget.bottomInset + 52,
+                    child: IgnorePointer(child: _BubbleStack(bubbles: _bubbles.side, opacityOf: _bubbles.opacityOf, align: CrossAxisAlignment.start)),
+                  ),
+                // A box to write to the space's chat from the floor; what is written comes up as a bubble like any other.
+                if (room != null && room.mayWrite)
+                  Positioned(
+                    left: t.space(3),
+                    bottom: t.space(3) + widget.bottomInset,
+                    width: math.min(260, size.width * 0.5),
+                    child: GlacierInput(
+                      key: const ValueKey('open-say'),
+                      controller: _saying,
+                      placeholder: 'Say something',
+                      ariaLabel: 'Say something in the chat',
+                      size: GlacierFieldSize.sm,
+                      onSubmitted: (_) {
+                        final words = _saying.text.trim();
+                        if (words.isEmpty) return;
+                        if (room.sendWith(text: words)) _saying.clear();
+                      },
+                    ),
+                  ),
                 Positioned(
                   right: t.space(3),
                   bottom: t.space(3) + widget.bottomInset,
@@ -410,6 +478,45 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
         );
       }),
     );
+  }
+}
+
+/// A stack of the chat's bubbles, oldest at the top: each its writer's name and words, as strongly drawn as
+/// [opacityOf] says.
+class _BubbleStack extends StatelessWidget {
+  const _BubbleStack({required this.bubbles, required this.opacityOf, required this.align});
+  final List<FloorBubble> bubbles;
+  final double Function(FloorBubble) opacityOf;
+  final CrossAxisAlignment align;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: align, children: [
+      for (final b in bubbles)
+        Padding(
+          padding: EdgeInsets.only(top: t.space(1)),
+          child: Opacity(
+            key: ValueKey('open-bubble-${b.id}'),
+            opacity: opacityOf(b).clamp(0.0, 1.0),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: b.from == OpenSpace.meId ? 'You' : b.name, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
+                    TextSpan(text: '  ${b.text}'),
+                  ]),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: pageText(t, t.fontSize('sm'), color: t.color('app-ink')),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ]);
   }
 }
 
@@ -536,7 +643,8 @@ class _FloorPainter extends CustomPainter {
 
   /// The walls round the floor, drawn as a room seen from above and a little in front (Matt, 2026-11-23: "add 3d walls
   /// to the edges so it shows a 2.5d wall around the edges", then "use colors and a mixture of hard lines and semi
-  /// opaque walls"). They are glass in two colours, [wallA] at the left running to [wallB] at the right: every face a
+  /// opaque walls", then "make the walls a solid color like the primary color (still keep different opaqueness and
+  /// lines)": both ends are the app's own colour now). They are glass, [wallA] at the left running to [wallB] at the right: every face a
   /// see-through wash of its colour, every edge a hard line of it at full strength, as the groups' circles are drawn.
   /// The far wall shows its face, standing [wallHigh] above the floor's far edge under its top; the side walls show
   /// their tops, running down the sides; the near wall shows its top and, below it, its outer face, fainter. The far

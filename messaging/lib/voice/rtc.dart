@@ -666,19 +666,49 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   @override
   bool get screenSupported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
+  /// What the system's capturer has listed, by id, kept between askings: flutter_webrtc's first answer has the
+  /// names only, and each picture, and any screen or window found later, comes afterwards as an event that changes
+  /// these same objects (its lib/src/native/desktop_capturer_impl.dart). The capturer is one for the whole app, so
+  /// these are too.
+  static final Map<String, DesktopCapturerSource> _listed = {};
+  static DateTime? _listedAt;
+  static StreamSubscription<DesktopCapturerSource>? _listedMore, _listedFewer;
+
+  /// The list is started over when it was last asked for longer ago than this (the picker asks every two seconds
+  /// while it is open, lib/ui/screen_share.dart); sooner, the capturer is only told to look again, which keeps the
+  /// pictures it already has.
+  static const _listedFor = Duration(seconds: 6);
+
   @override
   Future<List<ScreenSource>> screenSources() async {
     if (kIsWeb || PlatformInfo.isAndroid || PlatformInfo.isIOS) return const [];
     // The Mac asks for Screen Recording once (System Settings › Privacy); without it every picture is blank.
     if (PlatformInfo.isMacOS) await Helper.requestCapturePermission().catchError((_) => false);
     try {
-      final found = await desktopCapturer.getSources(types: [SourceType.Screen, SourceType.Window], thumbnailSize: ThumbnailSize(320, 200));
+      const types = [SourceType.Screen, SourceType.Window];
+      // Matt, 2026-11-23: "screen sharing on mac and pc doesn't show anything to select". What arrives after the
+      // first answer is kept, so the picker's next asking has it.
+      _listedMore ??= desktopCapturer.onAdded.stream.listen((s) => _listed[s.id] = s);
+      _listedFewer ??= desktopCapturer.onRemoved.stream.listen((s) => _listed.remove(s.id));
+      final now = DateTime.now();
+      final recent = _listedAt != null && now.difference(_listedAt!) < _listedFor;
+      _listedAt = now;
+      if (recent) {
+        await desktopCapturer.updateSources(types: types);
+      } else {
+        final found = await desktopCapturer.getSources(types: types, thumbnailSize: ThumbnailSize(320, 200));
+        _listed
+          ..clear()
+          ..addAll({for (final s in found) s.id: s});
+      }
       return [
-        for (final s in found)
+        for (final s in _listed.values)
           ScreenSource(id: s.id, name: s.name.isEmpty ? (s.type == SourceType.Screen ? 'Screen' : 'Window') : s.name, window: s.type == SourceType.Window, thumbnail: s.thumbnail),
       ];
     } catch (e) {
       debugPrint('rtc: no screens to share: $e');
+      // The next asking starts over.
+      _listedAt = null;
       return const [];
     }
   }

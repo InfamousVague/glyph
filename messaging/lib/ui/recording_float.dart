@@ -66,13 +66,19 @@ Future<void> showRecordingMixer(BuildContext context, {CallRecorder? recorder}) 
 /// A recording kept on this device opened in the timeline and the mixer, to play and mix again (Matt, 2026-11-21: "I'd
 /// like to be able to open recordings saved from calls in the multi track view with the mixer"): the same drawer as
 /// while recording, filling the window, with a play button and a playhead in place of Stop and the live end.
-Future<void> showRecordingPlayback(BuildContext context, Recording recording) {
+///
+/// Also what a recording opens in from a Files space or a chat (lib/ui/files_space/file_preview.dart; Matt,
+/// 2026-11-23: "i want to see the mixer when viewing sounds recordings but it just loads the media player view").
+/// There [plain] is given: the way to the app's video player for the same file, a button in the drawer's header and
+/// under the words where the voices couldn't be opened; the drawer is closed first. And [passing] is true: the file
+/// is in no list here, so what is decoded of it goes when the drawer closes (RecordingPlayback.passing).
+Future<void> showRecordingPlayback(BuildContext context, Recording recording, {VoidCallback? plain, bool passing = false}) {
   final nav = Navigator.of(context, rootNavigator: true);
   return nav.push(PageRouteBuilder<void>(
     opaque: true,
     transitionDuration: const Duration(milliseconds: 260),
     reverseTransitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (context, _, _) => RecordingPlaybackDrawer(recording: recording),
+    pageBuilder: (context, _, _) => RecordingPlaybackDrawer(recording: recording, plain: plain, passing: passing),
     transitionsBuilder: (context, a, _, child) => SlideTransition(
       position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
       child: child,
@@ -82,8 +88,15 @@ Future<void> showRecordingPlayback(BuildContext context, Recording recording) {
 
 /// The drawer [showRecordingPlayback] opens: the recording's voices decoded (with how far), then its timeline.
 class RecordingPlaybackDrawer extends StatefulWidget {
-  const RecordingPlaybackDrawer({super.key, required this.recording, this.playback});
+  const RecordingPlaybackDrawer({super.key, required this.recording, this.playback, this.plain, this.passing = false});
   final Recording recording;
+
+  /// Opens the same file in the app's video player, once this drawer has closed; null where the drawer was opened
+  /// from somewhere that offers the player itself (the recordings' list).
+  final VoidCallback? plain;
+
+  /// Opened from a file in no list here: its decoded voices are deleted on closing (RecordingPlayback.passing).
+  final bool passing;
 
   /// Given already open, for a test or a picture.
   final RecordingPlayback? playback;
@@ -93,7 +106,9 @@ class RecordingPlaybackDrawer extends StatefulWidget {
 }
 
 class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
-  late final RecordingPlayback _p = widget.playback ?? (RecordingPlayback(widget.recording)..open());
+  late final RecordingPlayback _p = widget.playback ?? (RecordingPlayback(widget.recording)
+    ..passing = widget.passing
+    ..open());
 
   @override
   void dispose() {
@@ -108,6 +123,13 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
     if (nav.canPop()) nav.pop();
   }
 
+  /// Closes the drawer and opens the file in the video player instead.
+  void _plain() {
+    final plain = widget.plain;
+    _close();
+    plain?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -118,7 +140,7 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
         child: ListenableBuilder(
           listenable: _p,
           builder: (context, _) {
-            if (_p.ready) return RecordingTimeline(recorder: _p, fullScreen: true, onClose: _close);
+            if (_p.ready) return RecordingTimeline(recorder: _p, fullScreen: true, onClose: _close, onPlain: widget.plain == null ? null : _plain);
             return Stack(children: [
               Center(
                 child: Padding(
@@ -133,6 +155,12 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
                     if (_p.error == null) ...[
                       SizedBox(height: t.space(3)),
                       SizedBox(width: t.lenOf('12rem'), child: GlacierProgressBar(value: (_p.opening ?? 0) * 100, ariaLabel: 'Opening each voice')),
+                    ],
+                    // The voices couldn't be opened, or are slow to: the file still plays in the player, as everyone
+                    // mixed (its first track).
+                    if (widget.plain != null) ...[
+                      SizedBox(height: t.space(4)),
+                      _ToolButton(key: const ValueKey('recording-plain'), icon: Lucide.film, label: 'Open in the player', text: 'Open in the player', onPressed: _plain),
                     ],
                   ]),
                 ),
@@ -231,7 +259,10 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
 
 /// The open panel: a video editor's timeline of the recording.
 class RecordingTimeline extends StatefulWidget {
-  const RecordingTimeline({super.key, required this.recorder, required this.onClose, this.navigator, this.fullScreen = false});
+  const RecordingTimeline({super.key, required this.recorder, required this.onClose, this.navigator, this.fullScreen = false, this.onPlain});
+
+  /// A recording opened from a file: opens it in the app's video player instead ([showRecordingPlayback]'s `plain`).
+  final VoidCallback? onPlain;
 
   /// The app's own navigator, for the page a saved recording opens.
   final NavigatorState? navigator;
@@ -411,6 +442,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                     app?.set(_viewPref, mixer ? 'timeline' : 'mixer');
                   }),
                 ),
+                if (played != null && widget.onPlain != null) _ToolButton(key: const ValueKey('recording-plain'), icon: Lucide.film, label: 'Open in the player', onPressed: widget.onPlain!),
                 SizedBox(width: t.space(1)),
                 if (played != null)
                   GlacierPressable(

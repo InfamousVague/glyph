@@ -15,10 +15,32 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/ui/files_space/file_preview.dart';
 import 'package:ghost_messaging/ui/video_engine.dart';
 import 'package:ghost_messaging/ui/video_screen.dart';
+import 'package:ghost_messaging/voice/mp4_names.dart';
+import 'package:ghost_messaging/voice/recorder.dart';
+import 'package:ghost_messaging/voice/recording_playback.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
 import 'support/fake_video.dart';
 import 'support/list_harness.dart';
+
+Uint8List _ascii(String s) => Uint8List.fromList(s.codeUnits);
+
+/// An MP4 box of [type] holding [body].
+Uint8List _box(String type, List<Uint8List> body) {
+  final b = BytesBuilder()
+    ..add(Uint8List(4)..buffer.asByteData().setUint32(0, 8 + body.fold<int>(0, (n, x) => n + x.length)))
+    ..add(_ascii(type));
+  body.forEach(b.add);
+  return b.toBytes();
+}
+
+/// A sound track as a muxer writes one, enough of it to be named (lib/voice/mp4_names.dart): a header and a handler.
+Uint8List _soundTrak() => _box('trak', [
+      _box('tkhd', [Uint8List(84)]),
+      _box('mdia', [
+        _box('hdlr', [Uint8List(8), _ascii('soun'), Uint8List(12), _ascii('SoundHandler'), Uint8List(1)]),
+      ]),
+    ]);
 
 /// The player's controls over whichever engine plays the video (lib/ui/video_screen.dart, lib/ui/video_engine.dart;
 /// Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app in a player themed by glacier
@@ -219,6 +241,123 @@ void main() {
     expect(find.text('holiday.mkv'), findsOneWidget, reason: 'its name at the top');
     await close(tester);
     await store.clear();
+  });
+
+  // Matt, 2026-11-23: "i want to see the mixer when viewing sounds recordings but it just loads the media player
+  // view". A call's recording in a Files space (where a circle's are saved) or a space's chat opened as any MP4.
+  group('a call\'s recording from a Files space', () {
+    late Directory dir;
+    late FilesStore store;
+    const space = VoiceChannel(seed: '9191919191919191919191919191919191919191919191919191919191919191', name: 'Drop box', kind: SpaceKind.files);
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('ghost-rec-open');
+      store = FilesStore.forTest(base: null, signer: KeysSigner(NetKeys.generate()), data: dir);
+      CallRecorder.folderForTest = Directory('${dir.path}/recordings');
+      RecordingPlayback.opensHereForTest = true;
+    });
+    tearDown(() {
+      CallRecorder.folderForTest = null;
+      RecordingPlayback.opensHereForTest = null;
+      dir.deleteSync(recursive: true);
+    });
+
+    /// A file of the space named [name], on this device already: an MP4 of sound tracks named [tracks].
+    Future<SpaceFile> here(WidgetTester tester, String name, List<String>? tracks, {String id = '7'}) async {
+      final f = SpaceFile(id: '0' * 31 + id, name: name, size: 4, mime: FileKind.mimeOf(name), sha: '', key: Uint8List(32), prefix: Uint8List(8), by: 'maya', byName: 'Maya', at: 1);
+      expect(f.kind, FileKind.video);
+      final file = File(store.cachedPath(f))..parent.createSync(recursive: true);
+      file.writeAsBytesSync([..._box('ftyp', [_ascii('isom')]), ..._box('mdat', [Uint8List(64)]), ..._box('moov', [for (final _ in tracks ?? ['', '']) _soundTrak()])]);
+      if (tracks != null) await tester.runAsync(() => Mp4Names.apply(file.path, tracks));
+      return f;
+    }
+
+    /// Lets the file be looked into (real reads, which a test's own clock doesn't run: each is let finish, then what
+    /// waited on it runs and asks for the next), then the screens come in.
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 12; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    Future<void> opener(WidgetTester tester, SpaceFile f) async {
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, Builder(builder: (context) => GestureDetector(key: const ValueKey('open'), behavior: HitTestBehavior.opaque, onTap: () => openSpaceFile(context, space, f, store: store), child: const SizedBox.expand())), AppState(), size: const Size(1100, 700));
+      await tester.tap(find.byKey(const ValueKey('open')));
+      await settle(tester);
+    }
+
+    testWidgets('opens in the mixer, not the player; the mixer has the way to the player', (tester) async {
+      final f = await here(tester, 'rec19a2b3c.mp4', ['Everyone', 'Maya', 'Theo']);
+      await opener(tester, f);
+      expect(find.byKey(const ValueKey('recording-playback')), findsOneWidget, reason: 'the mixer\'s drawer');
+      expect(find.byType(VideoScreen), findsNothing);
+      expect(engine.opened, isNull);
+      // No decoder under a test, so the drawer says the voices couldn't be opened; what was made for them is there
+      // until it closes.
+      final opened = Directory('${dir.path}/recordings/opened/file-${f.id}');
+      expect(opened.existsSync(), isTrue);
+      // Its button for the player: the drawer goes and the same file plays.
+      await tester.tap(find.byKey(const ValueKey('recording-plain')));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('recording-playback')), findsNothing);
+      expect(find.byType(VideoScreen), findsOneWidget);
+      expect(engine.opened, store.cachedPath(f));
+      expect(opened.existsSync(), isFalse, reason: 'a file in no list here leaves nothing decoded behind');
+      await close(tester);
+      await store.clear();
+    });
+
+    testWidgets('whatever it is named, where it is on this device already', (tester) async {
+      final f = await here(tester, 'Recording Lounge 2026-11-23T14.05.mp4', ['Everyone', 'Maya']);
+      await opener(tester, f);
+      expect(find.byKey(const ValueKey('recording-playback')), findsOneWidget);
+      expect(find.byType(VideoScreen), findsNothing);
+      await close(tester);
+      await store.clear();
+    });
+
+    testWidgets('any other .mp4 plays in the player as before, and so does a recording where the mixer opens no file', (tester) async {
+      final clip = await here(tester, 'holiday.mp4', null);
+      await opener(tester, clip);
+      expect(find.byType(VideoScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('recording-playback')), findsNothing);
+      expect(engine.opened, store.cachedPath(clip));
+      await close(tester);
+      // A browser or Linux: no decoder for the tracks.
+      RecordingPlayback.opensHereForTest = false;
+      engine = FakeVideoEngine();
+      final rec = await here(tester, 'rec19a2b3c.mp4', ['Everyone', 'Maya'], id: '8');
+      await opener(tester, rec);
+      expect(find.byType(VideoScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('recording-playback')), findsNothing);
+      expect(engine.opened, store.cachedPath(rec));
+      await close(tester);
+      await store.clear();
+    });
+
+    // One not here yet and named as recordings are is brought down in its preview first (the mixer needs the whole
+    // file); once here the mixer opens over that page, which keeps both ways in.
+    testWidgets('its preview opens the mixer once the file is here, and has Open in the mixer beside Play', (tester) async {
+      final f = await here(tester, 'rec19a2b3c.mp4', ['Everyone', 'Maya', 'Theo']);
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, FilePreviewScreen(channel: space, file: f, store: store, mixer: true), AppState(), size: const Size(1100, 700));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('recording-playback')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('recording-collapse')));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('recording-playback')), findsNothing);
+      expect(find.text('Open in the mixer'), findsOneWidget);
+      expect(find.text('Play'), findsOneWidget);
+      await tester.tap(find.text('Open in the mixer'));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('recording-playback')), findsOneWidget);
+      await close(tester);
+      await store.clear();
+    });
   });
 
   test('a computer keeps a chat\'s video as a file of its own kind, for the player, in a folder it sweeps', () async {
