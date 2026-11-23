@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:video_player/video_player.dart';
 
+import 'mpv_property.dart';
 import 'recorder.dart';
 
 class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
@@ -308,9 +309,8 @@ class _MpvVoice implements _VoicePlayer {
   Future<void> open(String path) async {
     mk.MediaKit.ensureInitialized();
     final p = _player = mk.Player();
-    final native = p.platform;
-    // Up to twice as loud, as a fader goes (mpv's own most is 130%).
-    if (native is mk.NativePlayer) await native.setProperty('volume-max', '${(RecordingMix.most * 100).round()}');
+    // Up to twice as loud, as a fader goes (mpv's own most is 130%). Not in a browser (mpv_property.dart).
+    await setMpvProperty(p, 'volume-max', '${(RecordingMix.most * 100).round()}');
     await p.open(mk.Media(path), play: false);
   }
 
