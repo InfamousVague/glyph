@@ -19,14 +19,15 @@ import '../sms.dart';
 import 'common.dart';
 
 /// Profile › Your add-me link (GMFB-34: "A gogho.st/add/USERNAME link and QR code that opens a friend request"):
-/// the link, copied or shared, and its QR code to show someone in person.
+/// the link, copied or shared, and its QR code to show someone in person. It carries the start of this account's name
+/// after `#` (lib/friends/add_link.dart), so whoever opens it adds this key and no other the relay might name.
 class AddMeSection extends StatelessWidget {
   const AddMeSection({super.key, required this.username});
   final String username;
 
   @override
   Widget build(BuildContext context) {
-    final link = addMeLink(username);
+    final link = addMeLink(username, id: Net.instance.id);
     return PaneSection(
       title: 'Your add-me link',
       description: const Text('Anyone who opens it, or scans the code, can send you a friend request. You still choose whether to accept.'),
@@ -56,7 +57,7 @@ void showAddMeCode(BuildContext context, String username) {
     header: Padding(
       padding: EdgeInsets.all(t.space(4)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        QrView(key: const ValueKey('add-me-code'), data: addMeLink(username), size: t.lenOf('15rem'), label: 'Your add-me link, as a QR code'),
+        QrView(key: const ValueKey('add-me-code'), data: addMeLink(username, id: Net.instance.id), size: t.lenOf('15rem'), label: 'Your add-me link, as a QR code'),
         SizedBox(height: t.space(3)),
         Text('@$username', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
         Text('Scan to add me on Ghost Messaging', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
@@ -85,10 +86,12 @@ void askToAdd(BuildContext context, String link) {
   // (docs/OPEN_NETWORK.md, section 4) someone on another relay can be added too, by @name@their.relay.
   final net = Net.instance;
   final elsewhere = net.onDefaultHub ? null : Text(addMeElsewhereWords(net.hubUrl, name));
+  // The start of their account's name, where the link carries it: the relay's answer must be that key.
+  final key = addLinkKey(link);
   showChoices(context, title: 'Send @$name a friend request?', header: elsewhere, choices: [
     Choice('Send a friend request', Lucide.userPlus, () async {
       try {
-        final got = await b.add(name);
+        final got = await b.add(name, keyPrefix: key);
         if (context.mounted) toast(context, got.state == 'yes' ? 'You and @$name are friends' : 'Asked @$name');
       } catch (e) {
         if (context.mounted) toast(context, '$e', tone: GlacierToastTone.danger);

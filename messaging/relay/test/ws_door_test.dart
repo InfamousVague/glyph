@@ -12,6 +12,8 @@ import 'package:ghost_relay/sha256.dart';
 import 'package:ghost_relay/ws_door.dart';
 import 'package:test/test.dart';
 
+import 'fed_support.dart' show withoutClock;
+
 /// A ceiling on a message's length in front of the WebSocket parser, at every door (lib/ws_door.dart; found in the
 /// review of relays that talk, 2026-11-22): Dart holds a whole message before anything can look at its length, so a
 /// frame that says it is a terabyte long, or a message in endless pieces, was read until the relay had nothing left.
@@ -318,7 +320,7 @@ void main() {
       for (var i = 0; i < 50 && raw.said().length < 2; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
-      expect(raw.said()[1], {'ok': true, 'held': 0});
+      expect(withoutClock(raw.said()[1]), {'ok': true, 'held': 0});
       expect(await raw.send(pieces(16, 65536)), isTrue);
       expect(await raw.closes(within: const Duration(milliseconds: 300)), isFalse, reason: 'a megabyte in pieces, not yet ended: waited on');
       expect(await raw.send(frame(0, const [], say: 1, fin: false)), isTrue);
@@ -334,7 +336,7 @@ void main() {
       for (var i = 0; i < 50 && raw.said().length < 2; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
-      expect(raw.said()[1], {'ok': true, 'held': 0});
+      expect(withoutClock(raw.said()[1]), {'ok': true, 'held': 0});
       expect(hub.connected, 1);
       raw.destroy();
     });

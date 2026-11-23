@@ -244,7 +244,9 @@ void main() {
       final keys = NetKeys.generate();
       final one = await dialHub(url);
       final first = await signIn(one, keys);
-      expect(first.answer, {'ok': true, 'held': 0});
+      // With the hub's time and when it started (for what it kept that went with a restart: lib/net/ledger.dart).
+      expect(first.answer, {'ok': true, 'held': 0, 'now': isA<int>(), 'since': isA<int>()});
+      expect(first.answer['since'] as int, lessThanOrEqualTo(first.answer['now'] as int));
       // A packet to its own name, as a plain list of bytes: nobody else of it is here, so it is held.
       one.say([1, 0, 0, 0, 7, ...NetCrypto.unhex(keys.id), 5, 6]);
       await _until(() => first.after.isNotEmpty, 'the hub never answered the packet');
@@ -252,7 +254,7 @@ void main() {
       // The same install again takes the first one's place: the first is closed by the hub, and done.
       final two = await dialHub(url);
       final second = await signIn(two, keys);
-      expect(second.answer, {'ok': true, 'held': 1});
+      expect(second.answer, {'ok': true, 'held': 1, 'now': isA<int>(), 'since': first.answer['since']}, reason: 'the same hub: the same start');
       await first.done.timeout(const Duration(seconds: 5));
       await _until(() => second.after.isNotEmpty, 'what was held never came');
       expect(second.after.single, isA<Uint8List>(), reason: 'a frame comes as a Uint8List');

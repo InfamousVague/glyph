@@ -109,8 +109,8 @@ void main() {
     expect(a.where((m) => m.containsKey('ack')).take(3).toList(), [{'ack': 1, 'here': true}, {'ack': 2, 'here': false}, {'ack': 3, 'here': false}], reason: 'an answer to a packet is ack and here, and nothing more');
     expect(a.where((m) => m['err'] == 'full'), hasLength(1));
     expect(of('b', 'said')[2], anyElement(equals({'dir': 'whois', 'name': 'anna', 'id': '<a>', 'key': '<a\'s key>'})));
-    expect(of('c', 'signed in')[2], {'ok': true, 'held': 1});
-    expect(of('d', 'signed in')[2], {'ok': true, 'held': Hub.mailboxFrames});
+    expect(withoutClock(of('c', 'signed in')[2] as Map), {'ok': true, 'held': 1});
+    expect(withoutClock(of('d', 'signed in')[2] as Map), {'ok': true, 'held': Hub.mailboxFrames});
     expect(of('b', 'said')[5], ['01${'<a>'}010203'], reason: 'a packet handed over is [1], who sent it, and the packet');
   });
 

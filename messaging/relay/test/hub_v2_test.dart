@@ -39,7 +39,7 @@ void main() {
     final sig = P256.sign(scalar, host == null ? [...utf8.encode(Hub.greeting), ...nonce] : Hub.signedV2(host, nonce), someBytes(32));
     mine.add(jsonEncode({'id': Hub.nameOf(key), 'key': base64Encode(key), 'sig': base64Encode(sig), if (host != null) 'v': 2, 'host': ?host, if (peek) 'peek': true}));
     await second.future.timeout(const Duration(seconds: 5));
-    return (hello: hello, answer: heard.length > 1 ? heard[1] : {'closed': true}, socket: mine);
+    return (hello: hello, answer: heard.length > 1 ? withoutClock(heard[1]) : {'closed': true}, socket: mine);
   }
 
   test('a hub that knows the names it is reached at says it takes v2; one that doesn\'t says what it always said', () async {

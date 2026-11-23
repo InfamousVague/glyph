@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.16', '2026-11-23', [
+    'Checking the relay: once a day, your devices ask the relay again who each friend\'s username belongs to, and check your own at sign-in. If the relay ever gives a friend\'s username to a different account, their card says so, calmly, and they\'re told: you\'re still talking to the friend you added. Settings › Routes shows what was checked.',
+    'Add-me links carry the friend\'s key, so a link only ever adds the person who made it, whatever the relay says.',
+  ]),
   ReleaseNotes('0.12.15', '2026-11-23', [
     'Friends are told apart by their keys: who a message is from, and where yours go, now come only from the key your records hold for that friend, never from the address someone else wrote. A group\'s admin could list a member under one of your friends\' numbers or usernames; their messages no longer land in your friend\'s conversation, and yours no longer go to them.',
     'Friend requests by username are checked with the relay\'s directory before they can be accepted, so a request can\'t borrow someone else\'s name; group members show under who your phone knows them to be.',

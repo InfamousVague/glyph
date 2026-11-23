@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:glacier/glacier.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/games/game_activity.dart';
+import 'package:ghost_messaging/me/lookup_budget.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
@@ -334,34 +335,39 @@ void main() {
     expect(b.friends, isEmpty);
   });
 
-  // The review's follow-up S2 (2026-11-23): the relay answers 120 lookups an hour for each install, and strangers'
-  // requests, each looked up as it came, could use them up: then nothing could be accepted or added for an hour.
-  test('requests are looked up of this phone\'s own accord thirty times an hour at most, each once; past that, only when Accept is pressed', () async {
+  // The review's follow-up S2 (2026-11-23): the relay answers an account 120 lookups an hour, all its devices together,
+  // and strangers' requests, each looked up as it came, could use them up: then nothing could be accepted or added for an
+  // hour. They are held to the account's budget of lookups made of the app's own accord, which the name watch shares
+  // (test/name_watch_test.dart has the two together, and the account's devices).
+  test('requests are looked up of this phone\'s own accord within the account\'s budget, each once; past that, only when Accept is pressed', () async {
     final world = _World();
     final sam = _Port(world, 'sam');
     var asked = 0;
     sam.onWhois = () => asked++;
-    final b = Buddies(sam);
+    final lookups = LookupBudget();
+    final b = Buddies(sam, lookups: lookups);
     await b.start();
-    final strangers = [for (var i = 0; i < Buddies.lookupsAnHour + 10; i++) NetKeys.generate()];
+    final cap = lookups.forRequests;
+    expect(cap, lessThan(LookupBudget.mostAnHour), reason: 'a third left to the name watch');
+    final strangers = [for (var i = 0; i < cap + 10; i++) NetKeys.generate()];
     void ask(NetKeys from, int i) => sam._hellos.add((from: from.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'stranger.$i', 'k': base64Encode(from.public)})));
     for (final (i, s) in strangers.indexed) {
       ask(s, i);
     }
     await _settle();
     expect(b.requests, hasLength(strangers.length), reason: 'every one is kept');
-    expect(asked, Buddies.lookupsAnHour);
+    expect(asked, cap);
     // The same requests again (their apps ask again every few minutes): none is looked up again, nor asked about again.
     for (final (i, s) in strangers.indexed) {
       ask(s, i);
     }
     await _settle();
     expect(await b.checkRequests(), 0);
-    expect(asked, Buddies.lookupsAnHour);
+    expect(asked, cap);
     // Accept, pressed on one never looked up: it is looked up then.
     final last = b.requests.firstWhere((r) => r.username == 'stranger.${strangers.length - 1}');
     await expectLater(b.accept(last), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('doesn\'t know'))));
-    expect(asked, Buddies.lookupsAnHour + 1);
+    expect(asked, cap + 1);
   });
 
   test('the friend by username a conversation and a face stand for is one who said yes, never a request or someone blocked under the same username', () async {

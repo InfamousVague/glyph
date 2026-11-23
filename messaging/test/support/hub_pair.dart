@@ -35,6 +35,12 @@ class HubPair {
   int? code;
   String? reason;
 
+  /// Set, what the hub says that this answers true for is dropped on the way to the app, the hub none the wiser: a relay
+  /// that says it passed something on and never did, or tells one app less than it should (lib/net/ledger.dart's
+  /// tests). How many were dropped.
+  bool Function(Object said)? dropToApp;
+  int dropped = 0;
+
   /// Drops it as a network going does: neither end says anything more, and both find it closed.
   void cut() {
     if (!_open) return;
@@ -72,7 +78,12 @@ class _HubEnd implements HubSocket {
 
   @override
   void add(Object data) {
-    if (_pair._open) _pair._toApp.add(HubPair._carried(data));
+    if (!_pair._open) return;
+    if (_pair.dropToApp?.call(data) ?? false) {
+      _pair.dropped++;
+      return;
+    }
+    _pair._toApp.add(HubPair._carried(data));
   }
 
   @override

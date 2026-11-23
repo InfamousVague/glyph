@@ -12,6 +12,12 @@ import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/p256.dart';
 import 'package:test/test.dart';
 
+/// A hub's answer to a sign-in without its clock ("now", and "since" it started, said with every sign-in: relay/lib/hub.dart),
+/// which the tests of everything else it says leave out, as hub_socket_test.dart does; its own test is there.
+Map withoutClock(Map answer) => {...answer}
+  ..remove('now')
+  ..remove('since');
+
 /// What the federation tests stand on (federation_test.dart and the rest): relays that are real hubs with real
 /// federation, a made-up internet between them that is nothing but memory, installs that sign in as an app does, and
 /// one clock for all of it that only moves when a test moves it. Nothing here waits on a timer or a socket.
@@ -232,7 +238,7 @@ class Install {
     hello = await first.future;
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...unhex(hello['hello'] as String)], someBytes(32));
     mine.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), 'device': ?device}));
-    signedIn = await second.future.timeout(const Duration(seconds: 5));
+    signedIn = withoutClock(await second.future.timeout(const Duration(seconds: 5)));
     return signedIn;
   }
 

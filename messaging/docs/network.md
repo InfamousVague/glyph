@@ -17,6 +17,7 @@ and were written so they need not). Here the interface is a **route**.
 | The switchboard | `lib/net/switchboard.dart` | Chooses a route for each thing sent, falls back, seals, opens, tells copies apart, answers |
 | The relay server's hub | `relay/lib/hub.dart`, `lib/net/hub_carrier.dart` | The route through a server: names, held packets, who is here, rooms |
 | The direct route | `lib/net/p2p/` (`P2pCarrier`, `P2p`, `DeviceCard`, `P2pNode`) | Straight between a person's own devices and their friends', with no server in between: the way through when the relay can't carry something ([OPEN_NETWORK.md](OPEN_NETWORK.md), section 2) |
+| Checking the relay | `lib/net/ledger.dart` (`Ledger`, `LedgerCheck`), `lib/net/name_watch.dart` | What went to each friend and came from them, compared over direct links to find what the relay dropped or kept back; and friends' usernames asked of the relay again ([below](#checking-the-relay)) |
 | SMS | `lib/net/sms_carrier.dart`, `android/…/NetSms.kt` | The route through the phone network: data texts |
 | The phone's keys | `android/…/Net.kt`, `E2e.kt` | Who this phone is, who it can reach, a signature for a hub |
 | The app's hold on it all | `lib/net/net.dart` (`Net`), `lib/ui/network.dart` | Set up as the app opens; Settings › Network |
@@ -69,6 +70,148 @@ against an hour, and an app started over and over is a cost of its own.
 Not built yet: a **local network** route (`lan`: finds the other install on the same Wi-Fi and connects straight to
 it). It is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a
 stand-in in its place to hold that true.
+
+## Checking the relay
+
+What checks what the relay says ([OPEN_NETWORK.md](OPEN_NETWORK.md), section 3; Matt, 2026-11-22: "p2p as a secondary
+back up that validates everything our relay says"). Two parts: the **ledger**, compared over direct links, which
+waits for the direct route's core and is built and tested against the stand-in node; and the **name watch**, which
+needs no direct route and runs now. Both were reviewed on 2026-11-23 and changed for what the review found (its probes
+are tests now).
+
+**The ledger** (`lib/net/ledger.dart`, `Ledger`). The switchboard tells it, through a small interface (`SendLog`),
+what each route took and what the route said (passed on, or kept for someone away), what came and by which route,
+what was answered, and that something came that could not be opened here (sealed for another device of the account).
+For each friend it lists what was **sent** (the envelope's name, when, the route, passed or kept, answered) and what
+was **got** (name, when, route), for seven days and at most 500 of each. Only what asks for an answer: never a test
+(`ping`), typing, a card (`p2p`) or its own messages (`ldg`), never anyone who is not a friend or the account's own
+devices (later), and never a word of any message. Sent again, the relay's word is the one kept: another route's never
+takes its place, and the relay's latest does.
+
+Beside the lists: this device's connections to the relay (when each signed in, when anything last came on it, and when
+the relay said it had started: `HubCarrier.signedInAt`, `heardAt`, `relayStartedAt`), when each friend was first known
+here as one (what they sent before is not compared), what a friend's device said it sent that never came, and what each
+relay was found to do. Kept in **files of its own, out of any backup**, in a folder that is the build's own
+(`lib/net/kept_files.dart`): Android's no-backup folder as Android gives it (`getNoBackupFilesDir`), the app's Caches
+folder in its container on an iPhone, the person's Caches folder under the build's bundle id on a Mac, the local app
+data on Windows and the cache folder on Linux, each under the app's name; on a computer, a build other than a release
+(a `flutter run`) keeps its own beside the release's (`ledger-debug`). Never the app's choices, which Android's backup
+copies. Written twenty seconds after a change and as the app is put away, books before connections, one write after
+another (a flush waits for one still writing, and signing out for both). The index names the device it was kept on
+all the same. Signing out deletes all of it, a book a flush was writing as it came too.
+It exists only where the build has the direct route: without one nothing could compare it, so nothing is listed.
+
+**Comparing** (`LedgerCheck`). When a direct stream to a friend's device is proved, and every fifteen minutes while it
+stays open, each device says on that stream alone (`Switchboard.sendOn`; never through the relay, never by a dial) an
+envelope of kind `ldg` that asks for no answer:
+
+    {"t":"sum", "w":[from, now], "s":[[name, when, "p"|"k"|"o"], …], "g":[name, …],
+     "h":{"u": my relay, "up": whether I'm connected to it, "t": since when, "heard": when it last heard from it}}
+    {"t":"dif", "want":[name, …]}
+
+`s` is what was sent to the other account, each with when and what the relay said as it took it (`p` passed, `k`
+kept, `o` another route took it); `g` the names of what came from them. OPEN_NETWORK.md's `was` is folded into `s`:
+the times are needed anyway, to compare only what both lists cover and to leave out the last two minutes (what may
+still be on its way), and with the relay's word beside each nothing waits on a second round. The other device's
+clock is taken from `w`'s second time and allowed for; one more than a day off is not compared. `up` is left out while
+the person chose Invisible: the relay hides them from friends then, on purpose. Then:
+
+- What they sent that never came here is asked for (`dif`, 64 at most) and sent again straight, on the stream that
+  asked, by whoever still holds it: the switchboard's unanswered (`Switchboard.held`, five minutes, never a call that
+  has stopped ringing) and Friends' own list (`Friends.heldFor`, given to `LedgerCheck.holders` through
+  `Net.addHolder`).
+- What came there and was never answered here is taken as answered (`Switchboard.answeredBy`): the answer was lost,
+  and Friends stops sending it again.
+- Each thing that never came here is put down once, as one of: **nobody's doing** (another route took it, their relay
+  is another, it came and could not be opened here, this device was not connected when the relay passed it, or the
+  relay kept it and may have handed it to another device of the account); **lost when the relay started again** (it
+  kept it, and at the next sign-in said it had started since: the hub's `ok` says its time and its start); **the
+  relay said it passed it on, and it never came**, where this device was connected then, which is proved, not assumed
+  (the connection signed in ten seconds before and something came on it ten seconds after, and the relay's frames come
+  in order on one connection); or **the relay said this device was away**, where it said it kept it while this device
+  was connected so. "Kept it and never handed it over" is not put down for now: the relay hands what it kept to
+  whichever of the account's devices signs in first, and nothing here can yet prove none did.
+- **Only what then comes straight counts.** A friend's device can say anything of what it sent; what it then sends
+  straight shows it was so. Only then is a thing counted as having come straight (Settings says so of no other), and
+  only then is a wrong put down against the relay, and put down as that device's word ("Maya's device says the relay
+  passed on a message to you, and it never came by the relay").
+- A friend whose device says, in two sums in a row, that it is connected to the same relay and heard from it in the two
+  minutes before, while the relay has told this one (connected and watching them a minute or more) that they are gone,
+  is put down as the relay being wrong about who is here; once in six hours for one friend.
+
+**What a friend's device can make this one do:** a `sum` of more than 500 names in either list, a name longer than 32,
+or a `dif` of more than 64, is refused whole; one `sum` from a device every ten minutes and twelve from an account in an
+hour; six `dif`s and two hundred things sent again for one account in an hour. What it puts down is the ledger's,
+capped there (500 missing, 50 wrongs and 64 comparisons for a relay, 300 connections). `LedgerCheck.refused` counts
+what was turned away.
+
+**Checking by hand, and by itself.** "Check now" (Settings › Routes) dials the friends the relay says are here, at
+most twelve, asking each to meet, once a minute at most. With no direct link in use, a round runs by itself while the
+app is in use: up to five friends the relay says are here and not compared in a day, every hour on a computer and every
+six on a phone. Both bring a phone's node up as a send does; what is said on a link keeps nothing up.
+
+**The name watch** (`lib/net/name_watch.dart`, `NameWatch`). A friend added by username was found by asking the relay
+who has the name. The account asks about each again once a day, at a time of its own through the day (when each friend
+was first seen is kept, so a phone that never runs a whole day still comes to each), and ten minutes on where the relay
+can't be reached. With several devices it is the days that are shared out, not the friends: of n devices forward
+secrecy has heard from this week, each asks about every friend every n days, the days going round the devices in turn
+from one of each friend's own, so every device sees what the relay says of every friend, and each asks about an n-th of
+them a day. What a device shows of a friend it asks again a day on, whatever its turn, so it goes once nobody holds the
+name; a device asks about a friend no sooner than a day after it last did.
+
+**Lookups made of the app's own accord** (`lib/me/lookup_budget.dart`, `LookupBudget`). The relay answers **an account**
+120 lookups an hour, counted for all its devices together (they sign in as one: `relay/lib/handles.dart`). The name
+watch's lookups and the friend requests' checks (`Buddies`: each request as it comes, and again) are held to one budget
+of thirty an hour for the whole account, shared out among its devices, and the rest are the person's: their adds and
+Accepts, which always ask, and the add-friend drawer's lookups as a name is typed. The requests' checks leave the watch
+a third of a device's share, so strangers' requests can't stop it; the watch's are a minute apart; and once the relay
+says too many to either, neither looks anything up for the hour. Accept, refused so, says the relay's hourly limit and
+by when one frees up at the latest (an hour after the first lookup the relay was still counting that this device made).
+One lookup goes at a time, and two of one name share one question (`Me.whois`).
+
+- **Each relay is its own directory**, and what the watch knows is kept for each apart. Another account under a
+  friend's username means something only on a relay that has named their own key under it before (the lookup that
+  added them, `Buddies.add` telling the watch, or a daily one); a relay of one's own, or a name the relay never gave
+  them, is another directory, where someone else holding the name is nothing to say. There it is shown on that
+  friend's card and in Settings › Routes, in the screens' own ink: "@maya now belongs to another account on the relay.
+  If Maya changed or gave up their username, that's why. You're still talking to the Maya you added." It goes when the
+  relay says nobody holds the name, or names their key again.
+- **A friend who changes their username is followed**: the new one they say in their sealed profile is looked up, and
+  where the relay names their key for it, asked about from then on in place of the old one, which may be anyone's now.
+  (Their record, and so their conversation's address, keeps the name they were added under: moving that is left for a
+  decision of its own.)
+- The friend is told, sealed, by the relay and over a direct link where one is open (`Switchboard.sendEveryWay`, which
+  dials nothing and starts nothing), at most once a day while it lasts, in an envelope of kind `name`:
+
+      {"u": the username, "i": the account name the relay gave it to, "at": ms}
+
+  Their app takes it only from a friend by username, sealed, for its own username and another account, once an hour
+  from one friend, keeps it a week, and says it at once only where it is new that week.
+- **Its own username** is asked at each sign-in, every ten minutes at most (and as soon as a friend's lookup under way
+  ends, never skipped for it), only on a relay where this device has held it: the relay says this key holds it there
+  (`{"dir":"name"}`, answered with the name's hash: `Me.heldName`), or it was claimed there. What comes back is said
+  calmly, once for each name and account, with what usually causes it: given up or changed on another device (this
+  key holds no name, or another, there), a new key ("still held by this device's old key": the keys this device held
+  its names under are kept, across identities), or another relay. Only where the relay says this key holds the name
+  and gives it to another account when others ask does it contradict itself. It goes when this device's username
+  changes or is given up, or nobody holds the name.
+- An add-me link (`lib/friends/add_link.dart`) carries the account's whole name, 32 hex digits, after `#`, which no
+  browser sends to a server (`site/add` carries it into the app's own `ghostmsg://add/` address). The app refuses a
+  `whois` answer whose key doesn't make that name (`Buddies.add`'s `keyPrefix`), and keeps and sends nothing. A link
+  from before, with eight, is still taken as it says.
+- Nothing changes who a friend is: a friend stays the key that was added, whatever the relay says after. What the watch
+  keeps (`name_watch`) is of friends only (a name confirmed as someone was asked to be a friend, thirty days), is kept
+  for one identity (signing in to another account drops it, but which keys this device held its names under), and goes
+  at sign-out.
+
+**What is live with the direct route switched off** (no core in any build yet): the name watch, the add-me link's key
+check, and Settings › Routes saying the relay is checked only by the name watch, with what it found; nothing is dialled
+and no ledger is kept. The ledger, the comparing, "Check now" and the rounds come with the core.
+
+`test/ledger_test.dart` (the lists, comparing between installs over a real hub in memory that a test can make drop
+what it says, and a stand-in node), `test/name_watch_test.dart`, `test/name_lookups_relay_test.dart` (Me.whois against
+a real relay over a socket), `test/kept_files_test.dart`, `test/relay_check_settings_test.dart`, and parts of
+`test/add_me_test.dart`, `test/p2p_net_test.dart`, `test/profile_open_test.dart` and `relay/test/hub_socket_test.dart`.
 
 ## Who is who
 
@@ -132,7 +275,8 @@ one; Settings › Network takes its address.
 1. The hub says `{"hello": <64 hex digits>}`. The app answers `{"id", "key", "sig"}`: its name, its public key
    (33 bytes, base64) and its signature over `"ghost-hub v1 "` and those 32 bytes (r then s, base64). The hub
    checks the name is that key's and the signature is that key's (`relay/lib/p256.dart`, Dart's BigInt and nothing
-   else, held to RFC 6979's example), then `{"ok": true, "held": n}` and whatever was kept. Where the relay was
+   else, held to RFC 6979's example), then `{"ok": true, "held": n, "now": ms, "since": ms}` (its time, and when it
+   started: what it kept before then went with a restart) and whatever was kept. Where the relay was
    given link helpers for the direct route (`GHOST_LINK_HELPERS`), the same answer names them: `"helpers":
    ["https://…"]`, four at most.
 
