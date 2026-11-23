@@ -717,6 +717,11 @@ class Sms {
   /// on the phone's identity for its own network.
   static bool get followsPhone => paired && !ownNetwork;
 
+  /// Whether a voice message can be recorded here to go as a file (a network's chat, a space, a friend): the phone
+  /// itself, and the computers and the iPhone with a recorder of their own (DeskSound.swift on the Mac and the iPhone,
+  /// windows/runner/desk_sound.cpp on Windows; GMFB-32). Not Linux yet, which has none.
+  static bool get canRecordVoice => !remote || Platform.isMacOS || Platform.isWindows || Platform.isIOS;
+
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
   static bool get computer => remote && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
@@ -1305,8 +1310,10 @@ class Sms {
 
   /// Starts recording a voice message with the phone's microphone, asking Android for it the first time. Answers the
   /// most seconds one may run (the carrier's limit on a message decides), or null where the microphone was refused.
-  Future<int?> startVoice() async {
-    final m = await _calls.invokeMethod('voiceStart') as Map?;
+  /// [file]: one that goes as a file ([finishVoice]: a network's chat, a space, a friend), which no carrier holds; a
+  /// computer then records it with its own microphone and needs no phone (lib/desktop/desk_voice.dart, GMFB-32).
+  Future<int?> startVoice({bool file = false}) async {
+    final m = await _calls.invokeMethod('voiceStart', file ? const {'file': true} : null) as Map?;
     if (m == null || m['ok'] != true) return null;
     return (m['seconds'] as num?)?.toInt() ?? 60;
   }

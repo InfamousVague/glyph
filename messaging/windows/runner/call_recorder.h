@@ -11,4 +11,8 @@ void RegisterCallRecorder(flutter::BinaryMessenger* messenger);
 // on the 16-bit scale.
 void CallRecorderMic(const float* samples, int frames, int rate);
 
+// [in] (48 kHz mono 16-bit samples) as AAC in an .m4a at [out], at [bytes_per_second] (12000 to 24000): empty, or why
+// it couldn't. Media Foundation must be started on the calling thread (a voice message, desk_sound.cpp).
+std::string EncodeAac(const std::string& in, const std::string& out, int bytes_per_second);
+
 #endif

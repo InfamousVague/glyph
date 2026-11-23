@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart' show TextCapitalization;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import '../../ui/whats_new.dart' show showWhatsNew;
 import 'package:flutter/widgets.dart';
 
@@ -479,6 +479,18 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
           onPress: busy ? null : (ready ? u.restart : u.check),
         ),
         if (u.phase == MacUpdatePhase.downloading) SettingRowBox(child: GlacierProgressBar(value: u.progress * 100, ariaLabel: 'Getting the update')),
+        // Linux from the .deb (GMFB-32): the new one is here and checked; installing it is root's, so the command is
+        // offered to paste into a terminal.
+        if (u.installCommand != null)
+          SettingRow(
+            icon: _icon(Lucide.copy),
+            label: 'Copy the install command',
+            hint: Text(u.installCommand!),
+            onPress: () {
+              Clipboard.setData(ClipboardData(text: u.installCommand!));
+              toast(context, 'Copied. Paste it into a terminal, then open Ghost Messaging again.');
+            },
+          ),
       ],
     ),
   ];

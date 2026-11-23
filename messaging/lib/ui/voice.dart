@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey, PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -25,9 +26,17 @@ String voiceClock(Duration d) {
 /// What went wrong, in the phone's own words where it gave some.
 String voiceProblem(Object e) => e is PlatformException ? (e.message ?? '$e') : '$e';
 
+/// What to do when the microphone was refused, in this device's own words (GMFB-32: a computer records too).
+String micRefusedWords() {
+  if (Platform.isMacOS) return 'Allow the microphone for Ghost Messaging in System Settings › Privacy & Security › Microphone to record a voice message.';
+  if (Platform.isWindows) return 'Turn on microphone access for desktop apps in Windows Settings › Privacy & security › Microphone to record a voice message.';
+  if (Platform.isIOS) return 'Allow the microphone for Ghost Messaging in the iPhone\'s Settings to record a voice message.';
+  return 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.';
+}
+
 /// The composer while a voice message is being recorded: throw it away, how long it has run and how loud it is, send.
 class VoiceRecorder extends StatefulWidget {
-  const VoiceRecorder({super.key, required this.limit, required this.onDiscard, required this.onSend, this.note});
+  const VoiceRecorder({super.key, required this.limit, required this.onDiscard, required this.onSend, this.note, this.carrier = true});
 
   /// The most seconds the recording may run: what fits in a message on this carrier.
   final int limit;
@@ -36,6 +45,10 @@ class VoiceRecorder extends StatefulWidget {
 
   /// A line under the row: that it is not encrypted, in a conversation that is.
   final String? note;
+
+  /// A text, whose length the carrier holds; false for one that goes as a file (a network's chat, a space), whose
+  /// length is the app's own.
+  final bool carrier;
 
   @override
   State<VoiceRecorder> createState() => _VoiceRecorderState();
@@ -51,15 +64,22 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
   int _beats = 0;
   bool _full = false;
 
+  /// Holds the keyboard while it records: the message field it took the place of had it.
+  final _keys = FocusNode(debugLabel: 'voice recorder');
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _keys.requestFocus();
+    });
     _timer = Timer.periodic(_beat, (_) => _tick());
     _fullSub = Sms.instance.voiceFull.stream.listen((_) => _fill());
   }
 
   @override
   void dispose() {
+    _keys.dispose();
     _timer?.cancel();
     _fullSub?.cancel();
     super.dispose();
@@ -100,8 +120,24 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final red = t.danger;
-    final note = _full ? 'That\'s as long as a voice message can be on your carrier.' : widget.note;
-    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    final note = _full ? (widget.carrier ? 'That\'s as long as a voice message can be on your carrier.' : 'That\'s as long as a voice message can be.') : widget.note;
+    // On a computer the keyboard does it too (GMFB-32): Escape throws it away, Enter sends it.
+    return Focus(
+      focusNode: _keys,
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          widget.onDiscard();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+          widget.onSend();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         IconTap(icon: Lucide.trash2, label: 'Discard the recording', onPressed: widget.onDiscard),
         SizedBox(width: t.space(1)),
@@ -147,7 +183,8 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
           padding: EdgeInsets.only(top: t.space(1), left: t.space(3), right: t.space(3)),
           child: Text(note, textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
         ),
-    ]);
+    ]),
+    );
   }
 }
 

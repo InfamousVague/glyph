@@ -86,7 +86,7 @@
 <p>Open the .deb to install it with your software centre, or run <code>sudo apt install ./ghost-messaging-linux.deb</code>. With the .tar.gz, unpack it anywhere and run <code>ghost-messaging</code> in its folder; it needs GTK 3 and libmpv, which most desktops have.</p>
 </div></li>
 <li class="step"><div class="step-body"><h3>Open it</h3>
-<p>Open Ghost Messaging from your apps. On Linux it doesn't update itself yet: download the new version from gogho.st when there is one.</p>
+<p>Open Ghost Messaging from your apps. It looks for updates itself from then on (see <a href="#linux-updates">Updates on Linux</a>).</p>
 </div></li>
 </ol>
 
@@ -102,6 +102,14 @@
   </div></div>
 </div></div><figcaption>Settings › Updates on the phone.</figcaption></figure>
 <p>On Android, the first update asks you to allow Ghost to install updates; say yes, the same as for your browser above.</p>
+
+<h3 id="linux-updates">Updates on Linux</h3>
+<p>Ghost Messaging for Linux looks for a new version as it opens and every few hours, and downloads it by itself. What happens next depends on how you installed it:</p>
+<ul>
+  <li><b>The .tar.gz</b>: the new version is unpacked beside the old one. Click <span class="ui-path">Settings › Updates › Restart to update</span> and it swaps in the new one and opens it. If you don't, it does the same the next time you open the app. This needs the folder you unpacked it into to be yours, such as one in your home folder.</li>
+  <li><b>The .deb</b>: installing a package needs your password, so the app can't do it alone. It downloads and checks the new .deb, then <span class="ui-path">Settings › Updates</span> shows the one command that installs it, with <b>Copy the install command</b>. Paste it into a terminal, then open Ghost Messaging again.</li>
+</ul>
+<p>Versions up to 0.12.12 didn't update themselves on Linux. Install the new one once by hand, and it updates itself from then on.</p>
 
     <nav class="prevnext"><a class="prev" href="/docs/alpha/"><small>Previous</small>Join the alpha</a><a class="next" href="/docs/first-run/"><small>Next</small>The first time you open it</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>

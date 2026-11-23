@@ -254,8 +254,9 @@ void Free(T*& p) {
   p = nullptr;
 }
 
-// [in] (48 kHz mono 16-bit) as AAC in an .m4a at [out]; the reason in words where it couldn't.
-std::string Encode(const std::string& in, const std::string& out) {
+// [in] (48 kHz mono 16-bit) as AAC in an .m4a at [out], at [bytes_per_second] (12000, 16000, 20000 or 24000: what
+// Media Foundation's AAC encoder takes); the reason in words where it couldn't.
+std::string Encode(const std::string& in, const std::string& out, int bytes_per_second = 16000) {
   FILE* src = _wfopen(Wide(in).c_str(), L"rb");
   if (!src) return "can't read " + in;
   IMFSinkWriter* writer = nullptr;
@@ -283,7 +284,7 @@ std::string Encode(const std::string& in, const std::string& out) {
   target->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
   target->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, kRate);
   target->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 1);
-  target->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000);  // 128 kbit/s, as on the Mac
+  target->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, bytes_per_second);  // 128 kbit/s for a call, as on the Mac
   DWORD stream = 0;
   hr = writer->AddStream(target, &stream);
   CHECK(hr, "AAC not available");
@@ -355,6 +356,10 @@ bool Flag(const flutter::EncodableMap* args, const char* name) {
 }
 
 }  // namespace
+
+std::string EncodeAac(const std::string& in, const std::string& out, int bytes_per_second) {
+  return Encode(in, out, bytes_per_second);
+}
 
 void CallRecorderMic(const float* samples, int frames, int rate) {
   if (g_started.load() == 0) return;
