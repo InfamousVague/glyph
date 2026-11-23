@@ -9,13 +9,15 @@ import 'package:flutter/services.dart';
 import 'desk_player.dart';
 import 'desk_voice.dart' show m4aMillis;
 import 'link/link.dart';
+import '../sms.dart' show Sms;
 
 /// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
 /// What the computer is called in the app's words: "Mac", or "PC" on Windows.
-String get computerWord => PlatformInfo.isWindows ? 'PC' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isLinux ? 'computer' : 'Mac';
+/// A page in a browser (Sms.browser) is none of those: "browser".
+String get computerWord => Sms.browser ? 'browser' : PlatformInfo.isWindows ? 'PC' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isLinux ? 'computer' : 'Mac';
 
 /// What the desktop app is for, in its name: "the Mac", or "Windows".
-String get desktopName => PlatformInfo.isWindows ? 'Windows' : PlatformInfo.isIOS ? 'the iPhone' : PlatformInfo.isLinux ? 'Linux' : 'the Mac';
+String get desktopName => Sms.browser ? 'a browser' : PlatformInfo.isWindows ? 'Windows' : PlatformInfo.isIOS ? 'the iPhone' : PlatformInfo.isLinux ? 'Linux' : 'the Mac';
 
 class MacPlatform {
   /// Opens a web address in this device's own browser, and says whether it could (Matt, 2026-11-20: "when clicking sign

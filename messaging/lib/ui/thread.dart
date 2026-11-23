@@ -1019,14 +1019,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           IconTap(icon: Lucide.phone, label: 'Call', onPressed: () => const MethodChannel('ghost_messaging/sms').invokeMethod('dial', {'address': _people.first.address})),
         // A friend by username rung with a voice or a video call, as a phone would (GMFB-28, from the Uplink gap review:
         // "Ring one friend with a voice or video call, the way you would a phone, without making a space first").
-        if (_callable != null) ...[
+        if (_callable != null && Sms.callsHere) ...[
           IconTap(key: const ValueKey('call-friend'), icon: LucideMore.phoneCall, label: 'Voice call', onPressed: () => _callFriend(video: false)),
           IconTap(key: const ValueKey('video-call-friend'), icon: Lucide.video, label: 'Video call', onPressed: () => _callFriend(video: true)),
         ],
         // A group of friends' voice and video channel, open to hop in and out of, and calling the whole group into it
         // (Matt, 2026-11-14: "allow for group chat video and voice calls to hop in the voice and video channel at any
         // time with the option to call the group"; lib/voice).
-        if (_ghost != null && !_ghost!.gone) ...[
+        if (_ghost != null && !_ghost!.gone && Sms.callsHere) ...[
           ListenableBuilder(
             listenable: Voice.instance,
             builder: (context, _) {
@@ -1051,7 +1051,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
         // The group's call while others are in it: who, and Join.
-        if (_ghost != null && !_ghost!.gone)
+        if (_ghost != null && !_ghost!.gone && Sms.callsHere)
           Positioned(left: t.space(3), right: t.space(3), top: t.space(2), child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name)))),
       ]),
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
@@ -1554,6 +1554,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // laid out, so the keyboard stays up as it changes.
           Builder(builder: (context) {
             final typing = _text.text.isNotEmpty || editing;
+            final hint = _isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message');
             final field = Listener(
                       behavior: HitTestBehavior.translucent,
                       onPointerDown: (e) => _fieldDown = e.position,
@@ -1570,11 +1571,18 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          IgnorePointer(child: Text(_isGhost ? 'Message' : isMms ? 'Picture message' : (sealed ? 'Encrypted message' : 'Text message'), style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading)),
+                          composerHint(IgnorePointer(child: Text(hint, style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading))),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
                         // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
                         // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
-                        PasteImages(
+                        // Named and pressed into in a browser's tree for screen readers (composerSemantics).
+                        composerSemantics(
+                          hint: hint,
+                          onPress: () {
+                            _focus.requestFocus();
+                            _field.currentState?.requestKeyboard();
+                          },
+                          child: PasteImages(
                           focusNode: _focus,
                           enabled: Sms.remote && _attachments.length < 5,
                           onImage: (path) => setState(() => _attachments.add(path)),
@@ -1602,6 +1610,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           contextMenuBuilder: (context, state) => _contextMenu(context, state),
                         ),
                           ),
+                        ),
                         ),
                       ]),
                     ),

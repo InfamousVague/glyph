@@ -2,16 +2,27 @@
 <html lang="en">
 <head>
   <!--
-    Ghost Messaging in a browser: the page `flutter build web -t lib/web/main.dart` copies to build/web beside the
-    app itself (main.dart.js) and what loads it.
+    Ghost Messaging in a browser: the page `node tool/build-web.mjs` (flutter build web -t lib/web/main.dart) copies
+    into the build beside the app itself and what loads it. A relay serves the folder under /app/.
 
-    Where the app is served from. `flutter build web` writes its base-href option here ("/" where none is given);
-    served from a folder, it is that folder, starting and ending with a slash.
+    Where the app is served from. `flutter build web` writes its base-href option here; served from a folder, it is
+    that folder, starting and ending with a slash.
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta name="description" content="Ghost Messaging in your browser: high-quality text, voice and video in one app.">
+
+  <!--
+    What this page may do, said to the browser: run its own scripts and nobody else's (and compile Flutter's engine,
+    which is WebAssembly); speak only to the address it came from (the hub is there too); take pictures, fonts and
+    sounds only from there or from bytes it made itself; be the address of no form and frame nothing. Nothing is
+    fetched from anyone else, and a script slipped into the page could not send what it read anywhere else.
+    Styles written into the page are allowed because Flutter's engine writes its own that way.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+
+  <meta name="description" content="Ghost Messaging in your browser: write to your friends and your circles, sealed end to end.">
   <meta name="theme-color" content="#000000">
 
   <!-- Added to an iPhone's home screen. -->
@@ -32,7 +43,7 @@
   </style>
 </head>
 <body>
-  <!-- Written by `flutter build web`: it loads Flutter's engine, then main.dart.js. -->
+  <!-- Written by `flutter build web` from web/flutter_bootstrap.js: it loads Flutter's engine, then the app. -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

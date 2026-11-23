@@ -29,6 +29,43 @@ node itself is the core (`native/p2p/`, Rust on iroh), behind `lib/net/p2p/node.
 no direct route at all (`Net.p2pNode` is null) and Settings › Routes shows none. Devices tell each other their cards
 and where they are in envelopes of one more kind, `p2p`, which go by the other routes and never by a text.
 
+**The direct route's limits** (the second review, 2026-11-23). The ones that count (meets, cards looked at, things
+said, streams and frames) are kept in memory and start over each time the app starts: enough while each is small
+against an hour, and an app started over and over is a cost of its own.
+
+- **Who is a friend** to it is decided by account id from the records that say so, never by an address: friends by
+  username in the state `yes` (by their id, where their key makes it) and friends by number whose record says so (by
+  the id the key on that record makes, which android `E2e.state` gives Dart). On Android the people the routes reach
+  include the members of every group, whose addresses are whatever the group's admin wrote; none of them is a friend
+  for it.
+- **A stream proves whose it is** with a nonce from each end and then `HMAC(link key, "ghost-p2p link v2\n" | from
+  account | from node | to account | to node | the other's nonce | its own)`, the one that dialled first.
+- **What is known of a dial** (failed, under way) is kept for each account at each node: a friend who names another
+  friend's node as his costs only his own route. Up to two streams not yet proved and two proved are held with a node,
+  and one not yet proved never takes the place of one proved.
+- **A phone's node** is up only for a reason of its own (a send of its own, a meet it asked for or answered, the relay
+  gone with the app in use) and stops two minutes after the last, whatever streams are open. Only a packet from the
+  account a stream proved to be counts as something said on it.
+- **Meets** are answered at most six times an hour for one friend and twelve for all; a phone with the app put away is
+  not brought up for one, and tells where it is only while the app is in use. A computer's node stays up, as before.
+- **What one stream may bring**: 100 frames at once and 10 a second after; an account's devices together, 150 and 15.
+  At most ten streams a minute are taken from one node. A frame is given at least a second to go, and a stream slow to
+  take one is not closed for it.
+- **What is said to friends** (cards, asks, meets) goes only while the relay says one of their devices is connected
+  (the hub's presence), the rest told when they come; someone who never answers is asked three times and no more.
+  Switching "Only through link helpers" tells them at once, and anything newer that says nothing of where a device is
+  clears the addresses held for it.
+- **Cards**: one for another node that is older than the one held for that device is taken (a device whose clock went
+  back), and the account asked at once in case it is a copy from before; a send dials no device of a friend's unheard
+  from (card, meet, proved stream) in sixteen days while another of theirs has been, an install from before. Addresses
+  that are loopback, unspecified, multicast, broadcast or link-local, in any form, are never taken or dialled.
+- **What is kept**: the node key with the account it was made under, in the secret store; the cards held, with the
+  app's choices, under a seal (an HMAC keyed from the node key) that spares checking their signatures again at each
+  start; where friends' devices are, in the secret store (`p2p_where`), out of any backup. Choices restored from another
+  device's backup (they name a node id with no node key here) give the device a name (`hub_device`) of its own.
+- A core that fails to load costs the direct route alone; Settings › Routes says why. What the core itself must
+  guarantee is written in `lib/net/p2p/node.dart`.
+
 Not built yet: a **local network** route (`lan`: finds the other install on the same Wi-Fi and connects straight to
 it). It is one more `Carrier` handed to `Switchboard.add`; `test/net_test.dart` takes the hub out and puts a
 stand-in in its place to hold that true.
@@ -72,6 +109,16 @@ A call's ring, sealed, is 123 bytes: one data text. Longer ones cross a short ro
 - Once a route has only kept it, a route that holds links of its own (`LiveLinks`: the direct route) is given it
   only where a link to one of their devices is open right now, by that link alone. Nothing is dialled and nothing
   started for someone who is away; where it was not urgent that copy is not waited for.
+- The same where a route passed it on and no answer came in time (their app is slow, not away: nothing is started or
+  dialled for that), and for something urgent while a route that wakes a closed app comes after the direct one (that
+  one goes at once, not after a dial). With the relay down and no such route after it, the direct route dials as any
+  route would.
+- An answer (`ack`, `fsk`) goes back by the route the thing it answers came by, and on the direct route on the very
+  stream it came on (`Arrived.line`, `LiveLinks.sendOn`), else by another stream open to them: never to every device
+  of the sender, never by a dial.
+- What a route of live links brings waits its turn with the rest, one at a time and in order, but no more than 128 of
+  its arrivals wait at once; the rest are dropped and counted (`Switchboard.droppedArrivals`), so a flood from someone's
+  device never holds the relay's arrivals up for long.
 - Sealed unless the sender says not to. Nothing unsealed is taken from someone a key is held for; from a name no
   key is held for, only a `hello` in the clear is shown to the app.
 - An answer never goes back by a route that costs money.

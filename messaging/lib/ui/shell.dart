@@ -112,6 +112,12 @@ class AppShell extends StatefulWidget {
     return dragged.clamp(260.0, most);
   }
 
+  /// The list, or the pane, as a part of the accessibility tree of its own, in a browser. Every page in either has a
+  /// barrier under it that takes out of that tree whatever was drawn before it, and with nothing between them the
+  /// pane's reached the list and the list's reached the rail: neither could be found by a screen reader, or by a
+  /// script driving the page (tool/web/e2e.mjs). On the other platforms the tree is left as it has been.
+  static Widget _apart(Widget pages) => PlatformInfo.isWeb ? Semantics(container: true, child: pages) : pages;
+
   /// The shell this page is in, to open things with; null on a page shown with none (a test of one screen).
   static AppShellState? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<_ShellScope>()?.shell;
 
@@ -960,8 +966,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
           Choice('New circle', Lucide.circle, () => show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new')),
           // Its invite link pasted: in at once, its spaces in the list's place.
           Choice('Join a circle by link', Lucide.link2, _joinByLink),
-          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart).
-          Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
+          // A Discord server's voice channels as a group of spaces (lib/ui/space_groups_ui.dart): voice, so not in a
+          // browser, which has no calls yet (Sms.callsHere).
+          if (Sms.callsHere) Choice('Add a Discord server', Lucide.link, () => show(const AddDiscordScreen(key: ValueKey('add-discord')), showing: 'new')),
         ]);
       case 'contacts':
         contacts();
@@ -1059,7 +1066,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
         NavItem(id: 'archive', icon: Lucide.archive, label: 'Archive', count: archivedCount, menu: _archiveRows),
         // The Marketplace, with how many updates wait (Matt, 2026-11-20: "Move plugins out of settings into a marketplace
         // button on the navigation rail with a marketplace icon"): "Market" on Dial-Up's taskbar, where six words share it.
-        NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
+        // Not in a browser, which has nowhere to keep a plugin and no texts for one to sort (Sms.browser).
+        if (!Sms.browser) NavItem(id: 'marketplace', icon: Lucide.store, label: 'Marketplace', short: 'Market', count: MarketState.instance.updates.length, menu: _marketRows),
         NavItem(id: 'settings', icon: Lucide.settings, label: 'Settings', count: Me.instance.unseen, menu: _settingsRows),
       ];
 
@@ -1324,10 +1332,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             },
                             child: NotificationListener<ScrollNotification>(
                               onNotification: _pillHeard,
-                              child: Navigator(
+                              child: AppShell._apart(Navigator(
                               key: _side,
                               onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const ConversationsScreen()),
-                            ),
+                            )),
                             ),
                           ),
                         ),
@@ -1447,11 +1455,11 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                       if (n.canHandlePop != _paneBack) setState(() => _paneBack = n.canHandlePop);
                       return false;
                     },
-                    child: Navigator(
+                    child: AppShell._apart(Navigator(
                       key: _pane,
                       observers: widget.paneObservers,
                       onGenerateRoute: (_) => PageRouteBuilder<void>(opaque: false, pageBuilder: (context, _, _) => const _Base()),
-                    ),
+                    )),
                   )),
                 )),
               ),

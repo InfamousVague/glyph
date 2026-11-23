@@ -7,6 +7,7 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/hub_link.dart';
+import 'package:ghost_messaging/net/p2p/node.dart';
 import 'package:ghost_messaging/net/p2p/p2p.dart';
 import 'package:ghost_messaging/net/packet.dart';
 import 'package:ghost_messaging/net/switchboard.dart';
@@ -46,10 +47,14 @@ class World {
     return i;
   }
 
-  /// [a] and [b] are friends, as each has the other in its list.
+  /// [a] and [b] are friends, as each has the other in its list; one that is running watches the other's coming and
+  /// going at the relay from now (as Net.refresh has the hub watch the people).
   void friends(Install a, Install b) {
     a.friends.add(b.account);
     b.friends.add(a.account);
+    for (final (i, other) in [(a, b), (b, a)]) {
+      if (i.running) i.hub.watch([other.account.id]);
+    }
   }
 
   /// Lets what is ready to run, run.
@@ -103,7 +108,17 @@ class Account {
 
 /// One device of an account: what it keeps (secrets and choices, as the app's stores), its node, its routes.
 class Install implements PeerBook {
-  Install._(this.world, this.account, this.policy, this.network, this.also) : device = NetCrypto.hex(NetCrypto.randomBytes(16));
+  Install._(this.world, this.account, this.policy, this.network, this.also, {String? device}) : device = device ?? NetCrypto.hex(NetCrypto.randomBytes(16));
+
+  /// [was]'s app deleted and put back on the same device: the same account and device name, nothing kept (a test puts
+  /// back what outlives an app, as an iPhone's Keychain does).
+  factory Install.again(Install was) {
+    final i = Install._(was.world, was.account, was.policy, was.network, was.also, device: was.device);
+    i.friends.addAll(was.friends);
+    i.known.addAll(was.known);
+    was.world.installs.add(i);
+    return i;
+  }
 
   final World world;
   final Account account;
@@ -136,6 +151,9 @@ class Install implements PeerBook {
 
   /// Whether an account is signed in here: its own other devices are then reached through its own name.
   bool signedIn = true;
+
+  /// Set before a start, the app starts with Direct switched off in Settings › Routes.
+  bool startOff = false;
 
   late FakeP2pNode node;
   late HubCarrier hub;
@@ -189,13 +207,18 @@ class Install implements PeerBook {
       plain: plain,
       friends: () => [for (final f in friends) to(f)],
       mine: () async => signedIn ? mine : null,
+      present: (id) => hub.here.value.contains(id),
       policy: policy,
       now: world.clock.now,
       timer: world.clock.timer,
     );
-    board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also]);
+    board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also], now: world.clock.now, timer: world.clock.timer);
+    if (startOff) board.off.add(p2p.carrier.id);
     _sub = board.received.listen(got.add);
     hub.helpers.addListener(_helpers);
+    // Who is connected to the relay, as the app watches the people it reaches (Net._apply).
+    hub.watch([for (final a in [...friends, ...known]) a.id]);
+    hub.presence.addListener(_presence);
     p2p.attach(board);
     running = true;
     await board.start();
@@ -207,6 +230,7 @@ class Install implements PeerBook {
   }
 
   void _helpers() => p2p.setHelpers(hub.helpers.value);
+  void _presence() => p2p.presenceChanged();
 
   /// The app closes. What it keeps stays.
   Future<void> stop() async {
@@ -215,6 +239,7 @@ class Install implements PeerBook {
     // (A core a test made hang is let answer: the clock that would time it out is the test's to move.)
     node.hangs = false;
     hub.helpers.removeListener(_helpers);
+    hub.presence.removeListener(_presence);
     await _sub?.cancel();
     await board.stop();
     await p2p.shutdown();
@@ -255,11 +280,22 @@ class _InstallSigner implements NetSigner {
 }
 
 /// A secret store that can be locked, as an iPhone's Keychain is before its first unlock: nothing is read or written.
+/// With [gate] set, a read waits until it completes, as a slow store's does.
 class LockableStore extends MemoryFsStore {
   bool locked = false;
+  Completer<void>? gate;
+
+  /// How many reads are waiting at the [gate] now.
+  int waiting = 0;
   @override
   Future<String?> read(String name) async {
     if (locked) throw StateError('locked');
+    final g = gate;
+    if (g != null) {
+      waiting++;
+      await g.future;
+      waiting--;
+    }
     return super.read(name);
   }
 
@@ -340,4 +376,75 @@ class PlainCarrier implements Carrier {
     b.twin = a;
     return (a, b);
   }
+}
+
+/// The handshake that opens a direct stream (lib/net/p2p/p2p_carrier.dart), worked out here apart from the route, so a
+/// test holds the route to its bytes:
+///
+///     [0][2][a nonce: 16 bytes]                    each end, as the stream opens
+///     [0][3][HMAC-SHA256(link key, "ghost-p2p link v2\n" | from account (16) | from node (32) | to account (16) |
+///            to node (32) | the other end's nonce (16) | this end's (16))]
+///
+/// The end that dialled proves first, once the other's nonce has come; the end dialled proves back once that proof
+/// checks out. The link key is made from what the two accounts seal their packets with (P2p.linkKey).
+abstract final class LinkWords {
+  static final _v2 = utf8.encode('ghost-p2p link v2\n');
+
+  static Uint8List linkKey(Uint8List pairKey) => NetCrypto.derive(pairKey, 'p2p link');
+
+  static Uint8List nonce(List<int> n) => Uint8List.fromList([0, 2, ...n]);
+
+  static Uint8List proof(Uint8List linkKey, {required String fromAccount, required String fromNode, required String toAccount, required String toNode, required List<int> toNonce, required List<int> fromNonce}) =>
+      Uint8List.fromList([0, 3, ...NetCrypto.hmac(linkKey, [..._v2, ...NetCrypto.unhex(fromAccount), ...NetCrypto.unhex(fromNode), ...NetCrypto.unhex(toAccount), ...NetCrypto.unhex(toNode), ...toNonce, ...fromNonce])]);
+}
+
+/// One end of a direct stream played by hand ([LinkWords]), as [account]'s device at [node] would play it, toward
+/// [them]: its nonce at once, then its proof when its turn comes. What the other end says is in [heard]; what it says
+/// after the handshake, in [frames]. [proves] false never proves (a device that takes a stream and says nothing more).
+class HandEnd {
+  HandEnd(this.stream, {required this.linkKey, required this.account, required this.node, required this.them, this.proves = true}) : nonce = NetCrypto.randomBytes(16) {
+    stream.frames.listen(_heard, onDone: () => done = true, onError: (Object _) => done = true);
+    unawaited(stream.add(LinkWords.nonce(nonce)).catchError((Object _) {}));
+  }
+
+  final P2pStream stream;
+  final Uint8List linkKey;
+  final String account, node, them;
+  final bool proves;
+  final Uint8List nonce;
+
+  /// The other end's nonce, once it has come.
+  Uint8List? theirs;
+
+  /// Whether the other end's proof has come and is the one its account would make.
+  bool proved = false;
+  bool done = false;
+  final heard = <Uint8List>[];
+  final frames = <Uint8List>[];
+
+  bool get _dialled => !stream.incoming;
+
+  Uint8List _mine() => LinkWords.proof(linkKey, fromAccount: account, fromNode: node, toAccount: them, toNode: stream.nodeId, toNonce: theirs!, fromNonce: nonce);
+  Uint8List _theirs() => LinkWords.proof(linkKey, fromAccount: them, fromNode: stream.nodeId, toAccount: account, toNode: node, toNonce: nonce, fromNonce: theirs!);
+
+  void _heard(Uint8List f) {
+    heard.add(f);
+    if (theirs == null) {
+      if (f.length == 18 && f[0] == 0 && f[1] == 2) {
+        theirs = f.sublist(2);
+        if (_dialled && proves) unawaited(stream.add(_mine()).catchError((Object _) {}));
+      }
+      return;
+    }
+    if (!proved && f.length == 34 && f[0] == 0 && f[1] == 3) {
+      proved = _same(f, _theirs());
+      if (proved && !_dialled && proves) unawaited(stream.add(_mine()).catchError((Object _) {}));
+      return;
+    }
+    frames.add(f);
+  }
+
+  static bool _same(List<int> a, List<int> b) => a.length == b.length && [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((x) => x);
+
+  Future<void> add(Uint8List frame) => stream.add(frame);
 }

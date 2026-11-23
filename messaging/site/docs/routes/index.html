@@ -102,11 +102,13 @@
 </div></div><figcaption>Settings › Routes, in a build that has the direct route.</figcaption></figure>
 
 <ul>
-<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection. Switch on <b>Only through link helpers</b> and it sees the helper's address instead; links are slower then.</li>
+<li><b>Who counts as a friend:</b> only someone you and they both said yes to, as a friend by username or by number. People you share a group with, and people who have only asked, are never linked with or told anything.</li>
+<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection, and on a phone only while you're using the app. Switch on <b>Only through link helpers</b> and friends are told at once, and from then see the helper's address instead; links are slower then. It is off unless you switch it on, because where the relay names no link helper, nothing would link at all.</li>
 <li><b>Link helpers</b> are servers that help two devices find each other across networks, and pass their sealed packets along where no straight path can be made. The relay you use names them. Where it names none, direct links work only between devices on the same network.</li>
-<li><b>On a phone</b> the direct network runs only while there is something to send, so it doesn't wear the battery down. On a computer it stays up while the route is on.</li>
+<li><b>On a phone</b> the direct network runs only for something of your own: a message you send, or the relay being unreachable while you use the app. It stops two minutes after, whatever a friend's device does, so it doesn't wear the battery down. On a computer it stays up while the route is on.</li>
 <li><b>Invisible:</b> while you've chosen to be shown as Invisible, your device makes no direct links with friends' devices, since a link would show it is there. Your own devices still link with each other.</li>
 <li><b>Off:</b> switch <b>Direct</b> off under Routes and nothing is linked, and nobody is told where your device is.</li>
+<li><b>If it can't start</b> on your device, <span class="ui-path">Settings › Routes</span> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
 <h2 id="texts">SMS as a route</h2>

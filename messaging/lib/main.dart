@@ -201,7 +201,7 @@ final Map<String, GlacierTypography> _typographies = {};
 GlacierTypography ghostTypography(String emoji) => _typographies[emoji] ??= _typography(emoji);
 
 GlacierTypography _typography(String emoji) {
-  final family = emojiSet(emoji).family;
+  final family = emojiFamilyOf(emoji);
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
     fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family], 'Atkinson Hyperlegible Next Variable': [family]},

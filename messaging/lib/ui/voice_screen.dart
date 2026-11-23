@@ -480,8 +480,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     final missed = friends.isEmpty ? const <Buddy>[] : await v.share(c, friends);
     if (!mounted) return;
     toast(context, friends.isEmpty ? '${c.name} made' : '${c.name} shared with ${friends.length - missed.length}${missed.isEmpty ? '' : '; couldn\'t reach ${missed.map((f) => f.shown).join(', ')}'}');
-    // A texting or Files space has no call: its page opens, its chat ready.
-    if (!c.hasVoice) {
+    // A texting or Files space has no call: its page opens, its chat ready. As any space does in a browser, which has
+    // no calls yet (Sms.callsHere).
+    if (!c.hasVoice || !Sms.callsHere) {
       final shell = AppShell.maybeOf(context);
       if (shell != null) {
         v.view(c);
@@ -538,7 +539,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
               ),
               SizedBox(height: t.space(6)),
               PaneSection(children: [
-                _kind.hasVoice
+                _kind.hasVoice && Sms.callsHere
                     ? SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(LucideMore.phoneCall, size: 18), label: 'Start the call', onPress: _make)
                     : SettingRow(key: const ValueKey('new-space-make'), icon: AppIcon(Lucide.check, size: 18), label: 'Make the space', onPress: _make),
               ]),

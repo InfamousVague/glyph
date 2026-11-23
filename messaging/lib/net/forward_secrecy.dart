@@ -304,6 +304,9 @@ class ForwardSecrecy {
   /// The devices of [peer] heard from within [useFor], by name: for this account's own name, its siblings.
   Set<String> devicesOf(String peer) => {for (final b in targets(peer)) b.device};
 
+  /// Whether the packet tagged [tag] was passed on already ([markPassed]).
+  bool wasPassed(String tag) => _passed.containsKey(tag);
+
   /// Marks the packet tagged [tag] as passed on; false where it was already. Kept across restarts.
   bool markPassed(String tag) {
     if (_passed.containsKey(tag)) return false;

@@ -560,7 +560,9 @@ class _Ways extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
       child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
-        if (compose != null)
+        // A text is a phone's to send, and the share sheet a phone's or a computer's: neither in a browser (Sms.browser),
+        // where the link is copied or shown as its QR code.
+        if (compose != null && !Sms.browser)
           _Pill(
             key: const ValueKey('invite-text'),
             icon: Lucide.messageSquare,
@@ -581,7 +583,7 @@ class _Ways extends StatelessWidget {
             toast(root, target.copied ?? 'Invite link copied.');
           },
         ),
-        _Pill(
+        if (!Sms.browser) _Pill(
           key: const ValueKey('invite-share'),
           icon: Lucide.share2,
           label: 'Share link…',
