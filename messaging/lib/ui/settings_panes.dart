@@ -1295,7 +1295,7 @@ List<Widget> _updates(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.download),
           label: 'Automatic updates',
-          hint: Text('New versions from ${_host(u)}, downloaded and installed by the app. It is the only connection the app makes.'),
+          hint: Text('New versions from ${_host(u)}, downloaded and installed by the app.'),
           control: GlacierSwitch(
             checked: u.auto,
             ariaLabel: 'Automatic updates',

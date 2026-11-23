@@ -38,7 +38,8 @@ class EmbedService {
   /// Its oEmbed address for a link, or null where its page's Open Graph lines are read.
   final Uri Function(String url)? oembed;
 
-  /// Its pictures are square (album covers), not wide (a video's frame).
+  /// Its pictures are square (album covers), not wide (a video's frame): [EmbedView] shows the middle of one, 1.6 to 1,
+  /// a little taller than a video's frame, so a cover doesn't make the card as tall as it is wide.
   final bool square;
 
   /// What it links to plays: the picture wears a play mark.

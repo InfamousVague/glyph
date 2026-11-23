@@ -56,8 +56,9 @@ class Bridge {
     return `${this.guildId}/${this.channelId}`;
   }
 
-  /** Joins the Discord channel and the Ghost space at once. If either fails the other is left again and a
-   * BridgeError thrown; once both are in, the sound, the people list and the leave clock start. */
+  /** Joins the Discord channel and the Ghost space at once. If either fails, or the bridge is stopped meanwhile, the
+   * other is left again and a BridgeError thrown; once both are in, the sound, the people list and the leave clock
+   * start. */
   async start() {
     const o = this.owner;
     this.engine = new AudioEngine({ codec: o.codec });
@@ -82,6 +83,14 @@ class Bridge {
     });
     const space = withTimeout(this.space.open(), o.joinTimeoutMs, () => new BridgeError('hub', 'the relay hub did not let the bridge in'));
     const [v, s] = await Promise.allSettled([voice, space]);
+    // Stopped while joining (Discord dropped the voice connection meanwhile, or the bot is shutting down): leave both
+    // again, and say so, or ensure() would answer the seed of a bridge that is not there. Before the check below,
+    // since stopping also ends the wait for the space.
+    if (this.stopped) {
+      if (v.status === 'fulfilled') v.value.destroy();
+      await this.space.close();
+      throw new BridgeError('voice', 'the bridge was stopped while joining');
+    }
     if (v.status === 'rejected' || s.status === 'rejected') {
       if (v.status === 'fulfilled') v.value.destroy();
       await this.space.close();
@@ -90,12 +99,6 @@ class Bridge {
       throw e instanceof BridgeError ? e : new BridgeError(v.status === 'rejected' ? 'voice' : 'hub', e?.message ?? String(e));
     }
     this.voice = v.value;
-    // Stopped while joining (Discord dropped the voice connection meanwhile): leave both again.
-    if (this.stopped) {
-      this.voice.destroy();
-      await this.space.close();
-      return;
-    }
     this.ticker = o.ticker(() => this.tick());
     this.ticker.start();
     this.peopleTimer = o.setInterval(() => this.sendPeople(), PEOPLE_EVERY_MS);
@@ -211,7 +214,7 @@ export class Bridges {
     this.setInterval = every;
     this.clearInterval = stopEvery;
     this.bridges = new Map(); // "guild:channel" -> Bridge
-    this.starting = new Map(); // "guild:channel" -> Promise
+    this.starting = new Map(); // "guild:channel" -> { bridge, done: Promise }
     this.nicknames = new Map(); // guild -> what it was last set to
     this.nicknameTimers = new Map();
   }
@@ -235,7 +238,7 @@ export class Bridges {
       have.touched();
       return { seed, bridge: this.hub.me.id };
     }
-    let starting = this.starting.get(key);
+    let starting = this.starting.get(key)?.done;
     if (!starting) {
       // A bot is in one voice channel per server at most: another bridged channel there gives way only when nobody
       // from Ghost is in it.
@@ -250,7 +253,7 @@ export class Bridges {
         if (!b.stopped) this.bridges.set(key, b);
         this.log(`bridge ${b.tag}: in (${this.bridges.size} bridged)`);
       }).finally(() => this.starting.delete(key));
-      this.starting.set(key, starting);
+      this.starting.set(key, { bridge: b, done: starting });
     }
     await starting;
     return { seed, bridge: this.hub.me.id };
@@ -293,8 +296,11 @@ export class Bridges {
     }, this.nicknameDelayMs));
   }
 
-  /** Every running bridge stopped (the bot is shutting down). */
+  /** Every running bridge stopped (the bot is shutting down), and every one still joining: those are waited for, so
+   * a voice connection made meanwhile is closed too. */
   async stopAll(why) {
-    await Promise.all([...this.bridges.values()].map((b) => b.stop(why)));
+    const starting = [...this.starting.values()];
+    await Promise.all([...this.bridges.values(), ...starting.map((s) => s.bridge)].map((b) => b.stop(why)));
+    await Promise.all(starting.map((s) => s.done.catch(() => {})));
   }
 }

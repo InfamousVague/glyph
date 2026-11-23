@@ -155,4 +155,63 @@ void main() {
     expect((await send(body)).$1, 503);
     expect(calls, isEmpty);
   });
+
+  // Who sent a report is known only once its body is read, so what can be told before is: a stranger can't have the
+  // relay hold megabytes it will throw away.
+  test('nothing is read for a request with no signature, one too big, or too many at once or from one address', () async {
+    await start();
+    // A raw request whose body never finishes arriving: answered at once only if the body is not waited for.
+    Future<int> raw(Map<String, String> headers, {int length = 1000}) async {
+      final s = await Socket.connect('127.0.0.1', base.port);
+      s.write('POST /feedback HTTP/1.1\r\nhost: x\r\ncontent-length: $length\r\n${headers.entries.map((e) => '${e.key}: ${e.value}\r\n').join()}\r\n{');
+      await s.flush();
+      final head = await utf8.decoder.bind(s).first.timeout(const Duration(seconds: 5));
+      s.destroy();
+      return int.parse(head.split(' ')[1]);
+    }
+
+    expect(await raw(const {}), 401, reason: 'no signature: not read');
+    expect(await raw({'x-ghost-key': 'AAAA', 'x-ghost-sig': 'AAAA', 'x-ghost-time': '${DateTime.now().millisecondsSinceEpoch}'}), 401, reason: 'not a key\'s size');
+    expect(await raw(maya.signed(const []), length: Feedback.most + 1), 413, reason: 'said to be too big');
+    expect(calls, isEmpty);
+
+    // As many bodies as may be read at once, each begun and not finished; one more is told to try again.
+    final open = <Socket>[];
+    for (var i = 0; i < Feedback.bodiesInFlight; i++) {
+      final s = await Socket.connect('127.0.0.1', base.port);
+      s.write('POST /feedback HTTP/1.1\r\nhost: x\r\ncontent-length: 1000\r\n${maya.signed(const []).entries.map((e) => '${e.key}: ${e.value}\r\n').join()}\r\n{');
+      await s.flush();
+      open.add(s);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(await raw(maya.signed(const [])), 503);
+    for (final s in open) {
+      s.destroy();
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final body = {'type': 'bug', 'text': 'Crash'};
+    expect((await send(body)).$1, 200, reason: 'the slots were given back');
+
+    // One address, however many keys it signs with: so many bodies an hour.
+    var refused = 0;
+    for (var i = 0; i < Feedback.perAddressAnHour; i++) {
+      if (await raw(_Sender(10 + i).signed(const []), length: 1) == 429) refused++;
+    }
+    expect(refused, Feedback.bodiesInFlight + 2, reason: 'the bodies read above were this address\'s too');
+  });
+
+  test('a screenshot\'s name can\'t add a line to the form sent on', () async {
+    await start();
+    final (status, _) = await send({
+      'type': 'bug',
+      'text': 'Crash',
+      'shots': [
+        {'name': 'a\r\nX-Evil: 1\r\n\r\n"b.png', 'mime': 'image/png', 'data': base64Encode(List.filled(20, 7))},
+      ],
+    });
+    expect(status, 200);
+    final form = latin1.decode(calls[1].$4);
+    expect(form, contains('filename="aX-Evil: 1b.png"\r\nContent-Type: image/png\r\n\r\n'));
+    expect(form.split('\r\n\r\n').first, isNot(contains('X-Evil: 1\r')));
+  });
 }
