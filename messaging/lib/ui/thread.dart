@@ -540,6 +540,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // A computer with friends of its own (lib/desktop/own_calls.dart) writes to a friend by username itself.
         final own = !Sms.paired || (Sms.ownNetwork && to.length == 1 && UsernameChats.isUsername(to.first));
         final byRoute = files.isEmpty && to.length == 1 && body.isNotEmpty && own && await Friends.instance.sendText(to.first, body);
+        // A friend by username has no number: what the routes didn't take is never handed to texting (here, or on the
+        // phone a computer is paired with), which would write the words, unsealed, into the phone's own store of texts
+        // (or open Google Messages beside it) for an "@name" no carrier can deliver (found in review, 2026-11-23). It
+        // fails here with the reason, and what was written is put back.
+        if (!byRoute && to.any(UsernameChats.isUsername)) {
+          throw _NotSent(files.isNotEmpty
+              ? 'pictures and files can\'t be sent to a friend by username yet'
+              : own
+                  ? 'no connection. A friend by username is reached over the internet, through the relay'
+                  : 'a friend by username is written to from the phone itself, or from a computer with an account of its own');
+        }
         if (!byRoute) await Sms.instance.send(to, body, attachments: files);
       }
       // No sound for one's own message going: only one coming in is heard (Matt, 2026-11-18: "remove the sound for

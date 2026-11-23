@@ -204,4 +204,27 @@ void main() {
     await pumpEventQueue();
     expect(await _Install().attach(hub), {'ok': true, 'held': 0});
   });
+
+  // The app's docs/OPEN_NETWORK.md, section 2: "the relay's hub says which to use as an app signs in (`"helpers"`, from
+  // `GHOST_LINK_HELPERS`), as it hands out the call relay".
+  test('the link helpers the relay was given are said to each app as it signs in; with none, nothing is said of them', () async {
+    final hub = Hub(helpers: ['https://link.example', ' https://two.example/x ', 'http://not-https.example', 'wss://nor.this.example', 'https://', 'https://${'h' * 200}.example', 'https://three.example', 'https://four.example', 'https://five.example']);
+    expect(hub.helpers, ['https://link.example', 'https://two.example/x', 'https://three.example', 'https://four.example'], reason: 'https addresses of 200 characters at most, the first four');
+    final a = _Install();
+    expect(await a.attach(hub), {'ok': true, 'held': 0, 'helpers': ['https://link.example', 'https://two.example/x', 'https://three.example', 'https://four.example']});
+    // A closed app's look at what is held is no sign-in: nothing is handed out.
+    final s = _MemorySocket();
+    final said = <Map>[];
+    s.said.listen((d) => said.add(jsonDecode(d as String) as Map));
+    hub.attach(s);
+    await pumpEventQueue();
+    final sig = P256.sign(a.scalar, [...utf8.encode(Hub.greeting), ..._unhex(said.single['hello'] as String)], _bytes(32));
+    s.say(jsonEncode({'id': a.id, 'key': base64Encode(a.key), 'sig': base64Encode(sig), 'peek': true}));
+    await pumpEventQueue();
+    expect(said.last, {'ok': true, 'held': 0, 'peek': true, 'here': true});
+    // None given: the answer is what it was before there were any, which an app from before reads the same.
+    expect(Hub().helpers, isEmpty);
+    expect(await _Install().attach(Hub()), {'ok': true, 'held': 0});
+    expect(await _Install().attach(Hub(helpers: ['', '  ', 'nonsense'])), {'ok': true, 'held': 0});
+  });
 }

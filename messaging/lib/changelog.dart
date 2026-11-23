@@ -23,6 +23,10 @@ class ReleaseNotes {
 }
 
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.14', '2026-11-23', [
+    'Friends by username: when a message to one can\'t go (no connection, or a picture, which can\'t be sent to a friend by username yet), the conversation now says why and keeps what you wrote. Before, on Android, it was handed to texting, which kept the words unsealed with your texts and couldn\'t deliver them.',
+    'Steadier connections: the relay no longer takes compressed messages, which closes a way one message could have stopped it.',
+  ]),
   ReleaseNotes('0.12.13', '2026-11-22', [
     'Your own relay server: Settings › Routes can point the app at a relay you run yourself. It checks the address answers before switching, shows which relay is in use, and goes back to ours in one tap. People on different relays can\'t reach each other, and the docs say what else changes. The guide to running one is in the docs.',
     'Make it yours: build your own look from four colours in Settings › Appearance and share it as a short code, or paste a friend\'s. There\'s a Readable font for easier reading, too.',

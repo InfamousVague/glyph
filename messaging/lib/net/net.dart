@@ -10,6 +10,8 @@ import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
 import 'hub_link.dart';
+import 'p2p/node.dart';
+import 'p2p/p2p.dart';
 import 'packet.dart';
 import 'relay_choice.dart';
 import 'sms_carrier.dart';
@@ -34,9 +36,19 @@ class NetEvent {
 ///
 /// What the person chooses is kept with their other choices: `net_on`, `net_hub` (the relay server's address),
 /// `net_off` (the routes switched off, by name).
+///
+/// **The direct route** (lib/net/p2p; docs/OPEN_NETWORK.md, section 2) is there where the build has its core
+/// ([p2pNode]): after the relay's hub in the order, linking only with this account's own devices and with friends
+/// ([friends]), and kept in step with the people, how the person chose to be shown, the app being put away and
+/// coming back, and the relay in use.
 class Net extends ChangeNotifier implements PeerBook {
   Net._();
   static final Net instance = Net._();
+
+  /// Makes this device's node on the direct network: the core's own (native/p2p, over lib/net/p2p/node_ffi.dart), set
+  /// before the routes are set up in a build that has it. Null, or answering null, there is no core here: no direct
+  /// route is made, and Settings › Routes shows none.
+  static P2pNode? Function()? p2pNode;
 
   /// The relay server the app is given: ours. Anyone can run their own (relay/README.md) and put its address here.
   static const defaultHub = 'wss://gogho.st/hub';
@@ -59,6 +71,52 @@ class Net extends ChangeNotifier implements PeerBook {
 
   Switchboard? get board => _board;
   HubCarrier? get hub => _hub;
+
+  // --- the direct route (lib/net/p2p) ---------------------------------------------------------------------------------
+
+  P2p? _p2p;
+
+  /// The app's hold on the direct network; null where this build has no core, or the routes are not set up.
+  P2p? get p2p => _p2p;
+
+  /// Goes up whenever what Settings › Routes shows of the direct route changes: the devices known, the links, the
+  /// link helpers. Apart from the routes' own changes, which friends' unanswered words are sent again on.
+  final ValueNotifier<int> direct = ValueNotifier(0);
+
+  void _directChanged() => direct.value++;
+
+  /// Those of [people] who are friends: whom the direct route links with, and tells where this device is. Never
+  /// someone who has only asked or been asked, nor the other members of a group.
+  List<Peer> get friends => [for (final p in _peers.values) if (_friendIds.contains(p.id)) p];
+  Set<String> _friendIds = {};
+
+  HubCarrier? _helpersOf;
+
+  /// The relay named its link helpers as the app signed in to it ([HubCarrier.helpers]).
+  void _helpersSaid() {
+    final hub = _helpersOf;
+    if (hub != null) _p2p?.setHelpers(hub.helpers.value);
+  }
+
+  void _followHelpers(HubCarrier? hub) {
+    _helpersOf?.helpers.removeListener(_helpersSaid);
+    _helpersOf = hub;
+    hub?.helpers.addListener(_helpersSaid);
+  }
+
+  Timer? _p2pTimer;
+
+  /// Reads what the direct network keeps, now and every half minute until it can be read (a secret store that is
+  /// locked, as [_fsAgain] waits out).
+  void _loadDirect(P2p p2p) {
+    unawaited(p2p.tryLoad().then((ok) {
+      if (ok || !identical(p2p, _p2p)) return;
+      _p2pTimer?.cancel();
+      _p2pTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+        if (!identical(p2p, _p2p) || p2p.loaded || await p2p.tryLoad()) t.cancel();
+      });
+    }));
+  }
 
   Map<String, Object?>? _push;
 
@@ -86,6 +144,7 @@ class Net extends ChangeNotifier implements PeerBook {
   void setMode(String mode) {
     _mode = mode;
     _hub?.mode = mode;
+    _p2p?.setMode(mode);
   }
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
@@ -93,6 +152,7 @@ class Net extends ChangeNotifier implements PeerBook {
   void setAway(bool away) {
     _away = away;
     _hub?.awayNow = away;
+    _p2p?.setAway(away);
   }
 
   /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
@@ -181,14 +241,23 @@ class Net extends ChangeNotifier implements PeerBook {
       final me = await Sms.instance.netIdentity();
       id = me.id;
       await _readPeers();
+      final signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
       if (carriers != null) {
-        routes = carriers;
+        routes = [...carriers];
       } else {
-        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: _PhoneSigner(me.id, me.key))..push = _push);
+        final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: signer)..push = _push);
         final sms = _sms = SmsCarrier(_PhoneSms());
         routes = [hub, sms];
       }
+      // The direct route, where this build has the core: its node key in the secret store beside the account's words,
+      // never in the account's backup; a computer's node up whenever the route is on, a phone's only while there is
+      // something to say.
+      final node = p2pNode?.call();
+      final p2p = _p2p = node == null
+          ? null
+          : P2p(node: node, signer: signer, device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app), friends: () => friends, mine: mine, policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy());
+      if (p2p != null) routes.add(p2p.carrier);
       // This device's forward secrecy (GMFB-26): its prekeys in the secret store beside the account's words, never in
       // the account's backup. Where that store can't be read, none: everything is sealed the old way, as before.
       // Where it can't be read yet (an iPhone's Keychain before its first unlock), tried again every half minute and as
@@ -200,6 +269,15 @@ class Net extends ChangeNotifier implements PeerBook {
       board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty));
       board.changed.addListener(notifyListeners);
       _subs.add(board.received.listen(_received));
+      if (p2p != null) {
+        p2p
+          ..attach(board)
+          ..setMode(_mode)
+          ..setAway(_away)
+          ..addListener(_directChanged);
+        _followHelpers(_hub);
+        _loadDirect(p2p);
+      }
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));
       error = null;
@@ -220,6 +298,15 @@ class Net extends ChangeNotifier implements PeerBook {
     _hub?.nudge(away: away);
     final fs = _board?.fs;
     if (fs != null && !fs.loaded) unawaited(fs.tryLoad());
+    // The network may be another than when the app was put away: the direct route's node looks at its paths again.
+    final p2p = _p2p;
+    if (p2p != null) {
+      if (p2p.loaded) {
+        p2p.networkChanged();
+      } else {
+        unawaited(p2p.tryLoad());
+      }
+    }
   }
 
   Timer? _fsTimer;
@@ -243,9 +330,25 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
+    // Who of them is a friend, which is the direct route's question. A friend by username who said yes is addressed
+    // by it (`@name`); one who has only asked or been asked has no address (lib/standalone/chats.dart peersOf,
+    // android Buddies.kt). A friend by number is one the phone's own record says is (E2eState.isFriend), asked only
+    // where there is a direct route to ask for; a group's other members are neither.
+    final friends = <String>{for (final p in found.values) if ((p.address ?? '').startsWith('@')) p.id};
+    bool byNumber(Peer p) => (p.address ?? '').isNotEmpty && !p.address!.startsWith('@');
+    if (p2pNode != null && found.values.any(byNumber)) {
+      try {
+        final yes = {for (final s in await Sms.instance.e2eList()) if (s.isFriend) _digits(s.address)};
+        friends.addAll([for (final p in found.values) if (byNumber(p) && yes.contains(_digits(p.address!))) p.id]);
+      } catch (_) {
+        // Not answered now: whoever was a friend stays one.
+        friends.addAll(_friendIds.where(found.containsKey));
+      }
+    }
     _peers
       ..clear()
       ..addAll(found);
+    _friendIds = friends;
   }
 
   /// Stops the routes and forgets them: the app is closing, or a test is over.
@@ -256,16 +359,25 @@ class Net extends ChangeNotifier implements PeerBook {
     _subs.clear();
     _fsTimer?.cancel();
     _fsTimer = null;
-    final board = _board;
+    _p2pTimer?.cancel();
+    _p2pTimer = null;
+    final board = _board, p2p = _p2p;
     _board = null;
     _hub = null;
     _sms = null;
+    _p2p = null;
+    _followHelpers(null);
     if (board != null) {
       board.changed.removeListener(notifyListeners);
       await board.stop();
-      await board.dispose();
     }
+    if (p2p != null) {
+      p2p.removeListener(_directChanged);
+      await p2p.shutdown();
+    }
+    await board?.dispose();
     _peers.clear();
+    _friendIds = {};
     recent.clear();
     id = null;
   }
@@ -278,6 +390,8 @@ class Net extends ChangeNotifier implements PeerBook {
       await _readPeers();
     } catch (_) {}
     await _apply();
+    // Someone became a friend, or is one no longer: the direct route tells the one its card and forgets the other's.
+    unawaited(_p2p?.refresh());
     notifyListeners();
   }
 
@@ -367,6 +481,9 @@ class Net extends ChangeNotifier implements PeerBook {
     old.presence.removeListener(_presenceChanged);
     final hub = _hub = _presenceOf(HubCarrier(url: hubUrl, signer: old.signer)..push = _push);
     presence.value++;
+    // Another relay names its own link helpers as the app signs in to it; the one left behind's are not used on.
+    _p2p?.setHelpers(const []);
+    _followHelpers(hub);
     board.add(hub);
     await _apply();
     notifyListeners();
