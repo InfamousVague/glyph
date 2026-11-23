@@ -40,10 +40,10 @@ class Received {
   final bool sealed;
 }
 
-/// Who the routes can reach: the app's list of the installs it has exchanged keys with.
+/// Who the routes can reach: the app's list of the installs it has exchanged keys with, each by the name of its key.
+/// Never by an address, which the list may hold for someone it isn't theirs (found in review, 2026-11-23).
 abstract class PeerBook {
   Peer? byId(String id);
-  Peer? byAddress(String address);
 }
 
 /// Chooses a route for each thing sent, and makes one stream of what all of them bring (Matt, 2026-11-14:

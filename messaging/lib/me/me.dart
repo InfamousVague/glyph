@@ -405,6 +405,10 @@ class Me extends ChangeNotifier {
       case 'admin-badge':
       case 'admin-log':
         _waiting.remove('${m['dir']}:')?.complete(m);
+      case 'whois':
+        // To the lookup of the name it names, and nobody else's ([whois]).
+        final name = m['name'];
+        if (name is String) _waiting.remove(_lookingFor(name))?.complete(m);
       case 'link':
       case 'proof':
       case 'text':
@@ -412,7 +416,6 @@ class Me extends ChangeNotifier {
       case 'unlinked':
       case 'forgotten':
       case 'claim':
-      case 'whois':
       case 'badges':
       case 'released':
       case 'keep':
@@ -445,8 +448,13 @@ class Me extends ChangeNotifier {
       case 'err':
         final about = m['about'] as String?;
         final error = MeError((m['err'] as String?) ?? 'That did not work.');
-        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked".
-        for (final key in ['$about:${network ?? ''}', if (about == 'check' || about == 'code') 'linked:${network ?? ''}']) {
+        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked". A lookup's refusal
+        // names no name: it is the one lookup in flight's, lookups going one at a time ([whois]).
+        for (final key in [
+          '$about:${network ?? ''}',
+          if (about == 'check' || about == 'code') 'linked:${network ?? ''}',
+          if (about == 'whois') ...[for (final k in _waiting.keys) if (k.startsWith(_lookingFor(''))) k],
+        ]) {
           final c = _waiting.remove(key);
           if (c != null && !c.isCompleted) c.completeError(error);
         }
@@ -532,13 +540,15 @@ class Me extends ChangeNotifier {
     throw MeError('The phone does not do that for a computer.');
   }
 
-  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
+  /// Asks the relay server [what] and waits for its answer of kind [answer], in the waiting slot [key] (by default the
+  /// answer's kind and the network it is about).
+  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25), String? key}) {
     final stand = asking;
     if (stand != null) return stand(what);
     final hub = _hub;
     if (hub == null || !hub.sayHandles(what)) return Future.error(MeError('The relay server can\'t be reached right now.'));
     _app?.setFlag('me_used', true);
-    final key = '$answer:${what['p'] ?? ''}';
+    key ??= '$answer:${what['p'] ?? ''}';
     _waiting.remove(key);
     final done = _waiting[key] = Completer<Map<String, dynamic>>();
     return done.future.timeout(wait, onTimeout: () {
@@ -799,9 +809,40 @@ class Me extends ChangeNotifier {
     );
   }
 
-  /// Who has the username [name]: their install and its public key, or null where nobody does.
-  Future<({String id, String key})?> whois(String name) async {
-    final got = await _ask({'dir': 'whois', 'name': tidyHandle(name)}, 'whois');
+  /// Who has the username [name]: their install and its public key, or null where nobody does. A [MeError] where the
+  /// relay server can't be asked, or its answer isn't to the name asked.
+  ///
+  /// One lookup at a time, each answered by the name it asks for (found in review, 2026-11-23). There was one waiting
+  /// slot for every lookup, filled by whichever answer came first: two at once (two friend requests checked as the relay
+  /// handed them over together, an Add while a request was being checked) took each other's answers, so one timed out,
+  /// the other was given the first name's install, a friend's request was dropped as someone else's, and a friend was
+  /// asked under another's key. Now a lookup waits for the one before it, so the relay's refusal ("too many lookups"),
+  /// which names no name, can only be the one in flight's; a lookup of a name already being looked up shares its answer;
+  /// and each waits by its name ([_lookingFor]), taking only an answer that names it and is no lookup on another relay
+  /// (`at`).
+  Future<({String id, String key})?> whois(String name) {
+    final want = tidyHandle(name);
+    return _lookups[want] ??= () {
+      final run = _lookupTurn.then((_) => _lookUp(want));
+      _lookupTurn = run.then<void>((_) {}, onError: (Object _) {});
+      // A body, not an arrow: what an arrow gives back (the lookup taken out of the list, which is this very future)
+      // would be waited for by whenComplete, and the lookup would wait on itself for ever.
+      return run.whenComplete(() {
+        _lookups.remove(want);
+      });
+    }();
+  }
+
+  /// The lookups asked for and not yet answered, by name ([whois]), and the end of the line they wait in.
+  final Map<String, Future<({String id, String key})?>> _lookups = {};
+  Future<void> _lookupTurn = Future.value();
+
+  /// The waiting slot a lookup of [name] answers.
+  static String _lookingFor(String name) => 'whois:$name';
+
+  Future<({String id, String key})?> _lookUp(String want) async {
+    final got = await _ask({'dir': 'whois', 'name': want}, 'whois', key: _lookingFor(want));
+    if (got['name'] != want || got.containsKey('at')) throw MeError('The relay server can\'t be asked about @$want right now.');
     if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
     return (id: got['id'] as String, key: got['key'] as String);
   }

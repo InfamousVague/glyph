@@ -71,13 +71,21 @@ class SmsCarrier implements Carrier {
     state.value = CarrierState.off;
   }
 
+  /// Whether [address] is a phone number a data text can go to: digits, seven at least, with only the marks numbers are
+  /// written with. Never a username (`@maya`), a group's or a member's stand-in, or a sender's name: Android takes a data
+  /// text for "@maya" and fails it without a word, so it read as passed on (found in review, 2026-11-23).
+  static bool isNumber(String? address) {
+    final a = (address ?? '').trim();
+    return RegExp(r'^\+?[0-9 ().\-]+$').hasMatch(a) && a.replaceAll(RegExp(r'[^0-9]'), '').length >= 7;
+  }
+
   @override
-  bool reaches(Peer peer) => state.value == CarrierState.up && (peer.address ?? '').isNotEmpty;
+  bool reaches(Peer peer) => state.value == CarrierState.up && isNumber(peer.address);
 
   @override
   Future<Handed> send(Peer peer, Uint8List packet) async {
     final to = peer.address;
-    if (to == null || to.isEmpty) throw CarrierError('no number is known for them');
+    if (to == null || !isNumber(to)) throw CarrierError('no number is known for them');
     if (packet.length > perText) throw CarrierError('too long for a text');
     try {
       await bridge.send(to, packet);
