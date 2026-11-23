@@ -67,7 +67,7 @@ class HubRelay {
 
 /// Something that happened in a room: who is in it on joining, then who came and went.
 class RoomEvent {
-  const RoomEvent(this.room, {this.members, this.came, this.went, this.closed = false});
+  const RoomEvent(this.room, {this.members, this.came, this.went, this.closed = false, this.replaced = false});
   final String room;
 
   /// Who is in the room, said on joining it; or who came; or who went. One of them at a time.
@@ -77,6 +77,10 @@ class RoomEvent {
 
   /// The route was lost: nobody in the room can be reached by it until it is joined again.
   final bool closed;
+
+  /// With [closed]: the route was not lost but taken, by another connection of this same device (the hub's 4409: a
+  /// second window of the app, GMFB-47). A call is left for it, not mended (VoiceSession).
+  final bool replaced;
 }
 
 /// The route through a server's hub (relay/lib/hub.dart): this install dials out to it and is found there by its
@@ -373,7 +377,7 @@ class HubCarrier implements Carrier {
 
   /// Lets the connection go: everything waiting for an answer fails with [why], each room joined is said to be
   /// closed, and nobody is known to be here.
-  void _drop(String why) {
+  void _drop(String why, {bool replaced = false}) {
     final ws = _ws;
     _ws = null;
     _ready = false;
@@ -388,7 +392,7 @@ class HubCarrier implements Carrier {
     }
     _joining.clear();
     for (final room in _joined.keys) {
-      _rooms.add(RoomEvent(room, closed: true));
+      _rooms.add(RoomEvent(room, closed: true, replaced: replaced));
     }
     // Lost: nobody is known to be here until the hub says again.
     if (here.value.isNotEmpty || away.value.isNotEmpty || busy.value.isNotEmpty) {
@@ -421,7 +425,9 @@ class HubCarrier implements Carrier {
   /// The connection [ws] ended; nothing where it is no longer the one in use.
   void _gone(HubLink ws) {
     if (!identical(_ws, ws)) return;
-    _drop('the connection was lost');
+    // Closed by the hub for a newer connection of this same device (relay/lib/hub.dart, 4409): a second window of the
+    // app, started from the same folder (GMFB-47). Said to the rooms, so a call is left and not mended.
+    _drop('the connection was lost', replaced: ws is HubLinkEnd && (ws as HubLinkEnd).closeCode == 4409);
     _lost('The connection to the relay server was lost');
   }
 

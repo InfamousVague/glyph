@@ -96,10 +96,13 @@ class SpacePerson {
     required this.name,
     this.me = false,
     this.muted = false,
+    this.mutedForAll = false,
+    this.mutedForMe = false,
     this.guest = false,
     this.video = false,
     this.screen = false,
     this.stream,
+    this.back = false,
     this.role,
     this.owner = false,
     this.username,
@@ -110,7 +113,14 @@ class SpacePerson {
   final String id;
   final String name;
   final bool me;
+
+  /// Not heard here, for any reason: they muted themselves, or one of the two below.
   final bool muted;
+
+  /// Why, where it isn't their own doing (GMFB-49, Kevin: "muting should be split in communities"): a moderator muted
+  /// them for everyone (they can't unmute themselves), or this device alone stopped hearing them (Mute for me). Each
+  /// has its own mark on their tile ([SpaceWords.mutedIcon]).
+  final bool mutedForAll, mutedForMe;
   final bool guest;
 
   /// Video turned on; [stream] is its picture once it arrives (null until then, and always in a test).
@@ -119,6 +129,10 @@ class SpacePerson {
 
   /// What [stream] shows is their shared screen (GMFB-27): drawn whole, never cropped or mirrored.
   final bool screen;
+
+  /// This device's camera is the one on its back (GMFB-57): its own picture is not mirrored then, as a front
+  /// camera's is.
+  final bool back;
 
   /// Their role in the space, where it has roles (null for a group's channel).
   final Role? role;
@@ -153,9 +167,12 @@ class SpaceCall {
     this.deafened = false,
     this.video = false,
     this.micLocked = false,
+    this.micLockedWhy,
+    this.micLockedByRole = false,
     this.videoLocked = false,
     this.screen = false,
     this.onScreen,
+    this.onFlip,
     this.since,
     this.onMute,
     this.onDeafen,
@@ -216,9 +233,11 @@ class SpaceCall {
         name: s.name.isEmpty ? 'You' : s.name,
         me: true,
         muted: s.muted || s.deafened,
+        mutedForAll: room?.mutedForAll(meId) ?? false,
         video: s.video || s.screen,
         screen: media?.localScreen.value != null,
         stream: media?.localScreen.value ?? media?.localVideo.value,
+        back: s.backCamera,
         role: roleOf(meId),
         owner: roster?.isOwner(meId) ?? false,
       ),
@@ -229,7 +248,9 @@ class SpaceCall {
           id: m.id,
           // A hand raised to speak on a stage, before the name, so every design shows it (GMFB-29).
           name: m.hand ? '✋ ${v.nameOf(m.id)}' : v.nameOf(m.id),
-          muted: m.muted || (room != null && !room.heard(m.id)),
+          muted: m.muted || (room != null && !room.heard(m.id)) || v.silenced(m.id),
+          mutedForAll: room?.mutedForAll(m.id) ?? false,
+          mutedForMe: v.silenced(m.id),
           guest: m.guest,
           video: m.video,
           screen: m.screen,
@@ -253,9 +274,12 @@ class SpaceCall {
       deafened: s.deafened,
       video: s.video,
       micLocked: s.locked,
+      micLockedWhy: s.locked ? room?.micLockedWhy : null,
+      micLockedByRole: s.locked && room != null && !room.mutedForAll(meId),
       videoLocked: s.videoLocked,
       screen: s.screen,
       onScreen: s.canShareScreen ? (context) => unawaited(toggleScreenShare(context, s)) : null,
+      onFlip: s.canFlipCamera ? () => unawaited(s.flipCamera()) : null,
       since: s.since,
       onMute: () => s.setMuted(!s.muted),
       onDeafen: () => s.setDeafened(!s.deafened),
@@ -301,8 +325,18 @@ class SpaceCall {
   final bool screen;
   final void Function(BuildContext context)? onScreen;
 
+  /// Changes between the front and the back camera (GMFB-57, Kevin: "Add a button to flip camera on mobile
+  /// versions"). Null where there is nothing to flip, and a design then draws no button: a computer, video off, or
+  /// the screen shared in the camera's place.
+  final VoidCallback? onFlip;
+
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn video on.
   final bool micLocked, videoLocked;
+
+  /// Why the microphone is locked, in a sentence for the mute button to say when pressed (GMFB-49); and whether it is
+  /// this device's role that may not speak (a stage's listener), not a moderator's mute.
+  final String? micLockedWhy;
+  final bool micLockedByRole;
 
   /// When this device came into the call.
   final DateTime? since;
@@ -399,7 +433,7 @@ class SpaceVideo extends StatelessWidget {
     final stream = person.stream;
     // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
     if (stream != null) {
-      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen, contain: person.screen);
+      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen && !person.back, contain: person.screen);
       return person.screen ? ColoredBox(color: const Color(0xFF000000), child: view) : view;
     }
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));
@@ -480,9 +514,16 @@ abstract final class SpaceWords {
   static String mute(SpaceCall c) => c.muted ? 'Unmute' : 'Mute';
   static String video(SpaceCall c) => c.video ? 'Stop video' : 'Video';
   static String deafen(SpaceCall c) => c.deafened ? 'Undeafen' : 'Deafen';
-  static const leave = 'Leave', chat = 'Chat', people = 'People', invite = 'Invite', settings = 'Settings', minimize = 'Minimise', devices = 'Devices';
+  static const leave = 'Leave', chat = 'Chat', people = 'People', invite = 'Invite', settings = 'Settings', minimize = 'Minimise', devices = 'Devices', flip = 'Flip camera';
   static LucideIcon muteIcon(SpaceCall c) => c.muted ? LucideMore.micOff : Lucide.mic;
+
+  /// The mark on someone who isn't heard, and its words (GMFB-49), so anyone can tell which mute it is: a lock where a
+  /// moderator muted them for everyone, a crossed speaker where only this device stopped hearing them, the crossed
+  /// microphone where they muted themselves.
+  static LucideIcon mutedIcon(SpacePerson p) => p.mutedForAll ? Lucide.lock : (p.mutedForMe ? LucideMore.volumeX : LucideMore.micOff);
+  static String mutedWords(SpacePerson p) => p.mutedForAll ? 'muted for everyone' : (p.mutedForMe ? 'muted for you' : 'muted');
   static LucideIcon videoIcon(SpaceCall c) => c.video ? Lucide.video : LucideMore.videoOff;
+  static const LucideIcon flipIcon = Lucide.refreshCw;
   static LucideIcon deafenIcon(SpaceCall c) => c.deafened ? LucideMore.headphoneOff : LucideMore.headphones;
 }
 

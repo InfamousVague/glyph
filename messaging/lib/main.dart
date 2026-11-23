@@ -57,6 +57,7 @@ import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
 import 'ui/account_screens.dart' show RestartScreen;
 import 'ui/add_me.dart' show askToAdd;
+import 'ui/call_moved_note.dart';
 import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
@@ -262,8 +263,9 @@ class GhostMessagingApp extends StatelessWidget {
             child: HapticsProvider(
               enabled: true,
               // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
-              // (lib/ui/recording_float.dart); nothing floats over the pages.
-              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: child!))),
+              // (lib/ui/recording_float.dart); nothing floats over the pages but the note that a call moved to
+              // another of the person's devices (lib/ui/call_moved_note.dart, GMFB-50).
+              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: CallMovedNote(child: child!)))),
             ),
           ),
           home: home ?? const _Home(),

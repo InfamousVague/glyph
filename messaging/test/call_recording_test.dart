@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/circles/circle.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
@@ -11,7 +13,9 @@ import 'package:ghost_messaging/plugins/scribe.dart';
 import 'package:ghost_messaging/voice/mp4_names.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
 import 'package:ghost_messaging/voice/scribe.dart';
-import 'package:ghost_messaging/voice/voice.dart' show SpaceKind;
+import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
+import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/voice.dart';
 
 /// Recording a call (lib/voice/recorder.dart, lib/voice/mp4_names.dart, lib/plugins/record_call.dart; Matt,
 /// 2026-11-19: "a "record call" plugin where it records the call to an MP4 with multiple named audio tracks", and
@@ -265,4 +269,153 @@ void main() {
       }
     });
   });
+
+  // GMFB-52 ("After a user says include me I expect them to show up in the mixer and their audio to be recorded
+  // however I don't see them in the mixer or their audio in the all"): the recorder looked for each voice in the
+  // streams the call's tiles draw, which hold pictures only, so nobody was ever tapped. It asks the media now
+  // (SoundMedia), and follows a connection that is made again mid-call.
+  group('whose voice is tapped (GMFB-52)', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('ghost/recorder');
+    final calls = <MethodCall>[];
+    late Directory dir;
+    late _SoundsMedia media;
+    late VoiceSession s;
+
+    /// The taps asked of the native half, as "key track".
+    List<String> adds() => [for (final c in calls) if (c.method == 'add') '${(c.arguments as Map)['key']} ${(c.arguments as Map)['track']}'];
+
+    /// Lets what the recorder does after the session or the media changes run.
+    Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+
+    setUp(() {
+      calls.clear();
+      dir = Directory.systemTemp.createTempSync('gm-rec-');
+      CallRecorder.folderForTest = dir;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (c) async {
+        calls.add(c);
+        return c.method == 'stop' ? <String, int>{} : true;
+      });
+      media = _SoundsMedia();
+      s = VoiceSession(channel: VoiceChannel.make('Lounge'), route: _NoRoute(), media: media, name: 'Matt')..joined = true;
+      Voice.instance.session = s;
+    });
+
+    tearDown(() async {
+      await CallRecorder.instance.stop();
+      Voice.instance.session = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+      CallRecorder.folderForTest = null;
+      dir.deleteSync(recursive: true);
+    });
+
+    /// What [id] says of themselves now: whether their voice may be in the recording being made.
+    void says(String id, {required bool yes}) {
+      final r = CallRecorder.instance.recording!;
+      s.members[id] = VoiceMember(id, name: id, notices: true, agreed: yes ? {r} : const {}, declined: yes ? const {} : {r});
+      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+      s.notifyListeners();
+    }
+
+    test('someone who says yes after the recording began is tapped, and is in the mixer', () async {
+      if (!CallRecorder.supported) return;
+      s.members['bob'] = const VoiceMember('bob', name: 'bob', notices: true);
+      media.sounds.value = {'bob': (track: 'mic-bob', link: 1)};
+      expect(await CallRecorder.instance.start(), isNull);
+      await settle();
+      expect(adds(), isEmpty, reason: 'nobody has said yes');
+      expect([for (final t in CallRecorder.instance.tracks) t.key], ['me']);
+
+      says('bob', yes: true);
+      await settle();
+      expect(adds(), ['bob mic-bob']);
+      expect([for (final t in CallRecorder.instance.tracks) (t.key, t.live)], [('me', true), ('bob', true)]);
+      expect(CallRecorder.instance.recordedNames, hasLength(2));
+
+      // And out again when they take it back.
+      says('bob', yes: false);
+      await settle();
+      expect([for (final c in calls) if (c.method == 'remove') (c.arguments as Map)['key']], ['bob']);
+      expect([for (final t in CallRecorder.instance.tracks) t.key], ['me']);
+    });
+
+    test('someone who said yes before their sound came is tapped when it comes', () async {
+      if (!CallRecorder.supported) return;
+      expect(await CallRecorder.instance.start(), isNull);
+      says('bob', yes: true);
+      await settle();
+      expect(adds(), isEmpty, reason: 'no sound of theirs yet');
+      media.sounds.value = {'bob': (track: 'mic-bob', link: 1)};
+      await settle();
+      expect(adds(), ['bob mic-bob']);
+    });
+
+    test('a connection made again is tapped anew, though their track has the same id', () async {
+      if (!CallRecorder.supported) return;
+      media.sounds.value = {'bob': (track: 'mic-bob', link: 1)};
+      expect(await CallRecorder.instance.start(), isNull);
+      says('bob', yes: true);
+      await settle();
+      expect(adds(), ['bob mic-bob']);
+
+      // The connection breaks: they stay in the recording, with nothing to tap for now.
+      media.sounds.value = const {};
+      await settle();
+      expect(adds(), ['bob mic-bob']);
+      expect([for (final c in calls) if (c.method == 'remove') c], isEmpty, reason: 'still in the call, still a yes');
+      expect([for (final t in CallRecorder.instance.tracks) t.key], ['me', 'bob']);
+
+      // And is made again: the same microphone, so the same track id, on a new connection.
+      media.sounds.value = {'bob': (track: 'mic-bob', link: 2)};
+      await settle();
+      expect(adds(), ['bob mic-bob', 'bob mic-bob'], reason: 'the new connection\'s track, into the same file');
+      final paths = {for (final c in calls) if (c.method == 'add') (c.arguments as Map)['path']};
+      expect(paths, hasLength(1));
+    });
+  });
+}
+
+class _NoRoute implements VoiceRoute {
+  @override
+  String get me => 'me-id';
+  @override
+  Future<List<String>> join(String room, String token) async => const [];
+  @override
+  void leave(String room) {}
+  @override
+  void send(String room, Uint8List bytes) {}
+  @override
+  void look(String room, String token) {}
+  @override
+  void unlook(String room) {}
+  @override
+  Stream<RoomEvent> get events => const Stream.empty();
+  @override
+  Stream<({String room, String from, Uint8List bytes})> get packets => const Stream.empty();
+  @override
+  Stream<({String room, List<String> members})> get looks => const Stream.empty();
+}
+
+/// WebRTC stood in for: the test says whose sound has come, on which track of which connection.
+class _SoundsMedia implements VoiceMedia, SoundMedia {
+  @override
+  final ValueNotifier<Map<String, double>> levels = ValueNotifier(const {});
+  @override
+  final ValueNotifier<Map<String, VoiceSound>> sounds = ValueNotifier(const {});
+  @override
+  Future<void> start() async {}
+  @override
+  Future<void> stop() async {}
+  @override
+  set muted(bool on) {}
+  @override
+  set deafened(bool on) {}
+  @override
+  Future<void> setVideo(bool on) async {}
+  @override
+  VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate}) => throw UnimplementedError();
+  @override
+  void setPeerVolume(String id, double volume) {}
+  @override
+  void setPeerMuted(String id, bool muted) {}
 }

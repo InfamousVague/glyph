@@ -181,7 +181,9 @@ class _VoicePanelState extends State<_VoicePanel> {
     return Stack(children: [
       Column(children: [
         _Header(call: call, onMenu: () => setState(() => _menu = !_menu), menuOpen: _menu),
-        Expanded(child: narrow(_People(call: call, compact: widget.compact))),
+        // The people keep to the middle; with video on, the videos take the panel's whole width (GMFB-58), so the
+        // people narrow themselves (_People).
+        Expanded(child: _People(call: call, compact: widget.compact, maxWidth: widget.maxWidth)),
         narrow(_Controls(call: call, chatOpen: widget.chatOpen, onChat: widget.onChat, bottom: widget.bottom)),
       ]),
       if (_menu) ...[
@@ -293,6 +295,8 @@ class _Menu extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         _MenuRow(icon: Lucide.userPlus, label: SpaceWords.invite, hint: 'Friends, a text or the link', onPressed: run(call.onInvite)),
         _MenuRow(icon: LucideMore.headphones, label: SpaceWords.devices, hint: 'Microphone, camera and speaker', onPressed: run(call.onDevices)),
+        // The other camera (GMFB-57): the foot's four buttons round the microphone leave no room, so it is here.
+        if (call.onFlip != null) _MenuRow(icon: SpaceWords.flipIcon, label: SpaceWords.flip, hint: 'Front or back', onPressed: run((_) => call.onFlip!())),
         _MenuRow(icon: Lucide.settings, label: SpaceWords.settings, hint: 'Roles and permissions', onPressed: run(call.onSettings)),
         // What the plugins that are on in this call offer (Slots.callControls).
         for (final x in call.extras) _MenuRow(icon: x.icon, label: x.label, hint: x.builtIn ? 'A screen or a window, to everyone here' : 'A plugin', danger: x.danger, onPressed: run(x.run)),
@@ -353,9 +357,12 @@ class _MenuRow extends StatelessWidget {
 
 /// Video tiles two across, "Invite to space", then everyone in a list.
 class _People extends StatelessWidget {
-  const _People({required this.call, this.compact = false});
+  const _People({required this.call, this.compact = false, this.maxWidth});
   final SpaceCall call;
   final bool compact;
+
+  /// The list of people no wider than this, centred (a computer's wide panel). The videos are not held to it.
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -366,9 +373,15 @@ class _People extends StatelessWidget {
     // A face of 38 whose ripples reach 1.85 times its radius (about 35 px) needs rows of about 70 for its rings to
     // stay inside its own row: 16 above and below (14 where the panel is docked and short).
     final rowPad = compact ? 14.0 : 16.0;
-    return LayoutBuilder(builder: (context, box) {
-      // The video gives way to the list: its tiles shrink (to no less than 84 a row) so everyone in the call fits
-      // under them where the panel is short.
+    // On a computer with video on, the videos get the room (GMFB-58, @kevin, Windows 0.12.17: "The video call window
+    // is far too vertically slim for regular use"): they were held to the list's 620 across and one alone to 200 high,
+    // a strip in a window of any size, and shrank further for the list. There they now span the panel and take most
+    // of its height, and the list scrolls under them. A phone is as it was.
+    final roomy = compact && maxWidth != null && videos.isNotEmpty;
+    Widget narrow(Widget child) => maxWidth == null ? child : Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth!), child: child));
+    final people = LayoutBuilder(builder: (context, box) {
+      // On a phone the video gives way to the list: its tiles shrink (to no less than 84 a row) so everyone in the
+      // call fits under them where the panel is short.
       // The invite row, the rows, and the list's padding and gap under the video (the app's spacing, which grows a
       // little on a wide window).
       final list = 48 + call.people.length * (_faceSize + rowPad * 2 + 1) + t.space(1) + t.space(3) * 2 + 2;
@@ -377,10 +390,13 @@ class _People extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(3)),
         children: [
           if (videos.isNotEmpty) ...[
-            _VideoGrid(call: call, people: videos, room: room),
+            // Roomy: four fifths of the panel's height, or all the list leaves where that is more.
+            _VideoGrid(call: call, people: videos, room: roomy ? math.max(room, box.maxHeight * 0.8) : room, roomy: roomy),
             SizedBox(height: t.space(3)),
           ],
           Container(
+            // Roomy, the list keeps the width it had (the panel's 620 less the padding either side).
+            margin: EdgeInsets.symmetric(horizontal: roomy ? math.max(0.0, (box.maxWidth - maxWidth!) / 2) : 0),
             decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('xl')), border: Border.all(color: t.color('app-rule'))),
             // Not clipped: a speaker's outermost ring may lean a pixel or two past the card rather than be cut flat.
             // The rows round their own hover at the card's corners instead.
@@ -406,6 +422,7 @@ class _People extends StatelessWidget {
         ],
       );
     });
+    return roomy ? people : narrow(people);
   }
 }
 
@@ -451,7 +468,9 @@ const double _textStart = _rowLeft + _faceSize + _faceGap;
 
 /// What someone is doing now, in the list's words and colour: green talking, red muted, quiet ink listening.
 ({String words, Color color, LucideIcon icon}) _status(Tokens t, SpaceCall call, SpacePerson p, Map<String, double> now) {
-  if (p.muted) return (words: p.me && call.micLocked ? 'muted by a moderator' : 'muted', color: _red(t), icon: LucideMore.micOff);
+  // Which mute it is (GMFB-49): a moderator's for everyone, this device's own of them, or theirs of themselves.
+  if (p.muted && (p.mutedForAll || p.mutedForMe)) return (words: SpaceWords.mutedWords(p), color: _red(t), icon: SpaceWords.mutedIcon(p));
+  if (p.muted) return (words: p.me && call.micLocked && !call.micLockedByRole ? 'muted by a moderator' : 'muted', color: _red(t), icon: LucideMore.micOff);
   if (call.isTalking(p, now)) return (words: 'talking', color: _green(t), icon: Lucide.mic);
   return (words: 'listening', color: t.color('app-ink-3'), icon: Lucide.mic);
 }
@@ -535,17 +554,42 @@ class _MicMark extends StatelessWidget {
 
 /// Everyone with video on, two across (one alone, or the last of an odd number, across the whole width).
 class _VideoGrid extends StatelessWidget {
-  const _VideoGrid({required this.call, required this.people, required this.room});
+  const _VideoGrid({required this.call, required this.people, required this.room, this.roomy = false});
   final SpaceCall call;
   final List<SpacePerson> people;
 
   /// The height the list leaves for the grid; its rows shrink to fit it, to no less than 84 each.
   final double room;
 
+  /// On a computer (GMFB-58): tiles shaped 16:9 and as large as [room] and the width allow, as many across as makes
+  /// them largest, no row under 240 high (the list scrolls instead); the grid in the middle.
+  final bool roomy;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       final gap = context.tokens.space(2);
+      if (roomy) {
+        final n = people.length;
+        var w = 0.0, h = 0.0;
+        // From everyone in one row to one a row: fewer across only where that makes the tiles clearly larger.
+        for (var across = n; across >= 1; across--) {
+          final rows = (n / across).ceil();
+          // Whole pixels, so a row's tiles never add up to a hair more than the width and wrap.
+          final cell = ((box.maxWidth - gap * (across - 1)) / across).floorToDouble();
+          final high = math.min(cell * 9 / 16, math.max(240.0, (room - gap * (rows - 1)) / rows));
+          if (high > h * 1.15) {
+            h = high;
+            w = math.min(cell, high * 16 / 9);
+          }
+        }
+        return SizedBox(
+          width: box.maxWidth,
+          child: Wrap(alignment: WrapAlignment.center, spacing: gap, runSpacing: gap, children: [
+            for (final p in people) SizedBox(width: w, height: h, child: _VideoTile(call: call, person: p)),
+          ]),
+        );
+      }
       final half = (box.maxWidth - gap) / 2;
       final rows = (people.length + 1) ~/ 2;
       final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
@@ -738,11 +782,13 @@ class _MicButton extends StatelessWidget {
     // Deafened, the button undeafens: hearing comes back first (and your voice with it, unless you muted too).
     final deaf = call.deafened && !locked;
     final green = _green(t);
-    final title = locked ? 'Muted by a moderator' : (deaf ? SpaceWords.deafen(call) : (live ? 'Mic on' : 'Muted'));
+    // A lock is a moderator's mute, or a role that may not speak (a stage's listener): each says which (GMFB-49).
+    final title = locked ? (call.micLockedByRole ? 'Your role can\'t speak' : 'Muted by a moderator') : (deaf ? SpaceWords.deafen(call) : (live ? 'Mic on' : 'Muted'));
     final hint = locked ? 'You can listen' : (deaf ? (call.muted ? 'Tap to listen' : 'Tap to listen and speak') : (live ? 'Tap to mute' : 'Tap to unmute'));
     final icon = locked ? Lucide.lock : (deaf ? LucideMore.headphoneOff : (live ? Lucide.mic : LucideMore.micOff));
     return GlacierPressable(
-      onPressed: locked ? null : (deaf ? call.onDeafen : call.onMute),
+      // Locked, a press says why and who can change it, where that is known.
+      onPressed: locked ? (call.micLockedWhy == null ? null : () => GlacierToast.of(context).toast(message: Text(call.micLockedWhy!))) : (deaf ? call.onDeafen : call.onMute),
       semanticLabel: locked || deaf ? title : SpaceWords.mute(call),
       builder: (context, state) => Column(mainAxisSize: MainAxisSize.min, children: [
         SizedBox(
