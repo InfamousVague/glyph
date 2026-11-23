@@ -43,7 +43,7 @@ String firewallWords(String os, int port) => switch (os) {
     };
 
 /// What a local network sees of a relay on it.
-const lanSeenWords = 'On this network, who signs in to it and who talks to whom can be seen by others on the network. What is said is still sealed end to end.';
+const lanSeenWords = 'On this network, who signs in to it and who talks to whom can be seen by others on the network. What is said is still sealed end to end. It takes 3 connections at a time from one device on the network, and 64 in all.';
 
 /// Its limits, in memory.
 const hostLimitsWords = 'It holds up to 200 connections at once, and keeps up to 32 MB in memory for people who are away: 24 MB of what is sent to them, 8 MB of what rooms keep.';
@@ -71,6 +71,7 @@ const passWords = 'People must give the pass phrase to use it. On a shared netwo
 /// Reaching it over Direct.
 const directOnHint = 'They need Direct on too. Nothing is opened on this device for it, and it works from anywhere.';
 const directOffWords = 'Switch Direct on above, and anyone you give this address to can use it from anywhere, with Direct on at their end too.';
+const directNoHelperWords = 'No link helper is known yet, which devices far away find it through: one is named by the relay this app signs in to. Until then, devices on this network reach it.';
 const directNoneWords = 'Reaching it from anywhere, over Direct, comes with Direct, which this build doesn\'t have yet.';
 
 /// How it stands, in a line.

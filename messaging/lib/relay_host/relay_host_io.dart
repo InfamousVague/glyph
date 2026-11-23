@@ -71,6 +71,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     Future<void> Function(String url)? moveBack,
     void Function(String url)? forgetHub,
     void Function()? passChanged,
+    bool Function()? routesDirect,
   })  : _read = read ?? Net.instance.recall,
         _write = write ?? Net.instance.remember,
         _secretRead = secretRead ?? Sms.instance.secretRead,
@@ -89,6 +90,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
         _moveBack = moveBack ?? ((url) => Net.instance.setHub(url)),
         _forgetHub = forgetHub ?? ((url) => Net.instance.remember('net_hub', url)),
         _passChanged = passChanged ?? (() => Net.instance.hub?.passAgain()),
+        _routesDirect = routesDirect ?? (() => Net.instance.directOn),
         _defaultVia = via ?? Net.defaultHub;
 
   /// Whether this device can host a relay: a computer, or an Android phone. Not an iPhone (an app there is stopped as
@@ -117,6 +119,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   final Future<void> Function(String url) _moveBack;
   final void Function(String url) _forgetHub;
   final void Function() _passChanged;
+  final bool Function() _routesDirect;
 
   /// Ports besides 443 the public relay may be dialled at, and whether `ws://` may be (a local relay, for a test).
   final Set<int> viaPorts;
@@ -238,7 +241,14 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   @override
   bool get directBuilt => _p2p() != null;
   @override
-  bool get directOn => _p2p()?.on ?? false;
+  bool get directOn => _directWanted(_p2p());
+  @override
+  bool get directHelped => _p2p()?.helpers.isNotEmpty ?? false;
+
+  /// Whether channel 1 is to be open on [p2p]: its route is on, or Direct is switched on in the routes (the node is
+  /// made with Direct on, but its route starts only with someone to reach: a relay with no friends of its keeper's
+  /// still takes joiners; found in the fourth review, 2026-11-23).
+  bool _directWanted(P2p? p2p) => p2p != null && (p2p.on || _routesDirect());
   @override
   bool get hasPass => (_pass ?? '').isNotEmpty;
   @override
@@ -465,7 +475,23 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// anywhere else.
   Future<void> _door(HttpRequest r) async {
     // Its request is whole: not closed for taking too long ([LanDoor]).
-    if (!(_lanDoor?.through(r.connectionInfo?.remoteAddress, r.connectionInfo?.remotePort) ?? true)) return;
+    if (!(_lanDoor?.through(r.connectionInfo?.remoteAddress, r.connectionInfo?.remotePort) ?? true)) {
+      // As many through from its address as it takes: told why in the hub's own words (an app shows a refusal's
+      // `err`; hub_link.dart, doorFullWords), and closed.
+      if (!WebSocketTransformer.isUpgradeRequest(r)) {
+        r.response
+          ..statusCode = HttpStatus.tooManyRequests
+          ..persistentConnection = false;
+        await r.response.close();
+        return;
+      }
+      try {
+        final ws = await WebSocketTransformer.upgrade(r);
+        ws.add(jsonEncode({'ok': false, 'err': doorFullWords, 'door': 'full'}));
+        await ws.close(4429, 'full');
+      } catch (_) {}
+      return;
+    }
     final hub = _hub;
     final upgrade = WebSocketTransformer.isUpgradeRequest(r);
     if (hub != null && upgrade && r.uri.path.endsWith('/hub')) return hub.accept(r);
@@ -493,13 +519,28 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     _directChanged();
   }
 
-  bool _channelOpen = false;
+  bool _channelOpen = false, _upping = false;
+
+  @override
+  void directChanged() {
+    if (_hub == null) return;
+    final now = _p2p();
+    if (identical(now, _direct)) return _directChanged();
+    // The old one's channel closed (where it had one), then the new one taken.
+    final turn = ++_directTurn;
+    unawaited(_closeDirect().then((_) {
+      if (_hub != null && turn == _directTurn) _openDirect();
+      _notifyIfChanged();
+    }).catchError((Object _) {}));
+  }
+
+  int _directTurn = 0;
 
   /// Direct switched on or off, or its node came up with an id: channel 1 follows.
   void _directChanged() {
     final p2p = _direct, hub = _hub;
     if (p2p == null) return;
-    final want = hub != null && p2p.on;
+    final want = hub != null && _directWanted(p2p);
     if (want && !_channelOpen) {
       _channelOpen = true;
       p2p.busy(true);
@@ -515,8 +556,26 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
     } else if (!want && _channelOpen) {
       unawaited(_closeDirect(keepListening: true));
     }
+    // Its route came on after the channel was opened (Direct switched on, its route started a moment later): the node
+    // is brought up now, once at a time.
+    if (want && _channelOpen && p2p.on && !_upping) {
+      var down = false;
+      try {
+        down = p2p.node.state.value == P2pState.off;
+      } catch (_) {}
+      if (down) {
+        _upping = true;
+        unawaited(p2p.up().then((_) {}, onError: (Object _) {}).whenComplete(() {
+          _upping = false;
+          if (identical(p2p, _direct)) _notifyIfChanged();
+        }));
+      }
+    }
     final node = _directNode;
     if (hub != null && node != null) hub.names.add(node);
+    // The link helpers its device's Direct knows now, named to those who sign in from here on: a relay started before
+    // any were known (Direct off, or never on) named none, and joiners over Direct had nothing to find it by.
+    if (hub != null && p2p.helpers.isNotEmpty && !listEquals(hub.helpers, Hub.linkHelpers(p2p.helpers))) hub.helpers = _helpers();
     _notifyIfChanged();
   }
 
@@ -581,6 +640,8 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
       if (_hub == null) return;
       _looks++;
       if (_looks % (addressesEvery.inSeconds ~/ lookEvery.inSeconds) == 0) unawaited(_lookAtAddresses());
+      // Direct looked at again: a node that couldn't come up a moment ago (what it keeps not read yet) is tried again.
+      if (_direct != null) _directChanged();
       _notifyIfChanged();
       _watch();
     });

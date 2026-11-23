@@ -54,6 +54,10 @@ abstract class RelayHosting implements Listenable {
   /// Whether people must give a pass phrase to use it.
   bool get hasPass;
 
+  /// Whether this device's Direct knows a link helper: devices far away find it through one. None is known until a
+  /// relay this app signs in to names one, so a relay hosted before any was named is found only by devices nearby.
+  bool get directHelped;
+
   /// Whether this is a phone, where it runs only while the app is in use: not offered for this app there.
   bool get phone;
 
@@ -98,6 +102,11 @@ abstract class RelayHosting implements Listenable {
 
   /// The pass phrase this app gives it, where it asks one.
   String? get ownPass;
+
+  /// Direct was switched on or off in the routes (Net.setDirect), which made or dropped its P2p: channel 1 is opened on
+  /// the new one, or closed. Without it a relay started with Direct off never opened it (found in the fourth review,
+  /// 2026-11-23), and one kept across Direct off and on held the dropped one.
+  void directChanged();
 
   /// The app put away, or back (Android stops it a minute after the app is put away, and starts it as it comes back).
   void appAway(bool away);

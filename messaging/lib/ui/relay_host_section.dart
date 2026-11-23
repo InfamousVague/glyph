@@ -105,6 +105,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
             SettingRow(key: const ValueKey('host-direct'), icon: icon(Lucide.link2), label: 'Over Direct', hint: Text(up ? 'Bringing Direct up…' : 'While it runs.'))
           else ...[
             SettingRow(key: const ValueKey('host-direct'), icon: icon(Lucide.link2), label: host.directUrl!, hint: const Text('Copy. $directOnHint'), onPress: () => _copy(context, host.directUrl!, 'Copied its address over Direct')),
+            if (!host.directHelped) SettingRow(key: const ValueKey('host-direct-helper'), icon: icon(Lucide.info), label: 'Not findable from afar yet', hint: const Text(directNoHelperWords)),
             SettingRow(key: const ValueKey('host-direct-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', onPress: () => showRelayCode(context, host.directUrl!)),
             SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('My relay on Ghost Messaging', relayLink(host.directUrl!))),
           ],

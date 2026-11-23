@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/net/hub_link.dart' show doorFullWords;
 import 'package:ghost_messaging/relay_host/hosting.dart';
 import 'package:ghost_messaging/relay_host/relay_host_io.dart';
 
@@ -74,13 +76,22 @@ void main() {
     final url = host.lanUrls.single;
     final held = <WebSocket>[];
     var refused = 0;
+    final why = <Object?>{};
     for (var i = 0; i < 5; i++) {
-      try {
-        held.add(await WebSocket.connect(url));
-      } catch (_) {
+      final ws = await WebSocket.connect(url);
+      final said = StreamIterator(ws);
+      await said.moveNext();
+      final first = jsonDecode(said.current as String) as Map;
+      if (first['door'] == 'full') await said.moveNext();
+      if (first['door'] == 'full') {
         refused++;
+        why.add(first['err']);
+        expect(ws.closeCode, 4429);
+      } else {
+        held.add(ws);
       }
     }
+    expect(why, {doorFullWords}, reason: 'told why, not dropped without a word (the fourth review, 2026-11-23)');
     addTearDown(() async {
       for (final w in held) {
         await w.close();
@@ -91,7 +102,11 @@ void main() {
     // One goes, and another may come.
     await held.removeAt(0).close();
     await waitFor(() => host.doorOpen == RelayHost.doorThrough - 1, 'the one that went was still counted');
-    held.add(await WebSocket.connect(url));
+    final again = await WebSocket.connect(url);
+    held.add(again);
+    final hello = StreamIterator(again);
+    await hello.moveNext();
+    expect((jsonDecode(hello.current as String) as Map).containsKey('hello'), isTrue);
     expect(host.doorOpen, RelayHost.doorThrough);
   });
 }

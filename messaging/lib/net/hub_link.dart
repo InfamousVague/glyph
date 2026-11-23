@@ -36,6 +36,11 @@ Future<HubLink> dialHub(String url) {
 /// (relay_choice.dart).
 String dialProblem(Object error) => error is HubDialRefused ? error.message : platform.dialProblem(error);
 
+/// What a relay hosted from an app says (`{"ok": false, "err": …, "door": "full"}` in place of its hello, then closed:
+/// lib/relay_host/relay_host_io.dart) where this device already has as many connections to it as it takes from one
+/// device: what the app shows.
+const doorFullWords = 'This relay takes only a few connections from one device at a time, and this device has them. Close Ghost Messaging elsewhere on this device, or try again in a moment.';
+
 /// The ways to a hub that aren't a WebSocket, set by whoever has one.
 abstract final class HubDials {
   /// How a relay hosted from someone's app is dialled (`ghost-relay://…`): in memory where it is this app's own, over

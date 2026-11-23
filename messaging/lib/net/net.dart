@@ -495,7 +495,7 @@ class Net extends ChangeNotifier implements PeerBook {
       _joinPass = await _readJoinPass();
       final host = _host ??= relayHostMaker();
       if (host != null) {
-        host.addListener(notifyListeners);
+        host.addListener(_hostChanged);
         // Not waited for: a slow start (its folder, its link helpers) held up every route (found in the second review,
         // 2026-11-23). A route to it waits for it itself, as dialling it in memory waits for its start.
         unawaited(host.startIfOn().catchError((Object _) {}));
@@ -603,6 +603,8 @@ class Net extends ChangeNotifier implements PeerBook {
     // switchboard what went and came, kept with the choices of this device only, and compared with friends' devices as
     // direct links are proved. Without a direct route nothing could compare it, so nothing is listed.
     _startLedger(board, p2p, me, device);
+    // The relay on this device takes it (channel 1), where one runs.
+    _host?.directChanged();
   }
 
   /// Switches Direct on or off (Settings › Routes), kept as the person's choice ([directName]), without the app
@@ -675,6 +677,8 @@ class Net extends ChangeNotifier implements PeerBook {
       p2p.removeListener(_directChanged);
       await p2p.shutdown();
     }
+    // The relay on this device lets it go.
+    _host?.directChanged();
     _directChanged();
   }
 
@@ -828,7 +832,7 @@ class Net extends ChangeNotifier implements PeerBook {
     final host = _host;
     _host = null;
     if (host != null) {
-      host.removeListener(notifyListeners);
+      host.removeListener(_hostChanged);
       await host.shutdown();
     }
     HubDials.hosted = null;
@@ -912,6 +916,28 @@ class Net extends ChangeNotifier implements PeerBook {
     } else {
       await board.stop();
     }
+    // A relay on this device takes joiners over Direct whether or not anyone here is to be reached now: its route runs
+    // while the relay does, with Direct switched on (found in the fourth review, 2026-11-23: with nobody to reach the
+    // route was stopped, and the relay's node with it).
+    if (on && directOn && _host?.state == HostState.up && !board.off.contains(P2pCarrier.routeId)) {
+      for (final c in board.carriers) {
+        if (c.id == P2pCarrier.routeId) await c.start().catchError((_) {});
+      }
+    }
+    // The relay on this device follows the route as it now stands (its node brought up for joiners, or let go).
+    _host?.directChanged();
+  }
+
+  HostState? _hostWas;
+
+  /// The relay on this device changed: shown, and the routes set again where it started or stopped ([_apply]).
+  void _hostChanged() {
+    final now = _host?.state;
+    if (now != _hostWas) {
+      _hostWas = now;
+      unawaited(_apply().catchError((Object _) {}));
+    }
+    notifyListeners();
   }
 
   /// Turns the whole network on or off, and keeps the choice.

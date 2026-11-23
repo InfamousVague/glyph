@@ -110,12 +110,15 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   HubRelay? relay;
   var hosted = false, asksPass = false;
   Map? hello;
+  var doorFull = false;
   final sub = ws.said.listen(
     (data) {
       if (greeted.isCompleted) return;
       try {
         final m = data is String ? jsonDecode(data) : null;
         if (m is Map) {
+          // A hosted relay's door, full for this device: said so, not taken for something else.
+          if (m['door'] == 'full') doorFull = true;
           hello = m;
           relay = HubRelay.from(m['relay']);
           hosted = m['hosted'] == true;
@@ -139,6 +142,7 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
     return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
   }
   await _close(ws, sub);
+  if (doorFull) return const RelayCheck.failed(doorFullWords);
   if (!ok) return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
   // A hosted relay's address names the relay: the one that answers must be it (found in the second review,
   // 2026-11-23: anything at that node was taken).

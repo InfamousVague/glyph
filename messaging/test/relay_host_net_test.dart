@@ -236,6 +236,27 @@ void main() {
     await waitFor(() => Net.instance.relayHost!.state == HostState.up, 'it never started once its folder came');
   });
 
+  test('Direct switched on after the relay on this device started: it opens channel 1 on it; off and on again, on the new one (the fourth review, 2026-11-23)', () async {
+    final mesh = FakeP2pMesh();
+    Net.p2pNode = () => mesh.node();
+    final app = AppState()..set(RelayHost.lanKey, 'off')..set(RelayHost.onKey, 'on')..set(Net.directName, 'off');
+    Net.relayHostMaker = hostHere;
+    await Net.instance.start(app);
+    final host = Net.instance.relayHost!;
+    await waitFor(() => host.state == HostState.up, 'it never started');
+    expect([host.directBuilt, host.directUrl], [false, null]);
+    await Net.instance.want('test', true);
+    await Net.instance.setDirect(true);
+    await waitFor(() => host.directUrl != null, 'Direct switched on, and the relay never had an address over it ("Bringing Direct up…" for good)');
+    final first = Net.instance.p2p;
+    await Net.instance.setDirect(false);
+    await waitFor(() => host.directUrl == null && !host.directBuilt, 'Direct switched off, and the relay kept the dropped one');
+    await Net.instance.setDirect(true);
+    await waitFor(() => host.directUrl != null, 'switched on again, the relay never took the new one');
+    expect(identical(Net.instance.p2p, first), isFalse, reason: 'a new one, which it took');
+    await Net.instance.want('test', false);
+  });
+
   test('a relay hosted from an app is dialled as the routes say; with nothing to say how, it is refused in words', () async {
     final was = HubDials.hosted;
     HubDials.hosted = null;

@@ -68,7 +68,7 @@ class Hub {
       : _now = now ?? DateTime.now,
         _started = (now ?? DateTime.now)(),
         _random = random ?? Random.secure(),
-        helpers = linkHelpers(helpers),
+        _helpers = linkHelpers(helpers),
         names = hubNames(names),
         wire = wire ?? WireBudget.shared,
         _pass = pass == null || pass.isEmpty ? null : pass,
@@ -257,8 +257,11 @@ class Hub {
   /// docs/OPEN_NETWORK.md, section 2): servers that help two devices find each other and carry their sealed traffic
   /// when no straight path can be made. Said to each app as it signs in (`"helpers"` beside `"ok"`), as the call
   /// relay is handed out with a room; from `GHOST_LINK_HELPERS`. With none nothing is said, and an app from before
-  /// passes it over either way.
-  final List<String> helpers;
+  /// passes it over either way. Set again (a relay hosted from the app, as its device's Direct comes to know helpers),
+  /// those signing in from then on are told the new ones.
+  List<String> get helpers => _helpers;
+  set helpers(Iterable<String> said) => _helpers = linkHelpers(said);
+  List<String> _helpers;
 
   /// The most link helpers named, and the longest address one may have.
   static const maxHelpers = 4;

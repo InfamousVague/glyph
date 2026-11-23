@@ -99,6 +99,11 @@ void main() {
     });
   });
 
+  test('a hosted relay\'s door, full for this device, is said so when it is checked (the fourth review, 2026-11-23)', () async {
+    final check = await checkRelay('ws://192.168.1.9:7787/hub', connect: (_) async => _FakeLink({'ok': false, 'err': doorFullWords, 'door': 'full'}));
+    expect([check.ok, check.problem], [false, doorFullWords]);
+  });
+
   group('a hosted relay\'s address names the relay', () {
     final real = NetKeys.generate(), other = NetKeys.generate();
     final url = '${GhostRelayAddress(relay: real.id, node: 'c' * 64)}';

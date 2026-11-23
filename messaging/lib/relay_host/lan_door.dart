@@ -54,8 +54,10 @@ class LanDoor extends Stream<Socket> implements ServerSocket {
     if (s == null || s.isThrough) return true;
     final already = _open.where((o) => o.isThrough && o.from == address.address).length;
     if (already >= eachThrough) {
+      // Answered and closed by whoever asked (relay_host_io.dart), not destroyed: the far end is told why. It is no
+      // longer timed: the answer goes at once.
       turnedAway++;
-      s.destroy();
+      s.deadline?.cancel();
       return false;
     }
     s.through();
