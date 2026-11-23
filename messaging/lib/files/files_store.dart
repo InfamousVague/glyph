@@ -25,6 +25,7 @@ import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
 import '../net/file_seal_async.dart';
 import 'apple_sha.dart';
+import 'drive.dart';
 import 'file_kinds.dart';
 import 'file_sink.dart';
 import 'file_source.dart';
@@ -181,6 +182,19 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// How often an open space reads its log again, besides when it is told the log has grown.
   final Duration poll;
 
+  /// What signs this device's writes to [c], and the id they go under: the install's hub key, but for an account's
+  /// drive (lib/files/drive.dart, GMFB-37), which every device of the account writes to with the one key the drive's
+  /// seed makes, so the relay knows them all as the drive's owner.
+  NetSigner? _signerOf(VoiceChannel c) => Drive.signerOf(c) ?? _signer();
+  String? _meOf(VoiceChannel c) => Drive.signerOf(c)?.id ?? _me();
+
+  /// [c]'s rules: its roster's, but for an account's drive, which has no room and no roster: every device of the
+  /// account is its owner.
+  FilesRules _rulesOf(VoiceChannel c) {
+    final drive = Drive.signerOf(c);
+    return drive == null ? _rules(c) : OwnerRules(drive.id);
+  }
+
   /// The hub id of [c]'s owner, from the owner's public key; null for a space with no owner (one from before roles).
   static String? _ownerId(VoiceChannel c) => c.owner.isEmpty ? null : NetCrypto.idOf(NetCrypto.unhex(c.owner));
 
@@ -211,6 +225,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// [c]'s roster as this device holds it, where it is signed and believed for [c]'s owner; null for a roster no one has
   /// signed yet (a space's first) or none at all.
   Roster? _trusted(VoiceChannel c) {
+    // A drive has no room, so no roster (and asking for one would make a room for it).
+    if (Drive.isDrive(c)) return null;
     final r = _roster(c);
     return r != null && _trustedFor(r, c.owner) ? r : null;
   }
@@ -409,6 +425,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   void _voiceChanged() {
     if (_base() == null) return;
     _rosterMoved();
+    _keepDrive();
     for (final s in _spaces.values.where((s) => s._holds > 0)) {
       s._listen();
       // Voice says something changed many times a minute: an unreachable relay is asked again at most every ten seconds.
@@ -420,6 +437,23 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       t.state = TransferState.queued;
     }
     if (waiting.isNotEmpty) _pump();
+  }
+
+  /// When the account's drive was last looked at this run ([_keepDrive]), and whether that is done with for the run.
+  DateTime _driveTried = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _driveKept = false;
+
+  /// Looks at the account's drive on the relay once a run, as the relay comes ([touch]): the relay lets a space go that
+  /// nobody has opened for ninety days, and nobody else will open this one (GMFB-37). Done with for the run once the
+  /// relay has answered for it, or where no account is signed in to here; a relay out of reach, or a drive never made,
+  /// is asked again in ten minutes at the soonest.
+  void _keepDrive() {
+    if (_driveKept || DateTime.now().difference(_driveTried) < const Duration(minutes: 10)) return;
+    _driveTried = DateTime.now();
+    unawaited(() async {
+      final c = await Drive.mine();
+      if (c == null || await touch(c)) _driveKept = true;
+    }());
   }
 
   Timer? _notifySoon;
@@ -452,7 +486,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// with no relay or key yet.
   FilesApi? _api(VoiceChannel c) {
     final base = _base();
-    final signer = _signer();
+    final signer = _signerOf(c);
     if (base == null || signer == null) return null;
     final room = FileSeal.filesRoom(c.seed);
     final had = _apis[room];
@@ -483,24 +517,38 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }
   }
 
+  /// Looks at [c] on the relay and no more, where it is there: the relay lets a space go that nobody has opened for
+  /// ninety days (relay/lib/files.dart), and an account's drive is opened only when its owner thinks of it (GMFB-37).
+  /// True where the relay answered for it.
+  Future<bool> touch(VoiceChannel c) async {
+    try {
+      final api = _api(c);
+      if (api == null) return false;
+      await api.info();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Whether this device may add files to [c].
   bool canUpload(VoiceChannel c) {
-    final me = _me();
+    final me = _meOf(c);
     // In a circle, as its roles say too (lib/circles: CirclePerm.files).
     if (!Circles.instance.allows(c, CirclePerm.files)) return false;
-    return me == null || _rules(c).mayAdd(me);
+    return me == null || _rulesOf(c).mayAdd(me);
   }
 
   /// Whether this device may rename, move or remove [f].
   bool canChange(VoiceChannel c, SpaceFile f) {
-    final me = _me();
-    return me != null && _rules(c).mayChange(me, f);
+    final me = _meOf(c);
+    return me != null && _rulesOf(c).mayChange(me, f);
   }
 
   /// Whether this device may make, move and remove folders in [c].
   bool canFolder(VoiceChannel c) {
-    final me = _me();
-    return me != null && _rules(c).mayFolder(me);
+    final me = _meOf(c);
+    return me != null && _rulesOf(c).mayFolder(me);
   }
 
   // --- the log -----------------------------------------------------------------------------------------------------
@@ -538,7 +586,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// that went unfinished"): where the roster couldn't go in (too big for an entry, refused), the entry says the older
   /// revision the log holds, never one no reader can see.
   Future<int> _append(VoiceChannel c, FilesApi api, FilesSpace s, Map<String, Object?>? op) async {
-    final signer = _signer();
+    final signer = _signerOf(c);
     if (signer == null) throw FilesError(0, 'Not connected to the relay yet.');
     final key = FileSeal.filesKey(c.seed), room = FileSeal.filesRoom(c.seed);
     final roster = _trusted(c);
@@ -638,6 +686,9 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// Tells everyone with [c] open that its log has [seq] now.
   void _ping(VoiceChannel c, int seq) {
+    // A drive has no chat room to say it in: the account's other devices read its list as they open it, and every
+    // [poll] while it shows.
+    if (Drive.isDrive(c)) return;
     try {
       _route()?.send(c.chatRoom, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'files', 'seq': seq}))));
     } catch (_) {}
@@ -724,7 +775,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     if (!canChange(c, f)) return false;
     final ok = await _write(c, FileOp.delete(f.id));
     if (!ok) return false;
-    final me = _me();
+    final me = _meOf(c);
     final roster = me == f.by || me == _ownerId(c) ? null : _trusted(c);
     if (me == f.by || me == _ownerId(c) || roster != null) {
       try {
@@ -756,7 +807,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// Who started [p], as the space's list names them ("you" for this install), or null where it doesn't.
   String? unfinishedBy(VoiceChannel c, FilesPart p) {
-    if (p.by == _me()) return 'you';
+    if (p.by == _meOf(c)) return 'you';
     for (final f in of(c).files.values) {
       if (f.by == p.by && f.byName.isNotEmpty) return f.byName;
     }
@@ -769,7 +820,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     if (!canRemoveUnfinished(c, p)) return false;
     final api = _api(c);
     if (api == null) return false;
-    final me = _me();
+    final me = _meOf(c);
     final roster = me == p.by || me == _ownerId(c) ? null : _trusted(c);
     try {
       await api.deleteBlob(p.id, roster: roster == null ? null : _proof(roster));
@@ -1062,7 +1113,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       await api.done(t.blob!);
       final videoThumb = _videoThumbs.remove(t);
       if (videoThumb != null) t.thumb = (await videoThumb)?.png ?? t.thumb;
-      final me = _signer()!.id;
+      final me = _signerOf(c)!.id;
       final f = SpaceFile(
         id: t.blob!,
         name: t.name,
@@ -1099,7 +1150,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       t.state = TransferState.done;
       t.done = t.size;
       _ping(c, seq);
-      _announce?.call(c, '${f.byName.isEmpty ? 'Someone' : f.byName} added ${f.name} (${fileSize(f.size)})');
+      if (!Drive.isDrive(c)) _announce?.call(c, '${f.byName.isEmpty ? 'Someone' : f.byName} added ${f.name} (${fileSize(f.size)})');
       await _settle(t);
     } on FilesError catch (e) {
       // The space gone from the relay meanwhile: opened again on the next try, which comes by itself.
@@ -1863,7 +1914,7 @@ class FilesSpace {
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
   /// (the log's own rosters, or this device's), the rest under the roster as it is now (FilesList.read).
-  void _reread() => _list = FilesList.read(_log, _store._rules(channel),
+  void _reread() => _list = FilesList.read(_log, _store._rulesOf(channel),
       rosters: (j, previous) => _store._logged(channel, j, previous), rulesVersion: _store._trusted(channel)?.version ?? 0, strictAfter: _strictAfter);
 
   /// The relay's list has started again, behind what this device kept (swept after ninety days unused, or its data

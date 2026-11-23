@@ -50,6 +50,9 @@ import '../inbox/inbox.dart';
 import '../friends/groups.dart';
 import 'thread.dart';
 import 'feedback_screen.dart' show FeedbackButton;
+import 'files_space/my_files.dart' show openMyFiles;
+import '../account/account.dart' show Account;
+import '../files/drive.dart' show Drive;
 import 'souls.dart' show SoulsChip;
 import 'window_chrome.dart' show MacChrome;
 import '../kit/semantic_colors.dart';
@@ -722,6 +725,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
             count: unread,
             onPress: unread > 0 ? () => _markAllRead(_section) : null,
           ),
+          // My files: the account's own drive (GMFB-37, @matt: "A private file drive for each account, not tied to any
+          // space"). Here, under the search, where a phone's list and a computer's sidebar both have it. Only with an
+          // account signed in to (the drive is made from its key), and not in a browser whose build has no Files.
+          if (!widget.archived && Sms.filesHere)
+            ListenableBuilder(
+              listenable: Account.instance,
+              builder: (context, _) => Account.instance.signedIn ? QuickRow(key: const ValueKey('my-files'), icon: Lucide.hardDrive, label: Drive.name, onPress: () => openMyFiles(context)) : const SizedBox.shrink(),
+            ),
           // In a browser too, words alone (it can't choose a picture yet), sent by the page's own fetch.
           if (!MacChrome.stripEnabled)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
