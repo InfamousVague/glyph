@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
 import '../aside.dart';
 import 'dart:typed_data';
 
@@ -7,6 +6,7 @@ import 'package:pointycastle/export.dart';
 
 import '../net/crypto.dart';
 import 'bip39_words.dart';
+import 'gzip.dart';
 import '../net/fast_gcm.dart';
 
 /// The cryptography of a Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
