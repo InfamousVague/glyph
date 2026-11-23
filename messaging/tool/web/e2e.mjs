@@ -849,7 +849,7 @@ async function run(engine) {
         if (got.headers.get('content-security-policy') !== `${meta}; ${list.frameAncestors}`) throw new Problem(`${path}'s policy is ${got.headers.get('content-security-policy')}`);
       }
     });
-    say(`  ${engine}: signing in took ${(signIn / 1000).toFixed(1)} s from the press to the app, signed in (the page loads again on the way); the password itself took ${stretch} ms of it, on a thread of its own.`);
+    if (!quick) say(`  ${engine}: signing in took ${(signIn / 1000).toFixed(1)} s from the press to the app, signed in (the page loads again on the way); the password itself took ${stretch} ms of it, on a thread of its own.`);
     if (process.env.GHOST_E2E_LOOK) {
       let x = seats[seats.length - 1];
       for (const name of process.env.GHOST_E2E_LOOK.split('>')) {
