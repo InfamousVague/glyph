@@ -10,15 +10,21 @@ This is the plan the work follows, and the reference for what is built. `docs/ne
 this says what is added on top of it. Each part is behind its own switch and lands on its own, so the app is
 releasable at every step. **Status** lines say what is built; everything else is the plan.
 
-| Part | Where | Status |
+| Part | Where | Status (2026-11-23) |
 | --- | --- | --- |
-| Seams: a hub link and a hub socket that are not a WebSocket | `lib/net/hub_link.dart`, `relay/lib/hub.dart` | in progress |
-| The direct network's core (Rust, iroh) | `native/p2p/`, `lib/net/p2p/` | planned |
-| The direct route (`p2p`) | `lib/net/p2p/` | planned |
-| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | planned |
-| Relays that talk to each other | `relay/lib/federation.dart` | planned |
-| A relay hosted from the app | `lib/relay_host/` | planned |
-| The web client | `lib/web/`, `web/` | planned |
+| Seams: a hub link and a hub socket that are not a WebSocket | `lib/net/hub_link.dart`, `relay/lib/hub.dart` | built, in 0.12.13 |
+| A link helper (iroh's relay server) for direct links | `tool/build-link.sh`, `tool/deploy-link.mjs`, `native/link-check/` | live at `https://gogho.st:7843` (UDP 7842 for address discovery); not yet handed out by the relay |
+| The direct network's core (Rust, iroh 1.5) | `native/p2p/`, `lib/net/p2p/node_ffi*.dart` | built, reviewed, fixed; shipped inside the app but never loaded until Direct is switched on; run on the Android emulator through our link helper |
+| The direct route (`p2p`) | `lib/net/p2p/` | built, reviewed twice, fixed; merged switched off (`Net.p2pNode` null). The contract it holds the core to is `lib/net/p2p/node.dart` |
+| Checking the relay: the ledger, the name watch | `lib/net/ledger.dart`, `lib/net/name_watch.dart` | being built |
+| Relays that talk to each other | `relay/lib/federation.dart` | built, reviewed, fixed (relay and app); in its second review; not merged |
+| A relay hosted from the app | `lib/relay_host/` | planned (needs federation's standing links and a helpers-only node) |
+| The web client | `lib/web/`, `web/` | runs end to end in Chromium and WebKit (text, friends, circles' chat; no calls yet); merged; review fixes under way before it goes on `app.gogho.st` |
+
+Each part is reviewed independently before it is switched on, and every review finding is fixed with a test that fails
+without its fix. The reviews also found things wrong in what was already live, now fixed: a compressed message could
+stop the relay (0.12.13's relay deploy), a friend by username's message could be handed to texting on Android
+(0.12.14), and who sent something was decided by an address a group's admin writes (being fixed for 0.12.15).
 
 ## What stays true
 
