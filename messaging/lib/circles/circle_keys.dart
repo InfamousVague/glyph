@@ -145,11 +145,31 @@ class CircleKeys {
 
   // --- where a circle stands ------------------------------------------------------------------------------------------
 
-  /// The headers of [seed]'s circle still believed: signed by someone who may change it now.
-  Iterable<CircleEpoch> _trusted(String seed) {
-    final m = manifestOf?.call(seed);
-    final all = _epochs[seed] ?? const <CircleEpoch>[];
-    return manifestOf == null ? all : (m == null ? const <CircleEpoch>[] : all.where((h) => h.trusted(m)));
+  /// The headers of [seed]'s circle taken. A header is judged as it is taken (its signer may change the circle then)
+  /// and stays believed after, even if its signer stops being an admin (second review, B1): dropping it would have
+  /// this device fall back to an older key, or the seed's, which someone put out holds. A newer epoch supersedes it.
+  Iterable<CircleEpoch> _trusted(String seed) => _epochs[seed] ?? const <CircleEpoch>[];
+
+  /// The names of headers this device made itself (`seed:epoch:tag`): only their maker changes the key again when two
+  /// admins changed it at once (B3).
+  final Set<String> _madeHere = {};
+
+  /// The epochs this device has changed the key again for, after two admins changed it at once: once each (B3).
+  final Set<String> _againFor = {};
+
+  /// Whether this device should change [seed]'s circle's key again: two believed headers name its newest epoch, one of
+  /// them this device's and not the one that wins (the lower commitment), and it hasn't done so for this epoch yet.
+  bool shouldChangeAgain(String seed) {
+    final n = newest(seed);
+    if (n == null || !split(seed)) return false;
+    final lost = _trusted(seed).any((h) => h.epoch == n.epoch && h.commit != n.commit && _madeHere.contains('$seed:${h.name}'));
+    return lost && !_againFor.contains('$seed:${n.epoch}');
+  }
+
+  /// Notes that this device is changing [seed]'s circle's key again for its newest epoch.
+  void changingAgain(String seed) {
+    final n = newest(seed);
+    if (n != null) _againFor.add('$seed:${n.epoch}');
   }
 
   /// The newest epoch of [seed]'s circle this device holds the key of; null for none (the seed's own keys).
@@ -258,10 +278,11 @@ class CircleKeys {
     final epoch = (newest(c.seed)?.epoch ?? 0) + 1;
     if (epoch > epochMost) return null;
     final key = NetCrypto.randomBytes(32);
-    final unsigned = CircleEpoch(seed: c.seed, epoch: epoch, commit: commitOf(c.seed, epoch, key), by: signer.id, byKey: NetCrypto.hex(signer.publicKey), at: DateTime.now().millisecondsSinceEpoch, sig: '');
+    final unsigned = CircleEpoch(seed: c.seed, epoch: epoch, commit: commitOf(c.seed, epoch, key), by: signer.id, byKey: NetCrypto.hex(signer.publicKey), at: DateTime.now().millisecondsSinceEpoch, sig: '', gv: c.manifest.grantsVersion);
     final header = unsigned.withSig(NetCrypto.hex(await signer.sign(unsigned.signed)));
     (_epochs[c.seed] ??= []).add(header);
     (_keys[c.seed] ??= {})[header.name] = key;
+    _madeHere.add('${c.seed}:${header.name}');
     unawaited(_save());
     // Each box is an EC key made and multiplied: built on an isolate of their own, off the screens' (finding 9).
     final boxes = await _boxesAway(c.key, c.seed, header, key, [for (final i in to) if (!(i.id == signer.id && i.device == device)) i]);
@@ -280,10 +301,13 @@ class CircleKeys {
 
   /// Every key held for [c] after epoch [since] (the asker's newest), oldest first, each boxed for [to] with its signed
   /// header: so a device away through several changes reads what was said in each (finding 4).
-  List<Map<String, Object?>> handOnSince(Circle c, CircleInbox to, int since) {
+  ///
+  /// [after] (ms): only epochs whose header was made after it, for someone kicked who came back, so they read nothing
+  /// from while they were out (B9).
+  List<Map<String, Object?>> handOnSince(Circle c, CircleInbox to, int since, {int after = 0}) {
     final held = _keys[c.seed] ?? const {};
     final out = <Map<String, Object?>>[];
-    final list = _trusted(c.seed).where((h) => h.epoch > since && held.containsKey(h.name)).toList()..sort((a, b) => a.epoch.compareTo(b.epoch));
+    final list = _trusted(c.seed).where((h) => h.epoch > since && h.at > after && held.containsKey(h.name)).toList()..sort((a, b) => a.epoch.compareTo(b.epoch));
     for (final h in list) {
       final box = _box(c.key, c.seed, h, held[h.name]!, to);
       if (box != null) out.add({'t': 'kb', 'h': h.toJson(), 'x': [box]});
@@ -315,8 +339,8 @@ class CircleKeys {
   bool take(Circle c, String me, Map said) {
     final h = CircleEpoch.fromJson(said['h']);
     if (h == null || h.seed != c.seed || !h.trusted(c.manifest)) return false;
-    // No further than a few epochs past the newest held (finding 6).
-    if (h.epoch > (current(c.seed)?.epoch ?? 0) + epochWindow) return false;
+    // Any epoch up to [epochMost] is taken as known (B4): a device far behind knows it lacks the newest and seals
+    // nothing until it has it, rather than refusing the header and sealing with the seed's key.
     final known = _epochs[c.seed] ??= [];
     var changed = false;
     if (!known.any((x) => x.name == h.name && x.commit == h.commit)) {
@@ -341,7 +365,8 @@ class CircleKeys {
       }
     }
     if (changed) unawaited(_save());
-    if (took) _taken.add(c.seed);
+    // Told on any change, so what waits for the key goes as soon as nothing newer is lacking (B5).
+    if (changed) _taken.add(c.seed);
     return took;
   }
 
@@ -401,7 +426,11 @@ class CircleInbox {
 /// A circle's key epoch, as its owner or an admin signed it: which circle, its number, a commitment to its key, who
 /// signed, when.
 class CircleEpoch {
-  const CircleEpoch({required this.seed, required this.epoch, required this.commit, required this.by, required this.byKey, required this.at, required this.sig});
+  const CircleEpoch({required this.seed, required this.epoch, required this.commit, required this.by, required this.byKey, required this.at, required this.sig, this.gv = 0});
+
+  /// The circle's admin list generation (CircleManifest.grantsVersion) its signer could sign under when they made it
+  /// (B1), signed with the rest.
+  final int gv;
   final String seed;
   final int epoch;
   final String commit;
@@ -416,9 +445,9 @@ class CircleEpoch {
   /// How this device keeps the key: `epoch:tag`.
   String get name => '$epoch:$tag';
 
-  List<int> get signed => utf8.encode('ghost-circle epoch v1|$seed|$epoch|$commit|$by|$byKey|$at');
+  List<int> get signed => utf8.encode('ghost-circle epoch v2|$seed|$epoch|$commit|$by|$byKey|$at|$gv');
 
-  CircleEpoch withSig(String s) => CircleEpoch(seed: seed, epoch: epoch, commit: commit, by: by, byKey: byKey, at: at, sig: s);
+  CircleEpoch withSig(String s) => CircleEpoch(seed: seed, epoch: epoch, commit: commit, by: by, byKey: byKey, at: at, sig: s, gv: gv);
 
   /// Whether it is signed by whom it says, and they may change the circle whose manifest is [m]: its owner or an admin.
   bool trusted(CircleManifest m) {
@@ -430,12 +459,12 @@ class CircleEpoch {
     }
   }
 
-  Map<String, Object> toJson() => {'s': seed, 'e': epoch, 'c': commit, 'by': by, 'k': byKey, 'at': at, 'sig': sig};
+  Map<String, Object> toJson() => {'s': seed, 'e': epoch, 'c': commit, 'by': by, 'k': byKey, 'at': at, 'sig': sig, 'gv': gv};
 
   static CircleEpoch? fromJson(Object? j) {
     if (j is! Map) return null;
     final s = j['s'], e = j['e'], c = j['c'], by = j['by'], k = j['k'], at = j['at'], sig = j['sig'];
     if (s is! String || e is! int || e < 1 || e > CircleKeys.epochMost || c is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(c) || by is! String || k is! String || at is! int || sig is! String || sig.length != 128) return null;
-    return CircleEpoch(seed: s, epoch: e, commit: c, by: by, byKey: k, at: at, sig: sig);
+    return CircleEpoch(seed: s, epoch: e, commit: c, by: by, byKey: k, at: at, sig: sig, gv: j['gv'] is int ? j['gv'] as int : 0);
   }
 }

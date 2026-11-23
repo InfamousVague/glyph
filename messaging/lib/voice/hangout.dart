@@ -88,6 +88,7 @@ class HangoutRoom extends ChangeNotifier {
     _loadAbout();
     _loadVotes();
     _loadReactions();
+    _loadUnsaid();
   }
 
   static const keep = 300;
@@ -130,7 +131,34 @@ class HangoutRoom extends ChangeNotifier {
 
   /// What came under a key this device lacks, and what it would have said: both wait for the key.
   final List<({String from, Uint8List bytes, bool reaction})> _unread = [];
-  final List<({Map<String, Object?> what, bool keep})> _unsaid = [];
+  final List<({Map<String, Object?> what, bool keep, bool reaction})> _unsaid = [];
+  static const mostUnsaid = 100;
+
+  /// What waits is kept with the space's other things (`:u`), so a restart doesn't lose it (B5).
+  void _keepUnsaid() {
+    final st = store;
+    if (st is HangoutVotesStore) (st as HangoutVotesStore).keepVotes('${channel.chatRoom}:u', jsonEncode([for (final w in _unsaid) {'w': w.what, 'k': w.keep, 'r': w.reaction}]));
+  }
+
+  void _loadUnsaid() {
+    final st = store;
+    if (st is! HangoutVotesStore) return;
+    try {
+      for (final j in jsonDecode((st as HangoutVotesStore).votesOf('${channel.chatRoom}:u') ?? '[]') as List) {
+        if (j is Map && j['w'] is Map) _unsaid.add((what: (j['w'] as Map).cast<String, Object?>(), keep: j['k'] == true, reaction: j['r'] == true));
+      }
+    } catch (_) {}
+  }
+
+  /// Queues [what] until the circle's key comes.
+  void _wait(Map<String, Object?> what, {bool keep = false, bool reaction = false}) {
+    _unsaid.add((what: what, keep: keep, reaction: reaction));
+    if (_unsaid.length > mostUnsaid) _unsaid.removeAt(0);
+    _keepUnsaid();
+    final circle = channel.circle;
+    if (circle != null) circleKeys?.missing(circle);
+    notifyListeners();
+  }
 
   /// Whether what is said here waits for the circle's new key: the screen says so.
   bool get waitingForKey => _unsaid.isNotEmpty || (channel.circle != null && (circleKeys?.lacking(channel.circle!) ?? false));
@@ -141,8 +169,9 @@ class HangoutRoom extends ChangeNotifier {
     if (circle == null || k == null || k.lacking(circle)) return;
     final said = [..._unsaid];
     _unsaid.clear();
+    _keepUnsaid();
     for (final w in said) {
-      _say(w.what, keep: w.keep);
+      w.reaction ? _sendReaction(w.what) : _say(w.what, keep: w.keep);
     }
     final unread = [..._unread];
     _unread.clear();
@@ -224,6 +253,8 @@ class HangoutRoom extends ChangeNotifier {
     }
     _hi(ask: true);
     _say({'t': 'sync?', 'since': messages.isEmpty ? 0 : messages.last.at, 'v': roster.version, 'av': _about?.version ?? 0});
+    // What waited from before a restart goes now, where the key is here.
+    if (_unsaid.isNotEmpty) _keyCame();
     notifyListeners();
   }
 
@@ -427,9 +458,19 @@ class HangoutRoom extends ChangeNotifier {
     final at = DateTime.now().millisecondsSinceEpoch;
     if (!reactions.take(m.id, me, emoji, on: on, at: at)) return false;
     final what = {'t': 'react', 'id': m.id, 'e': emoji, 'on': on, 'at': at};
+    _sendReaction(what);
+    _keepReactions();
+    notifyListeners();
+    return true;
+  }
+
+  /// Sends a reaction: as one where the relay takes them, else as a kept packet; waits for the circle's key where it
+  /// lacks it, as a reaction still (B10).
+  void _sendReaction(Map<String, Object?> what) {
     final r = route;
-    final sealed = opened && r is ReactionRoute && (r as ReactionRoute).takesReactions ? _seal(utf8.encode(jsonEncode(what))) : null;
-    if (sealed != null) {
+    if (opened && r is ReactionRoute && (r as ReactionRoute).takesReactions) {
+      final sealed = _seal(utf8.encode(jsonEncode(what)));
+      if (sealed == null) return _wait(what, reaction: true);
       try {
         (r as ReactionRoute).sendReaction(_inRoom ?? hubRoom, sealed);
       } catch (_) {}
@@ -437,9 +478,6 @@ class HangoutRoom extends ChangeNotifier {
       // A relay from before keeps it as any kept packet (and in a read-only room refuses it from a reader).
       _say(what, keep: true);
     }
-    _keepReactions();
-    notifyListeners();
-    return true;
   }
 
   /// A packet that came as a reaction: taken only as one.
@@ -1036,13 +1074,7 @@ class HangoutRoom extends ChangeNotifier {
     if (!opened) return;
     try {
       final sealed = _seal(utf8.encode(jsonEncode(what)));
-      if (sealed == null) {
-        _unsaid.add((what: what, keep: keep));
-        final circle = channel.circle;
-        if (circle != null) circleKeys?.missing(circle);
-        notifyListeners();
-        return;
-      }
+      if (sealed == null) return _wait(what, keep: keep);
       final r = route;
       if (keep && r is HubVoiceRoute) {
         r.sendKept(_inRoom ?? hubRoom, sealed);

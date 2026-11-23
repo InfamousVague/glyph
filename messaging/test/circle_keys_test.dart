@@ -246,27 +246,57 @@ void main() {
       expect(ownerKeys.handOnSince(c, inbox, 1).map((m) => (m['h'] as Map)['e']), [2]);
     });
 
-    test('a header is believed only while its signer may change the circle, and only a few epochs ahead', () async {
+    test('a header taken stays believed when its signer stops being an admin; a new one from them is refused', () async {
       final admin = NetKeys.generate();
       expect(await mine.grantAdmin(mine.bySeed(c.seed)!, admin.id), isTrue);
-      final adminKeys = CircleKeys.fresh()..manifestOf = (seed) => mine.bySeed(seed)?.manifest;
-      final mayaKeys = CircleKeys.fresh()..manifestOf = (seed) => mine.bySeed(seed)?.manifest;
+      final adminKeys = CircleKeys.fresh(), mayaKeys = CircleKeys.fresh(), laterKeys = CircleKeys.fresh();
       final said = (await adminKeys.rotate(mine.bySeed(c.seed)!, KeysSigner(admin), [await inboxOf(mayaKeys, maya)]))!.single;
       expect(mayaKeys.take(mine.bySeed(c.seed)!, maya.id, said), isTrue);
-      expect(mayaKeys.current(c.seed)?.epoch, 1);
-      // The admin is made not one: their header is no longer believed, nor sealed under.
+      expect(CircleEpoch.fromJson(said['h'])!.gv, mine.bySeed(c.seed)!.manifest.grantsVersion, reason: 'the admin list it was made under is signed in');
+      mine.keys!.take(mine.bySeed(c.seed)!, owner.id, said);
+      // The admin is made not one: Maya keeps sealing under epoch 1, never falling back to the seed's key.
       expect(await mine.grantAdmin(mine.bySeed(c.seed)!, admin.id, on: false), isTrue);
-      expect(mayaKeys.current(c.seed), isNull);
-      expect(mayaKeys.newest(c.seed), isNull);
-      // A real header far ahead is not taken; one at the edge of the counter can't even be read.
+      expect(mayaKeys.current(c.seed)?.epoch, 1);
+      final sealed = mayaKeys.seal(c.seed, c.key, 'space', [1])!;
+      expect(NetCrypto.open(c.key, sealed), isNull);
+      // Someone who hadn't taken it refuses it now; and the owner made a new key, since the newest was theirs.
+      expect(laterKeys.take(mine.bySeed(c.seed)!, maya.id, said), isFalse);
+      expect(mine.keys!.newest(c.seed)?.by, owner.id, reason: 'the owner changed the key when the admin who made the newest stopped being one');
+    });
+
+    test('a header far ahead is known (so nothing is sealed until its key comes); one at the edge of the counter can\'t be read', () async {
+      final mayaKeys = CircleKeys.fresh();
       final key = NetCrypto.randomBytes(32);
       CircleEpoch at(int e) {
         final u = CircleEpoch(seed: c.seed, epoch: e, commit: CircleKeys.commitOf(c.seed, e, key), by: owner.id, byKey: NetCrypto.hex(owner.public), at: 1, sig: '');
         return u.withSig(NetCrypto.hex(NetCrypto.sign(owner, u.signed)));
       }
-      expect(mayaKeys.take(mine.bySeed(c.seed)!, maya.id, {'h': at(CircleKeys.epochWindow + 1).toJson(), 'x': []}), isFalse);
-      expect(mayaKeys.newest(c.seed), isNull);
+      mayaKeys.take(mine.bySeed(c.seed)!, maya.id, {'h': at(12).toJson(), 'x': []});
+      expect(mayaKeys.newest(c.seed)?.epoch, 12);
+      expect(mayaKeys.lacking(c.seed), isTrue);
+      expect(mayaKeys.seal(c.seed, c.key, 'space', [1]), isNull, reason: 'knowing epochs and holding none, never the seed\'s key');
       expect(CircleEpoch.fromJson(at(0xffffffff).toJson()), isNull);
+    });
+
+    test('two headers for one epoch: only the device that made the losing one changes it again, and once', () async {
+      final admin = NetKeys.generate();
+      expect(await mine.grantAdmin(mine.bySeed(c.seed)!, admin.id), isTrue);
+      final adminKeys = CircleKeys.fresh(), ownersMac = CircleKeys.fresh();
+      final a = (await mine.keys!.rotate(mine.bySeed(c.seed)!, KeysSigner(owner), const []))!.single;
+      final b = (await adminKeys.rotate(mine.bySeed(c.seed)!, KeysSigner(admin), const []))!.single;
+      for (final k in [mine.keys!, adminKeys, ownersMac]) {
+        k.take(mine.bySeed(c.seed)!, owner.id, a);
+        k.take(mine.bySeed(c.seed)!, admin.id, b);
+        expect(k.split(c.seed), isTrue);
+      }
+      final ca = CircleEpoch.fromJson(a['h'])!.commit, cb = CircleEpoch.fromJson(b['h'])!.commit;
+      final ownerLost = ca.compareTo(cb) > 0;
+      expect(mine.keys!.shouldChangeAgain(c.seed), ownerLost);
+      expect(adminKeys.shouldChangeAgain(c.seed), !ownerLost);
+      expect(ownersMac.shouldChangeAgain(c.seed), isFalse, reason: 'the owner\'s other device didn\'t make it');
+      final loser = ownerLost ? mine.keys! : adminKeys;
+      loser.changingAgain(c.seed);
+      expect(loser.shouldChangeAgain(c.seed), isFalse, reason: 'once per epoch');
     });
 
     test('kept inboxes: once a day; signing out forgets every key and makes a new inbox', () async {
@@ -373,8 +403,10 @@ void main() {
         for (final b in after)
           if (_opensWithSeedsOnly(c, b, keys: his.keys)) jsonDecode(utf8.decode(NetCrypto.open(c.key, b) ?? [])) as Map,
       ];
-      expect(opened.map((m) => m['t']).toSet().difference({'ik', 'k?', 'kb', 'rk'}), isEmpty, reason: 'no manifest, no message: only inboxes and boxes not his');
-      expect(opened.any((m) => jsonEncode(m).contains('after the ban') || jsonEncode(m).contains('Book club (new)')), isFalse);
+      // The circle's own business (its manifest, joins, asking) goes under the seed's key so a member behind on the key
+      // isn't stuck (B5); its spaces' words never.
+      expect(opened.map((m) => m['t']).toSet().difference({'ik', 'k?', 'kb', 'rk', 'circle', 'sync?', 'joined'}), isEmpty, reason: 'no message: only the circle\'s own business');
+      expect(opened.any((m) => jsonEncode(m).contains('after the ban')), isFalse);
     });
 
     test('a banned member asking for the key is not answered; a second device of a member is', () async {
@@ -484,6 +516,76 @@ void main() {
       expect(mine.roomOf(c)!.inboxes.values.where((i) => i.id == sam.id).length, CircleRoom.mostInboxes);
     });
 
+    test('two admins at once, the owner on two devices: changed again once, and it settles', () async {
+      final admin = NetKeys.generate();
+      expect(await mine.grantAdmin(mine.bySeed(c.seed)!, admin.id), isTrue);
+      final ownersMac = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final theirs = Circles.forTest(signer: KeysSigner(admin), route: _Route(hub, admin.id));
+      closing.add(ownersMac.clear);
+      closing.add(theirs.clear);
+      ownersMac.join(_copy(mine.bySeed(c.seed)!));
+      theirs.join(_copy(mine.bySeed(c.seed)!));
+      await _until(() => (theirs.bySeed(c.seed)?.manifest.canSign(admin.id) ?? false) && mine.roomOf(c)!.inboxes.length >= 3);
+      await Future.wait([mine.rotateKey(mine.bySeed(c.seed)!), theirs.rotateKey(theirs.bySeed(c.seed)!)]);
+      await _until(() => (mine.keys!.newest(c.seed)?.epoch ?? 0) >= 2 && !mine.keys!.split(c.seed));
+      final settled = mine.keys!.newest(c.seed)!.epoch;
+      await _settle(3000);
+      expect(mine.keys!.newest(c.seed)!.epoch, settled, reason: 'no more changes: it doesn\'t loop');
+      expect(settled, 2);
+      expect(mine.keys!.split(c.seed), isFalse);
+    });
+
+    test('what waits for the key is kept across a restart, at most a hundred, and goes once the key comes', () async {
+      expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id), isTrue);
+      final laterKeys = CircleKeys.fresh();
+      final h = mine.keys!.current(c.seed)!;
+      laterKeys.take(mine.bySeed(c.seed)!, maya.id, {'h': h.toJson(), 'x': []});
+      final text = mine.bySeed(c.seed)!.spaces.firstWhere((s) => s.kind == SpaceKind.text);
+      final channel = mine.bySeed(c.seed)!.channelOf(text);
+      final store = MemoryHangoutStore();
+      final first = HangoutRoom(channel: channel, route: _Route(hub, maya.id), name: 'Maya', signer: KeysSigner(maya), store: store)..circleKeys = laterKeys;
+      await first.open();
+      for (var i = 0; i < 105; i++) {
+        first.send('waiting $i');
+      }
+      await first.close();
+      // The app starts again: the same store, a new room.
+      final again = HangoutRoom(channel: channel, route: _Route(hub, maya.id), name: 'Maya', signer: KeysSigner(maya), store: store)..circleKeys = laterKeys;
+      expect(again.waitingForKey, isTrue);
+      final ownerSpace = await space(mine, owner, 'Owner');
+      await again.open();
+      closing.add(again.close);
+      final inbox = CircleKeys.inboxOf(c.seed, maya.id, await laterKeys.inboxSaid(c.seed, KeysSigner(maya)))!;
+      laterKeys.take(mine.bySeed(c.seed)!, maya.id, mine.keys!.handOn(mine.bySeed(c.seed)!, inbox)!);
+      await _until(() => ownerSpace.messages.any((m) => m.text == 'waiting 104'));
+      final got = [for (final m in ownerSpace.messages) if (m.text.startsWith('waiting ')) m.text];
+      expect(got.length, lessThanOrEqualTo(CircleRoom.mostWaiting + 1), reason: 'at most a hundred kept (a sync may be among them)');
+      expect(got, contains('waiting 104'));
+      expect(got, isNot(contains('waiting 0')), reason: 'the oldest went past the cap');
+    });
+
+    test('two devices of one member asking at once are each answered', () async {
+      expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id), isTrue);
+      await _until(() => hers.keys!.current(c.seed) != null);
+      final one = CircleKeys.fresh(), two = CircleKeys.fresh();
+      final ear = _Route(hub, maya.id);
+      await ear.join(c.room, c.token);
+      for (final k in [one, two]) {
+        ear.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'k?', 'ke': 0, 'ik': await k.inboxSaid(c.seed, KeysSigner(maya))}))));
+      }
+      await _settle(800);
+      for (final b in ear.heard[c.room] ?? const <Uint8List>[]) {
+        final clear = NetCrypto.open(c.key, b);
+        if (clear == null) continue;
+        final m = jsonDecode(utf8.decode(clear)) as Map;
+        for (final k in [one, two]) {
+          k.take(mine.bySeed(c.seed)!, maya.id, m);
+        }
+      }
+      expect(one.current(c.seed), isNotNull);
+      expect(two.current(c.seed), isNotNull);
+    });
+
     test('kicked: a new key too; coming back openly by the link, he is given it again', () async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
       expect(await mine.kickMember(mine.bySeed(c.seed)!, sam.id), isTrue);
@@ -491,12 +593,15 @@ void main() {
       await _until(() => hers.keys!.current(c.seed) != null);
       expect(his.keys!.current(c.seed), isNull);
       expect(mine.mayHaveKey(c.seed, sam.id), isFalse);
+      final whileOut = mine.keys!.seal(c.seed, c.key, 'space', utf8.encode('said while he was out'))!;
       await Future<void>.delayed(const Duration(milliseconds: 5));
       his.removedFrom.value = null;
       his.join(Circle.fromLink(mine.bySeed(c.seed)!.link)!);
       await _until(() => his.keys!.current(c.seed) != null);
       expect(mine.mayHaveKey(c.seed, sam.id), isTrue, reason: 'he said he came, after the kick');
-      expect(his.keys!.current(c.seed)!.epoch, 1);
+      // Not the key from while he was out (B9): a new one, made after he came back.
+      expect(his.keys!.current(c.seed)!.epoch, 2);
+      expect(his.keys!.open(c.seed, c.key, 'space', whileOut).clear, isNull, reason: 'what was said while he was out stays shut to him');
       expect(his.bySeed(c.seed), isNotNull);
     });
   });
@@ -514,5 +619,21 @@ void main() {
     await first.clear();
     final again = Circles.forTest(signer: KeysSigner(owner), app: app);
     expect(again.mayHaveKey(c.seed, sam.id), isTrue);
+  });
+
+  test('when members last came is trimmed by who came longest ago, not by who was written first', () async {
+    final app = AppState();
+    final owner = NetKeys.generate();
+    final circles = Circles.forTest(signer: KeysSigner(owner), route: _Route(_Hub(), owner.id), app: app);
+    final c = (await circles.make(name: 'Big'))!;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    circles.heardJoined(circles.bySeed(c.seed)!, 'recent', 'R', now);
+    for (var i = 0; i < 400; i++) {
+      circles.heardJoined(circles.bySeed(c.seed)!, 'm$i', 'M', now - 1000000 + i);
+    }
+    final kept = (jsonDecode(app.choice('circles_last_join', '{}')) as Map)[c.seed] as Map;
+    expect(kept.containsKey('recent'), isTrue);
+    expect(kept.containsKey('m0'), isFalse);
+    await circles.clear();
   });
 }

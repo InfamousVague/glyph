@@ -185,7 +185,7 @@ When the owner or an admin **bans** (`removeMember`) or **kicks** (`kickMember`)
 4. Says it in the circle's room (`rk`, then `kb` for every 200 boxes). The relay keeps these messages for devices
    that come in later.
 
-From then on, the circle's room (manifest, joins, `was`) and the circle's spaces' chat and reactions are sealed under
+From then on, the circle's spaces' chat and reactions (and the room's `was`) are sealed under
 `HKDF(salt = epoch key, ikm = the seed's own key for that room, info = "ghost-circle epoch v1|purpose|epoch")`, laid
 out like this:
 
@@ -197,18 +197,27 @@ The additional data is the 11-byte head plus `|purpose` ("circle" for the room, 
 alone opens nothing sealed after a change. A key from one epoch opens nothing from a later one. Members keep every
 epoch key they've held, so earlier messages still open.
 
-- **Never under an older key.** A device that knows of a newer epoch than it holds a key for seals nothing. It keeps
-  what it would have said (in the circle's room and in its spaces) and asks for the key. When the key comes, it sends
-  everything it kept. Meanwhile the space shows "Waiting for the circle's new key". So a member who is behind never
-  posts under a key that the person put out still holds.
+- **The circle's own business stays under the seed's key:** its manifest, `sync?`, joins, inboxes, boxes and asks.
+  A member who is behind on the key must still hear the circle change, be told they were put out, and say they came
+  back. Otherwise they would wait on a key nobody gives them. So someone put out can still read the manifest: the
+  circle's name, its spaces and roles. They can't read what is said in its spaces.
+- **Never under an older key.** A device that knows of a newer epoch than it holds a key for (or knows the circle
+  has epochs but holds none) seals nothing in the circle's spaces. It doesn't use an older key, and it doesn't use the
+  seed's. It keeps what it would have said, at most 100 items, saved with the space so a restart doesn't lose them,
+  and asks for the key. Reactions wait as reactions. Everything goes as soon as nothing newer is lacking, whatever
+  caused that. Meanwhile the space shows "Waiting for the circle's new key".
 - **Unreadable packets wait.** A packet under an epoch this device doesn't hold is kept (the newest 200 per room). The
   circle's room asks for the key, and the packet is opened when the key comes.
-- **Headers are checked each time they're used.** A header counts only while its signer may still change the circle
-  as it stands now. One from an admin who has since lost admin is dropped. A header is taken only if its epoch is at
-  most 4 past the newest held (`epochWindow`). Epochs above `0xffff0000` are refused, because the field is 32 bits.
-- **Two admins at once.** If a device sees two believed headers for the newest epoch with different keys, the owner
-  or an admin (the first of those present, by id) changes the key again. That makes a single newer epoch that leaves
-  out everyone the manifest bans.
+- **Headers are judged as they're taken.** A header carries the admin list generation (`gv`) its signer could sign
+  under, signed in. A device takes a new header only if its signer may change the circle now. Once taken, a header
+  stays believed until a newer epoch supersedes it, even if its signer later stops being an admin. Dropping it would
+  make the device fall back to an older key, or the seed's, which the person put out holds. When the owner demotes an
+  admin who made the newest key, the owner makes a new one, so members who come later (and won't take the demoted
+  admin's header) aren't stuck. Any epoch up to `0xffff0000` is recorded as known, so a device far behind knows it
+  lacks the newest and seals nothing. Higher epochs are refused, because the field is 32 bits.
+- **Two admins at once.** If two believed headers name the newest epoch with different keys, the lower commitment
+  wins. Only the device that made the losing header changes the key again, after a random wait of 0.3 to 2.3 seconds,
+  if it's still split then, and once per epoch. Another device of the same identity didn't make it, so it doesn't.
 
 ### Inboxes, and coming in later
 
@@ -221,8 +230,12 @@ epoch key they've held, so earlier messages still open.
   holds). It learns of newer epochs from kept `rk` and `kb` messages, from a packet it can't open, or from a header
   hint (below). A device that holds the keys answers with a `kb` box for **every** epoch after `ke`, oldest first, so
   a device that was away through several changes reads each. Answers are timed the same way as manifest answers: the
-  lowest id goes first, and the others wait a step and drop out if they hear the answer. Each id's `k?` is answered at
-  most every 10 seconds.
+  lowest id goes first, and the others wait a step and drop out if they hear the answer. A device that was asked while
+  it lacked the key too answers once it has it, staggered the same way. Each device's `k?` is answered at most every
+  10 seconds.
+- **A kicked member who comes back** is handed only epochs whose header was made after they said they came back. If
+  there are none, the owner or an admin makes a new key, which they're in. So nothing said while they were out opens
+  for them. Their return is visible to everyone, and a `joined` prompts a header hint, so they know to ask.
 - `sync?` now carries `ke`, the newest epoch the asker holds. A device holding a newer one replies with just the
   signed header. That tells the asker to ask, even after the relay's kept messages have expired.
 - **Who may be given the key** (`Circles.mayHaveKey`): the owner, admins, the identity's own devices, and anyone the
@@ -298,9 +311,10 @@ epoch key they've held, so earlier messages still open.
   video were already sealed per call by WebRTC). Spaces that aren't in a circle are also not covered. For all of
   these, the seed is still the key.
 - **A member the circle has never seen** come in or write is not given the key until they do.
-- **A kicked member who comes back openly** is given every key after their newest, including the one made when they
-  were kicked. So they can read what the relay still keeps from while they were out (up to 7 days). This is as before
-  rotation existed. Their return is visible to everyone.
+- **The manifest** (name, spaces, roles) is readable by someone put out, as above.
+- **A device that hasn't heard of any epoch yet** (a brand new device, before the relay's kept `rk` or a hint
+  reaches it) seals with the seed's key, because it can't know better. This is the main reason the circle half stays
+  switched off.
 
 ## Compatibility rules (summary)
 
