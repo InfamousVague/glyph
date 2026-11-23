@@ -309,7 +309,7 @@ void main() {
     }
   });
 
-  test('who an install is where two records name it: the one encryption is on with, then a friend\'s, then a number\'s; two alike, nobody\'s', () {
+  test('who an install is where two records name it: the one encryption is on with, then the one being friends has gone furthest with, then a number\'s; two alike, the lower address, never nobody', () {
     const k = 'the-key';
     E2eState r(String address, {String state = 'on', String friend = '', String? id = k, List<String> others = const []}) => E2eState(address: address, state: state, friend: friend, id: id, otherIds: others);
     // A key someone sent from a number that isn't theirs: the friend's record stands, in either order.
@@ -321,13 +321,21 @@ void main() {
     // it alone is a friend.
     expect(Friends.whoIs([r('@maya', friend: 'yes'), r('+15550000001', friend: 'yes')]), {k: '5550000001'});
     expect(Friends.whoIs([r('@maya', friend: 'yes'), r('+15550000001')]), {k: '@maya'});
-    // Two alike: nobody's, whatever came last.
-    expect(Friends.whoIs([r('+15550000001'), r('+15550000002')]), isEmpty);
-    expect(Friends.whoIs([r('+15550000001'), r('+15550000002'), r('+15550000003')]), isEmpty);
-    // ...until one ranks above both.
+    // How far being friends has gone counts (the review's probe 5): asked or invited above nothing, meant to ask (want)
+    // between, a friend above them all.
+    expect(Friends.whoIs([r('+15550000009'), r('+15550000001', friend: 'asked')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000009', friend: 'want'), r('+15550000001', friend: 'invited')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000001', friend: 'want'), r('+15550000009')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000009', friend: 'yes'), r('+15550000001', friend: 'asked')]), {k: '5550000009'});
+    // Two alike: one of them, the lower, whatever order they came in (probes 2 and 3: one person's two numbers).
+    expect(Friends.whoIs([r('+15550000002'), r('+15550000001')]), {k: '5550000001'});
+    expect(Friends.whoIs([r('+15550000003', friend: 'yes'), r('+15550000001', friend: 'yes'), r('+15550000002', friend: 'yes')]), {k: '5550000001'});
+    // ...unless one ranks above the rest.
     expect(Friends.whoIs([r('+15550000001'), r('+15550000002'), r('+15550000003', friend: 'yes')]), {k: '5550000003'});
-    // One number written two ways is one record.
+    // One number written two ways is one record, and a username is never a number, whatever digits it holds (probe 1).
     expect(Friends.whoIs([r('+1 555 000 0001'), r('5550000001')]), {k: '5550000001'});
+    expect(Friends.digits('@ben.5550000001'), '@ben.5550000001');
+    expect(Friends.whoIs([r('@Ben.5550000001', friend: 'yes')]), {k: '@ben.5550000001'});
     // A friend by username's other installs are theirs too; a record that names no key names nobody.
     expect(Friends.whoIs([r('@maya', friend: 'yes', others: ['old-key'])]), {k: '@maya', 'old-key': '@maya'});
     expect(Friends.whoIs([r('+15550000001', id: null)]), isEmpty);

@@ -138,10 +138,14 @@ class Friends extends ChangeNotifier {
   /// How long before a friend who is away is sent another wake.
   static const wakeEvery = Duration(minutes: 10);
 
-  /// A number as two phones agree on it whatever each wrote before it: its last ten digits.
+  /// A number as two phones agree on it whatever each wrote before it: its last ten digits. A username (`@name`) is
+  /// never read as a number, whatever digits it holds: usernames may (Me.goodUsername), and "@ben.5550002222" was read
+  /// as Ben's number and stood in for him (found in review, 2026-11-23).
   static String digits(String address) {
+    final t = address.trim();
+    if (t.startsWith('@')) return t.toLowerCase();
     final d = address.replaceAll(RegExp(r'[^0-9]'), '');
-    return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : address.trim().toLowerCase();
+    return d.length >= 7 ? (d.length > 10 ? d.substring(d.length - 10) : d) : t.toLowerCase();
   }
 
   /// Starts listening to the routes. Asked for once, as the app opens, after the routes are set up.
@@ -263,27 +267,29 @@ class Friends extends ChangeNotifier {
 
   /// Who each install is, from [all] the records: the address ([digits]) of the record that names its id
   /// ([E2eState.id], and a friend by username's other installs). Where two name the same one (a person's number and
-  /// username, both with the key of the one install; or a key someone sent from a number that isn't theirs), the
-  /// record encryption is on with stands, then a friend's, then a number's; two still alike leave it nobody's, and what
-  /// it sends is dropped, rather than said to be from either.
+  /// username, both with the key of the one install; one person's two numbers on one phone; or a key someone sent from
+  /// a number that isn't theirs), the record encryption is on with stands, then the one being friends has gone furthest
+  /// with ([progress]), then a number's; two still alike go to the same one of them every time, the lower address. Never
+  /// to nobody: a record's id seals for that key's own holder whatever address it is under, so the worst that can come
+  /// of two alike is their words under the other of their numbers. Dropping them (as this did first) lost every word of
+  /// someone with two SIMs while their phone was told each had arrived (found in review, 2026-11-23).
   @visibleForTesting
   static Map<String, String> whoIs(Iterable<E2eState> all) {
-    int rank(E2eState s) => (s.on ? 4 : 0) + (s.isFriend ? 2 : 0) + (s.address.startsWith('@') ? 0 : 1);
+    int rank(E2eState s) => (s.on ? 16 : 0) + progress(s) * 2 + (s.address.startsWith('@') ? 0 : 1);
     final best = <String, E2eState>{};
-    final tied = <String>{};
     for (final s in all) {
       for (final id in {?s.id, ...s.otherIds}) {
         final had = best[id];
-        if (had == null || rank(s) > rank(had)) {
-          best[id] = s;
-          tied.remove(id);
-        } else if (rank(s) == rank(had) && digits(s.address) != digits(had.address)) {
-          tied.add(id);
-        }
+        if (had == null || rank(s) > rank(had) || (rank(s) == rank(had) && digits(s.address).compareTo(digits(had.address)) < 0)) best[id] = s;
       }
     }
-    return {for (final e in best.entries) if (!tied.contains(e.key)) e.key: digits(e.value.address)};
+    return {for (final e in best.entries) e.key: digits(e.value.address)};
   }
+
+  /// How far being friends has gone with [s], encryption on with them: 3 friends, 2 asked or invited, 1 meant to ask
+  /// (`want`), 0 nothing yet, or encryption off.
+  @visibleForTesting
+  static int progress(E2eState s) => !s.on ? 0 : switch (s.friend) { 'yes' => 3, 'asked' || 'invited' => 2, 'want' => 1, _ => 0 };
 
   /// Whether the record for [address] names the install [id], encryption on with it: their newest install or another.
   bool _names(String address, String id) {

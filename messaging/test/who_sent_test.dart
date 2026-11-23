@@ -224,6 +224,72 @@ void main() {
     await until(() => textsTo(maya).isNotEmpty, 'sent to Maya');
     expect(textsTo(maya), ['Hi Maya']);
   });
+
+  // From the independent review of this fix (2026-11-23), its probe 1: usernames may hold digits (Me.goodUsername), and a
+  // friend request's username was taken as written. Friends.digits read "@ben.5550002222" as Ben's number, so the
+  // username's record stood in for Ben's.
+  test('a friend by username whose username holds a friend\'s number\'s digits is not that friend: what is written to him goes to him, and his own words are kept as his', () async {
+    peers = [peer(ben, benNumber), peer(eve, '@ben.5550002222')];
+    e2e = [
+      {'address': benNumber, 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'id': ben.id},
+      {'address': '@ben.5550002222', 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'id': eve.id, 'others': <String>[]},
+    ];
+    await open();
+    expect(await friends.sendText(benNumber, 'For Ben only'), isTrue);
+    await until(() => textsTo(ben).isNotEmpty || textsTo(eve).isNotEmpty, 'sent');
+    arrive(ben, Envelope(kind: 'text', body: {'t': 'Ben here'}));
+    arrive(eve, Envelope(kind: 'text', body: {'t': 'The username'}));
+    await until(() => textsIn.length >= 2, 'both kept');
+    expect(textsTo(ben), ['For Ben only']);
+    expect(textsTo(eve), isEmpty);
+    expect(textsIn.toSet(), {(address: benNumber, words: 'Ben here'), (address: '@ben.5550002222', words: 'The username')});
+  });
+
+  // The review's probes 2, 3 and 5: one person, one phone and its one key, with encryption on here under two of their
+  // numbers (two SIMs, or a number they moved to and sent the key from again). Both records name the key; the two were
+  // said to be nobody's and everything from it dropped, while their phone was told it had arrived.
+  group('one key on two of a friend\'s numbers', () {
+    const benOther = '+15550007777';
+    setUp(() => peers = [peer(ben, benNumber), peer(ben, benOther)]);
+
+    test('both friends here: what they write is kept, under one of the two, the same one each time', () async {
+      e2e = [
+        {'address': benOther, 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'id': ben.id},
+        {'address': benNumber, 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'id': ben.id},
+      ];
+      await open();
+      arrive(ben, Envelope(kind: 'text', body: {'t': 'Ben here'}));
+      arrive(ben, Envelope(kind: 'text', body: {'t': 'Still Ben'}));
+      await until(() => textsIn.length >= 2, 'kept');
+      expect(textsIn.map((t) => t.words), ['Ben here', 'Still Ben']);
+      expect(textsIn.map((t) => t.address).toSet(), hasLength(1));
+    });
+
+    test('neither a friend yet: their friend request is heard', () async {
+      e2e = [
+        {'address': benNumber, 'state': 'on', 'friend': '', 'hasGhost': true, 'id': ben.id},
+        {'address': benOther, 'state': 'on', 'friend': '', 'hasGhost': true, 'id': ben.id},
+      ];
+      await open();
+      arrive(ben, Envelope(kind: 'friend', body: {'do': 'ask'}));
+      await until(() => friendSets.isNotEmpty, 'heard');
+      expect(friendSets.map((s) => s.state), ['invited']);
+    });
+
+    test('this phone asked from one of the two: their yes is heard there, and what they write after it is kept', () async {
+      e2e = [
+        {'address': benOther, 'state': 'on', 'friend': '', 'hasGhost': true, 'id': ben.id},
+        {'address': benNumber, 'state': 'on', 'friend': 'asked', 'hasGhost': true, 'id': ben.id},
+      ];
+      await open();
+      arrive(ben, Envelope(kind: 'friend', body: {'do': 'yes'}));
+      arrive(ben, Envelope(kind: 'text', body: {'t': 'Now we are friends'}));
+      await until(() => textsIn.isNotEmpty, 'kept');
+      await pumpEventQueue(times: 50);
+      expect(friendSets.map((s) => '${s.address} ${s.state}'), ['$benNumber yes']);
+      expect(textsIn, [(address: benNumber, words: 'Now we are friends')]);
+    });
+  });
 }
 
 /// A group as android Groups.view gives one, from the state kept.
