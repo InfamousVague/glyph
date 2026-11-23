@@ -522,6 +522,16 @@ void main() {
     expect(alex.buddies.all, isEmpty, reason: 'nobody is kept who can\'t be written to');
   });
 
+  test('someone on a relay that doesn\'t pass messages to other relays is said to be there, not to need a newer version', () async {
+    // Found in the review of relays that talk (2026-11-23): asked of that relay itself, the app never read its hello,
+    // and said of everyone there that they needed a newer version of the app.
+    final quiet = net.relay('quiet.test', mode: FedMode.off), island = net.relay('island.test', mode: FedMode.off);
+    final alex = await app('alex', quiet);
+    await app('ivy', island);
+    await expectLater(alex.buddies.add('ivy@island.test'), throwsA(isA<MeError>().having((e) => e.message, 'message', '@ivy is on island.test, which doesn\'t pass messages to other relays.')));
+    expect(net.asked, ['wss://island.test/hub'], reason: 'asked of that relay itself, as alex\'s own doesn\'t talk to others');
+  });
+
   group('where the app\'s own relay doesn\'t talk to others', () {
     test('the app asks the other relay itself, keeps the friend, and says the request can\'t be passed on yet', () async {
       final island = net.relay('island.test', mode: FedMode.off);
