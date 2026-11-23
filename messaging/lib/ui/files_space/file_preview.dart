@@ -22,11 +22,14 @@ import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
 import '../../kit/settings_kit.dart' show SettingsCallout;
 import '../../kit/settings_type.dart';
+import '../../voice/recorder.dart' show Recording;
+import '../../voice/recording_playback.dart' show RecordingPlayback, namedAsRecording, recordingIn;
 import '../../voice/voice.dart';
 import '../circles/circle_face.dart' show TitleBarMark;
 import '../common.dart';
 import '../dialup/bevel.dart';
 import '../dialup/retro_button.dart';
+import '../recording_float.dart' show showRecordingPlayback;
 import '../video_engine.dart';
 import '../video_screen.dart';
 import 'file_badge.dart';
@@ -51,20 +54,61 @@ bool browserShowsHere(SpaceFile f) => switch (f.kind) {
 /// Opens [f]: a video straight into the player, played as it comes down (lib/files/file_stream.dart; Matt, 2026-11-18:
 /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
 /// file?"), or from the disk where it is here already; anything else in its preview.
+///
+/// A call's recording opens in the mixer, each voice a track with its meter, fader, mute and solo (Matt, 2026-11-23:
+/// "i want to see the mixer when viewing sounds recordings but it just loads the media player view": to this it was a
+/// video as any MP4 is). It is known by its tracks (recordingIn), so by the file itself: one here already is looked
+/// into and opened as what it is; one not here yet is brought down first only when it is named as recordings are
+/// ([namedAsRecording]: its preview, with the progress, and then the mixer over it), since the mixer needs the whole
+/// file and its track names are at its end. Any other video, and any on a device whose mixer opens no file, plays as
+/// before. The mixer has a button back to the player.
 void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store, bool chat = false}) {
   final s = store ?? FilesStore.instance;
   // In a browser a video comes down first, its progress in the preview, then plays from the tab (FilesStore.browser).
   if (f.kind == FileKind.video && playsVideo && !s.browser) {
     final have = s.cached(f);
-    Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
+    void play() => Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
+    if (RecordingPlayback.opensHere && f.name.toLowerCase().endsWith('.mp4')) {
+      if (have != null) {
+        unawaited(recordingIn(have, id: 'file-${f.id}', space: c.name).then((r) {
+          if (!context.mounted) return;
+          if (r == null) return play();
+          openRecordingFile(context, r, have, f);
+        }));
+        return;
+      }
+      if (namedAsRecording(f.name)) {
+        push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store, chat: chat, mixer: true));
+        return;
+      }
+    }
+    play();
     return;
   }
   push<void>(context, (_) => FilePreviewScreen(channel: c, file: f, store: store, chat: chat));
 }
 
+/// Opens [r], the call's recording in [f] (on this device at [path]), in the mixer, with the way from there to the
+/// app's video player. One of this device's own recordings keeps what was decoded of it, as from its list; any other
+/// is only passing through (RecordingPlayback.passing).
+void openRecordingFile(BuildContext context, Recording r, String path, SpaceFile f) {
+  unawaited(showRecordingPlayback(
+    context,
+    r,
+    passing: r.path == path,
+    plain: () {
+      if (context.mounted) Navigator.of(context).push(videoRoute(VideoScreen(path: path, title: f.name, poster: f.thumb)));
+    },
+  ));
+}
+
 /// The preview page of one file of a space: its name at the head, and under it the file as its kind is shown.
 class FilePreviewScreen extends StatefulWidget {
-  const FilePreviewScreen({super.key, required this.channel, required this.file, this.store, this.chat = false});
+  const FilePreviewScreen({super.key, required this.channel, required this.file, this.store, this.chat = false, this.mixer = false});
+
+  /// A video named as a call's recording is, not on this device yet ([openSpaceFile]): once it has come down and is
+  /// one, the mixer opens over this page by itself, and this page has Open in the mixer beside Play.
+  final bool mixer;
   final VoiceChannel channel;
   final SpaceFile file;
   final FilesStore? store;
@@ -90,6 +134,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   Uint8List? _bytes;
   bool _tooBig = false;
 
+  /// The call's recording this file turned out to be ([FilePreviewScreen.mixer]).
+  Recording? _recording;
+
   @override
   void initState() {
     super.initState();
@@ -103,6 +150,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
     final had = _store.cached(widget.file);
     if (had != null && !_store.browser) {
       _path = had;
+      if (widget.mixer) unawaited(_look(had));
       return;
     }
     // In a browser, what would be held whole in the tab only to be looked at is not brought down by opening it
@@ -132,10 +180,21 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
           _path = p;
           _bytes = bytes;
         });
+        if (widget.mixer) unawaited(_look(p));
       }
     }, onError: (Object e) {
       if (mounted) setState(() => _error = e is FilesError ? e : FilesError(0, '$e'));
     }));
+  }
+
+  /// The file is here, at [p], and was opened as a call's recording might be ([FilePreviewScreen.mixer]): where it is
+  /// one, the mixer opens over this page, which then has Open in the mixer beside Play.
+  Future<void> _look(String p) async {
+    if (widget.file.kind != FileKind.video) return;
+    final r = await recordingIn(p, id: 'file-${widget.file.id}', space: widget.channel.name);
+    if (r == null || !mounted) return;
+    setState(() => _recording = r);
+    openRecordingFile(context, r, p, widget.file);
   }
 
   /// The file as it is now in the list: renamed or moved meanwhile, it keeps up.
@@ -279,8 +338,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
               SizedBox(height: t.space(4)),
             ],
             Wrap(spacing: t.space(2), runSpacing: t.space(2), alignment: WrapAlignment.center, children: [
+              if (play && _recording != null) _Pill(label: 'Open in the mixer', icon: Lucide.slidersHorizontal, strong: true, onPressed: () => openRecordingFile(context, _recording!, path, f)),
               if (play)
-                _Pill(label: 'Play', icon: Lucide.play, strong: true, onPressed: () => Navigator.of(context).push(videoRoute(VideoScreen(path: path, title: f.name, poster: f.thumb))))
+                _Pill(label: 'Play', icon: Lucide.play, strong: _recording == null, onPressed: () => Navigator.of(context).push(videoRoute(VideoScreen(path: path, title: f.name, poster: f.thumb))))
               // Never in a browser: a file opened in a tab of the app's address could be a page whose script reads
               // what the app keeps there (docs/OPEN_NETWORK.md, part 6). It is downloaded instead.
               else if (!runs && FilePlatform.canOpen)

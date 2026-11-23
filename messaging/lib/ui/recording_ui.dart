@@ -223,9 +223,11 @@ class RecordingsScreen extends StatelessWidget {
     final space = [for (final c in Voice.instance.channels) if (c.seed == r.seed) c].firstOrNull;
     final room = space == null ? null : Voice.instance.hangoutFor(space);
     showChoices(context, title: r.space.isEmpty ? 'Recording' : r.space, choices: [
-      Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
       // Every voice a track of the timeline and a strip of the mixer, to play and mix again (lib/voice/recording_playback.dart).
+      // First, before the player (Matt, 2026-11-23: "i want to see the mixer when viewing sounds recordings but it
+      // just loads the media player view").
       if (r.people.isNotEmpty) Choice('Open in the mixer', Lucide.slidersHorizontal, () => unawaited(showRecordingPlayback(context, r))),
+      Choice('Play', Lucide.play, () => push(context, (_) => VideoScreen(path: r.path, title: r.space.isEmpty ? 'Recording' : r.space))),
       // Scribe's (lib/plugins/scribe.dart): the words, where it is on for this recording.
       if (CallScribe.instance.of(r) != null)
         Choice('Read the words', Lucide.scrollText, () => push(context, (_) => TranscriptScreen(recording: r)))

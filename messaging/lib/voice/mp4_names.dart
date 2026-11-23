@@ -74,6 +74,54 @@ class Mp4Names {
     }
   }
 
+  /// The tracks of [path], in order: each one's name as [apply] wrote it (`udta/name`, else `udta/©nam`, else the
+  /// handler's name) and what it carries (`soun` for sound, `vide` for a picture). How a file is known for a call's
+  /// recording again once it has left the device that made it (lib/voice/recording_playback.dart: recordingIn; Matt,
+  /// 2026-11-23: "i want to see the mixer when viewing sounds recordings but it just loads the media player view").
+  /// Only the movie box is read. Throws [FormatException] on a file that is not an MP4 it can read.
+  static Future<List<({String name, String kind})>> tracks(String path) async {
+    final raf = await File(path).open();
+    try {
+      final boxes = await _topLevel(raf, await raf.length());
+      final moov = boxes.where((b) => b.type == 'moov').firstOrNull;
+      // A movie box is a few kilobytes a track; one past 64 MB is not a recording's, and is not read whole.
+      if (moov == null || moov.size > 64 << 20) throw const FormatException('no movie box');
+      await raf.setPosition(moov.start);
+      return read(await raf.read(moov.size));
+    } finally {
+      await raf.close();
+    }
+  }
+
+  /// [tracks] of a movie box in memory.
+  static List<({String name, String kind})> read(Uint8List moov) {
+    String words(Uint8List bytes) => utf8.decode(bytes, allowMalformed: true).replaceAll('\u0000', '').trim();
+    final out = <({String name, String kind})>[];
+    for (final trak in _children(moov, 8)) {
+      if (_type(trak) != 'trak') continue;
+      String? name, title, handler;
+      var kind = '';
+      for (final c in _children(trak, 8)) {
+        if (_type(c) == 'mdia') {
+          for (final m in _children(c, 8)) {
+            // The handler: version and flags, pre_defined, its type at byte 16, twelve reserved bytes, then its name.
+            if (_type(m) != 'hdlr' || m.length < 32) continue;
+            kind = latin1.decode(m.sublist(16, 20));
+            handler = words(m.sublist(32));
+          }
+        } else if (_type(c) == 'udta') {
+          for (final u in _children(c, 8)) {
+            if (_type(u) == 'name') name = words(u.sublist(8));
+            // Two bytes of length and two of language before the words (_udta).
+            if (_type(u) == '©nam' && u.length >= 12) title = words(u.sublist(12));
+          }
+        }
+      }
+      out.add((name: name ?? title ?? handler ?? '', kind: kind));
+    }
+    return out;
+  }
+
   /// The movie box [moov] with its tracks named [names], every chunk offset moved by [shift].
   static Uint8List rename(Uint8List moov, List<String> names, {int shift = 0}) {
     var track = 0;

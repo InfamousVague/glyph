@@ -21,8 +21,47 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:video_player/video_player.dart';
 
+import 'mp4_names.dart';
 import 'mpv_property.dart';
 import 'recorder.dart';
+
+/// Whether [name] is what a call's recording is named when it leaves the device: `rec` and its number, as the file is
+/// named where it is made (CallRecorder), which is the name it goes up under into a circle's Files space or a space's
+/// chat. A file named so is worth bringing down whole to look inside ([recordingIn]); any other is only looked into
+/// where it is on this device already.
+bool namedAsRecording(String name) => RegExp(r'^rec[0-9a-f]+\.mp4$', caseSensitive: false).hasMatch(name);
+
+/// The call's recording in the file at [path], to open in the mixer, or null where it is not one (Matt, 2026-11-23:
+/// "i want to see the mixer when viewing sounds recordings but it just loads the media player view": a recording
+/// opened from a Files space or a chat went to the video player, as any MP4 does).
+///
+/// A recording is known by what the recorder wrote in it (lib/voice/mp4_names.dart): sound in every track, the first
+/// named Everyone, then a track for each voice. One with a picture in it is left to the player, which shows it.
+/// Where the file is one this device made and still keeps, that one is given, with its marks and its space. Else one
+/// is made up for it under [id], with [space] as the word for where it is from; it is in no list, and the voices
+/// decoded for it are deleted when it is closed ([RecordingPlayback.passing]).
+///
+/// Null too where this device can't open one: a browser and Linux have no decoder for the tracks (ghost/scribe).
+Future<Recording?> recordingIn(String path, {required String id, String space = ''}) async {
+  if (!RecordingPlayback.opensHere) return null;
+  try {
+    final file = File(path);
+    final tracks = await Mp4Names.tracks(path);
+    if (tracks.length < 2 || tracks.first.name != 'Everyone' || tracks.any((t) => t.kind != 'soun')) return null;
+    final people = [for (final t in tracks.skip(1)) t.name];
+    // This device's own, by its name and its size: opened as it is from the list of recordings.
+    final name = path.split(RegExp(r'[/\\]')).last;
+    final own = name.toLowerCase().endsWith('.mp4') ? name.substring(0, name.length - 4) : name;
+    for (final k in CallRecorder.instance.kept) {
+      final mine = File(k.path);
+      if (k.id == own && k.people.length == people.length && mine.existsSync() && mine.lengthSync() == file.lengthSync()) return k;
+    }
+    return Recording(id: id.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_'), path: path, space: space, at: file.lastModifiedSync(), seconds: 0, people: people);
+  } catch (e) {
+    debugPrint('recording in a file: $e');
+    return null;
+  }
+}
 
 /// One kept recording open in the timeline and the mixer: its voices decoded, played together and metered, with the
 /// faders, mutes and solos a live recording has ([RecordingDesk]); [save] makes the remix.
@@ -41,6 +80,19 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
   }
 
   final Recording recording;
+
+  /// Whether this device opens a recording in the mixer: where the platform decodes a track (android Scribe.kt,
+  /// macos/ios Scribe.swift, windows/runner/speech.cpp). Not a browser, and not Linux.
+  static bool get opensHere => opensHereForTest ?? (!kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isIOS || PlatformInfo.isMacOS || PlatformInfo.isWindows));
+
+  /// For a test: [opensHere]'s answer, whatever it runs on.
+  @visibleForTesting
+  static bool? opensHereForTest;
+
+  /// A recording opened from a file that is in no list here (a Files space's, a chat's: [recordingIn]): the voices
+  /// decoded for it are deleted when it is closed. They are as big as the sound itself, about 11 MB a minute a voice,
+  /// and nothing else would ever delete them (a kept recording's go when it is deleted).
+  bool passing = false;
 
   static const _channel = MethodChannel('ghost/scribe');
 
@@ -128,12 +180,16 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
         _players.add(player);
         _readers.add(File(p).openSync());
       }
-      if (_disposed) return;
+      if (_disposed) {
+        _drop();
+        return;
+      }
       _applyGains();
       _readLevels();
       _set(opening: null);
     } catch (e) {
       debugPrint('recording playback: $e');
+      if (_disposed) _drop();
       _set(opening: null, error: e is StateError ? e.message : 'This recording couldn\'t be opened ($e).');
     }
   }
@@ -263,7 +319,8 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
         path: out,
         space: recording.space,
         at: recording.at,
-        seconds: recording.seconds,
+        // One opened from a file ([recordingIn]) says no length: it is as long as its voices are.
+        seconds: recording.seconds > 0 ? recording.seconds : seconds.round(),
         people: recording.people,
         by: recording.by,
         seed: recording.seed,
@@ -275,21 +332,30 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
     } finally {
       saving = false;
       if (!_disposed) notifyListeners();
+      // Closed while it saved: what [dispose] left for this to finish with.
+      if (_disposed) _drop();
     }
+  }
+
+  /// Deletes the voices decoded for a recording that was only [passing].
+  void _drop() {
+    if (!passing || saving) return;
+    try {
+      folderFor(recording).deleteSync(recursive: true);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _disposed = true;
     _clock?.cancel();
-    for (final p in _players) {
-      unawaited(p.dispose());
-    }
     for (final r in _readers) {
       try {
         r.closeSync();
       } catch (_) {}
     }
+    // Once the players have let go of their files (Windows deletes none that is open).
+    unawaited(Future.wait([for (final p in _players) p.dispose().catchError((Object _) {})]).whenComplete(_drop));
     meter.dispose();
     mix.dispose();
     super.dispose();

@@ -12,6 +12,7 @@ import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/scribe.dart';
 import 'package:ghost_messaging/voice/mp4_names.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
+import 'package:ghost_messaging/voice/recording_playback.dart';
 import 'package:ghost_messaging/voice/scribe.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
 import 'package:ghost_messaging/voice/channels.dart';
@@ -137,6 +138,68 @@ void main() {
       final f = File('${dir.path}/c.mp4')..writeAsBytesSync(utf8.encode('not a movie at all, just words'));
       await expectLater(Mp4Names.apply(f.path, ['x']), throwsA(isA<FormatException>()));
       expect(f.readAsStringSync(), 'not a movie at all, just words');
+    });
+
+    // Matt, 2026-11-23: "i want to see the mixer when viewing sounds recordings but it just loads the media player
+    // view": a recording opened from a Files space or a chat is a file like any other there, so it is known for a
+    // recording by the names the recorder wrote in it.
+    test('the names are read back from the file, and a call\'s recording is known by them', () async {
+      CallRecorder.folderForTest = dir;
+      RecordingPlayback.opensHereForTest = true;
+      addTearDown(() {
+        CallRecorder.folderForTest = null;
+        RecordingPlayback.opensHereForTest = null;
+      });
+      final ftyp = _box('ftyp', [latin1.encode('isom')]);
+      final mdat = _box('mdat', [Uint8List(100)]);
+      final at = ftyp.length + 8;
+      File mp4(String name, List<Uint8List> traks) => File('${dir.path}/$name')..writeAsBytesSync([...ftyp, ...mdat, ..._box('moov', [_box('mvhd', [Uint8List(100)]), ...traks])]);
+
+      final rec = mp4('rec19a2b3c.mp4', [_trak(1, at), _trak(2, at + 50), _trak(3, at + 70)]);
+      await Mp4Names.apply(rec.path, ['Everyone', 'Maya', 'Sam Ó Riordáin']);
+      expect(await Mp4Names.tracks(rec.path), [(name: 'Everyone', kind: 'soun'), (name: 'Maya', kind: 'soun'), (name: 'Sam Ó Riordáin', kind: 'soun')]);
+      final r = (await recordingIn(rec.path, id: 'file-0/7', space: 'Files'))!;
+      expect(r.people, ['Maya', 'Sam Ó Riordáin'], reason: 'a voice each, after the mix');
+      expect(r.path, rec.path);
+      expect(r.id, 'file-0_7', reason: 'its id names a folder');
+      expect(r.space, 'Files');
+
+      // Any other MP4 is a video for the player: tracks no recorder named, or a picture among them.
+      final clip = mp4('holiday.mp4', [_trak(1, at), _trak(2, at + 50)]);
+      expect([for (final t in await Mp4Names.tracks(clip.path)) t.name], ['SoundHandler', 'SoundHandler'], reason: 'unnamed: the handler\'s own name');
+      expect(await recordingIn(clip.path, id: 'a'), isNull);
+      final film = mp4('film.mp4', [_trak(1, at), _trak(2, at + 50)]);
+      await Mp4Names.apply(film.path, ['Everyone', 'Maya']);
+      final bytes = film.readAsBytesSync();
+      final soun = latin1.decode(bytes).lastIndexOf('soun');
+      bytes.setRange(soun, soun + 4, latin1.encode('vide'));
+      film.writeAsBytesSync(bytes);
+      expect((await Mp4Names.tracks(film.path)).last.kind, 'vide');
+      expect(await recordingIn(film.path, id: 'b'), isNull, reason: 'one with a picture plays in the player, which shows it');
+      final words = File('${dir.path}/rec1.mp4')..writeAsStringSync('not a movie at all, just words');
+      expect(await recordingIn(words.path, id: 'c'), isNull);
+      await expectLater(Mp4Names.tracks(words.path), throwsA(isA<FormatException>()));
+
+      // Where the device can't open one (a browser, Linux), nothing is a recording: it plays as before.
+      RecordingPlayback.opensHereForTest = false;
+      expect(await recordingIn(rec.path, id: 'd'), isNull);
+      RecordingPlayback.opensHereForTest = true;
+
+      // This device's own recording, come back from the space under its name: the one in its list, marks and all.
+      final own = Recording(id: 'rec19a2b3c', path: '${dir.path}/kept.mp4', space: 'Lounge', at: DateTime(2026, 11, 23), seconds: 12, people: const ['Maya', 'Sam Ó Riordáin'], markers: const [3.5]);
+      rec.copySync(own.path);
+      CallRecorder.instance.keep(own);
+      addTearDown(() => CallRecorder.instance.delete(own));
+      final back = (await recordingIn(rec.path, id: 'e'))!;
+      expect(back.id, 'rec19a2b3c');
+      expect(back.markers, [3.5]);
+      expect(back.path, own.path);
+
+      // The name it goes up under, which is worth bringing down to look inside.
+      expect(namedAsRecording('rec19a2b3c.mp4'), isTrue);
+      expect(namedAsRecording('holiday.mp4'), isFalse);
+      expect(namedAsRecording('record.mp4'), isFalse);
+      expect(namedAsRecording('rec19a2b3c.mkv'), isFalse);
     });
   });
 

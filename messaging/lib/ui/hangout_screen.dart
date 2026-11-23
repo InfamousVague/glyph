@@ -149,6 +149,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
     if (!mounted) return;
     // One of the developer designs: the call opens as its page (lib/ui/space_designs).
     if (openSpaceCall(context)) return;
+    // An open space stays where it was opened, its floor in this page with the call's controls over its foot: the
+    // list beside it (a circle's spaces) is left as it is (Matt, 2026-11-23: "don't transform the server sidebar when
+    // we enter to show the lists").
+    if (widget.channel.kind == SpaceKind.open) return;
     // Beside the list: the chat (and the videos) go to the pane, the people stay here (HangoutStage).
     if (AppShell.wideOf(context)) AppShell.maybeOf(context)?.go('voice');
   }

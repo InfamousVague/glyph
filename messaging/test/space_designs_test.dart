@@ -82,6 +82,96 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  // Matt, 2026-11-23: "screen sharing on mac and pc doesn't show anything to select". The default design (Voice
+  // chat) and Meeting share from a menu that closes as the row is pressed; the picker asked for the screens before
+  // opening, and by the time they came the menu's context was gone, so nothing opened.
+  const shareable = [
+    ScreenSource(id: 'screen:0', name: 'Entire screen', window: false),
+    ScreenSource(id: 'window:1', name: 'Notes', window: true),
+  ];
+
+  testWidgets('the picker opens from a menu that closes as it is pressed, and what is picked comes back', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    String? picked = 'unset';
+    await h.shoot(
+      tester,
+      _ClosingMenu(onShare: (context) async {
+        picked = await pickScreen(context, () => Future.delayed(const Duration(milliseconds: 200), () => shareable));
+      }),
+      'share-from-menu',
+      size: SpaceHarness.computer,
+    );
+    await tester.tap(find.text('Share screen'));
+    await tester.pump();
+    // Said at once, before the system has answered: never a blank sheet.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Share screen'), findsNothing, reason: 'the menu has closed');
+    expect(find.text('Looking for your screens and windows…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Entire screen'), findsOneWidget);
+    await tester.tap(find.text('Notes'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(picked, 'window:1');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('screens that come after an empty first answer appear by themselves', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    var asked = 0;
+    await h.shoot(
+      tester,
+      _ClosingMenu(onShare: (context) => pickScreen(context, () async => asked++ == 0 ? const <ScreenSource>[] : shareable)),
+      'share-late',
+      size: SpaceHarness.computer,
+    );
+    await tester.tap(find.text('Share screen'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Entire screen'), findsNothing);
+    expect(find.textContaining('No screens or windows'), findsNothing, reason: 'one empty answer is not believed');
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Entire screen'), findsOneWidget);
+    expect(find.text('Notes'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('with nothing to share the sheet says why and what to do, and Try again looks again', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    var found = const <ScreenSource>[];
+    for (final mac in [true, false]) {
+      found = const [];
+      await h.shoot(
+        tester,
+        _ClosingMenu(onShare: (context) => pickScreen(context, () async => found, mac: mac)),
+        'share-none-${mac ? 'mac' : 'pc'}',
+        size: SpaceHarness.computer,
+      );
+      await tester.tap(find.text('Share screen'));
+      await tester.pump();
+      for (var i = 0; i < ScreenChoices.tries + 1; i++) {
+        await tester.pump(ScreenChoices.soon);
+      }
+      expect(find.textContaining('No screens or windows were found'), findsOneWidget);
+      expect(find.textContaining('Screen & System Audio Recording'), mac ? findsOneWidget : findsNothing);
+      expect(find.text('Cancel'), findsOneWidget);
+      if (autoUpdateGoldenFiles) await h.again(tester, 'share-none-${mac ? 'mac' : 'pc'}-said');
+      found = shareable;
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Entire screen'), findsOneWidget);
+      expect(find.textContaining('No screens or windows'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('someone\'s screen, large: their name over it, waiting until it arrives, and Back to call', (tester) async {
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
@@ -104,4 +194,33 @@ void main() {
     expect(SpaceDesign.named('zoom'), SpaceDesign.zoom);
     expect(SpaceDesign.named(''), isNull);
   });
+}
+
+/// A menu as the Voice chat and Meeting designs have (telegram.dart's _Menu, zoom.dart's _MoreSheet): pressing its
+/// row closes it, then runs the row with the menu's own context, which is gone a frame later.
+class _ClosingMenu extends StatefulWidget {
+  const _ClosingMenu({required this.onShare});
+  final void Function(BuildContext context) onShare;
+
+  @override
+  State<_ClosingMenu> createState() => _ClosingMenuState();
+}
+
+class _ClosingMenuState extends State<_ClosingMenu> {
+  bool _open = true;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: !_open
+            ? const SizedBox()
+            : Builder(
+                builder: (menu) => GestureDetector(
+                  onTap: () {
+                    setState(() => _open = false);
+                    widget.onShare(menu);
+                  },
+                  child: const Text('Share screen'),
+                ),
+              ),
+      );
 }

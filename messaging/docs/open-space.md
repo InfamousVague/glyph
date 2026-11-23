@@ -37,11 +37,19 @@ new: what is said about the floor is sealed with the space's key like everything
   who says no `os` stands in the middle (`Place.unsaid`).
 
 - **The walls** (`_FloorPainter._walls` in the view): the floor is a room seen from above and a little in front, its
-  walls glass in two colours (the kind's purple at the left running to cyan at the right): every face a see-through
-  wash, every edge a hard line at full strength, as the groups' circles are. The far wall shows its face (104 units
-  high, ruled into panels) under its top, the side walls their tops, and the near wall its top and its outer face,
-  fainter; the far wall's colour falls on the floor at its foot. They are drawn only, at the floor's own edge: nobody
-  walks into them, since the floor already ends there.
+  walls glass in the app's own colour (`--app-accent`: the bubble colour chosen, else the page's ink): every face a
+  see-through wash, every edge a hard line at full strength, as the groups' circles are. The far wall shows its face
+  (104 units high, ruled into panels) under its top, the side walls their tops, and the near wall its top and its
+  outer face, fainter. They are drawn only, at the floor's own edge. The view stops at them
+  (`OpenSpaceView.cameraFor`): it follows this device until an edge of it would pass a wall, then stays.
+- **The chat over the floor** (`lib/ui/open_space_chat.dart`, `FloorBubbles`): each message written after the floor
+  was opened comes up as a bubble, over the group its writer stands in or at the side of the view for someone in no
+  group. A stack holds the newest four, a bubble stays ten seconds and fades out, and each is fainter the less of its
+  writer (or its group) is heard from here. A small box at the floor's foot writes to the space's chat. Nothing is
+  kept or sent by it: the chat is the space's own, whole on its Chat tab.
+- **Where it sits.** Entering an open space leaves the list beside it alone (a circle's spaces stay where they are):
+  the floor fills the space's own page, with the call's controls over the middle of its foot. The words saying how to
+  walk fade once this device has walked.
 
 ## Not built
 
