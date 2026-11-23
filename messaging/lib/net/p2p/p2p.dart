@@ -698,8 +698,8 @@ class P2p extends ChangeNotifier {
   /// Where this device can be found now, as it tells it: nothing while its node is down, no address of its own where
   /// the person chose "Only through link helpers", and no link helper but one its relay named.
   Whereabouts? _whereNow() {
-    if (node.state.value != P2pState.up) return null;
-    final w = node.whereabouts.value;
+    if (nodeState != P2pState.up) return null;
+    final w = nodeWhere;
     if (w == null) return null;
     final said = Whereabouts(
       helper: _helpers.contains(w.helper) ? w.helper : null,
@@ -1005,21 +1005,21 @@ class P2p extends ChangeNotifier {
 
   /// Waits until the node says where it is, or [until].
   Future<void> _whereKnown(int until) {
-    if (node.whereabouts.value != null || nowMs >= until) return Future.value();
+    if (nodeWhere != null || nowMs >= until) return Future.value();
     final done = Completer<void>();
     late final Timer wait;
     void heard() {
-      if (node.whereabouts.value == null || done.isCompleted) return;
+      if (nodeWhere == null || done.isCompleted) return;
       wait.cancel();
-      node.whereabouts.removeListener(heard);
+      _unlisten(() => node.whereabouts.removeListener(heard));
       done.complete();
     }
 
     wait = timer(Duration(milliseconds: until - nowMs), () {
-      node.whereabouts.removeListener(heard);
+      _unlisten(() => node.whereabouts.removeListener(heard));
       if (!done.isCompleted) done.complete();
     });
-    node.whereabouts.addListener(heard);
+    _unlisten(() => node.whereabouts.addListener(heard));
     return done.future;
   }
 
@@ -1037,10 +1037,10 @@ class P2p extends ChangeNotifier {
       // It could not start a moment ago: not tried again until a while has passed ([P2pPolicy.redialAfter]).
       if (_failed) throw CarrierError(_problem ?? 'The direct network could not start');
       final config = _config();
-      if (node.state.value == P2pState.up && _running == config) return;
+      if (nodeState == P2pState.up && _running == config) return;
       await (_starting ??= _start(config).whenComplete(() => _starting = null));
       if (!_loaded || !_on) throw CarrierError('Direct is switched off');
-      if (node.state.value != P2pState.up) throw CarrierError(_problem ?? 'The direct network could not start');
+      if (nodeState != P2pState.up) throw CarrierError(_problem ?? 'The direct network could not start');
       if (_running == _config()) return;
     }
   }
@@ -1052,13 +1052,13 @@ class P2p extends ChangeNotifier {
     final done = Completer<void>();
     var answered = false;
     void look() {
-      if (answered && node.state.value != P2pState.starting && !done.isCompleted) done.complete();
+      if (answered && nodeState != P2pState.starting && !done.isCompleted) done.complete();
     }
 
     final wait = timer(policy.dialFor, () {
       if (!done.isCompleted) done.complete();
     });
-    node.state.addListener(look);
+    _unlisten(() => node.state.addListener(look));
     void said([Object? wrong]) {
       if (wrong != null) _problem = '$wrong';
       answered = true;
@@ -1072,8 +1072,8 @@ class P2p extends ChangeNotifier {
     }
     await done.future;
     wait.cancel();
-    node.state.removeListener(look);
-    if (node.state.value == P2pState.up) return _idleSoon();
+    _unlisten(() => node.state.removeListener(look));
+    if (nodeState == P2pState.up) return _idleSoon();
     // Not up, and it has not said it is down either: held to have failed, so the next thing that wants it does not
     // wait as long again, and tried again after a while as a node that said so is.
     if (!_failed && _loaded && _on && identical(_running, config)) {
@@ -1122,7 +1122,7 @@ class P2p extends ChangeNotifier {
 
   void _nodeState() {
     if (_gone) return;
-    switch (node.state.value) {
+    switch (nodeState) {
       case P2pState.up:
         _failed = false;
         _problem = null;
@@ -1233,7 +1233,7 @@ class P2p extends ChangeNotifier {
   void networkChanged() {
     carrier.networkChanged();
     try {
-      if (node.state.value == P2pState.up) node.networkChanged();
+      if (nodeState == P2pState.up) node.networkChanged();
     } catch (_) {}
     if (_failed) _again();
   }
@@ -1264,7 +1264,7 @@ class P2p extends ChangeNotifier {
   /// The node's config is another now: one that is running is started again with it.
   void _reconfigure() {
     if (!_loaded || !_on) return;
-    final state = node.state.value;
+    final state = nodeState;
     if (state == P2pState.up || state == P2pState.starting) unawaited(up().then((_) {}, onError: (Object _) {}));
   }
 
@@ -1342,8 +1342,13 @@ class P2p extends ChangeNotifier {
     _loaded = false;
     _wiped = true;
     _stopTimers();
+    // The node stopped first: once it is, nobody gets in whatever else goes wrong. Then each call into the core is
+    // guarded, so one that throws (node.dart says none does) never stops the rest (second review, S10).
+    await _stop();
     for (final n in _allowed.toList()) {
-      node.disallow(n);
+      try {
+        node.disallow(n);
+      } catch (_) {}
     }
     _allowed.clear();
     carrier.closeAll();
@@ -1361,7 +1366,6 @@ class P2p extends ChangeNotifier {
     _running = null;
     _minePeer = null;
     carrier.restate();
-    await _stop();
     await forget(_secrets, _plain);
     if (!_gone) notifyListeners();
   }
@@ -1377,6 +1381,13 @@ class P2p extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Asks [what] of the core's notifiers, where a core that breaks node.dart's word could throw: it stops nothing else.
+  static void _unlisten(void Function() what) {
+    try {
+      what();
+    } catch (_) {}
   }
 
   /// Deletes what the direct network keeps on a device, where none is running to [wipe] itself.
@@ -1401,7 +1412,7 @@ class P2p extends ChangeNotifier {
     _loaded = false;
     detach();
     _stopTimers();
-    node.state.removeListener(_nodeState);
+    _unlisten(() => node.state.removeListener(_nodeState));
     await _paths?.cancel();
     carrier.closeAll();
     await carrier.dispose();

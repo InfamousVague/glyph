@@ -1830,6 +1830,26 @@ void main() {
       expect(_nodeKey(a), hasLength(32));
     });
 
+    // The second review, S10 (R2-J): wipe() called the core's disallow unguarded before anything else, so one that threw
+    // stopped signing out's wipe with the node running, the key kept and the cards held.
+    test('signing out with a core that throws: the node is stopped first and each call into it guarded, so nothing is left; shutting down the same', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      expect((await a.text(b.account, 'before')).acked, isTrue);
+      a.node.throws.addAll({'disallow', 'allow', 'close', 'networkChanged', 'pathTo', 'openToAll'});
+      await a.p2p.wipe();
+      expect([a.node.now, a.secrets.kept[P2p.keyName], a.plain.kept[P2p.cardsName]], [P2pState.off, isEmpty, isEmpty]);
+      expect([a.p2p.devicesOf(b.account.id), a.p2p.carrier.lines, a.p2p.card], [isEmpty, 0, null]);
+      expect(a.node.calls['stop'], 1, reason: 'stopped, before anything else was asked of it');
+      // A core that throws from its getters and its stop too: the app closing is not held up, nor broken.
+      b.node.throws.addAll({'state', 'whereabouts', 'stop', 'close', 'disallow', 'paths'});
+      await b.stop();
+      expect(b.running, isFalse);
+    });
+
     test('a node key made under one account is never carried to another', () async {
       final a = w.install(w.account('maya'));
       await a.start();

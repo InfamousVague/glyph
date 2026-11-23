@@ -145,7 +145,7 @@ class P2pCarrier implements Carrier, LiveLinks {
   void _adopt(P2pStream s, {String? dialled}) {
     if (s.channel != P2pChannel.packets) {
       // Another channel's (a relay hosted here): whoever that is for takes it.
-      if (dialled != null) unawaited(s.close().catchError((Object _) {}));
+      if (dialled != null) _drop(s);
       return;
     }
     // Whose device the node at the other end is said to be: a stream from a node no card is held for is closed.
@@ -282,7 +282,7 @@ class P2pCarrier implements Carrier, LiveLinks {
   void _close(_Node node, _Line line) {
     if (line.closed) return;
     _gone(node, line);
-    unawaited(line.stream.close().catchError((Object _) {}));
+    _drop(line.stream);
   }
 
   void _gone(_Node node, _Line line) {
