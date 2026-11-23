@@ -13,6 +13,7 @@ import 'package:ghost_messaging/inbox/telegram.dart';
 
 /// What reaches C through `dart:ffi` is in two halves each (Matt: "the full web client"): a build for a browser can't
 /// so much as name `dart:ffi`, so the browser's half says "not here" the way a build without the library always has.
+/// That nothing else names `dart:ffi` is one of the release guards (test/source_guards_test.dart).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() {
@@ -43,41 +44,5 @@ void main() {
     expect(sha.end(), crypto.sha256.convert(bytes).bytes);
     sha.close();
   }, skip: Platform.isMacOS ? false : 'CommonCrypto is a Mac\'s and an iPhone\'s');
-
-  test('dart:ffi is named only by the halves a browser\'s build leaves out', () {
-    // Each is the `_io` half of a pair chosen by a conditional export; its `_web` half is what a browser gets.
-    const allowed = {
-      'lib/inbox/td_json_io.dart': 'TDLib (lib/inbox/td_json.dart)',
-      'lib/files/apple_sha_io.dart': 'CommonCrypto\'s SHA-256 (lib/files/apple_sha.dart)',
-    };
-    final named = RegExp(r'''^\s*(?:import|export)\s+['"](?:dart:ffi|package:ffi/)''');
-    final roots = [Directory('lib'), for (final p in Directory('packages').listSync().whereType<Directory>()) Directory('${p.path}/lib')];
-    final found = <String>[];
-    var files = 0;
-    for (final root in roots) {
-      for (final file in root.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
-        final path = file.path.replaceAll('\\', '/');
-        files++;
-        final lines = file.readAsLinesSync();
-        final here = [for (var i = 0; i < lines.length; i++) if (named.hasMatch(lines[i])) '$path:${i + 1}: ${lines[i].trim()}'];
-        if (allowed.containsKey(path)) {
-          expect(here, isNotEmpty, reason: '$path is allowed dart:ffi and no longer names it: take it off the list.');
-          // And the pair is there: the file that chooses, and the half without dart:ffi.
-          final pair = path.replaceFirst('_io.dart', '.dart'), web = path.replaceFirst('_io.dart', '_web.dart');
-          expect(File(pair).readAsStringSync(), contains("export '${path.split('/').last}' if (dart.library.js_interop) '${web.split('/').last}';"));
-          expect(File(web).existsSync(), isTrue);
-        } else {
-          found.addAll(here);
-        }
-      }
-    }
-    expect(files, greaterThan(300));
-    expect(found, isEmpty, reason: 'A build for a browser stops at dart:ffi wherever it is imported from: split the file as lib/files/apple_sha.dart is.\n${found.join('\n')}');
-    // A pair split for the same build that names no dart:ffi of its own: mpv's properties (lib/voice/mpv_property.dart),
-    // whose `_io` half reaches the library through media_kit's. Nothing above reads which way round it chooses, and
-    // turned round it compiles everywhere and no player plays; so it is read here, as written.
-    expect(File('lib/voice/mpv_property.dart').readAsStringSync(), contains("export 'mpv_property_io.dart' if (dart.library.js_interop) 'mpv_property_web.dart';"));
-    expect(File('lib/voice/mpv_property_io.dart').existsSync(), isTrue);
-    expect(File('lib/voice/mpv_property_web.dart').existsSync(), isTrue);
-  });
 }
+

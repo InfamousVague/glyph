@@ -3,10 +3,11 @@
 //
 // Two things are said here that Flutter would otherwise decide for itself:
 //
-// - Fonts for letters the app's own fonts have no shape for are asked of a folder beside the page, never of
-//   fonts.gstatic.com, which is where Flutter asks by default. Nothing is in that folder: such letters are drawn as
-//   boxes, and nothing is told to anyone about who is reading what. (Put Google's Noto files there, under the names
-//   the engine asks for, to draw them.) Emoji are the app's own fonts (lib/web/emoji.dart).
+// - Fonts for letters the app's own fonts have no shape for (Chinese, Arabic, Devanagari, mathematics, …) are asked
+//   of a folder beside the page, never of fonts.gstatic.com, which is where Flutter asks by default, so nothing is
+//   told to anyone about who is reading what. tool/build-web.mjs puts Google's Noto pieces there, under the names the
+//   engine asks for, where tool/web/fallback-fonts.mjs --fetch has brought them to the computer building it; a build
+//   without them draws such letters as boxes. Emoji are the app's own fonts (lib/web/emoji.dart).
 // - No service worker is set up. Flutter's is on its way out, and what is kept and what is asked for again is the
 //   relay's to say (relay/lib/web_app.dart).
 {{flutter_js}}
