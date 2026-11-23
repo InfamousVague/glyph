@@ -153,6 +153,7 @@ class P2p extends ChangeNotifier {
     required FsStore plain,
     required List<Peer> Function() friends,
     Future<Peer?> Function()? mine,
+    bool Function(String account)? present,
     this.policy = const P2pPolicy(),
     DateTime Function()? now,
     P2pTimer? timer,
@@ -160,6 +161,7 @@ class P2p extends ChangeNotifier {
         _plain = plain,
         _friends = friends,
         _mine = mine,
+        _present = present,
         _now = now ?? DateTime.now,
         timer = timer ?? Timer.new {
     if (!_hex32.hasMatch(device)) throw ArgumentError('a device is named by 32 hex digits');
@@ -201,6 +203,10 @@ class P2p extends ChangeNotifier {
   static const askAfter = Duration(seconds: 30);
   static const askEvery = Duration(days: 7);
 
+  /// How many times someone is asked for their card with no card of theirs coming in between, before they are asked no
+  /// more (second review, S13): a friend whose build has no direct route never answers.
+  static const mostAsks = 3;
+
   static const _hour = 60 * 60 * 1000;
   static final _hex32 = RegExp(r'^[0-9a-f]{32}$');
   static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
@@ -217,6 +223,10 @@ class P2p extends ChangeNotifier {
   final FsStore _plain;
   final List<Peer> Function() _friends;
   final Future<Peer?> Function()? _mine;
+
+  /// Whether the relay says one of [account]'s devices is connected to it now (HubCarrier.here); null where there is
+  /// no relay to say.
+  final bool Function(String account)? _present;
   final DateTime Function() _now;
 
   /// What the direct network's waits are timed by.
@@ -669,6 +679,10 @@ class P2p extends ChangeNotifier {
   Future<bool> _say(Peer peer, Map<String, dynamic> body, {bool limited = true}) async {
     final board = _board;
     if (board == null || !_on) return false;
+    // Nothing to a friend the relay says is away: it would keep it for them, in a mailbox of 200 packets that refuses
+    // new ones when full, and say nothing that matters by the time they come (second review, S13). They are told when
+    // they come ([presenceChanged]). This account's own devices are not watched there, and are told as ever.
+    if (peer.id != me && !_isHere(peer.id)) return false;
     final only = {for (final c in _throughRoutes) c.id};
     if (only.isEmpty) return false;
     final now = nowMs;
@@ -681,6 +695,21 @@ class P2p extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  bool _isHere(String account) {
+    final present = _present;
+    if (present == null) return true;
+    try {
+      return present(account);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Who the relay says is connected changed: whoever came and has not been told is told now.
+  void presenceChanged() {
+    if (_loaded && _on && !_gone) _quietly(_tell());
   }
 
   /// This device's card for [to], with where it is now where its node is up, and which of their cards it holds. A
@@ -741,11 +770,12 @@ class P2p extends ChangeNotifier {
           final told = _told[peer.id];
           final now = nowMs;
           if (told?.card != tag) {
-            if (await _say(peer, _message('card', peer.id))) _wasTold(peer.id, tag, asked: told?.asked ?? 0);
-          } else if (now - told!.asked >= askEvery.inMilliseconds && (told.asked > 0 || (devicesOf(peer.id).isEmpty && now - told.at >= askAfter.inMilliseconds))) {
-            // Asked with the cards held: only a device of theirs that is not among them answers.
+            if (await _say(peer, _message('card', peer.id))) _wasTold(peer.id, tag, asked: told?.asked ?? 0, asks: told?.asks ?? 0);
+          } else if (told!.asks < mostAsks && now - told.asked >= askEvery.inMilliseconds && (told.asked > 0 || (devicesOf(peer.id).isEmpty && now - told.at >= askAfter.inMilliseconds))) {
+            // Asked with the cards held: only a device of theirs that is not among them answers. No more than
+            // [mostAsks] times with nothing of theirs coming between.
             if (await _say(peer, {'t': 'card?', 'h': _held(peer.id)}) && _loaded) {
-              _told[peer.id] = _Told(tag, told.at, now);
+              _told[peer.id] = _Told(tag, told.at, now, told.asks + 1);
               _saveTold();
             }
           }
@@ -764,9 +794,9 @@ class P2p extends ChangeNotifier {
     }
   }
 
-  void _wasTold(String account, String tag, {int asked = 0}) {
+  void _wasTold(String account, String tag, {int asked = 0, int asks = 0}) {
     if (!_loaded) return;
-    _told[account] = _Told(tag, nowMs, asked);
+    _told[account] = _Told(tag, nowMs, asked, asks);
     _saveTold();
   }
 
@@ -775,7 +805,7 @@ class P2p extends ChangeNotifier {
   Future<void> _answer(Peer peer, {bool limited = true}) async {
     final card = _card;
     if (card == null || !_on || !mayLink(peer.id)) return;
-    if (await _say(peer, _message('card', peer.id), limited: limited)) _wasTold(peer.id, card.tag, asked: _told[peer.id]?.asked ?? 0);
+    if (await _say(peer, _message('card', peer.id), limited: limited)) _wasTold(peer.id, card.tag, asked: _told[peer.id]?.asked ?? 0, asks: _told[peer.id]?.asks ?? 0);
   }
 
   // --- what others say ---------------------------------------------------------------------------------------------------
@@ -891,6 +921,12 @@ class P2p extends ChangeNotifier {
     }
     _cards[from] = list;
     _saveCards();
+    // A card of theirs came: they answer, and may be asked again where it is ever needed.
+    final told = _told[from];
+    if (told != null && told.asks > 0) {
+      _told[from] = _Told(told.card, told.at, told.asked, 0);
+      _saveTold();
+    }
     _allow();
     _watchDue();
     carrier.heard(card.nodeId);
@@ -1433,19 +1469,21 @@ class P2p extends ChangeNotifier {
   }
 }
 
-/// What an account was told: which of this device's cards, when, and when it was last asked for its own.
+/// What an account was told: which of this device's cards, when, when it was last asked for its own, and how many
+/// times it has been asked with no card of its coming in between.
 class _Told {
-  const _Told(this.card, this.at, this.asked);
+  const _Told(this.card, this.at, this.asked, [this.asks = 0]);
   final String card;
   final int at;
   final int asked;
+  final int asks;
 
-  Map<String, dynamic> toJson() => {'c': card, 't': at, if (asked > 0) 'q': asked};
+  Map<String, dynamic> toJson() => {'c': card, 't': at, if (asked > 0) 'q': asked, if (asks > 0) 'n': asks};
 
   static _Told? fromJson(Object? j) {
     if (j is! Map) return null;
-    final c = j['c'], t = j['t'], q = j['q'];
+    final c = j['c'], t = j['t'], q = j['q'], n = j['n'];
     if (c is! String || c.length > 32 || t is! int) return null;
-    return _Told(c, t, q is int ? q : 0);
+    return _Told(c, t, q is int ? q : 0, n is int ? n : 0);
   }
 }

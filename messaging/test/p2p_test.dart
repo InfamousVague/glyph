@@ -141,8 +141,8 @@ void main() {
       final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
       w.friends(a, b);
       await a.start();
-      expect(w.memory.hub.heldFor(b.account.id), 1, reason: 'the relay keeps the card for them');
-      // A while later the other opens the app: it is handed the card as it signs in, before it has read its own.
+      expect(w.memory.hub.heldFor(b.account.id), 0, reason: 'nothing is kept for them by the relay: they are told when they come');
+      // A while later the other opens the app: told as it signs in, whether or not it has read its own yet.
       await w.clock.pass(const Duration(seconds: 20));
       await b.start();
       expect(b.p2p.devicesOf(a.account.id).single.card, a.p2p.card);
@@ -207,6 +207,43 @@ void main() {
       expect(a.p2p.devicesOf(b.account.id).single.card, b.p2p.card);
       await w.clock.pass(const Duration(minutes: 5));
       expect(b.heard.sublist(heard), hasLength(2));
+    });
+
+    // The second review, S13: cards and asks go through the relay, which keeps them for someone away (a mailbox of 200
+    // packets or a MiB, refusing new ones when full); and once asked, a "card?" went every week for ever, so a friend on
+    // an old build got one a week from every friend with Direct on.
+    test('a friend who never answers is asked three times and no more; nothing is said to a friend the relay says is away, and they are told when they come', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      // Sam is not there as Maya's app starts: nothing is kept for him by the relay.
+      await a.start();
+      await w.clock.pass(_minute);
+      expect(w.memory.hub.heldFor(b.account.id), 0);
+      // He comes, with Direct switched off (as a build with none would be): told, and never answering.
+      b.startOff = true;
+      await b.start();
+      await w.settle();
+      expect(b.heard, ['card from maya']);
+      for (var week = 0; week < 6; week++) {
+        await w.clock.pass(const Duration(days: 7, minutes: 1));
+        await a.restart();
+      }
+      expect(b.heard.where((h) => h == 'card? from maya'), hasLength(P2p.mostAsks));
+      // He goes away: a card made anew is not told him, nor kept for him; he is told when he comes back.
+      await b.stop();
+      await w.settle();
+      a.secrets.kept.remove(P2p.keyName);
+      await a.restart();
+      await w.clock.pass(_minute);
+      expect(w.memory.hub.heldFor(b.account.id), 0);
+      final heard = b.heard.length;
+      await b.start();
+      await w.settle();
+      expect(b.heard.sublist(heard), ['card from maya']);
+      // Once his own card comes, he may be asked again if it is ever needed: what was counted of him starts over.
+      await b.board.setOn('p2p', true);
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), hasLength(1));
     });
 
     test('a card is taken only from a sealed envelope whose sender is the account it names, and only from a friend', () async {

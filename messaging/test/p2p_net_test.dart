@@ -332,6 +332,11 @@ void main() {
     await _until(() => Net.instance.hub!.state.value == CarrierState.up && p2p.loaded, 'signed in to the first relay');
     expect(Net.instance.hub!.helpers.value, ['https://link.one.example']);
     expect(p2p.helpers, ['https://link.one.example']);
+    // Neither friend is connected to the relay: nothing of the direct network is said to them, so it keeps nothing
+    // for them (second review, S13).
+    await _until(() => p2p.card != null, 'this device\'s card was made');
+    await pumpEventQueue(times: 50);
+    expect([one.hub!.heldFor(sam.id), one.hub!.heldFor(nell.id)], [0, 0]);
     expect(jsonDecode(app.choice(P2p.helpersName, '')), ['https://link.one.example']);
     // Its next start is with them.
     await p2p.up();

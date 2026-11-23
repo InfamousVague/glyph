@@ -47,10 +47,14 @@ class World {
     return i;
   }
 
-  /// [a] and [b] are friends, as each has the other in its list.
+  /// [a] and [b] are friends, as each has the other in its list; one that is running watches the other's coming and
+  /// going at the relay from now (as Net.refresh has the hub watch the people).
   void friends(Install a, Install b) {
     a.friends.add(b.account);
     b.friends.add(a.account);
+    for (final (i, other) in [(a, b), (b, a)]) {
+      if (i.running) i.hub.watch([other.account.id]);
+    }
   }
 
   /// Lets what is ready to run, run.
@@ -148,6 +152,9 @@ class Install implements PeerBook {
   /// Whether an account is signed in here: its own other devices are then reached through its own name.
   bool signedIn = true;
 
+  /// Set before a start, the app starts with Direct switched off in Settings › Routes.
+  bool startOff = false;
+
   late FakeP2pNode node;
   late HubCarrier hub;
   late P2p p2p;
@@ -200,13 +207,18 @@ class Install implements PeerBook {
       plain: plain,
       friends: () => [for (final f in friends) to(f)],
       mine: () async => signedIn ? mine : null,
+      present: (id) => hub.here.value.contains(id),
       policy: policy,
       now: world.clock.now,
       timer: world.clock.timer,
     );
     board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also], now: world.clock.now, timer: world.clock.timer);
+    if (startOff) board.off.add(p2p.carrier.id);
     _sub = board.received.listen(got.add);
     hub.helpers.addListener(_helpers);
+    // Who is connected to the relay, as the app watches the people it reaches (Net._apply).
+    hub.watch([for (final a in [...friends, ...known]) a.id]);
+    hub.presence.addListener(_presence);
     p2p.attach(board);
     running = true;
     await board.start();
@@ -218,6 +230,7 @@ class Install implements PeerBook {
   }
 
   void _helpers() => p2p.setHelpers(hub.helpers.value);
+  void _presence() => p2p.presenceChanged();
 
   /// The app closes. What it keeps stays.
   Future<void> stop() async {
@@ -226,6 +239,7 @@ class Install implements PeerBook {
     // (A core a test made hang is let answer: the clock that would time it out is the test's to move.)
     node.hangs = false;
     hub.helpers.removeListener(_helpers);
+    hub.presence.removeListener(_presence);
     await _sub?.cancel();
     await board.stop();
     await p2p.shutdown();

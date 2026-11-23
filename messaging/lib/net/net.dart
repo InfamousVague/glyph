@@ -133,7 +133,11 @@ class Net extends ChangeNotifier implements PeerBook {
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
-  void _presenceChanged() => presence.value++;
+  void _presenceChanged() {
+    presence.value++;
+    // Whoever came is told this device's card now, where they had not been while away.
+    _p2p?.presenceChanged();
+  }
 
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
@@ -312,7 +316,19 @@ class Net extends ChangeNotifier implements PeerBook {
     try {
       final node = p2pNode?.call();
       if (node == null) return null;
-      return P2p(node: node, signer: signer, device: device, secrets: _SecretFsStore(), plain: _ChoiceFsStore(app), friends: () => friends, mine: mine, policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy());
+      return P2p(
+        node: node,
+        signer: signer,
+        device: device,
+        secrets: _SecretFsStore(),
+        plain: _ChoiceFsStore(app),
+        friends: () => friends,
+        mine: mine,
+        // Whom the relay says is connected now: nothing about the direct network is said to anyone it would only keep it
+        // for. Where there is no relay's route (a test's routes), anyone.
+        present: (id) => _hub == null || _hub!.here.value.contains(id),
+        policy: Sms.computer ? const P2pPolicy.computer() : const P2pPolicy(),
+      );
     } catch (e) {
       directProblem = _couldNot(e);
       return null;
