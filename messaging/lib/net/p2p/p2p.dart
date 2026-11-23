@@ -29,6 +29,7 @@ class P2pPolicy {
     this.redialAfter = const Duration(seconds: 30),
     this.meetsAnHour = 6,
     this.saysAnHour = 12,
+    this.takesAnHour = 30,
     this.mostDials = 12,
     this.ackWait = const Duration(seconds: 4),
   });
@@ -63,6 +64,10 @@ class P2pPolicy {
   /// The most cards and asks sent to one account in an hour, whatever it sends: nothing someone else's device says
   /// can make this one say more.
   final int saysAnHour;
+
+  /// The most cards looked at from one account in an hour. Checking one is a signature's arithmetic and keeping one
+  /// is a write: an account that sends them without end is not let cost this device more than that.
+  final int takesAnHour;
 
   /// The most devices dialled at once when the relay has gone ([relayGone]), the ones heard from latest first.
   final int mostDials;
@@ -246,8 +251,9 @@ class P2p extends ChangeNotifier {
   bool _telling = false, _tellAgain = false;
   Future<bool>? _renewing;
 
-  /// When this device last said something to each account, and answered or sent a `meet`, within the hour.
-  final Map<String, List<int>> _said = {}, _meetsAnswered = {}, _meetsSent = {};
+  /// When this device last said something to each account, answered or sent a `meet`, and looked at a card of
+  /// theirs, within the hour.
+  final Map<String, List<int>> _said = {}, _meetsAnswered = {}, _meetsSent = {}, _looked = {};
 
   /// Until when an answer to a `meet` may still come from each account.
   final Map<String, int> _awaited = {};
@@ -494,6 +500,11 @@ class P2p extends ChangeNotifier {
       _told.remove(account);
       _saveTold();
     }
+    // Nothing is kept of anyone who is not one of them: what was counted of them goes too.
+    for (final counted in [_said, _meetsAnswered, _meetsSent, _looked]) {
+      counted.removeWhere((account, _) => account != me && !_friendsNow.containsKey(account));
+    }
+    _awaited.removeWhere((account, _) => account != me && !_friendsNow.containsKey(account));
     if (_dropRunOut()) changed = true;
     if (changed) _saveCards();
     _allow();
@@ -796,6 +807,11 @@ class P2p extends ChangeNotifier {
   /// nothing was taken.
   P2pDevice? _take(String from, Map<String, dynamic> body) {
     final now = nowMs;
+    // No more of one account's cards are looked at in an hour than [P2pPolicy.takesAnHour].
+    final looked = _looked[from] ??= [];
+    looked.removeWhere((t) => now - t >= _hour);
+    if (looked.length >= policy.takesAnHour) return null;
+    looked.add(now);
     final card = DeviceCard.fromJson(body['c'], now: now);
     if (card == null || card.account != from) return null;
     // Never this device itself, under anyone's name.
@@ -1254,6 +1270,7 @@ class P2p extends ChangeNotifier {
     _said.clear();
     _meetsAnswered.clear();
     _meetsSent.clear();
+    _looked.clear();
     _awaited.clear();
     _early.clear();
     _card = null;

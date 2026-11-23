@@ -359,6 +359,30 @@ void main() {
       expect(b.heard.where((h) => h == 'card from maya'), hasLength(2 + const P2pPolicy().saysAnHour));
     });
 
+    test('no more than thirty of one friend\'s cards are looked at in an hour, however many they send', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'));
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.clock.pass(const Duration(hours: 2));
+      final checked = NetCrypto.verifications, writes = a.plain.writes;
+      DeviceCard? last;
+      for (var i = 0; i < 40; i++) {
+        last = await _cardOf(w, b.account);
+        await b.board.send(b.to(a.account), _said(w, _telling(a, last)), only: {'hub'});
+      }
+      await w.settle();
+      // (Each card made above was checked once as it was made, by its maker.)
+      expect(NetCrypto.verifications - checked, 40 + 30, reason: 'thirty looked at here, and the rest passed over unchecked');
+      expect(a.plain.writes - writes, 30, reason: 'and what is kept was written as often, no more');
+      expect(a.p2p.devicesOf(b.account.id).map((d) => d.card), isNot(contains(last)));
+      // An hour on, they are looked at again.
+      await w.clock.pass(const Duration(hours: 1));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, last!)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id).map((d) => d.card), contains(last));
+    });
+
     test('nothing is said of where a phone is while its node is down; a computer says it with its card; never by a route of small packets', () async {
       // A route of small packets that costs nothing, so that it is its size alone that keeps cards off it.
       const small = CarrierTraits(maxPacket: 133, maxParts: 6, live: false);
