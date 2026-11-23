@@ -5,6 +5,7 @@ import 'package:ghost_messaging/account/account.dart';
 import 'package:ghost_messaging/account/account_crypto.dart';
 import 'package:ghost_messaging/me/me.dart' show MemoryMeStore;
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/p2p/p2p.dart' show P2p;
 import 'package:ghost_relay/accounts.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/texts.dart';
@@ -126,13 +127,16 @@ void main() {
     accounts = Accounts(handles: handles);
   });
 
-  Future<(Device, AccountDraft)> made({String password = 'correct horse battery'}) async {
+  Future<(Device, AccountDraft)> made({String password = 'correct horse battery', String name = 'maya'}) async {
     final phone = Device(accounts, handles, hasFriends: true);
-    await phone.claim('maya');
+    await phone.claim(name);
     final draft = phone.account.draft();
     expect(await phone.account.create(draft, password), isFalse, reason: 'an install people know keeps its own key');
     return (phone, draft);
   }
+
+  /// Another account, beside [made]'s.
+  Future<(Device, AccountDraft)> made2() => made(name: 'nell');
 
   test('an install with friends makes an account: its own key kept, the words in secure storage, nothing in the clear', () async {
     final before = NetKeys.generate();
@@ -251,6 +255,36 @@ void main() {
     expect(phone.account.signedIn, isFalse);
     expect(phone.keys.id, isNot(was));
     expect(phone.username, isEmpty);
+  });
+
+  // docs/OPEN_NETWORK.md, section 1: the node key is the device's, and a device that leaves an account takes nothing of
+  // it along: not the key its node id is made from, nor the cards of the account's friends, nor what it told whom.
+  test('signing out deletes the device\'s place on the direct network: the node key, its card, the cards held and what was told', () async {
+    final (phone, _) = await made();
+    phone.secrets[P2p.keyName] = 'ab' * 32;
+    for (final name in P2p.keptNames) {
+      phone.store.set(name, '{"kept":"while signed in"}');
+    }
+    phone.store.set(P2p.helpersOnlyName, 'on');
+    await phone.account.signOut();
+    expect(phone.secrets.keys, isNot(contains(P2p.keyName)));
+    for (final name in P2p.keptNames) {
+      expect(phone.store.choice(name, 'unset'), isEmpty, reason: name);
+    }
+    expect(P2p.keptNames, containsAll(['p2p_id', 'p2p_card', 'p2p_cards', 'p2p_told']));
+    expect(phone.store.choice(P2p.helpersOnlyName, ''), 'on', reason: 'the person\'s choice stays');
+    // And on a device another device removed, when it next asks.
+    final (other, _) = await made2();
+    final laptop = Device(accounts, handles);
+    await laptop.account.finish(await laptop.account.signInWithPassword('nell', 'correct horse battery'));
+    laptop.secrets[P2p.keyName] = 'cd' * 32;
+    laptop.store.set(P2p.cardsName, '{"x":[]}');
+    final theirs = (await other.account.devices()).firstWhere((d) => !d.here);
+    await other.account.removeDevice(theirs.id);
+    await laptop.account.check();
+    expect(laptop.account.signedIn, isFalse);
+    expect(laptop.secrets, isEmpty);
+    expect(laptop.store.choice(P2p.cardsName, 'unset'), isEmpty);
   });
 
   test('the backup is brought up to date from the device, with the password\'s key kept beside the words', () async {

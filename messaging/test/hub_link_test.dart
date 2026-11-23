@@ -32,6 +32,24 @@ Future<void> _up(HubCarrier c) async {
   await _until(() => c.state.value == CarrierState.up, c.problem ?? 'it never signed in');
 }
 
+/// A hub that takes any sign-in and answers it with whatever link helpers it was made to name.
+class _OddHub implements HubLink {
+  _OddHub(this.helpers) {
+    _said.add(jsonEncode({'hello': '00' * 32}));
+  }
+  final Object? helpers;
+  final _said = StreamController<Object>();
+  @override
+  Stream<Object> get said => _said.stream;
+  @override
+  void say(Object message) {
+    if (message is String && message.contains('"sig"')) _said.add(jsonEncode({'ok': true, 'held': 0, 'helpers': helpers}));
+  }
+
+  @override
+  Future<void> close() async => _said.close();
+}
+
 void main() {
   // What a web page, a hub in the app and a peer-to-peer stream all stand on: the route and its link name no platform.
   test('dart:io and the browser are each in a file of their own, which the route, its link and the relay check never name', () {
@@ -136,6 +154,55 @@ void main() {
       await pumpEventQueue();
       expect(c.state.value, CarrierState.off);
       expect(memory.hub.connected, 0);
+    });
+
+    // docs/OPEN_NETWORK.md, section 2: "the relay's hub says which to use as an app signs in (`"helpers"`, from
+    // `GHOST_LINK_HELPERS`)". What the direct route's node is given comes from here.
+    test('the link helpers the hub names as the app signs in are told, anew at every sign-in, and kept while the link is lost', () async {
+      final memory = MemoryHub(Hub(helpers: ['https://link.example', 'https://two.example']));
+      final c = HubCarrier(url: memory.url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(milliseconds: 20), dial: memory.dial);
+      addTearDown(c.stop);
+      expect(c.helpers.value, isEmpty, reason: 'none until the hub has said');
+      var told = 0;
+      // Told before the route is said to be up: whoever acts on its coming up has them.
+      final asUp = <List<String>>[];
+      c.helpers.addListener(() => told++);
+      c.state.addListener(() {
+        if (c.state.value == CarrierState.up) asUp.add(c.helpers.value);
+      });
+      await _up(c);
+      expect(c.helpers.value, ['https://link.example', 'https://two.example']);
+      expect([told, asUp], [1, [['https://link.example', 'https://two.example']]]);
+      expect(() => c.helpers.value.add('https://more.example'), throwsUnsupportedError);
+      // The link drops: they are as they were, since that is when they are needed. Signed in again, told again.
+      memory.pairs.single.cut();
+      await _until(() => c.state.value != CarrierState.up || told == 2, 'the link never dropped');
+      expect(c.helpers.value, ['https://link.example', 'https://two.example']);
+      await _until(() => c.state.value == CarrierState.up && told == 2, 'it never signed in again');
+      expect(c.helpers.value, ['https://link.example', 'https://two.example']);
+    });
+
+    test('a hub that names none, or names what is no link helper, gives none: at most four https addresses of 200 characters', () async {
+      final none = MemoryHub();
+      final plain = HubCarrier(url: none.url, signer: KeysSigner(NetKeys.generate()), dial: none.dial);
+      addTearDown(plain.stop);
+      var told = 0;
+      plain.helpers.addListener(() => told++);
+      await _up(plain);
+      expect([plain.helpers.value, told], [isEmpty, 1], reason: 'said to have named none: whoever listens is told that too');
+
+      // A hub of somebody else's making, saying whatever it likes.
+      Future<List<String>> named(Object? helpers) async {
+        final c = HubCarrier(url: 'wss://odd.test/hub', signer: KeysSigner(NetKeys.generate()), dial: (_) async => _OddHub(helpers));
+        addTearDown(c.stop);
+        await _up(c);
+        return c.helpers.value;
+      }
+
+      expect(await named('https://link.example'), isEmpty, reason: 'not a list');
+      expect(await named({'a': 'https://link.example'}), isEmpty);
+      expect(await named(['http://plain.example', 'wss://socket.example', 7, null, ['https://nested.example'], 'https://${'x' * 200}.example', 'https://ok.example']), ['https://ok.example']);
+      expect(await named([for (var i = 0; i < 40; i++) 'https://h$i.example']), ['https://h0.example', 'https://h1.example', 'https://h2.example', 'https://h3.example']);
     });
 
     test('asking whether a relay answers goes by a dial too, and closes without signing in', () async {

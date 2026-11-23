@@ -139,6 +139,9 @@ const KNOWN = {
   GHOST_TURN_SECRET: /^[A-Za-z0-9_-]{32,128}$/,
   GHOST_TURN_URLS: /^turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?(,turns?:[A-Za-z0-9.-]+(:[0-9]{1,5})?(\?transport=(udp|tcp))?)*$/,
   GHOST_TURN_TTL: /^[0-9]{3,7}$/,
+  // The link helpers the apps' direct links use (relay/lib/hub.dart `helpers`; docs/OPEN_NETWORK.md, section 2): https
+  // addresses, commas between, 4 at most, which the hub hands each app as it signs in.
+  GHOST_LINK_HELPERS: /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?(,https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?){0,3}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
@@ -149,6 +152,7 @@ const SHAPES = {
   GHOST_MARKET_REVIEW_KEYS: 'base64 public keys of 44 characters, commas between',
   GHOST_TURN_SECRET: '32 to 128 letters, digits, - or _',
   GHOST_TURN_URLS: 'turn:host:3478?transport=udp and the like, commas between',
+  GHOST_LINK_HELPERS: 'https://host addresses, commas between, 4 at most',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
 const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK'], ['GHOST_TURN_SECRET', 'GHOST_TURN_URLS']];

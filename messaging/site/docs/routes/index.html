@@ -70,6 +70,31 @@
 
 <p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
 
+<h2 id="direct">Direct <span class="badge soon">Coming soon</span></h2>
+<p>A second way between Ghost apps, tried after the relay server: straight from one device to another, with no server in between. The relay stays first, because it is fast and keeps a message for someone who is away. The direct route is the way through when the relay can't carry something, for instance when it can't be reached.</p>
+<p>Your device links only with your own other devices and with your friends' devices. They are told where it is in sealed messages; nobody else is, and nothing is put in any public directory. What crosses a direct link is sealed exactly as it is through the relay.</p>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Routes</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg></span><span class="m-txt"><b>Relay server</b><small>Through a server on the internet. The server sees who talks to whom, never what is said.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#link-2"/></svg></span><span class="m-txt"><b>Direct</b><small>Straight between your devices and your friends', with no server in between. Their device sees your network address; nobody else does.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-square"/></svg></span><span class="m-txt"><b>SMS</b><small>As data texts over the phone network. Each counts as a text on your plan.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div><p class="m-foot">The ways this phone reaches another, tried from the top.</p></div>
+  <div class="m-section"><div class="m-section-title">Direct</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#users"/></svg></span><span class="m-txt"><b>Knows 3 friends' devices</b><small>And 1 other device of your own.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#link"/></svg></span><span class="m-txt"><b>Linked to 1 device now</b><small>1 straight.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="slate"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#eye-off"/></svg></span><span class="m-txt"><b>Only through link helpers</b><small>Friends' devices then see the link helper's address and not this device's. It is slower.</small></span><span class="m-end"><span class="m-switch"></span></span></div>
+  </div><p class="m-foot">A link helper sees which devices link and how much they send, never who they are or what is said.</p></div>
+</div></div><figcaption>Settings › Routes, in a build that has the direct route.</figcaption></figure>
+
+<ul>
+<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection. Switch on <b>Only through link helpers</b> and it sees the helper's address instead; links are slower then.</li>
+<li><b>Link helpers</b> are servers that help two devices find each other across networks, and pass their sealed packets along where no straight path can be made. The relay you use names them. Where it names none, direct links work only between devices on the same network.</li>
+<li><b>On a phone</b> the direct network runs only while there is something to send, so it doesn't wear the battery down. On a computer it stays up while the route is on.</li>
+<li><b>Invisible:</b> while you've chosen to be shown as Invisible, your device makes no direct links with friends' devices, since a link would show it is there. Your own devices still link with each other.</li>
+<li><b>Off:</b> switch <b>Direct</b> off under Routes and nothing is linked, and nobody is told where your device is.</li>
+</ul>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
@@ -82,7 +107,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/keyboard-shortcuts/"><small>Previous</small>Keyboard shortcuts</a><a class="next" href="/docs/coming-soon/"><small>Next</small>Coming soon</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#direct">Direct Coming soon</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>
