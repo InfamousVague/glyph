@@ -997,6 +997,10 @@ class Handles {
     return id == null || key == null ? null : (id: id, key: key);
   }
 
+  /// Whether [id] holds a username here: someone who has signed in here (federation.dart keeps packets from other
+  /// relays only for such names).
+  bool holdsAName(String id) => _nameOf.containsKey(id);
+
   /// The install that holds [name] as its username, or null (accounts.dart: signing in by username).
   String? holderOf(String name) => goodName(name) ? (_names[nameKey(name)]?['id']) : null;
 

@@ -48,13 +48,66 @@ void main() {
 
     test('the highest count wins: an older record is passed over, and the answer says what is held', () async {
       final bob = Install();
-      final first = bob.record(['wss://b.test/hub'], n: 4), newer = bob.record(['wss://c.test/hub'], n: 5), older = bob.record(['wss://old.test/hub'], n: 3), same = bob.record(['wss://other.test/hub'], n: 5);
+      final first = bob.record(['wss://b.test/hub'], n: 4), newer = bob.record(['wss://c.test/hub'], n: 5), older = bob.record(['wss://old.test/hub'], n: 3);
+      // The same count, made a minute before: of two with one count the later made is believed.
+      final same = bob.record(['wss://other.test/hub'], n: 5, at: DateTime.utc(2026, 11, 22, 10, 59));
       expect((await give(first))['n'], 4);
       expect((await give(newer))['n'], 5);
       expect(await give(older), {'dir': 'home', 'a': bob.id, 'ok': true, 'n': 5});
       expect(await give(first), {'dir': 'home', 'a': bob.id, 'ok': true, 'n': 5});
-      expect(await give(same), {'dir': 'home', 'a': bob.id, 'ok': true, 'n': 5}, reason: 'the same count again is not newer');
+      expect(await give(same), {'dir': 'home', 'a': bob.id, 'ok': true, 'n': 5}, reason: 'the same count, made earlier, is not newer');
       expect(a.fed.homes.of(bob.id)!.h, ['wss://c.test/hub']);
+    });
+
+    test('two records with one count: the later made is believed, and of two made at once the greater signature; every relay the same, whatever came first', () async {
+      final bob = Install();
+      final early = bob.record(['wss://b.test/hub'], n: 7, at: DateTime.utc(2026, 11, 22, 10));
+      final late = bob.record(['wss://c.test/hub'], n: 7, at: DateTime.utc(2026, 11, 22, 11));
+      final twin1 = bob.record(['wss://d.test/hub'], n: 8, at: DateTime.utc(2026, 11, 22, 11, 30));
+      final twin2 = bob.record(['wss://e.test/hub'], n: 8, at: DateTime.utc(2026, 11, 22, 11, 30));
+      String greater(Map<String, Object> x, Map<String, Object> y) {
+        final a = base64Decode(x['s'] as String), b = base64Decode(y['s'] as String);
+        for (var i = 0; i < 64; i++) {
+          if (a[i] != b[i]) return (a[i] > b[i] ? x : y)['h'].toString();
+        }
+        return x['h'].toString();
+      }
+
+      // Given in one order here, the other order to another relay: both hold the same.
+      final other = TestRelay(net, 'z.test', seed: 9);
+      final zed = Install();
+      await zed.signIn(other);
+      for (final r in [early, late, twin1, twin2]) {
+        await give(r);
+      }
+      for (final r in [twin2, twin1, late, early]) {
+        zed.say({'dir': 'home', 'rec': r});
+      }
+      await pumpEventQueue();
+      expect('${a.fed.homes.of(bob.id)!.h}', greater(twin1, twin2));
+      expect('${other.fed.homes.of(bob.id)!.h}', greater(twin1, twin2));
+      // And of the two with count 7, the later made, whichever came first.
+      final x = TestRelay(net, 'x.test', seed: 10), y = TestRelay(net, 'y.test', seed: 11);
+      final xa = Install(), ya = Install();
+      await xa.signIn(x);
+      await ya.signIn(y);
+      xa.say({'dir': 'home', 'rec': early});
+      xa.say({'dir': 'home', 'rec': late});
+      ya.say({'dir': 'home', 'rec': late});
+      ya.say({'dir': 'home', 'rec': early});
+      await pumpEventQueue();
+      expect([x.fed.homes.of(bob.id)!.h, y.fed.homes.of(bob.id)!.h], [['wss://c.test/hub'], ['wss://c.test/hub']]);
+    });
+
+    test('a record is good for thirty days from when it was made: one past it is refused (old), and one held is let go as it ends', () async {
+      final bob = Install();
+      expect(await give(bob.record(['wss://b.test/hub'], at: net.clock.subtract(const Duration(days: 30)))), {'dir': 'home', 'a': bob.id, 'ok': false, 'err': 'old'});
+      final rec = bob.record(['wss://b.test/hub'], at: net.clock.subtract(const Duration(days: 29)));
+      expect((await give(rec))['ok'], isTrue);
+      expect(a.fed.homes.of(bob.id), isNotNull);
+      await net.pass(const Duration(days: 1));
+      expect(a.fed.homes.of(bob.id), isNull, reason: 'thirty days on, it says nothing');
+      expect(HomeRecord.goodFor, const Duration(days: 30));
     });
 
     test('what is not a record is refused: changed, signed by another key, too many or too long addresses, made in the future', () async {
@@ -97,28 +150,20 @@ void main() {
       expect((await give(bob.record([long, 'wss://2.test/hub', 'wss://3.test/hub'], n: 1, at: net.clock.add(const Duration(minutes: 4)))))['ok'], isTrue);
     });
 
-    test('home? says what is held of anyone, or that nothing is; asking after others is a lookup, counted as one', () async {
+    test('home? says what is held of one\'s own record, and of nobody else\'s', () async {
       final bob = Install();
+      await give(bob.record(['wss://b.test/hub']));
+      alice.said.clear();
       alice.say({'dir': 'home?', 'a': bob.id});
       alice.say({'dir': 'home?', 'a': 'not a name'});
-      await pumpEventQueue();
-      expect(alice.said, [{'dir': 'home?', 'a': bob.id, 'none': true}, {'dir': 'home?', 'a': 'not a name', 'none': true}]);
-      final rec = bob.record(['wss://b.test/hub']);
-      await give(rec);
-      alice.say({'dir': 'home?', 'a': bob.id});
-      await pumpEventQueue();
-      expect(alice.said.last, {'dir': 'home?', 'a': bob.id, 'rec': rec});
-      // 120 lookups an hour, as for usernames; one's own record is not a lookup.
-      alice.said.clear();
-      for (var i = 0; i < 120; i++) {
-        alice.say({'dir': 'home?', 'a': bob.id});
-      }
-      await pumpEventQueue();
-      expect(alice.said.last, {'dir': 'err', 'about': 'home?', 'err': 'Too many lookups. Try again in a while.'});
-      expect(alice.said.where((m) => m['rec'] != null), hasLength(118));
       alice.say({'dir': 'home?', 'a': alice.id});
       await pumpEventQueue();
-      expect(alice.said.last, {'dir': 'home?', 'a': alice.id, 'none': true});
+      expect(alice.said, [{'dir': 'home?', 'a': bob.id, 'none': true}, {'dir': 'home?', 'a': 'not a name', 'none': true}, {'dir': 'home?', 'a': alice.id, 'none': true}], reason: 'held, and not told: nobody is found by a stranger');
+      final mine = await alice.giveHome(a);
+      alice.said.clear();
+      alice.say({'dir': 'home?', 'a': alice.id});
+      await pumpEventQueue();
+      expect(alice.said.single, {'dir': 'home?', 'a': alice.id, 'rec': mine});
     });
 
     test('the same record given again costs no check; a new one does, and an install has only so many an hour', () async {
@@ -252,7 +297,7 @@ void main() {
       await linked(() => TestRelay(net, 'b.test', packetsAMinute: 3));
       final sent = [for (var i = 0; i < 4; i++) h.send(bob.id, pat.id, [i])];
       await pumpEventQueue();
-      expect([for (final n in sent) h.answerTo(n)], [{'ack': 1, 'here': true}, {'ack': 2, 'here': true}, {'ack': 3, 'here': true}, {'nak': 4, 'err': 'limit'}]);
+      expect([for (final n in sent) h.answerTo(n)], [{'ack': 1}, {'ack': 2}, {'ack': 3}, {'nak': 4, 'err': 'limit'}]);
       expect(bob.frames, hasLength(3));
       await net.pass(const Duration(seconds: 59));
       var n = h.send(bob.id, pat.id, [9]);
@@ -261,7 +306,7 @@ void main() {
       await net.pass(const Duration(seconds: 1));
       n = h.send(bob.id, pat.id, [9]);
       await pumpEventQueue();
-      expect(h.answerTo(n), {'ack': n, 'here': true});
+      expect(h.answerTo(n), {'ack': n});
       // Another relay's count is its own.
       final other = HandRelay();
       await other.link(b);
@@ -272,14 +317,14 @@ void main() {
       }
       final theirs = other.send(bob.id, pam.id, [1]);
       await pumpEventQueue();
-      expect(other.answerTo(theirs), {'ack': theirs, 'here': true});
+      expect(other.answerTo(theirs), {'ack': theirs});
     });
 
     test('so many bytes a day', () async {
       await linked(() => TestRelay(net, 'b.test', bytesADay: 300));
       final first = h.send(bob.id, pat.id, List.filled(100, 1)), second = h.send(bob.id, pat.id, List.filled(100, 2)), third = h.send(bob.id, pat.id, List.filled(100, 3));
       await pumpEventQueue();
-      expect([h.answerTo(first), h.answerTo(second), h.answerTo(third)], [{'ack': first, 'here': true}, {'ack': second, 'here': true}, {'nak': third, 'err': 'limit'}], reason: 'two of 137 bytes each fit in 300; a third does not');
+      expect([h.answerTo(first), h.answerTo(second), h.answerTo(third)], [{'ack': first}, {'ack': second}, {'nak': third, 'err': 'limit'}], reason: 'two of 137 bytes each fit in 300; a third does not');
       // (An idle link is closed meanwhile; the count is the relay's, not the link's.)
       await net.pass(const Duration(hours: 23, minutes: 59));
       expect((await h.link(b))['ok'], isTrue);
@@ -289,7 +334,7 @@ void main() {
       await net.pass(const Duration(minutes: 1));
       n = h.send(bob.id, pat.id, List.filled(100, 3));
       await pumpEventQueue();
-      expect(h.answerTo(n), {'ack': n, 'here': true});
+      expect(h.answerTo(n), {'ack': n});
     });
 
     test('so many records a minute', () async {
@@ -359,22 +404,23 @@ void main() {
       expect([h.socket.isOpen, b.fed.linkedWith(h.id)], [true, true]);
       final n = h.send(bob.id, pat.id, [1]);
       await pumpEventQueue();
-      expect(h.answerTo(n), {'ack': n, 'here': true});
+      expect(h.answerTo(n), {'ack': n});
     });
   });
 
   test('a record the store holds is read for its shape alone when it is read back: HomeBook keeps what it is given', () {
-    final book = HomeBook(maxOwn: 2, maxOthers: 2);
+    final book = HomeBook(maxOwn: 2, maxOthers: 2, now: () => DateTime.utc(2026, 11, 22, 12));
     HomeRecord rec(Install who, int n) => HomeRecord.read(who.record(['wss://x.test/hub'], n: n), now: DateTime.utc(2026, 11, 22, 12)).rec!;
     final p = Install(), q = Install();
-    expect(book.keep(rec(p, 2)), isTrue);
-    expect(book.keep(rec(p, 2)), isFalse);
+    final two = rec(p, 2);
+    expect(book.keep(two), isTrue);
+    expect(book.keep(two), isFalse);
     expect(book.keep(rec(p, 1)), isFalse);
     expect(book.holds(p.id, 2, book.of(p.id)!.s), isTrue);
     expect(book.holds(p.id, 3, book.of(p.id)!.s), isFalse);
     expect(book.holds(q.id, 2, book.of(p.id)!.s), isFalse);
     expect([book.own, book.others, book.dirty], [0, 1, false], reason: 'others\' are not written anywhere');
-    expect(book.keep(rec(p, 2), byOwner: true), isFalse, reason: 'nothing newer, but it is one of the relay\'s own from now on');
+    expect(book.keep(two, byOwner: true), isFalse, reason: 'nothing newer, but it is one of the relay\'s own from now on');
     expect([book.own, book.others, book.dirty], [1, 0, true]);
   });
 }

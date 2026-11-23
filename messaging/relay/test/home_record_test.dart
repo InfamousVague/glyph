@@ -46,7 +46,14 @@ void main() {
     final made = DateTime.fromMillisecondsSinceEpoch(ahead['t'] as int, isUtc: true);
     expect(HomeRecord.read(ahead, now: made.subtract(HomeRecord.ahead)).err, isNull);
     expect(HomeRecord.read(ahead, now: made.subtract(HomeRecord.ahead + const Duration(milliseconds: 1))).err, 'future');
-    expect(HomeRecord.read(ahead, now: made.add(const Duration(days: 4000))).err, isNull, reason: 'a record does not run out');
+  });
+
+  test('a record is good for thirty days from its time, and refused as old after, whoever gave it', () {
+    final rec = ((v['good'] as List).first as Map)['rec'] as Map;
+    final made = DateTime.fromMillisecondsSinceEpoch(rec['t'] as int, isUtc: true);
+    expect(HomeRecord.read(rec, now: made.add(HomeRecord.goodFor - const Duration(milliseconds: 1))).err, isNull);
+    expect(HomeRecord.read(rec, now: made.add(HomeRecord.goodFor)).err, 'old');
+    expect(HomeRecord.read(rec, now: made.add(const Duration(days: 4000)), verify: false).err, 'old', reason: 'read back from its file too');
   });
 
   test('read back from its own file a record is taken for its shape alone, never a wrong shape', () {

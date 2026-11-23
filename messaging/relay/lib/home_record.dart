@@ -20,6 +20,10 @@ import 'sha256.dart';
 ///
 /// An address is a hub's (`wss://host/hub`), or a relay hosted from an app's (`ghost-relay://<relay name>?n=<node
 /// id>&via=<the public relay it stays linked to>`): [HomeAddress].
+///
+/// A record is good for [goodFor] from when it was made, and says nothing after ([ends]); the app makes the next well
+/// before. Of two for one account the one believed is the higher count, then the later made, then the greater
+/// signature ([order]), so every relay and app believes the same one.
 class HomeRecord {
   HomeRecord._(this.a, this.k, this.h, this.n, this.t, this.s);
 
@@ -53,6 +57,32 @@ class HomeRecord {
   /// The longest a record is as JSON: what a store of them is counted by.
   static const maxJson = 1100;
 
+  /// How long a record is good for, from its time: after it, a relay someone has left can't speak for them by an old
+  /// record they signed, however long ago that relay forgot the newer one (found in review, 2026-11-22). An app makes
+  /// a new one when a third of it has gone (lib/net/homes.dart).
+  static const goodFor = Duration(days: 30);
+
+  /// When it stops being good, in milliseconds.
+  int get ends => t + goodFor.inMilliseconds;
+
+  /// Whether it is good at [now].
+  bool goodAt(DateTime now) => now.millisecondsSinceEpoch < ends;
+
+  /// Which of two records for one account is believed: above nothing where it is [x], below where it is [y]. The
+  /// higher count; of two with one count (two devices of the account each made one), the later made; of two made at
+  /// the same moment too, the one whose signature is the greater, byte by byte. The app orders them the same.
+  static int order(HomeRecord x, HomeRecord y) {
+    if (x.n != y.n) return x.n.compareTo(y.n);
+    if (x.t != y.t) return x.t.compareTo(y.t);
+    for (var i = 0; i < x.s.length && i < y.s.length; i++) {
+      if (x.s[i] != y.s[i]) return x.s[i].compareTo(y.s[i]);
+    }
+    return x.s.length.compareTo(y.s.length);
+  }
+
+  /// Whether this is believed over [other], a record for the same account.
+  bool newerThan(HomeRecord other) => order(this, other) > 0;
+
   static final _hex32 = RegExp(r'^[0-9a-f]{32}$');
 
   /// Printable ASCII and nothing else: an address is compared and logged as it is.
@@ -75,10 +105,11 @@ class HomeRecord {
     return out.toBytes();
   }
 
-  /// The record [json] is, where every part of it is as the plan lays it out and the signature is the account's own;
-  /// else why not, in a word (`shape`, `name`, `addresses`, `count`, `time`, `future`, `signature`).
+  /// The record [json] is, where every part of it is as the plan lays it out, it is still good at [now], and the
+  /// signature is the account's own; else why not, in a word (`shape`, `name`, `addresses`, `count`, `time`,
+  /// `future`, `old`, `signature`). Everything but the signature is looked at first: it alone costs anything.
   ///
-  /// [verify] false passes over the signature and the time: for what this relay checked before it kept it.
+  /// [verify] false passes over the signature and the time ahead: for what this relay checked before it kept it.
   static ({HomeRecord? rec, String? err}) read(Object? json, {required DateTime now, bool verify = true}) {
     ({HomeRecord? rec, String? err}) no(String why) => (rec: null, err: why);
     if (json is! Map || json['v'] != 1) return no('shape');
@@ -97,10 +128,9 @@ class HomeRecord {
     if (n is! int || n < 1 || n > maxCount) return no('count');
     if (t is! int || t < 0 || t > 0x1fffffffffffff) return no('time');
     final addresses = List<String>.unmodifiable(h.cast<String>());
-    if (verify) {
-      if (t > now.add(ahead).millisecondsSinceEpoch) return no('future');
-      if (!P256.verify(key, signedBytes(a: a, n: n, t: t, h: addresses), sig)) return no('signature');
-    }
+    if (verify && t > now.add(ahead).millisecondsSinceEpoch) return no('future');
+    if (now.millisecondsSinceEpoch >= t + goodFor.inMilliseconds) return no('old');
+    if (verify && !P256.verify(key, signedBytes(a: a, n: n, t: t, h: addresses), sig)) return no('signature');
     return (rec: HomeRecord._(a, key, addresses, n, t, sig), err: null);
   }
 
@@ -188,9 +218,11 @@ String? canonicalHub(String address) {
 /// - **Others'** (a friend's record an app gave so the relay can route to them, one another relay gave to show it
 ///   speaks for someone): in memory, the [maxOthers] used most lately.
 ///
-/// Of two records for one account the higher count is held, whoever gave it; nothing here is ever made by the relay.
+/// Of two records for one account the one [HomeRecord.order] believes is held, whoever gave it, and none past its end:
+/// nothing here is ever made by the relay.
 class HomeBook {
-  HomeBook({this.file, this.maxOwn = 20000, this.maxOthers = 10000});
+  HomeBook({this.file, this.maxOwn = 20000, this.maxOthers = 10000, DateTime Function()? now}) : _now = now ?? DateTime.now;
+  final DateTime Function() _now;
 
   /// Where the relay's own people's records are kept; null keeps nothing across restarts.
   final File? file;
@@ -209,27 +241,35 @@ class HomeBook {
   /// Whether [a] gave their own record here.
   bool isOwn(String a) => _own.containsKey(a);
 
-  /// The record held for [a], or null. One of the others' is used a moment ago for it.
+  /// The record held for [a], or null (one past its end is let go as it is found). One of the others' is used a
+  /// moment ago for it.
   HomeRecord? of(String a) {
     final mine = _own[a];
-    if (mine != null) return mine;
+    if (mine != null) {
+      if (mine.goodAt(_now())) return mine;
+      _own.remove(a);
+      dirty = true;
+      return null;
+    }
     final other = _others.remove(a);
-    if (other != null) _others[a] = other;
+    if (other == null || !other.goodAt(_now())) return null;
+    _others[a] = other;
     return other;
   }
 
-  /// Whether exactly [rec] is held: then it need not be checked again.
+  /// Whether exactly [rec] is held, and good: then it need not be checked again.
   bool holds(String a, int n, List<int> s) {
     final held = _own[a] ?? _others[a];
-    return held != null && held.n == n && HomeRecord._equal(held.s, s);
+    return held != null && held.n == n && HomeRecord._equal(held.s, s) && held.goodAt(_now());
   }
 
-  /// Keeps [rec], already checked, where it is newer than what is held for its account; true where it was kept.
-  /// [byOwner]: the account gave it itself, here: it is one of this relay's own from now on.
+  /// Keeps [rec], already checked, where it is believed over what is held for its account (or that has ended); true
+  /// where it was kept. [byOwner]: the account gave it itself, here: it is one of this relay's own from now on.
   bool keep(HomeRecord rec, {bool byOwner = false}) {
     final a = rec.a;
+    if (!rec.goodAt(_now())) return false;
     final held = _own[a] ?? _others[a];
-    final newer = held == null || rec.n > held.n;
+    final newer = held == null || !held.goodAt(_now()) || rec.newerThan(held);
     if (byOwner) {
       // Given by its owner, here: one of this relay's own, and the last of them to be let go.
       final had = _own.remove(a);
@@ -266,8 +306,8 @@ class HomeBook {
       final list = all is Map && all['own'] is List ? all['own'] as List : const [];
       for (final j in list.length > maxOwn ? list.sublist(list.length - maxOwn) : list) {
         // Checked when it was kept; read back for its shape alone (a signature is seven milliseconds of arithmetic,
-        // and there may be tens of thousands).
-        final rec = HomeRecord.read(j, now: DateTime.fromMillisecondsSinceEpoch(0), verify: false).rec;
+        // and there may be tens of thousands), and whether it is still good.
+        final rec = HomeRecord.read(j, now: _now(), verify: false).rec;
         if (rec != null) _own[rec.a] = rec;
       }
     } catch (_) {
@@ -281,7 +321,8 @@ class HomeBook {
     if (f == null || !dirty) return;
     try {
       f.parent.createSync(recursive: true);
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'own': [for (final r in _own.values) r.toJson()]}));
+      final now = _now();
+      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'own': [for (final r in _own.values) if (r.goodAt(now)) r.toJson()]}));
       tmp.renameSync(f.path);
       dirty = false;
     } catch (_) {}

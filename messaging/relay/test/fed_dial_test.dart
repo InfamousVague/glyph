@@ -14,11 +14,10 @@ void main() {
   Uri u(String s) => Uri.parse(s);
 
   /// A guard whose names resolve as [names] says; a name not in it resolves to nothing.
-  DialGuard guard(Map<String, List<String>> names, {bool plain = false, Set<int> ports = const {}, List<String>? asked, DateTime Function()? now, int dialsAMinute = 30}) => DialGuard(
+  DialGuard guard(Map<String, List<String>> names, {bool plain = false, Set<int> ports = const {}, List<String>? asked, DateTime Function()? now}) => DialGuard(
         plain: plain,
         ports: ports,
         now: now,
-        dialsAMinute: dialsAMinute,
         resolve: (host) async {
           asked?.add(host);
           return [for (final a in names[host] ?? const <String>[]) ip(a)];
@@ -125,19 +124,24 @@ void main() {
       }
     });
 
-    test('no more dials a minute than its most, for everything together', () async {
+    test('so many dials a minute of each kind, each kind its own: strangers\' looks can\'t use up a relay\'s own dials', () async {
       var clock = DateTime.utc(2026, 11, 22, 12);
-      final g = guard({'a.example.com': ['93.184.216.34']}, now: () => clock, dialsAMinute: 3);
-      for (var i = 0; i < 3; i++) {
-        expect((await g.check(u('wss://a.example.com/hub'))).problem, isNull);
-      }
-      expect((await g.check(u('wss://a.example.com/hub'))).problem, 'too many dials this minute');
-      // What is refused for its shape is not counted: it was never going to be dialled.
-      expect((await g.check(u('ws://a.example.com/hub'))).problem, 'only wss:// is dialled');
+      final g = DialGuard(now: () => clock, dialsAMinute: 3, retriesAMinute: 2, lookBacksAMinute: 1);
+      expect([for (var i = 0; i < 4; i++) g.take(DialKind.lookBack)], [true, false, false, false]);
+      expect([for (var i = 0; i < 4; i++) g.take(DialKind.own)], [true, true, true, false], reason: 'the looks took none of these');
+      expect([for (var i = 0; i < 3; i++) g.take(DialKind.retry)], [true, true, false]);
+      expect([g.hasRoom(DialKind.own), g.hasRoom(DialKind.retry), g.hasRoom(DialKind.lookBack)], [false, false, false]);
       clock = clock.add(const Duration(seconds: 59));
-      expect((await g.check(u('wss://a.example.com/hub'))).problem, 'too many dials this minute');
+      expect(g.take(DialKind.own), isFalse);
       clock = clock.add(const Duration(seconds: 1));
-      expect((await g.check(u('wss://a.example.com/hub'))).problem, isNull);
+      expect([g.take(DialKind.own), g.take(DialKind.retry), g.take(DialKind.lookBack)], [true, true, true]);
+      // What is refused for its shape, or looked up, is not a dial: the check counts nothing.
+      final h = guard({'a.example.com': ['93.184.216.34']}, now: () => clock);
+      for (var i = 0; i < 50; i++) {
+        expect((await h.check(u('wss://a.example.com/hub'))).problem, isNull);
+      }
+      expect((await h.check(u('ws://a.example.com/hub'))).problem, 'only wss:// is dialled');
+      expect([DialGuard().dialsAMinute, DialGuard().retriesAMinute, DialGuard().lookBacksAMinute], [30, 30, 10]);
     });
   });
 

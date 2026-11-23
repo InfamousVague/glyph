@@ -80,11 +80,17 @@ Future<void> _main(List<String> args) async {
   // Relays that talk to each other (federation.dart; Matt, 2026-11-22: "I'd like the relays to be able to talk to each
   // other"): this relay's own key (relay-key.json, made the first time) and the home records its people give it
   // (homes.json), both in the data folder. Whether it links with other relays is GHOST_FED: off, unless it is set to
-  // open or list, and off it passes nothing on and dials nobody.
-  final federation = Federation(dataDir: data, config: FedConfig.fromEnvironment(Platform.environment), verbose: verbose);
+  // open or list; off there is no federation at all (no key made, no record kept, the hub exactly as before).
+  final fedConfig = FedConfig.fromEnvironment(Platform.environment);
+  final federation = fedConfig.mode == FedMode.off ? null : Federation(dataDir: data, config: fedConfig, verbose: verbose);
+  if (federation == null) {
+    for (final p in fedConfig.problems) {
+      stderr.writeln('relay: $p');
+    }
+  }
   final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn, federation: federation), files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty));
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; other relays: ${federation.config.mode.name}, this one is ${federation.id}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();

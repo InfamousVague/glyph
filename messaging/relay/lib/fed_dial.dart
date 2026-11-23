@@ -19,9 +19,12 @@ import 'ws_door.dart';
 /// - Then the connection is made **to the address that was checked**, not to the name: nothing is looked up a second
 ///   time, so a name can't answer "public" to the check and "127.0.0.1" to the dial. TLS still names the host and
 ///   checks its certificate; a redirect is not followed anywhere else.
-/// - Ten seconds to connect, and no more than [dialsAMinute] dials a minute for everything together.
+/// - Ten seconds to connect, and so many dials a minute of each kind ([take]): a relay's own ([dialsAMinute]: a link
+///   first wanted, a name asked after), its tries again at a relay that could not be reached ([retriesAMinute]), and
+///   its looks at an address another relay claims ([lookBacksAMinute]). Each kind has its own, so strangers' hellos
+///   can't use up the dials this relay needs for its own people, nor its tries again its first dials.
 class DialGuard {
-  DialGuard({this.plain = false, Set<int> ports = const {}, Future<List<InternetAddress>> Function(String host)? resolve, DateTime Function()? now, this.dialsAMinute = 30, this.timeout = const Duration(seconds: 10), this.lookupWithin = const Duration(seconds: 5)})
+  DialGuard({this.plain = false, Set<int> ports = const {}, Future<List<InternetAddress>> Function(String host)? resolve, DateTime Function()? now, this.dialsAMinute = 30, this.retriesAMinute = 30, this.lookBacksAMinute = 10, this.timeout = const Duration(seconds: 10), this.lookupWithin = const Duration(seconds: 5)})
       : ports = {443, ...ports},
         _resolve = resolve ?? _lookup,
         _now = now ?? DateTime.now;
@@ -31,16 +34,42 @@ class DialGuard {
 
   /// The ports that may be dialled.
   final Set<int> ports;
+
+  /// Dials a minute: this relay's own, its tries again, its looks at another relay's address.
   final int dialsAMinute;
+  final int retriesAMinute;
+  final int lookBacksAMinute;
 
   /// How long a connection may take to be made, and a name to be looked up.
   final Duration timeout;
   final Duration lookupWithin;
   final Future<List<InternetAddress>> Function(String host) _resolve;
   final DateTime Function() _now;
-  final List<DateTime> _dialled = [];
+  final Map<DialKind, List<DateTime>> _dialled = {};
 
   static Future<List<InternetAddress>> _lookup(String host) => InternetAddress.lookup(host);
+
+  int _most(DialKind kind) => switch (kind) {
+        DialKind.own => dialsAMinute,
+        DialKind.retry => retriesAMinute,
+        DialKind.lookBack => lookBacksAMinute,
+      };
+
+  List<DateTime> _of(DialKind kind) {
+    final now = _now();
+    return (_dialled[kind] ??= [])..removeWhere((t) => now.difference(t) >= const Duration(minutes: 1));
+  }
+
+  /// Whether a dial of [kind] may be made this minute, and that it is: counted.
+  bool take(DialKind kind) {
+    final list = _of(kind);
+    if (list.length >= _most(kind)) return false;
+    list.add(_now());
+    return true;
+  }
+
+  /// Whether a dial of [kind] may be made this minute, without counting one.
+  bool hasRoom(DialKind kind) => _of(kind).length < _most(kind);
 
   /// Why [url] is not a hub's address this relay may dial, by its words alone (nothing is looked up); null where it is.
   String? shape(Uri url) {
@@ -52,15 +81,12 @@ class DialGuard {
     return null;
   }
 
-  /// The addresses [url] may be dialled at, each one checked, or why it may not be dialled. Counts as a dial.
+  /// The addresses [url] may be dialled at, each one checked, or why it may not be dialled. Whether a dial may be made
+  /// this minute is [take]'s, asked first by whoever dials.
   Future<({List<InternetAddress> addresses, String? problem})> check(Uri url) async {
     ({List<InternetAddress> addresses, String? problem}) no(String why) => (addresses: const <InternetAddress>[], problem: why);
     final wrong = shape(url);
     if (wrong != null) return no(wrong);
-    final now = _now();
-    _dialled.removeWhere((t) => now.difference(t) >= const Duration(minutes: 1));
-    if (_dialled.length >= dialsAMinute) return no('too many dials this minute');
-    _dialled.add(now);
     final literal = InternetAddress.tryParse(url.host);
     final List<InternetAddress> found;
     if (literal != null) {
@@ -131,6 +157,18 @@ class DialGuard {
     if (a == 203 && c == 0 && b[2] == 113) return false; // documentation
     return true;
   }
+}
+
+/// What a dial is for, each kind with its own dials a minute ([DialGuard.take]).
+enum DialKind {
+  /// A link this relay wants for the first time, or a name asked after.
+  own,
+
+  /// A relay that could not be reached, tried again.
+  retry,
+
+  /// The address another relay's hello claims, looked at to see the same key there.
+  lookBack,
 }
 
 /// Why an address was not dialled ([DialGuard.dial]).

@@ -65,7 +65,7 @@ void main() {
       m2.incoming.listen((d) => heard.add(jsonDecode(d as String) as Map));
       b.hub.attach(t2);
       await pumpEventQueue();
-      final sig = P256.sign(mallory.scalar, Federation.dialBytes(nonce: unhex(heard.single['hello'] as String), dialler: mallory.id, answerer: b.id, c: wanted, url: ''), someBytes(32));
+      final sig = P256.sign(mallory.scalar, Federation.dialBytes(nonce: unhex(heard.single['hello'] as String), dialler: mallory.id, answerer: b.id, c: wanted, dialled: b.url, url: ''), someBytes(32));
       m2.add(jsonEncode({'fed': 1, 'id': mallory.id, 'key': base64Encode(mallory.key), 'sig': base64Encode(sig), 'c': [for (final v in wanted) v.toRadixString(16).padLeft(2, '0')].join()}));
       await pumpEventQueue();
       expect(heard.last['ok'], isTrue);
@@ -77,12 +77,12 @@ void main() {
       expect(atX.id, isNot(b.id));
     });
 
-    test('federation off: no relay is linked with, and it says so', () async {
+    test('federation off: a relay\'s hello is answered as a hub from before answers one it can\'t read, and its own hello names no relay', () async {
       final b = TestRelay(net, 'b.test', mode: FedMode.off);
       final h = HandRelay();
-      expect(await h.link(b), {'ok': false, 'err': 'fed off'});
-      expect([h.socket.isOpen, h.socket.other.code, b.fed.links], [false, 4403, 0]);
-      expect(h.hello['relay'], {'id': b.id, 'key': base64Encode(b.fed.key), 'url': b.url}, reason: 'it still has a name, and doesn\'t say it talks to others');
+      expect(await h.link(b), {'ok': false, 'err': 'bad hello'});
+      expect([h.socket.isOpen, h.socket.other.code, h.socket.other.reason, b.fed.links], [false, 4400, 'bad hello', 0]);
+      expect(h.hello, {'hello': isA<String>(), 'peek': true, 'react': true}, reason: 'off, it has no key, and its hello is the one it always said');
     });
 
     test('a hub with no federation at all answers a relay\'s hello as it always answered one it could not read', () async {
@@ -144,19 +144,20 @@ void main() {
       expect(net.dialled.length, before);
     });
 
-    test('the key seen at an address is remembered for a day, then looked at again', () async {
+    test('the key seen at an address is remembered for an hour, then looked at again', () async {
       final h = HandRelay();
       final c = TestRelay(net, 'c.test', seed: 3, dataDir: folderWithKey(h.scalar));
       final b = TestRelay(net, 'b.test');
       expect((await h.link(b, url: c.url))['ok'], isTrue);
       expect((await h.link(b, url: c.url))['ok'], isTrue);
       expect(net.dialled, [c.url], reason: 'dialled once');
-      await net.pass(const Duration(hours: 23));
+      await net.pass(const Duration(minutes: 59));
       expect((await h.link(b, url: c.url))['ok'], isTrue);
       expect(net.dialled, [c.url]);
-      await net.pass(const Duration(hours: 2));
+      await net.pass(const Duration(minutes: 2));
       expect((await h.link(b, url: c.url))['ok'], isTrue);
-      expect(net.dialled, [c.url, c.url], reason: 'a day on, it is dialled again');
+      expect(net.dialled, [c.url, c.url], reason: 'an hour on, it is dialled again');
+      expect(Federation.believedFor, const Duration(hours: 1));
     });
 
     test('a relay whose key has changed is seen with its new one after a few minutes, not refused for a day', () async {
@@ -264,7 +265,7 @@ void main() {
       play('wss://liar.test/hub', {
         'hello': 'ab' * 32,
         'relay': {'id': real.id, 'key': base64Encode(real.key)},
-      }, (said) => {'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(liar.scalar, Federation.answerBytes(c: unhex(said['c'] as String), dialler: said['id'] as String, answerer: real.id), someBytes(32)))});
+      }, (said) => {'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(liar.scalar, Federation.answerBytes(c: unhex(said['c'] as String), dialler: said['id'] as String, answerer: real.id, dialled: 'wss://liar.test/hub'), someBytes(32)))});
       final r = await sendTo('wss://liar.test/hub');
       expect(r.a.fed.links, 0);
       expect(r.alice.answerTo(r.n), {'nak': r.n, 'err': 'far'});
@@ -280,7 +281,7 @@ void main() {
       }, (said) {
         final c = how == 0 ? someBytes(32) : unhex(said['c'] as String);
         final dialler = how == 1 ? 'cd' * 16 : said['id'] as String;
-        return {'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: c, dialler: dialler, answerer: real.id), someBytes(32)))};
+        return {'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: c, dialler: dialler, answerer: real.id, dialled: 'wss://replay.test/hub'), someBytes(32)))};
       });
       final r = await sendTo('wss://replay.test/hub');
       expect(r.a.fed.links, 0);
@@ -320,6 +321,7 @@ void main() {
       final byName = TestRelay(net, 'c.test', seed: 3, block: {b.id});
       final carol = Install();
       await carol.signIn(byName);
+      await carol.giveHome(byName);
       carol.say({'dir': 'home', 'rec': bob.record([b.url], n: 1)});
       await pumpEventQueue();
       final m = carol.send(bob.id, [1]);
@@ -330,6 +332,7 @@ void main() {
       final listed = TestRelay(net, 'd.test', seed: 4, mode: FedMode.list, allow: {'e.test'});
       final dan = Install();
       await dan.signIn(listed);
+      await dan.giveHome(listed);
       dan.say({'dir': 'home', 'rec': bob.record([b.url], n: 1)});
       await pumpEventQueue();
       final k = dan.send(bob.id, [1]);
@@ -343,6 +346,7 @@ void main() {
       net.hubs['wss://old-name.test/hub'] = a.hub;
       final alice = Install(), carol = Install();
       await alice.signIn(a);
+      await alice.giveHome(a);
       alice.say({'dir': 'home', 'rec': carol.record(['wss://old-name.test/hub'])});
       await pumpEventQueue();
       alice.said.clear();
@@ -363,10 +367,13 @@ void main() {
       final a = TestRelay(net, 'a.test');
       final alice = Install();
       await alice.signIn(a);
+      await alice.giveHome(a);
       final people = [for (var i = 0; i < 258; i++) Install()];
       for (var i = 0; i < 258; i++) {
         net.hubs['wss://alias$i.test/hub'] = a.hub;
         alice.say({'dir': 'home', 'rec': people[i].record(['wss://alias$i.test/hub'])});
+        // (A hundred a second: one install has a quarter of each second's checks.)
+        if (i % 100 == 99) await net.pass(const Duration(seconds: 1));
       }
       await pumpEventQueue();
       // Each is dialled once and found to be this relay; 257 of them, one more than it remembers.

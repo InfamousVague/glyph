@@ -21,7 +21,8 @@ void main() {
 
   setUp(() async {
     net = FakeNet();
-    v = TestRelay(net, 'v.test', seed: 1);
+    // v lets relays with no address stay linked to it (off unless its keeper says so: below).
+    v = TestRelay(net, 'v.test', seed: 1, standingOpen: true);
     d = TestRelay(net, 'd.test', seed: 2);
     r = TestRelay(net, 'r.test', seed: 3, public: false, via: v.url);
     xena = Install();
@@ -73,13 +74,13 @@ void main() {
     final n = zed.send(xena.id, [1]);
     await net.settle();
     expect(xena.frames.single, handed(zed.id, [1]));
-    expect(zed.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+    expect(zed.answerTo(n), {'ack': n, 'here': false, 'fed': true});
     xena.say({'dir': 'home', 'rec': zeds});
     await net.settle();
     final m = xena.send(zed.id, [2]);
     await net.settle();
     expect(zed.frames.single, handed(xena.id, [2]));
-    expect(xena.answerTo(m), {'ack': m, 'here': true, 'fed': true});
+    expect(xena.answerTo(m), {'ack': m, 'here': false, 'fed': true});
     expect(net.dialled, [v.url], reason: 'nothing but the standing link was ever dialled');
   });
 
@@ -90,7 +91,7 @@ void main() {
     await net.settle();
     await net.settle();
     expect(xena.frames.single, handed(yuri.id, [3]));
-    expect(yuri.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+    expect(yuri.answerTo(n), {'ack': n, 'here': false, 'fed': true});
     // What d said to v: Yuri's record and Xena's, then a [6] naming r.
     final crossed = net.made[v.url]!.last.other.heard;
     expect(crossed.whereType<Map>().map((m) => m['fed']).toList(), [1, 'home', 'home']);
@@ -106,7 +107,7 @@ void main() {
     await net.settle();
     await net.settle();
     expect(yuri.frames.single, handed(xena.id, [4]));
-    expect(xena.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+    expect(xena.answerTo(n), {'ack': n, 'here': false, 'fed': true});
     expect(net.dialled.toSet(), {v.url, d.url}, reason: 'r dialled v, v dialled d (and d looked at v\'s address)');
     expect([d.fed.linkedWith(r.id), r.fed.linkedWith(d.id)], [false, false]);
   });
@@ -137,7 +138,7 @@ void main() {
 
   test('what is kept for a relay not linked is capped, and past the cap a [6] is refused, not kept', () async {
     net = FakeNet();
-    v = TestRelay(net, 'v.test', seed: 1, queuePackets: 2);
+    v = TestRelay(net, 'v.test', seed: 1, queuePackets: 2, standingOpen: true);
     final h = HandRelay();
     final c = TestRelay(net, 'c.test', seed: 5, dataDir: folderWithKey(h.scalar));
     expect((await h.link(v, url: c.url))['ok'], isTrue);
@@ -147,7 +148,7 @@ void main() {
     h.say({'fed': 'home', 'rec': ghost.record(['ghost-relay://$away?via=${Uri.encodeQueryComponent(v.url)}'])});
     final sent = [for (var i = 0; i < 3; i++) h.send(ghost.id, carol.id, [i], relay: away)];
     await pumpEventQueue();
-    expect([for (final n in sent) h.answerTo(n)], [{'ack': 1, 'here': false}, {'ack': 2, 'here': false}, {'nak': 3, 'err': 'full'}]);
+    expect([for (final n in sent) h.answerTo(n)], [{'ack': 1}, {'ack': 2}, {'nak': 3, 'err': 'full'}]);
     expect(v.fed.waitingForRelay(away), 2);
     expect(net.dialled, [c.url], reason: 'the relay named is never dialled: only c\'s own address, to see its key');
     // And it lasts seven days, no longer.
@@ -157,7 +158,7 @@ void main() {
 
   test('what other relays have this one keep is a quarter of what may wait: its own people\'s room is theirs', () async {
     net = FakeNet();
-    v = TestRelay(net, 'v.test', seed: 1, queuedBytes: 1000);
+    v = TestRelay(net, 'v.test', seed: 1, queuedBytes: 2000, standingOpen: true);
     final h = HandRelay();
     final c = TestRelay(net, 'c.test', seed: 5, dataDir: folderWithKey(h.scalar));
     await h.link(v, url: c.url);
@@ -168,23 +169,24 @@ void main() {
     for (var i = 0; i < 1; i++) {
       h.say({'fed': 'home', 'rec': ghosts[i].record(['ghost-relay://${away(i)}?via=${Uri.encodeQueryComponent(v.url)}'])});
     }
-    // 164 bytes each as counted: one fits in a quarter of 1000, a second does not.
+    // 484 bytes each as counted: one fits in a quarter of 2000, a second does not.
     final first = h.send(ghosts[0].id, carol.id, List.filled(100, 1), relay: away(0)), second = h.send(ghosts[0].id, carol.id, List.filled(100, 2), relay: away(0));
     await pumpEventQueue();
-    expect([h.answerTo(first), h.answerTo(second)], [{'ack': first, 'here': false}, {'nak': second, 'err': 'full'}]);
+    expect([h.answerTo(first), h.answerTo(second)], [{'ack': first}, {'nak': second, 'err': 'full'}]);
     // Someone signed in to v still has the rest of the room for a relay that is down.
     final zoe = Install(), dan = Install();
     await zoe.signIn(v);
+    await zoe.giveHome(v);
     zoe.say({'dir': 'home', 'rec': dan.record(['wss://down.test/hub'])});
     await pumpEventQueue();
-    final mine = [for (var i = 0; i < 4; i++) zoe.send(dan.id, List.filled(100, i))];
+    final mine = [for (var i = 0; i < 3; i++) zoe.send(dan.id, List.filled(100, i))];
     await pumpEventQueue();
-    expect([for (final n in mine) zoe.answerTo(n)?['err']], [null, null, null, null]);
+    expect([for (final n in mine) zoe.answerTo(n)?['err']], [null, null, null]);
   });
 
   test('and of the relays it waits on, a quarter at most are ones another relay named', () async {
     net = FakeNet();
-    v = TestRelay(net, 'v.test', seed: 1, maxPeers: 8);
+    v = TestRelay(net, 'v.test', seed: 1, maxPeers: 8, standingOpen: true);
     final h = HandRelay();
     final c = TestRelay(net, 'c.test', seed: 5, dataDir: folderWithKey(h.scalar));
     await h.link(v, url: c.url);
@@ -229,7 +231,7 @@ void main() {
     n = h.send(xena.id, carol.id, [7], relay: r.id);
     await pumpEventQueue();
     await pumpEventQueue();
-    expect(h.answerTo(n), {'ack': n, 'here': true});
+    expect(h.answerTo(n), {'ack': n});
     expect(xena.frames.single, handed(carol.id, [7]));
     n = h.send(xena.id, zed.id, [8], relay: r.id);
     await pumpEventQueue();
@@ -252,7 +254,7 @@ void main() {
     n = h.send(yuri.id, pat.id, [2]);
     await net.settle();
     await net.settle();
-    expect(h.answerTo(n), {'ack': n, 'here': true});
+    expect(h.answerTo(n), {'ack': n});
     expect(yuri.frames.single, handed(pat.id, [2]));
     // To someone on a relay hosted behind another public relay: that would be a third link, and is not made.
     h.say({'fed': 'home', 'rec': far.record(['ghost-relay://${'ab' * 16}?via=${Uri.encodeQueryComponent(d.url)}'])});
@@ -273,6 +275,9 @@ void main() {
     // all (it has no address), and one r dialled that is not its via speaks only for its own.
     expect(net.hubs.keys, isNot(contains(r.url)));
     final carol = Install();
+    // Carol has signed in to d (it keeps nothing for a name that never has).
+    await carol.signIn(d);
+    carol.leave();
     xena.say({'dir': 'home', 'rec': carol.record([d.url])});
     await net.settle();
     // r sends everything not for its own people through v, even to d: it never dials d.

@@ -48,23 +48,24 @@ void main() {
       final n = alice.send(bob.id, [7, 7, 7]);
       await net.settle();
       expect(bob.frames.single, handed(alice.id, [7, 7, 7]), reason: 'stamped with who sent it, as the other relay vouched');
-      expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true}, reason: 'taken: whether Bob is connected is not told across relays');
       expect(net.dialled, [b.url, a.url], reason: 'a dialled b; b dialled the address a claims, to see its key there');
       expect([a.fed.links, b.fed.links], [1, 1]);
       expect(a.hub.heldFor(bob.id), 0, reason: 'nothing of it is kept on the sender\'s relay');
       // What crossed: Alice's record, so b can see a speaks for her, then the packet as a [5].
       expect(aSaid()[1], {'fed': 'home', 'rec': containsPair('a', alice.id)});
       expect(aSaid()[2], [Federation.toRelay, 0, 0, 0, 1, ...unhex(bob.id), ...unhex(alice.id), 7, 7, 7]);
-      expect(bSaid().last, {'ack': 1, 'here': true});
-      // And back, over the same link: no second one is made.
+      expect(bSaid().last, {'ack': 1});
+      // And back: over a link b dialled itself, never over the one a made (what is for an address goes only over a
+      // link this relay dialled there). a's address is believed already: b's own dial is the only one more.
       bob.say({'dir': 'home', 'rec': alice.record([a.url], n: 1)});
       await pumpEventQueue();
       final m = bob.send(alice.id, [8]);
       await net.settle();
       expect(alice.frames.single, handed(bob.id, [8]));
-      expect(bob.answerTo(m), {'ack': m, 'here': true, 'fed': true});
-      expect(net.dialled, [b.url, a.url], reason: 'nothing more was dialled');
-      expect([a.fed.links, b.fed.links], [1, 1]);
+      expect(bob.answerTo(m), {'ack': m, 'here': false, 'fed': true});
+      expect(net.dialled, [b.url, a.url, a.url], reason: 'b dialled a for its own link; a had seen b\'s key at b.test a moment ago');
+      expect([a.fed.links, b.fed.links], [2, 2]);
     });
 
     test('for someone away it is kept at their relay, the sender told it is kept, and handed over when they come', () async {
@@ -112,7 +113,7 @@ void main() {
       final m = h.send(bob.id, pat.id, List.filled(Hub.maxPacket + 32, 1));
       await pumpEventQueue();
       expect(h.answerTo(n), {'nak': n, 'err': 'big'});
-      expect(h.answerTo(m), {'ack': m, 'here': true});
+      expect(h.answerTo(m), {'ack': m});
       // A frame far past what any packet can be: the link is closed, and nothing more is read from that relay.
       h.socket.add(Uint8List.fromList([Federation.toRelay, 0, 0, 0, 9, ...unhex(bob.id), ...unhex(pat.id), ...List.filled(Hub.maxPacket + 300, 1)]));
       await pumpEventQueue();
@@ -138,7 +139,7 @@ void main() {
       final dials = net.dialled.length;
       final n = alice.send(bob.id, [2]);
       await net.settle();
-      expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
       expect(net.dialled.length, dials + 1, reason: 'dialled again; the address a claims is still believed');
       // Used, it stays: a packet every nine minutes keeps it for half an hour.
       for (var i = 0; i < 3; i++) {
@@ -162,9 +163,23 @@ void main() {
   });
 
   group('the other relay cannot be reached', () {
+    /// a has linked with b once (a packet went), and then b went: what is for b waits as for a relay that is only
+    /// away. (One never linked with is another matter: below.)
+    Future<void> thenDown() async {
+      alice.send(bob.id, [0]);
+      await net.settle();
+      expect(bob.frames.single, handed(alice.id, [0]));
+      net.down.add(b.url);
+      net.cut(b.url);
+      await net.settle();
+      alice.said.clear();
+      bob.frames.clear();
+      net.dialled.clear();
+    }
+
     test('a packet waits here, its sender is told it is kept, and it goes on when the relay is back', () async {
       await friends();
-      net.down.add(b.url);
+      await thenDown();
       final n = alice.send(bob.id, [5]);
       await pumpEventQueue();
       expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
@@ -189,6 +204,34 @@ void main() {
       expect(alice.said, hasLength(1), reason: 'told once, when it was kept');
     });
 
+    test('an address never once linked with is tried a minute or two and then given up: nothing said to be kept, then told it can\'t be reached', () async {
+      await friends();
+      net.down.add(b.url);
+      final n = alice.send(bob.id, [5]);
+      await pumpEventQueue();
+      expect(alice.answerTo(n), isNull, reason: 'not said to be kept: it may never go');
+      expect(a.fed.waitingFor(b.url), 1);
+      // Tried at once, then after 5, 15 and 35 seconds: the fourth time it is given up on.
+      await net.pass(const Duration(seconds: 5));
+      await net.pass(const Duration(seconds: 10));
+      expect(alice.answerTo(n), isNull);
+      await net.pass(const Duration(seconds: 20));
+      expect(net.dialled, hasLength(4));
+      expect(alice.answerTo(n), {'nak': n, 'err': 'far'});
+      expect([a.fed.waiting, a.fed.waitingFor(b.url)], [0, 0], reason: 'not kept for seven days');
+      // And not dialled again for ten minutes: what is sent meanwhile is told so at once.
+      final m = alice.send(bob.id, [6]);
+      await net.pass(const Duration(minutes: 9));
+      expect(alice.answerTo(m), {'nak': m, 'err': 'far'});
+      expect(net.dialled, hasLength(4));
+      await net.pass(const Duration(minutes: 1, seconds: 1));
+      net.down.remove(b.url);
+      final k = alice.send(bob.id, [7]);
+      await net.settle();
+      expect(alice.answerTo(k), {'ack': k, 'here': false, 'fed': true});
+      expect(bob.frames.single, handed(alice.id, [7]));
+    });
+
     test('backoff: five seconds, twice as long each time, ten minutes at most', () {
       expect([for (var f = 1; f <= 9; f++) Federation.backoff(f).inSeconds], [5, 10, 20, 40, 80, 160, 320, 600, 600]);
       expect(Federation.backoff(60).inSeconds, 600);
@@ -208,7 +251,7 @@ void main() {
             return;
           }
           final m = jsonDecode(d as String) as Map;
-          if (m['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': played.id, 'key': base64Encode(played.key), 'sig': base64Encode(P256.sign(played.scalar, Federation.answerBytes(c: unhex(m['c'] as String), dialler: m['id'] as String, answerer: played.id), someBytes(32)))}));
+          if (m['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': played.id, 'key': base64Encode(played.key), 'sig': base64Encode(P256.sign(played.scalar, Federation.answerBytes(c: unhex(m['c'] as String), dialler: m['id'] as String, answerer: played.id, dialled: b.url), someBytes(32)))}));
         });
       };
       final n = alice.send(bob.id, [2]);
@@ -219,13 +262,13 @@ void main() {
       await net.settle();
       await net.settle();
       expect(bob.frames.single, handed(alice.id, [2]));
-      expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
       expect(a.fed.waiting, 0);
     });
 
     test('what waits for one relay is at most so many packets', () async {
       await friends(makeA: () => TestRelay(net, 'a.test', queuePackets: 3));
-      net.down.add(b.url);
+      await thenDown();
       final sent = [for (var i = 0; i < 4; i++) alice.send(bob.id, [i])];
       await pumpEventQueue();
       expect([for (final n in sent.take(3)) alice.answerTo(n)], everyElement(containsPair('here', false)));
@@ -237,9 +280,11 @@ void main() {
       expect(bob.frames, [for (var i = 0; i < 3; i++) handed(alice.id, [i])], reason: 'in the order they were sent');
     });
 
-    test('and at most so many bytes', () async {
-      await friends(makeA: () => TestRelay(net, 'a.test', queueBytes: 300));
-      net.down.add(b.url);
+    test('and at most so many bytes, each packet counted with what holding one costs besides its bytes', () async {
+      await friends(makeA: () => TestRelay(net, 'a.test', queueBytes: 500));
+      await thenDown();
+      // 100 bytes and 384 more each: one fits in 500, two do not.
+      expect(Federation.perPacket, 384);
       final first = alice.send(bob.id, List.filled(100, 1)), second = alice.send(bob.id, List.filled(100, 2));
       await pumpEventQueue();
       expect(alice.answerTo(first), containsPair('here', false));
@@ -247,20 +292,21 @@ void main() {
     });
 
     test('and for every relay together at most so many bytes', () async {
-      await friends(makeA: () => TestRelay(net, 'a.test', queuedBytes: 400));
+      await friends(makeA: () => TestRelay(net, 'a.test', queuedBytes: 1000));
       final c = TestRelay(net, 'c.test', seed: 3);
       final carol = Install();
       alice.say({'dir': 'home', 'rec': carol.record([c.url])});
       await pumpEventQueue();
-      net.down.addAll([b.url, c.url]);
+      await thenDown();
+      net.down.add(c.url);
       final sent = [alice.send(bob.id, List.filled(100, 1)), alice.send(bob.id, List.filled(100, 2)), alice.send(carol.id, List.filled(100, 3))];
       await pumpEventQueue();
       expect([for (final n in sent) alice.answerTo(n)?['err']], [null, null, 'full']);
-      expect(a.fed.waiting, 2 * 164);
+      expect(a.fed.waiting, 2 * (100 + Federation.perPacket));
     });
 
     test('what waits never stops what can go now: with the room for waiting used up, a packet for a relay that is linked still goes', () async {
-      await friends(makeA: () => TestRelay(net, 'a.test', queuedBytes: 400));
+      await friends(makeA: () => TestRelay(net, 'a.test', queuedBytes: 1000));
       final c = TestRelay(net, 'c.test', seed: 3);
       final carol = Install();
       await carol.signIn(c);
@@ -269,13 +315,13 @@ void main() {
       alice.send(carol.id, [0]);
       await net.settle();
       expect(a.fed.linkedWith(c.id), isTrue);
-      net.down.add(b.url);
+      await thenDown();
       final waits = [alice.send(bob.id, List.filled(100, 1)), alice.send(bob.id, List.filled(100, 2)), alice.send(bob.id, List.filled(100, 3))];
       await pumpEventQueue();
       expect([for (final n in waits) alice.answerTo(n)?['err']], [null, null, 'full']);
       final live = alice.send(carol.id, List.filled(100, 4));
       await net.settle();
-      expect(alice.answerTo(live), {'ack': live, 'here': true, 'fed': true});
+      expect(alice.answerTo(live), {'ack': live, 'here': false, 'fed': true});
       expect(carol.frames.last, handed(alice.id, List.filled(100, 4)));
     });
 
@@ -294,7 +340,7 @@ void main() {
 
     test('after seven days what still waits is let go', () async {
       await friends();
-      net.down.add(b.url);
+      await thenDown();
       alice.send(bob.id, [5]);
       await pumpEventQueue();
       await net.pass(const Duration(days: 6, hours: 23));
@@ -323,7 +369,7 @@ void main() {
             return;
           }
           final m = jsonDecode(d as String) as Map;
-          if (m['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m['c'] as String), dialler: m['id'] as String, answerer: real.id), someBytes(32)))}));
+          if (m['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m['c'] as String), dialler: m['id'] as String, answerer: real.id, dialled: b.url), someBytes(32)))}));
         });
       };
       final n = alice.send(bob.id, [5]);
@@ -368,7 +414,7 @@ void main() {
       mallory.say({'fed': 'home', 'rec': pat.record(['ghost-relay://${mallory.id}'])});
       n = mallory.send(bob.id, pat.id, [1]);
       await pumpEventQueue();
-      expect(mallory.answerTo(n), {'ack': n, 'here': true});
+      expect(mallory.answerTo(n), {'ack': n});
       expect(bob.frames.single, handed(pat.id, [1]));
     });
 
@@ -388,7 +434,7 @@ void main() {
       m.say({'fed': 'home', 'rec': alice.record([a.url], n: 1)});
       final mine = m.send(bob.id, carol.id, [1]), hers = m.send(bob.id, alice.id, [2]);
       await pumpEventQueue();
-      expect(m.answerTo(mine), {'ack': mine, 'here': true});
+      expect(m.answerTo(mine), {'ack': mine});
       expect(m.answerTo(hers), {'nak': hers, 'err': 'home'});
       expect(bob.frames.single, handed(carol.id, [1]));
     });
@@ -408,28 +454,28 @@ void main() {
       final before = bSaid().length;
       final n = alice.send(bob.id, [3]);
       await net.settle();
-      expect(bSaid().sublist(before), [{'nak': 3, 'err': 'home'}, {'ack': 4, 'here': true}]);
+      expect(bSaid().sublist(before), [{'nak': 3, 'err': 'home'}, {'ack': 4}]);
       expect(aSaid().whereType<Map>().where((m) => m['fed'] == 'home' && (m['rec'] as Map)['a'] == alice.id), hasLength(2), reason: 'her record, said a second time');
-      expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
       expect(bob.frames.last, handed(alice.id, [3]));
     });
 
-    test('with no record of the sender\'s to give, the packet waits for it: it goes when her app gives her own', () async {
+    test('from someone whose record this relay doesn\'t hold, a packet is refused at once (home), and nothing is dialled for it', () async {
       await friends(aliceGives: false);
       final n = alice.send(bob.id, [1]);
       await net.settle();
-      expect(bSaid().last, {'nak': 1, 'err': 'home'});
-      expect([bob.frames, alice.answerTo(n)], [isEmpty, isNull]);
-      await net.pass(Federation.answerWithin);
-      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
-      expect(a.fed.waitingFor(b.url), 1);
+      expect(alice.answerTo(n), {'nak': n, 'err': 'home'}, reason: 'no relay would take it from this one: said now, not after it waited for nothing');
+      expect([net.dialled, a.fed.waiting, bob.frames], [isEmpty, 0, isEmpty]);
+      // Her app gives it (as it does at every sign-in) and sends again: it goes.
       await alice.giveHome(a);
+      alice.said.clear();
+      final m = alice.send(bob.id, [2]);
       await net.settle();
-      expect(bob.frames.single, handed(alice.id, [1]));
-      expect(a.fed.waiting, 0);
+      expect(alice.answerTo(m), {'ack': m, 'here': false, 'fed': true});
+      expect(bob.frames.single, handed(alice.id, [2]));
     });
 
-    test('a record that names another relay does not make this one hers: refused twice, the packet is given up', () async {
+    test('a record that names another relay does not make this one hers: refused at once, and nothing crosses', () async {
       await friends(aliceGives: false);
       // Alice's record, as her relay holds it, names c.test: she moved, and a device of hers is still signed in here.
       alice.say({'dir': 'home', 'rec': alice.record(['wss://c.test/hub'])});
@@ -437,9 +483,8 @@ void main() {
       alice.said.clear();
       final n = alice.send(bob.id, [1]);
       await net.settle();
-      expect(bSaid().whereType<Map>().where((m) => m['nak'] != null), [{'nak': 1, 'err': 'home'}, {'nak': 2, 'err': 'home'}]);
-      expect(alice.answerTo(n), {'nak': n, 'err': 'refused'});
-      expect([bob.frames, a.fed.waiting], [isEmpty, 0]);
+      expect(alice.answerTo(n), {'nak': n, 'err': 'home'});
+      expect([net.dialled, bob.frames, a.fed.waiting], [isEmpty, isEmpty, 0]);
     });
   });
 
@@ -493,7 +538,9 @@ void main() {
         expect(alice.answerTo(n), {'nak': n, 'err': 'far'}, reason: '$addresses');
       }
       expect([net.dialled, a.hub.heldFor(odd.id), a.fed.waiting], [isEmpty, 0, 0]);
-      // The first address it can pass to is the one used.
+      // The first address it can pass to is the one used (and b keeps it for them: they have signed in there).
+      await odd.signIn(b);
+      odd.leave();
       alice.say({'dir': 'home', 'rec': odd.record(['gopher://x.test/hub', b.url])});
       await pumpEventQueue();
       final n = alice.send(odd.id, [1]);
@@ -538,7 +585,7 @@ void main() {
       await net.settle();
       await net.settle();
       expect(dave.frames.single, handed(alice.id, [4]));
-      expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+      expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
       expect(bSaid().whereType<Map>().toList().sublist(2), [{'fed': 'home', 'rec': containsPair('n', 2)}, {'nak': 1, 'err': 'moved'}]);
       expect([b.fed.linkedWith(c.id), c.fed.linkedWith(b.id), a.fed.linkedWith(c.id)], [false, false, true], reason: 'b never linked with c: a went there itself');
       expect(a.fed.homes.of(dave.id)!.n, 2, reason: 'and a holds the newer record from now on');
@@ -556,6 +603,8 @@ void main() {
       // b thinks Dave lives on c (record 1); he has since come to b (record 2), which only Alice's relay has heard.
       bob.say({'dir': 'home', 'rec': dave.record(['wss://c.test/hub'])});
       alice.say({'dir': 'home', 'rec': dave.record([b.url])});
+      await dave.signIn(b);
+      dave.leave();
       await pumpEventQueue();
       final n = alice.send(dave.id, [4]);
       await net.settle();

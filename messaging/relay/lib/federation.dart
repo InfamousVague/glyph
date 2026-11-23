@@ -15,7 +15,8 @@ import 'sha256.dart';
 
 /// Whether this relay links with other relays: its keeper's choice (`GHOST_FED`).
 enum FedMode {
-  /// With none: it is an island, as every relay was before. Nothing is dialled, no link is taken, no packet passed on.
+  /// With none: it is an island, as every relay was before. Nothing is dialled, no link is taken, no packet passed on,
+  /// no key made, no record kept: the hub is exactly the one it was before any of it.
   off,
 
   /// With any relay that proves its key, but those blocked.
@@ -28,7 +29,7 @@ enum FedMode {
 /// What federation reads from the server's environment (bin/relay.dart); every one has a default, and the default is
 /// off.
 class FedConfig {
-  const FedConfig({this.mode = FedMode.off, this.allow = const {}, this.block = const {}, this.publicHub = '', this.via = '', this.packetsAMinute = 1200, this.bytesADay = 512 << 20, this.lookupsAnHour = 600, this.ports = const {}, this.plain = false, this.problems = const []});
+  const FedConfig({this.mode = FedMode.off, this.allow = const {}, this.block = const {}, this.publicHub = '', this.via = '', this.packetsAMinute = 1200, this.bytesADay = 512 << 20, this.lookupsAnHour = 600, this.ports = const {}, this.plain = false, this.standingOpen = false, this.standing = const {}, this.problems = const []});
 
   factory FedConfig.fromEnvironment(Map<String, String> env) {
     final problems = <String>[];
@@ -85,6 +86,22 @@ class FedConfig {
         problems.add('GHOST_FED_PORTS: "$part" is not a port, and is passed over');
       }
     }
+    // Standing links (a relay with no address that stays linked, and has its people's packets passed on by this one):
+    // off unless the keeper says `open`, or names the relays that may.
+    final standingSaid = said('GHOST_FED_STANDING').toLowerCase();
+    final standing = <String>{};
+    var standingOpen = false;
+    if (standingSaid == 'open') {
+      standingOpen = true;
+    } else if (standingSaid.isNotEmpty && standingSaid != 'off') {
+      for (final part in standingSaid.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty)) {
+        if (_relayName.hasMatch(part)) {
+          standing.add(part);
+        } else {
+          problems.add('GHOST_FED_STANDING: "$part" is not a relay\'s name (32 hex), and is passed over');
+        }
+      }
+    }
     return FedConfig(
       mode: mode,
       allow: names('GHOST_FED_ALLOW'),
@@ -97,6 +114,8 @@ class FedConfig {
       lookupsAnHour: number('GHOST_FED_LOOKUPS_AN_HOUR', 600, 1000000),
       ports: ports,
       plain: said('GHOST_FED_PLAIN') == '1',
+      standingOpen: standingOpen,
+      standing: standing,
       problems: problems,
     );
   }
@@ -114,7 +133,8 @@ class FedConfig {
   final Set<String> block;
 
   /// This relay's own hub address as the world reaches it (`GHOST_PUBLIC_HUB`), as [canonicalHub] writes it. Empty,
-  /// it claims none: it can dial out, and nobody is told an address of its own.
+  /// it claims none: it can dial out, and takes no other relay's hello (one dialled by another relay is dialled at
+  /// this address, and says so in what it signs).
   final String publicHub;
 
   /// The public relay this one stays linked to (`GHOST_FED_VIA`): for a relay with no address of its own, as one
@@ -122,6 +142,7 @@ class FedConfig {
   final String via;
 
   /// What one linked relay may send here: packets a minute, bytes a day, and how many names it may ask after an hour.
+  /// One relay is one address this relay has checked; every relay with no address shares one allowance.
   final int packetsAMinute;
   final int bytesADay;
   final int lookupsAnHour;
@@ -130,12 +151,19 @@ class FedConfig {
   final Set<int> ports;
   final bool plain;
 
+  /// Which relays with no address may stay linked to this one and have their people's packets passed on to other
+  /// relays under this one's name (`GHOST_FED_STANDING`): any where [standingOpen], else those named. Off by default:
+  /// it is for relays hosted from the app, and switched on deliberately.
+  final bool standingOpen;
+  final Set<String> standing;
+
   /// What in the environment could not be read, in words, for the keeper to see as the relay starts.
   final List<String> problems;
 }
 
 /// Dials the hub at [url], which has passed [DialGuard.shape]: the default looks the name up, checks every answer and
-/// connects to an address that passed ([DialGuard.dial]); a test hands back a connection held in memory.
+/// connects to an address that passed ([DialGuard.dial]); a test hands back a connection held in memory. Whether a
+/// dial may be made at all this minute is asked of the guard first ([DialGuard.take]).
 typedef FedDial = Future<HubSocket> Function(Uri url);
 
 /// A link another relay opened, as the hub hands it what that relay says ([Federation.incoming]).
@@ -148,33 +176,44 @@ abstract class FedEnd {
 /// to talk to each other"): two people whose apps use different relays can be friends and talk, each through their
 /// own relay, and the relays pass their sealed packets to each other.
 ///
+/// - **Off does nothing.** With [FedMode.off] (the default) no key is made or read, no record kept or answered, and
+///   the hub says and does exactly what it did before any of this (bin/relay.dart makes none at all).
 /// - **A key of its own.** `relay-key.json` in the data folder, made on first start (in memory where there is no
 ///   folder). The relay's name is made from it as an install's is ([Hub.nameOf]), and the hub's hello to anything that
 ///   connects says so (`"relay": {"id", "key"}`, [card]).
 /// - **Home records** ([HomeRecord], [HomeBook]). The one thing believed about where someone lives: their own
-///   signature. An app gives its own as it signs in and its friends' so this relay can route to them
-///   (`{"dir":"home","rec":…}`), and asks what is held (`{"dir":"home?","a":…}`).
+///   signature, good for thirty days. An app gives its own as it signs in and its friends' so this relay can route
+///   to them (`{"dir":"home","rec":…}`), and may ask for its own back (`{"dir":"home?"}`); nobody is told anyone
+///   else's but over a link, or with the username they chose to be found by.
 /// - **Links.** One relay dials another's hub and, in place of an app's hello, says who it is ([dialBytes],
-///   [answerBytes]): both prove their keys, each over a number the other made up and over **both** names, so what one
-///   signs for this link is no use on another. A relay that claims an address is believed once this relay has dialled
-///   that address itself and seen the same key there ([_keyAt], remembered for a day). Whether it links at all is
-///   [FedConfig.mode], off unless its keeper says otherwise. A link is opened when first needed, kept while used,
-///   closed after [idleFor], tried again with [backoff]; [maxLinks] at most.
-/// - **Passing packets on** ([pass]). A packet for someone not connected here, whose record names another relay, goes
-///   over a link (`[5]`), and its sender is told what that relay said. With that relay unreachable it waits here
-///   ([queuePackets], [queueBytes], [queueFor]) and the sender is told it is kept.
+///   [answerBytes]): both prove their keys, each over a number the other made up, over **both** names, and over the
+///   address that was dialled, which the answerer takes only where it is its own ([FedConfig.publicHub]); so what one
+///   signs for this link is no use on another, nor passed on word for word by a relay in the middle. A relay that
+///   claims an address is believed once this relay has dialled that address itself and seen the same key there
+///   ([_keyAt], remembered for an hour). What is for an address goes only over a link this relay dialled there itself
+///   ([_linkFor]). Whether it links at all is [FedConfig.mode], off unless its keeper says otherwise. A link is opened
+///   when first needed, kept while used, closed after [idleFor], tried again with [backoff]; [maxLinks] at most.
+/// - **Passing packets on** ([pass]). A packet from someone whose record this relay holds, for someone not connected
+///   here whose record names another relay, goes over a link (`[5]`), and its sender is told it was taken. With that
+///   relay unreachable it waits here ([queuePackets], [queueBytes], [queueFor]; for an address never once linked with,
+///   a minute or two) and the sender is told it is kept.
 /// - **A relay speaks only for its own people** ([_speaksFor]): what a relay passes on as from someone is taken only
 ///   where that someone's record names that relay. Refused for want of a record (`nak` `home`), the sender gives the
 ///   record and tries once more.
-/// - **One hop.** What another relay passed here is handed to someone here or kept for them, never passed to a third
-///   relay. The one exception is `via`: a relay with no address of its own (hosted from an app) dials a public relay
-///   and stays linked; its people's records say `ghost-relay://<its name>?…&via=<that relay>`, they are reached over
-///   the standing link, and another relay reaches them by sending that relay a `[6]` naming the hosted one.
+/// - **One hop.** What another relay passed here is handed to someone here or kept for them (only someone who has
+///   signed in here), never passed to a third relay. The one exception is `via`, and only where this relay's keeper
+///   lets relays stay ([FedConfig.standing]): a relay with no address of its own (hosted from an app) dials a public
+///   relay and stays linked; its people's records say `ghost-relay://<its name>?…&via=<that relay>`, they are reached
+///   over the standing link, and another relay reaches them by sending that relay a `[6]` naming the hosted one.
 /// - **Names** ([_whoisFromApp]). `@maya@relay.example` is asked of that relay over a link.
-/// - **Limits.** Per linked relay: [FedConfig.packetsAMinute], [FedConfig.bytesADay], [FedConfig.lookupsAnHour].
-///   Everything someone else can grow is counted and capped: records ([HomeBook]), record checks ([checksAnHour],
-///   [checksASecond]), links, relays waited on ([maxPeers]), what waits ([queuedBytes] for all of them together),
-///   names asked after, dials (fed_dial.dart).
+/// - **Limits.** Everything someone else can grow is counted and capped, and every shared allowance is held so no one
+///   party can use it up: records ([HomeBook]) and their checks (the shape first, then the giver's own count, then
+///   everyone's), hellos (checked before they are counted; relays at an address seen already apart from strangers),
+///   dials (each kind its own), relays waited on ([maxPeers]; each install may make this one dial only so many new
+///   ones), what waits (each sender and each recipient a mailbox's worth at most; [queuedBytes] in all), what each
+///   install sends across relays, and per linked relay [FedConfig.packetsAMinute], [FedConfig.bytesADay],
+///   [FedConfig.lookupsAnHour] and record checks (generous only for a relay at an address this relay has checked:
+///   keys are free).
 ///
 /// What it adds to what a relay can see: which of its people talk to people on which other relay. Still never what.
 class Federation {
@@ -195,12 +234,15 @@ class Federation {
     this.checksASecond = 20,
     this.hellosAMinute = 30,
     this.recordsAMinute = 240,
+    this.newRelaysAnHour = 8,
     HomeBook? homes,
   })  : _now = now ?? DateTime.now,
         _random = random ?? Random.secure(),
         guard = guard ?? DialGuard(plain: config.plain, ports: config.ports, now: now),
-        homes = homes ?? HomeBook(file: dataDir == null ? null : File('${dataDir.path}/homes.json')) {
+        homes = homes ?? HomeBook(file: dataDir == null || config.mode == FedMode.off ? null : File('${dataDir.path}/homes.json'), now: now) {
     _dial = dial ?? this.guard.dial;
+    // Off, nothing at all: no key is made or read, and no file is touched.
+    if (!on) return;
     _loadKey();
     this.homes.load();
   }
@@ -212,7 +254,7 @@ class Federation {
   final DateTime Function() _now;
   final Random _random;
 
-  /// What every address is held to before it is dialled (fed_dial.dart).
+  /// What every address is held to before it is dialled, and the dials a minute of each kind (fed_dial.dart).
   final DialGuard guard;
   late final FedDial _dial;
 
@@ -225,27 +267,40 @@ class Federation {
   /// The most other relays anything waits for at once.
   final int maxPeers;
 
-  /// What waits here for one relay that can't be reached: so many packets, so many bytes, for so long.
+  /// What waits here for one relay: so many packets, so many bytes, for so long (an address never once linked with,
+  /// [neverLinkedFor]).
   final int queuePackets;
   final int queueBytes;
   static const queueFor = Duration(days: 7);
 
   /// What waits here for all of them together, in bytes: packets for relays not linked right now. A quarter of it at
-  /// most is what other relays had this one keep (for a relay that stays linked to it and is away), so no other relay
-  /// can use up the room this relay's own people's packets wait in. What is on its way over an open link is counted
-  /// apart, held to twice this for everything together, so nothing that waits can stop what can go now.
+  /// most is what other relays had this one keep (whether their relay is linked or not), so no other relay can use up
+  /// the room this relay's own people's packets wait in. What is on its way over an open link is counted with it, held
+  /// to twice this for everything together, so nothing that waits can stop what can go now. One sender, and one
+  /// recipient, have a mailbox's worth of it at most ([Hub.mailboxFrames], [Hub.mailboxBytes]): no more is ever kept
+  /// for one person at the far end.
   final int queuedBytes;
 
-  /// How many records one signed-in install, or one linked relay, may have checked in an hour (a check is several
-  /// milliseconds of arithmetic), and how many this relay checks in any one second for everyone together.
+  /// What one packet costs held here besides its bytes, counted with them: the packet's own object, its sender's and
+  /// recipient's names, when it came, the answer it carries, its place in the queue. About 290 bytes for a packet of
+  /// one byte, measured in the review (146 MB for 512,000, when each was counted as 65); counted with room to spare.
+  static const perPacket = 384;
+
+  /// How many records one signed-in install may have checked in an hour (a check is several milliseconds of
+  /// arithmetic), and how many this relay checks in any one second for everyone together. A linked relay at an address
+  /// this relay has checked has ten times an install's; all the relays with none share one install's.
   final int checksAnHour;
   final int checksASecond;
 
-  /// How many relays may say hello in a minute: each costs a signature's check, and maybe a dial back.
+  /// How many relays not yet seen at their address may say hello in a minute, together: each costs a look at that
+  /// address. A relay whose address this relay has seen its key at has this many of its own.
   final int hellosAMinute;
 
   /// How many records one linked relay may give in a minute.
   final int recordsAMinute;
+
+  /// How many relays an install may make this one dial for the first time in an hour: with a packet, or a name asked.
+  final int newRelaysAnHour;
 
   /// A link nothing has crossed for this long is closed; it is opened again when next needed.
   static const idleFor = Duration(minutes: 10);
@@ -260,8 +315,17 @@ class Federation {
   /// A link whose relay has not answered a packet for this long is closed and made again.
   static const stuckAfter = Duration(seconds: 30);
 
-  /// How long the key seen at an address is believed without looking again.
-  static const believedFor = Duration(days: 1);
+  /// How long the key seen at an address is believed without looking again: a relay given a new key there is seen
+  /// with it within the hour (sooner, where it dials this one: a key seen five minutes ago is looked at again).
+  static const believedFor = Duration(hours: 1);
+
+  /// An address never once linked with is tried this long (and four times) and then given up on, what waits for it
+  /// told it can't be reached, and not dialled again for [deadFor].
+  static const neverLinkedFor = Duration(minutes: 2);
+  static const deadFor = Duration(minutes: 10);
+
+  /// An address where a look at the key it shows came to nothing is not looked at again for this long.
+  static const lookedNoFor = Duration(minutes: 10);
 
   /// How many packets are on a link at once waiting to be answered.
   static const window = 64;
@@ -270,24 +334,35 @@ class Federation {
   static const asksWaiting = 64;
 
   /// What a dialling relay signs: these words, the hub's number (32 bytes), its own name, the name of the relay it
-  /// dialled (16 bytes each), the number it made up (32 bytes), and the address it claims (empty for none).
-  static const dialWords = 'ghost-fed-dial v1 ';
+  /// dialled (16 bytes each), the number it made up (32 bytes), whether it means to stay linked (a byte, 1 or 0), the
+  /// address it dialled, and the address it claims (each a byte of its length, then it; empty for none).
+  static const dialWords = 'ghost-fed-dial v2 ';
 
-  /// What the relay dialled signs back: these words, the dialler's number, the dialler's name, its own.
-  static const answerWords = 'ghost-fed v1 ';
+  /// What the relay dialled signs back: these words, the dialler's number, the dialler's name, its own, and the
+  /// address it was dialled at (a byte of its length, then it).
+  static const answerWords = 'ghost-fed v2 ';
 
   /// A packet one relay passes to another for someone there, and one for someone on a relay linked to it.
   static const toRelay = 5;
   static const toRelayVia = 6;
 
-  static List<int> dialBytes({required List<int> nonce, required String dialler, required String answerer, required List<int> c, required String url}) =>
-      [...utf8.encode(dialWords), ...nonce, ..._unhex(dialler), ..._unhex(answerer), ...c, ...utf8.encode(url)];
+  static List<int> _sized(String text) {
+    final bytes = utf8.encode(text);
+    return [bytes.length.clamp(0, 255), ...bytes.take(255)];
+  }
 
-  static List<int> answerBytes({required List<int> c, required String dialler, required String answerer}) => [...utf8.encode(answerWords), ...c, ..._unhex(dialler), ..._unhex(answerer)];
+  static List<int> dialBytes({required List<int> nonce, required String dialler, required String answerer, required List<int> c, required String dialled, required String url, bool stay = false}) =>
+      [...utf8.encode(dialWords), ...nonce, ..._unhex(dialler), ..._unhex(answerer), ...c, stay ? 1 : 0, ..._sized(dialled), ..._sized(url)];
+
+  static List<int> answerBytes({required List<int> c, required String dialler, required String answerer, required String dialled}) => [...utf8.encode(answerWords), ...c, ..._unhex(dialler), ..._unhex(answerer), ..._sized(dialled)];
 
   /// How long before a relay that could not be reached is tried again, after so many failures in a row: five seconds,
   /// then twice as long each time, ten minutes at most.
   static Duration backoff(int failures) => Duration(seconds: (5 * (1 << (failures - 1).clamp(0, 10))).clamp(5, 600));
+
+  /// How long a relay that said this one is over its limit is left alone, after so many such answers in a row: 15
+  /// seconds, then twice as long each time, an hour at most; then one packet goes alone, to see.
+  static Duration pauseAfter(int limits) => Duration(seconds: (15 * (1 << (limits - 1).clamp(0, 8))).clamp(15, 3600));
 
   /// A relay that answered no is not asked again for this long.
   static const refusedFor = Duration(minutes: 10);
@@ -300,7 +375,7 @@ class Federation {
 
   late List<int> _scalar;
 
-  /// This relay's public key (33 bytes) and its name.
+  /// This relay's public key (33 bytes) and its name. Made only where federation is on.
   late final List<int> key;
   late final String id;
 
@@ -349,25 +424,52 @@ class Federation {
     }
   }
 
-  /// Writes [text] to [file] so that only the relay's own user can read it (mode 600), from the moment it exists: the
-  /// process's file mask is narrowed while it is made, since Dart has no way to ask for a mode. Where that can't be
-  /// done (Windows) it is written as any file is.
+  /// Writes [text] to [file] so that only the relay's own user can read it (mode 600): the file is made empty, its mode
+  /// set, and only then written. Nothing is changed for the rest of the process (inside the app, other threads' files
+  /// are made as they always were). Where the mode can't be set it is written anyway and said loudly, for the keeper to
+  /// set; on Windows a file has no such mode, and it is an ordinary file (docs/SELF_HOSTING.md says so).
   static void writePrivately(File file, String text) {
-    int Function(int)? umask;
-    if (!Platform.isWindows) {
+    final tmp = File('${file.path}.tmp');
+    if (tmp.existsSync()) tmp.deleteSync();
+    tmp.createSync();
+    if (!Platform.isWindows && !onlyOwner(tmp.path)) {
+      stderr.writeln('relay: WARNING: ${file.path} could not be made readable by this user alone (mode 600), and is written anyway: anyone who can read it can speak as this relay. Set its mode yourself (chmod 600).');
+    }
+    tmp.writeAsStringSync(text, flush: true);
+    tmp.renameSync(file.path);
+  }
+
+  /// Makes [path] readable and writable by its owner alone (mode 600), with the C library's own chmod or else the
+  /// program of that name; whether it is so now, by the file's own mode.
+  static bool onlyOwner(String path) {
+    bool done() {
       try {
-        umask = ffi.DynamicLibrary.process().lookupFunction<ffi.Uint32 Function(ffi.Uint32), int Function(int)>('umask');
-      } catch (_) {}
+        return FileStat.statSync(path).mode & 0x1ff == 0x180;
+      } catch (_) {
+        return false;
+      }
     }
-    final before = umask?.call(0x3f); // 077: nothing for the group or for others
+
     try {
-      final tmp = File('${file.path}.tmp');
-      if (tmp.existsSync()) tmp.deleteSync();
-      tmp.writeAsStringSync(text, flush: true);
-      tmp.renameSync(file.path);
-    } finally {
-      if (before != null) umask!(before);
-    }
+      final lib = ffi.DynamicLibrary.process();
+      final malloc = lib.lookupFunction<ffi.Pointer<ffi.Uint8> Function(ffi.IntPtr), ffi.Pointer<ffi.Uint8> Function(int)>('malloc');
+      final free = lib.lookupFunction<ffi.Void Function(ffi.Pointer<ffi.Uint8>), void Function(ffi.Pointer<ffi.Uint8>)>('free');
+      final chmod = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Uint32), int Function(ffi.Pointer<ffi.Uint8>, int)>('chmod');
+      final bytes = utf8.encode(path);
+      final p = malloc(bytes.length + 1);
+      if (p.address != 0) {
+        p.asTypedList(bytes.length + 1)
+          ..setAll(0, bytes)
+          ..[bytes.length] = 0;
+        chmod(p, 0x180);
+        free(p);
+      }
+    } catch (_) {}
+    if (done()) return true;
+    try {
+      Process.runSync('chmod', ['600', path]);
+    } catch (_) {}
+    return done();
   }
 
   /// A signature of this relay's over [message], with a number of its own made for it and never used again.
@@ -381,8 +483,9 @@ class Federation {
   bool get _hosted => on && config.via.isNotEmpty && config.publicHub.isEmpty;
 
   /// What the hub's hello says of this relay: its name and key, its own address where it claims one, the relay it
-  /// stays linked to where it does, and whether it talks to other relays.
-  Map<String, Object?> get card => {'id': id, 'key': base64Encode(key), if (config.publicHub.isNotEmpty) 'url': config.publicHub, if (config.via.isNotEmpty) 'via': config.via, if (on) 'fed': true};
+  /// stays linked to where it does, and that it talks to other relays. Nothing where federation is off: the hello is
+  /// the one it always was.
+  Map<String, Object?>? get card => !on ? null : {'id': id, 'key': base64Encode(key), if (config.publicHub.isNotEmpty) 'url': config.publicHub, if (config.via.isNotEmpty) 'via': config.via, 'fed': true};
 
   void _say(String what) {
     // Never an address of a person's, never a whole name.
@@ -393,40 +496,64 @@ class Federation {
 
   bool? Function(String to, String from, List<int> packet) _deliver = (_, _, _) => null;
   bool Function(String id) _isHere = (_) => false;
+  bool Function(String id) _knows = (_) => false;
+  bool Function(String hello) _ownNumber = (_) => false;
   Handles? _handles;
 
-  /// Told by the hub it serves ([Hub]) how a packet is handed to someone here ([Hub.deliver]), who is here, and who
-  /// keeps the usernames.
-  void bind({required bool? Function(String to, String from, List<int> packet) deliver, required bool Function(String id) isHere, Handles? handles}) {
+  /// Told by the hub it serves ([Hub]) how a packet is handed to someone here ([Hub.deliver]), who is here, who has
+  /// signed in here at all ([knows]: packets from other relays are kept only for them), whether a number is one its own
+  /// hub made up for a hello it is still waiting on ([ownNumber]: how this relay knows itself when it dials itself), and
+  /// who keeps the usernames.
+  void bind({required bool? Function(String to, String from, List<int> packet) deliver, required bool Function(String id) isHere, bool Function(String id)? knows, bool Function(String hello)? ownNumber, Handles? handles}) {
     _deliver = deliver;
     _isHere = isHere;
+    _knows = knows ?? isHere;
+    _ownNumber = ownNumber ?? (_) => false;
     _handles = handles;
   }
 
   Timer? _ticker;
   Timer? _saver;
+  bool _stopped = false;
 
   /// Starts its clock: once a second it does what is due ([tick]), and a relay with a `via` dials it.
   void start() {
     for (final p in config.problems) {
       stderr.writeln('relay: $p');
     }
-    if (on && config.publicHub.isEmpty && config.via.isEmpty) {
-      stderr.writeln('relay: GHOST_FED is on, but GHOST_PUBLIC_HUB is not set: this relay can ask other relays who someone is, but can\'t pass its people\'s packets to them');
-    }
     if (!on) return;
+    _stopped = false;
+    if (config.publicHub.isEmpty && config.via.isEmpty) {
+      stderr.writeln('relay: GHOST_FED is on, but GHOST_PUBLIC_HUB is not set: this relay can ask other relays who someone is, but can\'t pass its people\'s packets to them, and takes no other relay\'s hello');
+    }
     _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) => tick());
     tick();
   }
 
+  /// Stops: nothing more is dialled or taken, and every link, hello under way and look at an address is closed. A dial
+  /// already under way is let go as soon as it is made.
   void stop() {
+    _stopped = true;
     _ticker?.cancel();
     _ticker = null;
     _saver?.cancel();
     _saver = null;
-    homes.save();
+    if (on) homes.save();
+    for (final hello in _hellosOut.toList()) {
+      hello.done = true;
+      hello.socket.close(WebSocketStatus.goingAway);
+    }
+    _hellosOut.clear();
+    for (final look in _looks.toList()) {
+      look.socket.close(WebSocketStatus.goingAway);
+    }
+    _looks.clear();
     for (final l in _links.toList()) {
       l.socket.close(WebSocketStatus.goingAway);
+      _lost(l);
+    }
+    for (final peer in _peers.values) {
+      peer.dialling = false;
     }
   }
 
@@ -444,47 +571,68 @@ class Federation {
     if (relay != null && list.contains(relay)) return true;
     if (url == null) return false;
     final port = url.hasPort ? url.port : (url.scheme == 'wss' ? 443 : 80);
-    return list.contains(url.host) || list.contains('${url.host}:$port');
+    if (list.contains(url.host) || list.contains('${url.host}:$port')) return true;
+    // The relay this relay has seen at that address, by its key, where the list names it.
+    final seen = _seenAt['$url'];
+    if (seen != null && _now().difference(seen.at) < believedFor) {
+      try {
+        if (list.contains(Hub.nameOf(base64Decode(seen.key)))) return true;
+      } catch (_) {}
+    }
+    return false;
   }
 
   /// Whether this relay links with the one named [relay] (where its name is known) at [url] (where it has one).
-  bool _mayLink({String? relay, Uri? url}) {
+  /// [toLearn]: an address about to be dialled, whose relay's name is learnt only there; with a list that names
+  /// relays by name it is dialled, and left at once where the relay there is not one of them.
+  bool _mayLink({String? relay, Uri? url, bool toLearn = false}) {
     if (!on || _listed(config.block, relay: relay, url: url)) return false;
     if (url != null && config.via.isNotEmpty && '$url' == config.via) return true;
-    return config.mode == FedMode.open || _listed(config.allow, relay: relay, url: url);
+    if (config.mode == FedMode.open || _listed(config.allow, relay: relay, url: url)) return true;
+    return toLearn && relay == null && config.allow.any(FedConfig._relayName.hasMatch);
   }
+
+  /// Whether the relay named [relay] may stay linked to this one, its people reached and their packets passed on.
+  bool _mayStand(String relay) => (config.standingOpen || config.standing.contains(relay)) && _mayLink(relay: relay);
 
   // --- limits ---------------------------------------------------------------------------------------------------------
 
   final Map<String, _Meter> _meters = {};
-  final Map<String, _Count> _checks = {};
+  final Map<String, _Checks> _checks = {};
   final _Count _checksNow = _Count();
   final _Count _hellos = _Count();
+  final Map<String, _Sender> _senders = {};
 
-  _Meter _meter(String relay) {
-    final m = _meters.remove(relay) ?? _Meter();
-    _meters[relay] = m;
+  /// Who a link's relay is, as allowances are counted: its address where this relay has checked one (`u:`), its name
+  /// where its keeper listed it to stay (`r:`), else one of all the relays with no address (`*`), which share one
+  /// allowance between them: a key is free to make.
+  String _whoOf(_Link link) => link.url != null ? 'u:${link.url}' : (link.standing && config.standing.contains(link.id) ? 'r:${link.id}' : '*');
+
+  _Meter _meter(String who) {
+    final m = _meters.remove(who) ?? _Meter();
+    _meters[who] = m;
     while (_meters.length > 1024) {
       _meters.remove(_meters.keys.first);
     }
     return m;
   }
 
-  /// Whether one more record may be checked for [who] (an install's name, or `relay:` and a relay's) now.
-  bool _mayCheck(String who) {
-    final now = _now();
-    if (!_checksNow.take(now, const Duration(seconds: 1), checksASecond)) return false;
-    final c = _checks.remove(who) ?? _Count();
-    _checks[who] = c;
-    while (_checks.length > 50000) {
-      _checks.remove(_checks.keys.first);
+  _Sender _sender(String id) {
+    final s = _senders.remove(id) ?? _Sender();
+    _senders[id] = s;
+    while (_senders.length > 50000) {
+      _senders.remove(_senders.keys.first);
     }
-    return c.take(now, const Duration(hours: 1), checksAnHour);
+    return s;
   }
 
   /// Takes a record someone gave, where it checks out and is newer: `kept`, `held` (nothing newer in it), `busy` (too
-  /// many checks just now: give it again later), or why it is not a record at all.
-  String _takeRecord(Object? json, {required String from, bool byOwner = false}) {
+  /// many checks just now: give it again later), or why it is not a record at all (`old` for one past its end). What
+  /// costs nothing is looked at first: the very record held already, then its shape and time; then the giver's own
+  /// count of checks ([perHour] an hour: an install's own, or a linked relay's; and a quarter of [checksASecond] in
+  /// any second, half for a relay at a checked address, so no one giver can use up a second), then everyone's
+  /// ([checksASecond]), and only then the signature.
+  String _takeRecord(Object? json, {required String from, bool byOwner = false, int? perHour}) {
     if (json is! Map) return 'shape';
     final a = json['a'], n = json['n'], s = json['s'];
     // The very record held already needs no checking again: what an app says at every sign-in.
@@ -500,19 +648,41 @@ class Federation {
         }
       } catch (_) {}
     }
-    if (!_mayCheck(from)) return 'busy';
-    final read = HomeRecord.read(json, now: _now());
+    final shape = HomeRecord.read(json, now: _now(), verify: false);
+    if (shape.rec == null) return shape.err!;
+    if (shape.rec!.t > _now().add(HomeRecord.ahead).millisecondsSinceEpoch) return 'future';
+    final held = homes.of(shape.rec!.a);
+    // Not newer than what is held: nothing to check.
+    if (held != null && !shape.rec!.newerThan(held) && !(byOwner && shape.rec!.a == from)) return 'held';
+    final now = _now();
+    final own = _checks.remove(from) ?? _Checks();
+    _checks[from] = own;
+    while (_checks.length > 50000) {
+      _checks.remove(_checks.keys.first);
+    }
+    final hourly = perHour ?? checksAnHour;
+    if (!own.hour.take(now, const Duration(hours: 1), hourly)) return 'busy';
+    if (!own.second.take(now, const Duration(seconds: 1), max(1, hourly > checksAnHour ? checksASecond ~/ 2 : checksASecond ~/ 4))) {
+      own.hour.back();
+      return 'busy';
+    }
+    if (!_checksNow.take(now, const Duration(seconds: 1), checksASecond)) {
+      own.hour.back();
+      own.second.back();
+      return 'busy';
+    }
+    final read = HomeRecord.read(json, now: now);
     final rec = read.rec;
     if (rec == null) return read.err!;
     final kept = homes.keep(rec, byOwner: byOwner && rec.a == from);
     _changed();
-    if (_wanting > 0) _retryWanting(rec.a);
     return kept ? 'kept' : 'held';
   }
 
   // --- what an app says -------------------------------------------------------------------------------------------------
 
   /// Whether what an app said is federation's to answer: a home record given or asked for, or a name on another relay.
+  /// The hub asks only where federation is on; off, they are answered as a relay from before answers them.
   static bool takes(Map said) => said['dir'] == 'home' || said['dir'] == 'home?' || (said['dir'] == 'whois' && said['at'] is String);
 
   /// Something the signed-in install [id] said that [takes] is true of; the answer goes to [tell].
@@ -524,20 +694,29 @@ class Federation {
         final a = rec is Map && rec['a'] is String ? rec['a'] as String : null;
         final took = _takeRecord(rec, from: id, byOwner: true);
         if (took == 'kept' || took == 'held') {
-          tell({'dir': 'home', 'a': a, 'ok': true, 'n': homes.of(a!)?.n});
+          final n = a == null ? null : homes.of(a)?.n;
+          tell(n == null ? {'dir': 'home', 'a': ?a, 'ok': false, 'err': 'bad'} : {'dir': 'home', 'a': a, 'ok': true, 'n': n});
         } else {
-          tell({'dir': 'home', 'a': ?a, 'ok': false, 'err': took == 'busy' ? 'busy' : 'bad'});
+          tell({'dir': 'home', 'a': ?a, 'ok': false, 'err': took == 'busy' || took == 'old' ? took : 'bad'});
         }
       case 'home?':
+        // One's own record, as held here; nobody is told anyone else's (relays ask each other over links, and a
+        // username's holder is told with the username).
         final a = said['a'];
-        if (!_hex(a, 32)) return tell({'dir': 'home?', 'a': a, 'none': true});
-        // Asking after someone else's is a lookup, held to the same limit as asking who a username is.
-        if (a != id && !_mayLookUp(id)) return tell({'dir': 'err', 'about': 'home?', 'err': 'Too many lookups. Try again in a while.'});
-        final rec = homes.of(a as String);
+        final rec = a == id ? homes.of(id) : null;
         tell({'dir': 'home?', 'a': a, if (rec == null) 'none': true else 'rec': rec.toJson()});
       case 'whois':
         _whoisFromApp(id, said, tell);
     }
+  }
+
+  /// [m], an answer to `whois` for a username here, with the holder's record where one is held: what someone on
+  /// another relay needs to be friends with them, and what a linked relay is told already.
+  Map<String, Object?> withHome(Map<String, Object?> m) {
+    final id = m['id'];
+    if (!on || m['dir'] != 'whois' || id is! String || m.containsKey('home')) return m;
+    final rec = homes.of(id);
+    return rec == null ? m : {...m, 'home': rec.toJson()};
   }
 
   final Map<String, _Count> _lookups = {};
@@ -554,6 +733,10 @@ class Federation {
     return c.take(_now(), const Duration(hours: 1), Handles.lookupsAnHour);
   }
 
+  /// Whether [id] (an install signed in here) may make this relay dial one more relay for the first time this hour,
+  /// and that it has.
+  bool _mayAddRelay(String id) => _sender(id).relays.take(_now(), const Duration(hours: 1), newRelaysAnHour);
+
   /// The hub's address `at` names (`relay.example`, or with a port): `wss://relay.example/hub`. Null where it is not
   /// a host.
   static String? hubAt(String at) {
@@ -562,37 +745,45 @@ class Federation {
     return canonicalHub('wss://$host/hub');
   }
 
+  static const _whys = {'off', 'refused', 'down', 'busy'};
+
   /// `{"dir":"whois","name":"maya","at":"relay.example"}`: who has that username on that relay. Asked of it over a
   /// link, and answered with what was asked (`name`, `at`) and `id`, `key`, and `home` where that relay holds their
   /// record; or `none`, with `why` where it is not that nobody has the name: `off` (this relay doesn't talk to that
   /// one), `refused` (that one won't talk to this), `down` (it couldn't be reached), `busy`.
   void _whoisFromApp(String asker, Map said, void Function(Map<String, Object?>) tell) {
     final name = said['name'], at = said['at'];
-    Map<String, Object?> none([String? why]) => {'dir': 'whois', 'name': name is String ? Handles.tidyName(name) : name, 'at': at, 'none': true, 'why': ?why};
+    Map<String, Object?> none([Object? why]) => {'dir': 'whois', 'name': name is String ? Handles.tidyName(name) : name, 'at': at, 'none': true, if (_whys.contains(why)) 'why': why};
     final url = at is String ? hubAt(at) : null;
     if (name is! String || !Handles.goodName(name) || url == null) return tell(none());
     // This relay itself: an ordinary lookup, under its own limit, answered with what was asked.
     if (_isSelfUrl(url)) {
       final h = _handles;
       if (h == null) return tell(none());
-      unawaited(h.said(asker, {'dir': 'whois', 'name': name}, (m) => tell(m['dir'] == 'whois' ? {...m, 'at': at, 'here': true} : m)));
+      unawaited(h.said(asker, {'dir': 'whois', 'name': name}, (m) => tell(m['dir'] == 'whois' ? {...withHome(m), 'at': at, 'here': true} : m)));
       return;
     }
     if (!_mayLookUp(asker)) return tell({'dir': 'err', 'about': 'whois', 'err': 'Too many lookups. Try again in a while.'});
     final uri = Uri.parse(url);
-    if (!on || !_mayLink(url: uri) || guard.shape(uri) != null) return tell(none('off'));
-    final peer = _peerAt(url);
-    if (peer == null) return tell(none('busy'));
+    if (_stopped || !_mayLink(url: uri, toLearn: true) || guard.shape(uri) != null) return tell(none('off'));
+    if (_deadNow(url)) return tell(none('down'));
+    var peer = _peers['u:$url'];
+    if (peer == null) {
+      if (!_mayAddRelay(asker)) return tell(none('busy'));
+      peer = _peerAt(url);
+      if (peer == null) return tell(none('busy'));
+    }
     if (_refusedNow(peer)) return tell(none('refused'));
     // Not reachable a moment ago, and not due to be tried again yet: said now, not after a wait.
     if (_linkFor(peer) == null && !peer.dialling && peer.nextTry != null && _now().isBefore(peer.nextTry!)) return tell(none('down'));
     if (peer.asks.length >= asksWaiting) return tell(none('busy'));
     peer.asks.add(_Ask(Handles.tidyName(name), _now(), (m) {
       final id = m['id'], key = m['key'];
-      if (m['none'] == true || id is! String || key is! String) return tell(none(m['why'] is String ? m['why'] as String : null));
-      // Nothing is taken on that relay's say-so but which key holds the name: the name it gives must be that key's.
+      if (m['none'] == true || id is! String || key is! String) return tell(none(m['why']));
+      // Nothing is taken on that relay's say-so but which key holds the name: it must be a key, and the name its.
       try {
-        if (Hub.nameOf(base64Decode(key)) != id) return tell(none());
+        final k = base64Decode(key);
+        if (!P256.isKey(k) || Hub.nameOf(k) != id) return tell(none());
       } catch (_) {
         return tell(none());
       }
@@ -600,7 +791,7 @@ class Federation {
       Map<String, Object>? home;
       final rec = m['home'];
       if (rec is Map && rec['a'] == id && rec['k'] == key) {
-        final took = _takeRecord(rec, from: 'relay:${peer.key}');
+        final took = _takeRecord(rec, from: 'relay:u:${peer!.url}', perHour: checksAnHour * 10);
         if (took == 'kept' || took == 'held') home = homes.of(id)?.toJson();
       }
       tell({'dir': 'whois', 'name': Handles.tidyName(name), 'at': at, 'id': id, 'key': key, 'home': ?home});
@@ -612,11 +803,11 @@ class Federation {
   // --- passing a packet on ----------------------------------------------------------------------------------------------
 
   final Map<String, _Peer> _peers = {};
+  final Map<String, _Share> _waitingFrom = {};
   int _queued = 0;
   int _queuedForOthers = 0;
-  int _wanting = 0;
 
-  /// How much waits here for other relays, in bytes, and for how many.
+  /// How much waits here for other relays, in bytes as counted (each packet with [perPacket]), and for how many.
   int get waiting => _queued;
   int waitingFor(String url) => _peers['u:$url']?.queue.length ?? 0;
   int waitingForRelay(String relay) => _peers['r:$relay']?.queue.length ?? 0;
@@ -645,114 +836,161 @@ class Federation {
       if (idle.isEmpty) return null;
       _peers.remove(idle.first.key);
     }
-    return _peers[key] = _Peer(key, url: url, relay: relay, lastUsed: _now());
+    final now = _now();
+    return _peers[key] = _Peer(key, url: url, relay: relay, lastUsed: now, made: now, everLinked: url == null || _linkedOnce.containsKey('$url'));
   }
 
   bool _refusedNow(_Peer peer) => peer.refusedUntil != null && _now().isBefore(peer.refusedUntil!);
 
-  /// Where a packet for the account [rec] is for goes: null for "here, as before" (the record names this relay), else
-  /// the relay to pass it to and how; `far` where it names nowhere this relay will pass it.
-  ({_Peer? peer, int kind, String? relay, bool far, bool full})? _targetOf(HomeRecord rec, {bool forStanding = false}) {
-    const far = (peer: null, kind: 0, relay: null, far: true, full: false);
-    const full = (peer: null, kind: 0, relay: null, far: false, full: true);
+  /// Whether [url] was given up on a moment ago: never once linked with, and nothing answered there.
+  bool _deadNow(String url) {
+    final until = _dead[url];
+    return until != null && _now().isBefore(until);
+  }
+
+  /// Where a packet for the account [rec] would go: null for "here, as before" (the record names this relay), else the
+  /// relay to pass it to (by its address, or by its name for one that stays linked to this one) and how;
+  /// [_Target.nowhere] where it names nowhere this relay will pass it. Nothing is made by asking.
+  _Target? _targetOf(HomeRecord rec, {bool forStanding = false}) {
     final addresses = rec.addresses;
     if (addresses.any(_isSelf)) return null;
     // A relay with no address of its own: everything else goes through the relay it stays linked to.
-    if (_hosted) {
-      final via = _peerAt(config.via);
-      return via == null ? full : (peer: via, kind: toRelay, relay: null, far: false, full: false);
-    }
+    if (_hosted) return _Target(url: config.via, kind: toRelay);
     for (final a in addresses) {
       final url = a.url ?? a.via;
       if (url == null) continue;
       if (a.url == null && _isSelfUrl(url)) {
-        // Someone on a relay that stays linked to this one: over that link, or kept for it.
-        final p = _peerNamed(a.relay!);
-        return p == null ? full : (peer: p, kind: toRelay, relay: null, far: false, full: false);
+        // Someone on a relay that stays linked to this one: over that link, or kept for it, where it may stay.
+        if (!_mayStand(a.relay!)) continue;
+        return _Target(named: a.relay, kind: toRelay);
       }
       // What a relay linked to this one sent is passed to the relay its person lives on, never to a relay linked to
       // that one: two links at most.
       if (a.url == null && forStanding) continue;
       final uri = Uri.parse(url);
-      if (!_mayLink(url: uri) || guard.shape(uri) != null) continue;
-      final p = _peerAt(url);
-      if (p == null) return full;
-      return (peer: p, kind: a.url == null ? toRelayVia : toRelay, relay: a.url == null ? a.relay : null, far: false, full: false);
+      if (!_mayLink(url: uri, toLearn: true) || guard.shape(uri) != null) continue;
+      return _Target(url: url, kind: a.url == null ? toRelayVia : toRelay, relay: a.url == null ? a.relay : null);
     }
-    return far;
+    return _Target.nowhere;
   }
 
   /// Takes a packet from [from] (someone signed in here) for [to], whom nobody is connected as here, where [to]'s home
   /// record names another relay: it is passed to that relay, or waits here for it. False where it is not this one's
   /// to pass on (no record, or the record names this relay): the hub keeps it, as it always did.
   ///
-  /// [answer] is told once what became of it: `here` true (the other relay handed it to them) or false (kept, there or
-  /// here), or with `err` why it was not taken (`full`, `far`: their relay is one this relay doesn't pass to,
-  /// `refused`).
+  /// [answer] is told once what became of it: taken (`here` false: the other relay took it, and whether they are
+  /// there is not said across relays; or it is kept here for that relay), or with `err` why not: `home` (no record of
+  /// the sender's naming this relay is held: their app gives it, and sends again), `busy` (the sender is past what one
+  /// install may send across relays, or may make this relay dial), `full`, `far` (their relay is one this relay
+  /// doesn't or can't pass to), `refused`.
   bool pass(String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer) {
-    if (!on) return false;
+    if (!on || _stopped) return false;
     final rec = homes.of(to);
     if (rec == null) return false;
-    return _send(rec, to, from, packet, answer);
-  }
-
-  bool _send(HomeRecord rec, String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer, {bool forStanding = false}) {
-    final target = _targetOf(rec, forStanding: forStanding);
+    final target = _targetOf(rec);
     if (target == null) return false;
     if (target.far) {
       answer(null, 'far');
       return true;
     }
-    final peer = target.peer;
-    if (target.full || peer == null) {
-      answer(null, 'full');
+    // A relay speaks only for its own people: without a record of the sender's that names this one, no other relay
+    // would take it. Said now, not after it had waited for nothing.
+    final theirs = homes.of(from);
+    if (theirs == null || !theirs.addresses.any(_isSelf)) {
+      answer(null, 'home');
       return true;
+    }
+    final s = _sender(from);
+    final now = _now();
+    if (!s.packets.take(now, const Duration(minutes: 1), max(1, config.packetsAMinute ~/ 4)) || !s.bytes.take(now, const Duration(days: 1), max(1, config.bytesADay ~/ 8), by: packet.length + perPacket)) {
+      answer(null, 'busy');
+      return true;
+    }
+    return _send(target, to, from, packet, answer, by: from);
+  }
+
+  /// Sends a packet to where [target] says; [by] is the install signed in here it is from, where it is (packets other
+  /// relays had this one pass on are [forStanding]).
+  bool _send(_Target target, String to, String from, List<int> packet, void Function(bool? here, [String? err]) answer, {String? by, bool forStanding = false}) {
+    if (target.far) {
+      answer(null, 'far');
+      return true;
+    }
+    final url = target.url;
+    if (url != null && _deadNow(url)) {
+      answer(null, 'far');
+      return true;
+    }
+    final key = url != null ? 'u:$url' : 'r:${target.named}';
+    var peer = _peers[key];
+    if (peer == null) {
+      if (by != null && url != null && !_mayAddRelay(by)) {
+        answer(null, 'busy');
+        return true;
+      }
+      peer = url != null ? _peerAt(url) : _peerNamed(target.named!);
+      if (peer == null) {
+        answer(null, 'full');
+        return true;
+      }
     }
     if (_refusedNow(peer)) {
       answer(null, 'far');
       return true;
     }
     final out = _Out(peer, target.kind, to, from, target.relay, Uint8List.fromList(packet), _now(), answer, forOthers: forStanding);
-    if (!_enqueue(peer, out)) {
-      answer(null, 'full');
+    final why = _enqueue(peer, out);
+    if (why != null) {
+      answer(null, why);
       return true;
     }
     _pump(peer);
     return true;
   }
 
-  bool _enqueue(_Peer peer, _Out out) {
-    if (peer.queue.length >= queuePackets || peer.bytes + out.size > queueBytes || _queued + out.size > 2 * queuedBytes) return false;
-    // With no link to its relay it will wait: held to what may wait, and what another relay asked to be kept to its
-    // share of that.
-    if (_linkFor(peer) == null && (_queued + out.size > queuedBytes || (out.forOthers && _queuedForOthers + out.size > queuedBytes ~/ 4))) return false;
+  /// Puts [out] in its relay's queue where there is room; else why not (`full`, or `busy` where it is its sender who
+  /// has a mailbox's worth waiting already).
+  String? _enqueue(_Peer peer, _Out out) {
+    final size = out.size;
+    if (peer.queue.length >= queuePackets || peer.bytes + size > queueBytes || _queued + size > 2 * queuedBytes) return 'full';
+    // What other relays had this one keep is a quarter of the room at most, linked or not.
+    if (out.forOthers && _queuedForOthers + size > queuedBytes ~/ 4) return 'full';
+    // With no link to its relay it will wait: held to what may wait.
+    if (_linkFor(peer) == null && _queued + size > queuedBytes) return 'full';
+    // No more for one recipient than their mailbox at the far end holds, and no more from one sender.
+    final toThem = peer.byRecipient[out.to];
+    if (toThem != null && (toThem.n >= Hub.mailboxFrames || toThem.bytes + size > Hub.mailboxBytes + Hub.mailboxFrames * perPacket)) return 'full';
+    final fromThem = _waitingFrom[out.from];
+    if (fromThem != null && (fromThem.n >= Hub.mailboxFrames || fromThem.bytes + size > Hub.mailboxBytes + Hub.mailboxFrames * perPacket)) return 'busy';
     peer.queue.add(out);
-    peer.bytes += out.size;
-    _queued += out.size;
-    if (out.forOthers) _queuedForOthers += out.size;
+    peer.bytes += size;
+    (peer.byRecipient[out.to] ??= _Share()).add(size);
+    (_waitingFrom[out.from] ??= _Share()).add(size);
+    _queued += size;
+    if (out.forOthers) _queuedForOthers += size;
     peer.lastUsed = _now();
-    return true;
+    return null;
   }
 
   void _dequeue(_Out out) {
     final peer = out.peer;
     if (!peer.queue.remove(out)) return;
-    peer.bytes -= out.size;
-    _queued -= out.size;
-    if (out.forOthers) _queuedForOthers -= out.size;
+    final size = out.size;
+    peer.bytes -= size;
+    if (peer.byRecipient[out.to]?.take(size) ?? false) peer.byRecipient.remove(out.to);
+    if (_waitingFrom[out.from]?.take(size) ?? false) _waitingFrom.remove(out.from);
+    _queued -= size;
+    if (out.forOthers) _queuedForOthers -= size;
     out.flying?.flying.removeWhere((_, o) => identical(o, out));
     out.flying = null;
-    if (out.wantsHome) {
-      out.wantsHome = false;
-      _wanting--;
-    }
   }
 
-  /// The open link to [peer]: the newest whose proven relay is at its address, or has its name.
+  /// The open link to [peer]: for a relay at an address, the newest this relay dialled there itself (never one that
+  /// came in claiming it); for one known by its name, the newest standing link it made.
   _Link? _linkFor(_Peer peer) {
     for (final l in _links.reversed) {
       if (!l.socket.isOpen) continue;
-      if (peer.url != null ? l.url == '${peer.url}' : l.id == peer.relay) return l;
+      if (peer.url != null ? (l.outbound && l.url == '${peer.url}') : (l.standing && l.id == peer.relay)) return l;
     }
     return null;
   }
@@ -763,9 +1001,11 @@ class Federation {
     final link = _linkFor(peer);
     if (link == null) {
       _wantLink(peer);
-      // A relay that can only dial this one, or one that could not be reached a moment ago and is not being tried
-      // just now: what is for it is kept, and its sender told so at once, not after a wait that can tell it nothing.
-      if (peer.url == null || (peer.failures > 0 && !peer.dialling)) {
+      // A relay that can only dial this one, or one linked with before that could not be reached a moment ago and is
+      // not being tried just now: what is for it is kept, and its sender told so at once, not after a wait that can
+      // tell them nothing. (For an address never once linked with, nothing is said to be kept: it waits only a minute
+      // or two, and then they are told it can't be reached.)
+      if (peer.url == null || (peer.everLinked && peer.failures > 0 && !peer.dialling)) {
         for (final out in peer.queue) {
           out.tell(false);
         }
@@ -783,8 +1023,11 @@ class Federation {
     if (peer.pausedUntil != null && now.isBefore(peer.pausedUntil!)) return;
     for (final out in peer.queue) {
       if (link.flying.length >= window) break;
-      if (out.flying != null || out.wantsHome) continue;
+      // Told it is over its limit: one packet goes alone, to see, before the rest.
+      if (peer.probing && link.flying.isNotEmpty) break;
+      if (out.flying != null) continue;
       _fly(link, out);
+      if (peer.probing) break;
     }
   }
 
@@ -793,7 +1036,7 @@ class Federation {
   void _give(_Link link, String a, {bool again = false}) {
     final rec = homes.of(a);
     if (rec == null) return;
-    final tag = '$a:${rec.n}';
+    final tag = '$a:${rec.n}:${rec.t}';
     if (!again && link.gave.contains(tag)) return;
     link.gave.add(tag);
     while (link.gave.length > 4000) {
@@ -834,9 +1077,16 @@ class Federation {
     if (out == null) return;
     out.flying = null;
     final peer = out.peer;
+    final now = _now();
     if (acked) {
+      if (peer.probing) {
+        // The packet sent to see went: the rest go again.
+        peer.probing = false;
+        peer.limits = 0;
+      }
+      // Taken. Whether they are connected there is not said across relays, whatever that relay says.
       _dequeue(out);
-      out.tell(m['here'] == true);
+      out.tell(false);
       _pump(peer);
       return;
     }
@@ -846,10 +1096,11 @@ class Federation {
         // (`to`); or the other relay holds one that says they live elsewhere (`moved`, and it has just said which).
         final about = m['err'] == 'home' ? out.from : out.to;
         if (m['err'] == 'moved' && !out.rerouted) {
-          // Routed again by what is held now (the other relay has just said where they live).
+          // Routed again by what is held now (the other relay has just said where they live), held to what it was
+          // held to the first time: what a relay linked to this one sent goes no further than its person's relay.
           out.rerouted = true;
           final rec = homes.of(out.to);
-          final target = rec == null ? null : _targetOf(rec);
+          final target = rec == null ? null : _targetOf(rec, forStanding: out.forOthers);
           if (rec != null && target == null) {
             // Here, by the newer record: handed over or kept as any packet for someone here.
             _dequeue(out);
@@ -858,18 +1109,18 @@ class Federation {
             _pump(peer);
             return;
           }
-          if (target != null && target.peer != null && !identical(target.peer, peer)) {
-            _dequeue(out);
-            final moved = _Out(target.peer!, target.kind, out.to, out.from, target.relay, out.packet, out.at, out.answer, forOthers: out.forOthers)
-              ..rerouted = true
-              ..answered = out.answered;
-            if (_enqueue(target.peer!, moved)) {
-              _pump(target.peer!);
-            } else {
-              moved.tell(null, 'full');
+          if (target != null && !target.far) {
+            final key = target.url != null ? 'u:${target.url}' : 'r:${target.named}';
+            if (key != peer.key) {
+              _dequeue(out);
+              final moved = _Out(peer, target.kind, out.to, out.from, target.relay, out.packet, out.at, out.answer, forOthers: out.forOthers)
+                ..rerouted = true
+                ..answered = out.answered;
+              final sent = _send(target, out.to, out.from, out.packet, (here, [err]) => moved.tell(here, err), by: out.forOthers ? null : out.from, forStanding: out.forOthers);
+              if (!sent) moved.tell(null, 'refused');
+              _pump(peer);
+              return;
             }
-            _pump(peer);
-            return;
           }
         }
         if (!out.again) {
@@ -879,18 +1130,19 @@ class Federation {
             _fly(link, out);
             return;
           }
-          if (m['err'] == 'home') {
-            // None is held to give: it waits for its sender's own, which their app gives as it signs in.
-            out.wantsHome = true;
-            _wanting++;
-            return;
-          }
         }
         _dequeue(out);
-        out.tell(null, 'refused');
-      case 'limit':
-        // Over what that relay takes from this one: it waits here a while, in its place.
-        peer.pausedUntil = _now().add(const Duration(seconds: 15));
+        out.tell(null, m['err'] == 'home' && homes.of(out.from) == null ? 'home' : 'refused');
+      case 'limit' || 'busy':
+        // Over what that relay takes from this one (`limit`), or too busy to check the sender's record (`busy`): it
+        // waits here in its place, the relay is left alone a while (longer each time), and then one packet goes alone
+        // to see. The sender's record is said again with it.
+        if (m['err'] == 'busy') link.gave.removeWhere((tag) => tag.startsWith('${out.from}:'));
+        if (peer.pausedUntil == null || !now.isBefore(peer.pausedUntil!)) {
+          peer.limits++;
+          peer.pausedUntil = now.add(pauseAfter(peer.limits));
+        }
+        peer.probing = true;
         return;
       case 'full':
         _dequeue(out);
@@ -902,27 +1154,25 @@ class Federation {
     _pump(peer);
   }
 
-  /// [a]'s record has just come: what waited for it goes again.
-  void _retryWanting(String a) {
-    for (final peer in _peers.values.toList()) {
-      var any = false;
-      for (final out in peer.queue) {
-        if (out.wantsHome && out.from == a) {
-          out.wantsHome = false;
-          out.again = false;
-          _wanting--;
-          any = true;
-        }
-      }
-      if (any) _pump(peer);
-    }
-  }
-
   // --- links ------------------------------------------------------------------------------------------------------------
 
   final List<_Link> _links = [];
   final List<_Hello> _hellosOut = [];
   final LinkedHashMap<String, ({String key, DateTime at})> _seenAt = LinkedHashMap();
+
+  /// The addresses this relay has linked with, and when last: what waits for one of them waits [queueFor]; for any
+  /// other, [neverLinkedFor]. Those given up on, until when; and the addresses a look at came to nothing at.
+  final LinkedHashMap<String, DateTime> _linkedOnce = LinkedHashMap();
+  final LinkedHashMap<String, DateTime> _dead = LinkedHashMap();
+  final LinkedHashMap<String, DateTime> _lookedNo = LinkedHashMap();
+
+  static void _remember(LinkedHashMap<String, DateTime> map, String key, DateTime at, int most) {
+    map.remove(key);
+    map[key] = at;
+    while (map.length > most) {
+      map.remove(map.keys.first);
+    }
+  }
 
   void _believe(String url, String key) {
     _seenAt.remove(url);
@@ -932,24 +1182,40 @@ class Federation {
     }
   }
 
+  /// Whether [key] (base64) is the key this relay saw at [url] within [believedFor].
+  bool _believed(String url, String key) {
+    final seen = _seenAt[url];
+    return seen != null && seen.key == key && _now().difference(seen.at) < believedFor;
+  }
+
   /// Makes room for one more link: at the most, the one used longest ago that nothing is waiting on goes.
   bool _room() {
     if (_links.length < maxLinks) return true;
-    final idle = _links.where((l) => l.flying.isEmpty && !l.isVia).toList()..sort((a, b) => a.used.compareTo(b.used));
+    final idle = _links.where((l) => l.flying.isEmpty && l.asked.isEmpty && !l.isVia).toList()..sort((a, b) => a.used.compareTo(b.used));
     if (idle.isEmpty) return false;
     idle.first.socket.close(1000, 'room');
     _lost(idle.first);
     return _links.length < maxLinks;
   }
 
-  /// Asks for a link to [peer]: dialled now where it has an address, is not being dialled, and is due.
+  /// Asks for a link to [peer]: dialled now where it has an address, is not being dialled, and is due, and the dials
+  /// of its kind this minute allow (a first dial, or a try again).
   void _wantLink(_Peer peer) {
     final url = peer.url;
-    if (url == null || peer.dialling) return;
+    if (url == null || peer.dialling || _stopped) return;
     final now = _now();
     if (peer.nextTry != null && now.isBefore(peer.nextTry!)) return;
-    if (!_mayLink(url: url) || guard.shape(url) != null) return _failed(peer, 'off', refused: true);
+    if (!_mayLink(url: url, toLearn: true) || guard.shape(url) != null) return _failed(peer, 'off', refused: true);
     if (!_room()) return _failed(peer, 'busy');
+    if (!guard.take(peer.failures == 0 ? DialKind.own : DialKind.retry)) {
+      // No dial left of its kind this minute: not a failure of that relay's, tried again in a few seconds.
+      peer.nextTry = now.add(const Duration(seconds: 5));
+      for (final ask in peer.asks.toList()) {
+        ask.answer({'none': true, 'why': 'busy'});
+      }
+      peer.asks.clear();
+      return;
+    }
     peer.dialling = true;
     unawaited(_open(peer, url));
   }
@@ -960,7 +1226,13 @@ class Federation {
       socket = await _dial(url);
     } catch (e) {
       _say('could not dial ${url.host}: ${'$e'.split('\n').first}');
+      if (_stopped) return;
       return _failed(peer, 'down');
+    }
+    if (_stopped) {
+      // Stopped while it was being made: let go, and nothing comes of it.
+      unawaited(socket.close(WebSocketStatus.goingAway).catchError((_) {}));
+      return;
     }
     final hello = _Hello(peer, socket, _now().add(helloWithin));
     _hellosOut.add(hello);
@@ -973,11 +1245,12 @@ class Federation {
     if (link != null) return _lost(link);
     if (!hello.done) {
       hello.done = true;
-      _failed(hello.peer, 'down');
+      if (!_stopped) _failed(hello.peer, 'down');
     }
   }
 
-  /// A dial that came to nothing: tried again later, later each time; what was asked of that relay is answered.
+  /// A dial that came to nothing: tried again later, later each time; what was asked of that relay is answered. An
+  /// address never once linked with is given up on after four tries or [neverLinkedFor].
   void _failed(_Peer peer, String why, {bool refused = false}) {
     final now = _now();
     peer.dialling = false;
@@ -988,17 +1261,34 @@ class Federation {
       ask.answer({'none': true, 'why': refused ? (why == 'off' ? 'off' : 'refused') : why});
     }
     peer.asks.clear();
+    if (!refused && !peer.everLinked && peer.url != null && (peer.failures >= 4 || now.difference(peer.made) >= neverLinkedFor)) return _giveUp(peer);
     for (final out in peer.queue.toList()) {
-      if (out.answered) continue;
+      if (out.answered && !refused) continue;
       if (refused) {
         // What waits for a relay that said no is not kept as though it were only away.
         _dequeue(out);
         out.tell(null, 'far');
-      } else {
+      } else if (peer.everLinked) {
         // Unreachable: it waits here, and its sender is told it is kept.
         out.tell(false);
       }
     }
+  }
+
+  /// [peer], an address never once linked with, has not answered: what waits for it is told it can't be reached, and
+  /// the address is not dialled again for [deadFor].
+  void _giveUp(_Peer peer) {
+    for (final out in peer.queue.toList()) {
+      _dequeue(out);
+      out.tell(null, 'far');
+    }
+    for (final ask in peer.asks.toList()) {
+      ask.answer({'none': true, 'why': 'down'});
+    }
+    peer.asks.clear();
+    _peers.remove(peer.key);
+    _remember(_dead, '${peer.url}', _now().add(deadFor), 1024);
+    _say('gave up on ${peer.url?.host}');
   }
 
   /// What the relay dialled says before the link is made: its hub's hello, then its answer to this relay's.
@@ -1033,7 +1323,9 @@ class Federation {
       }
       if (k.length != 33 || Hub.nameOf(k) != theirs) return no('not a relay that talks to others');
       if (theirs == id) {
-        // This relay itself, by another address: what waits is for people here after all.
+        // This relay's own name: it is this relay only where the number is one its own hub made up for a hello it is
+        // waiting on (anyone can say this relay's name and key; only this relay's hub makes its numbers).
+        if (!_ownNumber(m['hello'] as String)) return no('not a relay that talks to others');
         hello.done = true;
         _hellosOut.remove(hello);
         hello.socket.close(1000, 'self');
@@ -1046,22 +1338,24 @@ class Federation {
         ..key = k
         ..c = [for (var i = 0; i < 32; i++) _random.nextInt(256)];
       final stay = url == config.via;
-      final sig = _sign(dialBytes(nonce: hello.nonce!, dialler: id, answerer: theirs, c: hello.c!, url: config.publicHub));
+      final sig = _sign(dialBytes(nonce: hello.nonce!, dialler: id, answerer: theirs, c: hello.c!, dialled: url, url: config.publicHub, stay: stay));
       try {
         hello.socket.add(jsonEncode({'fed': 1, 'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (config.publicHub.isNotEmpty) 'url': config.publicHub, 'c': hexOf(hello.c!), if (stay) 'stay': true}));
       } catch (_) {}
       return;
     }
-    // Its answer: yes, signed over this relay's number and both names by the key its hello named; or no.
+    // Its answer: yes, signed over this relay's number, both names and the address dialled, by the key its hello
+    // named; or no.
     if (m['ok'] != true) return no('${m['err'] ?? 'refused'}', refused: m['err'] != 'busy');
     List<int>? sig;
     try {
       sig = base64Decode(m['sig'] as String);
     } catch (_) {}
-    if (m['fed'] != 1 || m['id'] != hello.id || sig == null || !P256.verify(hello.key!, answerBytes(c: hello.c!, dialler: id, answerer: hello.id!), sig)) return no('bad answer');
+    if (m['fed'] != 1 || m['id'] != hello.id || sig == null || !P256.verify(hello.key!, answerBytes(c: hello.c!, dialler: id, answerer: hello.id!, dialled: url), sig)) return no('bad answer');
     hello.done = true;
     _hellosOut.remove(hello);
     _believe(url, base64Encode(hello.key!));
+    _remember(_linkedOnce, url, _now(), 4096);
     final made = hello.link = _Link(hello.socket, hello.id!, hello.key!, url, _now(), outbound: true, isVia: url == config.via);
     _links.add(made);
     peer
@@ -1069,6 +1363,7 @@ class Federation {
       ..failures = 0
       ..nextTry = null
       ..refusedUntil = null
+      ..everLinked = true
       ..relay ??= made.id;
     _say('linked with ${made.id.substring(0, 6)} (dialled)');
     _linked(made);
@@ -1121,16 +1416,29 @@ class Federation {
   }
 
   /// The key the hub at [url] says is its relay's, as this relay sees it by dialling there itself; null where it
-  /// can't be dialled, is not a relay, or says none. Believed for a day.
-  Future<String?> _keyAt(String url, {bool again = false}) async {
+  /// can't be dialled, is not a relay, says none, or was looked at a moment ago and was none of those ([lookedNoFor]).
+  /// Believed for [believedFor]. Each look is one of the dials a minute kept for looks ([DialKind.lookBack]); with
+  /// none left, [busy] is told so and nothing is dialled.
+  Future<String?> _keyAt(String url, {bool again = false, void Function()? busy}) async {
     final seen = _seenAt[url];
     if (!again && seen != null && _now().difference(seen.at) < believedFor) return seen.key;
+    final failed = _lookedNo[url];
+    if (failed != null && _now().difference(failed) < lookedNoFor) return null;
     final uri = Uri.parse(url);
-    if (guard.shape(uri) != null) return null;
+    if (guard.shape(uri) != null || _stopped) return null;
+    if (!guard.take(DialKind.lookBack)) {
+      busy?.call();
+      return null;
+    }
     final HubSocket socket;
     try {
       socket = await _dial(uri);
     } catch (_) {
+      _remember(_lookedNo, url, _now(), 1024);
+      return null;
+    }
+    if (_stopped) {
+      unawaited(socket.close(WebSocketStatus.goingAway).catchError((_) {}));
       return null;
     }
     final found = Completer<String?>();
@@ -1149,14 +1457,19 @@ class Federation {
     final key = await found.future;
     _looks.remove(look);
     unawaited(socket.close(1000, 'looked').catchError((_) {}));
-    if (key != null) _believe(url, key);
+    if (key != null) {
+      _believe(url, key);
+      _lookedNo.remove(url);
+    } else {
+      _remember(_lookedNo, url, _now(), 1024);
+    }
     return key;
   }
 
   final List<_Look> _looks = [];
 
   /// Another relay's hello, said in place of an app's ([Hub.attach] hands it over): the link is made where it proves
-  /// its key, may link with this relay, and the address it claims is its own.
+  /// its key over this relay's own address, may link with this relay, and the address it claims is its own.
   FedEnd incoming(HubSocket socket, Map hello, List<int> nonce) {
     final end = _In(this, socket);
     unawaited(_admit(end, hello, nonce));
@@ -1172,39 +1485,51 @@ class Federation {
       socket.close(4403, why);
     }
 
-    if (!on) return no('fed off');
-    if (!_hellos.take(_now(), const Duration(minutes: 1), hellosAMinute)) return no('busy');
+    if (!on || _stopped) return no('fed off');
+    // A relay is dialled at its own address, which it signs: one with none is dialled by nobody.
+    if (config.publicHub.isEmpty) return no('no address');
+    // What costs nothing first: the shape of it.
     final theirs = hello['id'], said = hello['url'];
     List<int>? k, sig;
     try {
       k = base64Decode(hello['key'] as String);
       sig = base64Decode(hello['sig'] as String);
     } catch (_) {}
-    if (k == null || sig == null || k.length != 33 || sig.length != 64 || !_hex(theirs, 32) || !_hex(hello['c'], 64) || Hub.nameOf(k) != theirs || (said != null && (said is! String || said.length > HomeRecord.maxAddress))) return no('bad hello');
+    if (k == null || sig == null || k.length != 33 || sig.length != 64 || !_hex(theirs, 32) || !_hex(hello['c'], 64) || Hub.nameOf(k) != theirs || (said != null && (said is! String || said.length > HomeRecord.maxAddress)) || (hello.containsKey('stay') && hello['stay'] is! bool)) return no('bad hello');
     if (theirs == id) return no('self');
-    final c = _unhex(hello['c'] as String);
-    if (!P256.verify(k, dialBytes(nonce: nonce, dialler: theirs as String, answerer: id, c: c, url: said is String ? said : ''), sig)) return no('bad hello');
     // The address it claims, where it claims one: a hub's, written as hubs' addresses are compared.
     final url = said is String ? canonicalHub(said) : null;
     if (said is String && (url == null || url != said)) return no('bad address');
     final uri = url == null ? null : Uri.parse(url);
-    if (!_mayLink(relay: theirs, url: uri)) return no(_listed(config.block, relay: theirs, url: uri) ? 'blocked' : 'not listed');
-    if (url != null) {
+    if (uri != null && guard.shape(uri) != null) return no('bad address');
+    // Its keeper's lists, before anything is checked or dialled for it.
+    if (!_mayLink(relay: theirs as String, url: uri)) return no(_listed(config.block, relay: theirs, url: uri) ? 'blocked' : 'not listed');
+    final stay = hello['stay'] == true;
+    final c = _unhex(hello['c'] as String);
+    if (!P256.verify(k, dialBytes(nonce: nonce, dialler: theirs, answerer: id, c: c, dialled: config.publicHub, url: said is String ? said : '', stay: stay), sig)) return no('bad hello');
+    // Counted once it is known to be a relay's: at an address this relay has seen its key at already, against that
+    // address's own; anyone else's, against what strangers share.
+    final now = _now();
+    final known = url != null && _believed(url, base64Encode(k));
+    if (known ? !_meter('u:$url').hellos.take(now, const Duration(minutes: 1), hellosAMinute) : !_hellos.take(now, const Duration(minutes: 1), hellosAMinute)) return no('busy');
+    if (url != null && !known) {
       // Believed only once this relay has dialled that address itself and seen the same key there.
-      if (guard.shape(uri!) != null) return no('bad address');
-      var seen = await _keyAt(url);
+      var busy = false;
+      var seen = await _keyAt(url, busy: () => busy = true);
       // Another key was seen there a while ago: looked at once more, since a relay may have been given a new key.
       final at = _seenAt[url]?.at;
-      if (seen != null && seen != base64Encode(k) && at != null && _now().difference(at) >= const Duration(minutes: 5)) seen = await _keyAt(url, again: true);
+      if (seen != null && seen != base64Encode(k) && at != null && _now().difference(at) >= const Duration(minutes: 5)) seen = await _keyAt(url, again: true, busy: () => busy = true);
       if (end.left || !socket.isOpen) return;
+      if (_stopped) return no('fed off');
+      if (busy) return no('busy');
       if (seen != base64Encode(k)) return no('address');
     }
     if (!_room()) return no('busy');
-    final sign = _sign(answerBytes(c: c, dialler: theirs, answerer: id));
+    final sign = _sign(answerBytes(c: c, dialler: theirs, answerer: id, dialled: config.publicHub));
     try {
       socket.add(jsonEncode({'ok': true, 'fed': 1, 'id': id, 'key': base64Encode(key), 'sig': base64Encode(sign)}));
     } catch (_) {}
-    final link = _Link(socket, theirs, k, url, _now(), outbound: false, standing: url == null && hello['stay'] == true);
+    final link = _Link(socket, theirs, k, url, _now(), outbound: false, standing: url == null && stay && _mayStand(theirs));
     _links.add(link);
     end.link = link;
     _say('linked with ${link.id.substring(0, 6)} (it dialled${link.standing ? ', and stays' : ''})');
@@ -1248,24 +1573,40 @@ class Federation {
     } catch (_) {}
     if (m == null) return;
     if (m.containsKey('ack') || m.containsKey('nak')) return _answered(link, m);
-    if (m.containsKey('ping')) return _tell(link, {'pong': m['ping']});
+    if (m.containsKey('ping')) {
+      // A link kept open says so now and then: answered where it is a small number and not too often.
+      final p = m['ping'];
+      if ((p is int || (p is String && p.length <= 32)) && link.pings.take(_now(), const Duration(minutes: 1), 60)) _tell(link, {'pong': p});
+      return;
+    }
+    final who = _whoOf(link);
     switch (m['fed']) {
       case 'home':
-        // A record it gives: to show whom it speaks for, or where someone lives. Checked like any other.
-        final meter = _meter(link.id);
+        // A record it gives: to show whom it speaks for, or where someone lives. Checked like any other, under that
+        // relay's own counts; one too many to check just now is remembered, so a packet from them is answered busy.
+        final meter = _meter(who);
         if (!meter.records.take(_now(), const Duration(minutes: 1), recordsAMinute)) return;
-        _takeRecord(m['rec'], from: 'relay:${link.id}');
+        final rec = m['rec'];
+        final took = _takeRecord(rec, from: 'relay:$who', perHour: link.url != null ? checksAnHour * 10 : checksAnHour);
+        if (took == 'busy' && rec is Map && rec['a'] is String) {
+          link.busyFor.add(rec['a'] as String);
+          while (link.busyFor.length > 1000) {
+            link.busyFor.remove(link.busyFor.first);
+          }
+        } else if (rec is Map) {
+          link.busyFor.remove(rec['a']);
+        }
       case 'whois':
         final q = m['q'];
         if (m['name'] is String) {
           // It asks who has a username here.
           if (q is! int) return;
-          if (!_meter(link.id).lookups.take(_now(), const Duration(hours: 1), config.lookupsAnHour)) return _tell(link, {'fed': 'whois', 'q': q, 'none': true, 'why': 'busy'});
+          if (!_meter(who).lookups.take(_now(), const Duration(hours: 1), config.lookupsAnHour)) return _tell(link, {'fed': 'whois', 'q': q, 'none': true, 'why': 'busy'});
           final found = _handles?.holder(m['name'] as String);
           link.used = _now();
           _tell(link, found == null ? {'fed': 'whois', 'q': q, 'none': true} : {'fed': 'whois', 'q': q, 'id': found.id, 'key': found.key, 'home': ?homes.of(found.id)?.toJson()});
         } else {
-          // It answers one this relay asked.
+          // It answers one this relay asked: only on a link this relay dialled, as it was asked.
           link.asked.remove(q)?.answer(m);
           for (final peer in _peers.values) {
             peer.asks.removeWhere((a) => a.done);
@@ -1281,18 +1622,22 @@ class Federation {
     final n = ByteData.sublistView(Uint8List.fromList(data.sublist(1, 5))).getUint32(0);
     void nak(String why) => _tell(link, {'nak': n, 'err': why});
     final now = _now();
-    final meter = _meter(link.id);
+    final meter = _meter(_whoOf(link));
     if (!meter.packets.take(now, const Duration(minutes: 1), config.packetsAMinute) || !meter.bytes.take(now, const Duration(days: 1), config.bytesADay, by: data.length)) return nak('limit');
     if (data.length - head > Hub.maxPacket + 32) return nak('big');
     final to = hexOf(data.sublist(5, 21)), from = hexOf(data.sublist(21, 37));
-    // A relay speaks only for its own people.
-    if (!_speaksFor(link, from)) return nak('home');
+    // A relay speaks only for its own people; where this relay was too busy to check the record it gave a moment ago,
+    // it is told to wait and send again.
+    if (!_speaksFor(link, from)) return nak(link.busyFor.contains(from) ? 'busy' : 'home');
     link.used = now;
     final packet = data.sublist(head);
-    void answer(bool? here, [String? err]) => err != null ? nak(err) : _tell(link, {'ack': n, 'here': here == true});
+    // Taken, or why not: whether they are connected here is not told to another relay (someone may have chosen not to
+    // be seen, and a stranger anywhere can send them a packet).
+    void answer(bool? here, [String? err]) => err != null ? nak(err) : _tell(link, {'ack': n});
     if (relay != null) {
-      // For someone on a relay linked to this one, as their record must say: over that link, or kept for it. Never
-      // to a relay this one would have to dial.
+      // For someone on a relay linked to this one, as their record must say, where that relay may stay: over that
+      // link, or kept for it. Never to a relay this one would have to dial.
+      if (!_mayStand(relay)) return nak('far');
       final rec = homes.of(to);
       if (rec == null || !rec.addresses.any((a) => a.relay == relay && a.via != null && _isSelfUrl(a.via!))) return nak('to');
       // No more than a quarter of the relays this one waits on are ones another relay named.
@@ -1300,7 +1645,8 @@ class Federation {
       final peer = _peerNamed(relay);
       if (peer == null) return nak('full');
       final out = _Out(peer, toRelay, to, from, null, Uint8List.fromList(packet), now, answer, forOthers: true);
-      if (!_enqueue(peer, out)) return nak('full');
+      final why = _enqueue(peer, out);
+      if (why != null) return nak(why == 'busy' ? 'full' : why);
       return _pump(peer);
     }
     if (!_isHere(to)) {
@@ -1310,12 +1656,16 @@ class Federation {
         // people who name this relay as their way out: passed on, as for someone signed in here.
         final theirs = homes.of(from);
         if (link.standing && theirs != null && theirs.addresses.any((a) => a.relay == link.id && a.via != null && _isSelfUrl(a.via!))) {
-          if (_send(rec, to, from, packet, answer, forStanding: true)) return;
+          final target = _targetOf(rec, forStanding: true);
+          if (target != null && _send(target, to, from, packet, answer, forStanding: true)) return;
         } else if (!(link.isVia && _hosted)) {
           // From any other relay it goes no further: that relay is told where they live now, and routes it itself.
           _give(link, to, again: true);
           return nak('moved');
         }
+      } else if (!_knows(to)) {
+        // Nobody of that name has signed in here: nothing is kept for a name a stranger made up.
+        return nak('to');
       }
     }
     // Handed to their devices here or kept for them, exactly as one from a connection here.
@@ -1325,9 +1675,10 @@ class Federation {
 
   // --- what is due --------------------------------------------------------------------------------------------------
 
-  /// Does what the clock says is due: tells senders whose packets have waited [answerWithin] that they are kept, lets
-  /// go of what waited [queueFor], closes links nothing has crossed for [idleFor] and hellos that never finished,
-  /// and dials again the relays that are due. The relay calls it once a second ([start]); a test calls it itself.
+  /// Does what the clock says is due: tells senders whose packets have waited [answerWithin] that they are kept (for a
+  /// relay linked with before), lets go of what waited [queueFor], gives up on an address never linked with after
+  /// [neverLinkedFor], closes links nothing has crossed for [idleFor] and hellos that never finished, and dials again
+  /// the relays that are due. The relay calls it once a second ([start]); a test calls it itself.
   void tick() {
     final now = _now();
     for (final hello in _hellosOut.toList()) {
@@ -1355,11 +1706,15 @@ class Federation {
       }
     }
     for (final peer in _peers.values.toList()) {
+      if (!peer.everLinked && peer.url != null && !peer.dialling && _linkFor(peer) == null && (peer.queue.isNotEmpty || peer.asks.isNotEmpty) && now.difference(peer.made) >= neverLinkedFor) {
+        _giveUp(peer);
+        continue;
+      }
       for (final out in peer.queue.toList()) {
         if (now.difference(out.at) >= queueFor) {
           _dequeue(out);
           out.tell(false);
-        } else if (!out.answered && now.difference(out.at) >= answerWithin) {
+        } else if (!out.answered && peer.everLinked && now.difference(out.at) >= answerWithin) {
           out.tell(false);
         }
       }
@@ -1374,15 +1729,19 @@ class Federation {
       }
     }
     // The relay this one stays linked to: dialled whenever the link is not up.
-    if (on && config.via.isNotEmpty) {
+    if (on && config.via.isNotEmpty && !_stopped) {
       final via = _peerAt(config.via);
       if (via != null && _linkFor(via) == null) _wantLink(via);
     }
     _selfUrls.removeWhere((_, at) => now.difference(at) >= believedFor);
     _seenAt.removeWhere((_, seen) => now.difference(seen.at) >= believedFor);
-    _checks.removeWhere((_, c) => c.over(now, const Duration(hours: 1)));
+    _dead.removeWhere((_, until) => !now.isBefore(until));
+    _lookedNo.removeWhere((_, at) => now.difference(at) >= lookedNoFor);
+    _linkedOnce.removeWhere((_, at) => now.difference(at) >= const Duration(days: 30));
+    _checks.removeWhere((_, c) => c.hour.over(now, const Duration(hours: 1)));
     _lookups.removeWhere((_, c) => c.over(now, const Duration(hours: 1)));
     _meters.removeWhere((_, m) => m.over(now));
+    _senders.removeWhere((_, s) => s.over(now));
   }
 }
 
@@ -1401,19 +1760,75 @@ class _Count {
     return true;
   }
 
+  /// Gives back the one just taken (it was refused elsewhere, and cost nothing).
+  void back([int by = 1]) => _n = max(0, _n - by);
+
   /// Whether the stretch it was counting in has ended.
   bool over(DateTime now, Duration every) => _since == null || now.difference(_since!) >= every;
 }
 
-/// What one linked relay has sent lately.
+/// The record checks one giver has had: this hour, and this second.
+class _Checks {
+  final hour = _Count();
+  final second = _Count();
+}
+
+/// What one linked relay (by [Federation._whoOf]) has sent lately.
 class _Meter {
   final packets = _Count();
   final bytes = _Count();
   final lookups = _Count();
   final records = _Count();
+  final hellos = _Count();
 
   /// Whether nothing is being counted for it any more.
-  bool over(DateTime now) => packets.over(now, const Duration(minutes: 1)) && bytes.over(now, const Duration(days: 1)) && lookups.over(now, const Duration(hours: 1)) && records.over(now, const Duration(minutes: 1));
+  bool over(DateTime now) => packets.over(now, const Duration(minutes: 1)) && bytes.over(now, const Duration(days: 1)) && lookups.over(now, const Duration(hours: 1)) && records.over(now, const Duration(minutes: 1)) && hellos.over(now, const Duration(minutes: 1));
+}
+
+/// What one install signed in here has sent across relays lately, and how many relays it has made this one dial.
+class _Sender {
+  final packets = _Count();
+  final bytes = _Count();
+  final relays = _Count();
+
+  bool over(DateTime now) => packets.over(now, const Duration(minutes: 1)) && bytes.over(now, const Duration(days: 1)) && relays.over(now, const Duration(hours: 1));
+}
+
+/// So many packets and bytes of a queue that are one person's.
+class _Share {
+  int n = 0;
+  int bytes = 0;
+
+  void add(int size) {
+    n++;
+    bytes += size;
+  }
+
+  /// Takes one of [size] off; true where nothing is left.
+  bool take(int size) {
+    n--;
+    bytes -= size;
+    return n <= 0;
+  }
+}
+
+/// Where a packet goes ([Federation._targetOf]): a relay's address, or a relay that stays linked to this one by its
+/// name; or nowhere this relay passes to ([far]).
+class _Target {
+  const _Target({this.url, this.named, this.kind = Federation.toRelay, this.relay}) : far = false;
+  const _Target._far()
+      : url = null,
+        named = null,
+        kind = 0,
+        relay = null,
+        far = true;
+  static const nowhere = _Target._far();
+
+  final String? url;
+  final String? named;
+  final int kind;
+  final String? relay;
+  final bool far;
 }
 
 /// A link with another relay, proven: whichever of the two dialled.
@@ -1427,9 +1842,11 @@ class _Link {
 
   /// Its hub's address, where this relay has seen that key there itself; null for a relay with none.
   final String? url;
+
+  /// Whether this relay dialled it: only such a link carries what is for an address ([Federation._linkFor]).
   final bool outbound;
 
-  /// It dialled this relay with no address of its own, to stay: its people are reached over this link.
+  /// It dialled this relay with no address of its own, to stay, and may: its people are reached over this link.
   final bool standing;
 
   /// The relay this one stays linked to (`GHOST_FED_VIA`).
@@ -1441,25 +1858,42 @@ class _Link {
   final Map<int, _Out> flying = {};
   final Map<int, _Ask> asked = {};
 
-  /// The records said on it, as `name:count`.
+  /// The records said on it, as `name:count:time`.
   final LinkedHashSet<String> gave = LinkedHashSet();
+
+  /// Those whose record it gave when this relay was too busy to check it: a packet from them is answered `busy`.
+  final LinkedHashSet<String> busyFor = LinkedHashSet();
+
+  /// The pings it has had answered lately.
+  final pings = _Count();
 }
 
 /// A relay something waits for: by its hub's address, or for one with no address by its name.
 class _Peer {
-  _Peer(this.key, {this.url, this.relay, required this.lastUsed});
+  _Peer(this.key, {this.url, this.relay, required this.lastUsed, required this.made, this.everLinked = false});
   final String key;
   final Uri? url;
   String? relay;
   final Queue<_Out> queue = Queue();
   final List<_Ask> asks = [];
   int bytes = 0;
+
+  /// What waits for it, by whom it is for.
+  final Map<String, _Share> byRecipient = {};
   bool dialling = false;
   int failures = 0;
   DateTime? nextTry;
   DateTime? refusedUntil;
   DateTime? pausedUntil;
+
+  /// How many times in a row it said this relay was over its limit, and whether one packet goes alone to see.
+  int limits = 0;
+  bool probing = false;
   DateTime lastUsed;
+
+  /// When it was first wanted, and whether this relay has ever linked with that address (lately).
+  final DateTime made;
+  bool everLinked;
 
   bool get idle => queue.isEmpty && asks.isEmpty && !dialling;
 }
@@ -1485,13 +1919,13 @@ class _Out {
   _Link? flying;
   DateTime? sentAt;
 
-  /// Refused once for want of a record and sent again with it; sent to another relay once because the one it went
-  /// to said they live elsewhere; and waiting for its sender's own record to come.
+  /// Refused once for want of a record and sent again with it; and sent to another relay once because the one it went
+  /// to said they live elsewhere.
   bool again = false;
   bool rerouted = false;
-  bool wantsHome = false;
 
-  int get size => packet.length + 64;
+  /// What it costs held here: its bytes, and what holding any packet costs ([Federation.perPacket]).
+  int get size => packet.length + Federation.perPacket;
 
   /// Tells whoever sent it, once.
   void tell(bool? here, [String? err]) {

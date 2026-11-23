@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/handles.dart';
+import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/p256.dart';
 import 'package:test/test.dart';
 
@@ -49,7 +50,7 @@ void main() {
     alice.said.clear();
     final n = alice.send(maya.id, [1]);
     await net.settle();
-    expect(alice.answerTo(n), {'ack': n, 'here': true, 'fed': true});
+    expect(alice.answerTo(n), {'ack': n, 'here': false, 'fed': true});
     // As typed: with an @, in capitals.
     expect((await ask('@Maya', 'B.Test'))['id'], maya.id);
   });
@@ -91,8 +92,10 @@ void main() {
   });
 
   test('why not, where it is not that nobody has the name: this relay doesn\'t talk to that one, that one won\'t, or it can\'t be reached', () async {
+    // Off, a relay answers as a relay from before: an ordinary lookup of the name here (an app asks such a relay no
+    // such thing: its hello says it doesn't talk to others, and the app asks the other relay itself).
     await make(makeA: () => TestRelay(net, 'a.test', mode: FedMode.off));
-    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'none': true, 'why': 'off'});
+    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'none': true});
     expect(net.dialled, isEmpty);
     await make(makeA: () => TestRelay(net, 'a.test', block: {'b.test'}));
     expect((await ask('maya', 'b.test'))['why'], 'off');
@@ -119,7 +122,7 @@ void main() {
       s.add(jsonEncode({'hello': 'ab' * 32, 'relay': {'id': real.id, 'key': base64Encode(real.key)}}));
       s.incoming.listen((d) {
         final m = d is String ? jsonDecode(d) as Map : null;
-        if (m?['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m!['c'] as String), dialler: m['id'] as String, answerer: real.id), someBytes(32)))}));
+        if (m?['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m!['c'] as String), dialler: m['id'] as String, answerer: real.id, dialled: b.url), someBytes(32)))}));
       });
     };
     alice.say({'dir': 'whois', 'name': 'maya', 'at': 'b.test'});
@@ -138,6 +141,53 @@ void main() {
     expect(alice.said.single['why'], 'down');
   });
 
+  test('who has a username here is told with where they live, where relays talk: what someone on another relay needs to add them', () async {
+    await make();
+    final stranger = Install();
+    await stranger.signIn(b);
+    stranger.say({'dir': 'whois', 'name': 'maya'});
+    await pumpEventQueue();
+    expect(stranger.said.last, {'dir': 'whois', 'name': 'maya', 'id': maya.id, 'key': base64Encode(maya.key), 'home': mayas});
+    // Off, the answer is the one a relay always gave.
+    final off = TestRelay(net, 'off.test', seed: 7, mode: FedMode.off);
+    final olga = Install(), asker = Install();
+    await olga.signIn(off);
+    await olga.claim('olga');
+    olga.say({'dir': 'home', 'rec': olga.record([off.url])});
+    await asker.signIn(off);
+    asker.say({'dir': 'whois', 'name': 'olga'});
+    await pumpEventQueue();
+    expect(asker.said.last, {'dir': 'whois', 'name': 'olga', 'id': olga.id, 'key': base64Encode(olga.key)});
+  });
+
+  test('an answer whose key is not a key is not believed, and a why that is not one of the words is not passed on', () async {
+    await make();
+    final real = HandRelay();
+    net.hubs.remove(b.url);
+    var answer = <String, Object?>{};
+    net.hand[b.url] = (s) {
+      s.add(jsonEncode({'hello': 'ab' * 32, 'relay': {'id': real.id, 'key': base64Encode(real.key)}}));
+      s.incoming.listen((d) {
+        final m = d is String ? jsonDecode(d) as Map : null;
+        if (m?['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m!['c'] as String), dialler: m['id'] as String, answerer: real.id, dialled: b.url), someBytes(32)))}));
+        if (m?['fed'] == 'whois') s.add(jsonEncode({'fed': 'whois', 'q': m!['q'], ...answer}));
+      });
+    };
+    // Five bytes, with the name made from them: no key at all.
+    final junk = [1, 2, 3, 4, 5];
+    answer = {'id': Hub.nameOf(junk), 'key': base64Encode(junk)};
+    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'none': true});
+    // 33 bytes that name no point on the curve.
+    final notAPoint = [2, ...List.filled(32, 0xff)];
+    answer = {'id': Hub.nameOf(notAPoint), 'key': base64Encode(notAPoint)};
+    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'none': true});
+    // A reason of its own making is dropped; one of the words is passed on.
+    answer = {'none': true, 'why': 'Ask at evil.example instead'};
+    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'none': true});
+    answer = {'none': true, 'why': 'busy'};
+    expect(await ask('maya', 'b.test'), {'dir': 'whois', 'name': 'maya', 'at': 'b.test', 'none': true, 'why': 'busy'});
+  });
+
   test('an answer whose name is not its key\'s, or whose record is someone else\'s, is not believed', () async {
     await make();
     final real = HandRelay(), other = Install();
@@ -147,7 +197,7 @@ void main() {
       s.add(jsonEncode({'hello': 'ab' * 32, 'relay': {'id': real.id, 'key': base64Encode(real.key)}}));
       s.incoming.listen((d) {
         final m = d is String ? jsonDecode(d) as Map : null;
-        if (m?['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m!['c'] as String), dialler: m['id'] as String, answerer: real.id), someBytes(32)))}));
+        if (m?['fed'] == 1) s.add(jsonEncode({'ok': true, 'fed': 1, 'id': real.id, 'key': base64Encode(real.key), 'sig': base64Encode(P256.sign(real.scalar, Federation.answerBytes(c: unhex(m!['c'] as String), dialler: m['id'] as String, answerer: real.id, dialled: b.url), someBytes(32)))}));
         if (m?['fed'] == 'whois') s.add(jsonEncode({'fed': 'whois', 'q': m!['q'], ...answer}));
       });
     };

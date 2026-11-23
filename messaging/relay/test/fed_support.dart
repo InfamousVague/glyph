@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:ghost_relay/fed_dial.dart';
 import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/home_record.dart';
@@ -105,9 +106,14 @@ class FakeNet {
   /// Hubs played by hand, by their address: each is given its end of every connection dialled to it.
   final Map<String, void Function(MemSocket theirs)> hand = {};
 
+  /// Addresses whose dials are under way until the test lets them finish.
+  final Map<String, Completer<void>> held = {};
+
   /// What a relay is given to dial with.
   Future<HubSocket> dial(Uri url) async {
     dialled.add('$url');
+    final wait = held['$url'];
+    if (wait != null) await wait.future;
     final hub = hubs['$url'], played = hand['$url'];
     if ((hub == null && played == null) || down.contains('$url')) throw const SocketException('nothing answers there');
     final (mine, theirs) = MemSocket.pair();
@@ -141,12 +147,16 @@ class FakeNet {
 
 /// A relay on the made-up internet: a hub with usernames and federation, at `wss://<host>/hub` unless it has no address.
 class TestRelay {
-  TestRelay(this.net, this.host, {FedMode mode = FedMode.open, Set<String> allow = const {}, Set<String> block = const {}, bool public = true, String via = '', int seed = 1, int? packetsAMinute, int? bytesADay, int? lookupsAnHour, int? queuePackets, int? queueBytes, int? queuedBytes, int? maxLinks, int? maxPeers, int? checksAnHour, int? checksASecond, int? hellosAMinute, int? recordsAMinute, Directory? dataDir, int? maxOwn, int? maxOthers, int heldBytes = 96 << 20, bool fed = true}) {
+  /// [shipped] makes every limit not named the one the relay ships with, where the default here is generous for what
+  /// a test is not about: a test of a contest for a shared allowance asks for it.
+  TestRelay(this.net, this.host, {FedMode mode = FedMode.open, Set<String> allow = const {}, Set<String> block = const {}, bool public = true, String via = '', bool standingOpen = false, Set<String> standing = const {}, int seed = 1, int? packetsAMinute, int? bytesADay, int? lookupsAnHour, int? queuePackets, int? queueBytes, int? queuedBytes, int? maxLinks, int? maxPeers, int? checksAnHour, int? checksASecond, int? hellosAMinute, int? recordsAMinute, int? newRelaysAnHour, int? dialsAMinute, int? retriesAMinute, int? lookBacksAMinute, Directory? dataDir, int? maxOwn, int? maxOthers, int heldBytes = 96 << 20, bool fed = true, bool shipped = false}) {
     const d = FedConfig();
+    int pick(int? given, int generous, int ships) => given ?? (shipped ? ships : generous);
     this.fed = Federation(
       dataDir: dataDir,
-      config: FedConfig(mode: mode, allow: allow, block: block, publicHub: public ? url : '', via: via, packetsAMinute: packetsAMinute ?? d.packetsAMinute, bytesADay: bytesADay ?? d.bytesADay, lookupsAnHour: lookupsAnHour ?? d.lookupsAnHour),
+      config: FedConfig(mode: mode, allow: allow, block: block, publicHub: public ? url : '', via: via, packetsAMinute: packetsAMinute ?? d.packetsAMinute, bytesADay: bytesADay ?? d.bytesADay, lookupsAnHour: lookupsAnHour ?? d.lookupsAnHour, standingOpen: standingOpen, standing: standing),
       dial: net.dial,
+      guard: DialGuard(now: net.now, dialsAMinute: pick(dialsAMinute, 1000, 30), retriesAMinute: pick(retriesAMinute, 1000, 30), lookBacksAMinute: pick(lookBacksAMinute, 1000, 10)),
       now: net.now,
       random: Random(seed),
       queuePackets: queuePackets ?? 2000,
@@ -155,10 +165,11 @@ class TestRelay {
       maxLinks: maxLinks ?? 64,
       maxPeers: maxPeers ?? 256,
       checksAnHour: checksAnHour ?? 600,
-      checksASecond: checksASecond ?? 1000,
-      hellosAMinute: hellosAMinute ?? 1000,
+      checksASecond: pick(checksASecond, 1000, 20),
+      hellosAMinute: pick(hellosAMinute, 1000, 30),
       recordsAMinute: recordsAMinute ?? 240,
-      homes: dataDir == null ? HomeBook(maxOwn: maxOwn ?? 20000, maxOthers: maxOthers ?? 10000) : null,
+      newRelaysAnHour: pick(newRelaysAnHour, 1000, 8),
+      homes: dataDir == null ? HomeBook(maxOwn: maxOwn ?? 20000, maxOthers: maxOthers ?? 10000, now: net.now) : null,
     );
     handles = Handles(now: net.now, random: Random(seed + 100))..load();
     hub = Hub(now: net.now, random: Random(seed + 200), handles: handles, federation: fed ? this.fed : null, heldBytes: heldBytes);
@@ -294,10 +305,11 @@ class HandRelay {
   final frames = <List<int>>[];
   int _n = 0;
 
-  /// Dials [to]'s hub and says hello as a relay does, claiming [url] where given. What it is answered: the relay's
-  /// yes or no, or `{"closed": true}` where it only closed. [sayId], [sayKey], [signWith], [signedFor] and
-  /// [signedUrl] say or sign something other than the truth.
-  Future<Map> link(TestRelay to, {String? url, bool stay = false, List<int>? signWith, String? sayId, List<int>? sayKey, String? signedFor, String? signedUrl, List<int>? signedNonce}) async {
+  /// Dials [to]'s hub and says hello as a relay does, claiming [url] where given, signing that it dialled [to]'s own
+  /// address. What it is answered: the relay's yes or no, or `{"closed": true}` where it only closed. [sayId], [sayKey],
+  /// [signWith], [signedFor], [signedUrl], [signedNonce], [signedDialled] and [signedStay] say or sign something other
+  /// than the truth.
+  Future<Map> link(TestRelay to, {String? url, bool stay = false, List<int>? signWith, String? sayId, List<int>? sayKey, String? signedFor, String? signedUrl, List<int>? signedNonce, String? signedDialled, bool? signedStay}) async {
     final (mine, theirs) = MemSocket.pair();
     socket = mine;
     final first = Completer<Map>(), second = Completer<Map>();
@@ -321,16 +333,21 @@ class HandRelay {
     hello = await first.future;
     c = someBytes(32);
     final theirs_ = (hello['relay'] as Map?)?['id'] as String? ?? '00' * 16;
-    final sig = P256.sign(signWith ?? scalar, Federation.dialBytes(nonce: signedNonce ?? unhex(hello['hello'] as String), dialler: id, answerer: signedFor ?? theirs_, c: c, url: signedUrl ?? url ?? ''), someBytes(32));
+    dialled = to.url;
+    final sig = P256.sign(signWith ?? scalar, Federation.dialBytes(nonce: signedNonce ?? unhex(hello['hello'] as String), dialler: id, answerer: signedFor ?? theirs_, c: c, dialled: signedDialled ?? dialled, url: signedUrl ?? url ?? '', stay: signedStay ?? stay), someBytes(32));
     mine.add(jsonEncode({'fed': 1, 'id': sayId ?? id, 'key': base64Encode(sayKey ?? key), 'sig': base64Encode(sig), 'url': ?url, 'c': [for (final b in c) b.toRadixString(16).padLeft(2, '0')].join(), if (stay) 'stay': true}));
     return answer = await second.future.timeout(const Duration(seconds: 5));
   }
 
-  /// Whether the relay's yes was signed by the key its hub's hello named, over this relay's number and both names.
+  /// The address it dialled, as it signed it.
+  late String dialled;
+
+  /// Whether the relay's yes was signed by the key its hub's hello named, over this relay's number, both names and the
+  /// address dialled.
   bool get answerProven {
     final card = hello['relay'] as Map;
     try {
-      return answer['ok'] == true && answer['id'] == card['id'] && P256.verify(base64Decode(card['key'] as String), Federation.answerBytes(c: c, dialler: id, answerer: card['id'] as String), base64Decode(answer['sig'] as String));
+      return answer['ok'] == true && answer['id'] == card['id'] && P256.verify(base64Decode(card['key'] as String), Federation.answerBytes(c: c, dialler: id, answerer: card['id'] as String, dialled: dialled), base64Decode(answer['sig'] as String));
     } catch (_) {
       return false;
     }

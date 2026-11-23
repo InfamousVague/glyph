@@ -71,15 +71,36 @@ void main() {
       expect(Federation().guard.ports, {443});
       expect(Federation().guard.plain, isFalse);
     });
+
+    test('standing links: off unless set, open, or relays\' names; anything else passed over and said', () {
+      expect([of(const {}).standingOpen, of(const {}).standing], [false, <String>{}]);
+      expect([of({'GHOST_FED_STANDING': 'off'}).standingOpen, of({'GHOST_FED_STANDING': 'off'}).problems], [false, isEmpty]);
+      expect(of({'GHOST_FED_STANDING': ' Open '}).standingOpen, isTrue);
+      final c = of({'GHOST_FED_STANDING': '${'AB' * 16}, relay.example.org,${'cd' * 16}'});
+      expect([c.standingOpen, c.standing, c.problems], [false, {'ab' * 16, 'cd' * 16}, hasLength(1)]);
+    });
   });
 
   group('the relay\'s own key', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('ghost-fed-key-'));
     tearDown(() => dir.deleteSync(recursive: true));
+    const on = FedConfig(mode: FedMode.open);
+
+    test('off, none is made or read, and no file is touched: the relay is the one it was before', () {
+      final off = Federation(dataDir: dir);
+      expect([off.on, off.card], [false, isNull]);
+      off.homes.dirty = true;
+      off.stop();
+      expect(dir.listSync(), isEmpty, reason: 'no relay-key.json, no homes.json');
+      // A key file from a time it was on is left as it is, unread.
+      File('${dir.path}/relay-key.json').writeAsStringSync('{not json');
+      Federation(dataDir: dir);
+      expect(dir.listSync().map((f) => f.path.split('/').last), ['relay-key.json']);
+    });
 
     test('made on first start, in relay-key.json, which only the relay\'s own user can read; the same key from then on', () {
-      final first = Federation(dataDir: dir);
+      final first = Federation(dataDir: dir, config: on);
       final file = File('${dir.path}/relay-key.json');
       expect(file.existsSync(), isTrue);
       if (!Platform.isWindows) expect(file.statSync().modeString(), 'rw-------');
@@ -89,28 +110,43 @@ void main() {
       expect(P256.publicOf([for (var i = 0; i < 64; i += 2) int.parse((kept['scalar'] as String).substring(i, i + 2), radix: 16)]), first.key);
       expect(first.id, Hub.nameOf(first.key), reason: 'its name is made from its key as an install\'s is');
       expect(File('${dir.path}/relay-key.json.tmp').existsSync(), isFalse);
-      final again = Federation(dataDir: dir);
+      final again = Federation(dataDir: dir, config: on);
       expect([again.id, again.key], [first.id, first.key]);
-      expect(file.statSync().modeString(), 'rw-------');
+      if (!Platform.isWindows) expect(file.statSync().modeString(), 'rw-------');
+    });
+
+    test('its mode is set on the file alone, before anything is written to it: nothing is changed for the rest of the process', () {
+      if (Platform.isWindows) return markTestSkipped('a file on Windows has no such mode');
+      final other = File('${dir.path}/before')..writeAsStringSync('x');
+      final usual = other.statSync().modeString();
+      Federation.writePrivately(File('${dir.path}/secret.json'), '{"a":1}');
+      expect(File('${dir.path}/secret.json').statSync().modeString(), 'rw-------');
+      expect(File('${dir.path}/secret.json').readAsStringSync(), '{"a":1}');
+      final after = File('${dir.path}/after')..writeAsStringSync('x');
+      expect(after.statSync().modeString(), usual, reason: 'a file the process makes after is made as one before it was: the mask was never narrowed');
+      // And a file made as any is, set to the owner's alone.
+      final plain = File('${dir.path}/plain')..writeAsStringSync('x');
+      expect(Federation.onlyOwner(plain.path), isTrue);
+      expect(plain.statSync().modeString(), 'rw-------');
     });
 
     test('with no folder it is kept in memory: a new one each time', () {
-      expect(Federation().id, isNot(Federation().id));
+      expect(Federation(config: on).id, isNot(Federation(config: on).id));
       expect(dir.listSync(), isEmpty);
     });
 
     test('made in a folder that is not there yet', () {
       final deep = Directory('${dir.path}/not/yet');
-      final fed = Federation(dataDir: deep);
+      final fed = Federation(dataDir: deep, config: on);
       expect(File('${deep.path}/relay-key.json').existsSync(), isTrue);
-      expect(Federation(dataDir: deep).id, fed.id);
+      expect(Federation(dataDir: deep, config: on).id, fed.id);
     });
 
     test('a key file that can\'t be read is put aside, never written over, and a new key made', () {
       final file = File('${dir.path}/relay-key.json');
       for (final bad in ['{not json', '{"v":1}', '{"v":1,"scalar":"abc"}', '{"v":1,"scalar":"${'00' * 32}"}', '{"v":1,"scalar":"${'ff' * 32}"}']) {
         file.writeAsStringSync(bad);
-        final fed = Federation(dataDir: dir);
+        final fed = Federation(dataDir: dir, config: on);
         final aside = dir.listSync().whereType<File>().where((f) => f.path.contains('.broken-')).toList();
         expect(aside, isNotEmpty, reason: bad);
         expect(aside.any((f) => f.readAsStringSync() == bad), isTrue, reason: 'what was there is kept as it was');
@@ -123,9 +159,9 @@ void main() {
 
     test('its signatures are its key\'s, each with a number of its own', () {
       // The same seed twice gives the same key; what it signs differs each time (a fresh number), and verifies.
-      final x = Federation(random: Random(4)), y = Federation(random: Random(4));
+      final x = Federation(random: Random(4), config: on), y = Federation(random: Random(4), config: on);
       expect(x.id, y.id);
-      expect(x.card, {'id': x.id, 'key': base64Encode(x.key)}, reason: 'off, with no address: its name and key and nothing more');
+      expect(x.card, {'id': x.id, 'key': base64Encode(x.key), 'fed': true}, reason: 'on, with no address: its name and key, and that it talks');
     });
   });
 

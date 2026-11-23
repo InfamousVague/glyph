@@ -62,7 +62,7 @@ class Hub {
   Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), this.federation})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure() {
-    federation?.bind(deliver: deliver, isHere: _isHere, handles: handles);
+    federation?.bind(deliver: deliver, isHere: _isHere, knows: _knows, ownNumber: _nonces.contains, handles: handles);
   }
 
   final bool verbose;
@@ -185,6 +185,14 @@ class Hub {
   static const maxDevices = 8;
 
   bool _isHere(String id) => _here[id]?.isNotEmpty ?? false;
+
+  /// Whether [id] has signed in here: here now, seen since the hub started, holding a username, or having given its
+  /// own home record here. What another relay passes on is kept only for such a name (federation.dart).
+  bool _knows(String id) => _isHere(id) || _seen.containsKey(id) || (handles?.holdsAName(id) ?? false) || (federation?.homes.isOwn(id) ?? false);
+
+  /// The numbers this hub made up for the hellos it is still waiting on, in hex: how this relay knows itself when it
+  /// dials an address and finds its own hub there (federation.dart).
+  final Set<String> _nonces = {};
 
   /// Away, under a name with several devices here, is every one of them away.
   /// [id] chose how they are shown (GMFB-34): told to whoever watches them, once a change.
@@ -400,6 +408,8 @@ class Hub {
     _open++;
     var counted = true;
     final nonce = [for (var i = 0; i < 32; i++) _random.nextInt(256)];
+    final number = hexOf(nonce);
+    _nonces.add(number);
     _End? end;
     final waiting = Timer(authWait, () {
       if (end == null) socket.close(4401, 'no hello');
@@ -415,6 +425,7 @@ class Hub {
 
     void leave() {
       waiting.cancel();
+      _nonces.remove(number);
       if (counted) {
         counted = false;
         _open--;
@@ -477,11 +488,12 @@ class Hub {
         try {
           hello = data is String ? jsonDecode(data) as Map : null;
         } catch (_) {}
-        // Not an app but another relay (`"fed": 1`): federation's to answer, where this hub has any. One with none
-        // answers as it always answered a hello it could not read.
+        // Not an app but another relay (`"fed": 1`): federation's to answer, where this hub has it on. One with none, or
+        // with it off, answers as it always answered a hello it could not read.
         final fed = federation;
-        if (fed != null && hello != null && hello['fed'] == 1) {
+        if (fed != null && fed.on && hello != null && hello['fed'] == 1) {
           waiting.cancel();
+          _nonces.remove(number);
           link = fed.incoming(socket, hello, nonce);
           return;
         }
@@ -497,6 +509,7 @@ class Hub {
           return;
         }
         waiting.cancel();
+        _nonces.remove(number);
         // A look, not a coming (Matt, 2026-11-16: "Yes, wake-ups"): a closed app's check, every so often, of whether
         // anything is held for it. Told how many, and nothing is handed over or taken, nor the app's own connection
         // replaced: the app gets them when it opens.
@@ -565,8 +578,9 @@ class Hub {
         // This install's token for push notifications (an iPhone), or null to forget it.
         pushes?.said(e.id, said['push']);
         _tell(socket, {'push': pushes != null});
-      } else if (federation != null && said['dir'] is String && Federation.takes(said)) {
-        // A home record given or asked for, or a username on another relay (federation.dart).
+      } else if (federation != null && federation!.on && said['dir'] is String && Federation.takes(said)) {
+        // A home record given or asked for, or a username on another relay (federation.dart). With federation off they
+        // are answered as a relay from before answered them.
         federation!.said(e.id, said, e.tell);
       } else if (said['dir'] is String && Accounts.dirs.contains(said['dir'])) {
         final a = accounts;
@@ -595,7 +609,10 @@ class Hub {
           _tell(socket, {'dir': 'err', 'about': said['dir'], 'err': 'This server keeps no handles.'});
         } else {
           // The asking connection's own tell, as came and went are given: the answer goes to the device that asked.
-          h.said(e.id, said, e.tell);
+          // Where relays talk, who has a username is told with their home record, as a linked relay is told it: what
+          // someone on another relay needs to be friends with them (federation.dart).
+          final fed = federation;
+          h.said(e.id, said, fed != null && fed.on && said['dir'] == 'whois' ? (m) => e.tell(fed.withHome(m)) : e.tell);
         }
       } else if (said['watch'] is List) {
         final ids = (said['watch'] as List).where((i) => _hex(i, 32)).cast<String>().take(maxWatched).toList();

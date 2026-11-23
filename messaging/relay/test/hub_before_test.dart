@@ -114,32 +114,44 @@ void main() {
     expect(of('b', 'said')[5], ['01${'<a>'}010203'], reason: 'a packet handed over is [1], who sent it, and the packet');
   });
 
-  test('the hello gains this relay\'s name and key, and nothing else changes in it', () async {
+  test('the hello gains this relay\'s name and key where federation is on, and nothing at all where it is off', () async {
     final net = FakeNet();
-    final plain = Install(), fed = Install();
+    final plain = Install(), off = Install(), on = Install();
     await plain.signIn(TestRelay(net, 'a.test', fed: false));
-    final b = TestRelay(net, 'b.test', mode: FedMode.off);
-    await fed.signIn(b);
+    await off.signIn(TestRelay(net, 'b.test', mode: FedMode.off));
+    final c = TestRelay(net, 'c.test', seed: 3);
+    await on.signIn(c);
     expect(plain.hello.keys, ['hello', 'peek', 'react']);
-    expect(fed.hello.keys, ['hello', 'peek', 'react', 'relay']);
-    expect(fed.hello['relay'], {'id': b.id, 'key': base64Encode(b.fed.key), 'url': b.url});
-    expect(Hub.nameOf(b.fed.key), b.id, reason: 'its name is made from its key as an install\'s is');
+    expect(off.hello.keys, ['hello', 'peek', 'react'], reason: 'off, the hello is the one it always was');
+    expect(on.hello.keys, ['hello', 'peek', 'react', 'relay']);
+    expect(on.hello['relay'], {'id': c.id, 'key': base64Encode(c.fed.key), 'url': c.url, 'fed': true});
+    expect(Hub.nameOf(c.fed.key), c.id, reason: 'its name is made from its key as an install\'s is');
   });
 
-  test('with federation off, a record given is still kept and answered, and nothing is ever passed on by it', () async {
+  test('with federation off, what federation answers is answered as a relay from before answers it, and nothing is kept or passed on', () async {
+    Future<List<Map>> asked(TestRelay relay) async {
+      final alice = Install(), bob = Install();
+      await alice.signIn(relay);
+      final mine = alice.record([relay.url]);
+      alice.say({'dir': 'home', 'rec': mine});
+      alice.say({'dir': 'home', 'rec': bob.record(['wss://b.test/hub'])});
+      alice.say({'dir': 'home?', 'a': alice.id});
+      alice.say({'dir': 'whois', 'name': 'maya', 'at': 'b.test'});
+      await pumpEventQueue();
+      final n = alice.send(bob.id, [1]);
+      await relay.net.settle();
+      await relay.net.pass(const Duration(minutes: 1));
+      expect(alice.answerTo(n), {'ack': n, 'here': false}, reason: 'kept here, as a hub always kept it: nothing says it crossed');
+      expect([relay.hub.heldFor(bob.id), relay.net.dialled], [1, isEmpty]);
+      return [for (final m in alice.said) if (!m.containsKey('ack')) m];
+    }
+
+    final none = await asked(TestRelay(FakeNet(), 'a.test', fed: false));
     final net = FakeNet();
-    final a = TestRelay(net, 'a.test', mode: FedMode.off);
+    final off = TestRelay(net, 'a.test', mode: FedMode.off);
     TestRelay(net, 'b.test', seed: 2);
-    final alice = Install(), bob = Install();
-    await alice.signIn(a);
-    await alice.giveHome(a);
-    alice.say({'dir': 'home', 'rec': bob.record(['wss://b.test/hub'])});
-    await pumpEventQueue();
-    expect(alice.said.last, {'dir': 'home', 'a': bob.id, 'ok': true, 'n': 1});
-    final n = alice.send(bob.id, [1]);
-    await net.settle();
-    await net.pass(const Duration(minutes: 1));
-    expect(alice.answerTo(n), {'ack': n, 'here': false}, reason: 'kept here, as a hub always kept it: nothing says it crossed');
-    expect([a.hub.heldFor(bob.id), net.dialled, a.fed.links, a.fed.waiting], [1, isEmpty, 0, 0]);
+    expect(await asked(off), none);
+    expect([off.fed.homes.own, off.fed.homes.others, off.fed.links, off.fed.waiting], [0, 0, 0, 0]);
+    expect(none, isNotEmpty);
   });
 }
