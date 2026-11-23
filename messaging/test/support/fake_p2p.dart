@@ -356,6 +356,10 @@ class FakeP2pNode implements P2pNode {
   /// How long a start takes, by the mesh's clock.
   Duration startTakes = Duration.zero;
 
+  /// How long each frame put on one of its streams takes to go, by the mesh's clock (a real core across FFI is never
+  /// instant): the frame reaches the other end, and the put answers, then.
+  Duration addTakes = Duration.zero;
+
   /// Set, the node never answers a stop or what a key makes (a core that hangs): the stop is done all the same.
   bool hangs = false;
 
@@ -617,6 +621,12 @@ class _FakeStream implements P2pStream {
   }
 
   Future<void> _add(Uint8List frame) async {
+    final takes = _owner.addTakes;
+    if (takes > Duration.zero) {
+      final went = Completer<void>();
+      _owner.mesh.clock.timer(takes, went.complete);
+      await went.future;
+    }
     if (_closed) throw P2pError('the stream has closed');
     if (frame.length > P2pNode.maxFrame) throw P2pError('a frame is at most ${P2pNode.maxFrame} bytes');
     _owner.mesh.frames++;

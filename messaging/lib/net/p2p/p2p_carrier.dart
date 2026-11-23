@@ -61,6 +61,10 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// review, M2).
   static const opensAMinute = 10;
 
+  /// The least time a frame is given to go, however little is left of a send's: a real core's add across FFI is never
+  /// instant (second review, S11).
+  static const putAtLeast = Duration(seconds: 1);
+
   static final _words = utf8.encode('ghost-p2p link v2\n');
   static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
 
@@ -407,26 +411,34 @@ class P2pCarrier implements Carrier, LiveLinks {
     return done.future;
   }
 
-  /// Puts [packet] on [line], waiting no longer than [until] for the stream to take it. False where it did not.
-  Future<bool> _put(_Node node, _Line line, Uint8List packet, int until) async {
-    final done = Completer<bool>();
-    final left = until - p2p.nowMs;
-    final wait = p2p.timer(Duration(milliseconds: left < 1 ? 1 : left), () {
-      if (!done.isCompleted) done.complete(false);
+  /// Puts [packet] on [line], waiting until [until], and never less than [putAtLeast], for the stream to take it. A
+  /// stream that fails it is closed; one that is only slow is left open, the core may yet take it (second review, S11).
+  Future<_Put> _put(_Node node, _Line line, Uint8List packet, int until) async {
+    final done = Completer<_Put>();
+    final left = until - p2p.nowMs, least = putAtLeast.inMilliseconds;
+    final wait = p2p.timer(Duration(milliseconds: left < least ? least : left), () {
+      if (!done.isCompleted) done.complete(_Put.slow);
     });
-    line.stream.add(packet).then((_) {
-      if (!done.isCompleted) done.complete(true);
-    }, onError: (Object _) {
-      if (!done.isCompleted) done.complete(false);
-    });
-    final took = await done.future;
-    wait.cancel();
-    if (took) {
-      if (!line.closed) _said(node, line);
-    } else {
-      _close(node, line);
+    try {
+      line.stream.add(packet).then((_) {
+        if (!done.isCompleted) done.complete(_Put.took);
+      }, onError: (Object _) {
+        if (!done.isCompleted) done.complete(_Put.failed);
+      });
+    } catch (_) {
+      if (!done.isCompleted) done.complete(_Put.failed);
     }
-    return took;
+    final put = await done.future;
+    wait.cancel();
+    switch (put) {
+      case _Put.took:
+        if (!line.closed) _said(node, line);
+      case _Put.failed:
+        _close(node, line);
+      case _Put.slow:
+        break;
+    }
+    return put;
   }
 
   /// Gets [packet] to [account]'s device at [nodeId] by [until], on a stream that is open or one that can be had.
@@ -436,8 +448,10 @@ class P2pCarrier implements Carrier, LiveLinks {
         final line = await _reach(nodeId, account, until);
         final node = _nodes[nodeId];
         if (line == null || node == null) return false;
-        if (await _put(node, line, packet, until)) return true;
-        if (p2p.nowMs >= until) return false;
+        final put = await _put(node, line, packet, until);
+        if (put == _Put.took) return true;
+        // Slow: not put on that stream again, nor another dialled, while it may yet go.
+        if (put == _Put.slow || p2p.nowMs >= until) return false;
       }
     } catch (_) {
       return false;
@@ -494,7 +508,7 @@ class P2pCarrier implements Carrier, LiveLinks {
     final until = _sendable(packet);
     if (line is _Line && !line.closed && line.account == peer.id) {
       final node = _nodes[line.stream.nodeId];
-      if (node != null && await _put(node, line, packet, until)) return Handed.passed;
+      if (node != null && await _put(node, line, packet, until) == _Put.took) return Handed.passed;
     }
     if (!await _byLinks(peer, packet, until)) throw CarrierError('no link to them is open now');
     return Handed.passed;
@@ -513,7 +527,7 @@ class P2pCarrier implements Carrier, LiveLinks {
     for (final d in p2p.mayLink(peer.id) ? p2p.devicesOf(peer.id) : const <P2pDevice>[]) {
       final node = _nodes[d.nodeId], line = node?.proved(peer.id);
       if (node == null || line == null) continue;
-      if (await _put(node, line, packet, until)) took = true;
+      if (await _put(node, line, packet, until) == _Put.took) took = true;
     }
     return took;
   }
@@ -524,6 +538,9 @@ class P2pCarrier implements Carrier, LiveLinks {
     await _arrived.close();
   }
 }
+
+/// What became of a frame put on a stream: taken; failed (the stream is gone); or slow, not taken in its time.
+enum _Put { took, failed, slow }
 
 /// One stream with a device, and whose the device has proved to be.
 class _Line {

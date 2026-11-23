@@ -1025,6 +1025,32 @@ void main() {
       expect([raw.done, arrived], [true, isEmpty]);
     });
 
+    // The second review, S11: a put was given what was left of the five seconds, as little as a millisecond near the
+    // end, and the stream was closed when it ran out: a real core's add across FFI often takes longer than that.
+    test('a frame is given at least a second to go, and a stream slow to take one is not closed for it', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.relayGone();
+      // A dial that takes most of the five seconds, and a core that takes a while over each frame it sends.
+      w.mesh.slow(b.node, const Duration(milliseconds: 4000));
+      a.node.addTakes = const Duration(milliseconds: 600);
+      final sending = a.text(b.account, 'slow but sure', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 6));
+      final d = await sending;
+      expect([d.sent, b.texts], [true, ['slow but sure']], reason: 'proved with less than the time a frame takes left, and given its second all the same');
+      expect(a.p2p.carrier.lines, 1);
+      // A frame that never goes: given its time, and the stream is not closed on for it.
+      a.node.hangsOn.add('add');
+      final packet = Packet.wrap(from: a.account.id, sealed: true, payload: NetCrypto.seal(a.to(b.account).key!, Envelope(kind: 'text', body: {'t': 'stuck'}, ack: false).encode()));
+      final linked = a.p2p.carrier.sendLinked(a.to(b.account), packet);
+      final failed = expectLater(linked, throwsA(isA<CarrierError>()));
+      await w.clock.pass(const Duration(seconds: 5));
+      await failed;
+      expect([a.p2p.carrier.lines, a.p2p.carrier.linkedTo(b.account.id, b.p2p.nodeId!)], [1, true]);
+    });
+
     test('no more than two streams are held with one device, and a stream on another channel is not this route\'s to touch', () async {
       final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
       w.friends(a, b);
