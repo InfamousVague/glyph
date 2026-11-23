@@ -3,7 +3,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import '../app_state.dart';
 import '../friends/buddies.dart';
@@ -131,8 +131,8 @@ List<ApiMethod> appMethods(AppState app) {
         final status = await Sms.instance.status();
         return {
           'version': appVersion,
-          'platform': Platform.operatingSystem,
-          'osVersion': Platform.operatingSystemVersion,
+          'platform': PlatformInfo.operatingSystem,
+          'osVersion': PlatformInfo.operatingSystemVersion,
           'defaultSms': status.usable,
           'username': Me.instance.username,
           'networks': [for (final n in Inbox.instance.networks) if (!n.soon) {'id': n.id, 'name': n.name, 'state': n.state.name, 'account': n.account}],

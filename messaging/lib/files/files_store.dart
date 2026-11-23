@@ -2,16 +2,16 @@ import 'video_frame.dart';
 import '../circles/circles.dart' show Circles, CirclePerm;
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi' as ffi;
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart' as crypto;
-import 'package:ffi/ffi.dart' as pkg_ffi;
 
 import '../desktop/store.dart' show DeskStore;
 import '../inbox/kept_writer.dart';
@@ -23,6 +23,7 @@ import '../voice/channels.dart';
 import '../voice/roles.dart';
 import '../voice/hangout.dart' show ChatUploads, OutgoingFile;
 import '../voice/voice.dart';
+import 'apple_sha.dart';
 import 'file_kinds.dart';
 import 'file_stream.dart';
 import 'files_api.dart';
@@ -254,14 +255,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   }
 
   static Directory _appDir() {
-    if (Platform.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
+    if (PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
     return DeskStore.defaultDir();
   }
 
   static Directory _cacheDir() {
-    if (Platform.isAndroid) return Directory.systemTemp;
-    final home = Platform.environment['HOME'];
-    if (Platform.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
+    if (PlatformInfo.isAndroid) return Directory.systemTemp;
+    final home = PlatformInfo.environment['HOME'];
+    if (PlatformInfo.isMacOS && home != null) return Directory('$home/Library/Caches/Ghost Messaging');
     return Directory('${DeskStore.defaultDir().path}/cache');
   }
 
@@ -716,7 +717,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     for (final p in paths) {
       final f = File(p);
       if (!f.existsSync()) continue;
-      final name = SpaceFile.cleanName(p.split(Platform.pathSeparator).last.split('/').last);
+      final name = SpaceFile.cleanName(p.split(PlatformInfo.pathSeparator).last.split('/').last);
       transfers.add(Transfer._up(
         space: c,
         path: p,
@@ -1365,17 +1366,17 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 /// stream (zone 3, the internet) on Windows. Nothing elsewhere; a failure is no matter (the file is still there).
 Future<void> markFromInternet(String path) async {
   try {
-    if (Platform.isMacOS) {
+    if (PlatformInfo.isMacOS) {
       final secs = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toRadixString(16);
       await Process.run('xattr', ['-w', 'com.apple.quarantine', '0081;$secs;Ghost Messaging;', path]);
-    } else if (Platform.isWindows) {
+    } else if (PlatformInfo.isWindows) {
       await File('$path:Zone.Identifier').writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n');
     }
   } catch (_) {}
 }
 
 Future<String> _shaAside(String path, {void Function(int read)? told}) => shaOfFileAside(path, told: told);
-Future<Uint8List> _sealAside(SealRun run) => Isolate.run(() => FileSeal.sealRun(run));
+Future<Uint8List> _sealAside(SealRun run) => runAside(() => FileSeal.sealRun(run));
 
 /// [run] sealed on as many isolates as there are cores to spare (up to four), each a share of its chunks: AES on one
 /// core runs at about 25 MB/s, under most connections (Matt, 2026-11-18, of uploading to a circle being slow).
@@ -1385,7 +1386,7 @@ Future<Uint8List> _sealParallel(SealRun run) async {
   // In a call, two at most: the call's sound and pictures need the cores more than an upload needs to be quick
   // (GMFB-6, @matt: "The app is super laggy when in a voice call and uploading a video to the files").
   final most = Voice.instance.session != null ? 2 : 4;
-  final ways = math.min(math.min(most, math.max(1, Platform.numberOfProcessors - 1)), count);
+  final ways = math.min(math.min(most, math.max(1, PlatformInfo.numberOfProcessors - 1)), count);
   if (ways <= 1 || run.first + count > n) return _sealAside(run);
   final per = (count + ways - 1) ~/ ways;
   final parts = <Future<Uint8List>>[];
@@ -1400,8 +1401,8 @@ Future<Uint8List> _sealParallel(SealRun run) async {
   }
   return out.takeBytes();
 }
-Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
-Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => Isolate.run(() => checkAll(log, space));
+Future<Uint8List?> _openAside(OpenRun run) => runAside(() => FileSeal.openRun(run));
+Future<List<LoggedOp>> _checkAside(List<LoggedOp> log, String space) => runAside(() => checkAll(log, space));
 
 /// The SHA-256 of the file at [path], in hex, read a megabyte at a time: run on another isolate.
 String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting bool plain = false}) {
@@ -1429,7 +1430,7 @@ String shaOfFile(String path, {void Function(int read)? told, @visibleForTesting
 /// A big file takes minutes even at its fastest (Matt, 2026-11-21, of a 26 GB file: "it's taking a long time to
 /// 'getting file ready'"), so it has to be able to say where it is.
 Future<String> shaOfFileAside(String path, {void Function(int read)? told}) async {
-  if (told == null) return Isolate.run(() => shaOfFile(path));
+  if (told == null) return runAside(() => shaOfFile(path));
   final port = ReceivePort();
   final done = Completer<String>();
   port.listen((m) {
@@ -1497,54 +1498,23 @@ class _DigestSink implements Sink<crypto.Digest> {
   void close() {}
 }
 
-/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final.
+/// CommonCrypto's, which every Mac and iPhone has (libSystem): CC_SHA256_Init, _Update, _Final. They are reached
+/// through `dart:ffi`, which a browser's build can't name, so the calls themselves are in apple_sha.dart's two halves.
 class _AppleSha implements _Sha {
-  _AppleSha._(this._update, this._final, this._ctx, this._buf);
-
-  static const _room = 4 << 20;
+  _AppleSha._(this._own);
+  final AppleSha _own;
 
   static _AppleSha? open() {
-    if (!Platform.isMacOS && !Platform.isIOS) return null;
-    try {
-      final lib = ffi.DynamicLibrary.process();
-      final init = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Void>)>('CC_SHA256_Init');
-      final update = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Uint32), int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)>('CC_SHA256_Update');
-      final end = lib.lookupFunction<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>), int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>)>('CC_SHA256_Final');
-      // CC_SHA256_CTX is 104 bytes; more than enough is asked for.
-      final ctx = pkg_ffi.calloc<ffi.Uint8>(256).cast<ffi.Void>();
-      final buf = pkg_ffi.malloc<ffi.Uint8>(_room);
-      init(ctx);
-      return _AppleSha._(update, end, ctx, buf);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  final int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int) _update;
-  final int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Void>) _final;
-  final ffi.Pointer<ffi.Void> _ctx;
-  final ffi.Pointer<ffi.Uint8> _buf;
-
-  @override
-  void add(Uint8List bytes, int length) {
-    for (var at = 0; at < length; at += _room) {
-      final n = math.min(_room, length - at);
-      _buf.asTypedList(n).setRange(0, n, bytes, at);
-      _update(_ctx, _buf, n);
-    }
+    final own = AppleSha.open();
+    return own == null ? null : _AppleSha._(own);
   }
 
   @override
-  Uint8List end() {
-    _final(_buf, _ctx);
-    return Uint8List.fromList(_buf.asTypedList(32));
-  }
-
+  void add(Uint8List bytes, int length) => _own.add(bytes, length);
   @override
-  void close() {
-    pkg_ffi.calloc.free(_ctx);
-    pkg_ffi.malloc.free(_buf);
-  }
+  Uint8List end() => _own.end();
+  @override
+  void close() => _own.close();
 }
 
 /// What the roster of a space's chat room says of its files (lib/voice/roles.dart): adding needs Add files; renaming,

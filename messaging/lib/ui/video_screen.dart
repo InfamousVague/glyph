@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -96,7 +97,7 @@ Route<void> videoRoute(Widget screen) => PageRouteBuilder<void>(
     );
 
 /// Whether this device is a computer, for the controls a computer gets.
-bool get _deskDevice => !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+bool get _deskDevice => !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
 class _VideoScreenState extends State<VideoScreen> {
   VideoEngine? _engine;
@@ -444,7 +445,7 @@ class _VideoScreenState extends State<VideoScreen> {
       }).then((path) {
         if (!mounted) return;
         setState(() => _getting = null);
-        unawaited(FilePlatform.open(path, widget.title ?? path.split(Platform.pathSeparator).last));
+        unawaited(FilePlatform.open(path, widget.title ?? path.split(PlatformInfo.pathSeparator).last));
       }, onError: (Object e) {
         if (mounted) {
           setState(() {
@@ -458,7 +459,7 @@ class _VideoScreenState extends State<VideoScreen> {
     final path = _path;
     if (path == null) return;
     _handedOn = true;
-    unawaited(FilePlatform.open(path, path.split(Platform.pathSeparator).last));
+    unawaited(FilePlatform.open(path, path.split(PlatformInfo.pathSeparator).last));
   }
 
   /// A computer's keys (Matt, 2026-11-18): space plays and pauses, the arrows go back and on and turn the sound, F is
@@ -596,7 +597,7 @@ class _VideoScreenState extends State<VideoScreen> {
                   onDoubleTap: () => _skip(_skippedRight),
                   child: _problem != null
                       ? Center(
-                          child: _Problem(look: look, words: _problem!, why: _problemWhy, getting: _getting, onOpen: (_path != null || widget.stream != null) && !Platform.isIOS ? _openElsewhere : null),
+                          child: _Problem(look: look, words: _problem!, why: _problemWhy, getting: _getting, onOpen: (_path != null || widget.stream != null) && !PlatformInfo.isIOS ? _openElsewhere : null),
                         )
                       : !ready
                           // Its picture under the spinner until the video is ready: the screen is there at once.

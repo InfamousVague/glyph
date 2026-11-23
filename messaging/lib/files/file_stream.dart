@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -644,9 +644,9 @@ class _Changes extends ChangeNotifier {
 
 // The heavy work on isolates of their own, from functions at the top, so what crosses is the arguments and nothing of
 // the stream (its server and open files can't cross).
-Future<Uint8List?> _openAside(OpenRun run) => Isolate.run(() => FileSeal.openRun(run));
-Future<String> _shaAside(String path) => Isolate.run(() => shaOfFile(path));
-Future<void> _inOrderAside(String from, String to, Int32List slots, int size, int chunk) => Isolate.run(() => _inOrder(from, to, slots, size, chunk));
+Future<Uint8List?> _openAside(OpenRun run) => runAside(() => FileSeal.openRun(run));
+Future<String> _shaAside(String path) => runAside(() => shaOfFile(path));
+Future<void> _inOrderAside(String from, String to, Int32List slots, int size, int chunk) => runAside(() => _inOrder(from, to, slots, size, chunk));
 
 /// The chunks of the data file at [from], laid in order into [to]: run on an isolate of its own.
 void _inOrder(String from, String to, Int32List slots, int size, int chunk) {

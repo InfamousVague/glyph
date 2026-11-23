@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -605,7 +606,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
         return FilePlatform.pickPaths(most: 10);
       case 'openFile':
         final path = '${a['path']}';
-        await Process.run(Platform.isWindows ? 'explorer' : 'open', [path]);
+        await Process.run(PlatformInfo.isWindows ? 'explorer' : 'open', [path]);
         return null;
       case 'emoji':
         await MacPlatform.emoji();

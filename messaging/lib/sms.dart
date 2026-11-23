@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'platform_info.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -720,10 +720,10 @@ class Sms {
   /// Whether a voice message can be recorded here to go as a file (a network's chat, a space, a friend): the phone
   /// itself, and the computers and the iPhone with a recorder of their own (DeskSound.swift on the Mac and the iPhone,
   /// windows/runner/desk_sound.cpp on Windows; GMFB-32). Not Linux yet, which has none.
-  static bool get canRecordVoice => !remote || Platform.isMacOS || Platform.isWindows || Platform.isIOS;
+  static bool get canRecordVoice => !remote || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isIOS;
 
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
-  static bool get computer => remote && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  static bool get computer => remote && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
   /// Whether [what] can be done from here: anything on the phone itself; on a computer, what the phone it is paired
   /// with says it does for one (`deleteMessage`, `editMessage`, `sendPictures`, `sendVoice`, `sendSticker`, …).
@@ -768,14 +768,14 @@ class Sms {
   /// A friend calling (lib/voice/friend_calls.dart, GMFB-28): on the phone, a call's notification, full screen while
   /// the phone is locked or the app is out of sight, until [ringEnded].
   Future<void> ringIncoming(String from, {bool video = false}) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('ringIncoming', {'from': from, 'video': video});
     } catch (_) {}
   }
 
   Future<void> ringEnded() async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('ringEnded');
     } catch (_) {}
@@ -788,14 +788,14 @@ class Sms {
 
   /// A new message on Signal or Telegram (lib/inbox/alerts.dart): a notification that opens the chat.
   Future<void> notifyInbox(String key, {required String network, required String title, required String body, bool group = false}) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('notifyInbox', {'key': key, 'network': network, 'title': title, 'body': body, 'group': group});
     } catch (_) {}
   }
 
   Future<void> cancelInbox(String key) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('cancelInbox', {'key': key});
     } catch (_) {}
@@ -804,7 +804,7 @@ class Sms {
   /// The networks signed in ([names]; none to stop): Android keeps Ghost running, connected to them, while there are
   /// any (android NetworksService.kt).
   Future<void> keepNetworks(List<String> names) async {
-    if (remote || !Platform.isAndroid) return;
+    if (remote || !PlatformInfo.isAndroid) return;
     try {
       await _calls.invokeMethod('keepNetworks', {'names': names});
     } catch (_) {}

@@ -1,7 +1,6 @@
 import 'blocking.dart';
 import 'dart:async';
 import 'dart:convert' show utf8;
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 

@@ -6,7 +6,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
+import '../../platform_info.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -465,7 +465,7 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
   bool _sms = false;
 
   /// Whether this device can text for a space: an Android phone, the phone's texting app being this one.
-  static bool get _canText => !kIsWeb && Platform.isAndroid;
+  static bool get _canText => !kIsWeb && PlatformInfo.isAndroid;
 
   @override
   void initState() {

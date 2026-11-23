@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/widgets.dart';
 
@@ -55,8 +56,8 @@ Future<bool> relayAnswers(String relay) async {
 /// since what answers the screens is chosen as it starts (lib/desktop/main.dart). A test passes [relaunch].
 Future<void> restartApp({Future<void> Function()? relaunch}) async {
   if (relaunch != null) return relaunch();
-  final exe = Platform.resolvedExecutable;
-  if (Platform.isMacOS) {
+  final exe = PlatformInfo.resolvedExecutable;
+  if (PlatformInfo.isMacOS) {
     // The .app the running binary is inside, opened as a new copy.
     final at = exe.indexOf('.app/');
     if (at > 0) await Process.start('open', ['-n', exe.substring(0, at + 4)], mode: ProcessStartMode.detached);

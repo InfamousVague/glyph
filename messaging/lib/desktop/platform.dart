@@ -1,6 +1,7 @@
 import 'linux_dialogs.dart';
 import 'dart:async';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -11,10 +12,10 @@ import 'link/link.dart';
 
 /// What the Mac app asks of macOS (macos/Runner/DeskChannels.swift): the Mac's name, the Keychain, and Bonjour.
 /// What the computer is called in the app's words: "Mac", or "PC" on Windows.
-String get computerWord => Platform.isWindows ? 'PC' : Platform.isIOS ? 'iPhone' : Platform.isLinux ? 'computer' : 'Mac';
+String get computerWord => PlatformInfo.isWindows ? 'PC' : PlatformInfo.isIOS ? 'iPhone' : PlatformInfo.isLinux ? 'computer' : 'Mac';
 
 /// What the desktop app is for, in its name: "the Mac", or "Windows".
-String get desktopName => Platform.isWindows ? 'Windows' : Platform.isIOS ? 'the iPhone' : Platform.isLinux ? 'Linux' : 'the Mac';
+String get desktopName => PlatformInfo.isWindows ? 'Windows' : PlatformInfo.isIOS ? 'the iPhone' : PlatformInfo.isLinux ? 'Linux' : 'the Mac';
 
 class MacPlatform {
   /// Opens a web address in this device's own browser, and says whether it could (Matt, 2026-11-20: "when clicking sign
@@ -24,17 +25,17 @@ class MacPlatform {
     // Exactly as given: an address with a space before it is refused rather than tidied (test/desk_link_test.dart).
     final uri = Uri.tryParse(url);
     if (uri == null || url != url.trim() || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return false;
-    if (Platform.isIOS) {
+    if (PlatformInfo.isIOS) {
       try {
         return await _system.invokeMethod<bool>('openLink', {'url': uri.toString()}) ?? false;
       } catch (_) {
         return false;
       }
     }
-    final opener = Platform.isMacOS ? 'open' : Platform.isWindows ? 'explorer' : 'xdg-open';
+    final opener = PlatformInfo.isMacOS ? 'open' : PlatformInfo.isWindows ? 'explorer' : 'xdg-open';
     try {
       // Windows' explorer answers 1 even when it opened the address.
-      return (await Process.run(opener, [uri.toString()])).exitCode == 0 || Platform.isWindows;
+      return (await Process.run(opener, [uri.toString()])).exitCode == 0 || PlatformInfo.isWindows;
     } catch (_) {
       return false;
     }
@@ -49,7 +50,7 @@ class MacPlatform {
       final name = await _system.invokeMethod<String>('name');
       if (name != null && name.trim().isNotEmpty) return name.trim();
     } catch (_) {}
-    return Platform.localHostname.replaceAll(RegExp(r'\.local\.?$'), '').replaceAll('-', ' ');
+    return PlatformInfo.localHostname.replaceAll(RegExp(r'\.local\.?$'), '').replaceAll('-', ' ');
   }
 
   static Future<String?> keyRead(String account) async {
@@ -73,7 +74,7 @@ class MacPlatform {
   /// The Mac's panel for choosing pictures: the paths chosen, none where it was put away.
   static Future<List<String>> pickPictures({int most = 5}) async {
     // Linux: the desktop's own chooser (lib/desktop/linux_dialogs.dart).
-    if (Platform.isLinux) return linuxPick(most: most, pictures: true);
+    if (PlatformInfo.isLinux) return linuxPick(most: most, pictures: true);
     try {
       return [for (final p in (await _system.invokeMethod<List>('pickPictures', {'most': most})) ?? const []) '$p'];
     } catch (_) {
@@ -145,7 +146,7 @@ class MacPlatform {
 
   /// Windows and Linux play a voice message in Dart, by media_kit ([DeskPlayer], GMFB-32); the Mac and the iPhone
   /// natively (DeskSound.swift).
-  static bool get _dartPlayer => Platform.isWindows || Platform.isLinux;
+  static bool get _dartPlayer => PlatformInfo.isWindows || PlatformInfo.isLinux;
 
   /// Plays a message's sound ([bytes] the first time; null goes on with the one paused). Null, or why it cannot.
   static Future<String?> voicePlay(int part, Uint8List? bytes) async {

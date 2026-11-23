@@ -12,7 +12,8 @@ black, ~/Desktop/ghost_messenger.png).
 Android's adaptive icon (minSdk 29, so no legacy PNGs): the foreground is the picture shrunk so the ghost, its tail
 included, sits inside the mask's 66dp safe circle, its black carried on past the edges to the full 108dp, over a black
 background; the monochrome layer is the ghost alone (its brightness as alpha), for themed icons. The notification's
-small icon is the same shape, white on nothing, cut to its own edges. The site's icons are the full square.
+small icon is the same shape, white on nothing, cut to its own edges. The site's icons are the full square, and so are
+the icons of the app in a browser (web/), but for the two a home screen may cut to a shape of its own (web_icons).
 """
 
 import os
@@ -26,6 +27,7 @@ ART = os.path.join(ROOT, 'art', 'app-icon.png')
 RES = os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
 SITE = os.path.join(ROOT, 'site')
 MAC = os.path.join(ROOT, 'macos', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset')
+WEB = os.path.join(ROOT, 'web')
 # The ghost's farthest point (the tip of its tail) is 39% of the picture from its centre: 42dp of the 108. At 0.74 it is
 # 31dp, inside the safe circle's 33.
 SCALE = 0.74
@@ -153,6 +155,28 @@ def silhouette(picture, size):
     return out
 
 
+# A "maskable" icon is cut to whatever shape the home screen has, and only a circle four fifths of its width is sure
+# to show: 40% of the icon from its middle. The tip of the ghost's tail, the farthest thing from the middle, measures
+# 44% of this picture from it; at 0.8 it is 35%, inside that circle.
+WEB_SAFE = 0.8
+
+
+def web_icons(picture):
+    """
+    The app in a browser (web/, lib/web/main.dart): the icon in its tab, the two sizes its manifest names, and those
+    two again for a home screen that cuts icons to a shape of its own, the picture at [WEB_SAFE] of the size with its
+    black carried on to the edges.
+    """
+    os.makedirs(os.path.join(WEB, 'icons'), exist_ok=True)
+    picture.resize((32, 32), LANCZOS).save(os.path.join(WEB, 'favicon.png'), optimize=True)
+    for size in (192, 512):
+        picture.resize((size, size), LANCZOS).save(os.path.join(WEB, 'icons', f'Icon-{size}.png'), optimize=True)
+        inner = round(size * WEB_SAFE)
+        cut = Image.new('RGB', (size, size), BACKGROUND)
+        cut.paste(picture.resize((inner, inner), LANCZOS), ((size - inner) // 2, (size - inner) // 2))
+        cut.save(os.path.join(WEB, 'icons', f'Icon-maskable-{size}.png'), optimize=True)
+
+
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == '--check':
         return check_built(sys.argv[2])
@@ -172,6 +196,8 @@ def main():
     # The page: its icon in a browser's tab and on a phone's home screen, and the mark at its top.
     picture.resize((512, 512), LANCZOS).save(os.path.join(SITE, 'icon.png'), optimize=True)
     picture.resize((180, 180), LANCZOS).save(os.path.join(SITE, 'apple-touch-icon.png'), optimize=True)
+    # The app in a browser: its tab's icon and its manifest's.
+    web_icons(picture)
     # In the app: the mark on the setup screen.
     os.makedirs(os.path.join(ROOT, 'assets', 'art'), exist_ok=True)
     silhouette(picture, 256).save(os.path.join(ROOT, 'assets', 'art', 'ghost-mark.png'), optimize=True)
