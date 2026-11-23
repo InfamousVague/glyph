@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:ghost_relay/fed_dial.dart' show DialRefused;
 import 'package:ghost_relay/federation.dart';
+import 'package:ghost_relay/home_record.dart' show HomeBook;
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/ws_door.dart' show WireBudget, WireHold;
 
@@ -144,6 +145,10 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   /// Its limits (the hub's own settings): connections, what it keeps for people away and for rooms, and what
   /// connections hold together and each.
   static const maxConnections = 200, heldBytes = 24 << 20, roomKeepBytes = 8 << 20, wireMost = 16 << 20, wireEach = 4 << 20;
+
+  /// What it keeps of who signs in and where people live: v2 keys (and new ones an hour, from everywhere), its own
+  /// people's home records and others'.
+  static const maxSignsV2 = 2000, newV2AnHourAll = 200, homesOwn = 1000, homesOthers = 1000;
 
   /// The local network's door ([LanDoor]): the most connections at it at once, all together and from one address, and
   /// how long one may take to finish its request before it is closed.
@@ -314,6 +319,8 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
         queuedBytes: viaQueue,
         maxLinks: 4,
         maxPeers: 16,
+        // Home records sized for the few who use it, not a server's twenty thousand.
+        homes: HomeBook(file: dir == null ? null : File('${dir.path}/homes.json'), maxOwn: homesOwn, maxOthers: homesOthers),
       );
       final hub = Hub(
         federation: fed,
@@ -321,6 +328,10 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
         maxConnections: maxConnections,
         heldBytes: heldBytes,
         roomKeepBytes: roomKeepBytes,
+        // The v2 keys it keeps, and how many new ones an hour, sized for the few who use it (a server's are 200,000 and
+        // 5,000: found in the second review, 2026-11-23).
+        maxSignsV2: maxSignsV2,
+        newV2AnHourAll: newV2AnHourAll,
         wire: WireBudget(most: wireMost, eachOut: wireEach),
         pass: _pass,
         // Its key salted with this relay's own name: guesses made into keys for another relay are no use here.

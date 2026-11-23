@@ -483,9 +483,11 @@ class Federation {
   bool get _hosted => on && config.via.isNotEmpty && config.publicHub.isEmpty;
 
   /// What the hub's hello says of this relay: its name and key, its own address where it claims one, the relay it
-  /// stays linked to where it does, and that it talks to other relays. Nothing where federation is off: the hello is
-  /// the one it always was.
-  Map<String, Object?>? get card => !on ? null : {'id': id, 'key': base64Encode(key), if (config.publicHub.isNotEmpty) 'url': config.publicHub, if (config.via.isNotEmpty) 'via': config.via, 'fed': true};
+  /// stays linked to where it does, and whether it talks to other relays (`fed`). Nothing where federation is off: the
+  /// hello is the one it always was. A relay with no address of its own reaches others only through its link to via,
+  /// so it says `fed` only while that link is up and via has said it may stay (found in the second review, 2026-11-23:
+  /// it said so whatever via answered, and its people's apps said messages crossed to other relays when none could).
+  Map<String, Object?>? get card => !on ? null : {'id': id, 'key': base64Encode(key), if (config.publicHub.isNotEmpty) 'url': config.publicHub, if (config.via.isNotEmpty) 'via': config.via, 'fed': !_hosted || (viaLink?.stays ?? false)};
 
   void _say(String what) {
     // Never an address of a person's, never a whole name.

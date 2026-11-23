@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/account/account.dart';
 import 'package:ghost_messaging/account/account_crypto.dart' show AccountBackup;
@@ -120,6 +122,7 @@ void main() {
     Net.relayHostMaker = hostHere;
     await Net.instance.start(app);
     final host = Net.instance.relayHost!;
+    await waitFor(() => host.state == HostState.up, 'it never started');
     expect([host.state, host.relayId, Net.instance.hostedHere], [HostState.up, first.relayId, first.relayId]);
     expect(relayInUseWords(Net.instance.hubUrl), 'The relay on this device');
     await Net.instance.want('test', true);
@@ -199,13 +202,30 @@ void main() {
     Net.relayHostMaker = () => hostHere(phone: true, clock: clock);
     await Net.instance.start(app);
     final host = Net.instance.relayHost!;
-    expect(host.state, HostState.up);
-    Net.instance.setAway(true);
+    await waitFor(() => host.state == HostState.up, 'it never started');
+    // Only inactive (split screen, the shade, a call's screen): away for presence, not for the relay (the second
+    // review, 2026-11-23: it stopped a minute on).
+    Net.instance.setAway(true, hostAway: hostAwayIn(AppLifecycleState.inactive));
+    await clock.pass(const Duration(minutes: 2));
+    await pumpEventQueue();
+    expect(host.state, HostState.up, reason: 'inactive is not put away');
+    Net.instance.setAway(false, hostAway: false);
+    Net.instance.setAway(true, hostAway: hostAwayIn(AppLifecycleState.paused));
     await clock.pass(const Duration(minutes: 1));
     await waitFor(() => host.state == HostState.off, 'it never stopped');
     expect(host.on, isTrue);
     Net.instance.setAway(false);
     await waitFor(() => host.state == HostState.up, 'it never started again');
+  });
+
+  test('the routes don\'t wait for the relay on this device to start: a slow start holds up no route (the second review, 2026-11-23)', () async {
+    final never = Completer<Directory?>();
+    final app = AppState()..set(RelayHost.lanKey, 'off')..set(RelayHost.onKey, 'on');
+    Net.relayHostMaker = () => RelayHost(folder: () => never.future);
+    await Net.instance.start(app).timeout(const Duration(seconds: 20));
+    expect(Net.instance.relayHost!.state, HostState.starting, reason: 'still starting, and the routes up all the same');
+    never.complete(folder);
+    await waitFor(() => Net.instance.relayHost!.state == HostState.up, 'it never started once its folder came');
   });
 
   test('a relay hosted from an app is dialled as the routes say; with nothing to say how, it is refused in words', () async {

@@ -1,6 +1,13 @@
+import 'dart:ui' show AppLifecycleState;
+
 import 'package:flutter/foundation.dart';
 
 import '../net/hub_link.dart';
+
+/// Whether the app is put away, for a phone's relay ([RelayHosting.appAway]): paused, hidden or gone, never only
+/// `inactive`, which split screen, the notification shade and a call's screen are (found in the second review,
+/// 2026-11-23: those stopped the relay a minute on).
+bool hostAwayIn(AppLifecycleState state) => state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached;
 
 /// A relay hosted from this device, as the screens and the routes see it (docs/OPEN_NETWORK.md, section 5; Matt,
 /// 2026-11-22: "i'd like everyone to be able to host a relay from their client"). What runs it is

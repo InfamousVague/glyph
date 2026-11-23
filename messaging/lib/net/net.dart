@@ -276,12 +276,15 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
   /// 2026-11-17: "presense sensing ... for users who have signed up for a username and are part of our own system").
-  void setAway(bool away) {
+  ///
+  /// [hostAway]: whether the app is put away for a phone's relay, where that is not [away] ([hostAwayIn]: `inactive`
+  /// is away for presence but not for the relay).
+  void setAway(bool away, {bool? hostAway}) {
     _away = away;
     _hub?.awayNow = away;
     _p2p?.setAway(away);
     // A phone's relay runs only while the app is in use (lib/relay_host).
-    _host?.appAway(away);
+    _host?.appAway(hostAway ?? away);
     // Put away, the app may not come back: what the ledger listed is written now.
     if (away) unawaited(_ledger?.flush());
   }
@@ -436,7 +439,9 @@ class Net extends ChangeNotifier implements PeerBook {
       final host = _host ??= relayHostMaker();
       if (host != null) {
         host.addListener(notifyListeners);
-        await host.startIfOn();
+        // Not waited for: a slow start (its folder, its link helpers) held up every route (found in the second review,
+        // 2026-11-23). A route to it waits for it itself, as dialling it in memory waits for its start.
+        unawaited(host.startIfOn().catchError((Object _) {}));
       }
       // People come and go as keys are exchanged and encryption is turned on and off.
       _subs.add(Sms.instance.prefsChanged.stream.listen((_) => refresh()));

@@ -161,6 +161,9 @@ void main() {
       await host.setOn(true);
       final hub = host.hub!;
       expect([hub.maxConnections, hub.heldBytes, hub.roomKeepBytes, hub.wire.most, hub.wire.eachOut], [200, 24 << 20, 8 << 20, 16 << 20, 4 << 20]);
+      // What it keeps of who signs in and where people live, sized for a few, not a server's (the second review,
+      // 2026-11-23: 200,000 v2 keys and 20,000 home records).
+      expect([hub.maxSignsV2, hub.newV2AnHourAll, host.federation!.homes.maxOwn, host.federation!.homes.maxOthers], [2000, 200, 1000, 1000]);
       expect([hub.hosted, hub.trustsProxy, hub.asksPass], [true, false, false]);
       // Two hundred connections, signed in or not, are taken; the two hundred and first is closed before it is greeted.
       final links = [for (var i = 0; i < 200; i++) await host.dialHere()];

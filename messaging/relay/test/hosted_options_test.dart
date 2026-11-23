@@ -323,5 +323,22 @@ void main() {
       final answers = [for (final url in [v.url, w.url]) net.made[url]!.first.heard.whereType<Map>().firstWhere((m) => m['ok'] == true)];
       expect([answers[0].containsKey('stay'), answers[1]['stay']], [false, true]);
     });
+
+    test('its hello says it talks to other relays only while its link stays (the second review, 2026-11-23: always did)', () async {
+      final net = FakeNet();
+      net.hubs['wss://v.test/hub'] = Hub(now: net.now);
+      final refused = TestRelay(net, 'r.test', seed: 3, public: false, via: 'wss://v.test/hub');
+      await net.settle();
+      expect(refused.fed.card!['fed'], false, reason: 'its public relay said no: nothing it says can reach another relay');
+      final v = TestRelay(net, 'v2.test', seed: 1);
+      final linked = TestRelay(net, 'l.test', seed: 4, public: false, via: v.url);
+      await net.settle();
+      expect([linked.fed.viaLink!.linked, linked.fed.card!['fed']], [true, false], reason: 'linked, but not let stay');
+      final w = TestRelay(net, 'w.test', seed: 5, standingOpen: true);
+      final stays = TestRelay(net, 's.test', seed: 6, public: false, via: w.url);
+      await net.settle();
+      expect(stays.fed.card!['fed'], true);
+      expect(w.fed.card!['fed'], true, reason: 'a relay with its own address says so as ever');
+    });
   });
 }
