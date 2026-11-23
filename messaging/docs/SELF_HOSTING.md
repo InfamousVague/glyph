@@ -99,8 +99,9 @@ three things, and you should keep them:
 - `GHOST_MARKET_ON=0` (the apps never read your Marketplace).
 
 Optional groups: talking to other relays (`GHOST_FED`, `GHOST_PUBLIC_HUB` and the rest, below), a TURN server for
-calls (`GHOST_TURN_*`), Files limits (`GHOST_FILES_*`, lower `GHOST_FILES_TOTAL` to fit your disk), Twilio Verify for
-number checks (`GHOST_TWILIO_*`), network sign-ins (`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`,
+calls (`GHOST_TURN_*`), link helpers for the apps' direct links between devices (`GHOST_LINK_HELPERS`: without one they
+link only on one network), Files limits (`GHOST_FILES_*`, lower `GHOST_FILES_TOTAL` to fit your disk), Twilio Verify
+for number checks (`GHOST_TWILIO_*`), network sign-ins (`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`,
 `GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only Ghost Messaging's own relay
 can use; leave them empty.
 

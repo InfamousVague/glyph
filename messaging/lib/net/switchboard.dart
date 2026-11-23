@@ -50,13 +50,19 @@ abstract class PeerBook {
 /// "implement a full relay system for the app that's replacable and swappable", "multiple sources to feed data to
 /// eachother from wifi locally, p2p, internet, sms, etc").
 ///
-/// **Sending.** The routes are tried in the person's order ([order]; the local network, then peer to peer, then the
-/// hub, then SMS, where they have not said). One is passed over when it is switched off ([off]), is not up, does
-/// not reach that person, cannot hold the packet even in pieces, or costs money and this is not something worth
-/// money ([send]'s `metered`). On a route where an answer comes at once the answer is waited for, and with none
-/// the next route is tried; the other end knows a second copy by the envelope's name and drops it. Kept for
-/// someone who is away ([Handed.held]) is good enough, unless it is urgent (a call ringing): then the routes after
-/// are tried too, so that one that wakes a closed app gets its turn.
+/// **Sending.** The routes are tried in the person's order ([order]; the relay's hub, then the direct route, then
+/// the local network, then SMS, where they have not said: the relay comes first, docs/OPEN_NETWORK.md). One is
+/// passed over when it is switched off ([off]), is not up, does not reach that person, cannot hold the packet even
+/// in pieces, or costs money and this is not something worth money ([send]'s `metered`). On a route where an answer
+/// comes at once the answer is waited for, and with none the next route is tried; the other end knows a second copy
+/// by the envelope's name and drops it. Kept for someone who is away ([Handed.held]) is good enough, unless it is
+/// urgent (a call ringing): then the routes after are tried too, so that one that wakes a closed app gets its turn.
+///
+/// **Kept, and a link open.** Once a route has only kept a packet, they are away from that route. A route after it
+/// that holds links of its own ([LiveLinks], the direct route) is then given the packet only where a link to one of
+/// their devices is open right now, by that link alone: nothing is dialled and nothing started for someone who is
+/// away. Where it was not urgent that copy is not waited for; the other end takes the envelope once, whichever
+/// copy comes first.
 ///
 /// **Sealing.** Everything is sealed with the key the two installs share unless the sender says not to, and
 /// nothing unsealed is taken from someone a key is held for (Matt: "everything should habe the option for
@@ -74,7 +80,7 @@ abstract class PeerBook {
 /// reaches it.
 class Switchboard {
   Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now, this.fs})
-      : order = order ?? ['lan', 'p2p', 'hub', 'sms'],
+      : order = order ?? ['hub', 'p2p', 'lan', 'sms'],
         _now = now ?? DateTime.now,
         _joiner = PartJoiner(now: now) {
     carriers.forEach(add);
@@ -282,7 +288,13 @@ class Switchboard {
         } catch (_) {}
       }
     }
-    for (final c in candidates) {
+    // A route before this one only kept it: they are away from that route.
+    var away = false;
+    for (final (i, c) in candidates.indexed) {
+      // Then a route of live links carries it only by a link that is open now, and is passed over where none is:
+      // nothing is dialled or started for someone who is away.
+      final links = away && c is LiveLinks ? c as LiveLinks : null;
+      if (links != null && !links.linked(peer)) continue;
       final packet = packetFor(c);
       final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
       if (pieces == null) {
@@ -294,7 +306,7 @@ class Switchboard {
       try {
         var all = Handed.passed;
         for (final piece in pieces) {
-          if (await c.send(peer, piece) == Handed.held) all = Handed.held;
+          if (await (links == null ? c.send(peer, piece) : links.sendLinked(peer, piece)) == Handed.held) all = Handed.held;
         }
         handed = all;
       } catch (e) {
@@ -303,6 +315,13 @@ class Switchboard {
       }
       tried.add(c.id);
       if (handed == Handed.held) {
+        away = true;
+        // Kept for them, and not urgent: that is enough, but where a link to one of their devices is open right now
+        // it goes by that too, without waiting for it.
+        if (!urgent) {
+          final also = _byOpenLink(peer, candidates.skip(i + 1), packetFor);
+          if (also != null) tried.add(also);
+        }
         kept ??= Delivery(envelope.id, via: c.id, handed: handed, tried: List.of(tried));
         if (urgent) continue;
         _waiting.remove(envelope.id);
@@ -321,6 +340,24 @@ class Switchboard {
     }
     _waiting.remove(envelope.id);
     return kept == null ? Delivery(envelope.id, tried: tried) : Delivery(envelope.id, via: kept.via, handed: kept.handed, tried: tried);
+  }
+
+  /// Gives [peer]'s packet to the first of the routes in [later] that holds a link to one of their devices open right
+  /// now ([LiveLinks]), by that link alone and without waiting for it. The route's name, where one was given it.
+  String? _byOpenLink(Peer peer, Iterable<Carrier> later, Uint8List Function(Carrier) packetFor) {
+    for (final c in later) {
+      final links = c is LiveLinks ? c as LiveLinks : null;
+      if (links == null || !links.linked(peer)) continue;
+      final pieces = Packet.split(packetFor(c), c.traits.maxPacket, maxParts: c.traits.maxParts);
+      if (pieces == null) continue;
+      unawaited(() async {
+        for (final piece in pieces) {
+          await links.sendLinked(peer, piece);
+        }
+      }().catchError((_) {}));
+      return c.id;
+    }
+    return null;
   }
 
   /// Keeps [envelope] to [peer] until it is answered, for [unackedFor].

@@ -145,6 +145,14 @@ hub held, and each app says where its friends live again as it signs in.
 **Not built:** rooms across relays (circles, spaces, calls stay on the relay they were made on), who is here across
 relays, and an account signing in on another relay than the one it was made on.
 
+**Link helpers** (`GHOST_LINK_HELPERS`, optional). The apps also make direct links between a person's own devices
+and their friends' ([../docs/OPEN_NETWORK.md](../docs/OPEN_NETWORK.md), section 2). A link helper is a server that
+helps two devices find each other across networks and carries their sealed traffic where no straight path can be
+made (an `iroh-relay`; it is not this program). Set the variable to where yours are, as https addresses with commas
+between (4 at most, 200 characters each at most), and the hub hands them to each app as it signs in: `"helpers"` in
+its `{"ok": true, …}`. With none it says nothing of them, and devices link only where they are on one network. Like
+every variable, it is listed in `deploy/relay.env.example`.
+
 ## What an end says to it
 
 1. It opens a WebSocket at any address ending in the channel: `ws://host/relay/<32 hex digits>`.

@@ -52,6 +52,31 @@
 
 <p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
 
+<h2 id="direct">Direct <soon/></h2>
+<p>A second way between Ghost apps, tried after the relay server: straight from one device to another, with no server in between. The relay stays first, because it is fast and keeps a message for someone who is away. The direct route is the way through when the relay can't carry something, for instance when it can't be reached.</p>
+<p>Your device links only with your own other devices and with your friends' devices. They are told where it is in sealed messages; nobody else is, and nothing is put in any public directory. What crosses a direct link is sealed exactly as it is through the relay.</p>
+
+<m-screen title="Routes" back caption="Settings › Routes, in a build that has the direct route.">
+  <m-section title="Routes" foot="The ways this phone reaches another, tried from the top.">
+    <m-row icon="globe" hue="blue" label="Relay server" hint="Through a server on the internet. The server sees who talks to whom, never what is said." switch="on"/>
+    <m-row icon="link-2" hue="teal" label="Direct" hint="Straight between your devices and your friends', with no server in between. Their device sees your network address; nobody else does." switch="on"/>
+    <m-row icon="message-square" hue="green" label="SMS" hint="As data texts over the phone network. Each counts as a text on your plan." switch="on"/>
+  </m-section>
+  <m-section title="Direct" foot="A link helper sees which devices link and how much they send, never who they are or what is said.">
+    <m-row icon="users" hue="blue" label="Knows 3 friends' devices" hint="And 1 other device of your own."/>
+    <m-row icon="link" hue="teal" label="Linked to 1 device now" hint="1 straight."/>
+    <m-row icon="eye-off" hue="slate" label="Only through link helpers" hint="Friends' devices then see the link helper's address and not this device's. It is slower." switch="off"/>
+  </m-section>
+</m-screen>
+
+<ul>
+<li><b>What a friend's device learns:</b> your device's network address, as with any direct connection. Switch on <b>Only through link helpers</b> and it sees the helper's address instead; links are slower then.</li>
+<li><b>Link helpers</b> are servers that help two devices find each other across networks, and pass their sealed packets along where no straight path can be made. The relay you use names them. Where it names none, direct links work only between devices on the same network.</li>
+<li><b>On a phone</b> the direct network runs only while there is something to send, so it doesn't wear the battery down. On a computer it stays up while the route is on.</li>
+<li><b>Invisible:</b> while you've chosen to be shown as Invisible, your device makes no direct links with friends' devices, since a link would show it is there. Your own devices still link with each other.</li>
+<li><b>Off:</b> switch <b>Direct</b> off under Routes and nothing is linked, and nobody is told where your device is.</li>
+</ul>
+
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 

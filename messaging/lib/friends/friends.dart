@@ -585,7 +585,9 @@ class _AppPort implements FriendsPort {
     final board = Net.instance.board;
     final me = await Net.instance.mine();
     if (board == null || me == null) return Delivery(envelope.id, tried: const ['no account here to send to']);
-    return board.send(me, envelope, only: const {'hub'});
+    // By the relay, which keeps it for the devices that are away; and straight to one that is linked, or to all of
+    // them where the relay can't be reached (the direct route, lib/net/p2p).
+    return board.send(me, envelope, only: const {'hub', 'p2p'});
   }
 
   @override

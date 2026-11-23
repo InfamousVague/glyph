@@ -157,6 +157,9 @@ const KNOWN = {
   GHOST_FED_PORTS: /^[0-9]{1,5}(,[0-9]{1,5})*$/,
   GHOST_FED_PLAIN: /^[01]$/,
   GHOST_FED_STANDING: /^(off|open|[0-9a-f]{32}(,[0-9a-f]{32})*)$/,
+  // The link helpers the apps' direct links use (relay/lib/hub.dart `helpers`; docs/OPEN_NETWORK.md, section 2): https
+  // addresses, commas between, 4 at most, which the hub hands each app as it signs in.
+  GHOST_LINK_HELPERS: /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?(,https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._\/-]*)?){0,3}$/,
 };
 const SHAPES = {
   GHOST_TWILIO_SID: 'AC or SK and 32 more characters',
@@ -173,6 +176,7 @@ const SHAPES = {
   GHOST_FED_BLOCK: 'hosts or relays\' names of 32 hex digits, commas between',
   GHOST_FED_VIA: 'a relay\'s hub address, like wss://relay.example.com/hub',
   GHOST_FED_STANDING: 'off, open, or relays\' names of 32 hex digits, commas between',
+  GHOST_LINK_HELPERS: 'https://host addresses, commas between, 4 at most',
 };
 // Kept together or not at all: with one of them missing the relay has that way of linking off, and says nothing.
 const TOGETHER = [['GHOST_TWILIO_SID', 'GHOST_TWILIO_TOKEN', 'GHOST_TWILIO_VERIFY'], ['GHOST_DISCORD_ID', 'GHOST_DISCORD_SECRET'], ['GHOST_TELEGRAM_BOT', 'GHOST_TELEGRAM_TOKEN'], ['GHOST_NOTION_TOKEN', 'GHOST_NOTION_FEEDBACK'], ['GHOST_TURN_SECRET', 'GHOST_TURN_URLS']];

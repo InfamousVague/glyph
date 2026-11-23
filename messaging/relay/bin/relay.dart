@@ -77,6 +77,9 @@ Future<void> _main(List<String> args) async {
   // The media relay calls fall back on where two devices can't reach each other (turn.dart): coturn's shared secret
   // and where it is (GHOST_TURN_SECRET, GHOST_TURN_URLS); without them calls are direct only.
   final turn = TurnConfig.fromEnvironment(Platform.environment);
+  // The link helpers the apps' direct links use (hub.dart, helpers): https addresses, commas between
+  // (GHOST_LINK_HELPERS); without them devices link only where they are on one network.
+  final helpers = (Platform.environment['GHOST_LINK_HELPERS'] ?? '').split(',');
   // Relays that talk to each other (federation.dart; Matt, 2026-11-22: "I'd like the relays to be able to talk to each
   // other"): this relay's own key (relay-key.json, made the first time) and the home records its people give it
   // (homes.json), both in the data folder. Whether it links with other relays is GHOST_FED: off, unless it is set to
@@ -88,9 +91,10 @@ Future<void> _main(List<String> args) async {
       stderr.writeln('relay: $p');
     }
   }
-  final relay = Relay(dataDir: data, verbose: verbose, hub: Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn, federation: federation), files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty));
+  final hub = Hub(verbose: verbose, handles: handles, pushes: pushes, invites: invites, accounts: accounts, words: words, turn: turn, helpers: helpers, federation: federation);
+  final relay = Relay(dataDir: data, verbose: verbose, hub: hub, files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty));
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();

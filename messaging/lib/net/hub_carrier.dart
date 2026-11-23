@@ -107,8 +107,12 @@ class HubCarrier implements Carrier {
   String get name => 'Relay server';
   @override
   String get about => 'Through a server on the internet. Works between any two networks; the server sees who talks to whom, never what is said.';
+  /// The longest packet the hub's route carries in one piece (the hub itself takes 64 KiB, with its own header). The
+  /// direct route holds to the same (p2p/p2p_carrier.dart), so a packet made for one fits the other.
+  static const maxPacket = 60 * 1024;
+
   @override
-  CarrierTraits get traits => const CarrierTraits(maxPacket: 60 * 1024);
+  CarrierTraits get traits => const CarrierTraits(maxPacket: maxPacket);
   @override
   final ValueNotifier<CarrierState> state = ValueNotifier(CarrierState.off);
   @override
@@ -226,6 +230,16 @@ class HubCarrier implements Carrier {
 
   bool get _awaySaid => _awayNow || _mode == 'away';
   String get _hubMode => _mode == 'busy' || _mode == 'invisible' ? _mode : 'online';
+
+  /// The link helpers the hub named as this app last signed in to it (relay/lib/hub.dart `helpers`, from
+  /// `GHOST_LINK_HELPERS`): what the direct route's node is given (lib/net/p2p). At most [mostHelpers], each an https
+  /// address of at most [longestHelper] characters. Empty until the app has signed in, and where the hub names none.
+  /// Set anew at every sign-in, so whoever listens is told each time the hub has said, changed or not; a lost
+  /// connection leaves them as they were, since that is when they are needed.
+  ValueListenable<List<String>> get helpers => _helpers;
+  final ValueNotifier<List<String>> _helpers = ValueNotifier(const []);
+  static const mostHelpers = 4;
+  static const longestHelper = 200;
 
   HubLink? _ws;
   bool _wanted = false;
@@ -391,6 +405,13 @@ class HubCarrier implements Carrier {
           ws.say(jsonEncode(first));
         }
       } catch (_) {}
+      // Before the route is up: whoever acts on its coming up has the helpers this hub names.
+      final named = m['helpers'];
+      _helpers.value = List.unmodifiable([
+        if (named is List)
+          for (final h in named.take(4 * mostHelpers))
+            if (h is String && h.length <= longestHelper && h.startsWith('https://')) h,
+      ].take(mostHelpers));
       state.value = CarrierState.up;
       if (_watched.isNotEmpty) ws.say(jsonEncode({'watch': _watched.toList()}));
       if (_awaySaid) ws.say(jsonEncode({'away': true}));

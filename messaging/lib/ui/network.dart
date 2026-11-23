@@ -9,6 +9,8 @@ import '../net/carrier.dart';
 import '../net/hub_link.dart';
 import '../net/net.dart';
 import '../net/hub_carrier.dart' show HubRelay;
+import '../net/p2p/node.dart';
+import '../net/p2p/p2p.dart';
 import '../net/relay_choice.dart';
 import 'common.dart';
 import 'compose.dart';
@@ -39,6 +41,77 @@ String _routeLine(Carrier c, {required bool on, required bool anyone, required b
     CarrierState.down => c.problem ?? 'Not working now',
     CarrierState.off => 'Off',
   };
+}
+
+/// How many devices the direct route knows of, in words (Settings › Routes › Direct).
+String directKnownWords(int friends) => switch (friends) {
+      0 => 'No friend\'s device known yet',
+      1 => 'Knows 1 friend\'s device',
+      _ => 'Knows $friends friends\' devices',
+    };
+
+/// Under [directKnownWords]: this account's own other devices, and how a device comes to be known.
+String directKnownHint(int own) =>
+    '${own == 0 ? '' : own == 1 ? 'And 1 other device of your own. ' : 'And $own other devices of your own. '}A device is known once it and this one have told each other they are here, which they do through the relay server.';
+
+/// How many devices are linked now, in words, and under it whether each link is straight or through a link helper.
+String directLinkedWords(int linked) => switch (linked) {
+      0 => 'Not linked to any now',
+      1 => 'Linked to 1 device now',
+      _ => 'Linked to $linked devices now',
+    };
+
+String directLinkedHint(Iterable<P2pPathKind> links) {
+  final straight = links.where((k) => k == P2pPathKind.direct).length, helped = links.where((k) => k == P2pPathKind.helper).length;
+  if (links.isEmpty) return 'A link is made when the relay server can\'t carry something, and let go when nothing has been said on it for a while.';
+  final parts = [if (straight > 0) '$straight straight', if (helped > 0) '$helped through a link helper'];
+  return parts.isEmpty ? 'Finding the way.' : '${parts.join(', ')}.';
+}
+
+/// What "Only through link helpers" means, under its switch.
+const directHelpersOnlyHint = 'Friends\' devices then see the link helper\'s address and not this device\'s. It is slower.';
+
+/// Settings › Routes › Direct (docs/OPEN_NETWORK.md, section 2; Matt, 2026-11-22: "p2p delivery with the relay as a
+/// primary source but have p2p as a secondary back up"): what the direct route knows and holds now, and its one
+/// choice. The route's own row, with its switch, is with the other routes above.
+PaneSection directSection(BuildContext context, P2p p2p) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final links = p2p.carrier.links;
+  // One device, however many streams or names it is linked under.
+  final kinds = {for (final l in links) l.nodeId: l.kind}.values;
+  return PaneSection(
+    title: 'Direct',
+    description: const Text('Straight between devices when the relay server can\'t carry something. A device links only with your own devices and your friends\', and only they are told where it is.'),
+    footer: const Text('A link helper is a server that helps two devices find each other and passes their sealed packets along where no straight path can be made. It sees which devices link and how much they send, never who they are or what is said.'),
+    children: [
+      SettingRow(
+        key: const ValueKey('direct-known'),
+        icon: icon(Lucide.users),
+        label: directKnownWords(p2p.friendsDevices),
+        hint: Text(directKnownHint(p2p.ownDevices)),
+      ),
+      SettingRow(
+        key: const ValueKey('direct-linked'),
+        icon: icon(Lucide.link),
+        label: directLinkedWords(kinds.length),
+        hint: Text(directLinkedHint(kinds)),
+      ),
+      SettingRow(
+        key: const ValueKey('direct-helpers-only'),
+        icon: icon(Lucide.eyeOff),
+        label: 'Only through link helpers',
+        hint: const Text(directHelpersOnlyHint),
+        control: GlacierSwitch(checked: p2p.helpersOnly, onCheckedChange: p2p.setHelpersOnly, ariaLabel: 'Only through link helpers'),
+      ),
+      if (p2p.helpers.isEmpty)
+        SettingRow(
+          key: const ValueKey('direct-no-helpers'),
+          icon: icon(Lucide.info),
+          label: 'No link helpers yet',
+          hint: Text(p2p.helpersOnly ? 'So nothing links while "Only through link helpers" is on.' : 'Direct links work on your own network for now.'),
+        ),
+    ],
+  );
 }
 
 String _ago(DateTime at) {
@@ -96,17 +169,21 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Routes',
         description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
-        footer: const Text('A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'),
+        footer: Text(net.p2p == null
+            ? 'A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'
+            : 'A route over the local network is being made: it will be listed here.'),
         children: [
           for (final c in board.carriers)
             SettingRow(
-              icon: icon(switch (c.id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, _ => Lucide.network }),
+              key: ValueKey('route-${c.id}'),
+              icon: icon(switch (c.id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, 'p2p' => Lucide.link2, _ => Lucide.network }),
               label: c.name,
               hint: Text('${_routeLine(c, on: net.on, anyone: anyone, off: board.off.contains(c.id))}\n${c.about}'),
               control: GlacierSwitch(checked: !board.off.contains(c.id), onCheckedChange: (v) => net.setRoute(c.id, v), ariaLabel: c.name),
             ),
         ],
       ),
+    if (board != null && net.p2p != null) directSection(context, net.p2p!),
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',
@@ -174,6 +251,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
               onPress: () => showChoices(context, title: 'Test the way to ${p.name ?? p.address ?? 'them'}', choices: [
                 Choice('Send a test', Lucide.send, () => test(p)),
                 if (board?.carrier('hub') != null) Choice('By the relay server only', Lucide.globe, () => test(p, only: 'hub')),
+                if (board?.carrier('p2p') != null) Choice('By a direct link only', Lucide.link2, () => test(p, only: 'p2p')),
                 if (board?.carrier('sms') != null) Choice('By SMS only (one text on your plan)', Lucide.messageSquare, () => test(p, only: 'sms')),
               ]),
             ),

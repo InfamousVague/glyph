@@ -11,6 +11,7 @@ import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../net/net.dart';
+import '../net/p2p/p2p.dart';
 import '../sms.dart';
 import '../voice/channels.dart' show Voice;
 import 'account_crypto.dart';
@@ -428,6 +429,18 @@ class Account extends ChangeNotifier {
     try {
       await Circles.instance.keys?.wipe();
     } catch (_) {}
+    // And its place on the direct network (lib/net/p2p): the node is stopped, and its key, the cards it holds and
+    // what it told whom are deleted, here too where the routes were never set up. A node id is never carried from one
+    // account to the next.
+    try {
+      await Net.instance.p2p?.wipe();
+    } catch (_) {}
+    try {
+      await port.secretKeep(P2p.keyName, '');
+    } catch (_) {}
+    for (final name in P2p.keptNames) {
+      store.set(name, '');
+    }
     notifyListeners();
   }
 
