@@ -1109,7 +1109,7 @@ class _DevicePillState extends State<DevicePill> {
     Widget row(String id, String name) => GlacierMenuItem(
           icon: AppIcon(input ? Lucide.mic : LucideMore.headphones, size: 16),
           shortcut: id == current ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16),
-          onSelect: () => input ? v.useInput(id) : v.useOutput(id),
+          onSelect: () => input ? v.useInput(id, name: name) : v.useOutput(id, name: name),
           child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
         );
     final ring = t.len('app-ring');
@@ -1155,7 +1155,9 @@ class _DevicePillState extends State<DevicePill> {
           children: [
             GlacierMenuLabel(child: Text(input ? 'Microphone' : 'Speaker or headset')),
             row('', input ? 'The system\'s own' : 'The system\'s own'),
-            for (final d in _devices) row(d.deviceId, d.label.isEmpty ? 'A device' : d.label),
+            // The Mac's "default" is the system's own, the row above.
+            for (final d in _devices)
+              if (d.deviceId != 'default') row(d.deviceId, d.label.isEmpty ? 'A device' : d.label),
             const GlacierMenuSeparator(),
             GlacierMenuItem(
               icon: const AppIcon(Lucide.settings, size: 16),

@@ -19,7 +19,9 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
       switch call.method {
       case "play":
         let args = call.arguments as? [String: Any] ?? [:]
-        if let data = (args["bytes"] as? FlutterStandardTypedData)?.data { self.play(data, loop: args["loop"] as? Bool ?? false) }
+        if let data = (args["bytes"] as? FlutterStandardTypedData)?.data {
+          self.play(data, loop: args["loop"] as? Bool ?? false, output: args["output"] as? String ?? "")
+        }
         result(nil)
       case "stop":
         self.stop()
@@ -30,9 +32,12 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
     }
   }
 
-  /// Plays the WAV in [data]; a looped one takes the place of the ring before it. One that can't be read is not heard.
-  private func play(_ data: Data, loop: Bool) {
+  /// Plays the WAV in [data] through [output] (a CoreAudio device UID: the speaker chosen for calls, lib/sounds.dart;
+  /// empty or "default" for the system's own); a looped one takes the place of the ring before it. One that can't be
+  /// read is not heard. A chosen speaker that is not connected: the system's own.
+  private func play(_ data: Data, loop: Bool, output: String) {
     guard let player = try? AVAudioPlayer(data: data) else { return }
+    if !output.isEmpty && output != "default" { player.currentDevice = output }
     if loop {
       stop()
       player.numberOfLoops = -1
@@ -42,7 +47,11 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
       playing.append(player)
     }
     player.prepareToPlay()
-    player.play()
+    if !player.play() && player.currentDevice != nil {
+      player.currentDevice = nil
+      player.prepareToPlay()
+      player.play()
+    }
   }
 
   /// Ends the ring; sounds played once run to their end.
