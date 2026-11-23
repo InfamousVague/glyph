@@ -494,7 +494,12 @@ func (b *book) messageJSON(m *table.WrappedMessage) map[string]any {
 		out["system"] = true
 	}
 	if m.ReplySourceId != "" {
-		out["quote"] = map[string]any{"id": m.ReplySourceId, "text": cmp.Or(m.ReplyMessageText, m.ReplySnippet)}
+		quote := map[string]any{"id": m.ReplySourceId, "text": cmp.Or(m.ReplyMessageText, m.ReplySnippet)}
+		// Who wrote the one answered, where Messenger says: the app names them over the quote (GMFB-44).
+		if m.ReplyToUserId != 0 {
+			quote["from"] = idString(m.ReplyToUserId)
+		}
+		out["quote"] = quote
 	}
 	return out
 }

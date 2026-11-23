@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import '../plugins/plugin.dart';
@@ -21,13 +22,50 @@ import 'plugins_page/plugin_art.dart' show PluginHues;
 ({PluginChatCard card, GhostPlugin plugin})? pluginCardOf(HangoutMessage m, {required bool mine, PluginRegistry? registry}) {
   final note = m.note;
   if (note == null) return null;
-  final plugin = (registry ?? PluginRegistry.instance).plugins.where((p) => p.id == note.plugin).firstOrNull;
+  // A plugin that ships with the app draws its card where the registry has none of them too (the browser's page starts
+  // with an empty one, and showed the words with their emoji, GMFB-43): a card is how a note looks, not a feature.
+  final plugin = (registry ?? PluginRegistry.instance).plugins.where((p) => p.id == note.plugin).firstOrNull ??
+      (registry == null ? shippedPlugins.where((p) => p.id == note.plugin).firstOrNull : null);
   if (plugin == null) return null;
   try {
     final card = plugin.card(note, mine: mine);
     return card == null ? null : (card: card, plugin: plugin);
   } catch (_) {
     return null;
+  }
+}
+
+/// The icon drawn in place of the emoji at the head of Record call's line, and the words after it; null for any other
+/// words (GMFB-43). The same icons as its card and the recording bar: the record dot, in red, and the stop.
+({LucideIcon icon, bool red, String words})? recordingWordsOf(String text) {
+  final line = PluginChatNote.recordingLine(text);
+  if (line == null) return null;
+  return (icon: line.started ? Lucide.circleDot : Lucide.circleStop, red: line.started, words: line.words);
+}
+
+/// [icon] as a span at the head of a run of words in [style], with a gap after it: Record call's dot or stop where its
+/// emoji was (GMFB-43).
+InlineSpan noteIconSpan(Tokens t, ({LucideIcon icon, bool red, String words}) mark, TextStyle style) => WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 5),
+        child: AppIcon(mark.icon, key: ValueKey(mark.red ? 'note-icon-started' : 'note-icon-stopped'), size: (style.fontSize ?? 14) * 1.05, color: mark.red ? t.danger : style.color),
+      ),
+    );
+
+/// [text] in a line or two where a message's words are shown short (a quote, the bar over the box while answering):
+/// Record call's line with its icon in place of the emoji (GMFB-43), any other words as they are.
+class NoteWords extends StatelessWidget {
+  const NoteWords(this.text, {super.key, required this.style, this.maxLines = 1});
+  final String text;
+  final TextStyle style;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final mark = recordingWordsOf(text);
+    if (mark == null) return Text(text, maxLines: maxLines, overflow: TextOverflow.ellipsis, style: style);
+    return Text.rich(TextSpan(children: [noteIconSpan(context.tokens, mark, style), TextSpan(text: mark.words)]), maxLines: maxLines, overflow: TextOverflow.ellipsis, style: style);
   }
 }
 

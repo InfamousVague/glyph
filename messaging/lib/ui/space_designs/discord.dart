@@ -340,7 +340,7 @@ class _Tile extends StatelessWidget {
                         decoration: BoxDecoration(color: const Color(0xB3000000), borderRadius: BorderRadius.circular(6)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           if (p.muted) ...[
-                            AppIcon(deafened ? LucideMore.headphoneOff : LucideMore.micOff, size: 14, wash: false, color: _D.red),
+                            AppIcon(deafened ? LucideMore.headphoneOff : SpaceWords.mutedIcon(p), size: 14, wash: false, color: _D.red),
                             const SizedBox(width: 4),
                           ],
                           Flexible(
@@ -421,6 +421,11 @@ class _ControlBar extends StatelessWidget {
             look: call.videoLocked ? _Look.alarm : (call.video ? _Look.lit : _Look.plain),
           ),
           gap,
+          // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
+          if (call.onFlip != null) ...[
+            _BarButton(icon: SpaceWords.flipIcon, label: 'Flip', onPressed: call.onFlip, look: _Look.plain),
+            gap,
+          ],
           // Discord's Share Your Screen, beside the camera (GMFB-27), where this device can.
           if (call.onScreen != null) ...[
             _BarButton(

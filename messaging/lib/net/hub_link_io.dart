@@ -16,9 +16,12 @@ Future<HubLink> dialHub(String url) async {
 String dialProblem(Object error) => error is SocketException ? error.message.isEmpty ? '$error' : error.message : error is WebSocketException ? error.message : '$error';
 
 /// [HubLink] over dart:io's WebSocket.
-class _WebSocketLink implements HubLink {
+class _WebSocketLink implements HubLink, HubLinkEnd {
   _WebSocketLink(this._ws);
   final WebSocket _ws;
+
+  @override
+  int? get closeCode => _ws.closeCode;
 
   @override
   late final Stream<Object> said = _ws.map<Object>((data) => data is String || data is Uint8List ? data as Object : Uint8List.fromList(data as List<int>));

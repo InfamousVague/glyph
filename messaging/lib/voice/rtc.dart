@@ -16,7 +16,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, PlacedMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -73,6 +73,11 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, P
   /// Each other member's picture, by their id: a stream made on this device holding the video track their connection
   /// receives, for their tile ([_RtcPeer._took]).
   final ValueNotifier<Map<String, MediaStream>> remote = ValueNotifier(const {});
+
+  /// Each other member's sound, by their id: the track their connection receives it on, for a recording to tap
+  /// (GMFB-52). [remote] holds pictures only, so a recording that looked there for a voice found nobody's.
+  @override
+  final ValueNotifier<Map<String, VoiceSound>> sounds = ValueNotifier(const {});
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
 
@@ -484,6 +489,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, P
     }
     _peers.clear();
     remote.value = const {};
+    sounds.value = const {};
     for (final s in [_mic, _cam, _screen]) {
       for (final t in s?.getTracks() ?? const <MediaStreamTrack>[]) {
         await t.stop();
@@ -640,12 +646,43 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, P
     await s.dispose();
   }
 
+  /// The camera on the back of the phone is the one in use, or the one video opens with next (GMFB-57).
+  bool _back = false;
+  bool _flipping = false;
+
+  @override
+  bool get backCamera => _back;
+
+  /// A phone has two cameras to change between; a computer's are chosen in Settings › Voice.
+  @override
+  bool get canFlipCamera => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isIOS);
+
+  /// Changes between the front and the back camera (GMFB-57). The capture changes under the same track, so every
+  /// connection and the preview keep the track they have: nothing is replaced or worked out again. With video off
+  /// only the choice changes, for when it is turned on.
+  @override
+  Future<void> flipCamera() async {
+    if (!canFlipCamera || _flipping) return;
+    final track = _camTrack;
+    if (track == null) {
+      _back = !_back;
+      return;
+    }
+    _flipping = true;
+    try {
+      await Helper.switchCamera(track);
+      _back = !_back;
+    } finally {
+      _flipping = false;
+    }
+  }
+
   @override
   Future<void> setVideo(bool on) async {
     if (on && _cam == null) {
       _cam = await navigator.mediaDevices.getUserMedia({
         'audio': false,
-        'video': {'width': settings.videoSize.width, 'height': settings.videoSize.height, 'frameRate': 30, 'facingMode': 'user'},
+        'video': {'width': settings.videoSize.width, 'height': settings.videoSize.height, 'frameRate': 30, 'facingMode': _back ? 'environment' : 'user'},
       });
       localVideo.value = _cam;
     } else if (!on && _cam != null) {
@@ -706,6 +743,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, P
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
+    if (sounds.value.containsKey(id)) sounds.value = {...sounds.value}..remove(id);
     // A failure is left showing until a new try begins ([peerWith]); anything else goes with the connection.
     if (links.value[id] != PeerLink.failed) _link(id, null);
   }
@@ -768,7 +806,12 @@ class _RtcPeer implements VoicePeer {
     final track = e.track;
     if (track.kind == 'audio') {
       if (!_sounds.any((t) => t.id == track.id)) _sounds.add(track);
-      if (identical(media._peers[id], this)) media._apply(id);
+      if (identical(media._peers[id], this)) {
+        media._apply(id);
+        // Said for a recording to tap (GMFB-52), with this connection's mark: one made again says a new one.
+        final sound = track.id;
+        if (sound != null) media.sounds.value = {...media.sounds.value, id: (track: sound, link: identityHashCode(this))};
+      }
       return;
     }
     if (track.kind != 'video') return;
@@ -941,7 +984,14 @@ class _RtcPeer implements VoicePeer {
     // Let go of at once, before the closing is waited for: a connection to the same id made meanwhile (their offer from
     // another device, right behind 'moved') is a new one, and this one's end must not take it away.
     if (identical(media._peers[id], this)) media._gone(id);
-    if (made != null) await (await made).close();
+    if (made != null) {
+      final pc = await made;
+      await pc.close();
+      // Let go of by the platform too: it finds a received track by its id among every connection it still holds, and
+      // a connection made again brings their sound under the same id, so a recording asking for it could be handed
+      // this closed one's, which is silent (GMFB-52).
+      await pc.dispose().catchError((_) {});
+    }
     await stream?.dispose();
   }
 }

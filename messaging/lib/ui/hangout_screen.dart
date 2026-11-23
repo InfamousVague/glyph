@@ -1396,7 +1396,8 @@ class _ReplyBar extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Replying to $who', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-            if (reply.text.isNotEmpty) Text(reply.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            // Record call's line with its icon, not its emoji (GMFB-43).
+            if (reply.text.isNotEmpty) NoteWords(reply.text, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           ]),
         ),
         IconTap(key: const ValueKey('space-replying-stop'), icon: Lucide.x, label: 'Stop replying', size: 18, onPressed: onClose),
@@ -1427,7 +1428,8 @@ class SpaceQuote extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Text(who, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-        if (reply.text.isNotEmpty) Text(reply.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
+        // Record call's line with its icon, not its emoji (GMFB-43).
+        if (reply.text.isNotEmpty) NoteWords(reply.text, maxLines: 2, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
       ]),
     );
   }
@@ -1814,10 +1816,15 @@ class _Message extends StatelessWidget {
 extension on _Message {
   /// The words, with their links and mentions pressable; a translation's as they are (the mentions are counted in the
   /// words as they came).
-  Widget _words(Tokens t, ShownView? shown, TextStyle style, Color ink) => LinkedText(
-        shown?.bubble ?? message.text,
+  Widget _words(Tokens t, ShownView? shown, TextStyle style, Color ink) {
+    // Record call's line that came with no card to draw (from a build before its notes): its icon where the emoji was
+    // (GMFB-43). Such a line has no mentions to count again.
+    final mark = shown == null && message.mentions.isEmpty ? recordingWordsOf(message.text) : null;
+    return LinkedText(
+        mark?.words ?? shown?.bubble ?? message.text,
         ink: ink,
         style: style,
+        before: [if (mark != null) noteIconSpan(t, mark, style)],
         // Changed by its writer since (Matt, 2026-11-20: "I'd like to be able to edit messages sent in circles").
         after: [
           if (message.edited != null)
@@ -1827,6 +1834,7 @@ extension on _Message {
         mentionStyle: mentionStyle(t, on: message.from == room.me && !flat ? ink : null),
         onMention: onMention,
       );
+  }
 
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
   /// colour and the time beside it, and the words, files or sticker under them on the page.
@@ -2499,7 +2507,7 @@ class HangoutModeration extends StatelessWidget {
       builder: (context, _) {
         final r = room.roster;
         final above = r.outranks(room.me, id);
-        final mutedAll = r.muted.contains(id) || room.heldMutes.contains(id);
+        final mutedAll = room.mutedForAll(id);
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SettingRow(
             icon: AppIcon(Lucide.shieldCheck, size: 18),
@@ -2509,9 +2517,10 @@ class HangoutModeration extends StatelessWidget {
           ),
           if (above && room.can(Perm.muteOthers))
             SettingRow(
-              icon: AppIcon(LucideMore.micOff, size: 18),
+              icon: AppIcon(Lucide.lock, size: 18),
               label: 'Mute for everyone',
-              hint: const Text('No one in the space hears them until they\'re unmuted.'),
+              // What sets it apart from Mute for me, above it in the sheet (GMFB-49).
+              hint: const Text('No one in the space hears them, and they can\'t unmute themselves.'),
               control: GlacierSwitch(checked: mutedAll, onCheckedChange: (on) => room.muteForAll(id, on), ariaLabel: 'Mute $name for everyone'),
             ),
           if (above && room.can(Perm.removeMembers))
