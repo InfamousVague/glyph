@@ -54,6 +54,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { telegramDefines } from './telegram-defines.mjs';
 import { requireNotes } from './lib/notes.mjs';
+import { requireGuards } from './lib/guards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -128,6 +129,8 @@ if (live && versionCode <= live.versionCode) fail(`Build ${versionCode} is not a
 if (has('publish') && live && live.version === versionName && !has('again')) {
   fail(`${versionName} is live already (${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
 }
+// The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
+requireGuards(ROOT, fail);
 say(`> Building Ghost Messaging for the Mac ${versionName} (${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"${IDENTITY}"`)) {

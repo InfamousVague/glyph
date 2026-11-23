@@ -38,6 +38,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { telegramDefines } from './telegram-defines.mjs';
 import { requireNotes } from './lib/notes.mjs';
+import { requireGuards } from './lib/guards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -170,6 +171,8 @@ const versionCode = Math.max((live?.versionCode ?? 0) + 1, pub.build);
 if (deploy && live && live.version === versionName && !args.includes('--again')) {
   fail(`${versionName} is live already (code ${live.versionCode}, published ${live.build ?? 'earlier'}): someone has released it. Nothing was built or sent. If it really is to go out again under the same name, pass --again.`);
 }
+// The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
+requireGuards(ROOT, fail);
 say(`> Building Ghost Messaging ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 // The Google Messages sidecar for the phone (sidecar/gmessages, AGPL-3.0; android GmWeb.kt), built fresh into
