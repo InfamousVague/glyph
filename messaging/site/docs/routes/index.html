@@ -60,24 +60,24 @@
 
 <h2 id="across">Friends on another relay</h2>
 <p>Relays can pass sealed messages to each other, so a friend doesn't have to use the same relay as you. Each of you goes on using your own, and the two relays hand each other what you write. Neither can read it.</p>
-<p>To add someone on another relay, open <b>Contacts</b>, tap <b>Add a friend</b>, and type their username with their relay after it: <code>@maya@relay.example</code>. They are kept, and shown, under that name, and their card says which relay they are on.</p>
+<p>To add someone on another relay, open <b>Contacts</b>, tap <b>Add a friend</b>, and type their username with their relay after it: <code>@maya@relay.example</code>. Nobody is asked while you type: their relay is asked when you tap <b>Add</b>, through yours where it talks to theirs. They are kept, and shown, under that name, and their card says which relay they are on.</p>
 
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Add a friend</span></div><div class="m-body">
   <label class="m-field"><span>Their username</span><span class="m-input">@maya@relay.example</span></label>
-  <div class="m-row m-raw"><span class="m-avatar" data-hue="rose">M</span><span class="m-txt"><b>maya@relay.example</b><small>On relay.example</small></span><span class="m-btn primary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Add</span></span></div>
+  <div class="m-row m-raw"><span class="m-avatar" data-hue="rose">M</span><span class="m-txt"><b>maya@relay.example</b><small>On relay.example: Add asks that relay</small></span><span class="m-btn primary tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Add</span></span></div>
 </div></div><figcaption>Adding someone on another relay.</figcaption></figure>
 
-<p>Whether a relay talks to others is up to whoever runs it, and it is off until they switch it on. <span class="ui-path">Settings › Routes</span> says which yours is: <b>Passes messages to other relays</b>, or <b>Doesn't pass messages to other relays</b>. It takes both relays: where yours or theirs doesn't, the app still finds the person on their relay, tells you the request can't be passed on yet, and sends it when it can.</p>
+<p>Whether a relay talks to others is up to whoever runs it, and it is off until they switch it on. <span class="ui-path">Settings › Routes</span> says which yours is: <b>Passes messages to other relays</b>, or <b>Doesn't pass messages to other relays</b>. It takes both relays: where yours doesn't, the app asks their relay itself (as nobody: not as you), tells you the request can't be passed on yet, and sends it again by itself for two weeks. Where yours says theirs won't take messages from it, that is the answer.</p>
 
 <aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>What crosses relays, and what doesn't yet</b>
 <ul>
 <li><b>Crosses:</b> friend requests and everything friends write each other, where both relays talk. Messages for someone who is away wait at their own relay.</li>
-<li><b>Doesn't yet:</b> calls, circles and spaces (each is a room on one relay), and who's online. The app says so instead of ringing a friend on another relay.</li>
+<li><b>Doesn't yet:</b> calls, circles and spaces (each is a room on one relay), and who's online. The app says so instead of ringing a friend on another relay, keeps their ring as a missed call, and leaves them out of circles and spaces.</li>
 <li><b>Kept on each relay apart:</b> usernames (<code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people), your account and its backup, invite words and Files spaces.</li>
 <li><b>Add-me links</b> look the name up on the relay you use, so on a relay of your own they may find someone else, or nobody. The app warns you before it sends a request.</li>
 <li><b>Still works with anyone:</b> texts (SMS), including encrypted ones. The Marketplace always comes from gogho.st.</li>
 <li><b>Off on a relay of your own unless you set them up:</b> calls through a TURN server, verifying numbers by text, linking Discord, X or Telegram. Closed iPhones can't be woken by your relay.</li>
-<li><b>Someone on an older version</b> of the app can't be reached from another relay: the app tells you they need a newer one.</li>
+<li><b>Someone on an older version</b> of the app can't be reached from another relay: the app tells you they need a newer one. Where it is their relay that doesn't pass messages on, it says that instead.</li>
 </ul>
 <p>So a relay of your own suits a group that moves together, for its circles, spaces and calls, and its people can still be friends with people elsewhere.</p>
 </div></aside>

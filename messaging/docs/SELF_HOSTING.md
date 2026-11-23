@@ -42,15 +42,24 @@ everyone on the same relay), and its people can now also be friends with people 
 
 - **Nobody is taken on anyone's say-so.** Each account signs a small record of where it lives (a *home record*). Your
   relay passes a packet to another relay only because the person it is for signed a record naming that relay, and takes
-  one from another relay only for people whose record names that relay. Relays prove their keys to each other, and a
-  relay that claims an address is believed only once yours has dialled that address and seen the same key there.
+  one from another relay only for people whose record names that relay. Relays prove their keys to each other over the
+  address that was dialled, so a relay in the middle can't pass a hello on; a relay that claims an address is believed
+  only once yours has dialled that address and seen the same key there (for an hour: a relay given a new key there is
+  seen with it within the hour), and what is for an address goes only over a link yours dialled there itself. A record
+  is good for thirty days.
 - **Your relay dials out**, to other relays' hubs, at `wss://` on port 443 and nowhere else, and never to an address on
   your server or its own network. It must be reachable at the address you set as `GHOST_PUBLIC_HUB`: other relays dial
   it to check yours is who it says.
 - **What it sees more:** which of its people talk to people on which other relay, and when. Still never what.
 - **What it keeps more:** its own key (`relay-key.json`: keep it private, and keep it; it is who your relay is to the
-  others) and the records its people gave it (`homes.json`). With another relay unreachable, packets for it wait in
-  memory (at most 16 MB a relay, 32 MB in all, seven days).
+  others; readable by the relay's own user alone, mode 600, and on Windows an ordinary file, which you should keep
+  where only that user can read it) and the records its people gave it (`homes.json`). With another relay unreachable,
+  packets for it wait in memory (at most 16 MB a relay, 32 MB in all, a mailbox's worth for one sender or recipient,
+  seven days; a minute or two for an address never once reached).
+- **Allowances.** Every limit is held so no one party can use it up for nothing: each of your people may make your
+  relay dial eight new relays an hour and send a share of what another relay takes from yours; strangers' hellos share
+  thirty a minute, and a relay at an address yours has checked has its own. Limits per linked relay are counted by its
+  checked address, so a relay can't get more by making new keys.
 - **Moving.** Someone who moves to another relay signs a record with the next count; their app gives it to the relay
   they leave and the one they join, and tells their friends a few at a time. The relay they left tells any relay that
   still sends it their packets where they live now.
@@ -80,7 +89,7 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 
 It writes only under its data folder (`--data`): pairings, usernames and linked handles, sealed account backups,
 Files, invites, invite words, the Marketplace, the relay's own key (`relay-key.json`) and the home records its people
-gave it (`homes.json`). Back that folder up if you care about any of it. Nothing it holds can be read without the apps'
+gave it (`homes.json`) where it talks to other relays, and the accounts that sign in bound to it (`hub-v2.json`). Back that folder up if you care about any of it. Nothing it holds can be read without the apps'
 keys, but which installs talk to which is visible to whoever runs it, as with any server.
 
 ## Running it
@@ -183,10 +192,28 @@ GHOST_PUBLIC_HUB=wss://relay.example.com/hub   # your relay's own hub address, a
 - Limits per linked relay have defaults you can change: `GHOST_FED_PACKETS_A_MINUTE`, `GHOST_FED_BYTES_A_DAY`,
   `GHOST_FED_LOOKUPS_AN_HOUR`.
 - A relay with no address of its own (behind a home router) can set `GHOST_FED_VIA` to a public relay it dials and
-  stays linked to, in place of `GHOST_PUBLIC_HUB`: its people are then reached through that relay.
+  stays linked to, in place of `GHOST_PUBLIC_HUB`: its people are then reached through that relay, where that relay
+  lets relays stay. Letting relays with no address stay linked to yours (and passing their people's packets on under
+  your relay's name) is a setting of its own, off unless you set `GHOST_FED_STANDING=open` or name the relays.
+- Off (the default) your relay does nothing of this at all: it makes no key, keeps no records, and its hello says
+  nothing of other relays.
 
 Check it: the hub's greeting names your relay and says it talks (`"relay": {"id": …, "url": …, "fed": true}`), and
 **Settings › Routes** in the app shows "Passes messages to other relays".
+
+### Sign-ins bound to your relay (recommended)
+
+List every host name your relay is reached at, commas between, with a port where it is not 443:
+
+```sh
+GHOST_HUB_NAMES=relay.example.com,www.relay.example.com
+```
+
+With them the hub asks apps to sign in bound to the name they dialled, and refuses a sign-in made for another relay;
+once an account has signed in so, it takes no other kind from it. That stops a relay one of your people was pointed at,
+or asked a name of, from signing in to yours as them. An app that dialled a name you didn't list is refused, so list
+them all; without the setting, sign-ins are taken as they always were. On Windows and elsewhere the names it has seen
+sign in so are kept in `hub-v2.json` in the data folder.
 
 ### Calls through your own TURN server (optional)
 
