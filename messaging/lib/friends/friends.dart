@@ -11,6 +11,7 @@ import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../sounds.dart';
+import 'buddies.dart' show Buddies;
 
 /// What [Friends] stands on: the app's routes (lib/net) and the phone. The app's own is [_AppPort]; a test gives two
 /// of its own and lets what one sends reach the other.
@@ -39,6 +40,11 @@ abstract class FriendsPort {
   /// computer shows, are the phone's to act on, say nothing there of who an install is ([Friends.whoIs]), and are never
   /// asked again or answered for from there.
   bool get numbers;
+
+  /// Whether the install [id] is in this device's list of friends by username, whatever it stands at (asked, asking,
+  /// friends, blocked): Buddies'. Such an install is never told "end" by Friends ([Friends]' answer to words from one no
+  /// record names).
+  bool knows(String id);
   Future<void> setFriend(String address, String state);
 
   /// Sends this phone's key to [address] by text: what turns encryption on, or asks for it.
@@ -427,20 +433,21 @@ class Friends extends ChangeNotifier {
   /// When each install no record names was last answered `end` ([_notAFriend]).
   final Map<String, DateTime> _ended = {};
 
-  /// Words, or an ask or a yes, came sealed from an install none of this phone's records names: a member of a group, or
-  /// someone whose record is gone here while theirs still holds this phone a friend. The routes have already answered
-  /// that it arrived, so it is answered `end` too, straight to the install that sealed it (by its id, [Received.peer]):
-  /// their app stops writing to this phone as a friend's, and their words go as texts again rather than showing
-  /// delivered (found in review, 2026-11-23). Only from the phone ([FriendsPort.numbers]): another device of the
-  /// account doesn't hold the records for numbers, and would end a friendship that is the phone's. Never for an end or
-  /// a no (two phones would answer each other for ever), never to an install some record names whatever it stands at,
-  /// and at most every [wakeEvery] an install.
+  /// Words came sealed from an install none of this phone's records names: a member of a group, or someone whose record
+  /// is gone here while theirs still holds this phone a friend. The routes have already answered that they arrived, so
+  /// they are answered `end` too, straight to the install that sealed them (by its id, [Received.peer]): their app stops
+  /// writing to this phone as a friend's, and their words go as texts again rather than showing delivered (found in
+  /// review, 2026-11-23). Only from the phone ([FriendsPort.numbers]): another device of the account doesn't hold the
+  /// records for numbers, and would end a friendship that is the phone's. Only for words, never an ask or a yes (an ask
+  /// from a member of a group whose key text hasn't come yet was taken back by it), and so never for an end or a no
+  /// either (two phones would answer each other for ever); never to an install some record names whatever it stands at,
+  /// nor anyone in the phone's list of friends by username in any state ([FriendsPort.knows]: one said yes to on a paired
+  /// computer, or whose yes was lost, is only asked or asking here, and an "end" made their app hold this phone no
+  /// friend); and at most every [wakeEvery] an install.
   void _notAFriend(Received r) {
-    if (!_port.numbers) return;
-    final what = r.envelope.body['do'];
-    if (r.envelope.kind == 'friend' && what != 'ask' && what != 'yes') return;
+    if (!_port.numbers || r.envelope.kind != 'text') return;
     final id = r.peer.id;
-    if (_by.values.any((s) => s.id == id || s.otherIds.contains(id))) return;
+    if (_by.values.any((s) => s.id == id || s.otherIds.contains(id)) || _port.knows(id)) return;
     final last = _ended[id];
     if (last != null && DateTime.now().difference(last) < wakeEvery) return;
     _ended[id] = DateTime.now();
@@ -463,6 +470,10 @@ class Friends extends ChangeNotifier {
   }
 
   Future<void> _friend(String address, Object? what) async {
+    // A friend by username's "end" and "no" are Buddies' to take (its `buddy` messages say where the two stand): taken
+    // here they marked a friend not one, in memory, until the records were read again, and nothing written to them went
+    // meanwhile (found in review, 2026-11-23).
+    if (address.startsWith('@') && (what == 'end' || what == 'no')) return;
     final mine = stateOf(address);
     switch (what) {
       case 'ask':
@@ -753,6 +764,9 @@ class _AppPort implements FriendsPort {
   /// The Android phone's alone (Sms.remote: a computer, an iPhone, a browser, paired or not).
   @override
   bool get numbers => !Sms.remote;
+
+  @override
+  bool knows(String id) => Buddies.instance.byId(id) != null;
 
   @override
   Future<void> setFriend(String address, String state) => Sms.instance.friendSet(address, state);

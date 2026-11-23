@@ -315,13 +315,15 @@ void main() {
     }
   });
 
-  test('words from an install no record names are answered "end", straight to it, once in a while; never an end for an end, and never from a device that isn\'t the phone', () async {
+  test('words from an install no record names are answered "end", straight to it, once in a while; never anything else, never anyone in the list of friends by username, and never from a device that isn\'t the phone', () async {
     for (final phone in [true, false]) {
-      // Ben a friend by username: both the phone and a computer paired with it act on that record.
+      // Ben a friend by username: both the phone and a computer paired with it act on that record. Pat is in the list of
+      // friends by username too, only asking here (said yes to on a paired computer, say, or her yes was lost).
       final port = FakePort(ann)
         ..other = FakePort('@ben')
         ..numbers = phone
-        ..stand('@ben', friend: 'yes');
+        ..stand('@ben', friend: 'yes')
+        ..buddies.add('pat');
       final friends = Friends(port);
       await friends.start();
       // Eve, in a group with Ann and listed as "@ben" by its admin, writes as a friend would, twice, and says end.
@@ -329,6 +331,11 @@ void main() {
       port.arriveFrom('eve', '@ben', Envelope(kind: 'text', body: {'t': 'hi again'}));
       port.arriveFrom('eve', '@ben', Envelope(kind: 'friend', body: {'do': 'end'}));
       port.arriveFrom('ivy', '@ben', Envelope(kind: 'friend', body: {'do': 'no'}));
+      // An ask, and a yes, from members of a group whose key texts haven't come (the review's follow-up E1): not ended.
+      port.arriveFrom('dan', '+15550004444', Envelope(kind: 'friend', body: {'do': 'ask'}));
+      port.arriveFrom('cal', '+15550005555', Envelope(kind: 'friend', body: {'do': 'yes'}));
+      // Pat writes as the friend she is on the computer: not ended either.
+      port.arriveFrom('pat', '', Envelope(kind: 'text', body: {'t': 'from Pat'}));
       // Ben writes too: nothing is said back to him.
       port.arriveFrom(FakePort.idAt('@ben'), '@ben', Envelope(kind: 'text', body: {'t': 'from Ben'}));
       await until(() => port.came.isNotEmpty);
@@ -338,6 +345,23 @@ void main() {
       expect(port.came.map((c) => c.words), ['from Ben']);
       await friends.shutdown();
     }
+  });
+
+  // The review's follow-up E1 (2026-11-23): Buddies says where two stand by username; a Friends "end" or "no" marked one
+  // no friend here until the records were read again.
+  test('a friend by username\'s "end" or "no" changes nothing where the two stand: Buddies decides that', () async {
+    await two(annIs: 'yes', benIs: 'yes');
+    a.stand('@cat', friend: 'yes');
+    a.arriveFrom(FakePort.idAt('@cat'), '@cat', Envelope(kind: 'friend', body: {'do': 'end'}));
+    a.arriveFrom(FakePort.idAt('@cat'), '@cat', Envelope(kind: 'friend', body: {'do': 'no'}));
+    await settle();
+    expect(annsPhone.isFriend('@cat'), isTrue);
+    expect(a.friendSets, isEmpty);
+    // A friend by number's "end" still ends it, as ever.
+    b.otherHere = true;
+    await bensPhone.remove(ann);
+    await settle();
+    expect(annsPhone.isFriend(ben), isFalse);
   });
 
   test('installs no record names, however many and however often, have the records read again once in a while, not each time', () async {

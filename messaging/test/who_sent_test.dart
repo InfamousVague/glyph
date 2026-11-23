@@ -267,6 +267,25 @@ void main() {
     expect(textsIn.toSet(), {(address: benNumber, words: 'Ben here'), (address: '@ben.5550002222', words: 'The username')});
   });
 
+  // The review's probe 8 (its second round): a friend by username's "end" (or "no") marked them no friend here until the
+  // records were read again, and nothing written to them went meanwhile. Where two stand is Buddies' to say.
+  test('a friend by username\'s "end" or "no" leaves them a friend here, and what is written to them goes', () async {
+    final matt = NetKeys.generate();
+    peers = [peer(matt, '@matt')];
+    e2e = [
+      {'address': '@matt', 'state': 'on', 'friend': 'yes', 'hasGhost': true, 'id': matt.id, 'others': <String>[]},
+    ];
+    await open();
+    arrive(matt, Envelope(kind: 'friend', body: {'do': 'end'}));
+    arrive(matt, Envelope(kind: 'friend', body: {'do': 'no'}));
+    arrive(matt, Envelope(kind: 'text', body: {'t': 'after the end'}));
+    await until(() => textsIn.isNotEmpty, 'his words kept');
+    expect(friends.isFriend('@matt'), isTrue);
+    expect(await friends.sendText('@matt', 'still there?'), isTrue);
+    await until(() => textsTo(matt).isNotEmpty, 'sent to him');
+    expect(friendSets, isEmpty);
+  });
+
   // The review's probes 2, 3 and 5: one person, one phone and its one key, with encryption on here under two of their
   // numbers (two SIMs, or a number they moved to and sent the key from again). Both records name the key; the two were
   // said to be nobody's and everything from it dropped, while their phone was told it had arrived.
