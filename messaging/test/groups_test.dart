@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/friends/groups.dart';
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/ui/network.dart' show peerLabel;
 
 import 'support/fake_groups.dart';
 
@@ -182,6 +183,50 @@ void main() {
     port[cat]!.back();
     await settle();
     expect(port[cat]!.lines[id]!.last, '$ben: Cat is away');
+  });
+
+  // The review's follow-up (2026-11-23): in the group's own conversation a stranger listed under Mom's number was shown as
+  // Mom. A member is shown as this phone knows them (android Groups.shownAddress: Groups.view says it as `shown`), and the
+  // record keeps the address the admin wrote, for what this phone tells the others when it changes the group.
+  test('a member is shown as this phone knows them, and the group\'s record keeps what its admin wrote', () {
+    final g = Group.from({
+      'id': 'f' * 32,
+      'name': '',
+      'v': 1,
+      'thread': 3,
+      'members': [
+        {'id': 'a' * 32, 'key': 'k1', 'address': '', 'me': true, 'admin': true},
+        // Listed under Mom's number, whose record names another key: shown under a stand-in that is nobody's.
+        {'id': 'e' * 32, 'key': 'k2', 'address': '+15550002222', 'shown': '${'e' * 32}@member.ghost-sms.com', 'name': 'Someone · eeee'},
+        // Ben, listed under another number of his: shown under the one this phone's record has for his key.
+        {'id': 'b' * 32, 'key': 'k3', 'address': '+15550009999', 'shown': '+15550001111', 'name': 'Ben'},
+      ],
+    });
+    final eve = g.member('e' * 32)!, benM = g.member('b' * 32)!;
+    expect([eve.label, eve.standIn, eve.person.address], ['Someone · eeee', true, '${'e' * 32}@member.ghost-sms.com']);
+    expect([benM.label, benM.standIn, benM.person.address], ['Ben', false, '+15550001111']);
+    expect(g.title, 'Someone, Ben', reason: 'first names, as a group\'s title has them');
+    expect([for (final m in (g.state()['members'] as List).cast<Map>()) m['a']], ['', '+15550002222', '+15550009999']);
+    // A view that says nothing of it (the screens' pictures): as listed.
+    expect(GroupMember.from({'id': 'x', 'address': '+15550003333'}).shown, '+15550003333');
+  });
+
+  // The review's follow-up (2026-11-23): Settings › Network's row for someone whose address is none here was blank.
+  test('one of the routes\' people with no address known here is called after their group, else their install\'s name', () {
+    final crew = Group.from({
+      'id': 'f' * 32,
+      'name': 'Crew',
+      'v': 1,
+      'thread': 3,
+      'members': [
+        {'id': 'a' * 32, 'key': 'k', 'me': true},
+        {'id': 'e' * 32, 'key': 'k'},
+      ],
+    });
+    expect(peerLabel(const Peer(id: 'b0b0b0b0b0b0', address: '+15550001111', name: 'Ben'), groups: [crew]), 'Ben');
+    expect(peerLabel(const Peer(id: 'b0b0b0b0b0b0', address: '+15550001111'), groups: [crew]), '+15550001111');
+    expect(peerLabel(Peer(id: 'e' * 32, address: ''), groups: [crew]), 'A member of Crew');
+    expect(peerLabel(const Peer(id: 'c0c0c0c0c0c0c0c0', address: '', name: ''), groups: [crew]), 'c0c0c0c0');
   });
 }
 

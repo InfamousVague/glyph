@@ -136,7 +136,7 @@ abstract class UsernameOverlay implements SmsCalls {
 
       // Where encryption stands: friends by username are on, and friends.
       case 'e2eList':
-        return [...?(await inner.invokeMethod<List>('e2eList')), ...chats.states()];
+        return [...UsernameChats.phoneRecords(await inner.invokeMethod<List>('e2eList')), ...chats.states()];
       case 'e2e' when _isName(a['address']):
         final address = a['address'] as String;
         return chats.states().firstWhere((s) => s['address'] == address, orElse: () => {'address': address, 'state': 'none'});

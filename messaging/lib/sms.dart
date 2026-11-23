@@ -374,15 +374,24 @@ class SmsStatus {
 /// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
-  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id});
+  const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id, this.otherIds = const []});
   final String address;
   final String state;
   final bool verified;
 
   /// Their install's name: the id the key held for them makes (android E2e.state), 32 hex digits; null where no key
-  /// of theirs is held, or the record came from somewhere that does not say. Who is a friend to the direct route is
-  /// decided by this, never by an address (lib/net/net.dart).
+  /// of theirs is held, or the record came from somewhere that does not say. Who is a friend to the direct route, who
+  /// sent a friend's words and where they are sent are decided by this, never by an address (lib/net/net.dart,
+  /// lib/friends/friends.dart). For a friend by username, the install their username stands for (UsernameChats.states).
   final String? id;
+
+  /// For a friend by username, their other installs that are friends here too, by name: one that came again with a
+  /// new key, kept beside the newest (Buddies.onePerUsername). What comes sealed from one of them is theirs as well;
+  /// what is sent goes to [id] alone. Empty for a number.
+  final List<String> otherIds;
+
+  /// The same record with [friend] changed, and everything else as it is.
+  E2eState withFriend(String friend) => E2eState(address: address, state: state, verified: verified, changed: changed, safety: safety, person: person, hasGhost: hasGhost, declined: declined, plain: plain, friend: friend, id: id, otherIds: otherIds);
 
   /// A different key arrived from someone already exchanged with.
   final bool changed;
@@ -426,8 +435,11 @@ class E2eState {
         declined: m['declined'] == true,
         plain: (m['plain'] as num?)?.toInt() ?? 0,
         friend: (m['friend'] as String?) ?? '',
-        id: m['id'] is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(m['id'] as String) ? m['id'] as String : null,
+        id: _isId(m['id']) ? m['id'] as String : null,
+        otherIds: [for (final x in (m['others'] is List ? m['others'] as List : const [])) if (_isId(x)) x as String],
       );
+
+  static bool _isId(Object? x) => x is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(x);
 }
 
 /// Coming from another texting app (android/.../Arriving.kt): what can be seen of the app being left and of Android's

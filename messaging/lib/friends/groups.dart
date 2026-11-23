@@ -12,27 +12,40 @@ import '../sms.dart';
 import '../sounds.dart';
 import 'friends.dart';
 
-/// One member of a group: who they are to the routes ([id], the name of their [key]), their number, and who they
-/// are in this phone's contacts.
+/// One member of a group: who they are to the routes ([id], the name of their [key]), the number the group lists them
+/// under, and who they are to this phone: the address they are shown under and the contact it is.
 class GroupMember {
-  const GroupMember({required this.id, required this.key, this.address = '', this.name, this.photo, this.admin = false, this.me = false});
+  const GroupMember({required this.id, required this.key, this.address = '', String? shown, this.name, this.photo, this.admin = false, this.me = false}) : shown = shown ?? address;
   final String id;
   final String key;
+
+  /// The address the group's record lists them under: its admin's word, which goes back into the record as it is
+  /// changed ([Group.state]). Never what they are shown as.
   final String address;
+
+  /// The address they are shown under (android Groups.shownAddress): this phone's own record for their key, else the
+  /// listed one where it is nobody's here, else one that is nobody's ("Someone"). Never a number this phone holds a
+  /// record for, nor an @name, unless it is theirs (found in review, 2026-11-23: a stranger listed under Mom's number
+  /// was shown as Mom). [name] and [photo] are the contact this one is.
+  final String shown;
   final String? name;
   final String? photo;
   final bool admin;
   final bool me;
 
   /// What they are called in a line about the group.
-  String get label => me ? 'You' : (name ?? (address.isEmpty ? 'Someone' : address));
+  String get label => me ? 'You' : (name ?? (shown.isEmpty ? 'Someone' : shown));
 
-  Person get person => Person(address: address, name: name, photo: photo);
+  /// Shown under a stand-in that is nobody's (android Groups.memberAddress): no address of theirs is known here.
+  bool get standIn => shown.endsWith('@member.ghost-sms.com');
+
+  Person get person => Person(address: shown, name: name, photo: photo);
 
   factory GroupMember.from(Map m) => GroupMember(
         id: m['id'] as String,
         key: (m['key'] as String?) ?? '',
         address: (m['address'] as String?) ?? '',
+        shown: m['shown'] as String?,
         name: m['name'] as String?,
         photo: m['photo'] as String?,
         admin: m['admin'] == true,
@@ -93,8 +106,13 @@ abstract class GroupsPort {
   Future<Delivery> send(Peer peer, Envelope envelope);
   Stream<Received> get received;
 
-  /// Whether [address] is a friend: a group is joined only at a friend's asking.
-  bool isFriend(String? address);
+  /// Whether the install named [id] is a friend, by the record that names it (Friends.isFriendId): a group is joined
+  /// only at a friend's asking. Never by an address, which may be what another group's admin wrote for anyone.
+  bool isFriend(String id);
+
+  /// The address this phone's own records give the install named [id] (Friends.addressOf): a number, or `@username`;
+  /// null where none names it.
+  String? addressOf(String id);
   void wake(Peer peer);
 
   /// The records (android Groups.kt): read, a new one of this phone's making, a person as a member, kept.
@@ -356,15 +374,19 @@ class Groups extends ChangeNotifier {
     final mine = _by[id];
     final inIt = members.any((m) => m['i'] == me);
     if (mine == null || mine.gone) {
-      // Joined, or joined again, only at the asking of a friend who is an admin of it.
-      if (!inIt || !_port.isFriend(r.peer.address)) return;
+      // Joined, or joined again, only at the asking of a friend who is an admin of it: a friend by the key that sealed
+      // it, as the records say, never by the address the routes have for them (found in review, 2026-11-23: a member
+      // of another group, listed by its admin under a friend's number, was taken for that friend).
+      if (!inIt || !_port.isFriend(from)) return;
     } else {
       // Changed only by someone who is an admin in the group as this phone holds it, and only forward.
       if (!(mine.member(from)?.admin ?? false) || v <= mine.v) return;
     }
-    // Who sent it knows their own number least: this phone knows them by it.
+    // Who sent it knows their own number least: this phone knows them by its own record of them, or as the group had
+    // them before.
+    final known = _port.addressOf(from) ?? mine?.member(from)?.address ?? '';
     for (final m in members) {
-      if (m['i'] == from && (m['a'] as String).isEmpty) m['a'] = r.peer.address ?? '';
+      if (m['i'] == from && (m['a'] as String).isEmpty) m['a'] = known;
     }
     final name = ((s['name'] as String?) ?? '').trim();
     final had = mine != null && !mine.gone;
@@ -420,7 +442,9 @@ class _AppPort implements GroupsPort {
   @override
   Stream<Received> get received => _in.stream;
   @override
-  bool isFriend(String? address) => address != null && Friends.instance.isFriend(address);
+  bool isFriend(String id) => Friends.instance.isFriendId(id);
+  @override
+  String? addressOf(String id) => Friends.instance.addressOf(id);
   @override
   void wake(Peer peer) => Friends.instance.wake(peer);
 

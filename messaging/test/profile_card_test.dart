@@ -31,8 +31,11 @@ class _Port implements BuddiesPort {
   String get displayName => 'Sam';
   @override
   String get bio => '';
+  /// The relay's directory: usernames to installs. A friend request is kept only where it says the username is the
+  /// sender's (Buddies._greeting).
+  final directory = <String, ({String id, String key})>{};
   @override
-  Future<({String id, String key})?> whois(String username) async => null;
+  Future<({String id, String key})?> whois(String username) async => directory[username];
   @override
   Future<void> keep(String json) async => list = json;
   @override
@@ -123,6 +126,7 @@ void main() {
     final buddies = Buddies(port);
     await buddies.start();
     final maya = NetKeys.generate();
+    port.directory['maya'] = (id: maya.id, key: base64Encode(maya.public));
     port._hellos.add((from: maya.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'maya', 'k': base64Encode(maya.public), 'n': 'Maya', 'b': '', 'p': _picture, 'st': 'Out climbing'})));
     await _until(() => buddies.requests.isNotEmpty);
     expect(buddies.requests.single.picture, _picture);

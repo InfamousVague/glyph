@@ -68,4 +68,27 @@ void main() {
     expect(openNumberAnswer(texter, {...answer, 's': '${s.substring(0, s.length - 4)}AAAA'}.cast<String, dynamic>()), isNull);
     expect(numberAnswer('not a key', '+15551230002', 'Jamie'), isNull);
   });
+
+  // The review's follow-up (2026-11-23): any member's answer was taken, as many as they sent, each with a number of their
+  // choosing, and each number was texted everything written in the space on the texter's plan.
+  test('a member\'s number is taken once a run and only where they were asked, in place of any they said before, and only so many by their own word', () {
+    final spaces = SmsSpaces.instance..reset();
+    addTearDown(spaces.reset);
+    const seed = 'space';
+    expect(spaces.takesAnswer(seed, 'jamie-id'), isFalse, reason: 'not asked');
+    spaces.askedIn(seed).add('jamie-id');
+    expect(spaces.takesAnswer(seed, 'jamie-id'), isTrue);
+    expect(spaces.takesAnswer(seed, 'jamie-id'), isFalse, reason: 'once a run');
+    // In place of the number they said before; a number in already, or one STOP took out, is not taken.
+    const dad = TextedPerson(number: '+15551230001', name: 'Dad');
+    const jamie = TextedPerson(number: '+15551230002', name: 'Jamie', member: 'jamie-id');
+    expect(SmsSpaces.makeRoomFor([dad, jamie], {}, 'jamie-id', '+15551230003')!.map((p) => p.number), ['+15551230001']);
+    expect(SmsSpaces.makeRoomFor([dad, jamie], {}, 'sam-id', '+15551230001'), isNull);
+    expect(SmsSpaces.makeRoomFor([dad], {'+15551230009'}, 'sam-id', '+15551230009'), isNull);
+    // So many by their own word and no more, though one of them may still change theirs; those added by hand don't count.
+    final full = [for (var i = 0; i < SmsSpaces.mostByThemselves; i++) TextedPerson(number: '+1555000${1000 + i}', name: 'M$i', member: 'm$i')];
+    expect(SmsSpaces.makeRoomFor(full, {}, 'newcomer', '+15559990000'), isNull);
+    expect(SmsSpaces.makeRoomFor(full, {}, 'm3', '+15559990000'), hasLength(SmsSpaces.mostByThemselves - 1));
+    expect(SmsSpaces.makeRoomFor([...full.take(3), dad], {}, 'newcomer', '+15559990000'), hasLength(4));
+  });
 }
