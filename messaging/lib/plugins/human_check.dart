@@ -15,6 +15,7 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../inbox/human_check.dart';
@@ -25,6 +26,18 @@ import '../ui/inbox_ui.dart' show InboxChatRow, openInboxChat;
 import 'plugin.dart';
 import 'registry.dart';
 import 'ui.dart' show PluginNote;
+
+/// Starts the Human check's work for [app], once: on a phone, an iPhone and a computer alike. Each start-up path calls
+/// this after the networks are added (`addInboxSettings`) and started, so a guarded network's new chats are held on
+/// every device the person uses (GMFB-23: the computer's start-up never made it, so on a Mac, Windows or Linux no
+/// first message was ever held or asked its question).
+void startHumanCheck(AppState app) {
+  HumanCheck.instance ??= HumanCheck(
+    choices: () => HumanCheckPlugin.choicesIn(PluginRegistry.instance, AppStore(app)),
+    read: (key) => app.choice(key, ''),
+    write: app.keep,
+  )..watch(Inbox.instance, choicesChanged: app);
+}
 
 class HumanCheckPlugin extends GhostPlugin {
   const HumanCheckPlugin();
