@@ -16,7 +16,9 @@ import 'node.dart';
 /// other end of that page and nothing here is laid out twice.
 ///
 /// What the library does not do for the app, this does:
-/// - one thing at a time for [start] and [stop], each done when the library says so;
+/// - the app is shown what it asked for at once: a node it stopped is off, with every stream ended, when [stop]
+///   returns, while the library closes its links in its own time; and a start it has since called off never shows
+///   as up, though the library still answers it before it answers the stop behind it;
 /// - **taking**: the library counts every frame it has read until it is told the frame was handed on (TAKEN), and
 ///   reads no more for a stream whose frames are not being taken. So a frame is said to be taken as it reaches
 ///   whoever listens to [P2pStream.frames], and not while they are paused or nobody listens yet: a slow listener
@@ -194,17 +196,28 @@ class IrohNode implements P2pNode {
   final _opening = <int, _Opening>{};
   int _nextRequest = 1;
   String? _nodeId, _problem;
-  P2pConfig? _config;
-  Completer<void>? _started, _stopped;
 
-  /// [start] and [stop] one at a time, in the order they were asked.
-  Future<void> _turn = Future<void>.value();
+  /// What the app last asked for: the config to be up with, or null to be off. [state] follows it at once; the
+  /// library follows in its own time.
+  P2pConfig? _wanted;
 
-  Future<void> _inTurn(Future<void> Function() what) {
-    final done = _turn.then((_) => what());
-    _turn = done.then((_) {}, onError: (_) {});
-    return done;
-  }
+  /// What the library was last told to be: the config of the last START it was given, or null (it was never
+  /// started, it was stopped, or it said it could not start).
+  P2pConfig? _told;
+
+  /// The STARTs and STOPs the library was given and has not answered, oldest first. It answers each in the order it
+  /// was given them (a START with UP or DOWN, a STOP with OFF), so an answer is always the oldest one's.
+  final _asked = Queue<_Asked>();
+
+  /// A library that answers nothing is not given more than this to answer.
+  static const _mostAsked = 8;
+
+  /// The start the app is waiting on, for when it asks for the same again.
+  Future<void>? _starting;
+
+  /// Counts what the app asks. Whoever listens to [state] may ask for something else from inside a change of it:
+  /// what they asked then stands, and the rest of the change they interrupted is left unsaid.
+  int _asks = 0;
 
   @override
   String? get nodeId => _nodeId;
@@ -255,71 +268,164 @@ class IrohNode implements P2pNode {
     return null;
   }
 
-  /// Done when the node is up, or could not come up ([state] is then [P2pState.down] and [problem] says why): it
-  /// does not throw for that.
-  @override
-  Future<void> start(P2pConfig config) => _inTurn(() async {
-        if (_gone) throw P2pError('This node was let go.');
-        if (_state.value == P2pState.up && _config == config) return;
-        if (_state.value != P2pState.off) await _stop();
-        _config = config;
-        final wrong = _wrong(config);
-        if (wrong != null) {
-          _problem = wrong;
-          _state.value = P2pState.down;
-          return;
-        }
-        _nodeId = _idOf(config.secret);
-        _problem = null;
-        _state.value = P2pState.starting;
-        final started = _started = Completer<void>();
-        final command = _Writer(_Cmd.start)
-          ..u8(config.helpersOnly ? 1 : 0)
-          ..bytes(config.secret)
-          ..u8(config.helpers.length);
-        for (final helper in config.helpers) {
-          final text = utf8.encode(helper);
-          command
-            ..u16(text.length)
-            ..bytes(text);
-        }
-        final answer = _command(command.take());
-        if (answer != 0) {
-          _started = null;
-          _problem = 'The direct network did not take the start (it answered $answer).';
-          _state.value = P2pState.down;
-          return;
-        }
-        // The library always answers; the wait is only so that a bug there is a node that is down, not one that
-        // is starting for ever.
-        await started.future.timeout(const Duration(seconds: 30), onTimeout: () {
-          if (_state.value == P2pState.starting) {
-            _problem = 'The direct network did not start.';
-            _state.value = P2pState.down;
-          }
-        });
-      });
-
-  /// Done when everything is closed: every stream, every link, the sockets.
-  @override
-  Future<void> stop() => _inTurn(() async {
-        if (_gone || _state.value == P2pState.off) return;
-        await _stop();
-      });
-
-  Future<void> _stop() async {
-    final stopped = _stopped = Completer<void>();
-    if (_command(Uint8List.fromList([_Cmd.stop])) == 0) await stopped.future.timeout(const Duration(seconds: 20), onTimeout: () {});
-    _stopped = null;
-    _nowOff();
+  /// A future that has failed, for whoever awaits it; not an error with nobody to hear it for whoever does not.
+  Future<T> _fails<T>(String why) {
+    final failed = Future<T>.error(P2pError(why));
+    failed.ignore();
+    return failed;
   }
 
-  /// Nothing is up: said by the library (OFF), or taken to be so where it never said.
-  void _nowOff() {
+  Uint8List _startCommand(P2pConfig config) {
+    final command = _Writer(_Cmd.start)
+      ..u8(config.helpersOnly ? 1 : 0)
+      ..bytes(config.secret)
+      ..u8(config.helpers.length);
+    for (final helper in config.helpers) {
+      final text = utf8.encode(helper);
+      command
+        ..u16(text.length)
+        ..bytes(text);
+    }
+    return command.take();
+  }
+
+  /// Gives the library a START or a STOP, and puts it in the line of those it has yet to answer. False where it
+  /// would not take it: there is then nothing to wait for.
+  bool _give(_Asked asked, Uint8List command, Duration patience, void Function() unanswered) {
+    if (_command(command) != 0) return false;
+    _asked.add(asked);
+    // The library always answers. The wait is only so that a bug there is a node that is down, not one this side
+    // waits on for ever; what was asked keeps its place in the line, so an answer that comes late is still its own.
+    asked.guard = Timer(patience, unanswered);
+    return true;
+  }
+
+  /// Whoever waits on a start the library has not answered yet is told nothing more is coming of it: something
+  /// else was asked for since.
+  void _callOff() {
+    for (final asked in _asked) {
+      if (asked.config != null) asked.say(null);
+    }
+  }
+
+  /// The library never answered [start].
+  void _neverStarted(_Asked start) {
+    const why = 'The direct network did not start.';
+    if (!start.said.isCompleted && _asked.isNotEmpty && identical(_asked.last, start) && _wanted == start.config && _state.value == P2pState.starting) {
+      _problem = why;
+      _state.value = P2pState.down;
+    }
+    start.say(why);
+  }
+
+  /// Done when the node is up with [config]. Throws [P2pError] where it could not start: [state] is then
+  /// [P2pState.down] and [problem] says why. A start that a later [stop] or [start] calls off is done without a
+  /// word, and no node is left up for it. Asked for again while it is under way, it is the same start.
+  @override
+  Future<void> start(P2pConfig config) {
+    if (_gone) return _fails('This node was let go.');
+    if (_wanted == config) {
+      if (_state.value == P2pState.up) return Future<void>.value();
+      final starting = _starting;
+      if (_state.value == P2pState.starting && starting != null) return starting;
+    }
+    final asks = ++_asks;
+    final was = _state.value;
+    String? id;
+    var wrong = _wrong(config);
+    if (wrong == null) {
+      try {
+        id = _idOf(config.secret);
+      } on P2pError catch (e) {
+        wrong = e.message;
+      }
+    }
+
+    // The library first, so that whatever a listener asks from inside what follows comes after this in its line.
+    _callOff();
+    _Asked? mine;
+    final last = _asked.isEmpty ? null : _asked.last;
+    if (wrong == null && _told == config && last != null && last.config == config) {
+      // It was given this very start and has not answered it (this side stopped waiting): waited on again, not
+      // asked a second time.
+      mine = last
+        ..said = Completer<String?>()
+        ..guard = Timer(const Duration(seconds: 30), () => _neverStarted(last));
+    } else {
+      if (_told != null) {
+        // What it has, or is making, is something else: stopped first.
+        final stop = _Asked(null);
+        _give(stop, Uint8List.fromList([_Cmd.stop]), const Duration(seconds: 20), () => stop.say(null));
+        _told = null;
+      }
+      if (wrong == null && _asked.length >= _mostAsked) wrong = 'The direct network is not answering.';
+      if (wrong == null) {
+        final start = _Asked(config);
+        if (_give(start, _startCommand(config), const Duration(seconds: 30), () => _neverStarted(start))) {
+          mine = start;
+          _told = config;
+        } else {
+          wrong = 'The direct network did not take the start.';
+        }
+      }
+    }
+    _wanted = mine == null ? null : config;
+    Future<void>? done;
+    if (mine != null) {
+      done = mine.said.future.then<void>((problem) {
+        if (problem != null) throw P2pError(problem);
+      });
+      // Failed for whoever awaits it; not an error with nobody to hear it for whoever does not.
+      done.ignore();
+    }
+    _starting = done;
+
+    // Then what the app sees, at once: what was up is off, and this is starting (or could not).
+    if ((was == P2pState.up || was == P2pState.starting) && !_showOff(asks)) return done ?? _fails(wrong!);
+    if (done == null) {
+      _problem = wrong;
+      _state.value = P2pState.down;
+      return _fails(wrong!);
+    }
+    _nodeId = id;
+    _problem = null;
+    _state.value = P2pState.starting;
+    return done;
+  }
+
+  /// Off at once, as far as the app can see: when this returns [state] is [P2pState.off], [whereabouts] is null,
+  /// every stream has ended and nothing is handed up any more. Done when the library has closed everything (every
+  /// link, the sockets). A start that was under way is called off: the library answers it, then the stop behind it,
+  /// and no node is left up.
+  @override
+  Future<void> stop() {
+    if (_gone) return Future<void>.value();
+    final asks = ++_asks;
+    _wanted = null;
+    _starting = null;
+    _callOff();
+    var done = Future<void>.value();
+    if (_told != null) {
+      final mine = _Asked(null);
+      _told = null;
+      if (_give(mine, Uint8List.fromList([_Cmd.stop]), const Duration(seconds: 20), () => mine.say(null))) done = mine.said.future.then<void>((_) {});
+    } else if (_asked.isNotEmpty && _asked.last.config == null) {
+      // Stopping already: done when that is.
+      done = _asked.last.said.future.then<void>((_) {});
+    }
+    if (_state.value != P2pState.off) _showOff(asks);
+    return done;
+  }
+
+  /// Shows the app a node that is off: nowhere to be found, every stream ended, every open failed. False where a
+  /// listener asked for something else meanwhile, which then stands.
+  bool _showOff(int asks) {
     _problem = null;
     _whereabouts.value = null;
+    if (asks != _asks) return false;
     _endEverything('The direct network was stopped.');
     _state.value = P2pState.off;
+    return asks == _asks;
   }
 
   /// Every stream ends and every open under way fails: the node is not up to carry them.
@@ -378,9 +484,9 @@ class IrohNode implements P2pNode {
 
   @override
   Future<P2pStream> open(String nodeId, int channel, {Whereabouts? hint, Duration timeout = const Duration(seconds: 5)}) {
-    if (!isNodeId(nodeId)) return Future.error(P2pError('That is not a node id.'));
-    if (channel < 0 || channel > 255) return Future.error(P2pError('A channel is 0 to 255.'));
-    if (_gone || _state.value != P2pState.up) return Future.error(P2pError('The direct network is not up.'));
+    if (!isNodeId(nodeId)) return _fails('That is not a node id.');
+    if (channel < 0 || channel > 255) return _fails('A channel is 0 to 255.');
+    if (_gone || _state.value != P2pState.up) return _fails('The direct network is not up.');
     final request = _nextRequest;
     _nextRequest = _nextRequest >= 0xffffffff ? 1 : _nextRequest + 1;
     final wait = timeout.inMilliseconds.clamp(0, 0xffffffff);
@@ -408,14 +514,15 @@ class IrohNode implements P2pNode {
     _opening[request] = opening;
     if (_command(command.take()) != 0) {
       _opening.remove(request);
-      return Future.error(P2pError('The direct network is not up.'));
+      return _fails('The direct network is not up.');
     }
     // The library answers within the wait it was given. This is that wait and a little, for a library that never
     // answers: the open fails, and a stream that turns up after all is closed.
     opening.late = Timer(Duration(milliseconds: wait) + const Duration(seconds: 5), () {
       if (_opening.remove(request) != null) opening.fail('The direct network did not answer.');
     });
-    return opening.done.future;
+    // Failed for whoever awaits it; not an error with nobody to hear it for whoever has stopped waiting.
+    return opening.done.future..ignore();
   }
 
   /// Stops the node and lets go of it: nothing can be asked of it again. (Not part of [P2pNode]: the app keeps its
@@ -426,9 +533,18 @@ class IrohNode implements P2pNode {
     _nodes.remove(_number);
     // Once this returns the library hands this node's events to nobody.
     _core.drop(_number);
-    _started?.complete();
-    _stopped?.complete();
-    _nowOff();
+    _asks++;
+    _wanted = null;
+    _told = null;
+    _starting = null;
+    for (final asked in _asked) {
+      asked.say(null);
+    }
+    _asked.clear();
+    _problem = null;
+    _whereabouts.value = null;
+    _endEverything('The direct network was stopped.');
+    _state.value = P2pState.off;
     _opened.close();
     _paths.close();
   }
@@ -505,25 +621,48 @@ class IrohNode implements P2pNode {
     switch (b[0]) {
       case _Ev.up:
         if (b.length < 33) return;
-        _nodeId = _hex(b, 1);
-        _problem = null;
-        _state.value = P2pState.up;
-        _started?.complete();
-        _started = null;
+        // The answer to the oldest START this side is waiting on; with none, not this side's to follow.
+        final asked = _asked.isEmpty ? null : _asked.first;
+        if (asked == null || asked.config == null) return;
+        _asked.removeFirst();
+        if (_asked.isEmpty && _wanted == asked.config) {
+          // It is what the app last asked for, and nothing was asked since: the node is up. (One the app has since
+          // called off is not shown: the stop behind it in the line ends it.)
+          _nodeId = _hex(b, 1);
+          _problem = null;
+          _state.value = P2pState.up;
+        }
+        asked.say(null);
       case _Ev.down:
-        _problem = b.length > 1 ? utf8.decode(Uint8List.sublistView(b, 1), allowMalformed: true) : 'The direct network could not start.';
-        _whereabouts.value = null;
-        _endEverything('The direct network is down.');
-        _state.value = P2pState.down;
-        _started?.complete();
-        _started = null;
+        final why = b.length > 1 ? utf8.decode(Uint8List.sublistView(b, 1), allowMalformed: true) : 'The direct network could not start.';
+        final asked = _asked.isEmpty ? null : _asked.first;
+        if (asked != null && asked.config != null) {
+          // It could not start.
+          _asked.removeFirst();
+          if (_asked.isEmpty) {
+            _told = null;
+            if (_wanted == asked.config) {
+              _problem = why;
+              _state.value = P2pState.down;
+            }
+          }
+          asked.say(why);
+        } else if (asked == null) {
+          // It stopped by itself (a bug in the library, caught): nothing is running.
+          _told = null;
+          if (_wanted != null) {
+            _problem = why;
+            _whereabouts.value = null;
+            _endEverything('The direct network is down.');
+            _state.value = P2pState.down;
+          }
+        }
       case _Ev.off:
-        final stopped = _stopped;
-        if (stopped != null && !stopped.isCompleted) {
-          stopped.complete();
-        } else {
-          // Stopped by a start with other settings inside the library, not by this side's asking.
-          _nowOff();
+        // The answer to the oldest STOP. What the app sees was changed when it asked.
+        final asked = _asked.isEmpty ? null : _asked.first;
+        if (asked != null && asked.config == null) {
+          _asked.removeFirst();
+          asked.say(null);
         }
       case _Ev.whereabouts:
         if (b.length < 4) return;
@@ -542,7 +681,8 @@ class IrohNode implements P2pNode {
         }
         if (_state.value == P2pState.up) _whereabouts.value = Whereabouts(helper: helper, addresses: List.unmodifiable(addresses), at: DateTime.now().millisecondsSinceEpoch);
       case _Ev.path:
-        if (b.length < 38) return;
+        // (Of a run the app was already told is over: unsaid, like everything below.)
+        if (b.length < 38 || _state.value != P2pState.up) return;
         final node = _hex(b, 1);
         final kind = switch (b[33]) { 1 => P2pPathKind.helper, 2 => P2pPathKind.direct, _ => P2pPathKind.none };
         final rtt = d.getUint32(34);
@@ -570,7 +710,8 @@ class IrohNode implements P2pNode {
         if (b.length < 6) return;
         _opening.remove(d.getUint32(1))?.fail(b.length > 6 ? utf8.decode(Uint8List.sublistView(b, 6), allowMalformed: true) : 'It could not be reached.');
       case _Ev.incoming:
-        if (b.length < 42) return;
+        // A stream of a run the app was told is over is not handed up: the library closes it with the rest.
+        if (b.length < 42 || _state.value != P2pState.up) return;
         final id = d.getUint64(1);
         final stream = _streams[id] = _IrohStream(this, id, _hex(b, 9), b[41], incoming: true);
         if (_opened.hasListener) {
@@ -598,6 +739,26 @@ class IrohNode implements P2pNode {
         // Its end is handled: whatever the library still counted for it is let go.
         _done(id);
     }
+  }
+}
+
+/// A START or a STOP the library was given and has not answered.
+class _Asked {
+  _Asked(this.config);
+
+  /// What a START asked to be up with; null for a STOP.
+  final P2pConfig? config;
+
+  /// How it went, for whoever asked: null where it went (or was called off), else why it did not.
+  Completer<String?> said = Completer<String?>();
+
+  /// Ends the waiting where the library never answers.
+  Timer? guard;
+
+  void say(String? problem) {
+    guard?.cancel();
+    guard = null;
+    if (!said.isCompleted) said.complete(problem);
   }
 }
 

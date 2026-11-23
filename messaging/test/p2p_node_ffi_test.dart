@@ -296,15 +296,22 @@ void main() {
 
   test('a node that cannot be started says why, and can be started rightly after', () async {
     final node = _node();
-    await node.start(P2pConfig(secret: Uint8List(5)));
+    // Thrown, and the node is left down saying the same: by this side's own look at what it was given, and (the
+    // last of these) by the library's.
+    Matcher saying(String words) => throwsA(isA<P2pError>().having((e) => e.message, 'message', contains(words)));
+    await expectLater(node.start(P2pConfig(secret: Uint8List(5))), saying('32 bytes'));
     expect(node.state.value, P2pState.down);
     expect(node.problem, contains('32 bytes'));
-    await node.start(P2pConfig(secret: _config(71).secret, helpers: const ['http://not-https.example']));
+    await expectLater(node.start(P2pConfig(secret: _config(71).secret, helpers: const ['http://not-https.example'])), saying('http://not-https.example'));
     expect(node.state.value, P2pState.down);
     expect(node.problem, contains('http://not-https.example'));
-    await node.start(P2pConfig(secret: _config(71).secret, helpersOnly: true));
+    await expectLater(node.start(P2pConfig(secret: _config(71).secret, helpersOnly: true)), saying('link helper'));
     expect(node.state.value, P2pState.down);
     expect(node.problem, contains('link helper'));
+    await expectLater(node.start(P2pConfig(secret: _config(71).secret, helpers: const ['https://not a name'])), saying('https://not a name'));
+    expect(node.state.value, P2pState.down);
+    expect(node.problem, contains('https://not a name'));
+    expect(node.whereabouts.value, isNull);
     await expectLater(node.open(await node.idOf(_config(72).secret), 0), _refused);
     await node.start(_config(71));
     expect(node.state.value, P2pState.up);
