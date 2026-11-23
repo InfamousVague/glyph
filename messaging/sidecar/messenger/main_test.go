@@ -595,3 +595,23 @@ func TestKeyStoreOpens(t *testing.T) {
 		}
 	}
 }
+
+// A picture over the cap is refused and nothing of it kept; one of exactly the cap is kept whole.
+func TestAtMostRefusesTheLonger(t *testing.T) {
+	d := t.TempDir()
+	dest := filepath.Join(d, "u1")
+	if err := writeWhole(dest, &atMost{r: strings.NewReader(strings.Repeat("x", 9)), left: 8}); err == nil {
+		t.Fatal("a picture past the cap was kept")
+	}
+	for _, name := range []string{dest, dest + ".part"} {
+		if _, err := os.Stat(name); !os.IsNotExist(err) {
+			t.Fatalf("%s is left: %v", name, err)
+		}
+	}
+	if err := writeWhole(dest, &atMost{r: strings.NewReader(strings.Repeat("x", 8)), left: 8}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(dest); err != nil || st.Size() != 8 {
+		t.Fatalf("kept: %v %v", st, err)
+	}
+}

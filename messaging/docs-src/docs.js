@@ -51,8 +51,13 @@
   let picked = 0;
   const load = () => index ?? (index = fetch(document.body.dataset.search || '/docs/search.json').then((r) => r.json()).catch(() => []));
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  // The text made safe for HTML, with each word searched for wrapped in <mark>.
-  const mark = (s, words) => words.reduce((t, w) => t.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>'), esc(s));
+  // The text made safe for HTML, with each word searched for wrapped in <mark>. The words are found in the text as it
+  // is and each piece made safe after: found in the safe text, "amp" or "lt" would be marked inside &amp; and &lt;.
+  const mark = (s, words) => {
+    const found = words.filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length);
+    if (!found.length) return esc(s);
+    return s.split(new RegExp(`(${found.join('|')})`, 'gi')).map((piece, i) => (i % 2 ? `<mark>${esc(piece)}</mark>` : esc(piece))).join('');
+  };
   // 120 characters of a page's words, starting a little before the first of the words found.
   function excerpt(text, words) {
     const at = words.map((w) => text.toLowerCase().indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;

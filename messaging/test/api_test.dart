@@ -97,6 +97,12 @@ void main() {
     expect(s4, 400);
     final (s5, a5) = await ask('POST', '/api', body: {'method': 'test.echo', 'params': {'text': 'x'}, 'id': 'q1'}, auth: token);
     expect([s5, a5['id'], (a5['result'] as Map)['text']], [200, 'q1', 'x']);
+    // Nearly the token, and the token with more after it, are no token.
+    final (s7, _) = await ask('POST', '/api/test.echo', body: {'text': 'yo'}, auth: '${token.substring(0, token.length - 1)}x');
+    final (s8, _) = await ask('POST', '/api/test.echo', body: {'text': 'yo'}, auth: '${token}0');
+    final (s9, _) = await ask('POST', '/api/test.echo', body: {'text': 'yo'}, auth: token.substring(0, 8));
+    expect([s7, s8, s9], [401, 401, 401]);
+    expect([ApiServer.sameText('Bearer a', 'Bearer a'), ApiServer.sameText('', 'Bearer a'), ApiServer.sameText('Bearer é', 'Bearer e'), ApiServer.sameText('', '')], [true, false, false, true]);
     // A new token shuts the old one out.
     ApiServer.newToken(app);
     final (s6, _) = await ask('POST', '/api/test.echo', body: {'text': 'yo'}, auth: token);

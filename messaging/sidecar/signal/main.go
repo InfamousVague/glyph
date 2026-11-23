@@ -41,6 +41,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1537,14 +1538,15 @@ func mediaOf(a *signalpb.AttachmentPointer) map[string]any {
 // --- the log file and groups told as they are met -------------------------------------------------------------------
 
 // logFile is signal.log in the store's folder, begun afresh past a megabyte; standard error alone where it can't open.
-func logFile() *os.File {
+func logFile() io.Writer {
 	path := filepath.Join(dir, "signal.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > 1<<20 {
 		_ = os.Remove(path)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		return os.Stderr
+		// Not os.Stderr: the logger writes there already, and each line would be written twice.
+		return io.Discard
 	}
 	return f
 }

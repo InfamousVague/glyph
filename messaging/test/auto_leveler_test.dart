@@ -80,6 +80,26 @@ void main() {
     expect(lv.active, isFalse);
   });
 
+  test('the player is told a gain all the way to where it settles, not left behind as the steps grow small', () {
+    final lv = AutoLeveler.instance;
+    final levels = ValueNotifier<Map<String, double>>(const {});
+    final told = <double>[];
+    lv.isOn = () => true;
+    lv.attachForTest(levels, told: (id, gain) => told.add(gain));
+    addTearDown(() {
+      lv.attachForTest(null);
+      lv.isOn = AutoLevelerPlugin.onInCall;
+    });
+    for (var i = 0; i < 400; i++) {
+      levels.value = {'a': i.isEven ? 0.04 : 0.041};
+    }
+    final settled = lv.core.gains['a']!;
+    expect(settled, greaterThan(1.8));
+    // Within the step that is worth telling (0.03) of where the gain is; before, the last told was 0.2 short.
+    expect((settled - told.last).abs(), lessThan(0.03), reason: 'told ${told.last}, settled at $settled');
+    expect(told.length, lessThan(60), reason: 'and still not told at every reading');
+  });
+
   test('a plugin for a device or a whole circle, off until turned on', () {
     final p = shippedPlugins.whereType<AutoLevelerPlugin>().single;
     expect(p.id, 'autoleveler');

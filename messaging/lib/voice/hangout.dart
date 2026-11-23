@@ -755,12 +755,11 @@ class HangoutRoom extends ChangeNotifier {
 
   /// [id]'s words made [text] at [at], where that is newer than what it has.
   void _applyEdit(String id, String text, List<Mention> mentions, int at) {
-    var changed = false;
     messages = [
       for (final x in messages)
         if (x.id == id && at > (x.edited ?? 0)) ...[x.copyWith(text: text, mentions: mentions, edited: at)] else x,
     ];
-    changed = messages.any((x) => x.id == id && x.edited == at);
+    final changed = messages.any((x) => x.id == id && x.edited == at);
     if (!changed) return;
     store.keepMessages(channel.chatRoom, messages);
     notifyListeners();
