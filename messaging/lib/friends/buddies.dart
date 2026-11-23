@@ -427,8 +427,33 @@ class Buddies extends ChangeNotifier {
     }
   }
 
+  /// Asks the directory whether [username] is the install [id]'s: true; false where it is someone else's or nobody's;
+  /// null where the relay can't be asked now.
+  Future<bool?> _isTheirs(String username, String id) async {
+    try {
+      final found = await _port.whois(tidyHandle(username));
+      return found != null && found.id == id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Says yes to [b]. A request names its own username, and anyone can send one: it is said yes to only where the
+  /// relay's directory says the username is its sender's (the review, 2026-11-23, M2; the same check as the who-sent
+  /// change's). A [MeError] says why not where the relay can't be asked (the request waits), or where the username is
+  /// someone else's (the request is forgotten). Where it is theirs, the name watch holds the relay to it from now.
   Future<Buddy> accept(Buddy b) async {
     if (_remote) return Buddy.fromJson((await _ask({'op': 'accept', 'id': b.id}))['buddy'])!;
+    if (b.state == 'invited') {
+      final theirs = await _isTheirs(b.username, b.id);
+      if (theirs == null) throw MeError('@${b.username} can\'t be checked with the relay server right now, so the request waits until it can be. Try again once you\'re connected.');
+      if (!theirs) {
+        all = [for (final o in all) if (o.id != b.id) o];
+        await _save();
+        throw MeError('That request didn\'t come from @${b.username}: the username is someone else\'s. It has been removed.');
+      }
+      NameWatch.instance?.confirmed(b.id, tidyHandle(b.username));
+    }
     final yes = b.copyWith(state: 'yes');
     _put(yes);
     await _save();

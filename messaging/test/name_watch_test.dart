@@ -110,6 +110,7 @@ class _Port implements BuddiesPort {
   final NetKeys keys;
   String list = '[]';
   final sealed = StreamController<({String from, Envelope envelope})>.broadcast();
+  final hellos = StreamController<({String from, Envelope envelope})>.broadcast();
   @override
   Future<({String id, String key})> me() async => (id: keys.id, key: base64Encode(keys.public));
   @override
@@ -129,7 +130,7 @@ class _Port implements BuddiesPort {
   @override
   Stream<({String from, Envelope envelope})> get received => sealed.stream;
   @override
-  Stream<({String from, Envelope envelope})> get greetings => const Stream.empty();
+  Stream<({String from, Envelope envelope})> get greetings => hellos.stream;
 }
 
 void main() {
@@ -329,6 +330,41 @@ void main() {
     await clock.pass(const Duration(minutes: 2));
     expect(dir.asked.last.name, 'maya.k');
     expect(watch.changeFor(maya.id), isNull, reason: 'followed: the old name is nothing to say now');
+    watch.dispose();
+    buddies.dispose();
+  });
+
+  test('PROBE 4 at its root: a friend request is said yes to only where the relay says its username is its sender\'s; one that isn\'t is forgotten, one that can\'t be checked waits, and one that is gives the watch what to hold the relay to', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final me = NetKeys.generate(), alice = NetKeys.generate(), mallory = NetKeys.generate();
+    dir.names['alice'] = alice;
+    final port = _Port(dir, me);
+    final buddies = Buddies(port);
+    await buddies.start();
+    final watch = NameWatch.instance = _bare(clock, dir, me: me.id, username: () => 'sam', friends: () => [for (final b in buddies.friends) WatchedName(b.username, b.id, b.key)]);
+    addTearDown(() => NameWatch.instance = null);
+    buddies.addListener(watch.friendsChanged);
+    Envelope ask(String u, NetKeys k) => Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': u, 'k': base64Encode(k.public), 'n': u});
+    // Mallory asks, calling herself @alice.
+    port.hellos.add((from: mallory.id, envelope: ask('alice', mallory)));
+    await clock.settle();
+    final fake = buddies.requests.single;
+    await expectLater(buddies.accept(fake), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('didn\'t come from @alice'))));
+    expect([buddies.requests, buddies.friends], [isEmpty, isEmpty], reason: 'forgotten, and nobody made a friend');
+    // Alice asks; the relay can't be asked just now: it waits, and says why.
+    port.hellos.add((from: alice.id, envelope: ask('alice', alice)));
+    await clock.settle();
+    dir.down = true;
+    await expectLater(buddies.accept(buddies.requests.single), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('can\'t be checked'))));
+    expect(buddies.requests, hasLength(1));
+    // It can now: a friend, and the watch holds the relay to @alice being hers.
+    dir.down = false;
+    await buddies.accept(buddies.requests.single);
+    expect(buddies.friends.single.id, alice.id);
+    dir.names['alice'] = mallory;
+    await clock.pass(const Duration(hours: 25));
+    expect(watch.changeFor(alice.id)?.other, mallory.id);
     watch.dispose();
     buddies.dispose();
   });
