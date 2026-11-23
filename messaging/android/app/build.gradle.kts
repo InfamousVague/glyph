@@ -53,6 +53,11 @@ android {
     // build folder: taken in where it is there; without it, Telegram says it isn't in this build.
     sourceSets { getByName("main") { jniLibs.srcDir("../../build/tdlib/android") } }
 
+    // The direct network's core (native/p2p; lib/net/p2p/node_ffi.dart, P2pCore.kt), built by tool/build-p2p.sh android
+    // into the app's build folder in the same way: taken in where it is there; without it the app has no direct route
+    // and is otherwise the same.
+    sourceSets { getByName("main") { jniLibs.srcDir("../../build/p2p/android") } }
+
     // voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (VoiceFx.kt).
     externalNativeBuild {
         cmake { path = file("src/main/cpp/CMakeLists.txt") }
