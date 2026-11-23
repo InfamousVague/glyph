@@ -376,7 +376,9 @@ class Hub {
     }
     final WebSocket ws;
     try {
-      ws = await WebSocketTransformer.upgrade(request);
+      // No compression: a message is held whole before its length is looked at, and a deflated one of a few hundred
+      // kilobytes opens out to hundreds of megabytes (found in review, 2026-11-22). Sealed packets don't shrink anyway.
+      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
     } catch (_) {
       return;
     }
