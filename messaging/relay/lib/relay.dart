@@ -162,7 +162,8 @@ class Relay {
     }
     final WebSocket ws;
     try {
-      ws = await WebSocketTransformer.upgrade(request);
+      // No compression, as the hub (hub.dart, accept): a deflated message opens out before its length is looked at.
+      ws = await WebSocketTransformer.upgrade(request, compression: CompressionOptions.compressionOff);
     } catch (_) {
       return;
     }
