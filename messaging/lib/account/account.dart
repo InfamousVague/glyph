@@ -268,7 +268,8 @@ class Account extends ChangeNotifier {
   /// Lists this device under the account; the account's devices as they then are.
   Future<List<AccountDevice>> _addDevice(Uint8List key, String address) async {
     final m = await relay.ask(_signed('acct-devices', 'devices', (seed: Uint8List(0), key: key, address: address), {
-      'add': {'d': device, 'n': profiles.deviceName, 'p': _platform},
+      // With its name on the hub (GMFB-53), which the hub vouches for in what the account sends its own name.
+      'add': {'d': device, 'n': profiles.deviceName, 'p': _platform, if (HubCarrier.device.isNotEmpty) 'h': HubCarrier.device},
     }));
     return AccountDevice.list(m['list'], device);
   }
@@ -504,16 +505,19 @@ class Account extends ChangeNotifier {
   }
 
   /// The devices signed in to the account; with [keys] ([keysWith]) where this install keeps no words (a browser).
-  /// Whether the device numbered [device] is on this account's list now (GMFB-53: a history goes only to one that is):
-  /// the relay's `acct-hello` for it, which needs no key and says only yes or no. False where the relay can't be asked.
-  Future<bool> lists(String device) async {
+  /// Whether the device numbered [device] is on this account's list now and is [hub] on the hub, the name the hub
+  /// vouched for on a packet the account sent its own name (GMFB-53: a history goes only to the listed device that asked
+  /// for it); with its name on the list. The relay's `acct-hello` with both numbers, which needs no key. Null where it
+  /// isn't, or the relay can't say (one from before keeps no hub names: nothing is vouched for there).
+  Future<String?> vouches(String device, String hub) async {
     final a = address;
-    if (a == null) return false;
+    if (a == null || hub.isEmpty) return null;
     try {
-      final m = await relay.ask({'dir': 'acct-hello', 'a': a, 'd': device}).timeout(const Duration(seconds: 10));
-      return m['known'] == true;
+      final m = await relay.ask({'dir': 'acct-hello', 'a': a, 'd': device, 'h': hub}).timeout(const Duration(seconds: 10));
+      if (m['known'] != true || m['hm'] != true) return null;
+      return m['n'] is String ? m['n'] as String : '';
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -605,7 +609,15 @@ class Account extends ChangeNotifier {
     try {
       // Signed in before devices kept when they joined: from now (a removal signed before it is an old one).
       if (store.choice('acct_joined', '').isEmpty) store.set('acct_joined', '${DateTime.now().millisecondsSinceEpoch}');
-      final m = await relay.ask({'dir': 'acct-hello', 'a': address, 'd': device});
+      final m = await relay.ask({'dir': 'acct-hello', 'a': address, 'd': device, if (HubCarrier.device.isNotEmpty) 'h': HubCarrier.device});
+      // Listed from before its hub name was kept (or under another): listed again with it, where this device can sign
+      // (not a browser, which keeps no account key: it is listed with it as it signs in). GMFB-53.
+      if (m['known'] == true && m['hm'] == false && keepsWords) {
+        try {
+          final keys = await _keys();
+          await _addDevice(keys.key, keys.address);
+        } catch (_) {}
+      }
       if (m['known'] == false) {
         // Whether this relay holds the account at all: where it does, this device isn't on its list.
         final held = m['account'] == true;
@@ -1067,7 +1079,7 @@ class AppAccountProfiles implements AccountProfiles {
     store.set('circles', '[]');
     // The history handover's asking and answers are this account's (GMFB-53): the next account signed in here asks
     // for its own, with an asking of its own.
-    for (final k in ['history_n', 'history_done', 'history_tries', 'history_last', 'history_answered', 'history_note']) {
+    for (final k in ['history_n', 'history_done', 'history_tries', 'history_last', 'history_answered', 'history_note', 'history_empty', 'history_partial']) {
       store.set(k, '');
     }
     // A device of its own keeps its conversations and spaces at sign-out, and says so (lib/ui/account_screens.dart):

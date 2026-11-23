@@ -95,14 +95,20 @@ class FakePort implements FriendsPort {
   /// Where set, every packet to the account's own devices is refused (the relay's mailbox for them full).
   bool mineRefused = false;
 
+  /// What went by the hub alone ([sendMine]'s hubOnly), by envelope id.
+  final hubOnly = <String>{};
+
   @override
-  Future<Delivery> sendMine(Envelope envelope) async {
+  @override
+  Future<Delivery> sendMine(Envelope envelope, {bool hubOnly = false}) async {
     if (envelope.encode().length > routeMost) return Delivery(envelope.id, tried: const ['too big for any route']);
     if (mineRefused) return Delivery(envelope.id, tried: const ['hub: nak full']);
     mineSent.add(envelope);
+    if (hubOnly) this.hubOnly.add(envelope.id);
     final t = twin;
     if (t == null) return Delivery(envelope.id, tried: const ['no account here']);
-    t._in.add(Received(Peer(id: 'mine', key: Uint8List(32)), envelope, 'hub'));
+    // As the hub hands it: with the device that sent it (relay/lib/hub.dart toPeerFromDevice).
+    t._in.add(Received(Peer(id: 'mine', key: Uint8List(32)), envelope, 'hub', arrived: Arrived('hub', Uint8List(0), device: hubDevice)));
     return Delivery(envelope.id, via: 'hub', handed: Handed.passed);
   }
 
@@ -112,14 +118,23 @@ class FakePort implements FriendsPort {
   /// This device's number on the account's list (GMFB-53), and the devices the account lists now (all, where null).
   String device = 'device-${_n++}';
   static int _n = 0;
-  Set<String>? listedDevices;
+  Set<String>? onList;
   bool signedIn = true;
 
   @override
   ({String device, String name})? get thisDevice => signedIn ? (device: device, name: 'Device $device') : null;
 
+  /// This device's name on the hub, which the hub vouches for on what it sends its account's own name.
+  String get hubDevice => 'hub-$device';
+
+  /// The account's list as a device holding its key reads it (null: one that can't, a browser).
+  List<String>? listing;
+
   @override
-  Future<bool> listed(String d) async => listedDevices?.contains(d) ?? true;
+  Future<String?> vouch(String d, String hub) async => (onList?.contains(d) ?? true) && hub == 'hub-$d' ? 'Device $d' : null;
+
+  @override
+  Future<List<String>?> listedDevices() async => listing;
 
   /// The conversations with friends by username this device holds (GMFB-53), and what another device's history added.
   final pastHeld = <String, List<PastRow>>{};
@@ -170,7 +185,9 @@ class FakePort implements FriendsPort {
 
   /// [envelope] arrives sealed by the install named [id], which the routes hold under [address]: on Android, a member of
   /// a group under whatever its admin wrote.
-  void arriveFrom(String id, String address, Envelope envelope) => _in.add(Received(Peer(id: id, key: Uint8List(32), address: address), envelope, 'hub'));
+  /// [device]: the device of this account the hub says sent it (one's own name only).
+  void arriveFrom(String id, String address, Envelope envelope, {String? device}) =>
+      _in.add(Received(Peer(id: id, key: Uint8List(32), address: address), envelope, 'hub', arrived: device == null ? null : Arrived('hub', Uint8List(0), device: device)));
 
   /// The other phone's app opens: what the relay server kept is handed over, and each is answered.
   void otherBack() {

@@ -67,7 +67,7 @@ class CarrierTraits {
 
 /// Something a route brought.
 class Arrived {
-  const Arrived(this.carrier, this.bytes, {this.address, this.from, this.line});
+  const Arrived(this.carrier, this.bytes, {this.address, this.from, this.line, this.device});
   final String carrier;
   final Uint8List bytes;
 
@@ -81,6 +81,10 @@ class Arrived {
 
   /// Where the route itself knows it came from (the number a text came from).
   final String? address;
+
+  /// Which of this account's own devices sent it, as the relay's hub vouches (a packet the account sent its own name,
+  /// handed with the device that sent it: relay/lib/hub.dart toPeerFromDevice); null where the route can't say.
+  final String? device;
 }
 
 /// One way of getting a packet from this install to another: this server's hub, the local network, SMS, and later

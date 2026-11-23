@@ -41,6 +41,9 @@ class Received {
   /// Whether it came sealed with the pair's key; nothing unsealed is passed on from someone a key is held for.
   final bool sealed;
 
+  /// Which of this account's own devices sent it, where the hub vouches for that ([Arrived.device]).
+  String? get device => arrived?.device;
+
   /// What the route handed over, with the link it came on where the route holds links of its own: what is said back
   /// on that link goes by it ([Switchboard.send]'s `answering`). Null where it was not made by a switchboard.
   final Arrived? arrived;

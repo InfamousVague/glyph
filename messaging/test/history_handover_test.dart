@@ -102,7 +102,18 @@ void main() {
     expect(w.browser.pastKept['@ben']!.length, 300);
     expect(w.browser.pastKept['@amy']!.length, 300);
     expect(w.browser.pastKept['@cat']!.map((r) => r.t.length).toList(), [lessThan(100000), 'after it'.length]);
-    expect(w.browser.pastKept['@cat']!.first.t, startsWith('zzzz'));
+    expect(w.browser.pastKept['@cat']!.first.t, allOf(startsWith('zzzz'), endsWith(Friends.cutNote)));
+  });
+
+  // D1: cut on a letter's edge, never between the two halves of one written as two code units.
+  test('a message cut to fit is cut between letters and says so', () async {
+    final app = AppState();
+    final w = await pair({'@ben': <PastRow>[(t: '😀' * 40000, at: 1, o: true)]}, browserApp: app);
+    await until(() => app.flag('history_done', fallback: false));
+    final t = w.browser.pastKept['@ben']!.single.t;
+    expect(t, endsWith(Friends.cutNote));
+    expect(utf8.decode(utf8.encode(t)), t, reason: 'no half of a letter left over');
+    expect(t.replaceAll(Friends.cutNote, '').runes.every((r) => r == 0x1F600), isTrue);
   });
 
   test('a part no route takes is not passed over: the answer stops, and the device is answered when it asks again', () async {
@@ -149,25 +160,114 @@ void main() {
     await f.start(app);
     await until(() => lone.mineSent.where((e) => e.kind == Friends.historyAsk).length == 2);
     expect(app.choice('history_tries', ''), '2');
-    // A device that holds no conversations answers all the same, with the end alone: no more asking.
+  });
+
+  // C1: a fresh device that had the asking first (another browser) answers with nothing; that ends nothing.
+  test('an answer with nothing ends no asking, until every other listed device has said so; one with something ends it', () async {
+    final app = AppState();
+    final w = await pair(const {}, browserApp: app);
+    await until(() => w.phone.mineSent.any((e) => e.kind == Friends.historyKind));
+    final end = w.phone.mineSent.where((e) => e.kind == Friends.historyKind).single.body;
+    expect(end, allOf(containsPair('e', 1), containsPair('c', 0), containsPair('d', w.phone.device)));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(app.flag('history_done', fallback: false), isFalse);
+    expect(app.choice('history_empty', ''), w.phone.device);
+    // Where this device can read the account's list and every other device on it has said nothing: done.
     final app2 = AppState();
-    final w = await pair(const {}, browserApp: app2);
+    final v = await pair(const {}, browserApp: app2, startBrowser: false);
+    v.browser.listing = [v.browser.device, v.phone.device];
+    await v.onBrowser.start(app2);
     await until(() => app2.flag('history_done', fallback: false));
-    expect(w.phone.mineSent.where((e) => e.kind == Friends.historyKind).single.body['e'], 1);
+    expect(app2.flag('history_done', fallback: false), isTrue);
+    // And an answer that carried something ends it however many others there are.
+    final app3 = AppState();
+    final x = await pair({'@ben': <PastRow>[(t: 'hi', at: 1, o: true)]}, browserApp: app3, startBrowser: false);
+    x.browser.listing = [x.browser.device, x.phone.device, 'a-mac-that-never-answers'];
+    await x.onBrowser.start(app3);
+    await until(() => app3.flag('history_done', fallback: false));
+    expect(app3.flag('history_done', fallback: false), isTrue);
+  });
+
+  // B1: the device an asking names must be the one the hub says sent it, and listed with that hub name.
+  test('an asking naming a listed device it didn\'t come from is not answered; askings go by the hub alone', () async {
+    final w = await pair({'@ben': <PastRow>[(t: 'hi', at: 1, o: false)]});
+    await until(() => w.browser.pastKept.isNotEmpty);
+    expect(w.browser.mineSent.where((e) => e.kind == Friends.historyAsk).every((e) => w.browser.hubOnly.contains(e.id)), isTrue);
+    w.phone.onList = {'device-real-mac'};
+    final before = w.phone.mineSent.length;
+    // Someone holding the account's key names the Mac: from no device the hub vouches for (the direct route, a relay
+    // from before), or from their own.
+    for (final from in [null, 'hub-a-thief', 'hub-${w.browser.device}']) {
+      w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyAsk, body: {'n': 'thief-${from ?? 'none'}', 'd': 'device-real-mac'}), device: from);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(w.phone.mineSent.skip(before).where((e) => e.kind == Friends.historyKind), isEmpty);
+    // The Mac itself, through the hub: answered.
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyAsk, body: {'n': 'mac', 'd': 'device-real-mac'}), device: 'hub-device-real-mac');
+    await until(() => w.phone.mineSent.skip(before).any((e) => e.kind == Friends.historyKind && e.body['n'] == 'mac'));
+    expect(w.phone.mineSent.skip(before).where((e) => e.kind == Friends.historyKind && e.body['n'] == 'mac'), isNotEmpty);
+  });
+
+  // B2: "had it all" ends the answering of a device only for the asking it was answered, said by that device.
+  test('a forged "had it" changes nothing; the real one, kept with the choices, stops answers to that device for good', () async {
+    final phoneApp = AppState();
+    final w = await pair(const {}, phoneApp: phoneApp, startBrowser: false);
+    w.phone.pastHeld['@ben'] = [(t: 'hi', at: 1, o: false)];
+    Map entry(String d) => ((jsonDecode(phoneApp.choice('history_answered', '{}')) as Map)[d] as Map?) ?? const {};
+    // Before any answer: taken from nobody.
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyGot, body: {'n': 'whatever', 'd': 'device-mac'}), device: 'hub-device-mac');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(phoneApp.choice('history_answered', '{}'), '{}');
+    // The Mac asks and is answered; a "had it" for another asking, or from another device, is passed over.
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyAsk, body: {'n': 'mac-n', 'd': 'device-mac'}), device: 'hub-device-mac');
+    await until(() => entry('device-mac')['n'] == 'mac-n');
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyGot, body: {'n': 'other-n', 'd': 'device-mac'}), device: 'hub-device-mac');
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyGot, body: {'n': 'mac-n', 'd': 'device-mac'}), device: 'hub-a-thief');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(entry('device-mac')['got'], isNot(true));
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyGot, body: {'n': 'mac-n', 'd': 'device-mac'}), device: 'hub-device-mac');
+    await until(() => entry('device-mac')['got'] == true);
+    // The phone started again, a day on: the Mac asking again is not answered.
+    await w.onPhone.shutdown();
+    final again = Friends(w.phone);
+    addTearDown(again.shutdown);
+    phoneApp.set('history_answered', jsonEncode({'device-mac': {...entry('device-mac'), 'at': 1}}));
+    await again.start(phoneApp);
+    final before = w.phone.mineSent.length;
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyAsk, body: {'n': 'mac-n2', 'd': 'device-mac'}), device: 'hub-device-mac');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(w.phone.mineSent.skip(before).where((e) => e.kind == Friends.historyKind), isEmpty);
+    // One that never said it had it is answered again a day on.
+    phoneApp.set('history_answered', jsonEncode({'device-mac': {'n': 'mac-n', 'h': 'hub-device-mac', 'at': 1}}));
+    w.phone.arriveFrom('mine', '', Envelope(kind: Friends.historyAsk, body: {'n': 'mac-n3', 'd': 'device-mac'}), device: 'hub-device-mac');
+    await until(() => w.phone.mineSent.skip(before).any((e) => e.kind == Friends.historyKind));
+    expect(w.phone.mineSent.skip(before).where((e) => e.kind == Friends.historyKind), isNotEmpty);
+  });
+
+  test('an answer cut at its most parts says so, and the list says older conversations stay on the other device', () async {
+    final app = AppState();
+    final held = {for (var c = 0; c < Friends.historyParts + 3; c++) '@f$c': <PastRow>[(t: 'hi $c', at: 1000 + c, o: true)]};
+    final w = await pair(held, browserApp: app);
+    await until(() => app.flag('history_done', fallback: false));
+    expect(w.phone.mineSent.where((e) => e.kind == Friends.historyKind).last.body, allOf(containsPair('e', 2), containsPair('c', Friends.historyParts)));
+    expect(app.flag('history_partial', fallback: false), isTrue);
+    // The newest conversations are the ones that came.
+    expect(w.browser.pastKept.keys, contains('@f${Friends.historyParts + 2}'));
+    expect(w.browser.pastKept.keys, isNot(contains('@f0')));
   });
 
   // H5: a stolen account key can't pull the past on demand.
   test('only a device on the account\'s list is answered, once (kept), and the person is told where it went', () async {
     final phoneApp = AppState();
     final w = await pair({'@ben': <PastRow>[(t: 'hi', at: 1, o: true)]}, phoneApp: phoneApp, startBrowser: false);
-    w.phone.listedDevices = {}; // the asker isn't on the list: removed, or someone with the key who never signed in
+    w.phone.onList = {}; // the asker isn't on the list: removed, or someone with the key who never signed in
     final app = AppState();
     await w.onBrowser.start(app);
     await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(w.phone.mineSent.where((e) => e.kind == Friends.historyKind), isEmpty);
     expect(w.browser.pastKept, isEmpty);
     // Listed: answered, and said in Settings › Devices.
-    w.phone.listedDevices = {w.browser.device};
+    w.phone.onList = {w.browser.device};
     app.set('history_last', '1');
     await w.onBrowser.shutdown();
     final again = Friends(w.browser);
@@ -175,8 +275,9 @@ void main() {
     await again.start(app);
     await until(() => app.flag('history_done', fallback: false));
     expect(phoneApp.choice('history_note', ''), startsWith('History sent to Device ${w.browser.device} on '));
-    await until(() => (jsonDecode(phoneApp.choice('history_answered', '{}')) as Map)[w.browser.device] == 'got');
-    expect((jsonDecode(phoneApp.choice('history_answered', '{}')) as Map)[w.browser.device], 'got');
+    Map entry() => ((jsonDecode(phoneApp.choice('history_answered', '{}')) as Map)[w.browser.device] as Map?) ?? const {};
+    await until(() => entry()['got'] == true);
+    expect(entry(), allOf(containsPair('got', true), containsPair('h', w.browser.hubDevice)));
     // The same device asking again (its choices lost) is not answered a second time, by a phone started again too.
     await w.onPhone.shutdown();
     final phoneAgain = Friends(w.phone);
