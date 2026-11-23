@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
+import '../friends/buddies.dart' show Buddy;
 import '../me/me.dart' show Me;
 import '../sms.dart';
 import 'carrier.dart';
@@ -357,25 +359,42 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
-    // Who of them is a friend, which is the direct route's question. A friend by username who said yes is addressed
-    // by it (`@name`); one who has only asked or been asked has no address (lib/standalone/chats.dart peersOf,
-    // android Buddies.kt). A friend by number is one the phone's own record says is (E2eState.isFriend), asked only
-    // where there is a direct route to ask for; a group's other members are neither.
-    final friends = <String>{for (final p in found.values) if ((p.address ?? '').startsWith('@')) p.id};
-    bool byNumber(Peer p) => (p.address ?? '').isNotEmpty && !p.address!.startsWith('@');
-    if (p2pNode != null && found.values.any(byNumber)) {
-      try {
-        final yes = {for (final s in await Sms.instance.e2eList()) if (s.isFriend) _digits(s.address)};
-        friends.addAll([for (final p in found.values) if (byNumber(p) && yes.contains(_digits(p.address!))) p.id]);
-      } catch (_) {
-        // Not answered now: whoever was a friend stays one.
-        friends.addAll(_friendIds.where(found.containsKey));
-      }
-    }
+    // Who of them is a friend, which is the direct route's question, asked only where there is a direct route to ask
+    // for: whom the records that say so name, by the id their key makes, and never by an address. On Android the
+    // people come from those encryption is on with, the members of this phone's groups and friends by username
+    // together (MainActivity's netPeers), and a group member's address is whatever the group's admin wrote: "@anything",
+    // or a real friend's number (second review, M1).
+    final friends = p2pNode == null ? <String>{} : await _friendsAmong(found);
     _peers
       ..clear()
       ..addAll(found);
     _friendIds = friends;
+  }
+
+  /// Those of [found] the records say are friends: friends by username in the state `yes` (lib/friends/buddies.dart),
+  /// by their id and only where their key makes it; and friends by number (E2eState.isFriend), by the id the key on
+  /// their record makes (android E2e.state). A record that can't be read now leaves whoever was a friend by it one.
+  Future<Set<String>> _friendsAmong(Map<String, Peer> found) async {
+    final friends = <String>{};
+    try {
+      for (final j in jsonDecode(await Sms.instance.buddiesKept()) as List) {
+        final b = Buddy.fromJson(j);
+        if (b == null || b.state != 'yes') continue;
+        try {
+          if (NetCrypto.idOf(base64Decode(b.key)) == b.id) friends.add(b.id);
+        } catch (_) {}
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    try {
+      for (final s in await Sms.instance.e2eList()) {
+        if (s.isFriend && s.id != null) friends.add(s.id!);
+      }
+    } catch (_) {
+      friends.addAll(_friendIds);
+    }
+    return friends.where(found.containsKey).toSet();
   }
 
   /// Stops the routes and forgets them: the app is closing, or a test is over.

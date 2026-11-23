@@ -45,22 +45,32 @@ void main() {
   late Map<String, String> secrets;
   late List<Map<String, Object?>> peers;
   late List<Map<String, Object?>> e2e;
+  late List<Map<String, Object?>> buddies;
+  late bool e2eFails;
   late FakeP2pMesh mesh;
   late FakeP2pNode node;
+
+  /// A friend by username as the phone keeps them (lib/friends/buddies.dart), where they stand with this phone.
+  Map<String, Object?> buddy(String username, NetKeys keys, String state) => {'u': username, 'i': keys.id, 'k': base64Encode(keys.public), 's': state};
 
   setUp(() {
     HttpOverrides.global = null;
     secrets = {};
+    // As Android's netPeers has them: those encryption is on with (Net.peers), the members of this phone's groups
+    // (Groups.peers), and friends by username, asked or asking (Buddies.peers).
     peers = [
       {'id': sam.id, 'address': '@sam', 'key': keyWith(sam)},
       {'id': nell.id, 'address': '+1 (555) 000-0001', 'key': keyWith(nell)},
       {'id': asker.id, 'address': '', 'key': keyWith(asker)},
       {'id': member.id, 'address': '+15550000002', 'key': keyWith(member)},
     ];
+    // The phone's own records of who is a friend: each by the id their key makes.
     e2e = [
-      {'address': '+15550000001', 'state': 'on', 'friend': 'yes'},
-      {'address': '+15550000002', 'state': 'on', 'friend': ''},
+      {'address': '+15550000001', 'state': 'on', 'friend': 'yes', 'id': nell.id},
+      {'address': '+15550000002', 'state': 'on', 'friend': '', 'id': member.id},
     ];
+    buddies = [buddy('sam', sam, 'yes'), buddy('asker', asker, 'asked')];
+    e2eFails = false;
     mesh = FakeP2pMesh();
     node = mesh.node();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
@@ -73,7 +83,10 @@ void main() {
         case 'netPeers':
           return peers;
         case 'e2eList':
+          if (e2eFails) throw PlatformException(code: 'locked');
           return e2e;
+        case 'buddiesKept':
+          return jsonEncode(buddies);
         case 'netSmsDrain':
           return const <Object>[];
         case 'secretKeep':
@@ -179,6 +192,54 @@ void main() {
     expect(p2p.devicesOf(asker.id), isEmpty);
     expect(hub.to.where((id) => id == asker.id), isEmpty, reason: 'nor answered');
     expect(Net.instance.direct.value, greaterThan(0), reason: 'Settings is told to draw again');
+  });
+
+  // The second review, M1: who counted as a friend came from the address the routes have for someone, and on Android
+  // that includes the members of a group, whose addresses are whatever the group's admin wrote.
+  test('friends are those the records say are, by the id their key makes: never a group member, whatever address an admin gave them, nor a pending request', () async {
+    final atMember = NetKeys.generate(), numberMember = NetKeys.generate(), inviter = NetKeys.generate(), stranger = NetKeys.generate();
+    peers.addAll([
+      // Members of a group a friend admins, as Groups.peers has them: one the admin wrote as "@anything", one written
+      // with the number of this phone's real friend, Nell.
+      {'id': atMember.id, 'address': '@anything', 'key': keyWith(atMember)},
+      {'id': numberMember.id, 'address': '+15550000001', 'key': keyWith(numberMember)},
+      // Someone who asked to be a friend by username (Buddies.peers gives them no address).
+      {'id': inviter.id, 'address': '', 'key': keyWith(inviter)},
+    ]);
+    buddies.add(buddy('inviter', inviter, 'invited'));
+    // A record that says yes for someone the routes don't reach: no one to link with.
+    e2e.add({'address': '+15550009999', 'state': 'on', 'friend': 'yes', 'id': stranger.id});
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    await Net.instance.start(AppState(), carriers: [hub]);
+    final p2p = Net.instance.p2p!;
+    await _until(() => p2p.loaded && p2p.card != null && hub.to.length >= 2, 'read, and the friends told');
+    await pumpEventQueue();
+    expect(Net.instance.people, hasLength(7));
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, nell.id]));
+    expect(hub.to, unorderedEquals([sam.id, nell.id]), reason: 'only friends are told the card, and where this device is');
+    for (final who in [atMember, numberMember, asker, inviter, member]) {
+      expect(p2p.mayLink(who.id), isFalse);
+    }
+    // What they say of themselves is not looked at: a card, or a meet that would bring the node up.
+    for (final (i, who) in [atMember, numberMember].indexed) {
+      final card = await DeviceCard.make(KeysSigner(who), device: '${i}d' * 16, nodeId: '${i}e' * 32, now: DateTime.now());
+      for (final what in ['card', 'meet']) {
+        hub.take(Packet.wrap(from: who.id, sealed: true, payload: NetCrypto.seal(keyWith(who), Envelope(kind: P2p.kind, body: {'t': what, 'c': card.toJson()}, ack: false).encode())), from: who.id);
+      }
+    }
+    await pumpEventQueue(times: 50);
+    expect([p2p.devicesOf(atMember.id), p2p.devicesOf(numberMember.id), node.allowed, node.starts], [isEmpty, isEmpty, isEmpty, 0]);
+    expect(hub.to, hasLength(2), reason: 'nor answered');
+    // The records change: Nell is a friend no longer, the inviter is one now. Read again, by id.
+    e2e[0]['friend'] = '';
+    buddies[2]['s'] = 'yes';
+    await Net.instance.refresh();
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, inviter.id]));
+    // A record that can't be read now: whoever was a friend stays one.
+    e2eFails = true;
+    await Net.instance.refresh();
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, inviter.id]));
   });
 
   test('kept in step: the people, how the person chose to be shown, the app put away and back, and shutting down', () async {
