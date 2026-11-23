@@ -213,7 +213,11 @@ With them the hub asks apps to sign in bound to the name they dialled, and refus
 once an account has signed in so, it takes no other kind from it. That stops a relay one of your people was pointed at,
 or asked a name of, from signing in to yours as them. An app that dialled a name you didn't list is refused, so list
 them all; without the setting, sign-ins are taken as they always were. On Windows and elsewhere the names it has seen
-sign in so are kept in `hub-v2.json` in the data folder.
+sign in so are kept in `hub-v2.json` in the data folder: 200,000 at most, those holding no username going first, and at
+most 30 new ones an hour from one address (an IPv6 address counts by its first 64 bits). The address is the one your
+proxy saw where the proxy is on the same machine or a private network (it reads the last `X-Forwarded-For` it adds),
+else the connection's own: keep Caddy or nginx beside the relay, as the examples do, so each person counts as
+themselves.
 
 ### How much the relay holds
 

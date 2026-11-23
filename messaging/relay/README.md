@@ -77,9 +77,17 @@ The host is what the app dialled, in lower case, with its port only where it is 
 v2 signature only for a host in its own names (`This relay isn't reached as …` otherwise, whatever the request's
 own Host header says, which the one signing in writes), and **from a key that has signed in with v2 it takes no v1
 again** (`This account signs in a newer way now: update Ghost Messaging on this device.`): the names are kept in
-`hub-v2.json` across restarts, the 200,000 latest. So once an app of this build has signed in to its relay, a v1
-signature it gives anywhere else is worth nothing there; an app from before keeps signing v1, and keeps working for
-an account none of whose devices has signed in with v2. A closed app's look (`peek`) is held to the same, and
+`hub-v2.json` across restarts. So once an app of this build has signed in to its relay, a v1 signature it gives
+anywhere else is worth nothing there; an app from before keeps signing v1, and keeps working for an account none of
+whose devices has signed in with v2.
+
+Those names are hard to push out with keys made for it (the second look, 2026-11-23): at most 200,000 are kept, and
+past that **a key holding no username goes first**, the one seen longest ago (a key found holding one by then is kept
+with those that do), so a stream of new keys, which hold no names, pushes out its own kind; and **one place adds at most
+30 new keys an hour**, a place being an IPv4 address or an IPv6 address's first 64 bits. A sign-in past that is taken
+all the same, its key kept the next time it signs in with room. The place is the connection's own address, or, where
+it came through a proxy on the same machine or its private network (Caddy, in front), the last address that proxy put
+in `X-Forwarded-For` (the one it saw: whatever comes before it is the asker's own word). A closed app's look (`peek`) is held to the same, and
 Android's background check signs v2 as the app does. A hub with no names says nothing of v2 and takes v1 alone, as
 before: list every name the hub is reached at, since an app that dialled one not listed is refused.
 

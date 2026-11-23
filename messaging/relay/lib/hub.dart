@@ -60,7 +60,7 @@ import 'ws_door.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, WireBudget? wire})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, this.maxSignsV2 = 200000, this.newV2AnHour = 30, WireBudget? wire})
       : _now = now ?? DateTime.now,
         _random = random ?? Random.secure(),
         helpers = linkHelpers(helpers),
@@ -146,31 +146,73 @@ class Hub {
   /// Where the names of the keys that have signed in with v2 are kept across restarts (`hub-v2.json`); none in memory.
   final Directory? dataDir;
 
-  /// What every connection through the hub's door may hold together, waiting to go out or half come in (ws_door.dart,
-  /// [WireBudget]): the whole process's unless given one.
-  final WireBudget wire;
+  /// The keys that have signed in here with v2, the latest last: from any of them a v1 signature is refused. They are
+  /// kept in two lots, those that held a username here when last seen ([_v2Named]) and the rest ([_v2Nameless]), at most
+  /// [maxSignsV2] together. Past that, the one seen longest ago among those holding no name goes first (one found to hold
+  /// a name by then moves to the other lot instead); one holding a name goes only when none without is left. So a stream
+  /// of new keys, which hold no names, pushes out its own kind first (found in the second look at v2, 2026-11-23: with
+  /// one lot, enough new keys would push out an account that had gone quiet here, and v1 would be taken from it again).
+  final LinkedHashMap<String, bool> _v2Named = LinkedHashMap(), _v2Nameless = LinkedHashMap();
+  final int maxSignsV2;
 
-  /// The keys that have signed in here with v2, the latest last: from any of them a v1 signature is refused. The most
-  /// kept is [maxSignsV2]; the one that signed in longest ago goes first.
-  final LinkedHashMap<String, bool> _signsV2 = LinkedHashMap();
-  static const maxSignsV2 = 200000;
+  /// How many keys new to those kept one place may add in an hour (a place: one IPv4 address, or one IPv6 address's
+  /// first 64 bits: [placeOf]). A sign-in past them is taken all the same, its key kept the next time it signs in with
+  /// room; so pushing others out takes a great many places, not one.
+  final int newV2AnHour;
+  final LinkedHashMap<String, ({int from, int n})> _v2From = LinkedHashMap();
+  static const _v2Places = 100000;
+
   bool _v2Dirty = false;
   Timer? _v2Saver;
 
   /// Whether the key named [id] has signed in here with v2, for a test.
-  bool signsV2(String id) => _signsV2.containsKey(id);
+  bool signsV2(String id) => _v2Named.containsKey(id) || _v2Nameless.containsKey(id);
+
+  /// How many keys are kept as having signed in with v2.
+  int get keptV2 => _v2Named.length + _v2Nameless.length;
 
   File? get _v2File => dataDir == null ? null : File('${dataDir!.path}/hub-v2.json');
 
-  void _sawV2(String id) {
-    final had = _signsV2.remove(id) != null;
-    _signsV2[id] = true;
-    while (_signsV2.length > maxSignsV2) {
-      _signsV2.remove(_signsV2.keys.first);
+  bool _holdsAName(String id) => handles?.holdsAName(id) ?? false;
+
+  /// The key [id] signed in with v2 from the place [from] ([placeOf]; '' for a connection made in this program).
+  void _sawV2(String id, String from) {
+    final had = _v2Named.remove(id) != null || _v2Nameless.remove(id) != null;
+    if (!had && !_mayPinFrom(from)) return;
+    (_holdsAName(id) ? _v2Named : _v2Nameless)[id] = true;
+    while (keptV2 > maxSignsV2) {
+      _evictV2();
     }
     if (had) return;
     _v2Dirty = true;
     if (_v2File != null) _v2Saver ??= Timer(const Duration(seconds: 2), _saveV2);
+  }
+
+  bool _mayPinFrom(String from) {
+    final now = _now().millisecondsSinceEpoch;
+    final was = _v2From.remove(from);
+    final fresh = was == null || now - was.from >= const Duration(hours: 1).inMilliseconds;
+    final count = fresh ? (from: now, n: 0) : was;
+    if (count.n >= newV2AnHour) {
+      _v2From[from] = count;
+      return false;
+    }
+    _v2From[from] = (from: count.from, n: count.n + 1);
+    while (_v2From.length > _v2Places) {
+      _v2From.remove(_v2From.keys.first);
+    }
+    return true;
+  }
+
+  void _evictV2() {
+    while (_v2Nameless.isNotEmpty) {
+      final oldest = _v2Nameless.keys.first;
+      _v2Nameless.remove(oldest);
+      // A name taken since it signed in: it is one of the named now, as recent as it was seen.
+      if (!_holdsAName(oldest)) return;
+      _v2Named[oldest] = true;
+    }
+    if (_v2Named.isNotEmpty) _v2Named.remove(_v2Named.keys.first);
   }
 
   void _loadV2() {
@@ -179,8 +221,9 @@ class Hub {
     try {
       final all = jsonDecode(f.readAsStringSync());
       final ids = all is Map && all['ids'] is List ? all['ids'] as List : const [];
+      // Sorted again by who holds a name now (handles are read first).
       for (final id in ids.length > maxSignsV2 ? ids.sublist(ids.length - maxSignsV2) : ids) {
-        if (_hex(id, 32)) _signsV2[id as String] = true;
+        if (_hex(id, 32)) (_holdsAName(id as String) ? _v2Named : _v2Nameless)[id] = true;
       }
     } catch (e) {
       stderr.writeln('relay: hub-v2.json could not be read (${'$e'.split('\n').first}); started again from nothing');
@@ -194,13 +237,47 @@ class Hub {
     if (f == null || !_v2Dirty) return;
     try {
       f.parent.createSync(recursive: true);
-      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'ids': _signsV2.keys.toList()}));
+      // The nameless first, then the named, each lot the latest last.
+      final tmp = File('${f.path}.tmp')..writeAsStringSync(jsonEncode({'v': 1, 'ids': [..._v2Nameless.keys, ..._v2Named.keys]}));
       tmp.renameSync(f.path);
       _v2Dirty = false;
     } catch (e) {
       stderr.writeln('relay: hub-v2.json could not be written (${'$e'.split('\n').first})');
     }
   }
+
+  /// Who a connection is from, for counting what one place does ([newV2AnHour]): where it came through a proxy on this
+  /// machine or its private network (Caddy, in front), the last address that proxy put in `X-Forwarded-For` (the one
+  /// it saw: anything before it is what the asker said); else the connection's own address, whatever its headers say.
+  static String clientOf(InternetAddress? peer, String? forwardedFor) {
+    if (peer == null) return '';
+    if ((peer.isLoopback || _privateAddress(peer)) && forwardedFor != null) {
+      final said = InternetAddress.tryParse(forwardedFor.split(',').last.trim());
+      if (said != null) return said.address;
+    }
+    return peer.address;
+  }
+
+  static bool _privateAddress(InternetAddress a) {
+    final b = a.rawAddress;
+    if (a.type == InternetAddressType.IPv4) return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168);
+    if (a.type == InternetAddressType.IPv6) return (b[0] & 0xfe) == 0xfc;
+    return false;
+  }
+
+  /// The place [address] counts as: an IPv4 address itself (also written as IPv6), an IPv6 address by its first 64 bits,
+  /// since whoever has one address there has all of them.
+  static String placeOf(String address) {
+    final a = InternetAddress.tryParse(address);
+    if (a == null || a.type != InternetAddressType.IPv6) return address;
+    final b = a.rawAddress;
+    if (b.sublist(0, 10).every((x) => x == 0) && b[10] == 0xff && b[11] == 0xff) return '${b[12]}.${b[13]}.${b[14]}.${b[15]}';
+    return '${[for (var i = 0; i < 8; i += 2) ((b[i] << 8) | b[i + 1]).toRadixString(16)].join(':')}::/64';
+  }
+
+  /// What every connection through the hub's door may hold together, waiting to go out or half come in (ws_door.dart,
+  /// [WireBudget]): the whole process's unless given one.
+  final WireBudget wire;
 
   /// How much is held for everyone together, in bytes, and how many may be connected: a server with a few hundred
   /// megabytes to itself, open to anyone who can make a key, is not to be filled by them.
@@ -370,8 +447,8 @@ class Hub {
   int heldFor(String id) => _mail[id]?.length ?? 0;
 
   void start() {
-    _loadV2();
     handles?.load();
+    _loadV2();
     invites?.load();
     words?.load();
     accounts?.load();
@@ -499,13 +576,13 @@ class Hub {
       return;
     }
     ws.pingInterval = const Duration(seconds: 30);
-    attach(_WebSocketHubSocket(ws));
+    attach(_WebSocketHubSocket(ws), from: placeOf(clientOf(request.connectionInfo?.remoteAddress, request.headers.value('x-forwarded-for'))));
   }
 
   /// Takes a connection whatever carries it: the WebSocket [accept] upgraded, or any other [HubSocket] (one made in
   /// this very program, another relay's, a peer-to-peer stream). It is said hello to and heard from then on, as a
   /// WebSocket always was. [maxConnections] counts these too: one more than that is closed at once (4503, "full").
-  void attach(HubSocket socket) {
+  void attach(HubSocket socket, {String from = ''}) {
     if (_open >= maxConnections) {
       socket.close(4503, 'full');
       return;
@@ -621,12 +698,12 @@ class Hub {
           final host = hello?['host'];
           if (host is! String || !names.contains(host.toLowerCase())) return bad('This relay isn\'t reached as ${host is String && host.length <= 200 ? host : 'that'}.');
           if (!P256.verify(key, signedV2(host.toLowerCase(), nonce), sig)) return bad();
-          _sawV2(id as String);
+          _sawV2(id, from);
         } else {
           if (!P256.verify(key, [...utf8.encode(greeting), ...nonce], sig)) return bad();
           // A key that has signed in here with v2 signs every sign-in here so: a v1 signature of its is one made
           // somewhere else, for anyone to pass on.
-          if (_signsV2.containsKey(id)) return bad('This account signs in a newer way now: update Ghost Messaging on this device.');
+          if (signsV2(id)) return bad('This account signs in a newer way now: update Ghost Messaging on this device.');
         }
         waiting.cancel();
         _nonces.remove(number);

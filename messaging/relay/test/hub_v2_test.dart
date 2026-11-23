@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/p256.dart';
+import 'package:ghost_relay/relay.dart';
 import 'package:test/test.dart';
 
 import 'fed_support.dart';
@@ -16,7 +19,7 @@ import 'fed_support.dart';
 void main() {
   /// Signs in to [hub] over memory as [scalar]'s key: v2 for [host] where given (and asked for by the hub's hello, or
   /// [anyway]), else v1. What the hub said back, and its hello.
-  Future<({Map hello, Map answer, MemSocket socket})> signIn(Hub hub, List<int> scalar, {String? host, bool peek = false, List<int>? nonceFrom}) async {
+  Future<({Map hello, Map answer, MemSocket socket})> signIn(Hub hub, List<int> scalar, {String? host, bool peek = false, List<int>? nonceFrom, String from = ''}) async {
     final (mine, theirs) = MemSocket.pair();
     final heard = <Map>[];
     final second = Completer<void>();
@@ -27,7 +30,7 @@ void main() {
     }, onDone: () {
       if (!second.isCompleted) second.complete();
     });
-    hub.attach(theirs);
+    hub.attach(theirs, from: from);
     await pumpEventQueue();
     final hello = heard.first;
     final nonce = nonceFrom ?? unhex(hello['hello'] as String);
@@ -121,6 +124,82 @@ void main() {
     final second = Hub(names: ['gogho.st'], dataDir: dir)..start();
     expect((await signIn(second, upgraded)).answer['ok'], isFalse);
     second.stop();
-    expect(Hub.maxSignsV2, 200000);
+    expect([Hub().maxSignsV2, Hub().newV2AnHour], [200000, 30]);
+  });
+
+  String idOf(List<int> scalar) => Hub.nameOf(P256.publicOf(scalar));
+
+  // The second look at v2 (2026-11-23): the keys kept are what makes a v1 signature worthless, so they must not be
+  // easy to push out with keys made for it.
+  test('past the most kept, a key holding no username goes first: new keys push out their own kind, not an account with a name', () async {
+    final hub = Hub(names: ['gogho.st'], handles: Handles(random: Random(1))..load(), maxSignsV2: 3);
+    final alice = someBytes(32), quiet = someBytes(32);
+    final hers = await signIn(hub, alice, host: 'gogho.st');
+    // She takes a username after signing in: found holding it when it matters.
+    hers.socket.add(jsonEncode({'dir': 'claim', 'name': 'alice'}));
+    await pumpEventQueue();
+    expect(hub.handles!.holdsAName(idOf(alice)), isTrue);
+    await signIn(hub, quiet, host: 'gogho.st');
+    final made = [for (var i = 0; i < 3; i++) someBytes(32)];
+    for (final k in made) {
+      await signIn(hub, k, host: 'gogho.st');
+    }
+    expect(hub.keptV2, 3);
+    expect(hub.signsV2(idOf(alice)), isTrue, reason: 'she signed in first of all, and holds a name: she stays');
+    expect([hub.signsV2(idOf(quiet)), for (final k in made) hub.signsV2(idOf(k))], [false, false, true, true], reason: 'those holding no name go, the one seen longest ago first');
+    expect((await signIn(hub, alice)).answer['ok'], isFalse, reason: 'and v1 is still refused from her');
+  });
+
+  test('one place adds at most so many new keys an hour: past them a sign-in is taken all the same, and its key kept once there is room', () async {
+    var clock = DateTime(2026, 11, 23, 12);
+    final hub = Hub(names: ['gogho.st'], newV2AnHour: 2, now: () => clock);
+    final keys = [for (var i = 0; i < 3; i++) someBytes(32)];
+    for (final k in keys) {
+      expect((await signIn(hub, k, host: 'gogho.st', from: '203.0.113.7')).answer['ok'], isTrue, reason: 'every sign-in is taken');
+    }
+    expect([for (final k in keys) hub.signsV2(idOf(k))], [true, true, false]);
+    expect((await signIn(hub, keys[0], host: 'gogho.st', from: '203.0.113.7')).answer['ok'], isTrue);
+    expect(hub.signsV2(idOf(keys[0])), isTrue, reason: 'a key kept already is no new one');
+    final elsewhere = someBytes(32);
+    await signIn(hub, elsewhere, host: 'gogho.st', from: '198.51.100.9');
+    expect(hub.signsV2(idOf(elsewhere)), isTrue, reason: 'another place has its own');
+    clock = clock.add(const Duration(hours: 1));
+    await signIn(hub, keys[2], host: 'gogho.st', from: '203.0.113.7');
+    expect(hub.signsV2(idOf(keys[2])), isTrue, reason: 'an hour on, there is room again');
+  });
+
+  test('the place a connection is from: what the proxy on this machine saw, never what the asker says; IPv6 by its first 64 bits', () {
+    final local = InternetAddress('127.0.0.1'), compose = InternetAddress('172.18.0.3'), far = InternetAddress('198.51.100.9');
+    expect(Hub.clientOf(local, '203.0.113.7'), '203.0.113.7');
+    expect(Hub.clientOf(local, '6.6.6.6, 203.0.113.7'), '203.0.113.7', reason: 'the last is what the proxy saw; before it, what the asker said');
+    expect(Hub.clientOf(compose, '203.0.113.7'), '203.0.113.7', reason: 'Caddy beside it on a private network');
+    expect(Hub.clientOf(far, '203.0.113.7'), '198.51.100.9', reason: 'nobody in front: its headers are its own word');
+    expect([Hub.clientOf(local, 'nonsense'), Hub.clientOf(local, null), Hub.clientOf(null, '203.0.113.7')], ['127.0.0.1', '127.0.0.1', '']);
+    expect(Hub.placeOf('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), '2001:db8:1:2::/64');
+    expect(Hub.placeOf('2001:db8:1:2::1'), Hub.placeOf('2001:db8:1:2:ffff::9'));
+    expect([Hub.placeOf('::ffff:203.0.113.7'), Hub.placeOf('203.0.113.7')], ['203.0.113.7', '203.0.113.7']);
+  });
+
+  test('through the relay\'s own door, sign-ins are counted by the place the proxy in front says they came from', () async {
+    final hub = Hub(names: ['gogho.st'], newV2AnHour: 1);
+    final relay = Relay(hub: hub);
+    final port = await relay.start(port: 0);
+    addTearDown(relay.stop);
+    Future<String> overTheDoor(String forwardedFor) async {
+      final scalar = someBytes(32);
+      final ws = await WebSocket.connect('ws://127.0.0.1:$port/hub', headers: {'X-Forwarded-For': forwardedFor});
+      final said = StreamIterator(ws);
+      expect(await said.moveNext(), isTrue);
+      final nonce = unhex((jsonDecode(said.current as String) as Map)['hello'] as String);
+      final key = P256.publicOf(scalar);
+      ws.add(jsonEncode({'id': Hub.nameOf(key), 'key': base64Encode(key), 'sig': base64Encode(P256.sign(scalar, Hub.signedV2('gogho.st', nonce), someBytes(32))), 'v': 2, 'host': 'gogho.st'}));
+      expect(await said.moveNext(), isTrue);
+      expect((jsonDecode(said.current as String) as Map)['ok'], isTrue);
+      await ws.close();
+      return idOf(scalar);
+    }
+
+    final one = await overTheDoor('203.0.113.1'), two = await overTheDoor('203.0.113.2'), three = await overTheDoor('203.0.113.1');
+    expect([hub.signsV2(one), hub.signsV2(two), hub.signsV2(three)], [true, true, false]);
   });
 }
