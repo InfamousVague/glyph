@@ -188,6 +188,22 @@ void main() {
       expect(mitm.heard.whereType<Uint8List>(), isEmpty);
     });
 
+    test('a name asked of a relay that offers v2 is asked under a v1 sign-in: the key thrown away is not kept there among those it holds to', () async {
+      final net = RelayNet();
+      final home = net.relay('home.test', federation: false);
+      final there = net.relay('there.test', federation: false, names: {'there.test'});
+      final asker = RelayApp(net, 'asker', home), maya = RelayApp(net, 'maya', there);
+      apps.addAll([asker, maya]);
+      await asker.start();
+      await maya.start();
+      expect(there.hub.keptV2, 1, reason: 'Maya\'s own app signs v2 there');
+      // (Found, and refused as on a relay that passes nothing on: what matters is how it was asked.)
+      await asker.buddies.add('maya@there.test').then((_) {}, onError: (_) {});
+      await until(() => net.asked.contains(there.url), 'there.test was never asked');
+      await pumpEventQueue();
+      expect(there.hub.keptV2, 1, reason: 'the lookup\'s key was not kept');
+    });
+
     test('where this app\'s relay says it won\'t talk to that one, the app doesn\'t go around it; and a host it wouldn\'t dial is asked of nobody', () async {
       final net = RelayNet();
       final a = net.relay('a.test'), closed = net.relay('closed.test', block: {'a.test'});

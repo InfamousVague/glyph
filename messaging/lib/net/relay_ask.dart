@@ -55,17 +55,17 @@ Future<FoundThere?> whoisAt(String url, String name, {HubDial? dial, Duration ti
       if (m['hello'] is String && !signedIn) {
         final card = m['relay'];
         talks = card is Map && card['fed'] == true;
-        final v2 = m['v2'] == true;
-        final host = HubCarrier.hostOf(url);
+        // Signed v1 even where that relay offers v2: a key used once and thrown away has nothing to bind, and a v2
+        // sign-in would have the relay keep it among those it holds to for ever (found in the second review,
+        // 2026-11-23).
         final List<int> sig;
         try {
-          final nonce = NetCrypto.unhex(m['hello'] as String);
-          sig = await signer.sign(v2 ? HubCarrier.signedV2(host, nonce) : [...utf8.encode(HubCarrier.greeting), ...nonce]);
+          sig = await signer.sign([...utf8.encode(HubCarrier.greeting), ...NetCrypto.unhex(m['hello'] as String)]);
         } catch (_) {
           return fail('This device couldn\'t sign in there.');
         }
         if (done.isCompleted) return;
-        link.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, 'mode': 'invisible'}));
+        link.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), 'mode': 'invisible'}));
       } else if (m.containsKey('ok') && !signedIn) {
         if (m['ok'] != true) return fail('That relay refused this app.');
         signedIn = true;
