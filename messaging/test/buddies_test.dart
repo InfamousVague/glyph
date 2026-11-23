@@ -9,6 +9,8 @@ import 'package:ghost_messaging/games/game_activity.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart';
+import 'package:ghost_messaging/presence.dart';
+import 'package:ghost_messaging/standalone/chats.dart';
 import 'package:ghost_messaging/ui/add_friend_drawer.dart';
 import 'package:ghost_messaging/ui/username_friends.dart';
 
@@ -47,8 +49,12 @@ class _Port implements BuddiesPort {
   String get displayName => display;
   @override
   String get bio => line;
+  /// The relay can't be asked: the directory answers nothing (Me.whois throws).
+  bool directoryDown = false;
+
   @override
   Future<({String id, String key})?> whois(String username) async {
+    if (directoryDown) throw MeError('The relay server can\'t be reached right now.');
     final p = world.byName[username];
     return p == null ? null : (id: p.keys.id, key: base64Encode(p.keys.public));
   }
@@ -253,6 +259,91 @@ void main() {
     await expectLater(a.add('maya'), throwsA(isA<MeError>()));
   });
 
+  // From the independent review of the who-sent fix (2026-11-23), its probe 4: a request names its own username, and
+  // anyone can send one. Accepted, one that named itself "maya" stood for @maya (the newest install under a username
+  // does), and took what was written to her.
+  test('a request is kept only where the directory says its username is its sender\'s: one that names itself after someone else is not', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
+    final b = Buddies(sam);
+    await b.start();
+    await Buddies(maya).start();
+    // Eve asks Sam calling herself "maya", with her own key; then as a username nobody has; then as herself.
+    void ask(_Port from, String calling) => sam._hellos.add((from: from.keys.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': calling, 'n': 'Maya', 'k': base64Encode(from.keys.public)})));
+    ask(eve, 'maya');
+    ask(eve, 'nobody.here');
+    await _settle();
+    expect(b.requests, isEmpty, reason: 'not who it says');
+    ask(eve, 'eve');
+    await _settle();
+    expect(b.requests.single.username, 'eve');
+    expect(b.requests.single.checked, isTrue);
+    // Maya herself, after: checked.
+    ask(maya, 'maya');
+    await _settle();
+    expect(b.requests.map((r) => (r.username, r.checked)).toSet(), {('eve', true), ('maya', true)});
+  });
+
+  test('where the relay can\'t be asked, a request waits unchecked and can\'t be accepted; asked again, it is checked or forgotten', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
+    final a = Buddies(maya), b = Buddies(sam);
+    await a.start();
+    await b.start();
+    sam.directoryDown = true;
+    await a.add('sam');
+    sam._hellos.add((from: eve.keys.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'maya.c', 'k': base64Encode(eve.keys.public)})));
+    await _settle();
+    expect(b.requests.map((r) => (r.username, r.checked)).toList(), [('maya', false), ('maya.c', false)]);
+    await expectLater(b.accept(b.requests.first), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('can\'t be checked'))));
+    expect(b.friends, isEmpty);
+    // The relay answers again: Maya's is checked, and Eve's, under a username that isn't hers, is forgotten.
+    sam.directoryDown = false;
+    expect(await b.checkRequests(), 2);
+    expect(b.requests.map((r) => (r.username, r.checked)).toList(), [('maya', true)]);
+    await b.accept(b.requests.single);
+    await _settle();
+    expect(a.friends.single.username, 'sam');
+    expect(b.friends.single.username, 'maya');
+  });
+
+  test('a request not checked yet, accepted once the relay answers, is refused where its username is someone else\'s', () async {
+    final world = _World();
+    final sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
+    _Port(world, 'maya');
+    final b = Buddies(sam);
+    await b.start();
+    sam.directoryDown = true;
+    sam._hellos.add((from: eve.keys.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'maya', 'k': base64Encode(eve.keys.public)})));
+    await _settle();
+    expect(b.requests.single.checked, isFalse);
+    sam.directoryDown = false;
+    await expectLater(b.accept(b.requests.single), throwsA(isA<MeError>().having((e) => e.message, 'says why', contains('someone else'))));
+    expect(b.all, isEmpty);
+  });
+
+  test('the friend by username a conversation and a face stand for is one who said yes, never a request or someone blocked under the same username', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya'), sam = _Port(world, 'sam'), eve = _Port(world, 'eve');
+    final b = Buddies(sam);
+    // Listed first: Eve, asking as "maya" (kept by a build from before requests were checked), and someone blocked under it.
+    sam.list = jsonEncode([
+      Buddy(username: 'maya', id: eve.keys.id, key: base64Encode(eve.keys.public), name: 'Not Maya', state: 'invited', at: 9).toJson(),
+      Buddy(username: 'maya', id: 'f' * 32, key: 'x', name: 'Blocked', state: 'blocked', at: 8).toJson(),
+      Buddy(username: 'maya', id: maya.keys.id, key: base64Encode(maya.keys.public), name: 'Maya', at: 1).toJson(),
+    ]);
+    await b.start();
+    final was = Buddies.instance;
+    Buddies.instance = b;
+    addTearDown(() => Buddies.instance = was);
+    expect(b.standingFor('@maya')?.id, maya.keys.id);
+    expect(Presence.ghostIdOf('@maya'), maya.keys.id);
+    expect(Presence.ghostIdOf('@nobody'), isNull);
+    // And the conversation's name, as the overlay gives it (UsernameChats.person).
+    final chats = UsernameChats(save: () {}, buddies: () => b.all);
+    expect(chats.person('@maya')['name'], 'Maya');
+  });
+
   test('a request in someone else\'s name is not taken: its key must be the sender\'s', () async {
     final world = _World();
     final maya = _Port(world, 'maya'), sam = _Port(world, 'sam');
@@ -316,6 +407,26 @@ void main() {
       expect(find.text('Maya Chen'), findsNothing);
       expect(b.friends.single.username, 'maya');
       expect(a.friends.single.username, 'sam', reason: 'Maya hears the yes');
+    });
+
+    testWidgets('a request the relay couldn\'t check says so, and Accept says why it can\'t be yet', (tester) async {
+      final world = _World();
+      final sam = _Port(world, 'sam');
+      final a = Buddies(_Port(world, 'maya', display: 'Maya Chen')), b = Buddies(sam);
+      sam.directoryDown = true;
+      await tester.runAsync(() async {
+        await a.start();
+        await b.start();
+        await a.add('sam');
+        await _settle();
+      });
+      await show(tester, b, await tester.runAsync(() => me('sam')) as Me);
+      expect(find.text('@maya, not checked with the relay yet'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('accept-maya')));
+      await settle(tester);
+      expect(find.textContaining('can\'t be checked with the relay server right now'), findsOneWidget);
+      expect(b.friends, isEmpty);
+      await tester.pump(const Duration(seconds: 7));
     });
 
     Future<void> drawer(WidgetTester tester, Buddies b, Me m) async {

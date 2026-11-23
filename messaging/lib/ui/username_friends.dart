@@ -9,6 +9,23 @@ import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
 
+/// The line under a friend request: what they said of themselves, or that the relay hasn't yet said the username they
+/// gave is theirs (Buddy.checked; found in review, 2026-11-23), which is all a request not checked can be taken at.
+String requestLine(Buddy r) {
+  if (!r.checked) return '@${r.username}, not checked with the relay yet';
+  return r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}';
+}
+
+/// Says yes to the friend request [r], and says why not where it can't be (the relay can't check the username yet, or
+/// it is someone else's: Buddies.accept).
+Future<void> acceptRequest(BuildContext context, Buddy r, {Buddies? buddies}) async {
+  try {
+    await (buddies ?? Buddies.instance).accept(r);
+  } catch (e) {
+    if (context.mounted) toast(context, '$e', tone: GlacierToastTone.danger);
+  }
+}
+
 /// Friend requests at the top of Contacts (Matt, 2026-11-16: "We need a way to add friends on the network by username
 /// on the contacts page and see friend requests"): the requests waiting for an answer with Accept and Decline on each,
 /// and the ones you sent. The friends themselves are listed On Ghost Messaging with the friends by number (Matt,
@@ -51,10 +68,10 @@ class _UsernameFriendsState extends State<UsernameFriends> {
                 key: ValueKey('request-${r.username}'),
                 name: r.shown,
                 title: r.shown,
-                sub: r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}',
+                sub: requestLine(r),
                 trailing: Row(mainAxisSize: MainAxisSize.min, spacing: t.space(2), children: [
                   _Pill(key: ValueKey('decline-${r.username}'), label: 'Decline', onPress: () => b.decline(r)),
-                  _Pill(key: ValueKey('accept-${r.username}'), label: 'Accept', filled: true, onPress: () => b.accept(r)),
+                  _Pill(key: ValueKey('accept-${r.username}'), label: 'Accept', filled: true, onPress: () => acceptRequest(context, r, buddies: b)),
                 ]),
               ),
           ],

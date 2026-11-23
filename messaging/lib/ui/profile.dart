@@ -15,6 +15,7 @@ import 'common.dart';
 import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
 import 'sign_up_from.dart';
+import 'username_friends.dart' show acceptRequest, requestLine;
 import '../kit/semantic_colors.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
@@ -324,9 +325,9 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
                     SettingRow(
                       icon: AppIcon(Lucide.userPlus, size: 18),
                       label: r.shown,
-                      hint: Text(r.name.isEmpty ? (r.bio.isEmpty ? 'Wants to be friends' : r.bio) : '@${r.username}${r.bio.isEmpty ? '' : ' · ${r.bio}'}'),
+                      hint: Text(requestLine(r)),
                       onPress: () => showChoices(context, title: '${r.shown} wants to be friends.', choices: [
-                        Choice('Accept', Lucide.check, () => b.accept(r)),
+                        Choice('Accept', Lucide.check, () => acceptRequest(context, r, buddies: b)),
                         Choice('Decline', Lucide.x, () => b.decline(r), danger: true),
                       ]),
                     ),

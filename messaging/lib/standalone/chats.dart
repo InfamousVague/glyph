@@ -51,13 +51,14 @@ class UsernameChats {
 
   // --- friends by username ---------------------------------------------------------------------------------------
 
+  /// The friend by username [address] stands for, as [states] has them: of those who said yes under that username, the
+  /// newest (Buddies.onePerUsername). Never a request not yet answered, or someone blocked, whatever username it gave:
+  /// one could name itself after a friend and give the conversation with them its own name (found in review,
+  /// 2026-11-23). Null for anyone else.
   Buddy? buddyAt(String address) {
     if (!isUsername(address)) return null;
     final name = address.substring(1).toLowerCase();
-    for (final b in buddies()) {
-      if (b.username.toLowerCase() == name) return b;
-    }
-    return null;
+    return Buddies.onePerUsername([for (final b in buddies()) if (b.state == 'yes' && b.username.toLowerCase() == name) b]).firstOrNull;
   }
 
   Map<String, Object?> person(String address) {

@@ -20,7 +20,7 @@ import '../sounds.dart';
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
-  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}, this.cosmetics = Cosmetics.none});
+  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}, this.cosmetics = Cosmetics.none, this.checked = false});
 
   /// Their username, as the relay server's directory has it.
   final String username;
@@ -53,8 +53,14 @@ class Buddy {
   /// What their profile wears, as they last said (lib/me/cosmetics.dart).
   final Cosmetics cosmetics;
 
-  Buddy copyWith({String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics}) => Buddy(
-      username: username,
+  /// The relay's directory has said [username] is this install's: it gave [id] for it (found in review, 2026-11-23). A
+  /// request names its own username, and anyone can send one: an accepted request that named itself "maya" took what was
+  /// written to @maya. So a request is kept only where the directory says so, or, where the relay couldn't be asked, kept
+  /// unchecked (shown so) and not accepted until it has been. Someone this phone asked was looked up by the asking.
+  final bool checked;
+
+  Buddy copyWith({String? username, String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, bool? checked}) => Buddy(
+      username: username ?? this.username,
       id: id,
       key: key,
       name: name ?? this.name,
@@ -64,9 +70,10 @@ class Buddy {
       picture: picture ?? this.picture,
       status: status ?? this.status,
       links: links ?? this.links,
-      cosmetics: cosmetics ?? this.cosmetics);
+      cosmetics: cosmetics ?? this.cosmetics,
+      checked: checked ?? this.checked);
 
-  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links, if (!cosmetics.isEmpty) 'cx': cosmetics.toJson()};
+  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links, if (!cosmetics.isEmpty) 'cx': cosmetics.toJson(), if (checked) 'ck': true};
 
   /// Links as sent or kept: network to handle, short strings only; null where none were said.
   static Map<String, String>? _linksOf(Object? l) {
@@ -79,7 +86,7 @@ class Buddy {
     final u = j['u'], i = j['i'], k = j['k'];
     if (u is! String || i is! String || k is! String) return null;
     final p = j['p'] is String && (j['p'] as String).length <= ProfilePictures.most ? j['p'] as String : '';
-    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {}, cosmetics: Cosmetics.fromJson(j['cx']) ?? Cosmetics.none);
+    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {}, cosmetics: Cosmetics.fromJson(j['cx']) ?? Cosmetics.none, checked: j['ck'] == true);
   }
 }
 
@@ -311,7 +318,7 @@ class Buddies extends ChangeNotifier {
     } catch (_) {
       all = [];
     }
-    _subs.add(_port.greetings.listen((g) => _greeting(g.from, g.envelope)));
+    _subs.add(_port.greetings.listen((g) => unawaited(_greeting(g.from, g.envelope))));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
     notifyListeners();
     // A request the hub was holding for someone away is lost when the relay restarts, and so is an answer, and nothing
@@ -319,8 +326,44 @@ class Buddies extends ChangeNotifier {
     // it didn't go out"; the relay restarted five times that evening, one deploy each). Each unanswered request is
     // asked again: a little after starting, once the hub is reached, and every few minutes, for two weeks. The other
     // side takes a request it holds already as the same one, and answers one it has said yes to again.
-    Timer(const Duration(seconds: 15), () => unawaited(askAgain()));
-    _again = Timer.periodic(askEvery, (_) => unawaited(askAgain()));
+    Timer(const Duration(seconds: 15), () => unawaited(askAgain().then((_) => checkRequests())));
+    _again = Timer.periodic(askEvery, (_) => unawaited(askAgain().then((_) => checkRequests())));
+  }
+
+  /// Asks the directory whether [username] is the install [id]'s: true; false where it is someone else's or nobody's;
+  /// null where the relay can't be asked now.
+  Future<bool?> _isTheirs(String username, String id) async {
+    try {
+      final found = await _port.whois(tidyHandle(username));
+      return found != null && found.id == id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Asks the directory again about each request it couldn't be asked about when it came ([Buddy.checked]): one whose
+  /// username is its sender's is checked now, one whose username is someone else's (or nobody's) is forgotten, and the
+  /// rest wait for the next time. How many were settled.
+  @visibleForTesting
+  Future<int> checkRequests() async {
+    if (_remote) return 0;
+    var settled = 0;
+    for (final b in [for (final b in all) if (b.state == 'invited' && !b.checked) b]) {
+      final theirs = await _isTheirs(b.username, b.id);
+      final now = byId(b.id);
+      if (theirs == null || now == null || now.state != 'invited' || now.checked) continue;
+      all = theirs ? [for (final o in all) if (o.id != b.id) o, now.copyWith(checked: true)] : [for (final o in all) if (o.id != b.id) o];
+      settled++;
+    }
+    if (settled > 0) await _save();
+    return settled;
+  }
+
+  /// The friend by username [username] stands for: of those who said yes under it, the one [onePerUsername] picks, which
+  /// is the record a conversation with `@username` is (UsernameChats.states). Never one who only asked, or was asked.
+  Buddy? standingFor(String username) {
+    final name = tidyHandle(username);
+    return onePerUsername(friends).where((b) => b.username.toLowerCase() == name).firstOrNull;
   }
 
   /// Sends each request still unanswered, newer than [askFor], again.
@@ -395,18 +438,32 @@ class Buddies extends ChangeNotifier {
     if (found.id == me.id) throw MeError('That\'s you.');
     final had = byId(found.id);
     if (had != null && had.state == 'yes') return had;
-    // They asked first: this is a yes.
-    if (had != null && had.state == 'invited') return accept(had);
-    final b = Buddy(username: name, id: found.id, key: found.key, state: 'asked', at: DateTime.now().millisecondsSinceEpoch);
+    // They asked first: this is a yes, under the username the directory just gave for them.
+    if (had != null && had.state == 'invited') return accept(had.copyWith(username: name, checked: true));
+    final b = Buddy(username: name, id: found.id, key: found.key, state: 'asked', at: DateTime.now().millisecondsSinceEpoch, checked: true);
     _put(b);
     await _save();
     await _port.send(found.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': me.key, ..._profile()}), sealed: false);
     return b;
   }
 
+  /// Says yes to [b]. A request is said yes to only where the relay's directory says its username is its sender's
+  /// ([Buddy.checked]), asked now if it hasn't been: a [MeError] says why not where the relay can't be asked (the request
+  /// waits), or where the username is someone else's (the request is forgotten).
   Future<Buddy> accept(Buddy b) async {
     if (_remote) return Buddy.fromJson((await _ask({'op': 'accept', 'id': b.id}))['buddy'])!;
-    final yes = b.copyWith(state: 'yes');
+    var it = b;
+    if (b.state == 'invited' && !b.checked) {
+      final theirs = await _isTheirs(b.username, b.id);
+      if (theirs == null) throw MeError('@${b.username} can\'t be checked with the relay server right now, so the request waits until it can be. Try again once you\'re connected.');
+      if (!theirs) {
+        all = [for (final o in all) if (o.id != b.id) o];
+        await _save();
+        throw MeError('That request didn\'t come from @${b.username}: the username is someone else\'s. It has been removed.');
+      }
+      it = b.copyWith(checked: true);
+    }
+    final yes = it.copyWith(state: 'yes');
     _put(yes);
     await _save();
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()}));
@@ -457,7 +514,7 @@ class Buddies extends ChangeNotifier {
     }
   }
 
-  void _greeting(String from, Envelope e) {
+  Future<void> _greeting(String from, Envelope e) async {
     if (e.body['buddy'] != 'ask') return;
     final key = e.body['k'], username = e.body['u'];
     if (key is! String || username is! String || !Me.goodUsername(username)) return;
@@ -478,13 +535,34 @@ class Buddies extends ChangeNotifier {
       return;
     }
     if (had?.state == 'asked') {
-      // Both asked: friends.
-      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics)));
+      // Both asked: friends, under the username this phone looked up as it asked.
+      unawaited(accept(had!.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics)).then((_) {}, onError: (_) {}));
       return;
     }
+    // A request names its own username, and anyone can send one: it is kept only where the relay's directory says that
+    // username is its sender's (found in review, 2026-11-23: one that named itself "maya", accepted, took what was
+    // written to @maya). One already checked under the same name is not asked about again; where the relay can't be
+    // asked now, it is kept as not checked, said so, and asked about again (checkRequests).
+    final claimed = tidyHandle(username);
+    var checked = had != null && had.checked && had.username == claimed;
+    if (!checked) {
+      final theirs = await _isTheirs(claimed, from);
+      if (theirs == false) {
+        // Someone else's username, or nobody's: not a request from who it says. One kept from before goes as well.
+        if (byId(from)?.state == 'invited') {
+          all = [for (final o in all) if (o.id != from) o];
+          unawaited(_save());
+        }
+        return;
+      }
+      checked = theirs == true;
+      // Answered meanwhile (accepted, blocked, or asked from here): that stands.
+      final now = byId(from);
+      if (now != null && now.state != 'invited') return;
+    }
     // A request new to this phone: the friend request's sound (lib/sounds.dart), once.
-    if (had?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
-    _put(Buddy(username: tidyHandle(username), id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? '', links: said.links ?? const {}, cosmetics: said.cosmetics ?? Cosmetics.none));
+    if (byId(from)?.state != 'invited') Sounds.instance.play(UiSound.friendRequest);
+    _put(Buddy(username: claimed, id: from, key: key, name: name, bio: bio, state: 'invited', at: DateTime.now().millisecondsSinceEpoch, picture: said.picture ?? '', status: said.status ?? '', links: said.links ?? const {}, cosmetics: said.cosmetics ?? Cosmetics.none, checked: checked));
     unawaited(_save());
   }
 

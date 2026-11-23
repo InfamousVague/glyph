@@ -21,18 +21,13 @@ class Presence {
   /// Told whenever anyone's presence changes, on our own system or another network.
   static Listenable get changes => Listenable.merge([Net.instance.presence, Inbox.instance.presenceChanges]);
 
-  /// The install name on our own system of whoever [address] names: a friend by username (`@name`), or someone this
-  /// phone shares keys with, by their number: the id the encryption record for that number names (Friends.idOf),
-  /// never whoever the routes happen to hold under it (a member of a group, under a number its admin wrote: found in
-  /// review, 2026-11-23). Null for anyone else.
+  /// The install name on our own system of whoever [address] names: a friend by username (`@name`), the one that
+  /// username stands for (Buddies.standingFor: never a request not yet answered, or someone blocked, that gave the same
+  /// username); or someone this phone shares keys with, by their number: the id the encryption record for that number
+  /// names (Friends.idOf), never whoever the routes happen to hold under it (a member of a group, under a number its
+  /// admin wrote). Both found in review, 2026-11-23. Null for anyone else.
   static String? ghostIdOf(String address) {
-    if (address.startsWith('@')) {
-      final name = address.substring(1).toLowerCase();
-      for (final b in Buddies.instance.all) {
-        if (b.username.toLowerCase() == name) return b.id;
-      }
-      return null;
-    }
+    if (address.startsWith('@')) return Buddies.instance.standingFor(address)?.id;
     if (address.contains(':')) return null;
     return Friends.instance.idOf(address);
   }
