@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/p256.dart';
+import 'package:ghost_relay/ws_door.dart' show WireBudget;
 import 'package:test/test.dart';
 
 import 'fed_support.dart';
@@ -15,6 +17,7 @@ import 'fed_support.dart';
 /// - a pass phrase people must give to use it ([Hub.passKeyOf], [Hub.passProof]), with the wrong ones counted;
 /// - a hello that says it runs in someone's app ([Hub.hosted]);
 /// - less kept for rooms than a server keeps ([Hub.roomKeepBytes]);
+/// - no word believed of whom a connection came through, with nobody in front of it ([Hub.trustsProxy]);
 /// - and, on the relay it stays linked to, a word on whether it may stay, which the hosted one shows its keeper
 ///   ([Federation.viaLink]).
 
@@ -133,6 +136,34 @@ void main() {
       expect(await at('10.0.0.6', said: phrase), containsPair('pass', 'busy'), reason: 'five wrong in all this hour: nobody\'s is looked at');
       t = t.add(const Duration(minutes: 61));
       expect(await at('10.0.0.3', said: phrase), containsPair('ok', true), reason: 'an hour on, it may try again');
+    });
+
+    test('with nothing in front of it, what a connection says it came through is not believed: one place stays one place', () async {
+      // Over real sockets, from this machine: a relay hosted from the app has nobody in front of it, so anyone on its
+      // network could name a new place in X-Forwarded-For with each try, and guess as many times as they liked.
+      Future<Map> signInOver(int port, String forwarded, String said) async {
+        final ws = await WebSocket.connect('ws://127.0.0.1:$port/hub', headers: {'x-forwarded-for': forwarded});
+        final answers = StreamIterator(ws);
+        await answers.moveNext();
+        final nonce = unhex((jsonDecode(answers.current as String) as Map)['hello'] as String);
+        final who = Install();
+        final sig = P256.sign(who.scalar, [...utf8.encode(Hub.greeting), ...nonce], someBytes(32));
+        ws.add(jsonEncode({'id': who.id, 'key': base64Encode(who.key), 'sig': base64Encode(sig), 'pass': _hex(Hub.passProof(Hub.passKeyOf(said), nonce, who.id))}));
+        await answers.moveNext();
+        final m = jsonDecode(answers.current as String) as Map;
+        await ws.close();
+        return m;
+      }
+
+      for (final trusts in [true, false]) {
+        final hub = Hub(pass: phrase, passGuessesAnHour: 1, trustsProxy: trusts, wire: WireBudget());
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen(hub.accept);
+        expect(await signInOver(server.port, '203.0.113.1', 'wrong'), containsPair('pass', 'wrong'));
+        final second = await signInOver(server.port, '203.0.113.2', phrase);
+        expect(second['ok'] == true, trusts, reason: trusts ? 'behind a proxy it is the proxy\'s word: another place' : 'nobody in front: still 127.0.0.1, which has had its one wrong guess');
+        await server.close(force: true);
+      }
     });
 
     test('another relay\'s hello is not asked for it: whether relays link is their keepers\' own choice', () async {

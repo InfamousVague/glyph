@@ -61,7 +61,7 @@ import 'ws_door.dart';
 /// - **What it does not carry:** a call's sound and picture. Those go between the phones directly (or through a
 ///   media relay); the hub carries only what sets a call up.
 class Hub {
-  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, this.maxSignsV2 = 200000, this.newV2AnHour = 30, this.newV2AnHourAll = 5000, WireBudget? wire, this.oldAppHold = const Duration(minutes: 2), this.heldRefusalsMost = 1000, this.roomKeepBytes = 256 * 1024 * 1024, String? pass, this.passGuessesAnHour = 20, this.passGuessesAll = 200, this.hosted = false})
+  Hub({DateTime Function()? now, this.verbose = false, Random? random, this.heldBytes = 96 << 20, this.maxConnections = 20000, this.handles, this.pushes, this.invites, this.accounts, this.words, this.turn = const TurnConfig(), List<String> helpers = const [], this.federation, Iterable<String> names = const [], this.dataDir, this.maxSignsV2 = 200000, this.newV2AnHour = 30, this.newV2AnHourAll = 5000, WireBudget? wire, this.oldAppHold = const Duration(minutes: 2), this.heldRefusalsMost = 1000, this.roomKeepBytes = 256 * 1024 * 1024, String? pass, this.passGuessesAnHour = 20, this.passGuessesAll = 200, this.hosted = false, this.trustsProxy = true})
       : _now = now ?? DateTime.now,
         started = (now ?? DateTime.now)(),
         _random = random ?? Random.secure(),
@@ -141,6 +141,12 @@ class Hub {
   /// true`), so whoever joins is told that the person running it sees which installs talk and when (never what is
   /// said), as any relay's keeper does, and that it is up only while their app is. False, nothing is said.
   final bool hosted;
+
+  /// Whether a connection from this machine or its private network that says, in `X-Forwarded-For`, whom it came from
+  /// through a proxy is believed ([clientOf]): true, as before, for a relay behind its own web server (Caddy in front,
+  /// as gogho.st is); false for one with nothing in front of it, as a relay hosted from the app is, where anyone on its
+  /// network could say anything there and be counted as a new place each time.
+  final bool trustsProxy;
 
   /// When this hub started, by its own clock. Said with each sign-in (`"since"`, beside its time now, `"now"`): what it
   /// kept for someone lives in memory and goes with a restart, so an app that knows when the relay started knows a
@@ -692,7 +698,7 @@ class Hub {
     // Where it is from, read before the upgrade: a request with two X-Forwarded-For lines, read as one, would throw
     // after the 101 and leave a connection nothing is said on (found in the second review, 2026-11-23). The last line
     // is the proxy's own.
-    final from = placeOf(clientOf(request.connectionInfo?.remoteAddress, request.headers['x-forwarded-for']?.last));
+    final from = placeOf(clientOf(request.connectionInfo?.remoteAddress, trustsProxy ? request.headers['x-forwarded-for']?.last : null));
     final WebSocket ws;
     try {
       // No compression: a message is held whole before its length is looked at, and a deflated one of a few hundred
