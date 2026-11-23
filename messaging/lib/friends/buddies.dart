@@ -19,6 +19,7 @@ import '../net/packet.dart';
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../sounds.dart';
+import 'vouches.dart';
 
 /// Someone added by their username on Ghost Messaging, with no phone number between the two (Matt, 2026-11-14:
 /// "create a profile and username under "me" to register a username and add friends on the platform").
@@ -139,6 +140,14 @@ abstract class BuddiesPort {
   Stream<({String from, Envelope envelope})> get greetings;
 }
 
+/// What a [BuddiesPort] adds where the account can sign (lib/friends/vouches.dart): the app's signs with the key the
+/// routes sign with, kept where the install keeps its keys. A port without it can't vouch for anyone; it still keeps
+/// and counts the vouches friends send and carry.
+abstract class BuddiesSigner {
+  /// The account's signature over [message]: r then s, 64 bytes.
+  Future<Uint8List> sign(List<int> message);
+}
+
 /// What a [BuddiesPort] adds where relays talk to each other (docs/OPEN_NETWORK.md, section 4): this account's home
 /// record and the giving of friends' records to the relay ([Homes]), and whether what was sent someone crossed to their
 /// relay. A port without it knows one relay only, as every port did before: nobody on another relay can be added
@@ -193,7 +202,9 @@ class Buddies extends ChangeNotifier {
 
   /// [lookups]: the account's budget of lookups made of the app's own accord, which the name watch shares (the app's
   /// own: LookupBudget.instance); one of its own where none is given.
-  Buddies(this._port, {this.spread = const Duration(seconds: 2), LookupBudget? lookups}) : _lookups = lookups ?? LookupBudget();
+  Buddies(this._port, {this.spread = const Duration(seconds: 2), LookupBudget? lookups, Vouches? vouches})
+      : _lookups = lookups ?? LookupBudget(),
+        _vouches = vouches;
 
   /// How long between one friend being told this account's new home record and the next: not all at once.
   final Duration spread;
@@ -261,6 +272,7 @@ class Buddies extends ChangeNotifier {
         : Buddy(username: had.username, id: id, key: had.key, name: had.name, state: 'blocked', at: DateTime.now().millisecondsSinceEpoch, picture: had.picture);
     all = [for (final o in all) if (o.id != id) o, b];
     _homes?.forget(id);
+    _dropVouches(id);
     _unreached.remove(id);
     await _save();
   }
@@ -401,6 +413,11 @@ class Buddies extends ChangeNotifier {
     } catch (_) {
       all = [];
     }
+    // This account's vouches (lib/friends/vouches.dart), kept under its own name.
+    try {
+      final me = _me = await _port.me();
+      vouches.load(me.id);
+    } catch (_) {}
     _subs.add(_port.greetings.listen((g) => unawaited(_greeting(g.from, g.envelope))));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
     // Home records: friends' are given to the relay, and friends are told this account's when they need it.
@@ -770,6 +787,94 @@ class Buddies extends ChangeNotifier {
     ProfilePictures.instance.keep(b.id, b.picture);
   }
 
+  // --- vouches (GMFB-33; lib/friends/vouches.dart) ------------------------------------------------------------------
+  //
+  // A friend vouches for another with a sealed envelope of kind `vouch` (the signed word, `{"b","f","t","s","x"?}`),
+  // which a build from before passes over. The one vouched for keeps it and carries what it holds with its sealed
+  // profile (`vo` in `buddy` `yes` and `me`, and `buddy` `vo` alone when it changes), never with a request, which goes
+  // in the clear. A profile shows only the vouches of the viewer's own friends, checked against the keys the viewer
+  // holds for them.
+
+  Vouches? _vouches;
+
+  /// The vouches given, held and carried, kept where the app keeps its choices (or in memory, for a port without).
+  Vouches get vouches => _vouches ??= _across == null ? Vouches.inMemory() : Vouches(read: _across!.recall, write: _across!.remember);
+
+  /// This account's name and key, once [start] asked.
+  ({String id, String key})? _me;
+
+  /// Whether vouching is done here: not on a computer that speaks through its phone, where the phone's friends are.
+  bool get vouchesHere => !_remote && _port is BuddiesSigner;
+
+  /// This account's vouch for [b], where it gave one and has not taken it back.
+  bool vouchedFor(Buddy b) => vouches.given[b.id]?.on ?? false;
+
+  /// Vouches for [b] (or for this account, where [b] is null) that count here: by this account's own friends, one a
+  /// username, each checked against the key held for them.
+  List<Buddy> vouchersOf(Buddy? b) {
+    final me = _me;
+    final id = b?.id ?? me?.id, key = b?.key ?? me?.key;
+    if (id == null || key == null) return const [];
+    return onePerUsername(vouches.vouchersOf(id, key, friends, id: (f) => f.id, key: (f) => f.key));
+  }
+
+  /// Vouches for [b] (or takes this account's vouch back: [on] false), and tells them.
+  Future<void> vouch(Buddy b, {bool on = true}) async {
+    final signer = _port is BuddiesSigner ? _port as BuddiesSigner : null, me = _me;
+    if (_remote || signer == null || me == null) throw MeError('Vouching is done on the device your friends are on.');
+    if (byId(b.id)?.state != 'yes') throw MeError('You can vouch only for a friend.');
+    final v = await vouches.make(me: me.id, forId: b.id, forKey: b.key, on: on, sign: signer.sign);
+    notifyListeners();
+    await _port.send(b.id, Envelope(kind: 'vouch', body: v.toJson()));
+  }
+
+  /// Whether this account carries the vouches it holds to its friends; hiding them tells friends so at once.
+  Future<void> hideVouches(bool hide) async {
+    vouches.setHidden(hide);
+    notifyListeners();
+    await _carryToFriends();
+  }
+
+  /// Tells every friend what this account now holds (a vouch came, or went, or the person hid them).
+  Future<void> _carryToFriends() async {
+    final carry = vouches.carry();
+    for (final b in friends) {
+      try {
+        await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'vo', 'vo': carry}));
+      } catch (_) {}
+    }
+  }
+
+  /// A friend vouched for this account, or took it back.
+  void _heardVouch(String from, Map body) {
+    final had = byId(from), me = _me;
+    if (had == null || had.state != 'yes' || me == null) return;
+    if (vouches.heard(body, from: from, fromKey: had.key, me: me.id, meKey: me.key)) {
+      notifyListeners();
+      unawaited(_carryToFriends());
+    }
+  }
+
+  /// What a friend's sealed profile says they hold (`vo`), where it says it.
+  void _heardCarried(Buddy had, Map body) {
+    if (!body.containsKey('vo')) return;
+    vouches.tookCarried(had.id, body['vo'], friendKey: had.key, keyOf: (id) {
+      final f = byId(id);
+      return f?.state == 'yes' ? f!.key : null;
+    });
+    notifyListeners();
+  }
+
+  /// [id] is no longer a friend: their vouch goes, and friends are told.
+  void _dropVouches(String id) {
+    final held = vouches.held[id]?.on ?? false;
+    vouches.forget(id);
+    if (held) unawaited(_carryToFriends());
+  }
+
+  /// What friends are told of this person in a sealed envelope: [_profile], and the vouches it holds.
+  Map<String, Object> _sealedProfile() => {..._profile(), 'vo': vouches.carry()};
+
   /// What friends are told of this person. The picture and status since 2026-11-19 (`p`, `st`); a build from before
   /// passes over them.
   Map<String, Object> _profile() {
@@ -938,7 +1043,7 @@ class Buddies extends ChangeNotifier {
     await _save();
     // Their record is given the relay now, just before the yes, so the yes is passed on to theirs.
     if (yes.home != null) _homes?.give(yes.home!);
-    await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()}));
+    await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._sealedProfile()}));
     // Friends now: they are told where this account lives.
     await _tellHome(b.id);
     return yes;
@@ -960,6 +1065,7 @@ class Buddies extends ChangeNotifier {
     }
     all = [for (final o in all) if (o.id != b.id) o];
     _homes?.forget(b.id);
+    _dropVouches(b.id);
     await _save();
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'no'}));
   }
@@ -973,6 +1079,7 @@ class Buddies extends ChangeNotifier {
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'end'}));
     all = [for (final o in all) if (o.id != b.id) o];
     _homes?.forget(b.id);
+    _dropVouches(b.id);
     _unreached.remove(b.id);
     await _save();
   }
@@ -984,7 +1091,7 @@ class Buddies extends ChangeNotifier {
       return;
     }
     for (final b in friends) {
-      await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'me', ..._profile()}));
+      await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'me', ..._sealedProfile()}));
     }
   }
 
@@ -1026,7 +1133,7 @@ class Buddies extends ChangeNotifier {
         _put(had!.copyWith(home: home));
         unawaited(_save());
       }
-      unawaited(_port.send(from, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()})));
+      unawaited(_port.send(from, Envelope(kind: 'buddy', body: {'s': 'yes', ..._sealedProfile()})));
       return;
     }
     if (had?.state == 'asked') {
@@ -1067,6 +1174,8 @@ class Buddies extends ChangeNotifier {
   void _sealed(String from, Envelope e) {
     // Where a friend lives, as they signed it (kind `home`).
     if (e.kind == 'home') return _heardHome(from, e.body['rec'], e.body['has']);
+    // A friend's vouch for this account, or its taking back (lib/friends/vouches.dart).
+    if (e.kind == 'vouch') return _heardVouch(from, e.body);
     if (e.kind != 'buddy') return;
     final had = byId(from);
     if (had == null || had.state == 'blocked') return;
@@ -1080,14 +1189,24 @@ class Buddies extends ChangeNotifier {
     switch (e.body['s']) {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
-        if (had.state == 'asked' || had.state == 'yes') _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+        if (had.state == 'asked' || had.state == 'yes') {
+          _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+          _heardCarried(had, e.body);
+        }
         // Friends now: they are told where this account lives (they heard it with the request; again costs little).
         if (had.state == 'asked') {
           _unreached.remove(from);
           unawaited(_tellHome(from));
         }
       case 'me':
-        if (had.state == 'yes') _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+        if (had.state == 'yes') {
+          _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+          _heardCarried(had, e.body);
+        }
+      case 'vo':
+        // The vouches a friend holds, changed: kept apart from the list, which the phone reads its keys from.
+        if (had.state == 'yes') _heardCarried(had, e.body);
+        return;
       case 'ga':
         // What a friend is playing, or that they stopped: kept in memory, never with the list.
         if (had.state == 'yes') GameActivities.instance.heard(from, e.body['ga']);
@@ -1097,6 +1216,7 @@ class Buddies extends ChangeNotifier {
         GameActivities.instance.heard(from, null);
         all = [for (final o in all) if (o.id != from) o];
         _homes?.forget(from);
+        _dropVouches(from);
         _unreached.remove(from);
       default:
         return;
@@ -1117,7 +1237,7 @@ class Buddies extends ChangeNotifier {
   }
 }
 
-class _AppBuddiesPort implements BuddiesPort, BuddiesAcross {
+class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner {
   _AppBuddiesPort() {
     Net.instance.listen((r) => _in.add((from: r.peer.id, envelope: r.envelope)));
     Net.instance.addListener(_follow);
@@ -1167,6 +1287,9 @@ class _AppBuddiesPort implements BuddiesPort, BuddiesAcross {
     final m = await Sms.instance.netIdentity();
     return (id: m.id, key: base64Encode(m.key));
   }
+
+  @override
+  Future<Uint8List> sign(List<int> message) => Sms.instance.netSign(message);
 
   @override
   String? get username => Me.instance.username;

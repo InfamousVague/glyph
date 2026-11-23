@@ -36,6 +36,7 @@ import 'thread.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest;
 import 'identity_ui.dart' show theirDidWords, didWords;
+import 'vouches_ui.dart';
 import 'verified_badge.dart';
 import 'name_watch_words.dart';
 import 'nav_bar.dart' show HoverTip;
@@ -154,6 +155,7 @@ List<Choice> _actions(BuildContext context, ProfileSubject who, _Ghost? g) {
   final phone = links['phone'];
   return [
     if (ghost.friend) Choice('Open chat', Lucide.messageSquare, () => unawaited(_openGhostChat(context, ghost))),
+    if (ghost.friend) ...vouchChoices(context, ghost.buddy!),
     if (phone != null && phone.isNotEmpty) Choice('Text $phone', Lucide.messageSquare, () => unawaited(_openNumber(context, phone, ghost.name)), hint: 'Their number, as they shared it'),
     for (final e in links.entries)
       if (e.key != 'phone' && Inbox.instance.named(e.key)?.state == InboxState.ready)
@@ -379,6 +381,8 @@ class _ProfileCardState extends State<_ProfileCard> {
             Text(g!.me ? didWords : theirDidWords(name.isEmpty ? 'This person' : name), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.4)),
           ]),
         ),
+      // How many of the viewer's own friends vouch for them (GMFB-33), their names on a tap.
+      if (g != null && (g.me || g.buddy?.state == 'yes')) VouchesLine(buddy: g.me ? null : g.buddy, section: section),
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
       if (links.isNotEmpty)
         section(
