@@ -194,7 +194,7 @@ class Install implements PeerBook {
       now: world.clock.now,
       timer: world.clock.timer,
     );
-    board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also]);
+    board = Switchboard(me: account.id, peers: this, carriers: [hub, p2p.carrier, ...also], now: world.clock.now, timer: world.clock.timer);
     _sub = board.received.listen(got.add);
     hub.helpers.addListener(_helpers);
     p2p.attach(board);

@@ -1038,6 +1038,124 @@ void main() {
       expect(b.texts, hasLength(2));
     });
 
+    // The second review, S7 (R2-G): an answer to a packet that came straight went by the route's own send, to every
+    // device of the sender, dialling the ones not linked.
+    test('an answer to something that came straight goes back on the stream it came by, dials nobody, and is no reason for a phone\'s node to stay up', () async {
+      final maya = w.account('maya'), sam = w.account('sam');
+      final a = w.install(maya, computer: true), b1 = w.install(sam, computer: true), b2 = w.install(sam, computer: true);
+      w.friends(a, b1);
+      w.friends(a, b2);
+      for (final i in [a, b1, b2]) {
+        await i.start();
+      }
+      await w.clock.pass(_minute);
+      await w.relayGone();
+      w.mesh.unreachable(b2.node);
+      final dials = a.dialled(b2);
+      final sending = b1.text(maya, 'hello from b1', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 6));
+      final d = await sending;
+      expect([d.via, d.acked, a.texts], ['p2p', true, ['hello from b1']]);
+      expect(a.dialled(b2) - dials, 0, reason: 'answered on the stream it came by');
+      // A phone answering a friend's packets: the answers keep nothing up.
+      final phone = w.install(w.account('cleo'));
+      w.friends(phone, b1);
+      await w.relayBack();
+      await phone.start();
+      await b1.p2p.refresh();
+      await w.settle();
+      expect((await phone.text(sam, 'mine', only: {'p2p'})).acked, isTrue);
+      for (var i = 1; i <= 5; i++) {
+        await w.clock.pass(const Duration(seconds: 20));
+        if (phone.node.now == P2pState.up) expect((await b1.text(phone.account, 'yours $i', only: {'p2p'})).acked, isTrue);
+      }
+      await w.clock.pass(const Duration(seconds: 19));
+      expect(phone.node.now, P2pState.up);
+      await w.clock.pass(_second);
+      expect([phone.node.now, phone.texts], [P2pState.off, ['yours 1', 'yours 2', 'yours 3', 'yours 4', 'yours 5']]);
+    });
+
+    // The second review, S1 (R2-H): when the relay passed something and no answer came in time, the next route was the
+    // direct one with a full send: a phone's node started, a dial, and a meet that started the friend's phone's node too.
+    test('the relay passed it and the answer was late: the direct route is used only by a link that is open, and nothing is started or dialled', () async {
+      final maya = w.account('maya'), sam = w.account('sam');
+      final a = w.install(maya), b = w.install(sam);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      await w.clock.pass(_minute);
+      // Sam's phone takes what comes by the relay, but its answers by the relay don't come back in time (here they can't
+      // go by it at all; a slow phone's would do the same after four seconds).
+      b.board.off.add('hub');
+      final starts = [a.node.starts, b.node.starts], heard = b.heard.length, dials = w.mesh.dials.length;
+      final sending = a.text(sam, 'an ordinary text');
+      await w.clock.pass(const Duration(seconds: 4));
+      final d = await sending;
+      expect([d.via, d.handed, d.acked, d.tried], ['hub', Handed.passed, false, ['hub']]);
+      expect(b.texts, ['an ordinary text']);
+      await w.clock.pass(const Duration(seconds: 10));
+      expect([a.node.starts, b.node.starts], starts, reason: 'neither phone\'s node was started');
+      expect([w.mesh.dials.length - dials, b.heard.sublist(heard)], [0, isEmpty], reason: 'nothing dialled, no meet');
+      // With a link open (made while Sam's phone could answer by the relay), it goes by that link too.
+      b.board.off.remove('hub');
+      expect((await a.text(sam, 'straight', only: {'p2p'})).acked, isTrue);
+      b.board.off.add('hub');
+      final second = a.text(sam, 'and by the link');
+      await w.clock.pass(const Duration(seconds: 4));
+      final again = await second;
+      expect([again.via, again.acked, again.tried], ['p2p', true, ['hub', 'p2p']]);
+      // With the relay down, the direct route is a route like any other: it starts the node and dials as it must.
+      await w.clock.pass(const Duration(minutes: 5));
+      b.board.off.remove('hub');
+      await w.relayGone();
+      a.p2p.setAway(true);
+      b.p2p.setAway(true);
+      final before = [a.node.starts, w.mesh.dialsTo(b.p2p.nodeId!)];
+      final relayDown = a.text(sam, 'with the relay down');
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await relayDown).tried, ['p2p: none of their devices could be reached directly'], reason: 'Sam\'s phone is in his pocket, its node down');
+      expect([a.node.starts - before[0], w.mesh.dialsTo(b.p2p.nodeId!) - before[1]], [1, 1]);
+    });
+
+    // The second review, S6: a ring with the relay down went by the direct route before the text that wakes a closed
+    // app, waiting up to five seconds for a dial.
+    test('something urgent with the relay down, and a route that wakes a closed app after the direct one: the direct route by an open link only, and the waking route at once', () async {
+      const small = CarrierTraits(maxPacket: 133, maxParts: 6, metered: true, live: false, wakes: true);
+      final sms = (PlainCarrier('sms', traits: small), PlainCarrier('sms', traits: small));
+      sms.$1.twin = sms.$2;
+      sms.$2.twin = sms.$1;
+      final a = w.install(w.account('maya'), also: [sms.$1]), b = w.install(w.account('sam'), also: [sms.$2]);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      // A link between the two phones, made while the relay was there; then both are put away, and the relay goes.
+      expect((await a.text(b.account, 'linked', only: {'p2p'})).acked, isTrue);
+      for (final i in [a, b]) {
+        i.p2p.setAway(true);
+      }
+      await w.relayGone();
+      // A link open: the ring goes by it and is answered, and no text is spent.
+      final texts = sms.$1.carried.length;
+      final d = await a.board.send(a.to(b.account), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'abc'}), metered: true, urgent: true);
+      expect([d.via, d.acked, d.tried, sms.$1.carried.length], ['p2p', true, ['p2p'], texts]);
+      // The link let go and the nodes down: the direct route is not even tried, and the text that wakes goes at once.
+      await w.clock.pass(const Duration(minutes: 3));
+      expect([a.p2p.carrier.lines, a.node.now], [0, P2pState.off]);
+      final starts = a.node.starts, dials = w.mesh.dials.length;
+      final d2 = await a.board.send(a.to(b.account), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'abd'}), metered: true, urgent: true);
+      expect([d2.via, d2.tried], ['sms', ['sms']]);
+      expect([a.node.starts - starts, w.mesh.dials.length - dials], [0, 0]);
+      // With no route that wakes after it (a computer's), the direct route dials for it as it must.
+      final c = w.install(w.account('cleo'), computer: true), e = w.install(w.account('dev'), computer: true);
+      w.friends(c, e);
+      await w.relayBack();
+      await c.start();
+      await e.start();
+      await w.relayGone();
+      final d3 = await c.board.send(c.to(e.account), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'abe'}), metered: true, urgent: true);
+      expect([d3.via, d3.acked], ['p2p', true]);
+    });
+
     test('a copy to the account\'s own name reaches its other device directly when the relay is away', () async {
       final maya = w.account('maya');
       final desk = w.install(maya, computer: true), laptop = w.install(maya, computer: true);

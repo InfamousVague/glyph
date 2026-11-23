@@ -64,6 +64,11 @@ abstract class PeerBook {
 /// away. Where it was not urgent that copy is not waited for; the other end takes the envelope once, whichever
 /// copy comes first.
 ///
+/// The same holds, for the same reason, where a route before it passed the packet on and no answer came in time
+/// (their app is slow, not away: nothing is started or dialled for that; second review, S1); for something urgent
+/// while a route that wakes a closed app comes after it (that one goes at once, not after a dial; S6); and for an
+/// answer, which goes back on the link the thing it answers came by ([LiveLinks.sendOn]; S7).
+///
 /// **Sealing.** Everything is sealed with the key the two installs share unless the sender says not to, and
 /// nothing unsealed is taken from someone a key is held for (Matt: "everything should habe the option for
 /// encryption"). With no key yet, only a greeting in the clear passes ([strangers]).
@@ -79,12 +84,16 @@ abstract class PeerBook {
 /// is answered with this device's prekey (`fsk`), so the sender's next try (Friends sends again until answered)
 /// reaches it.
 class Switchboard {
-  Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now, this.fs})
+  Switchboard({required this.me, required this.peers, List<Carrier> carriers = const [], List<String>? order, DateTime Function()? now, Timer Function(Duration after, void Function() then)? timer, this.fs})
       : order = order ?? ['hub', 'p2p', 'lan', 'sms'],
         _now = now ?? DateTime.now,
+        _timer = timer ?? Timer.new,
         _joiner = PartJoiner(now: now) {
     carriers.forEach(add);
   }
+
+  /// What an answer is waited for by: `Timer.new`, or a test's clock.
+  final Timer Function(Duration after, void Function() then) _timer;
 
   /// This device's forward secrecy; null where it has none (a build or a test without it): everything is sealed the
   /// old way then, as before.
@@ -234,8 +243,10 @@ class Switchboard {
   ///
   /// [metered] lets it go by a route that may cost money. [urgent] tries the routes after one that only kept it.
   /// [sealed] false sends it in the clear (a greeting to someone no key is held for). [only] keeps it to those
-  /// routes.
-  Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool urgent = false, bool sealed = true, Set<String>? only}) async {
+  /// routes. [answering] is what this answers: it goes by the route that came by, and on a route of live links by the
+  /// link it came on.
+  Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool urgent = false, bool sealed = true, Set<String>? only, Arrived? answering}) async {
+    if (answering != null) only = {answering.carrier};
     final key = peer.key;
     if (sealed && key == null) return Delivery(envelope.id, tried: const ['no key is held for them, and it was to be sealed']);
     // The packet for routes that carry big ones: with this device's prekey, and sealed for forward secrecy where the
@@ -288,13 +299,15 @@ class Switchboard {
         } catch (_) {}
       }
     }
-    // A route before this one only kept it: they are away from that route.
-    var away = false;
+    // A route before this one only kept it (they are away from that route), or passed it on and no answer came.
+    var away = false, unanswered = false;
     for (final (i, c) in candidates.indexed) {
       // Then a route of live links carries it only by a link that is open now, and is passed over where none is:
-      // nothing is dialled or started for someone who is away.
-      final links = away && c is LiveLinks ? c as LiveLinks : null;
-      if (links != null && !links.linked(peer)) continue;
+      // nothing is dialled or started for someone who is away, or whose app is slow to answer. So too for something
+      // urgent while a route that wakes a closed app comes after (it is not kept waiting on a dial), and for an answer.
+      final live = c is LiveLinks ? c as LiveLinks : null;
+      final links = live != null && (away || unanswered || answering != null || (urgent && candidates.skip(i + 1).any((l) => l.traits.wakes))) ? live : null;
+      if (links != null && answering == null && !links.linked(peer)) continue;
       final packet = packetFor(c);
       final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
       if (pieces == null) {
@@ -306,7 +319,12 @@ class Switchboard {
       try {
         var all = Handed.passed;
         for (final piece in pieces) {
-          if (await (links == null ? c.send(peer, piece) : links.sendLinked(peer, piece)) == Handed.held) all = Handed.held;
+          final Future<Handed> handing = links == null
+              ? c.send(peer, piece)
+              : answering != null
+                  ? links.sendOn(peer, answering.line, piece)
+                  : links.sendLinked(peer, piece);
+          if (await handing == Handed.held) all = Handed.held;
         }
         handed = all;
       } catch (e) {
@@ -331,15 +349,28 @@ class Switchboard {
         _waiting.remove(envelope.id);
         return Delivery(envelope.id, via: c.id, handed: handed, tried: tried);
       }
-      final got = await wait.future.then((_) => true).timeout(c.traits.ackWait, onTimeout: () => false);
-      if (got) {
+      if (await _answered(wait.future, c.traits.ackWait)) {
         _waiting.remove(envelope.id);
         return Delivery(envelope.id, via: c.id, handed: handed, acked: true, tried: tried);
       }
+      unanswered = true;
       kept ??= Delivery(envelope.id, via: c.id, handed: handed, tried: List.of(tried));
     }
     _waiting.remove(envelope.id);
     return kept == null ? Delivery(envelope.id, tried: tried) : Delivery(envelope.id, via: kept.via, handed: kept.handed, tried: tried);
+  }
+
+  /// Whether [answer] comes within [within], by [_timer].
+  Future<bool> _answered(Future<void> answer, Duration within) {
+    final done = Completer<bool>();
+    final wait = _timer(within, () {
+      if (!done.isCompleted) done.complete(false);
+    });
+    answer.then((_) {
+      wait.cancel();
+      if (!done.isCompleted) done.complete(true);
+    });
+    return done.future;
   }
 
   /// Gives [peer]'s packet to the first of the routes in [later] that holds a link to one of their devices open right
@@ -450,7 +481,7 @@ class Switchboard {
         if (fs == null || !fs.loaded) {
           // Not answered; passed on to a sibling that may open it, and asked for again with `nofs` and this device's
           // name: the sender sends this device an old-sealed copy until it offers a prekey (third review, item 3).
-          _askForKeys(peer!, a.carrier);
+          _askForKeys(peer!, a);
           _passOn(whole, a.carrier);
           return;
         }
@@ -461,7 +492,7 @@ class Switchboard {
           case FsResult.replay:
             replay = true;
           case FsResult.notForThisDevice || FsResult.noPrekey:
-            _askForKeys(peer, a.carrier);
+            _askForKeys(peer, a);
             _passOn(whole, a.carrier);
             return;
           case FsResult.bad:
@@ -515,7 +546,7 @@ class Switchboard {
     }
     // Answered every time it comes, since the first answer may be the thing that was lost; passed on once.
     if (envelope.ack) {
-      unawaited(send(peer, Envelope(kind: 'ack', body: {'i': envelope.id}, ack: false), only: {a.carrier}).catchError((_) => Delivery(envelope.id)));
+      unawaited(send(peer, Envelope(kind: 'ack', body: {'i': envelope.id}, ack: false), answering: a).catchError((_) => Delivery(envelope.id)));
     }
     // Opened before (ForwardSecrecy remembers it across restarts): answered, not passed on again.
     if (replay) return;
@@ -528,14 +559,14 @@ class Switchboard {
   ///
   /// Where this device's forward secrecy isn't loaded it asks all the same, with no prekey: sealed the old way and new,
   /// it tells them to seal the old way, and what they sent is sent again so (A6).
-  void _askForKeys(Peer peer, String via) {
+  void _askForKeys(Peer peer, Arrived a) {
     final now = _now();
     final last = _fsAsked[peer.id];
     if (last != null && now.difference(last) < const Duration(minutes: 10)) return;
     _fsAsked[peer.id] = now;
     final f = fs;
     final body = f != null && !f.loaded ? {'d': f.device, 'nofs': 1} : const <String, dynamic>{};
-    unawaited(send(peer, Envelope(kind: fsAsk, body: body, ack: false), only: {via}).catchError((_) => const Delivery('')));
+    unawaited(send(peer, Envelope(kind: fsAsk, body: body, ack: false), answering: a).catchError((_) => const Delivery('')));
   }
 
   /// Whether this name has not been seen before; the last two thousand are remembered.

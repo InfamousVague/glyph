@@ -138,6 +138,9 @@ class P2pCarrier implements Carrier, LiveLinks {
   @override
   bool linked(Peer peer) => _wanted && p2p.devicesOf(peer.id).any((d) => linkedTo(peer.id, d.nodeId));
 
+  @override
+  bool get linkedToSomeone => _wanted && _nodes.values.any((n) => n.lines.any((l) => !l.closed && l.account != null && l.account != p2p.me));
+
   /// A stream this device dialled ([dialled]: whose device it dialled), or one another node opened.
   void _adopt(P2pStream s, {String? dialled}) {
     if (s.channel != P2pChannel.packets) {
@@ -267,7 +270,7 @@ class P2pCarrier implements Carrier, LiveLinks {
     final packet = Packet.parse(frame);
     if (packet == null || (packet.passed ? p2p.me : packet.from) != line.account) return;
     _said(node, line);
-    _arrived.add(Arrived(id, frame, from: line.account));
+    _arrived.add(Arrived(id, frame, from: line.account, line: line));
   }
 
   /// Something was said on [line]: it is let go once nothing has been for [P2pPolicy.quiet].
@@ -477,19 +480,42 @@ class P2pCarrier implements Carrier, LiveLinks {
 
   @override
   Future<Handed> sendLinked(Peer peer, Uint8List packet) async {
+    final until = _sendable(packet);
+    if (!await _byLinks(peer, packet, until)) throw CarrierError('no link to them is open now');
+    // A send of this device's own: a reason for a phone's node to stay up a while.
+    p2p.reason();
+    return Handed.passed;
+  }
+
+  /// An answer goes back on the stream what it answers came by, else by another open to them; never by a dial, and it
+  /// is no reason for a phone's node to stay up: it was the other device that spoke (second review, S7).
+  @override
+  Future<Handed> sendOn(Peer peer, Object? line, Uint8List packet) async {
+    final until = _sendable(packet);
+    if (line is _Line && !line.closed && line.account == peer.id) {
+      final node = _nodes[line.stream.nodeId];
+      if (node != null && await _put(node, line, packet, until)) return Handed.passed;
+    }
+    if (!await _byLinks(peer, packet, until)) throw CarrierError('no link to them is open now');
+    return Handed.passed;
+  }
+
+  /// When a send of [packet] by the links open now must be done by; throws where it can't be sent this way at all.
+  int _sendable(Uint8List packet) {
     if (!_wanted || !p2p.loaded) throw CarrierError('Direct is switched off');
     if (packet.length > maxPacket) throw CarrierError('too long for a direct link');
-    final until = p2p.nowMs + p2p.policy.dialFor.inMilliseconds;
+    return p2p.nowMs + p2p.policy.dialFor.inMilliseconds;
+  }
+
+  /// Puts [packet] on the open streams with [peer]'s devices, one each; whether any took it.
+  Future<bool> _byLinks(Peer peer, Uint8List packet, int until) async {
     var took = false;
     for (final d in p2p.mayLink(peer.id) ? p2p.devicesOf(peer.id) : const <P2pDevice>[]) {
       final node = _nodes[d.nodeId], line = node?.proved(peer.id);
       if (node == null || line == null) continue;
       if (await _put(node, line, packet, until)) took = true;
     }
-    if (!took) throw CarrierError('no link to them is open now');
-    // A send of this device's own: a reason for a phone's node to stay up a while.
-    p2p.reason();
-    return Handed.passed;
+    return took;
   }
 
   Future<void> dispose() async {
