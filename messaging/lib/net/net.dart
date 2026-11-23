@@ -174,6 +174,10 @@ class Net extends ChangeNotifier implements PeerBook {
 
   RelayHosting? _host;
 
+  /// Makes this device's relay host as the routes start (lib/relay_host/relay_host.dart): the platform's own, which is
+  /// none on an iPhone or in a browser; a test hands in one of its own, as it does a node ([p2pNode]).
+  static RelayHosting? Function() relayHostMaker = makeRelayHost;
+
   /// The relay this device hosts, where it can host one (the Mac, Windows, Linux, Android); null on an iPhone, in a
   /// browser, and before the routes are set up. Off unless the person switches it on (Settings › Routes).
   RelayHosting? get relayHost => _host;
@@ -424,7 +428,7 @@ class Net extends ChangeNotifier implements PeerBook {
       // on, before the hub's route dials, which may be to it; and the way to any relay hosted from an app.
       HubDials.hosted = _dialHosted;
       _joinPass = await _readJoinPass();
-      final host = _host ??= makeRelayHost();
+      final host = _host ??= relayHostMaker();
       if (host != null) {
         host.addListener(notifyListeners);
         await host.startIfOn();

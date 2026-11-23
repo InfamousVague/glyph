@@ -337,6 +337,34 @@ void main() {
       await hana.carrier.stop();
     });
 
+    test('a first message longer than any door takes (16 KB), or a frame that is neither kind, ends the stream', () async {
+      final hostDevice = w.install(w.account('hana'), computer: true), joiner = w.install(w.account('jo'), network: 'cafe');
+      await hostDevice.start();
+      await joiner.start();
+      final host = makeHost(Kept(), timer: w.clock.timer, p2p: () => hostDevice.p2p);
+      addTearDown(host.shutdown);
+      await host.setOn(true);
+      await w.until(() => host.directUrl != null, 'the relay never had an address over Direct');
+      await joiner.p2p.up();
+      Future<({P2pStream s, List<Object?> said, bool Function() done})> open() async {
+        final s = await joiner.p2p.node.open(hostDevice.p2p.nodeId!, P2pChannel.hub, hint: const Whereabouts(helper: helper));
+        final said = <Object?>[];
+        var done = false;
+        s.frames.listen((f) => said.add(DirectFrames.decode(f)), onDone: () => done = true);
+        await w.until(() => said.isNotEmpty, 'the hub never said hello');
+        return (s: s, said: said, done: () => done);
+      }
+
+      final long = await open();
+      expect((jsonDecode(long.said.first as String) as Map)['hello'], isA<String>());
+      await long.s.add(DirectFrames.encode(jsonEncode({'id': 'x' * (17 << 10)})));
+      await w.until(long.done, 'a first message of 17 KB was taken');
+      final odd = await open();
+      await odd.s.add(Uint8List.fromList([9, 1, 2, 3]));
+      await w.until(odd.done, 'a frame of no kind was taken');
+      expect(host.connections, 0);
+    });
+
     test('with Direct off at the joiner\'s end it isn\'t dialled, and says why; off at the host\'s, the channel is closed to everyone', () async {
       final hostDevice = w.install(w.account('hana'), computer: true), joiner = w.install(w.account('jo'), network: 'cafe');
       await hostDevice.start();
