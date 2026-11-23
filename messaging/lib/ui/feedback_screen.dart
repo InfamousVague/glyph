@@ -18,10 +18,12 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
 import '../net/net.dart';
+import '../platform_info.dart';
 import '../sms.dart';
 import '../voice/channels.dart';
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'common.dart';
+import 'composer_box.dart' show composerSemantics;
 import 'drawer_head.dart' show DrawerHead;
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'settings_panes.dart' show appVersion;
@@ -280,6 +282,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     }
   }
 
+  /// A many-lined field's own semantics: in a browser [composerSemantics], elsewhere a label on a text field, as before.
+  static Widget _textSemantics({required String label, required FocusNode focus, required Widget child}) =>
+      PlatformInfo.isWeb ? composerSemantics(hint: label, onPress: focus.requestFocus, child: child) : Semantics(label: label, textField: true, child: child);
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -335,9 +341,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                         child: Stack(children: [
                           if (_text.text.isEmpty) IgnorePointer(child: Text('Describe it here', style: ink.copyWith(color: t.color('app-ink-3')))),
-                          Semantics(
+                          // In a browser, named and focused as a composer's words are there (composerSemantics): a bare
+                          // EditableText under a label could be read and never written in with the page's tree for
+                          // screen readers on. Elsewhere as it was.
+                          _textSemantics(
                             label: 'What happened',
-                            textField: true,
+                            focus: _focus,
                             child: EditableText(
                               controller: _text,
                               focusNode: _focus,

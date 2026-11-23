@@ -25,6 +25,7 @@ import '../kit/settings_type.dart';
 import '../market/market_api.dart';
 import '../me/me.dart';
 import '../net/net.dart';
+import '../platform_info.dart';
 import '../plugins/pack/pack.dart' show InstalledPlugins;
 import '../safety/abuse_report.dart';
 import '../sms.dart';
@@ -32,6 +33,7 @@ import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'common.dart';
+import 'composer_box.dart' show composerSemantics;
 import 'drawer_head.dart' show DrawerHead;
 import 'settings_panes.dart' show appVersion;
 
@@ -172,6 +174,10 @@ class _ReportFormState extends State<ReportForm> {
     }
   }
 
+  /// The note's own semantics: in a browser [composerSemantics], elsewhere a label on a text field, as before.
+  static Widget _noteSemantics({required FocusNode focus, required Widget child}) =>
+      PlatformInfo.isWeb ? composerSemantics(hint: 'Note', onPress: focus.requestFocus, child: child) : Semantics(label: 'Note', textField: true, child: child);
+
   /// Blocks them without a report, where a report can't go from here.
   Future<void> _blockOnly() async {
     setState(() => _sending = true);
@@ -259,9 +265,10 @@ class _ReportFormState extends State<ReportForm> {
                   decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                   child: Stack(children: [
                     if (_note.text.isEmpty) IgnorePointer(child: Text('A note for the reviewer (optional)', style: ink.copyWith(color: t.color('app-ink-3')))),
-                    Semantics(
-                      label: 'Note',
-                      textField: true,
+                    // In a browser, named and focused as a composer's words are there (composerSemantics), or it could be
+                    // read and never written in with the page's tree for screen readers on. Elsewhere as it was.
+                    _noteSemantics(
+                      focus: _focus,
                       child: EditableText(
                         key: const ValueKey('report-note'),
                         controller: _note,
