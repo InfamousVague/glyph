@@ -405,7 +405,13 @@ script in it, and at the app's address it could read the store. So a browser sho
 the app's own page (Flutter draws a picture; the `<video>` element plays the others) and saves everything else to
 the downloads, as `application/octet-stream`. The relay lets app.gogho.st read its files routes' answers
 (`GHOST_APP_ORIGIN`, as for feedback: `/files/` alone besides those two), and the page's policy names
-`https://gogho.st/files/`; a relay's own `/app/` is the relay's own address and needs neither. What a browser keeps of
+`https://gogho.st/files/`; a relay's own `/app/` is the relay's own address and needs neither. What the web server in
+front of the relay answers on its own (a body over its limit, a `502` while the relay restarts) carries no CORS
+header, so a page across addresses sees only a failed request, which it takes as the relay out of reach: an upload
+waits and tries again (gogho.st's blocks take 10 MiB a request, `tool/deploy-site.mjs`; the app's pieces are 4 MB).
+Opening a file brings it into the tab only where the page shows it (`browserShowsHere`: a picture of 8 MB at most,
+words of 16 MB, a sound or a video of 512 MB), and only the first 256 KB of words is read out of the tab; anything
+else, or bigger, is downloaded when the person asks. What a browser keeps of
 a file that came down is in the tab's memory: Chromium and Firefox put a big `Blob` on disk among the profile's
 temporary files and delete it when the tab closes; Safari holds it in memory, so a very large file is better brought
 down by the app. Tried by `tool/web/e2e.mjs --files`: one browser uploads a file to a circle's Files space, by the
