@@ -107,7 +107,6 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
 
   // MARK: Choosing pictures
 
-  /// The Mac's own panel for choosing files, for pictures: the paths chosen, none where it was put away.
   /// A picture on the clipboard, for pasting into the message field (Matt, 2026-11-16: "add the ability to paste
   /// images into the chatbar on desktop"): the path of an image file copied in the Finder, or a copied picture (a
   /// screenshot, an image copied from a page) written as a PNG to this run's folder. Nil where there is none, and
@@ -130,6 +129,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     }
   }
 
+  /// The Mac's own panel for choosing files, for pictures alone: the paths chosen, [most] of them at most, none
+  /// where it was put away.
   private static func pickPictures(most: Int) -> [String] {
     let panel = NSOpenPanel()
     panel.title = "Choose pictures"
@@ -192,6 +193,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return String(data: data, encoding: .utf8)
   }
 
+  /// Replaces what was kept. Readable once the device has been unlocked after a restart, and never carried to
+  /// another device.
   private static func keychain(write account: String, value: String) -> Bool {
     SecItemDelete(query(account) as CFDictionary)
     var q = query(account)
@@ -200,6 +203,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return SecItemAdd(q as CFDictionary, nil) == errSecSuccess
   }
 
+  /// True where nothing is kept under [account] any more, whether or not anything was.
   private static func keychain(delete account: String) -> Bool {
     let status = SecItemDelete(query(account) as CFDictionary)
     return status == errSecSuccess || status == errSecItemNotFound
@@ -232,6 +236,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
     return nil
   }
 
+  /// A phone announced itself: it is told to Dart once its address is known (resolved).
   func netServiceBrowser(_ browser: NetServiceBrowser, didFind service: NetService, moreComing: Bool) {
     services.append(service)
     service.delegate = self
@@ -288,6 +293,7 @@ func videoFrameImage(_ path: String) -> CGImage? {
   return try? gen.copyCGImage(at: CMTime(seconds: at, preferredTimescale: 600), actualTime: nil)
 }
 
+/// The same frame as a PNG's bytes, for Dart; nil where the video can't be read.
 func videoFramePNG(_ path: String) -> Data? {
   guard let cg = videoFrameImage(path) else { return nil }
   return NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])

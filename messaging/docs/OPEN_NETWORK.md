@@ -224,6 +224,14 @@ the relay give your username to another key". An add-me link carries the first 8
 **What this does not check:** rooms (circles, spaces, voice), what the relay says to the browser client (it has no
 direct route yet), and anything while no two devices are ever online together.
 
+**What a restart loses** (GMFB-24). The hub holds what is kept for someone away, and what a room keeps, in memory;
+a restart loses it, and the `since` it says with each sign-in lets the ledger put that down to the restart, not to
+the relay. A relay whose keeper sets `GHOST_HUB_KEEP_HELD=1` keeps both on its disk too (`relay/lib/held_store.dart`):
+the sealed packets, and **who each is for, who sent it and when**, for up to seven days, so a stop loses nothing and
+a crash its last fifth of a second, and after a clean stop `since` stays the start of the hub before. It is off on
+our relay until Matt switches it on: it puts a week of who-wrote-to-whom on the box's disk (`relay/README.md`, "What
+it keeps"). A relay hosted from the app never keeps it.
+
 ## 4. Relays that talk to each other
 
 A relay gets a key of its own (`relay-key.json`), and a name made from it as an install's is. Its hello to an app

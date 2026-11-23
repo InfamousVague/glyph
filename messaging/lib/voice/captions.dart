@@ -31,6 +31,8 @@ class CaptionLine {
   CaptionLine translated(String to) => CaptionLine(from: from, words: words, done: done, at: at, shown: to);
 }
 
+/// The captions of the call this device is in: starts and stops the platform's speech recogniser (channel
+/// 'ghost/captions'), says this device's words in the call, and keeps everyone's lines for the overlay.
 class CallCaptions extends ChangeNotifier {
   CallCaptions._() {
     _channel.setMethodCallHandler((call) async {
@@ -81,6 +83,8 @@ class CallCaptions extends ChangeNotifier {
     _check();
   }
 
+  /// Starts or stops the recogniser as the call's wish for captions changes, and tells it whether the mic is muted
+  /// (deafened counts as muted). Runs on every change of the session.
   void _check() {
     final s = _session;
     final want = s != null && s.joined && s.anyoneWantsCaptions && supported;
@@ -96,6 +100,8 @@ class CallCaptions extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Words the recogniser heard from this device's own voice: said in the call and shown here as 'me'. Dropped while
+  /// muted or deafened.
   void _ownHeard(String words, bool done) {
     final s = _session;
     if (s == null || words.trim().isEmpty || s.muted || s.deafened) return;
@@ -105,6 +111,8 @@ class CallCaptions extends ChangeNotifier {
 
   void _heard(String from, String words, bool done) => _put(from, words, done);
 
+  /// Takes a line from [from]: an unfinished one replaces that person's line in progress; a finished one joins
+  /// [lines] (the newest 20 are kept) and, where it is someone else's, is translated in place once [translate] answers.
   void _put(String from, String words, bool done, {bool mine = false}) {
     final line = CaptionLine(from: from, words: words, done: done, at: DateTime.now());
     if (done) {
@@ -134,5 +142,6 @@ class CallCaptions extends ChangeNotifier {
     follow();
   }
 
+  /// Whether this device's person asked for captions in the call.
   bool get on => _session?.wantsCaptions ?? false;
 }

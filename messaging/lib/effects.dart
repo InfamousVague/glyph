@@ -40,6 +40,8 @@ enum ScreenEffect {
 /// The iPhone's bubble effects: how one message arrives, not something over the whole screen.
 enum BubbleEffect { slam, loud, gentle, invisibleInk }
 
+/// The words that set an effect off, in lower case, matched whole anywhere in a message. The first listed wins, so
+/// "happy lunar new year" is asked before "happy new year".
 const _phrases = <ScreenEffect, List<String>>{
   ScreenEffect.balloons: ['happy birthday', 'happy bday', 'happy b-day'],
   ScreenEffect.confetti: ['congratulations', 'congrats', 'felicitations', 'well done', 'you did it', 'we did it'],
@@ -61,6 +63,7 @@ const _phrases = <ScreenEffect, List<String>>{
   ScreenEffect.party: ['party time', 'let\'s party', 'lets party'],
 };
 
+/// The key emoji: one of these in a message of nothing but emoji sets its effect off.
 const _emoji = <ScreenEffect, List<String>>{
   ScreenEffect.balloons: ['🎂', '🎈', '🥳'],
   ScreenEffect.confetti: ['🎉', '🎊', '🏆'],
@@ -125,6 +128,7 @@ ScreenEffect? effectForReaction(String emoji) {
 /// "(Sent with Slam effect)".
 final _sentWith = RegExp(r'\s*\(sent with ([a-z ]+?)(?: effect)?\)\s*$', caseSensitive: false);
 
+/// The names an iPhone gives its screen effects in "(sent with …)", in lower case, and the effect played for each.
 const _sentScreen = {
   'echo': ScreenEffect.echo,
   'spotlight': ScreenEffect.spotlight,
@@ -139,6 +143,7 @@ const _sentScreen = {
   'sparkles': ScreenEffect.celebration,
 };
 
+/// The same for its bubble effects.
 const _sentBubble = {
   'slam': BubbleEffect.slam,
   'loud': BubbleEffect.loud,
@@ -154,6 +159,7 @@ class SentWith {
   final BubbleEffect? bubble;
 }
 
+/// Takes an iPhone's "(sent with …)" off the end of [body]. A name that is no effect known here is left as written.
 SentWith sentWith(String body) {
   final m = _sentWith.firstMatch(body);
   if (m == null) return SentWith(body);
@@ -175,6 +181,7 @@ ScreenEffect? effectFor(String text) {
   final lower = t.toLowerCase().replaceAll('’', '\'');
   for (final e in _phrases.entries) {
     for (final p in e.value) {
+      // As whole words: no letter directly before or after, so "boo" is not found in "book".
       if (RegExp('(^|[^a-z])${RegExp.escape(p)}([^a-z]|\$)').hasMatch(lower)) return e.key;
     }
   }
@@ -196,6 +203,7 @@ int emojiOnly(String text) {
 /// The effects made of emoji in flight, drawn in the emoji set the person chose: which, and how they move.
 enum _Flight { rise, fall, burst }
 
+/// For each such effect: the emoji, how they move, and how many of them fly.
 const _flights = <ScreenEffect, (List<String>, _Flight, int)>{
   ScreenEffect.kisses: (['💋', '😘', '💋', '💕'], _Flight.rise, 26),
   ScreenEffect.wow: (['🤩', '✨', '❗', '🤯', '⭐'], _Flight.burst, 34),
@@ -209,6 +217,7 @@ const _flights = <ScreenEffect, (List<String>, _Flight, int)>{
   ScreenEffect.party: (['🪩', '🎶', '🕺', '💃', '✨'], _Flight.fall, 30),
 };
 
+/// How long each effect runs, in milliseconds. Every effect has one.
 const _durations = <ScreenEffect, int>{
   ScreenEffect.confetti: 3600,
   ScreenEffect.balloons: 4600,
@@ -252,6 +261,7 @@ class EffectSprites {
   /// The props: many, small.
   final List<EffectSprite> props;
 
+  /// The pictures decoded, or being decoded, in the order they were last asked for: the first is the first to go.
   static final _held = <ScreenEffect, Future<EffectSprites?>>{};
 
   /// How many effects' pictures are kept decoded: the one playing and the ones just played.
@@ -268,6 +278,8 @@ class EffectSprites {
     return sprites;
   }
 
+  /// Finds [effect]'s pictures among the app's assets by their names and decodes them, in the order of their
+  /// numbers. Null where there are none, or where one cannot be read.
   static Future<EffectSprites?> _load(ScreenEffect effect) async {
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
@@ -314,6 +326,7 @@ class EffectSprite {
   static const drawings = 6;
   static const perSecond = 8.0;
 
+  /// The size of one drawing, in the picture's own pixels.
   double get width => image.width / frames;
   double get height => image.height.toDouble();
 
@@ -337,6 +350,7 @@ class _SpritePlan {
   final bool small;
 }
 
+/// The plan for each effect, used only where the effect has pictures (see [EffectSprites]).
 const _spritePlans = <ScreenEffect, _SpritePlan>{
   ScreenEffect.balloons: _SpritePlan(_Flight.rise, 14, _Flight.rise, 4),
   ScreenEffect.confetti: _SpritePlan(_Flight.fall, 64, _Flight.rise, 3, small: true),
@@ -371,9 +385,15 @@ class EffectLayer extends StatefulWidget {
   State<EffectLayer> createState() => EffectLayerState();
 }
 
+/// Public so a conversation can hold a key to it and call [play].
 class EffectLayerState extends State<EffectLayer> with SingleTickerProviderStateMixin {
+  /// Runs from 0 to 1 over the effect's length.
   late final AnimationController _run = AnimationController(vsync: this);
+
+  /// The effect playing; null while idle.
   ScreenEffect? _effect;
+
+  /// New for each play: where every particle starts and how it moves comes from it.
   int _seed = 0;
   String _text = '';
 
@@ -401,6 +421,7 @@ class EffectLayerState extends State<EffectLayer> with SingleTickerProviderState
   /// Plays [effect] once, from its start (over one already playing). [text] is the message's words, for echo.
   void play(ScreenEffect effect, {String text = ''}) {
     if (!mounted) return;
+    // Nothing plays for someone who has asked the system for less motion.
     if (MediaQuery.disableAnimationsOf(context)) return;
     final play = ++_plays;
     EffectSprites.of(effect).then((sprites) {
@@ -450,6 +471,7 @@ class EffectLayerState extends State<EffectLayer> with SingleTickerProviderState
   }
 }
 
+/// The colours of confetti, balloons and fireworks, and the warmer ones of the celebration's bursts.
 const _bright = [Color(0xFFFF5A5F), Color(0xFFFFB400), Color(0xFF00C2A8), Color(0xFF4F5BD5), Color(0xFFB5279F), Color(0xFF2A9D4B), Color(0xFF4CC9F0)];
 const _gold = [Color(0xFFFFD166), Color(0xFFFFB400), Color(0xFFFF8C42), Color(0xFFFFF1B8), Color(0xFFE63946)];
 
@@ -458,6 +480,8 @@ const _gold = [Color(0xFFFFD166), Color(0xFFFFB400), Color(0xFFFF8C42), Color(0x
 class EffectPainter extends CustomPainter {
   EffectPainter(this.effect, this.t, this.seed, {this.style = const TextStyle(), this.text = '', this.sprites}) : super(repaint: t);
   final ScreenEffect effect;
+
+  /// How far through its run the effect is, 0 to 1.
   final Animation<double> t;
   final int seed;
   final TextStyle style;
@@ -480,6 +504,7 @@ class EffectPainter extends CustomPainter {
     final time = t.value;
     // Everything leaves in the last tenth, whatever it was doing.
     final fade = time > 0.88 ? ((1 - time) / 0.12).clamp(0.0, 1.0) : 1.0;
+    // Seeded afresh each frame and asked in the same order, so each particle draws the same numbers every time.
     final r = math.Random(seed);
     final pictures = sprites;
     final plan = _spritePlans[effect];
@@ -505,6 +530,7 @@ class EffectPainter extends CustomPainter {
       _spriteFlight(canvas, size, time, seconds, fade, math.Random(seed ^ 0x2f6b), pictures.heroes, plan.heroes, plan.heroCount, 96, 148, speed: 0.72, spin: 0.14);
       return;
     }
+    // Without pictures: the effects made of emoji in flight, then those drawn as shapes.
     final flight = _flights[effect];
     if (flight != null) {
       _emojiFlight(canvas, size, time, fade, r, flight.$1, flight.$2, flight.$3);
@@ -542,6 +568,7 @@ class EffectPainter extends CustomPainter {
     if (images.isEmpty) return;
     final paint = Paint()..filterQuality = FilterQuality.medium;
     for (var i = 0; i < count; i++) {
+      // Every random number is drawn before any picture is skipped, so the ones after it keep their paths.
       final x0 = 0.07 + r.nextDouble() * 0.86;
       final delay = r.nextDouble() * 0.4;
       final rate = (0.8 + r.nextDouble() * 0.6) * speed;
@@ -550,6 +577,7 @@ class EffectPainter extends CustomPainter {
       final angle = r.nextDouble() * math.pi * 2;
       final reach = (0.25 + r.nextDouble() * 0.55) * size.height * 0.6;
       final image = images[i % images.length];
+      // How far along its own path this one is: it sets off after its delay (a burst's are a quarter as long).
       final p = (time - (flight == _Flight.burst ? delay * 0.25 : delay)) * rate;
       if (p <= 0) continue;
       double x, y, alpha = fade, scale = 1;
@@ -617,6 +645,7 @@ class EffectPainter extends CustomPainter {
       canvas.translate(x, y);
       canvas.rotate(math.sin(phase + p * 5) * 0.3);
       canvas.scale(scale);
+      // A colour emoji takes no opacity from its text style: a fading one is drawn into a layer that has it.
       if (alpha < 0.999) {
         canvas.saveLayer(Rect.fromLTWH(-tp.width, -tp.height, tp.width * 2, tp.height * 2), Paint()..color = Color.fromRGBO(0, 0, 0, alpha));
         tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
@@ -628,6 +657,7 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// Small coloured pieces falling from the top, swaying and turning as they go.
   void _confetti(Canvas canvas, Size size, double time, double fade, math.Random r) {
     for (var i = 0; i < 140; i++) {
       final x0 = r.nextDouble();
@@ -653,6 +683,7 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// Balloons rising from the foot of the page, each with its knot, its string and the light on it.
   void _balloons(Canvas canvas, Size size, double time, double fade, math.Random r) {
     for (var i = 0; i < 16; i++) {
       final x0 = 0.06 + r.nextDouble() * 0.88;
@@ -677,6 +708,8 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// [bursts] bursts in the upper part of the page, one after another over the first three quarters of the run.
+  /// Each lasts a third of the run: a flash, then sparks thrown out that sink and fade.
   void _fireworks(Canvas canvas, Size size, double time, double fade, math.Random r, List<Color> colors, int bursts) {
     for (var b = 0; b < bursts; b++) {
       final cx = (0.15 + r.nextDouble() * 0.7) * size.width;
@@ -705,12 +738,14 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// A heart about twice [s] wide, around the origin.
   static Path _heart(double s) => Path()
     ..moveTo(0, s * 0.35)
     ..cubicTo(-s * 1.1, -s * 0.35, -s * 0.45, -s * 1.0, 0, -s * 0.42)
     ..cubicTo(s * 0.45, -s * 1.0, s * 1.1, -s * 0.35, 0, s * 0.35)
     ..close();
 
+  /// Hearts that pop up to their size and rise, fading as they go.
   void _hearts(Canvas canvas, Size size, double time, double fade, math.Random r) {
     const reds = [Color(0xFFFF3B5C), Color(0xFFFF6B8B), Color(0xFFE0245E), Color(0xFFFF8FA3)];
     for (var i = 0; i < 30; i++) {
@@ -734,6 +769,7 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// Flakes already spread over the whole page as it starts, falling and coming round again from the top.
   void _snow(Canvas canvas, Size size, double time, double fade, math.Random r) {
     for (var i = 0; i < 110; i++) {
       final x0 = r.nextDouble();
@@ -750,6 +786,7 @@ class EffectPainter extends CustomPainter {
     }
   }
 
+  /// Twelve beams from above the middle of the top edge, swinging and flickering: each a wide glow under a thin line.
   void _lasers(Canvas canvas, Size size, double time, double fade, math.Random r) {
     final origin = Offset(size.width / 2, -10);
     const colors = [Color(0xFF39FF14), Color(0xFFFF2BD6), Color(0xFF2BD9FF), Color(0xFFFFE600)];
@@ -782,6 +819,7 @@ class EffectPainter extends CustomPainter {
       ..close();
   }
 
+  /// Drawn ghosts drifting up the page, rocking a little: what plays where the effect has no pictures.
   void _ghosts(Canvas canvas, Size size, double time, double fade, math.Random r) {
     for (var i = 0; i < 14; i++) {
       final x0 = 0.08 + r.nextDouble() * 0.84;
@@ -837,9 +875,11 @@ class EffectPainter extends CustomPainter {
 
   /// The page goes dark but for a round light low in the conversation, where the newest message is: Spotlight.
   void _spotlight(Canvas canvas, Size size, double time) {
+    // The dark comes over the first 15% of the run and goes over the last 20%.
     final env = time < 0.15 ? time / 0.15 : (time > 0.8 ? ((1 - time) / 0.2).clamp(0.0, 1.0) : 1.0);
     final centre = Offset(size.width * 0.5, size.height * 0.78);
     final radius = size.width * (0.46 + 0.03 * math.sin(time * math.pi * 4));
+    // The dark is drawn in a layer of its own and the light cut out of it, soft at its edge.
     canvas.saveLayer(Offset.zero & size, Paint());
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF000000).withValues(alpha: 0.78 * env));
     canvas.drawCircle(
@@ -910,6 +950,7 @@ class _BubbleEntranceState extends State<BubbleEntrance> with SingleTickerProvid
             // Arrives small and grows slowly to its size.
             scale = 0.45 + 0.55 * Curves.easeOut.transform(t);
           case BubbleEffect.invisibleInk:
+            // Has no entrance: the bubble stands as it is.
             break;
         }
         return Transform.rotate(angle: turn, child: Transform.scale(scale: scale, child: child));

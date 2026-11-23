@@ -31,6 +31,7 @@ import 'plugins_page/plugin_art.dart' show PluginHues;
   }
 }
 
+/// [card] drawn in the chat for [plugin], no wider than [maxWidth].
 class PluginChatCardView extends StatelessWidget {
   const PluginChatCardView({super.key, required this.card, required this.plugin, this.maxWidth = 360, this.ground, this.ink});
   final PluginChatCard card;

@@ -44,6 +44,8 @@ enum KeyCommand {
   code('Code', 'The words chosen, or what you type next', group: 'Writing');
 
   const KeyCommand(this.label, this.hint, {required this.group});
+
+  /// What Settings calls it, the line under that where it has one, and the heading it is listed under.
   final String label;
   final String? hint;
   final String group;
@@ -67,6 +69,7 @@ class KeyBinding {
   /// Whether it holds a key that is not typed: it works while the cursor is in a field.
   bool get chord => primary || alt || control;
 
+  /// As it is kept: the key's id under 'k', and a 1 under 'p', 's', 'a' or 'c' for each thing held with it.
   Map<String, Object> toJson() => {'k': key.keyId, if (primary) 'p': 1, if (shift) 's': 1, if (alt) 'a': 1, if (control) 'c': 1};
 
   static KeyBinding? fromJson(Object? j) {
@@ -91,6 +94,7 @@ class KeyBinding {
     );
   }
 
+  /// A key that is only ever held with another: pressed by itself it is no binding.
   static bool _modifier(LogicalKeyboardKey k) => {
         LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftRight, LogicalKeyboardKey.shift,
         LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight, LogicalKeyboardKey.control,
@@ -147,6 +151,7 @@ class KeyBinding {
   int get hashCode => Object.hash(key, primary, shift, alt, control);
 }
 
+/// Which keys each command is on now: its own unless the person chose others. Tells its listeners on any change.
 class Keys extends ChangeNotifier {
   Keys._();
   static final Keys instance = Keys._();
@@ -156,11 +161,14 @@ class Keys extends ChangeNotifier {
   factory Keys.forTest() => Keys._();
 
   AppState? _app;
+
+  /// The person's own choices: a command not in here is on its default, one here with null is on no key.
   final Map<KeyCommand, KeyBinding?> _chosen = {};
 
   /// The conversation list's search field, while it is on the screen: what [KeyCommand.search] puts the cursor in.
   static final searchFocus = FocusNode(debugLabel: 'conversations search');
 
+  /// The keys each command is on until changed.
   static const defaults = {
     KeyCommand.pushToTalk: KeyBinding(LogicalKeyboardKey.backquote),
     KeyCommand.toggleMute: KeyBinding(LogicalKeyboardKey.keyM, primary: true, shift: true),
@@ -214,6 +222,7 @@ class Keys extends ChangeNotifier {
   /// The keys [c] is on: the person's, or its own; null where it is on none.
   KeyBinding? of(KeyCommand c) => _chosen.containsKey(c) ? _chosen[c] : defaults[c];
 
+  /// Whether [c] is on other keys than its own: Settings then offers to put it back.
   bool changed(KeyCommand c) => _chosen.containsKey(c) && _chosen[c] != defaults[c];
 
   /// What [b] already is to every text field or to the computer itself, where it is something a command must not take:
@@ -247,6 +256,7 @@ class Keys extends ChangeNotifier {
     _save();
   }
 
+  /// Puts [c] back on its own keys. Another command the person had put on those keys is taken off them.
   void reset(KeyCommand c) {
     _chosen.remove(c);
     final mine = defaults[c];

@@ -1,3 +1,5 @@
+// Where the Windows app starts: Flutter's stock runner, with a circle's invite link handed to a copy already running,
+// the ghostmsg: scheme registered, and the window's name and size (which splash.cpp gives back after the splash).
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>

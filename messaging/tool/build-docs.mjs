@@ -14,6 +14,11 @@
  *   packages/glacier/assets/css/tokens.css  Glacier's own tokens, copied so the mocks are drawn with the app's sizes
  *   lib/art/lucide.g.dart, lib/art/lucide_more.dart  the app's icons (Phosphor duotone): only those a page uses go in the sprite
  *   examples/plugins/*.ghostplugin  the example plugins, copied byte for byte into site/docs/examples/ (below)
+ *   docs-src/api/app-methods.json    the app's API as its own registry describes it (test/api_reference_test.dart writes it)
+ *   docs-src/api/relay-routes.mjs    the relay server's HTTP routes, by hand from relay/lib (a route added there is added here)
+ *
+ * WHAT ELSE IT WRITES
+ *   site/docs/api/ghost-messaging.postman_collection.json  both APIs as a Postman collection (v2.1), from the two above
  *
  * THE MOCK TAGS are the app's own pieces drawn in HTML, never pictures of it (so they read in both themes, at any
  * width, and stay true when a label changes in one place). Each expands to plain HTML here; nothing runs in the page.
@@ -44,6 +49,8 @@
  *   <ui>Settings › Me</ui>  a place in the app                 <soon/>  a Coming soon badge
  *   <icon-names/>  every icon name a plugin may use, read from lib/art/lucide.g.dart
  *   <example-file name="bills"/>  an example plugin's whole file, from examples/plugins
+ *   <api-methods/>  every method of the app's API: what it takes, what it answers, a call to try
+ *   <relay-routes group="market"/>  one group of the relay's HTTP routes, the same way
  * `tap` puts the ring that says "press here" on a piece.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -219,6 +226,38 @@ const render = {
   // An example plugin's whole file (examples/plugins/<name>.ghostplugin), read as it is, so the page never drifts from it.
   'example-file': (a) => `<pre><code>${readFileSync(join(ROOT, 'examples/plugins', `${a.name}.ghostplugin`), 'utf8').trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`,
 };
+
+// --- the API reference -------------------------------------------------------------------------------------------------
+// The docs' reference and the Postman collection are made from the same two lists, so they can't say different things.
+
+const appApi = JSON.parse(readFileSync(join(SRC, 'api/app-methods.json'), 'utf8'));
+const relayApi = (await import(pathToFileURL(join(SRC, 'api/relay-routes.mjs')).href)).groups;
+const code = (s) => `<code>${esc(s)}</code>`;
+const pre = (s) => `<pre><code>${String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+const paramTable = (head, rows) => (rows.length ? `<table class="api-params"><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</table>` : '');
+
+// One method of the app's API: its name (the link others point at), what it does, its parameters and a call to copy.
+function appMethod(m) {
+  const rows = m.params.map((p) => [code(p.name), esc(p.type), p.required ? 'yes' : '', esc(p.doc)]);
+  const body = m.example ? ` \\\n  -d '${JSON.stringify(m.example)}'` : '';
+  return `<section class="api-m" id="${m.name}"><h4>${code(m.name)}${m.danger ? ' <span class="badge danger" title="Changes or removes something">changes things</span>' : ''}</h4><p>${esc(m.summary)}</p>${paramTable(['Parameter', 'Type', 'Needed', 'What'], rows)}<p class="api-ret"><b>Answers</b> ${code(m.returns)}</p>${pre(`curl -s http://localhost:8765/api/${m.name} -H 'Authorization: Bearer <token>'${body}`)}</section>`;
+}
+render['api-methods'] = () => {
+  const groups = [...new Set(appApi.methods.map((m) => m.group))];
+  return groups.map((g) => `<h3 id="group-${g}">${esc(g)}</h3>${appApi.methods.filter((m) => m.group === g).map(appMethod).join('')}`).join('');
+};
+
+// One route of the relay server (docs-src/api/relay-routes.mjs says what each field is).
+function relayRoute(r) {
+  const rows = (r.params ?? []).map((p) => [code(p.name), esc(p.in), p.required ? 'yes' : '', esc(p.doc)]);
+  return `<section class="api-m" id="${r.id}"><h4><span class="verb ${r.method.toLowerCase()}">${r.method}</span> ${code(r.path)}</h4><p>${esc(r.summary)}</p><p class="api-ret"><b>Who</b> ${esc(r.who)}</p>${paramTable(['Field', 'Where', 'Needed', 'What'], rows)}${r.answers ? `<p class="api-ret"><b>Answers</b> ${code(r.answers)}</p>` : ''}${r.errors ? `<p class="api-ret"><b>Refusals</b> ${r.errors.map(code).join(' ')}</p>` : ''}</section>`;
+}
+render['relay-routes'] = (a) => {
+  const g = relayApi.find((x) => x.id === a.group);
+  if (!g) throw new Error(`No group "${a.group}" in docs-src/api/relay-routes.mjs`);
+  return g.routes.map(relayRoute).join('');
+};
+
 const TAGS = Object.keys(render).sort((a, b) => b.length - a.length).join('|');
 
 function expand(html) {
@@ -316,6 +355,105 @@ written.set('search.json', JSON.stringify(index));
 written.set('docs.css', readFileSync(join(SRC, 'docs.css'), 'utf8'));
 written.set('docs.js', readFileSync(join(SRC, 'docs.js'), 'utf8'));
 written.set('glacier-tokens.css', `/* Copied from packages/glacier/assets/css/tokens.css by tool/build-docs.mjs: the app's own design tokens. */\n${readFileSync(join(ROOT, 'packages/glacier/assets/css/tokens.css'), 'utf8')}`);
+
+// --- the Postman collection --------------------------------------------------------------------------------------------
+// Both APIs as one collection (v2.1), made from the lists the reference above is drawn from. Its variables are what a
+// person fills in: where the app and the relay are, the app's token, and a signed route's headers (Postman can't make
+// an install's signature, so those are filled from the caller's own code; docs-src/pages/dev-relay-api.html says how).
+
+// The headers each kind of relay route needs beyond its own (relay-routes.mjs's `auth`).
+const SIGNED = [
+  { key: 'x-ghost-key', value: '{{ghostKey}}', description: 'The install\'s public key: 33 bytes, compressed, base64.' },
+  { key: 'x-ghost-time', value: '{{ghostTime}}', description: 'Now, in milliseconds since 1970.' },
+  { key: 'x-ghost-sig', value: '{{ghostSig}}', description: 'The signature over the request: 64 bytes (r then s), base64.' },
+];
+const BODY_SAID = [
+  { key: 'x-ghost-body-sha256', value: '{{ghostBodySha256}}', description: 'The body\'s SHA-256 in hex, said before it is read.' },
+  { key: 'x-ghost-body-length', value: '{{ghostBodyLength}}', description: 'The body\'s length in bytes.' },
+];
+const FILES_TOKEN = { key: 'Authorization', value: 'Ghost {{filesToken}}', description: 'The Files space\'s token.' };
+const authHeaders = (r) =>
+  ({
+    none: [],
+    'files-token': [FILES_TOKEN],
+    'files-signed': [FILES_TOKEN, ...SIGNED],
+    'market-signed': [...SIGNED, ...(r.body && r.body.type !== 'none' ? BODY_SAID : [])],
+    'feedback-signed': SIGNED,
+  })[r.auth ?? 'none'] ?? (() => { throw new Error(`relay-routes.mjs: ${r.id} has an auth "${r.auth}" the collection doesn't know`); })();
+
+function postmanCollection() {
+  const jsonBody = (example) => ({ mode: 'raw', raw: JSON.stringify(example ?? {}, null, 2), options: { raw: { language: 'json' } } });
+  const appItem = (m) => ({
+    name: m.name,
+    request: {
+      method: 'POST',
+      header: [{ key: 'Content-Type', value: 'application/json' }],
+      body: jsonBody(m.example ?? Object.fromEntries(m.params.filter((p) => p.required).map((p) => [p.name, p.example ?? null]))),
+      url: { raw: `{{app}}/api/${m.name}`, host: ['{{app}}'], path: ['api', m.name] },
+      description: [m.summary, m.danger ? '**Changes or removes something.**' : '', m.params.length ? `Parameters:\n${m.params.map((p) => `- \`${p.name}\` (${p.type}${p.required ? ', needed' : ''}): ${p.doc}`).join('\n')}` : 'No parameters.', `Answers: \`${m.returns}\``].filter(Boolean).join('\n\n'),
+    },
+  });
+  const relayItem = (r) => {
+    const of = (where) => (r.params ?? []).filter((p) => p.in === where);
+    const path = r.path.split('/').filter(Boolean).map((seg) => seg.replace(/^\{(.+)\}$/, ':$1'));
+    const query = of('query').map((p) => ({ key: p.name, value: '', description: p.doc, disabled: !p.required }));
+    const body = of('body');
+    return {
+      name: `${r.method} ${r.path}`,
+      request: {
+        method: r.method,
+        header: [...authHeaders(r), ...of('header').map((p) => ({ key: p.name, value: '', description: p.doc, disabled: !p.required })), ...(r.body?.type === 'json' ? [{ key: 'Content-Type', value: 'application/json' }] : [])],
+        ...(r.body?.type === 'json' ? { body: jsonBody(r.body.example ?? Object.fromEntries(body.map((p) => [p.name, null]))) } : {}),
+        ...(r.body?.type === 'binary' ? { body: { mode: 'file', file: {} } } : {}),
+        url: {
+          raw: `{{relay}}/${path.join('/')}${query.length ? `?${query.map((q) => `${q.key}=`).join('&')}` : ''}`,
+          host: ['{{relay}}'],
+          path,
+          ...(query.length ? { query } : {}),
+          ...(of('path').length ? { variable: of('path').map((p) => ({ key: p.name, value: '', description: p.doc })) } : {}),
+        },
+        description: [r.summary, `Who: ${r.who}`, body.length ? `Body:\n${body.map((p) => `- \`${p.name}\`${p.required ? ' (needed)' : ''}: ${p.doc}`).join('\n')}` : '', r.answers ? `Answers: \`${r.answers}\`` : '', r.errors?.length ? `Refusals:\n${r.errors.map((e) => `- \`${e}\``).join('\n')}` : ''].filter(Boolean).join('\n\n'),
+      },
+    };
+  };
+  const appGroups = [...new Set(appApi.methods.map((m) => m.group))];
+  return {
+    info: {
+      name: 'Ghost Messaging',
+      description: 'The app\'s API and the relay server\'s HTTP routes. Made by tool/build-docs.mjs from the app\'s own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/dev-api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/dev-hub/.',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    variable: [
+      { key: 'app', value: 'http://127.0.0.1:8765', description: 'Where the app serves its API (Settings › API).' },
+      { key: 'token', value: '', description: 'The app\'s token (Settings › API › Copy the token).' },
+      { key: 'relay', value: 'https://gogho.st', description: 'The relay server.' },
+      { key: 'filesToken', value: '', description: 'A Files space\'s token.' },
+      { key: 'ghostKey', value: '', description: 'A signed route\'s x-ghost-key.' },
+      { key: 'ghostTime', value: '', description: 'A signed route\'s x-ghost-time.' },
+      { key: 'ghostSig', value: '', description: 'A signed route\'s x-ghost-sig.' },
+      { key: 'ghostBodySha256', value: '', description: 'A signed Marketplace body\'s SHA-256, in hex.' },
+      { key: 'ghostBodyLength', value: '', description: 'A signed Marketplace body\'s length in bytes.' },
+    ],
+    item: [
+      {
+        name: 'App API',
+        description: `Version ${appApi.version}. POST {{app}}/api/<method> with the parameters as a JSON object and the token. https://gogho.st/docs/developer/`,
+        auth: { type: 'bearer', bearer: [{ key: 'token', value: '{{token}}', type: 'string' }] },
+        item: [
+          { name: 'Describe every method', request: { method: 'GET', header: [], url: { raw: '{{app}}/api', host: ['{{app}}'], path: ['api'] }, description: 'Everything the API says of itself, as JSON.' } },
+          ...appGroups.map((g) => ({ name: g, item: appApi.methods.filter((m) => m.group === g).map(appItem) })),
+        ],
+      },
+      {
+        name: 'Relay server API',
+        description: 'Plain HTTP on the relay server. https://gogho.st/docs/dev-relay-api/',
+        auth: { type: 'noauth' },
+        item: relayApi.map((g) => ({ name: g.title, description: g.summary ?? '', item: g.routes.map(relayItem) })),
+      },
+    ],
+  };
+}
+written.set('api/ghost-messaging.postman_collection.json', `${JSON.stringify(postmanCollection(), null, 2)}\n`);
 
 // The example plugins, byte for byte (Buffers, never re-encoded), so https://gogho.st/docs/examples/bills.ghostplugin is
 // a link Settings › Developer › Plugins in development can load on every platform once the site is deployed

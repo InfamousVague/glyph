@@ -23,6 +23,7 @@ import 'settings.dart' show SettingsModel;
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
+/// The headings the methods are listed under, by the group each method names; a group not here shows its own name.
 const _groupNames = {
   'api': 'The API itself',
   'app': 'The app',
@@ -43,6 +44,8 @@ void _copy(BuildContext context, String text, String said) {
   toast(context, said);
 }
 
+/// Settings › API's sections: serving on this phone, serving through the relay, the recent calls, and every method
+/// by group.
 List<Widget> apiPane(BuildContext context, SettingsModel m) {
   final app = m.app;
   final t = context.tokens;
@@ -198,6 +201,7 @@ class _ApiMethodPageState extends State<ApiMethodPage> {
   bool _ok = true;
   bool _running = false;
 
+  /// What the parameters field starts with: the method's example, or its required parameters' examples, on one line.
   String _start() {
     final m = widget.method;
     final ex = m.example ?? {for (final p in m.params) if (p.required && p.example != null) p.name: p.example};
@@ -210,6 +214,8 @@ class _ApiMethodPageState extends State<ApiMethodPage> {
     super.dispose();
   }
 
+  /// Calls the method with the JSON typed and shows its answer or its refusal. A method that changes or removes
+  /// something is asked about first.
   Future<void> _run() async {
     Map<String, Object?> params;
     try {

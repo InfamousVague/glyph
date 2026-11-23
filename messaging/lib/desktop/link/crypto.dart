@@ -13,11 +13,14 @@ import '../../net/fast_gcm.dart';
 class DeskCrypto {
   DeskCrypto._();
 
+  /// What a pairing code starts with when it is plain words, to paste on the phone.
   static const offerTag = 'GHOSTPAIR1:';
 
   /// The same code as a link, which is what the QR code holds: a phone's own camera opens a link in the app that
   /// takes it, where plain words it can only show.
   static const offerLink = 'ghostmsg://pair/';
+
+  /// A frame's first byte: a hello, in the clear, or anything after it, sealed.
   static const int hello = 1;
   static const int sealed = 2;
 
@@ -25,10 +28,13 @@ class DeskCrypto {
   static const int maxFrame = 1 << 20;
 
   static final ECDomainParameters _curve = ECCurve_secp256r1();
+
+  /// Bound into every sealed frame, so nothing sealed for another purpose opens as one.
   static final Uint8List _aad = _utf8('ghost-desk-v1');
 
   static Uint8List _utf8(String s) => Uint8List.fromList(utf8.encode(s));
 
+  /// The source of every key, nonce and secret made here: Fortuna, seeded once from the system's secure random.
   static final SecureRandom _random = () {
     final seed = Random.secure();
     return FortunaRandom()..seed(KeyParameter(Uint8List.fromList(List.generate(32, (_) => seed.nextInt(256)))));
@@ -42,6 +48,7 @@ class DeskCrypto {
 
   static Uint8List concat(List<List<int>> parts) => Uint8List.fromList([for (final p in parts) ...p]);
 
+  /// HMAC-SHA256.
   static Uint8List hmac(List<int> key, List<int> data) {
     final h = HMac(SHA256Digest(), 64)..init(KeyParameter(Uint8List.fromList(key)));
     return h.process(Uint8List.fromList(data));
@@ -53,6 +60,7 @@ class DeskCrypto {
   /// A value made from the pairing's key: its id, its relay channel, its code.
   static Uint8List derive(List<int> key, String label) => hmac(key, concat([utf8.encode('ghost-desk $label'), [1]]));
 
+  /// The two joined with the smaller first, byte by byte, so both sides make the same bytes whichever is "mine".
   static Uint8List _ordered(Uint8List a, Uint8List b) {
     for (var i = 0; i < a.length && i < b.length; i++) {
       if (a[i] != b[i]) return a[i] < b[i] ? concat([a, b]) : concat([b, a]);
@@ -87,6 +95,7 @@ class DeskCrypto {
     }
   }
 
+  /// Whether [bytes] are a public key: 33 bytes that are a point on the curve, compressed.
   static bool isKey(List<int> bytes) {
     if (bytes.length != 33 || (bytes[0] != 2 && bytes[0] != 3)) return false;
     try {
@@ -99,6 +108,8 @@ class DeskCrypto {
 
   // --- what the QR code's secret alone makes --------------------------------------------------------------------------
 
+  /// Before there is a pairing key, the two know each other by these: the id a hello names, and the channel and
+  /// token of the relay's temporary channel for the pairing.
   static Uint8List fromSecret(List<int> secret, String label) => hkdf(utf8.encode('ghost-desk pairing'), secret, label);
   static String pairingId(List<int> secret) => hex(fromSecret(secret, 'id').sublist(0, 8));
   static String pairingChannel(List<int> secret) => hex(fromSecret(secret, 'relay channel').sublist(0, 16));
@@ -113,6 +124,7 @@ class DeskCrypto {
     return hkdf(_ordered(mine.public, Uint8List.fromList(theirs)), concat([shared, secret]), 'ghost-messaging desktop v1');
   }
 
+  /// The same three for a pairing once made, from its key: its id, and its own channel and token at the relay.
   static String id(List<int> pairKey) => hex(derive(pairKey, 'id').sublist(0, 8));
   static String relayChannel(List<int> pairKey) => hex(derive(pairKey, 'relay channel').sublist(0, 16));
   static String relayToken(List<int> pairKey) => hex(derive(pairKey, 'relay token'));
@@ -134,6 +146,7 @@ class DeskCrypto {
     return (desk: hmac(prk, concat([utf8.encode('d2p'), [1]])), phone: hmac(prk, concat([utf8.encode('p2d'), [1]])));
   }
 
+  /// A frame's twelve-byte nonce: four zero bytes, then its counter, most significant byte first.
   static Uint8List _nonce(int counter) {
     final n = Uint8List(12);
     ByteData.sublistView(n).setUint64(4, counter);
@@ -158,6 +171,7 @@ class DeskCrypto {
     }
   }
 
+  /// Seals or opens one frame under [key], with [counter] as its nonce. Throws where a frame does not open.
   static Uint8List _gcm(bool seal, List<int> key, int counter, List<int> input) {
     // FastGcm: pointycastle's GCM bytes, about ten times faster (lib/net/fast_gcm.dart); a failed opening throws, as
     // pointycastle's did.
@@ -184,11 +198,14 @@ class DeskChannel {
   DeskChannel({required this.sendKey, required this.receiveKey});
   final Uint8List sendKey;
   final Uint8List receiveKey;
+
+  /// How many frames have gone out, and how many have been opened: the next frame's counter each way.
   int _sent = 0;
   int _received = 0;
 
   Uint8List seal(String text) => DeskCrypto._gcm(true, sendKey, _sent++, utf8.encode(text));
 
+  /// The words of the next frame, or null where [sealed] is not it. The counter moves on only when a frame opens.
   String? open(List<int> sealed) {
     try {
       final text = utf8.decode(DeskCrypto._gcm(false, receiveKey, _received, sealed));
@@ -212,6 +229,7 @@ class DeskOffer {
 
   static const modes = {'both', 'local', 'relay'};
 
+  /// The offer as JSON under one-letter names, in base64 for a web address with its padding taken off.
   String get _payload => base64Url.encode(utf8.encode(jsonEncode({'k': base64.encode(key), 's': base64.encode(secret), 'n': name, 'm': mode, 'r': relay}))).replaceAll('=', '');
 
   /// The code as words, to paste on the phone.
@@ -220,6 +238,7 @@ class DeskOffer {
   /// The code as a link, for the QR code.
   String get link => DeskCrypto.offerLink + _payload;
 
+  /// Reads a code in either form, words or link; null where it is not one of ours or what it holds is not sound.
   static DeskOffer? parse(String text) {
     final body = text.trim();
     final String payload;

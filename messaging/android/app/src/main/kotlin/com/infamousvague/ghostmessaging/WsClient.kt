@@ -24,6 +24,7 @@ import javax.net.ssl.SSLSocketFactory
  * [close] are for any other thread.
  */
 class WsClient(private val url: String, private val listener: Listener) {
+    /** What the connection tells its owner, all on the thread that called [run]. */
     interface Listener {
         fun onOpen()
         fun onText(text: String)
@@ -42,6 +43,10 @@ class WsClient(private val url: String, private val listener: Listener) {
     /** Silence for longer than this ends the connection: the relay pings every thirty seconds. */
     var idleMillis = 75_000
 
+    /**
+     * Connects, shakes hands and reads frames until the connection ends, however it ends; [Listener.onClosed] is
+     * always the last thing said, once.
+     */
     fun run() {
         var code: Int? = null
         try {
@@ -70,6 +75,7 @@ class WsClient(private val url: String, private val listener: Listener) {
             out.write(("GET $path HTTP/1.1\r\nHost: $hostHeader\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: $key\r\nSec-WebSocket-Version: 13\r\n\r\n").toByteArray())
             out.flush()
             val head = readHead(input)
+            // The server proves it speaks WebSocket by answering with the hash of our key and the protocol's GUID.
             val lines = head.split("\r\n")
             if (!lines[0].contains(" 101")) throw IOException("The relay answered: ${lines[0]}")
             val accept = lines.firstOrNull { it.startsWith("sec-websocket-accept:", ignoreCase = true) }?.substringAfter(':')?.trim()
@@ -80,6 +86,8 @@ class WsClient(private val url: String, private val listener: Listener) {
             output = out
             listener.onOpen()
 
+            // A message may come in several frames: the first says its kind (1 text, 2 binary), the rest continue it
+            // (0), and the one marked fin ends it. Close (8), ping (9) and pong (A) may come between them.
             val message = ByteArrayOutputStream()
             var kind = 0
             while (!closed) {
@@ -119,6 +127,7 @@ class WsClient(private val url: String, private val listener: Listener) {
         }
     }
 
+    /** The server's answer to the handshake, up to and with the blank line that ends it; 16 KB at most. */
     private fun readHead(input: InputStream): String {
         val head = ByteArrayOutputStream()
         var state = 0
@@ -162,6 +171,7 @@ class WsClient(private val url: String, private val listener: Listener) {
 
     fun sendBinary(bytes: ByteArray): Boolean = try { frame(0x2, bytes); true } catch (_: Exception) { close(); false }
 
+    /** Ends the connection from this end with a normal close (1000); [run] then returns and tells the listener. */
     fun close() {
         if (closed) return
         closed = true
@@ -170,6 +180,7 @@ class WsClient(private val url: String, private val listener: Listener) {
     }
 
     companion object {
+        /** The longest message taken, in bytes, all its frames together; a longer one ends the connection. */
         const val MAX_MESSAGE = 2L * 1024 * 1024
     }
 }

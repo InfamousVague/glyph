@@ -23,6 +23,8 @@ String normalizeForPhrases(String text) {
   return out == null ? text : String.fromCharCodes(out);
 }
 
+// One UTF-16 unit made plain: no-break and narrow spaces to a space, curly quotes to straight ones, the hyphens and
+// dashes U+2010 to U+2014 to "-".
 int _plainUnit(int unit) => switch (unit) {
       0x00A0 || 0x2007 || 0x202F => 0x20,
       0x2018 || 0x2019 || 0x201B || 0x02BC => 0x27,
@@ -90,6 +92,8 @@ const String _cur = r'(?:[$€£¥₹]|(?<![\p{L}\p{N}])(?:usd|eur|gbp|cad|aud)(
 // Longer names first: an alternation takes the first that fits, and "sept" must not stop at "sep".
 const String _month = r'(?:january|february|march|april|may|june|july|august|september|october|november|december|sept|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)';
 
+// The RegExp source of the token [name]; [n] and [m] are its arguments, for the tokens that take them ({digits} and
+// {code}). {words} has no fragment here: [Phrase._pattern] writes it, with its separators.
 String _fragment(String name, int n, int m) => switch (name) {
       'digits' => '(?<![0-9])[0-9]{$n,$m}(?![0-9])',
       'number' => _num,
@@ -115,6 +119,7 @@ final RegExp _wordRun = RegExp(r'[\p{L}\p{N}]+', unicode: true);
 final RegExp _asciiRun = RegExp(r'^[A-Za-z0-9]{3,}$');
 const String _special = r'\^$.*+?()[]{}|';
 
+/// What a phrase is read into: literal words, a separator (any run of spaces in the source), or a token.
 sealed class _Piece {
   const _Piece();
 }
@@ -128,6 +133,7 @@ final class _Separator extends _Piece {
   const _Separator();
 }
 
+/// A token by its name, with its two numbers ([_ranges]); both 0 for one that takes none.
 final class _Token extends _Piece {
   const _Token(this.name, this.n, this.m);
   final String name;
@@ -195,6 +201,7 @@ class Phrase {
 
   // --- reading a phrase (A.10.2) ----------------------------------------------------------------------------------------
 
+  /// [s] as pieces: {name} a token, {{ and }} a brace itself, any run of spaces one separator, the rest literal.
   static List<_Piece> _read(String s) {
     final pieces = <_Piece>[];
     final literal = StringBuffer();
@@ -241,6 +248,7 @@ class Phrase {
     return pieces;
   }
 
+  /// The token written between braces as [inside]: `name`, `name:N` or `name:N-M`, its numbers within [_ranges].
   static _Token _token(String inside) {
     final m = _tokenInside.firstMatch(inside);
     final name = m?.group(1);
@@ -302,6 +310,8 @@ class Phrase {
 
   // --- its RegExp (A.10.5) ------------------------------------------------------------------------------------------
 
+  /// The pieces as one RegExp source: literals escaped, a separator `\s+`, each token its fragment, the first token
+  /// alone captured. An end that is a letter or a digit must not touch another in the text.
   static String _pattern(List<_Piece> pieces) {
     final out = StringBuffer();
     var captured = false;
@@ -338,6 +348,8 @@ class Phrase {
 
   // --- its anchor (A.10.6) ------------------------------------------------------------------------------------------
 
+  /// The longest run of three or more ASCII letters and digits among its literal words, lower-cased; null where it
+  /// has none.
   static String? _anchorOf(List<_Piece> pieces) {
     String? anchor;
     for (final p in pieces) {

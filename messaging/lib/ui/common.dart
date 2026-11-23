@@ -268,6 +268,8 @@ class _GhostSpinnerState extends State<GhostSpinner> with SingleTickerProviderSt
   }
 }
 
+/// The spinner's picture: a whole ring in [track], and over it an arc of about a third of the way round in [ink],
+/// starting at the top. The spinner turns it.
 class _ArcPainter extends CustomPainter {
   const _ArcPainter(this.ink, this.track);
   final Color ink;
@@ -290,7 +292,6 @@ class _ArcPainter extends CustomPainter {
   bool shouldRepaint(_ArcPainter old) => old.ink != ink || old.track != track;
 }
 
-/// A round icon button, the kit's press and focus ring round it.
 /// Round the page a wide window shows beside the list of conversations (lib/ui/shell.dart): a conversation, a new
 /// message, Settings. [beside] is whether the list is there to be seen, in which case the page draws no way back
 /// (GhostPage). A page opened from that one is not under this, and keeps its way back.
@@ -366,6 +367,7 @@ class _HeaderEndState extends State<HeaderEnd> {
   bool _covered = false;
   HeaderColumn? _column;
 
+  // After the frame: this is called while building and painting, when listeners may not be told to rebuild.
   void _say() => WidgetsBinding.instance.addPostFrameCallback((_) => HeaderEnd.changed.value++);
 
   @override
@@ -409,6 +411,8 @@ class _HeaderMark extends LeafRenderObjectWidget {
   void updateRenderObject(BuildContext context, _RenderHeaderMark mark) => mark.onMoved = onMoved;
 }
 
+/// The mark's render box: as wide as it is given and of no height, and it calls [onMoved] from paint when its place
+/// down the screen is not what it was at the last paint.
 class _RenderHeaderMark extends RenderBox {
   _RenderHeaderMark(this.onMoved);
   VoidCallback onMoved;
@@ -571,6 +575,8 @@ class GhostLogo extends StatelessWidget {
   }
 }
 
+/// A round icon button with the kit's press and focus ring; [label] is what a screen reader says. Under Dial-Up it
+/// is that look's own button instead.
 class IconTap extends StatelessWidget {
   const IconTap({super.key, required this.icon, required this.label, required this.onPressed, this.size = 20, this.color, this.filled = false, this.box});
 
@@ -634,6 +640,8 @@ class IconTap extends StatelessWidget {
 /// The section colours of settings.css, one per person by their number, so a face keeps its colour everywhere.
 const _hues = ['blue', 'purple', 'coral', 'green', 'amber', 'indigo', 'orange', 'cyan', 'rose', 'mint', 'magenta', 'slate'];
 
+/// The colour's name for [address]: hashed from its last ten letters and digits, so a number written with or without
+/// its spaces or country code's punctuation gets the same one.
 String hueFor(String address) {
   final digits = address.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
   final key = digits.length > 10 ? digits.substring(digits.length - 10) : digits;
@@ -644,6 +652,8 @@ String hueFor(String address) {
   return _hues[h % _hues.length];
 }
 
+/// Up to two capitals for a face: the first letters of the first and last words that start with a letter. Empty for
+/// a bare number, which gets the person icon.
 String initials(String label) {
   final words = label.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty && RegExp(r'[A-Za-z]').hasMatch(w[0])).toList();
   if (words.isEmpty) return '';
@@ -713,6 +723,7 @@ class Avatar extends StatelessWidget {
   }
 }
 
+/// A face in a ring of the page's colour, so the second face of a group stands clear of the one it overlaps.
 class _Ringed extends StatelessWidget {
   const _Ringed({required this.size, required this.child});
   final double size;
@@ -725,6 +736,8 @@ class _Ringed extends StatelessWidget {
       );
 }
 
+/// One person's face: their photo (a file, a web address, or a contact photo asked of the phone), and until it is
+/// there or where there is none, their initials or the person icon on their colour.
 class _Face extends StatelessWidget {
   const _Face({required this.person, required this.size, this.square = false});
   final Person person;
@@ -776,6 +789,7 @@ const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 
 const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+/// The time of day on a twelve-hour clock: 9:05 AM.
 String clock(DateTime d) {
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
@@ -828,6 +842,7 @@ Future<T?> pushOn<T>(NavigatorState navigator, BuildContext context, WidgetBuild
     );
 }
 
+/// Says [message] in a toast, on the toasts nearest above [context].
 void toast(BuildContext context, String message, {GlacierToastTone tone = GlacierToastTone.neutral, GlacierToastAction? action}) {
   GlacierToast.of(context).toast(message: Text(message), tone: tone, action: action);
 }
@@ -852,6 +867,8 @@ Future<void> showChoices(BuildContext context, {String? title, Widget? header, r
   ));
 }
 
+/// One row of [showChoices]: its words, its icon, and what pressing it does; [danger] draws it as something that
+/// removes or can't be undone.
 class Choice {
   const Choice(this.label, this.icon, this.onPress, {this.danger = false, this.mark, this.hint});
   final String label;
@@ -866,6 +883,8 @@ class Choice {
   final String? hint;
 }
 
+/// The sheet [showChoices] raises: a title or a header of its own, then the choices; a window of its own under
+/// Dial-Up.
 class _ChoiceSheet extends StatelessWidget {
   const _ChoiceSheet({this.title, this.header, required this.choices});
   final String? title;

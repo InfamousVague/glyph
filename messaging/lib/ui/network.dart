@@ -55,6 +55,8 @@ const inviteText = 'Join me on Ghost Messaging: calls and private chats straight
 /// Each route's icon in Settings › Routes.
 LucideIcon _routeIcon(String id) => switch (id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, P2pCarrier.routeId => Lucide.link2, _ => Lucide.network };
 
+/// How one route stands, for under its name: [on] is the network's own switch, [off] the route's switched off, and
+/// [anyone] whether there is somebody to reach yet.
 String _routeLine(Carrier c, {required bool on, required bool anyone, required bool off}) {
   if (off || !on) return 'Off';
   if (!anyone) return 'Waiting until there is someone to reach';
@@ -428,6 +430,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final anyone = net.people.isNotEmpty;
 
+  // Sends a test to one person (by the route [only], where named) and says how it went.
   Future<void> test(Peer p, {String? only}) async {
     final r = await net.test(p, only: only);
     if (!context.mounted) return;

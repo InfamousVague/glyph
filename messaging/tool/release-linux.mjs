@@ -44,6 +44,7 @@ const fail = (why) => {
   console.error(`x ${why}`);
   process.exit(1);
 };
+// Runs a command for what it prints, and stops the release if it fails.
 const out = (cmd, cmdArgs) => {
   const r = spawnSync(cmd, cmdArgs, { encoding: 'utf8' });
   if (r.status !== 0) fail(`${cmd} ${cmdArgs.join(' ')} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 400)}`);
@@ -55,6 +56,7 @@ const pubspec = readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8');
 const [, versionName, versionCode] = pubspec.match(/^version:\s*([0-9.]+)\+(\d+)/m) ?? fail('No version in pubspec.yaml.');
 requireNotes(ROOT, versionName, args, fail);
 
+// What the site says is out now (linux.json), or null where there is nothing or it cannot be read.
 async function liveRelease() {
   try {
     const r = await fetch(`${HOST_URL}/${FEED}?t=${Date.now()}`, { cache: 'no-store' });
@@ -107,6 +109,7 @@ const files = [];
 const debFound = files.find((p) => /ghost-messaging_.*_amd64\.deb$/.test(p));
 const tarFound = files.find((p) => p.endsWith(TAR));
 if (!debFound || !tarFound) fail(`No .deb and .tar.gz in run ${run}'s artifacts.`);
+// A file as the feed lists it: the name it is served under, its size and its SHA-256.
 const described = (path, url) => {
   const bytes = readFileSync(path);
   return { url, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
@@ -117,6 +120,7 @@ const info = { version: versionName, versionCode: Number(versionCode), ...deb, t
 writeFileSync(join(OUT, FEED), JSON.stringify(info, null, 2) + '\n');
 say(`ok ${DEB}: ${(deb.bytes / 1e6).toFixed(1)} MB; ${TAR}: ${(tar.bytes / 1e6).toFixed(1)} MB`);
 
+// The box and its login are Ghost.md's: its checkout is found, and its own scripts open the connection.
 const glyph = [flag('glyph'), process.env.GLYPH_ROOT, join(ROOT, '..'), join(homedir(), 'Development/Apps/glyph')]
   .filter(Boolean)
   .find((dir) => existsSync(join(dir, 'tauri/scripts/lib/box.mjs')) && existsSync(join(dir, 'scripts/lib/env.mjs')));

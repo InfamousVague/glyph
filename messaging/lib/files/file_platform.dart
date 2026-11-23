@@ -103,6 +103,7 @@ class FilePlatform {
   /// Whether this device can share a file to another app.
   static bool get canShare => _phone || (!kIsWeb && PlatformInfo.isMacOS);
 
+  /// Hands the file at [path] to the system to share with another app: on Android and a Mac, nothing elsewhere.
   static Future<void> share(String path, String name, String mime) async {
     if (_phone) return Sms.instance.shareFile(path, name, mime);
     if (!kIsWeb && PlatformInfo.isMacOS) await _system.invokeMethod('shareFile', {'path': path});

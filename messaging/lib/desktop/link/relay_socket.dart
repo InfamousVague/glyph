@@ -14,6 +14,8 @@ class RelaySocket {
 
   /// The relay's address with the channel at its end.
   final String url;
+
+  /// What shows the relay this side may use the channel: made from the pairing's key, or from the QR code's secret.
   final String token;
 
   /// A channel made for pairing: ten minutes, never written down by the relay.
@@ -23,6 +25,8 @@ class RelaySocket {
   final void Function()? onChange;
 
   WebSocket? _ws;
+
+  /// The view the session now running has of this connection; null between sessions.
   _RelayTransport? _transport;
 
   /// The relay took the token, and the phone is connected to the channel too.
@@ -33,6 +37,7 @@ class RelaySocket {
   /// Why the relay would not have this connection, when it said.
   String? refused;
 
+  /// Dials the relay and names the token. Never throws: a relay that is not there leaves this [closed].
   Future<void> connect({Duration timeout = const Duration(seconds: 8)}) async {
     try {
       final ws = await WebSocket.connect(url, compression: CompressionOptions.compressionOff).timeout(timeout);
@@ -48,6 +53,8 @@ class RelaySocket {
     }
   }
 
+  /// Bytes are a frame from the phone, for the session. Words are the relay's own: its answer to the token, the
+  /// phone coming or going, a frame that reached nobody.
   void _onMessage(dynamic data) {
     if (data is List<int>) {
       _transport?._frames.add(data is Uint8List ? data : Uint8List.fromList(data));
@@ -107,6 +114,8 @@ class RelaySocket {
   }
 }
 
+/// One session's frames over a [RelaySocket]: the relay passes each WebSocket message on whole, so a frame needs
+/// no length before it.
 class _RelayTransport implements FrameTransport {
   _RelayTransport(this._socket);
   final RelaySocket _socket;

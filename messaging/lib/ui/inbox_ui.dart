@@ -269,6 +269,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     }
   }
 
+  /// Files picked with +: each copied into the app's cache, ten waiting at most.
   Future<void> _attach() async {
     final picked = await Sms.instance.pickFiles();
     for (final p in picked.take(10 - _files.length)) {
@@ -281,6 +282,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     }
   }
 
+  /// Starts a voice message; [_recording] then holds the most seconds it may run.
   Future<void> _record() async {
     try {
       final limit = await Sms.instance.startVoice(file: true);
@@ -318,8 +320,6 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     if (typing != _wasTyping && mounted) setState(() => _wasTyping = typing);
   }
 
-  /// Pressed and held: copy it, or delete it, for this account or, where the network allows, for everyone (Matt,
-  /// 2026-11-15: "if possible proxy the archive and delete messages too").
   /// What an edited message said before: the original, and any wording between it and now, each copied with a press.
   /// Edited before this device saw it, there is nothing to show: the network keeps no earlier words.
   void _showOriginal(InboxMessage m) {
@@ -339,6 +339,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     ]);
   }
 
+  /// A message pressed and held: react, reply, copy, see what it said before, translate, or delete it, for this
+  /// account or, where the network allows, for everyone (Matt, 2026-11-15: "if possible proxy the archive and delete
+  /// messages too").
   void _messageMenu(InboxMessage m) {
     HapticFeedback.mediumImpact();
     // Deleted at once, nothing asked, with a puff (Matt, 2026-11-15: "Don't ask for confirmation when deleting a message
@@ -377,6 +380,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     }
   }
 
+  /// Scrolled to within 400 px of the oldest message held: asks the network for older ones, where it has any.
   void _nearTop() {
     if (_loadingOlder || !_scroll.hasClients) return;
     if (_scroll.position.pixels < _scroll.position.maxScrollExtent - 400) return;
@@ -404,6 +408,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   /// messages as well as react to telegram and signal messages").
   InboxMessage? _replying;
 
+  /// Puts [emoji] on [m], or takes it off where it is mine already.
   Future<void> _react(InboxMessage m, String emoji) async {
     final remove = m.reactions.any((r) => r.mine && r.emoji == emoji);
     try {
@@ -418,6 +423,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     _focus.requestFocus();
   }
 
+  /// Sends what is waiting: the files with the words as their caption, else the words, as a reply where one is being
+  /// written.
   Future<void> _send() async {
     final text = _text.text;
     final replying = _replying;
@@ -773,6 +780,7 @@ MessageFacts? inboxFacts(InboxNetwork network, String chatId, InboxMessage m) {
   return MessageFacts(thread: -1, senders: [m.sender], text: m.text, contact: false, outgoing: false, date: m.date, id: '${network.id}:$chatId:${m.id}', network: network.id);
 }
 
+/// One message of a network's chat as a bubble: its words, what came with it, its reactions and how its sending went.
 class _InboxBubble extends StatelessWidget {
   const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap, this.onEditedTap});
 
@@ -1184,6 +1192,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
     if (Sms.remote) _phoneStatus();
   }
 
+  /// Asks the paired phone whether it is signed in to Telegram, and as whom.
   Future<void> _phoneStatus() async {
     try {
       final s = await Sms.instance.telegram({'dir': 'status'});
@@ -1222,6 +1231,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
     return w.startsWith('Bad state: ') ? w.substring(11) : w;
   }
 
+  /// Telegram moved on: each step starts with an empty field, and once signed in the screen says so and leaves.
   void _changed() {
     final n = widget.network;
     if (n.step != _shown) {
@@ -1241,6 +1251,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
     super.dispose();
   }
 
+  /// Hands the field to Telegram as what its step asks for: the phone number, the code, or the two-step password.
   Future<void> _go() async {
     final n = widget.network;
     final v = _field.text;
@@ -1392,6 +1403,7 @@ List<Widget> _connectionsBody(BuildContext context) {
   ];
 }
 
+/// Where a network stands, in a few words: the line under its name on the Connections page.
 String _summary(InboxNetwork n) => n.soon ? 'Coming soon' : switch (n.state) {
       InboxState.ready => 'Signed in${n.account == null ? '' : ' as ${n.account}'}',
       InboxState.signingIn => 'Signing in…',

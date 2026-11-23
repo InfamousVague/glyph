@@ -111,6 +111,7 @@ String? languageTag(String said) {
   return null;
 }
 
+/// A language tag without its region or script ("pt-BR" is "pt"), as the models name it ([languageAliases]).
 String _base(String tag) {
   final base = tag.split(RegExp(r'[-_]')).first.toLowerCase();
   return languageAliases[base] ?? base;
@@ -346,6 +347,7 @@ List<Widget> _settingsRows(PluginPrefs prefs) => PluginRegistry.textHost.canTran
         ),
       ];
 
+/// The language texts are translated into: this device's own unless one is chosen here.
 class _YourLanguage extends StatelessWidget implements PaneRow {
   const _YourLanguage({required this.prefs});
   final PluginPrefs prefs;
@@ -373,6 +375,7 @@ class _YourLanguage extends StatelessWidget implements PaneRow {
   }
 }
 
+/// The other languages the person reads, kept a line each under `known`: texts in them are left as they came.
 class _AlsoRead extends StatelessWidget implements PaneRow {
   const _AlsoRead({required this.prefs});
   final PluginPrefs prefs;
@@ -479,6 +482,7 @@ class _LanguagePageState extends State<_LanguagePage> {
   late final Set<String> _chosen = {...widget.chosen};
   late bool _first = widget.firstRow?.$2 ?? false;
 
+  /// With many, a tap ticks or unticks and the page stays; with one, it is chosen and the page closes.
   void _pick(String tag) {
     if (widget.many) {
       final on = !_chosen.contains(tag);

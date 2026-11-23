@@ -21,6 +21,7 @@ class ParsedReaction {
   final bool removed;
 }
 
+/// The iPhone's words for a reaction, in lower case, and the emoji each stands for.
 const _verbs = {
   'loved': '❤️',
   'liked': '👍',
@@ -31,6 +32,7 @@ const _verbs = {
   'questioned': '❓',
 };
 
+/// What an iPhone says was taken off in "Removed a heart from …", and the emoji each stands for.
 const _removedNouns = {
   'a heart': '❤️',
   'a like': '👍',
@@ -42,6 +44,7 @@ const _removedNouns = {
   'a question mark': '❓',
 };
 
+/// The marks a quote may open with, and those it may close with: straight or curly, double or single.
 const _open = '"“”„‟\'‘’';
 const _close = '"“”‟\'‘’';
 
@@ -82,6 +85,7 @@ ParsedReaction? parseReaction(String text) {
   if (t.isEmpty || t.length > 2000) return null;
   final lower = t.toLowerCase();
 
+  // What a reaction is to: a quoted message, or a picture by its noun. Anything else makes [t] an ordinary message.
   ParsedReaction? target(String emoji, String rest, {bool removed = false}) {
     final q = _quoted(rest);
     if (q != null && q.trim().isNotEmpty) return ParsedReaction(emoji: emoji, quote: q, removed: removed);
@@ -124,6 +128,7 @@ ParsedReaction? parseReaction(String text) {
   return null;
 }
 
+/// [s] as quotes are compared: curly quotes made straight, runs of space made one, trimmed, in lower case.
 String _norm(String s) => s
     .replaceAll(RegExp('[“”„‟]'), '"')
     .replaceAll(RegExp('[‘’]'), "'")
@@ -164,6 +169,7 @@ class Reaction {
   final DateTime date;
 }
 
+/// What [foldReactions] makes of a conversation.
 class Folded {
   const Folded({required this.messages, required this.reactions});
 
@@ -190,6 +196,7 @@ Folded foldReactions(List<Message> newestFirst) {
     final r = parseReaction(m.body);
     if (r == null) continue;
     Message? found;
+    // Looked for among the 400 messages before it, the nearest first; a reaction text is never itself reacted to.
     for (var j = i - 1; j >= 0 && j >= i - 400; j--) {
       final c = oldestFirst[j];
       if (hidden.contains(c.key)) continue;
@@ -218,6 +225,8 @@ Folded foldReactions(List<Message> newestFirst) {
   return Folded(messages: [for (final m in newestFirst) if (!hidden.contains(m.key)) m], reactions: reactions);
 }
 
+/// Whether two addresses are one person's: numbers by their last ten digits, so +1 before one does not part them;
+/// anything without digits as written. You ('') are only yourself.
 bool _samePerson(String a, String b) {
   String d(String s) {
     final x = s.replaceAll(RegExp(r'[^0-9]'), '');
@@ -239,6 +248,7 @@ String? reactionSnippet(String text) {
 /// The emoji offered on a long press, the six every phone knows first.
 const reactionChoices = ['❤️', '👍', '👎', '😂', '‼️', '❓', '😮', '😢', '🙏', '🎉', '🔥'];
 
+/// The iPhone's wording for the six it has words for: the verb that sends each, and the noun that takes it off.
 const _verbFor = {'❤️': 'Loved', '👍': 'Liked', '👎': 'Disliked', '😂': 'Laughed at', '‼️': 'Emphasized', '❓': 'Questioned'};
 const _nounFor = {'❤️': 'a heart', '👍': 'a like', '👎': 'a dislike', '😂': 'a laugh', '‼️': 'an exclamation', '❓': 'a question mark'};
 
@@ -251,6 +261,7 @@ String reactionText(String emoji, Message target, {bool removed = false}) {
     what = target.attachments.any((a) => a.type.startsWith('video/')) ? 'a video' : 'an image';
   } else {
     final body = target.body.trim();
+    // Over 120 characters, the first 100 and "…": [quoteMatches] finds the message by that start.
     what = '“${body.length > 120 ? '${body.substring(0, 100).trimRight()}…' : body}”';
   }
   if (removed) return 'Removed ${_nounFor[emoji] ?? emoji} from $what';

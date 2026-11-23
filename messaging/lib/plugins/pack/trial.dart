@@ -149,6 +149,8 @@ List<PackIssue> lintPack(PluginPack pack) {
     warn('description_link', 'description', 'holds a web address: put your page in "support", and a page a button opens in "links".');
   }
   final used = <String>{};
+  // A tag nothing asks for: [used] gathers every tag a condition or a template names, and each tag rule's is held
+  // against it.
   void uses(PackWhen? w) {
     if (w == null) return;
     used

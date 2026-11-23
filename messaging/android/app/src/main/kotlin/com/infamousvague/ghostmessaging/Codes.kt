@@ -30,6 +30,7 @@ object Codes {
     /** And this many at most: a code asked for again arrives as a second text. */
     const val MAX = 3
 
+    /** A sign-in code and when its text arrived (milliseconds). */
     class Held(val code: String, val at: Long)
 
     /**

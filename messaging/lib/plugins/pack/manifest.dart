@@ -13,6 +13,7 @@ import 'phrases.dart';
 import 'png.dart';
 import 'trial.dart' show lintPack;
 
+/// How much an issue matters: an error stops the pack, a warning is for the developer and the reviewer to look at.
 enum PackSeverity { error, warning }
 
 /// One thing wrong with a pack (an error, which stops it loading or being sent) or worth a second look (a warning).
@@ -304,6 +305,7 @@ const Map<String, String> _notInSection = {'hidden': 'A plugin\'s kinds start sh
 const Map<String, String> _notInWhen = {'group': 'A plugin never sees a group\'s texts, so it has no group to ask about.'};
 const Map<String, String> _notInFace = {'domain': 'A plugin\'s face is its words on a colour: never a company\'s logo.', 'mark': 'A plugin\'s face is its words on a colour: never a company\'s logo.'};
 
+/// The path of [key] under [path], as an issue names it: `rules.tags[2].when`.
 String _at(String path, String key) => path.isEmpty ? key : '$path.$key';
 
 /// Where a condition is: a tag rule's (seeing only the tags of the rules before it), a section's `takes`, a button's
@@ -326,6 +328,9 @@ class _Where {
 /// what is wrong as well as all of them would.
 const int packIssuesMost = 100;
 
+/// One check of one file's JSON against the format: every problem is gathered with the path it is at, not only the
+/// first, and a pack comes of it only where there was none. [submission] asks for what a listing needs as well (an
+/// icon, a developer, a support address, an id that isn't the example's).
 class _Checker {
   _Checker({required this.appVersion, required this.submission, required this.checkMinApp});
   final String appVersion;
@@ -402,6 +407,8 @@ class _Checker {
     return ok;
   }
 
+  /// The whole check: the walk, the canonical bytes and their SHA-256 where they can be made, then the fields. The
+  /// hash is given even for a pack with problems, so a broken copy can still be told from another.
   PackParse run(Object? json) {
     final canonicalOk = walk(json);
     // Asked of the walk itself, not of the issues kept: past the most kept, its too_deep would be only counted.
@@ -429,14 +436,20 @@ class _Checker {
 
   // --- small checks -------------------------------------------------------------------------------------------------
 
+  // In the checks below a double is never said to be the wrong type: the walk said "fraction" of it already.
+
+  /// [m] with its string keys alone (the walk has said of any other).
   Map<String, Object?> _keyed(Map m) => {for (final e in m.entries) if (e.key is String) e.key as String: e.value};
 
+  /// [v] where it is an object; null, with why, where it isn't. [what] names it in the words ("A setting").
   Map<String, Object?>? object(Object? v, String path, String what) {
     if (v is Map) return _keyed(v);
     if (v is! double) error('not_object', path, '$what is an object, in braces: {…}.');
     return null;
   }
 
+  /// Every field of [m] that isn't one of [keys] is a problem: with [notInV1]'s own words where it is something this
+  /// version leaves out on purpose, else as a likely misspelling.
   void known(Map<String, Object?> m, String path, Set<String> keys, [Map<String, String> notInV1 = const {}]) {
     for (final k in m.keys) {
       if (keys.contains(k)) continue;
@@ -464,6 +477,7 @@ class _Checker {
     return v;
   }
 
+  /// What [text] holds a string to, for one that didn't come from a field of a map (a list's entry, a detail).
   void checkText(String v, String p, {int min = 1, required int max, bool newlines = false, bool braces = true, bool placeholders = false}) {
     if (!packTextOk(v, newlines: newlines)) error('bad_text', p, 'holds a character a plugin can\'t: ${newlines ? '' : 'a line break, '}an invisible or private one, or a space at either end.');
     if (v.length < min) error('too_short', p, min == 1 ? 'can\'t be empty.' : 'is at least $min characters.');
@@ -494,6 +508,7 @@ class _Checker {
     return null;
   }
 
+  /// [m]'s [key] where it is a list, cut to [max]; null, with why, where it is missing ([required]) or not a list.
   List<Object?>? list(Map<String, Object?> m, String key, String path, {bool required = false, int min = 0, required int max}) {
     final p = _at(path, key);
     if (!m.containsKey(key)) {
@@ -531,6 +546,7 @@ class _Checker {
     return out;
   }
 
+  /// [v] must be one of the app's icons by name, and not one of the few the app keeps for itself.
   void iconName(String v, String p) {
     if (reservedIconNames.contains(v)) {
       error('bad_icon_name', p, '"$v" is the app\'s own: the ghost is its mark, the store is the Marketplace\'s and the shield with a tick says "Can\'t reach the internet".');
@@ -539,6 +555,7 @@ class _Checker {
     }
   }
 
+  /// A name or a label that reads as one of the app's own, once folded ([packFold]), is refused.
   void reserved(String v, String p) {
     final folded = packFold(v);
     if (reservedPluginNames.contains(folded) || folded.contains('ghost') || folded.contains('gogho')) {
@@ -548,6 +565,8 @@ class _Checker {
 
   // --- the pack ----------------------------------------------------------------------------------------------------
 
+  /// The top-level fields in the format's order, then settings before rules, since rules name settings. Every field is
+  /// checked even after one has failed; null where anything did.
   PluginPack? _pack(Map<String, Object?> top, Map json) {
     known(top, '', _topFields);
 
@@ -666,6 +685,7 @@ class _Checker {
     );
   }
 
+  /// The icon's bytes from its base64, where it is a square PNG within the format's sizes; null, with why, otherwise.
   Uint8List? _icon(String v) {
     if (v.length > PackLimits.iconChars) {
       error('bad_icon', 'icon', 'is ${v.length} characters of base64: at most ${PackLimits.iconChars}.');
@@ -704,6 +724,7 @@ class _Checker {
 
   // --- settings (A.7) ------------------------------------------------------------------------------------------------
 
+  /// The settings that could be read, each kept in [settingsByKey] under its key for the rules to name.
   List<PackSetting> _settings(List<Object?> raw) {
     final out = <PackSetting>[];
     for (var i = 0; i < raw.length; i++) {
@@ -826,6 +847,8 @@ class _Checker {
     return PackRules(tags: List.unmodifiable(tags), sections: List.unmodifiable(sections), actions: List.unmodifiable(actions), incoming: List.unmodifiable(incoming));
   }
 
+  /// The phrases of the list [m]'s [key], compiled; each counts toward the pack's phrase caps whether it compiles or
+  /// not.
   List<Phrase> _phrases(Map<String, Object?> m, String key, String path, {required int min, required int max}) {
     final raw = list(m, key, path, min: min, max: max);
     if (raw == null) return const [];
@@ -849,6 +872,7 @@ class _Checker {
     return List.unmodifiable(out);
   }
 
+  /// One tag rule; [earlier] is the tags of the rules before it, the only ones its condition may name.
   PackTagRule? _tagRule(Object? raw, String p, Set<String> earlier) {
     final m = object(raw, p, 'A tag rule');
     if (m == null) return null;
@@ -895,6 +919,7 @@ class _Checker {
     return PackTagRule(tag: tag, any: any, anyGiven: m.containsKey('any'), atLeast: atLeast, all: all, none: none, wordsFrom: wordsFrom, when: when, detail: detail, detailFrom: detailFrom);
   }
 
+  /// A condition, checked for where it stands ([where]): which tags it may name, and whether it may ask for a section.
   PackWhen? _when(Object? raw, String path, _Where where) {
     final m = object(raw, path, 'A condition');
     if (m == null) return null;
@@ -1002,6 +1027,7 @@ class _Checker {
     return PackSection(key: key, label: label, icon: icon, kind: kind, leavesMain: leavesMain ?? true, takes: takes, row: row);
   }
 
+  /// How a section draws its rows: a value and a caption as templates, a face, and up to three of its buttons by id.
   PackRow? _row(Object? raw, String p) {
     final m = object(raw, p, 'A row');
     if (m == null) return null;
@@ -1044,6 +1070,7 @@ class _Checker {
     return PackRow(value: value, caption: caption, faceName: faceName, faceColor: faceColor, end: action('end'), word: action('word'), tap: action('tap'));
   }
 
+  /// [text] that may hold {tag:…} placeholders, each checked ([_checkTemplate]).
   String? _template(Map<String, Object?> m, String key, String path, {required int max}) {
     final v = text(m, key, path, max: max, placeholders: true);
     if (v != null) _checkTemplate(v, _at(path, key));
@@ -1080,6 +1107,8 @@ class _Checker {
     }
   }
 
+  /// One button: its verb's own fields and no other verb's, and its slots, of which [inSlot] counts how many buttons
+  /// each has so far across the pack.
   PackAction? _action(Object? raw, String p, Set<String> ids, Map<String, int> inSlot) {
     final m = object(raw, p, 'A button');
     if (m == null) return null;
@@ -1150,6 +1179,7 @@ class _Checker {
     return PackAction(id: id, label: label, icon: icon, verb: verb, slots: List.unmodifiable(slots), when: when, text: words, say: say, to: to, url: url);
   }
 
+  /// One incoming rule: what is done to texts arriving in one of its sections, behind a switch that starts off.
   PackIncoming? _incoming(Object? raw, String p) {
     final m = object(raw, p, 'An incoming rule');
     if (m == null) return null;

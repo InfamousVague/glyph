@@ -122,6 +122,7 @@ Future<void> addListing(BuildContext context, ListingPlugin l, {MarketState? mar
   ]);
 }
 
+/// Adds the listing once agreed to, over any store copy of the same pack already here, and says where its tab is.
 Future<void> _add(BuildContext context, ListingPlugin l, MarketState m) async {
   if (m.installed.storeOf(l.pack.id) != null) {
     final gone = await m.installed.removeStore(l.pack.id, forget: true);
@@ -226,6 +227,7 @@ Future<void> reportPlugin(BuildContext context, GhostPlugin plugin, {MarketState
   ]);
 }
 
+/// A report's second step: a few words more, whether to send the username with it, and Send.
 class _ReportPage extends StatefulWidget {
   const _ReportPage({required this.plugin, required this.reason, this.market});
   final GhostPlugin plugin;

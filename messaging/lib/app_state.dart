@@ -7,8 +7,10 @@ import 'sms.dart';
 /// the channel. The native side reads the same file where a choice is its to act on (delivery and read reports as a
 /// message is sent, previews and the code button as a notification is made).
 class AppState extends ChangeNotifier {
+  /// Every choice, a string under its key, as last read or set.
   final Map<String, String> _prefs = {};
 
+  /// Reads the choices, once, before anything is drawn. Where they cannot be read every choice is its default.
   Future<void> load() async {
     try {
       _prefs.addAll(await Sms.instance.prefs());
@@ -28,6 +30,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// What was chosen under [key], or [fallback] where nothing was.
   String choice(String key, String fallback) => _prefs[key] ?? fallback;
 
   /// The choices whose keys start with [prefix] (Ghost's own lists of a network's chats: lib/kept_lists.dart).
@@ -106,6 +109,7 @@ class AppState extends ChangeNotifier {
 
   /// The size of a message's words: small, default, large, larger.
   String get textSize => choice('text_size', 'default');
+  /// What a message's words are multiplied by for that size.
   double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
 
   /// The face everything is drawn in: 'default', each look's own, or 'readable', Atkinson Hyperlegible Next, for
@@ -132,10 +136,12 @@ class AppState extends ChangeNotifier {
   bool get readReports => flag('read_reports');
   void setReadReports(bool v) => setFlag('read_reports', v);
 
+  /// The app's choices from anywhere under [AppScope]; whatever asks is built again when one changes.
   static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_AppScope>()!.state;
   static AppState? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_AppScope>()?.state;
 }
 
+/// Puts [state] over the app, for [AppState.of], and rebuilds what reads it each time the state says it changed.
 class AppScope extends StatelessWidget {
   const AppScope({super.key, required this.state, required this.child});
   final AppState state;
@@ -145,9 +151,12 @@ class AppScope extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(listenable: state, builder: (context, _) => _AppScope(state: state, version: Object(), child: child));
 }
 
+/// The inherited half of [AppScope].
 class _AppScope extends InheritedWidget {
   const _AppScope({required this.state, required this.version, required super.child});
   final AppState state;
+
+  /// A new object each time the state changed: the state itself is the same one, so it cannot show the change.
   final Object version;
 
   @override

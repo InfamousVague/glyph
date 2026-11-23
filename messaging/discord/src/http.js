@@ -12,6 +12,7 @@
 import { buildState, guildInfo } from './state.js';
 import { RateLimit } from './ratelimit.js';
 
+/** The longest request body read, in bytes: a code or a token and a channel id need far less. */
 export const MAX_BODY = 4 * 1024;
 
 /** The bot's permissions, by Discord's names for them (the bits are Discord's: discord.js's PermissionFlagsBits). */
@@ -27,6 +28,7 @@ export const PERMISSIONS = {
 };
 /** What the invite asks for: everything the bridge uses, nothing else. */
 export const INVITE_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b, 0n).toString();
+/** The link that adds the bot, with its commands, to a server. */
 export const inviteUrl = (appId) => `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=${INVITE_PERMISSIONS}`;
 const SNOWFLAKE = /^\d{15,22}$/;
 
@@ -37,6 +39,7 @@ const CORS = {
   'Access-Control-Max-Age': '600',
 };
 
+/** One answer: JSON (or nothing, for a null body), open to any origin and never cached. */
 function send(res, status, body, extra = {}) {
   const text = body === null ? '' : JSON.stringify(body);
   res.writeHead(status, {
@@ -93,10 +96,12 @@ export function clientIp(req) {
  * log(message) gets counts and outcomes only, never a token, a code, a seed or a name.
  */
 export function createHandler({ codes, store, guilds, bridge = null, appId = null, now = Date.now, log = () => {}, perIp = 10, overall = 300, joinsPerIp = 30 }) {
+  // A minute's allowance each: claims from one address, claims from everyone, joins from one address.
   const ipLimit = new RateLimit({ limit: perIp, now });
   const allLimit = new RateLimit({ limit: overall, now });
   const joinLimit = new RateLimit({ limit: joinsPerIp, now });
 
+  /** The body as a JSON object; null when it was too long or not one, and the 413 or 400 is already sent. */
   async function readJson(req, res) {
     const raw = await readBody(req);
     if (raw === null) {
@@ -111,6 +116,8 @@ export function createHandler({ codes, store, guilds, bridge = null, appId = nul
     return null;
   }
 
+  /** POST /voice/join: the bridge is brought into the channel and its space, and the app gets the space's seed to
+   * join with. */
   async function voiceJoin(req, res) {
     const ip = clientIp(req);
     if (!joinLimit.hit(ip)) return send(res, 429, { error: 'slow down' }, { 'Retry-After': String(joinLimit.retryAfter(ip)) });
@@ -143,6 +150,8 @@ export function createHandler({ codes, store, guilds, bridge = null, appId = nul
     return send(res, 200, { seed: joined.seed, name: info.name, guild: guildId, channel: channelId, bridge: joined.bridge });
   }
 
+  /** POST /claim: a link code traded, once, for a token that reads its server. A wrong guess still uses up some of
+   * the address's allowance. */
   async function claim(req, res) {
     const ip = clientIp(req);
     if (!ipLimit.hit(ip)) return send(res, 429, { error: 'slow down' }, { 'Retry-After': String(ipLimit.retryAfter(ip)) });
@@ -168,6 +177,7 @@ export function createHandler({ codes, store, guilds, bridge = null, appId = nul
     return send(res, 200, { token, guild: guildInfo(found.guild) });
   }
 
+  /** GET /state: the token's server, its voice channels and who is in them now. */
   async function state(req, res, url) {
     const guildId = store.guildOf(url.searchParams.get('token') ?? '');
     if (!guildId) return send(res, 401, { error: 'not linked' });
@@ -180,6 +190,7 @@ export function createHandler({ codes, store, guilds, bridge = null, appId = nul
   return async function handle(req, res) {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      // With Caddy's /discord prefix or without it, and with or without a slash at the end.
       let path = url.pathname;
       if (path === '/discord' || path.startsWith('/discord/')) path = path.slice('/discord'.length) || '/';
       if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);

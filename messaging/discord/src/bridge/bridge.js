@@ -14,9 +14,12 @@ import { nicknameFor } from './mapping.js';
 import { GhostSpace } from './space.js';
 import { BridgeStore } from './store.js';
 
+/** How long a bridge stays with nobody from Ghost in its space. */
 export const LEAVE_AFTER_MS = 30_000;
+/** How often the Discord channel's people are told to the space again, besides at every change. */
 export const PEOPLE_EVERY_MS = 5_000;
 
+/** Why a bridge could not be made, by `code`, which http.js turns into the answer's status. */
 export class BridgeError extends Error {
   constructor(code, message) {
     super(message);
@@ -24,17 +27,22 @@ export class BridgeError extends Error {
   }
 }
 
+/** The promise, or a rejection with onTimeout()'s error if it has not settled within `ms`. */
 const withTimeout = (promise, ms, onTimeout) => {
   let timer;
   return Promise.race([promise, new Promise((_, fail) => { timer = setTimeout(() => fail(onTimeout()), ms); })]).finally(() => clearTimeout(timer));
 };
 
+/** One bridged channel: the bot's voice connection there, the bridge's place in the Ghost space, and the sound
+ * engine between them. owner: the Bridges, for the things handed in (hub, codec, discord, timers, log). */
 class Bridge {
   constructor(owner, guildId, channelId, seed) {
     this.owner = owner;
     this.guildId = guildId;
     this.channelId = channelId;
     this.seed = seed;
+    // speaking: the Discord users talking now. names: the Ghost members in the space, for the bot's nickname.
+    // speakingOut: whether the bot shows as speaking on Discord.
     this.speaking = new Set();
     this.names = [];
     this.stopped = false;
@@ -48,6 +56,8 @@ class Bridge {
     return `${this.guildId}/${this.channelId}`;
   }
 
+  /** Joins the Discord channel and the Ghost space at once. If either fails the other is left again and a
+   * BridgeError thrown; once both are in, the sound, the people list and the leave clock start. */
   async start() {
     const o = this.owner;
     this.engine = new AudioEngine({ codec: o.codec });
@@ -80,6 +90,7 @@ class Bridge {
       throw e instanceof BridgeError ? e : new BridgeError(v.status === 'rejected' ? 'voice' : 'hub', e?.message ?? String(e));
     }
     this.voice = v.value;
+    // Stopped while joining (Discord dropped the voice connection meanwhile): leave both again.
     if (this.stopped) {
       this.voice.destroy();
       await this.space.close();
@@ -92,6 +103,8 @@ class Bridge {
     this.armLeave();
   }
 
+  /** Every 20 ms: the Ghost mix played into Discord (or the bot shown quiet), and each Ghost member sent their mix.
+   * A failure is logged once in 500, so a broken stream cannot fill the log. */
   tick() {
     if (this.stopped || !this.voice) return;
     try {
@@ -109,6 +122,7 @@ class Bridge {
     }
   }
 
+  /** The Discord channel's people, as they are now, told to the space; whoever has left stops being mixed. */
   sendPeople() {
     if (this.stopped || !this.space) return;
     const people = this.owner.discord.people(this.guildId, this.channelId, this.speaking);
@@ -118,6 +132,7 @@ class Bridge {
     this.space.setPeople(people);
   }
 
+  /** A Discord user began or stopped talking: the space is told at once. */
   speakingChanged(userId, on) {
     const had = this.speaking.has(userId);
     if (on === had) return;
@@ -126,6 +141,7 @@ class Bridge {
     this.sendPeople();
   }
 
+  /** The Ghost members in the space changed: the leave clock and the bot's nickname follow. */
   membersChanged(list) {
     this.names = list.map((m) => m.name);
     this.armLeave();
@@ -156,15 +172,18 @@ class Bridge {
     this.armLeave();
   }
 
+  /** A Ghost member's message, posted in the Discord channel; a failure is logged and nothing more. */
   fromGhostChat({ name, text }) {
     this.owner.discord.postText(this.guildId, this.channelId, { name: name || 'Ghost', text }).catch((e) => this.owner.log(`bridge ${this.tag}: posting to Discord failed: ${e?.code ?? e?.message ?? e}`));
   }
 
+  /** A Discord message, said in the space's chat. */
   fromDiscordChat({ name, text }) {
     if (this.stopped || !this.space) return false;
     return this.space.sendChat({ name, text });
   }
 
+  /** Leaves the channel and the space, once, and tells the owner. */
   async stop(why) {
     if (this.stopped) return;
     this.stopped = true;
@@ -180,6 +199,8 @@ class Bridge {
   }
 }
 
+/** Every bridge the bot has, by server and channel. The clock, the timers and the ticker come in so tests can
+ * stand in for them. */
 export class Bridges {
   constructor({
     store, hub, peers, codec, discord, log = () => {}, now = Date.now,
@@ -235,11 +256,13 @@ export class Bridges {
     return { seed, bridge: this.hub.me.id };
   }
 
+  /** The running bridge of a channel, or null. */
   find(guildId, channelId) {
     const b = this.bridges.get(`${guildId}:${channelId}`);
     return b && !b.stopped ? b : null;
   }
 
+  /** A bridge has stopped: forgotten, and its people's names taken out of the bot's nickname. */
   ended(b) {
     const key = `${b.guildId}:${b.channelId}`;
     if (this.bridges.get(key) === b) this.bridges.delete(key);
@@ -270,6 +293,7 @@ export class Bridges {
     }, this.nicknameDelayMs));
   }
 
+  /** Every running bridge stopped (the bot is shutting down). */
   async stopAll(why) {
     await Promise.all([...this.bridges.values()].map((b) => b.stop(why)));
   }

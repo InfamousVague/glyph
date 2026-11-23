@@ -20,10 +20,13 @@ import 'package:ghost_messaging/voice/voice.dart';
 /// which the relay removes when it has been idle long enough.
 const files = String.fromEnvironment('FILES');
 
+/// A hub that lives in this test: the routes joined to it, which hand each other's packets across in memory.
 class _Hub {
   final List<_Route> routes = [];
 }
 
+/// One member's way to the others: what it sends reaches every other route of the [_Hub], whatever the room.
+/// Joining, leaving and looking do nothing, and it reports no events.
 class _Route implements VoiceRoute {
   _Route(this.hub, this.me) {
     hub.routes.add(this);
@@ -55,6 +58,7 @@ class _Route implements VoiceRoute {
   Stream<({String room, List<String> members})> get looks => const Stream.empty();
 }
 
+/// Waits for [ok] to come true, looking every 50 ms, and fails the test with [what] after a minute.
 Future<void> _until(bool Function() ok, String what) async {
   final end = DateTime.now().add(const Duration(seconds: 60));
   while (!ok()) {

@@ -156,6 +156,7 @@ object GmBridge {
     /** By conversation key, for as long as this process lives (a PendingIntent cannot be written down). */
     private val actions = ConcurrentHashMap<String, Actions>()
 
+    /** What the newest notification of [conv] offered; null once the process has been restarted. */
     fun actionsFor(conv: String): Actions? = actions[conv]
 
     // --- reading a notification ---------------------------------------------------------------------------------------
@@ -225,6 +226,7 @@ object GmBridge {
      */
     fun pickThread(group: Boolean, named: Long?, synthetic: Long, byAddresses: () -> Long): Long = if (!group) byAddresses() else named ?: synthetic
 
+    /** Whether two of a notification's people are one (its "me" and a line's sender): by key or address, not name. */
     private fun samePerson(a: Person, b: Person): Boolean =
         (a.key != null && a.key == b.key) || (a.uri != null && a.uri == b.uri)
 
@@ -239,6 +241,7 @@ object GmBridge {
         }
     }
 
+    /** The number of the contact a contacts address names: the one marked primary first, else the first listed. */
     private fun numberOfContact(context: Context, contact: Uri): String? = try {
         val id = context.contentResolver.query(contact, arrayOf(ContactsContract.Contacts._ID), null, null, null)?.use { c -> if (c.moveToFirst()) c.getLong(0) else null }
             ?: return null
@@ -647,6 +650,7 @@ object GmBridge {
         }
     }
 
+    /** A row of each table: a conversation as the bridge knows it (its newest words and when), and a message. */
     data class Conv(val conv: String, val thread: Long, val title: String?, val group: Boolean, val addresses: List<String>, val text: String, val time: Long, val out: Boolean, val unread: Int)
     data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean, val status: String? = null, val media: String? = null, val reactions: String? = null)
 }
@@ -732,6 +736,7 @@ class GmListener : NotificationListenerService() {
         watcher = null
     }
 
+    /** Reads the channel [sbn] came on from its ranking, and has GmBridge note how that channel is set. */
     private fun noteRanking(sbn: StatusBarNotification) {
         try {
             val r = Ranking()

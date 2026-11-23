@@ -104,6 +104,7 @@ object Groups {
 
     // --- the records ----------------------------------------------------------------------------------------------------
 
+    /** A group's record by its id, or null; and every group's. */
     fun get(context: Context, id: String): JSONObject? =
         prefs(context).getString("g:$id", null)?.let { runCatching { JSONObject(it) }.getOrNull() }
 
@@ -270,6 +271,7 @@ object Groups {
 
     // --- what is written in it -----------------------------------------------------------------------------------------
 
+    /** A set of message rows kept under [name], and adding one to it: the newest [Friends.KEEP] are kept. */
     private fun ids(context: Context, name: String): Set<Long> =
         (prefs(context).getString(name, "") ?: "").split(',').mapNotNull { it.toLongOrNull() }.toSet()
 
@@ -286,6 +288,7 @@ object Groups {
 
     private fun uri(row: Long): Uri = ContentUris.withAppendedId(Telephony.Mms.CONTENT_URI, row)
 
+    /** Writes [words] into the group's conversation in Android's database, as an MMS of one text part. */
     private fun insert(context: Context, o: JSONObject, box: Int, from: String?, words: String, at: Long): Uri? =
         Store(context).insertMms(
             box, o.getLong("thread"), from, listOf(address(o.getString("id"))), emptyList(),

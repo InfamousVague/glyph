@@ -24,7 +24,12 @@ class Summaries extends ChangeNotifier {
   String status = 'unknown';
 
   AppState? _app;
+
+  /// Each conversation's summary and the time of the newest text it was made for (milliseconds); a null text is
+  /// one tried and not worth making, so it is not tried again for the same texts.
   final Map<int, ({int at, String? text})> _made = {};
+
+  /// The conversations waiting for a summary, and their ids, so none waits twice. One is made at a time.
   final Queue<Conversation> _queue = Queue();
   final Set<int> _queued = {};
   bool _working = false;
@@ -53,6 +58,8 @@ class Summaries extends ChangeNotifier {
     return made != null && made.at == at ? made.text : null;
   }
 
+  /// The summary kept across the app being closed (`summary_<thread>`: the time, a tab, the words), read into
+  /// memory; null where none is kept.
   ({int at, String? text})? _kept(AppState app, int thread) {
     final raw = app.choice('summary_$thread', '');
     final tab = raw.indexOf('\t');
@@ -75,6 +82,7 @@ class Summaries extends ChangeNotifier {
     unawaited(_work());
   }
 
+  /// Makes the summaries waiting, one after another, and keeps each; the list is told where one has words.
   Future<void> _work() async {
     if (_working) return;
     _working = true;
@@ -93,6 +101,8 @@ class Summaries extends ChangeNotifier {
     }
   }
 
+  /// Reads [c]'s newest thirty messages and has the phone's model sum up the unread run; null where there is too
+  /// little, or it cannot be done.
   Future<String?> _make(Conversation c) async {
     final List<Message> recent;
     try {

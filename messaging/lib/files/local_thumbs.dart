@@ -13,12 +13,15 @@ import 'file_kinds.dart';
 import 'files_model.dart';
 import 'files_store.dart';
 
+/// The previews made on this device, and the queue of those still to make; listeners are told as each is made.
 class LocalThumbs extends ChangeNotifier {
   LocalThumbs._();
   static final instance = LocalThumbs._();
 
   /// Each file's made preview by its id; null where one was tried and none could be made.
   final Map<String, Uint8List?> _made = {};
+
+  // The files waiting their turn, the ids already asked for, and how many are being made now.
   final List<SpaceFile> _waiting = [];
   final Set<String> _asked = {};
   int _running = 0;
@@ -80,6 +83,7 @@ class LocalThumbs extends ChangeNotifier {
     }
   }
 
+  /// For a test: everything forgotten.
   @visibleForTesting
   void reset() {
     _made.clear();

@@ -11,6 +11,9 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
+// Tests of the helper's parts that need no Signal account: reading requests, shaping answers, attachment pointers
+// there and back, the words for a group's rules, and a message's mentions.
+
 func TestParseRequestTimes(t *testing.T) {
 	r, err := parseRequest([]byte(`{"id":8,"op":"read","to":"a","author":"b","ts":[1,2,3]}`))
 	if err != nil || r.ID != 8 || r.Op != "read" || len(r.TS) != 3 || r.TS[2] != 3 {
@@ -78,6 +81,7 @@ func TestPointerRoundTrip(t *testing.T) {
 	}
 }
 
+// mustQuote is [b] as a JSON string: a pointer as the app sends it when it kept the object as text.
 func mustQuote(b []byte) json.RawMessage {
 	q, _ := json.Marshal(string(b))
 	return q

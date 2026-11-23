@@ -63,6 +63,9 @@ const KNOWN = {
   // The hosts the hub is reached at (relay/lib/hub.dart `names`): a sign-in is bound to the one the app dialled.
   GHOST_HUB_NAMES: /^[a-z0-9.-]+(:[0-9]{1,5})?(,[a-z0-9.-]+(:[0-9]{1,5})?)*$/,
   // What every connection may hold together, and when one is ended for it (relay/lib/ws_door.dart `WireBudget`).
+  // What is held for people away, and what rooms keep, kept on the box's disk too (relay/lib/held_store.dart): 1 on,
+  // anything else off. It changes what the relay keeps (relay/README.md, "What it keeps"): Matt's to switch on.
+  GHOST_HUB_KEEP_HELD: /^[01]$/,
   GHOST_WIRE_MB: /^[0-9]{1,4}$/,
   GHOST_WIRE_EACH_MB: /^[0-9]{1,4}$/,
   GHOST_WIRE_STALL_S: /^[0-9]{1,3}$/,

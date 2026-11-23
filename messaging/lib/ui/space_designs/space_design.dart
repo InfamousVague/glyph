@@ -340,6 +340,7 @@ class SpaceCall {
     return best;
   }
 
+  /// Whether [p] counts as talking at the levels [now]: not muted and louder than [talking].
   bool isTalking(SpacePerson p, Map<String, double> now) => !p.muted && (now[p.id] ?? 0) > talking;
 
   /// The chat, with [bottom] left clear under its composer; a line saying there is none for a group's channel.
@@ -353,6 +354,7 @@ class SpaceCall {
   }
 }
 
+/// What stands where the chat would in a group's channel, which has no chat of its own.
 class _NoChat extends StatelessWidget {
   const _NoChat();
 

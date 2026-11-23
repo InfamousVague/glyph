@@ -8,8 +8,10 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+/** A Discord id: digits only. */
 const SNOWFLAKE = /^\d{15,22}$/;
 
+/** bridges.json, read once when made and written again at every change. */
 export class BridgeStore {
   /** file: the JSON file's path, or null to keep everything in memory (tests). random(n): bytes, for tests. */
   constructor(file, { random = randomBytes } = {}) {
@@ -28,11 +30,13 @@ export class BridgeStore {
     }
   }
 
+  /** The store kept in bridges.json under `dir`, which is made (the owner's alone) if it is not there. */
   static open(dir, options) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     return new BridgeStore(join(dir, 'bridges.json'), options);
   }
 
+  /** "guild:channel", the name a channel is kept under; throws for anything that is not two Discord ids. */
   static key(guildId, channelId) {
     if (!SNOWFLAKE.test(String(guildId)) || !SNOWFLAKE.test(String(channelId))) throw new Error('not a Discord id');
     return `${guildId}:${channelId}`;
@@ -50,10 +54,12 @@ export class BridgeStore {
     return entry.seed;
   }
 
+  /** The channel's webhook, { id, token }, or null where none has been made. */
   webhook(guildId, channelId) {
     return this.channels.get(BridgeStore.key(guildId, channelId))?.webhook ?? null;
   }
 
+  /** Keeps the channel's webhook, or forgets it (null: someone deleted it on Discord). */
   setWebhook(guildId, channelId, webhook) {
     const key = BridgeStore.key(guildId, channelId);
     const entry = this.channels.get(key) ?? { seed: Buffer.from(this.random(32)).toString('hex'), webhook: null };
@@ -76,6 +82,7 @@ export class BridgeStore {
     return this.identity;
   }
 
+  /** The whole file written anew: to a temporary file, flushed to disk, then renamed over the old one. */
   save() {
     if (!this.file) return;
     mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });

@@ -10,6 +10,7 @@ export class RateLimit {
   /** true when this hit is allowed (and it is counted); false when the key is over its limit. */
   hit(key) {
     const t = this.now();
+    // Ended windows are swept only once the map is large, so it cannot grow without bound.
     if (this.hits.size > 10_000) for (const [k, v] of this.hits) if (t - v.start >= this.windowMs) this.hits.delete(k);
     let entry = this.hits.get(key);
     if (!entry || t - entry.start >= this.windowMs) {

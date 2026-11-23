@@ -110,6 +110,7 @@ class PendingInvites {
     _check();
   }
 
+  /// What was waited for has changed for the first time (the circles have started): invites may be offered now.
   void _placesReady() {
     _waitFor?.removeListener(_placesReady);
     _waitFor = null;

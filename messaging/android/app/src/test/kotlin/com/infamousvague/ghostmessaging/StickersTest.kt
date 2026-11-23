@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** A sticker's file name ([Stickers]): how it is made, how it is known again, and which stickers move. */
 class StickersTest {
     @Test
     fun aStickerIsNamedForItsPackAndNumber() {

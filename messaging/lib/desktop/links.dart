@@ -16,6 +16,7 @@ import '../ui/circles/circle_invite_card.dart' show openCircleLink;
 import '../ui/common.dart' show toast;
 import '../ui/shell.dart';
 
+/// Hears the links the system hands the app, and opens the circle each names.
 class DeskLinks {
   DeskLinks._();
 

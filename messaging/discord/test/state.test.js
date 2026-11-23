@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { buildState, memberName, missingMembers } from '../src/state.js';
 import { CATEGORY, STAGE, TEXT, VOICE, guild, member, voiceState } from './fakes.js';
 
+// The /state answer (src/state.js), built from plain objects: which channels, in what order, and who is in them.
+
 const G = '100000000000000001';
 
+/** A server with channels in and out of categories, a hidden one, a text one, and people in voice in every state. */
 function sample() {
   return guild({
     id: G,

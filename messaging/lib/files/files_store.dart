@@ -151,8 +151,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// How many chunks go up in one request (16 of 256 KB: 4 MB, under the relay's 8 MB a request).
   final int piece;
+
+  /// How often an open space reads its log again, besides when it is told the log has grown.
   final Duration poll;
 
+  /// The hub id of [c]'s owner, from the owner's public key; null for a space with no owner (one from before roles).
   static String? _ownerId(VoiceChannel c) => c.owner.isEmpty ? null : NetCrypto.idOf(NetCrypto.unhex(c.owner));
 
   /// Whether a roster checked out for an owner: each is a few signatures to check, and the same rosters come round on
@@ -243,6 +246,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// The largest roster put in a log (an entry is at most 32 KB sealed on the relay).
   static const _rosterMost = 24 * 1024;
 
+  /// What this person is called beside a file they add: the name a hangout room has for them, else the profile's.
   static String _myNameOf() {
     final v = Voice.instance;
     // What this device's hangout rooms are told it is called.
@@ -254,11 +258,15 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return me.shownName;
   }
 
+  /// Where the app keeps what must last (the lists, the upload queue): its files folder on Android, the desktop
+  /// store's folder elsewhere.
   static Directory _appDir() {
     if (PlatformInfo.isAndroid) return Directory('${Directory.systemTemp.parent.path}/files');
     return DeskStore.defaultDir();
   }
 
+  /// Where files that came down are kept, since they can be brought down again: the app's cache folder on Android and
+  /// a Mac, a cache folder inside the desktop store's elsewhere.
   static Directory _cacheDir() {
     if (PlatformInfo.isAndroid) return Directory.systemTemp;
     final home = PlatformInfo.environment['HOME'];
@@ -355,6 +363,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     if (identical(this, instance)) Voice.instance.addListener(_voiceChanged);
   }
 
+  /// Voice changed (the relay came, a roster moved): open spaces listen and read again, and uploads that waited for
+  /// the relay go back on the queue.
   void _voiceChanged() {
     if (_base() == null) return;
     _rosterMoved();
@@ -383,6 +393,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     });
   }
 
+  /// Keeps the uploads still to finish in queue.json, written aside and renamed so it is never half written. A chat's
+  /// files are left out: their messages ask again.
   Future<void> _saveQueue() async {
     try {
       final d = _data()..createSync(recursive: true);
@@ -394,6 +406,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   final Map<String, FilesApi> _apis = {};
 
+  /// The relay's files API for [c]: one kept per space, made again when the relay or the signing key changes. Null
+  /// with no relay or key yet.
   FilesApi? _api(VoiceChannel c) {
     final base = _base();
     final signer = _signer();
@@ -415,6 +429,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     await s.refresh();
   }
 
+  /// Ends one [open] of [c]: when the last one goes, the polling and the listening stop.
   void close(VoiceChannel c) {
     final s = _spaces[c.seed];
     if (s == null || s._holds == 0) return;
@@ -440,6 +455,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return me != null && _rules(c).mayChange(me, f);
   }
 
+  /// Whether this device may make, move and remove folders in [c].
   bool canFolder(VoiceChannel c) {
     final me = _me();
     return me != null && _rules(c).mayFolder(me);
@@ -447,6 +463,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   // --- the log -----------------------------------------------------------------------------------------------------
 
+  /// Adds [op] to [c]'s log, reads the list again and tells the others. False, with the space's error set, where it
+  /// couldn't.
   Future<bool> _write(VoiceChannel c, Map<String, Object?> op) async {
     final api = _api(c);
     final s = of(c);
@@ -583,12 +601,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     } catch (_) {}
   }
 
+  /// Renames [f] for everyone. False where the name is empty or the same, or this device may not change the file.
   Future<bool> rename(VoiceChannel c, SpaceFile f, String name) async {
     final n = SpaceFile.cleanName(name);
     if (n.isEmpty || n == f.name || !canChange(c, f)) return false;
     return _write(c, FileOp.rename(f.id, n));
   }
 
+  /// Moves [f] into [folder] (null for the top) for everyone.
   Future<bool> move(VoiceChannel c, SpaceFile f, String? folder) async {
     final d = SpaceFile.cleanFolder(folder);
     if (d == f.folder || !canChange(c, f)) return false;
@@ -630,6 +650,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return _write(c, FileOp.moveFolder(from, d));
   }
 
+  /// Renames the folder at [path] to [name] (one name, no slash), leaving it in the folder it is in.
   Future<bool> renameFolder(VoiceChannel c, String path, String name) async {
     final n = SpaceFile.cleanFolder(name);
     if (n == null || n.contains('/')) return false;
@@ -747,6 +768,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   bool _pumping = false;
 
+  /// Sends the queued uploads one after another; only one pump runs at a time. Those left waiting for the relay are
+  /// queued again after five seconds, then longer each try, up to a minute.
   void _pump() {
     if (_pumping) return;
     _pumping = true;
@@ -778,6 +801,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }());
   }
 
+  /// Sends one upload: hashes the file, seals it piece by piece onto the relay from where the relay says it got to,
+  /// then adds it to the space's log (a chat's file goes in no log). Sets [t]'s state as it goes and never throws.
   Future<void> _runUpload(Transfer t) async {
     final c = t.space;
     final api = _api(c);
@@ -1042,6 +1067,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }
   }
 
+  /// Puts the uploaded file where a download of [f] would lie ([cachedPath]): the app's own copy is moved there,
+  /// someone's own file is copied where it is 64 MB or less.
   Future<void> _keepLocal(Transfer t, SpaceFile f) async {
     try {
       final at = File(cachedPath(f));
@@ -1145,6 +1172,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
 
   /// Where [f] is kept on this device once it has come down: a folder of its own, under its own name.
   String cachedPath(SpaceFile f) => '${_cache().path}/${f.id}/${f.name.replaceAll(RegExp(r'[/\\:]'), '_')}';
+
+  /// Where [f] is written while it comes down ([_runDownload]).
   String _partPath(SpaceFile f) => '${_cache().path}/${f.id}.part';
 
   /// [f]'s file on this device, where it has come down already.
@@ -1163,6 +1192,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }
   }
 
+  /// Deletes all this device keeps of [f]: the file that came down, a part of one, and what a stream kept of it.
   void _forgetCached(SpaceFile f) {
     try {
       final dir = Directory('${_cache().path}/${f.id}');
@@ -1173,6 +1203,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     _deleteQuietly('${_cache().path}/${f.id}.chunks');
   }
 
+  /// Downloads under way, by file id, so a second [fetch] of a file waits on the first.
   final Map<String, Transfer> _downloads = {};
 
   /// Files being played as they come down, by id: one [FileStream] each, however many hold it.
@@ -1237,6 +1268,8 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     return t._done!.future;
   }
 
+  /// Brings [t]'s file down into its part file, going on from the last whole chunk there and opening the chunks as
+  /// they come; then checks its SHA-256 and moves it to [cachedPath].
   Future<void> _runDownload(Transfer t) async {
     final c = t.space;
     final f = t.file!;
@@ -1312,6 +1345,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }
   }
 
+  /// Takes a download off the lists and tells whoever waits on [fetch]: [path] where it came, else [error].
   void _endDownload(Transfer t, {String? path, FilesError? error}) {
     _downloads.remove(t.file?.id);
     transfers.remove(t);
@@ -1572,10 +1606,15 @@ class FilesSpace {
   bool _kept = false;
   bool get ready => _kept;
 
+  /// How many [FilesStore.open]s hold this space: the poller and the chat room's listener run while any does.
   int _holds = 0;
   Timer? _poller;
   StreamSubscription<Object?>? _sub;
+
+  /// The space was made or found on the relay this run ([_ensure]); set back when the relay says it has no such space.
   bool _ensured = false;
+
+  /// The reading under way, so two [refresh]es at once are one.
   Future<void>? _refreshing;
 
   /// Read while there was no relay to read from: read again as soon as there is.
@@ -1587,6 +1626,8 @@ class FilesSpace {
   /// The last entry read when this device first heard the relay say it takes `?after=` (FilesInfo.cas): a signed entry
   /// after it out of its place was moved by the relay (FilesList.read). Kept.
   int? _strictAfter;
+
+  /// When the relay was last asked for the log ([_refresh]).
   DateTime _tried = DateTime.fromMillisecondsSinceEpoch(0);
 
   Map<String, SpaceFile> get files => _list.files;
@@ -1604,6 +1645,7 @@ class FilesSpace {
   Iterable<String> foldersUnder(String path) => _list.foldersUnder(path);
   int get bytes => _list.bytes;
 
+  /// Where this space's log, its last number and the relay's last word are kept between runs.
   File get _file => File('${_store._data().path}/spaces/${FileSeal.filesRoom(channel.seed)}.json');
 
   void _load() {
@@ -1661,6 +1703,8 @@ class FilesSpace {
   /// The roster revision last told to the relay ([_ensure]).
   int _toldRv = -1;
 
+  /// Makes or finds the space on the relay and tells it the roster revision this device holds. Throws where the relay
+  /// names another owner for it.
   Future<void> _ensure(FilesApi api) async {
     final roster = _store._trusted(channel);
     final rv = roster?.version ?? 0;
@@ -1728,6 +1772,7 @@ class FilesSpace {
     }
   }
 
+  /// Reads the log's pages after [seq], opens and checks each entry, and asks the relay how much the space holds.
   Future<void> _read(FilesApi api) async {
     await _ensure(api);
     final key = FileSeal.filesKey(channel.seed);
@@ -1798,6 +1843,8 @@ class FilesSpace {
   }
 }
 
+/// Where a transfer stands. `waiting` is an upload that is tried again by itself (no relay, or the relay failing);
+/// `failed` stays until the person tries again.
 enum TransferState { queued, running, waiting, failed, done }
 
 /// A file going up or coming down: how far it has got.
@@ -1830,6 +1877,8 @@ class Transfer {
 
   /// Which transfer this is, for a list's key.
   final String id;
+
+  /// Going up (true) or coming down. An upload has a [path], a download a [file].
   final bool up;
   final VoiceChannel space;
   final String? path;
@@ -1838,8 +1887,11 @@ class Transfer {
   final int size;
   final String mime;
   final String? folder;
+
+  /// The file at [path] is a copy the app made (a phone's pick): deleted or moved into the cache once it is up.
   final bool owned;
 
+  /// Bytes of the file gone up or come down so far.
   int done = 0;
   TransferState state = TransferState.queued;
 
@@ -1870,12 +1922,18 @@ class Transfer {
   Completer<SpaceFile>? _chatDone;
   SpaceFile? _chatFile;
 
+  /// Stopped by the person ([FilesStore.cancel]): whatever is running for it gives up at its next step.
   bool _cancel = false;
+
+  /// A timer is already set to try it again ([FilesStore._pump]).
   bool _held = false;
+
+  /// A download's path once it has come, for whoever waits on [FilesStore.fetch].
   Completer<String>? _done;
 
   double get progress => size <= 0 ? (state == TransferState.done ? 1 : 0) : (done / size).clamp(0.0, 1.0);
 
+  /// Put aside to be tried again by itself; each try counted lengthens the next wait ([FilesStore._pump]).
   void _wait(String why) {
     state = TransferState.waiting;
     status = null;
@@ -1886,6 +1944,7 @@ class Transfer {
   /// Whether trying again could mend a failure: not for a file over the limit or a space without the room for it.
   bool retryable = true;
 
+  /// Stopped for [why], until the person tries again.
   void _fail(String why, {bool retryable = true}) {
     state = TransferState.failed;
     status = null;
@@ -1893,6 +1952,8 @@ class Transfer {
     this.retryable = retryable;
   }
 
+  /// As kept in queue.json: the space, the file's path, and its sealing so far (hash, key, nonce prefix, blob), so it
+  /// goes on under the same key where it was.
   Map<String, Object?> _toJson() => {
         'c': {...space.toJson(), 'k': space.kind.wire, if (space.circle != null) 'ci': space.circle},
         'p': path,

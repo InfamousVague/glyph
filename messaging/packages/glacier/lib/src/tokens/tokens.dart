@@ -48,6 +48,8 @@ class Tokens {
   }) : this._(sheet, null, Map.unmodifiable(attrs), const {}, env, reducedMotion, css, typography, attrs.keys.toSet(), const {}, root: true);
 
   Tokens._(this._sheet, this.parent, this.attrs, this.classes, this._env, this.reducedMotion, this.css, this.typography, Set<String> ownAttrs, Set<String> ownClasses, {required bool root}) {
+    // The rules that declare something here, later ones over earlier (the sheet is in cascade order). A scope takes
+    // only rules about its own classes and attributes, and inherits the rest; the root takes none that ask a class.
     for (final rule in _sheet.rules) {
       if (rule.reducedMotion && !reducedMotion) continue;
       if (!rule.matches(attrs, classes)) continue;
@@ -82,6 +84,8 @@ class Tokens {
     return at;
   }
 
+  /// What the rules matching here declare, as written; each property's resolved value once asked for (null where
+  /// it has none); and those values read as a type, by kind and name.
   final Map<String, String> _declared = {};
   final Map<String, String?> _computed = {};
   final Map<String, Object?> _typed = {};
@@ -105,11 +109,14 @@ class Tokens {
 
   bool get isDark => attrs['theme'] == 'dark';
 
+  /// A property's name as the sheet writes it: callers may leave the `--` off.
   static String _name(String name) => name.startsWith('--') ? name : '--$name';
 
   /// The property's computed value, every `var()` and `env()` in it resolved, or null where nothing declares it.
   String? raw(String name) => _rawOf(_name(name), const {});
 
+  /// [raw] for a full name, remembered: this scope's own declaration, or else what the parent computes. [seen] is
+  /// the properties being resolved on the way here, so a ring of `var()`s ends.
   String? _rawOf(String name, Set<String> seen) {
     if (_computed.containsKey(name)) return _computed[name];
     final declared = _declared[name];
@@ -162,6 +169,7 @@ class Tokens {
     return out.toString();
   }
 
+  /// Where the first comma outside any brackets is, or -1: what parts a `var()`'s name from its fallback.
   static int _topComma(String s) {
     var depth = 0;
     for (var i = 0; i < s.length; i++) {
@@ -172,12 +180,14 @@ class Tokens {
     return -1;
   }
 
+  /// [raw], or a [CssFormatException] naming the token where it is missing or empty.
   String _need(String name) {
     final value = raw(name);
     if (value == null || value.isEmpty) throw CssFormatException('no token "${_name(name)}"');
     return value;
   }
 
+  /// A token's typed value, made once and kept for as long as these tokens stand.
   T _cached<T>(String kind, String key, T Function() make) => (_typed['$kind $key'] ??= make()) as T;
 
   // --- by name ---------------------------------------------------------------------------------------------------
@@ -207,6 +217,7 @@ class Tokens {
   /// A property written as a time and an easing together, as the app's `--app-pop` is.
   ({Duration duration, Curve curve}) transition(String name) => _cached('transition', name, () => evalTransition(_need(name)));
 
+  /// Every layer of a `box-shadow` token, inset ones included, for a widget that draws them itself.
   List<CssShadow> cssShadows(String name) => _cached('shadows', name, () => evalShadows(_need(name), ctx: css));
 
   /// The outer layers of a `box-shadow` token, as Flutter draws them.
@@ -247,6 +258,8 @@ class Tokens {
     return _lengths[expression] = evalNumber(resolve(expression), css);
   }
 
+  /// A CSS colour expression worked out here. With [current] (what `currentColor` means) it is read afresh each
+  /// time; without, remembered as [lenOf]'s are.
   Color colorOf(String expression, {Color? current}) {
     if (current != null) return evalColor(resolve(expression), ctx: css, current: Oklch.fromColor(current)).toColor();
     final had = _colors[expression];
@@ -256,6 +269,7 @@ class Tokens {
     return _colors[expression] = evalColor(resolve(expression), ctx: css).toColor();
   }
 
+  /// The outer layers of a `box-shadow` expression, as Flutter draws them. Not remembered.
   List<BoxShadow> shadowOf(String expression, {Color? current}) =>
       evalShadows(resolve(expression), ctx: css, current: current == null ? null : Oklch.fromColor(current)).where((s) => !s.inset).map((s) => s.toBoxShadow()).toList();
 
@@ -274,6 +288,7 @@ class Tokens {
 
   FontWeight weight(String name) => _weight(len('glacier-font-weight-$name'));
 
+  /// A CSS weight (100 to 900) as Flutter's, to the nearest hundred.
   static FontWeight _weight(double value) => FontWeight.values[((value / 100).round() - 1).clamp(0, 8)];
 
   /// The kit's text at a step of its scale: size, leading and tracking together, in the sans face unless [mono].

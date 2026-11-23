@@ -13,11 +13,13 @@ class Person {
   final String? name;
   final String? photo;
 
+  /// What they are called on the screen: their name in the contacts, else the number.
   String get label => (name != null && name!.isNotEmpty) ? name! : address;
 
   factory Person.from(Map m) => Person(address: (m['address'] as String?) ?? '', name: m['name'] as String?, photo: m['photo'] as String?);
 }
 
+/// One conversation as the list shows it, read from the map the native side (or the link to the phone) answers with.
 class Conversation {
   const Conversation({
     required this.id,
@@ -36,11 +38,18 @@ class Conversation {
     this.encrypted = false,
     this.heard,
   });
+  /// Android's thread id.
   final int id;
+
+  /// When the newest message in it was written.
   final DateTime date;
   final List<Person> people;
+
+  /// The line under the title in the list.
   final String snippet;
   final bool unread;
+
+  /// Something in it was not sent.
   final bool error;
   final bool archived;
   final bool pinned;
@@ -90,6 +99,7 @@ class Conversation {
 
   /// A conversation by its people: the one person, or a group's first names.
   static String peopleTitle(List<Person> people) => people.isEmpty ? 'Unknown' : people.map((p) => people.length > 1 ? p.label.split(' ').first : p.label).join(', ');
+  /// More than one other person, or a group of friends (which may have no one else in it yet).
   bool get group => people.length > 1 || groupId != null;
 
   factory Conversation.from(Map m) => Conversation(
@@ -111,9 +121,14 @@ class Conversation {
       );
 }
 
+/// A part of a picture message that is not its words: a picture, a video, a sound, a file.
 class Attachment {
   const Attachment({required this.id, required this.type, this.name});
+
+  /// The part's id, which [Sms.part] fetches its bytes by.
   final int id;
+
+  /// Its MIME type.
   final String type;
   final String? name;
   bool get isImage => type.startsWith('image/');
@@ -192,7 +207,11 @@ class Message {
   /// phone does not say (an older one), it is taken as read, so nothing is marked new that is not.
   final bool read;
   final int id;
+
+  /// Which of the phone's stores it is in: 'sms', 'mms' or 'rcs'. An id is unique only within its kind, see [key].
   final String kind;
+
+  /// Who it is from, or to.
   final String address;
   final String body;
   final DateTime date;
@@ -217,6 +236,7 @@ class Message {
   /// 'net' where it came or went by the app's routes, between friends, not as a text (lib/friends/friends.dart).
   final String? via;
 
+  /// What the message is known by across the kinds.
   String get key => '$kind:$id';
 
   factory Message.from(Map m) => Message(
@@ -301,6 +321,7 @@ class MmsAttempt {
   final bool ok;
   final String detail;
   factory MmsAttempt.from(Map m) => MmsAttempt(at: DateTime.fromMillisecondsSinceEpoch((m['at'] as num).toInt()), ok: m['ok'] == true, detail: (m['detail'] as String?) ?? '');
+  /// The attempt in a line, with its time to the minute.
   String get line => '${ok ? 'worked' : 'failed'}: $detail (${at.toIso8601String().substring(0, 16).replaceFirst('T', ' ')})';
 }
 
@@ -332,6 +353,8 @@ class GmChannel {
   String get label => conversation != null ? (title ?? name) : name;
 }
 
+/// What the phone lets the app do: whether it is the default texting app, and the permissions it has been given
+/// (the contacts, notifications, the phone).
 class SmsStatus {
   const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false, this.bubbles});
   final bool isDefault;
@@ -616,17 +639,18 @@ abstract class SmsCalls {
 /// Calls on a paired computer that answer the app's own network here, not on the phone (lib/desktop/own_calls.dart).
 abstract class OwnNetworkCalls {}
 
-/// Calls that reach the phone from somewhere else (a computer's link), where what can be asked depends on the phone
-/// at the other end: an older Ghost Messaging there does less. [caps] names what it does beyond the first few
-/// (android DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
 /// Calls answered on the Android phone itself, though not straight by its channel: what keeps the phone's friends by
 /// username in Dart in front of it (lib/standalone/overlay.dart). [Sms.remote] stays false behind one.
 abstract class PhoneSide {}
 
+/// Calls that reach the phone from somewhere else (a computer's link) and say what the phone at their other end can
+/// do: an older Ghost Messaging there does less. [caps] names what it does beyond the first few (android
+/// DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
 abstract class CapableCalls {
   Set<String> get caps;
 }
 
+/// The calls on the phone itself: straight to the native side by its method channel.
 class _ChannelCalls implements SmsCalls {
   const _ChannelCalls();
   static const _channel = MethodChannel('ghost_messaging/sms');
@@ -641,6 +665,8 @@ class VideoPreview {
   const VideoPreview({this.picture, this.length = Duration.zero, this.width = 0, this.height = 0, this.videoWidth = 0, this.videoHeight = 0, this.bytes = 0});
   final Uint8List? picture;
   final Duration length;
+
+  /// The picture's size, in pixels.
   final int width;
   final int height;
 
@@ -679,6 +705,7 @@ class VideoPreview {
 /// Where the voice message being played has got to (android/.../Voice.kt): its part, and whether it is playing now.
 class VoicePlayback {
   const VoicePlayback({required this.part, required this.position, required this.length, required this.playing});
+  /// The attachment's id; -1 where none is.
   final int part;
   final Duration position;
   final Duration length;
@@ -775,6 +802,8 @@ class Sms {
 
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
+
+  /// Something outside the app asked for a conversation to be opened, while the app was running.
   final opens = StreamController<OpenRequest>.broadcast();
 
   /// Where the app's own update stands, each time it moves (android/.../Updater.kt).
@@ -831,6 +860,7 @@ class Sms {
     } catch (_) {}
   }
 
+  /// Takes the notification [notifyInbox] put up under [key] away.
   Future<void> cancelInbox(String key) async {
     if (remote || !PlatformInfo.isAndroid) return;
     try {
@@ -868,6 +898,7 @@ class Sms {
   final sharedIn = StreamController<List<String>>.broadcast();
   StreamSubscription<dynamic>? _sub;
 
+  /// Starts hearing the native side's events, once, and passes each on by its 'type' to the stream of its kind above.
   void listen() {
     _sub ??= _events.receiveBroadcastStream().listen((e) {
       final m = e as Map;
@@ -908,6 +939,7 @@ class Sms {
     await _calls.invokeMethod('buddiesKeep', {'json': json});
   }
 
+  /// The list [buddiesKeep] kept, as JSON; an empty list on a computer that speaks through its phone.
   Future<String> buddiesKept() async {
     if (!ownNetwork) return '[]';
     return await _calls.invokeMethod<String>('buddiesKept') ?? '[]';
@@ -931,6 +963,7 @@ class Sms {
   /// in the preferences; an empty value forgets it.
   Future<void> secretKeep(String name, String value) => _calls.invokeMethod('secretKeep', {'name': name, 'value': value});
 
+  /// What [secretKeep] kept under [name]; null where nothing is.
   Future<String?> secretRead(String name) => _calls.invokeMethod<String>('secretRead', {'name': name});
 
   /// Starts the app again from nothing, with every choice written first; false where it cannot (an iPhone), and the
@@ -1000,6 +1033,7 @@ class Sms {
   /// Keeps [body], which came from [address] by the routes, as a text that arrived is kept, and says so as one is.
   Future<void> netTextIn(String address, String body, int at) => _calls.invokeMethod('netTextIn', {'address': address, 'body': body, 'at': at});
 
+  /// Data texts (android NetSms.kt): whether this phone can send them, and one sent to [address] carrying [bytes].
   Future<bool> netSmsAvailable() async => await _calls.invokeMethod<bool>('netSmsAvailable') ?? false;
   Future<void> netSmsSend(String address, Uint8List bytes) => _calls.invokeMethod('netSmsSend', {'address': address, 'bytes': bytes});
 
@@ -1009,6 +1043,7 @@ class Sms {
     return [for (final m in list.cast<Map>()) (address: m['address'] as String, bytes: m['bytes'] as Uint8List)];
   }
 
+  /// What the phone lets the app do now, and Android asked to make it the default texting app.
   Future<SmsStatus> status() async => SmsStatus.from(await _calls.invokeMethod('status') as Map);
   Future<bool> requestDefault() async => await _calls.invokeMethod<bool>('requestDefault') ?? false;
 
@@ -1041,6 +1076,8 @@ class Sms {
   Future<SmsStatus> requestSms() async => SmsStatus.from((await _calls.invokeMethod<Map>('requestSms')) ?? const {});
   Future<SmsStatus> requestPermissions() async => SmsStatus.from(await _calls.invokeMethod('requestPermissions') as Map);
 
+  /// What the app was opened to show (a notification pressed, something shared into it), or null. Requests that
+  /// come while it runs arrive on [opens].
   Future<OpenRequest?> openRequest() async {
     final m = await _calls.invokeMethod('openRequest');
     return m == null ? null : OpenRequest.from(m as Map);
@@ -1066,14 +1103,18 @@ class Sms {
   /// How many conversations are archived.
   Future<int> archivedCount() async => ((await _calls.invokeMethod('archivedCount')) as num?)?.toInt() ?? 0;
 
+  /// The newest [limit] messages of a conversation.
   Future<List<Message>> messages(int thread, {int limit = 300}) async =>
       [for (final m in (await _calls.invokeMethod<List>('messages', {'thread': thread, 'limit': limit})) ?? const []) Message.from(m as Map)];
 
   Future<List<Person>> people(int thread) async =>
       [for (final p in (await _calls.invokeMethod<List>('people', {'thread': thread})) ?? const []) Person.from(p as Map)];
 
+  /// The conversation with exactly these people, made where there is none.
   Future<int> threadFor(List<String> addresses) async => ((await _calls.invokeMethod('threadFor', {'addresses': addresses})) as num).toInt();
 
+  /// Sends [body] to [addresses], with [attachments] (content addresses) as a picture message; answers the
+  /// conversation it went into.
   Future<int> send(List<String> addresses, String body, {List<String> attachments = const []}) async =>
       ((await _calls.invokeMethod('send', {'addresses': addresses, 'body': body, 'attachments': attachments})) as num).toInt();
 
@@ -1127,12 +1168,12 @@ class Sms {
     return m is Map ? Arriving.from(m) : const Arriving();
   }
 
-  /// The old app's settings (RCS chats is in them), Android's page for this app (⋮ › Allow restricted settings),
-  /// Android's Default apps, and Google's page that turns RCS off for a number with a code it texts.
   /// Opens a web address in the browser: a link pressed in a message (lib/links.dart). On a computer, its own
   /// browser. True where something took it.
   Future<bool> openLink(String address) async => await _calls.invokeMethod<bool>('openLink', {'url': address}) ?? false;
 
+  /// Open, in turn: the old app's settings (RCS chats is in them), Android's page for this app (⋮ › Allow restricted
+  /// settings), Android's Default apps, and Google's page that turns RCS off for a number with a code it texts.
   Future<void> openOldApp() => _calls.invokeMethod('openOldApp');
   Future<void> openAppInfo() => _calls.invokeMethod('openAppInfo');
   Future<void> openDefaultApps() => _calls.invokeMethod('openDefaultApps');
@@ -1298,6 +1339,8 @@ class Sms {
   /// Android's page for the "Paired with…" notification alone, where the person can turn it off.
   Future<void> deskNotificationSettings() => _calls.invokeMethod('deskNotificationSettings');
 
+  /// The app's own update (android Updater.kt): where it stands, a look for a newer version (installed too, where
+  /// asked), the one fetched installed.
   Future<UpdateState> update() async => UpdateState.from((await _calls.invokeMethod('update')) as Map);
   Future<void> updateCheck({bool install = false}) => _calls.invokeMethod('updateCheck', {'install': install});
   Future<void> updateInstall() => _calls.invokeMethod('updateInstall');
@@ -1493,11 +1536,6 @@ class Sms {
 
   Future<String?> ownNumber() => _calls.invokeMethod<String>('ownNumber');
 
-  /// On a paired computer: one of Settings › Me's asks, done by the phone (android DeskCalls "me", answered by the
-  /// phone's [Me.forComputer]). Matt, 2026-11-14: "on desktop the phone number reads as unknown and is not proxying
-  /// the verification process".
-  /// On a computer: the phone's voice channels, and a channel made here given to it (lib/voice/channels.dart;
-  /// android DartAsk "voice").
   /// On a computer: what the phone's Telegram is asked (its status, approving this computer's login link: lib/inbox/
   /// telegram.dart answerComputer; android DartAsk "telegram").
   Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
@@ -1519,6 +1557,9 @@ class Sms {
   Future<Map<String, dynamic>> buddies(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('buddies', {'what': what})) ?? const {});
 
+  /// On a paired computer: one of Settings › Me's asks, done by the phone (the 'me' call: android DeskCalls "me",
+  /// answered by the phone's [Me.forComputer]). Matt, 2026-11-14: "on desktop the phone number reads as unknown and is
+  /// not proxying the verification process".
   Future<Map<String, dynamic>> me(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('me', {'what': what})) ?? const {});
 
@@ -1537,6 +1578,7 @@ class Sms {
     });
   }
 
+  /// What answers each method Android asks of Dart, as [answer] was given them.
   static final Map<String, Future<Object?> Function(Map<String, Object?>)> _answers = {};
   Future<void> setOwnNumber(String number) => _calls.invokeMethod('setOwnNumber', {'number': number});
 
@@ -1564,6 +1606,7 @@ class Sms {
 
   // --- paired computers (android/.../Desk.kt) ---------------------------------------------------------------------------
 
+  /// The computers paired with this phone, and where a pairing under way stands.
   Future<List<Computer>> computers() async => [for (final m in (await _calls.invokeMethod<List>('deskList')) ?? const []) Computer.from(m as Map)];
   Future<PairingState> pairing() async => PairingState.from((await _calls.invokeMethod('deskState')) as Map);
 
@@ -1595,6 +1638,7 @@ class Sms {
   /// Whether timings are being written to Android's log (`adb shell setprop log.tag.GhostPerf VERBOSE`).
   Future<bool> perfOn() async => await _calls.invokeMethod<bool>('perfOn') ?? false;
 
+  /// The person's choices, each a string under its key: all of them read, and one kept.
   Future<Map<String, String>> prefs() async => {for (final e in ((await _calls.invokeMethod<Map>('prefs')) ?? const {}).entries) e.key as String: e.value as String};
   Future<void> setPref(String key, String value) {
     final going = _calls.invokeMethod('setPref', {'key': key, 'value': value}).then<void>((_) {});

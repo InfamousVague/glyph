@@ -18,6 +18,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 /// dropped again: it leaves nothing behind.
 const hub = String.fromEnvironment('HUB');
 
+/// A new install, with keys made for this run, connected to the hub within ten seconds or the test fails.
 Future<HubCarrier> _up() async {
   final c = HubCarrier(url: hub, signer: KeysSigner(NetKeys.generate()));
   await c.start();

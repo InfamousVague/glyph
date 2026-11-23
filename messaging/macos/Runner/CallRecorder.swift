@@ -58,6 +58,7 @@ final class CallRecorder: NSObject {
       written += Int64(n)
     }
 
+    /// Silence up to sample [to]; nothing when the file is already that long.
     func pad(to: Int64) {
       lock.lock()
       defer { lock.unlock() }
@@ -88,6 +89,7 @@ final class CallRecorder: NSObject {
     let track: Track
     init(track: Track) { self.track = track }
 
+    /// One block of their sound, floats or 16-bit, interleaved or not: read as floats on the 16-bit scale.
     func render(pcmBuffer buffer: AVAudioPCMBuffer) {
       let frames = Int(buffer.frameLength)
       let channels = Int(buffer.format.channelCount)
@@ -107,9 +109,11 @@ final class CallRecorder: NSObject {
   }
 
   private let lock = NSLock()
+  /// When the recording began, in uptime nanoseconds; 0 while nothing is recorded.
   private var started: UInt64 = 0
   private var muted = false
   private var micTrack: Track?
+  /// Everyone else by Dart's key: their file, and the track and renderer tapping it (nil once the tap is taken off).
   private var others: [String: (track: Track, rtc: RTCAudioTrack?, renderer: Renderer?)] = [:]
   private var channel: FlutterMethodChannel?
 
@@ -120,6 +124,8 @@ final class CallRecorder: NSObject {
     return Int64((DispatchTime.now().uptimeNanoseconds &- s) / 1000) * Int64(CallRecorder.rate) / 1_000_000
   }
 
+  /// The `ghost/recorder` channel: start (this device's file), muted, add and remove (someone else's voice), stop (the
+  /// samples in each file) and mux (the files into one MP4, off the main thread).
   func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "ghost/recorder", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
@@ -168,6 +174,8 @@ final class CallRecorder: NSObject {
     t.write(due: due(), frames: frames, rate: rate, channels: 1) { i, _ in silent ? 0 : samples[i] }
   }
 
+  /// Taps the remote track [trackId] into [key]'s file at [path]. Someone who comes back (a new track for the same key)
+  /// goes on in the file they had. False when nothing is being recorded or the track is not a known voice.
   private func add(key: String, trackId: String, path: String) -> Bool {
     lock.lock()
     defer { lock.unlock() }
@@ -181,6 +189,7 @@ final class CallRecorder: NSObject {
     return true
   }
 
+  /// Takes the tap off [key]'s track. The file is kept, so it is filled with silence to the end at the stop.
   private func remove(key: String) {
     lock.lock()
     defer { lock.unlock() }

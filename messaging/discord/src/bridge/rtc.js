@@ -10,6 +10,7 @@ import { highestOpus } from './protocol.js';
 const require = createRequire(import.meta.url);
 const werift = require('werift');
 
+/** The STUN servers the bridge learns its public address from. */
 export const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 
 /**
@@ -27,6 +28,8 @@ export function weriftPeers({ iceServers = DEFAULT_ICE, portRange } = {}) {
       },
     });
     const track = new werift.MediaStreamTrack({ kind: 'audio' });
+    // early: candidates that came before the other side's description. seq and ts: the RTP sequence number and
+    // timestamp of the packets sent, begun at random as RTP asks.
     const early = [];
     let described = false;
     let seq = Math.floor(Math.random() * 65536);
@@ -47,6 +50,7 @@ export function weriftPeers({ iceServers = DEFAULT_ICE, portRange } = {}) {
     };
     pc.onconnectionstatechange = () => onState(pc.connectionState);
 
+    /** The other side's description is in: the candidates held for it are added now. */
     async function settled() {
       described = true;
       for (const c of early.splice(0)) await pc.addIceCandidate(c).catch(() => {});
@@ -85,6 +89,7 @@ export function weriftPeers({ iceServers = DEFAULT_ICE, portRange } = {}) {
       send(opus) {
         if (closed) return;
         const header = new werift.RtpHeader({ payloadType: 111, sequenceNumber: seq, timestamp: ts, marker: false });
+        // 960 samples (20 ms at 48 kHz) a packet; both counters wrap round.
         seq = (seq + 1) & 0xffff;
         ts = (ts + 960) >>> 0;
         track.writeRtp(new werift.RtpPacket(header, Buffer.from(opus)));

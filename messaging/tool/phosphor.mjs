@@ -24,6 +24,8 @@ if (!existsSync(join(PKG, 'assets/duotone'))) {
 }
 
 const map = JSON.parse(readFileSync(join(ROOT, 'tool/phosphor-map.json'), 'utf8'));
+// The Phosphor icon that draws the Lucide [name], as two path strings: the duotone's faint body (the paths at
+// opacity 0.2, '' where it has none) and its outline.
 function duotone(name) {
   const p = map[name];
   if (!p) throw new Error(`No Phosphor icon for "${name}": add it to tool/phosphor-map.json`);
@@ -56,6 +58,7 @@ function rewrite(text) {
   return out + text.slice(at);
 }
 
+// Every Dart file under [dir] but app_icon.dart, which is left as it is.
 function* dartFiles(dir) {
   for (const f of readdirSync(dir)) {
     const p = join(dir, f);

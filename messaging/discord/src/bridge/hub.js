@@ -8,6 +8,7 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign as signWith } from 'node:crypto';
 import { hex, parseRoomFrame, roomFrame, sha256 } from './protocol.js';
 
+/** What is signed before the hub's hello, so the signature is of no use anywhere else. */
 const GREETING = Buffer.from('ghost-hub v1 ', 'utf8');
 
 /** A key pair from its PKCS#8 PEM (or a new one), with the hub id and the compressed public key the hub wants. */
@@ -16,6 +17,7 @@ export function makeIdentity(pem = null) {
   const jwk = createPublicKey(privateKey).export({ format: 'jwk' });
   const x = Buffer.from(jwk.x, 'base64url');
   const y = Buffer.from(jwk.y, 'base64url');
+  // The compressed point: 02 or 03 by whether y is even or odd, then x. The hub id is the first 16 bytes of its hash.
   const pub = Buffer.concat([Buffer.from([y[y.length - 1] & 1 ? 3 : 2]), x]);
   return {
     id: hex(sha256(pub).subarray(0, 16)),
@@ -39,6 +41,7 @@ export class Hub {
     this.retryMs = retryMs;
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
+    // up: signed in (not merely connected). tries: failed connections in a row, for the wait before the next.
     this.up = false;
     this.rooms = new Map(); // room -> token: joined, and joined again on every sign-in
     this.joining = new Map(); // room -> [{ done, fail }]
@@ -48,11 +51,13 @@ export class Hub {
     this.ws = null;
   }
 
+  /** Listens to 'event', 'packet' or 'state'; the function returned stops listening. */
   on(kind, f) {
     this.listeners[kind].add(f);
     return () => this.listeners[kind].delete(f);
   }
 
+  /** Tells every listener of a kind; one that throws is logged and the rest still hear. */
   emit(kind, value) {
     for (const f of this.listeners[kind]) {
       try {
@@ -69,6 +74,7 @@ export class Hub {
     this.open();
   }
 
+  /** Closes the connection for good: no reconnecting until start() again. */
   stop() {
     this.stopped = true;
     this.clearTimer(this.again);
@@ -85,6 +91,7 @@ export class Hub {
     this.emit('state', up);
   }
 
+  /** One connection attempt. The hub speaks first (its hello), so nothing is sent here. */
   open() {
     let ws;
     try {
@@ -100,7 +107,10 @@ export class Hub {
     ws.onerror = () => {};
   }
 
+  /** The connection gone (or never made): joins still waiting fail, and another attempt is set for later, after
+   * retryMs, doubling to eight times it over four failures and then fifteen times it. */
   lost(ws, why) {
+    // A socket already replaced by a newer one: its close is of no interest.
     if (ws && this.ws !== ws) return;
     this.ws = null;
     const was = this.up;
@@ -114,6 +124,7 @@ export class Hub {
     this.again = this.setTimer(() => this.open(), wait);
   }
 
+  /** Text or bytes to the hub; false when the socket is not open (nothing is queued). */
   send(message) {
     if (this.ws && this.ws.readyState === 1) {
       this.ws.send(typeof message === 'string' ? message : message);
@@ -122,10 +133,12 @@ export class Hub {
     return false;
   }
 
+  /** A JSON message to the hub. */
   say(m) {
     return this.send(JSON.stringify(m));
   }
 
+  /** Something from the hub: a binary room packet, or JSON (the sign-in's steps, then answers and news of rooms). */
   said(ws, data) {
     if (this.ws !== ws) return;
     if (typeof data !== 'string') {
@@ -150,6 +163,7 @@ export class Hub {
         } catch {}
         return;
       }
+      // Signed in: every room joined before is joined again.
       this.tries = 0;
       this.setUp(true);
       for (const [room, token] of this.rooms) this.say({ join: room, token });
@@ -178,6 +192,7 @@ export class Hub {
     });
   }
 
+  /** Leaves [room], and does not join it again after a reconnect. */
   leave(room) {
     this.rooms.delete(room);
     this.joining.delete(room);

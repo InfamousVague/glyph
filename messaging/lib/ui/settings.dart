@@ -101,6 +101,8 @@ class SettingsModel extends ChangeNotifier {
   InstalledPlugins? _installed;
   bool _gone = false;
 
+  /// Starts listening to everything Settings shows the state of, so its pages draw again as any of it changes, and
+  /// reads it all once.
   void start() {
     _updates = Sms.instance.updates.stream.listen((u) {
       update = u;
@@ -132,6 +134,7 @@ class SettingsModel extends ChangeNotifier {
     refresh();
   }
 
+  /// Tells the listeners, unless the model has been let go: an answer may land after it has.
   void _say() {
     if (!_gone) notifyListeners();
   }
@@ -633,6 +636,7 @@ class _SettingsRevealState extends State<SettingsReveal> {
     if (widget.shown && !old.shown) _reveal();
   }
 
+  /// Scrolls the list, once this frame is laid out, so the row is seen whole.
   void _reveal() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final box = context.findRenderObject();
@@ -767,6 +771,7 @@ class SettingsSectionRow extends StatelessWidget {
 
 final RegExp _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 
+/// [text] as its words, folded for matching: letters and numbers kept, everything else a gap.
 List<String> _words(String text) => fold(text).split(_notWord).where((w) => w.isNotEmpty).toList();
 
 /// Every word of [query] starts a word of [text].

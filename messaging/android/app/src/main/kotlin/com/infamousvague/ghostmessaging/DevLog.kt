@@ -27,6 +27,7 @@ object DevLog {
      */
     private val number = Regex("(\\+?\\d{7,})|((\\+?\\d{1,3}[\\s.-])?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4})")
 
+    /** [line] with every phone number in it replaced by "[number]". */
     fun scrub(line: String): String = number.replace(line, "[number]")
 
     /** One line, under [tag]: what was tried and what came of it. */

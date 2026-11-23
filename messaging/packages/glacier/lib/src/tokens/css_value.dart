@@ -36,6 +36,7 @@ class CssContext {
     return device < 1 ? 1 / dpr : (device + 1e-6).floorToDouble() / dpr;
   }
 
+  /// The same context for an element whose own font size is [em] pixels.
   CssContext withEm(double em) => CssContext(rem: rem, em: em, vw: vw, vh: vh, dpr: dpr, lineDpr: lineDpr);
 
   @override
@@ -45,6 +46,7 @@ class CssContext {
   int get hashCode => Object.hash(rem, em, vw, vh, dpr, lineDpr);
 }
 
+/// Thrown by every reader in this file for a value it cannot read; [message] quotes the value.
 class CssFormatException implements Exception {
   CssFormatException(this.message);
   final String message;
@@ -81,6 +83,8 @@ double evalNumber(String expression, [CssContext ctx = const CssContext()]) {
   return value;
 }
 
+/// A recursive-descent reader of one arithmetic expression: [sum] over [product] over [unary] over [primary],
+/// with [i] the place reached in [s].
 class _Expr {
   _Expr(this.s, this.ctx);
   final String s;
@@ -145,6 +149,7 @@ class _Expr {
     return primary();
   }
 
+  /// A bracketed sum, a number with its unit, or one of the functions `calc`, `clamp`, `min` and `max`.
   double primary() {
     ws();
     if (i >= s.length) throw CssFormatException('"$s" ends early');
@@ -201,6 +206,7 @@ class _Expr {
     i++;
   }
 
+  /// What one of [unit] is worth in the figure [evalNumber] answers in. A `ch` is taken as half an `em`.
   double _unit(String unit) {
     switch (unit) {
       case 'px':
@@ -260,6 +266,7 @@ Oklch evalColor(String value, {CssContext ctx = const CssContext(), Oklch? curre
   }
 }
 
+/// `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`.
 Oklch _hex(String s) {
   var hex = s.substring(1);
   if (hex.length == 3 || hex.length == 4) hex = hex.split('').map((c) => '$c$c').join();
@@ -268,8 +275,11 @@ Oklch _hex(String s) {
   return Oklch.fromSrgb(at(0), at(2), at(4), hex.length == 8 ? at(6) : 1);
 }
 
+/// An alpha written as a share of one or as a percentage.
 double _alpha(String s, CssContext ctx) => s.trim().endsWith('%') ? evalNumber(s, ctx) / 100 : evalNumber(s, ctx);
 
+/// The inside of `oklch()`: three channels and an optional `/ alpha`, each a number, a percentage (100% of chroma
+/// is 0.4) or a `calc()`, with the relative `from` form.
 Oklch _oklch(String inner, CssContext ctx, Oklch? current) {
   final halves = splitTop(inner, '/');
   var parts = splitTop(halves[0], ' ');
@@ -291,6 +301,7 @@ Oklch _oklch(String inner, CssContext ctx, Oklch? current) {
   return Oklch(l, c, h % 360, alpha);
 }
 
+/// The inside of `rgb()` or `rgba()`, with commas or spaces, the alpha fourth or after a slash.
 Oklch _rgb(String inner, CssContext ctx) {
   final halves = splitTop(inner, '/');
   var parts = halves[0].contains(',') ? splitTop(halves[0], ',') : splitTop(halves[0], ' ');
@@ -305,6 +316,8 @@ Oklch _rgb(String inner, CssContext ctx) {
   return Oklch.fromSrgb(channel(parts[0]), channel(parts[1]), channel(parts[2]), alpha ?? 1);
 }
 
+/// The inside of `color-mix(in <space>, a [share], b [share])`. Mixed in sRGB where the space says so, in OKLCH
+/// otherwise; a share left out is what the other leaves, or half.
 Oklch _mix(String inner, CssContext ctx, Oklch? current) {
   final args = splitTop(inner, ',');
   if (args.length != 3) throw CssFormatException('color-mix() takes a space and two colours: "$inner"');
@@ -363,6 +376,8 @@ class CssShadow {
       BoxShadow(offset: offset, blurRadius: sigma <= 0.5 ? 0 : (sigma - 0.5) / 0.57735, spreadRadius: spread, color: color);
 }
 
+/// The layers of a `box-shadow` value in the order written, none for `none`. A layer with no colour takes
+/// [current], as CSS gives it `currentColor`.
 List<CssShadow> evalShadows(String value, {CssContext ctx = const CssContext(), Oklch? current}) {
   final s = value.trim();
   if (s.isEmpty || s.toLowerCase() == 'none') return const [];
@@ -401,6 +416,8 @@ class CssLinearGradient {
   final List<Color> colors;
   final List<double> stops;
 
+  /// The Flutter gradient for a box of [size]: its ends sit where CSS puts them, far enough out along the angle
+  /// that the first and last stops reach the box's corners.
   LinearGradient toGradient([Size size = const Size(1, 1)]) {
     final r = degrees * math.pi / 180;
     final sin = math.sin(r), cos = math.cos(r);
@@ -411,6 +428,8 @@ class CssLinearGradient {
   }
 }
 
+/// A `linear-gradient()` value read, or null for `none`. Takes an angle or `to <side>` (down where neither is
+/// given), an `in oklch` mix, and stops placed in percentages only.
 CssLinearGradient? evalGradient(String value, {CssContext ctx = const CssContext(), Oklch? current}) {
   final s = value.trim();
   if (s.isEmpty || s.toLowerCase() == 'none') return null;
@@ -496,6 +515,7 @@ CssLinearGradient? evalGradient(String value, {CssContext ctx = const CssContext
 
 // --- motion ----------------------------------------------------------------------------------------------------
 
+/// A CSS easing: one of the named keywords or a `cubic-bezier()`.
 Curve evalCurve(String value) {
   final s = value.trim().toLowerCase();
   switch (s) {
@@ -517,6 +537,7 @@ Curve evalCurve(String value) {
   return Cubic(p[0], p[1], p[2], p[3]);
 }
 
+/// A CSS time (`120ms`, `0.2s`) as a [Duration].
 Duration evalDuration(String value) {
   final ms = evalNumber(value);
   return Duration(microseconds: (ms * 1000).round());

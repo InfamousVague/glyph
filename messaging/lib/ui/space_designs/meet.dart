@@ -21,6 +21,7 @@ class MeetCall extends StatefulWidget {
   State<MeetCall> createState() => _MeetCallState();
 }
 
+/// Which side panel is open; one at a time, and pressing an open panel's button closes it.
 enum _Panel { none, people, chat, details }
 
 class _MeetCallState extends State<MeetCall> {
@@ -30,6 +31,7 @@ class _MeetCallState extends State<MeetCall> {
 
   SpaceCall get call => widget.call;
 
+  /// Opens panel [p], or closes it if it is the one open; the More menu closes either way.
   void _toggle(_Panel p) => setState(() {
         _more = false;
         _panel = _panel == p ? _Panel.none : p;
@@ -48,6 +50,7 @@ class _MeetCallState extends State<MeetCall> {
 
   // ---- A computer's window -----------------------------------------------------------------------------------
 
+  /// 720 points wide or more: the tiles with the open panel as a 360-wide card beside them, and the bar along the foot.
   Widget _computer(BuildContext context, _MeetColors c) {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
@@ -129,6 +132,7 @@ class _MeetCallState extends State<MeetCall> {
 
   // ---- A phone ----------------------------------------------------------------------------------------------
 
+  /// Narrower than 720: a header, the tiles and a row of pills; an open panel takes the whole screen instead.
   Widget _phone(BuildContext context, _MeetColors c) {
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
@@ -193,6 +197,7 @@ class _MeetCallState extends State<MeetCall> {
 
   // ---- The tiles --------------------------------------------------------------------------------------------
 
+  /// Everyone's tiles in an even grid, the last row centred; alone, your own tile with the invite card.
   Widget _stage(BuildContext context, _MeetColors c, {required bool wide}) {
     final t = context.tokens;
     final people = call.people;
@@ -207,6 +212,7 @@ class _MeetCallState extends State<MeetCall> {
       for (var k = 1; k <= n; k++) {
         final rows = (n / k).ceil();
         final w = (box.maxWidth - gap * (k - 1)) / k, h = (box.maxHeight - gap * (rows - 1)) / rows;
+        // How far the tile's shape is from the aim, plus a little for every empty cell in the grid.
         final miss = (math.log(w / h) - math.log(aim)).abs() + (rows * k - n) * 0.15;
         if (miss < best) {
           best = miss;
@@ -267,6 +273,8 @@ class _MeetCallState extends State<MeetCall> {
 
   // ---- Panels -----------------------------------------------------------------------------------------------
 
+  /// The open panel under its title: a rounded card with a close button on a computer, a full page with a back arrow
+  /// on a phone ([page]). [bottom] is the screen's inset the panel's own list or composer must clear.
   Widget _panelCard(BuildContext context, _MeetColors c, {required bool page, double bottom = 0}) {
     final t = context.tokens;
     final title = switch (_panel) {
@@ -306,6 +314,7 @@ class _MeetCallState extends State<MeetCall> {
     );
   }
 
+  /// The People panel: Add people, a search by name, then everyone in the call with their role in the room.
   Widget _peopleList(BuildContext context, _MeetColors c, {double bottom = 0}) {
     final t = context.tokens;
     final roster = call.room?.roster;
@@ -444,6 +453,8 @@ const _hangUp = LucideMore.phoneOff;
 
 // ---- Tiles ----------------------------------------------------------------------------------------------------
 
+/// One person's tile: their camera or their face, the name along the foot, a blue edge and moving bars while they
+/// talk, a mic-off dot while muted. Pressing it (or holding) opens what can be done with them.
 class _MeetTile extends StatelessWidget {
   const _MeetTile({required this.c, required this.call, required this.person, this.small = false, this.alone = false});
   final _MeetColors c;
@@ -583,6 +594,7 @@ class _MeetFace extends StatelessWidget {
   }
 }
 
+/// A small round ground for a mark in a tile's corner (mic off, camera on its way).
 class _CornerDot extends StatelessWidget {
   const _CornerDot({required this.color, required this.child});
   final Color color;
@@ -803,6 +815,7 @@ class _SideButton extends StatelessWidget {
   }
 }
 
+/// The small count on the People button: how many are in the call.
 class _Badge extends StatelessWidget {
   const _Badge({required this.c, required this.text});
   final _MeetColors c;
@@ -884,6 +897,7 @@ class _BluePill extends StatelessWidget {
   }
 }
 
+/// A line of the More options menu: icon and words; dimmed when there is nothing to run.
 class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.c, required this.icon, required this.label, required this.onPressed});
   final _MeetColors c;

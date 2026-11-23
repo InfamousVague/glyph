@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+/// One release's entry: its version, its day, and a line for each thing it brought.
 @immutable
 class ReleaseNotes {
   const ReleaseNotes(this.version, this.date, this.notes);
@@ -22,6 +23,7 @@ class ReleaseNotes {
   final List<String> notes;
 }
 
+/// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.17', '2026-11-23', [
     'Remove a device: an iPhone or a computer with an account of its own now deletes everything of the account from itself when it is removed from the account (conversations, keys, recordings and the other networks\' sign-ins), and only when the removal carries the account\'s own signature: never because a relay was changed or lost what it kept. Where a relay doesn\'t know the device, Settings › Me says so and offers to list it again. Signing out says what stays on the device and offers to delete it all. Android phones, and computers paired with one, are as they were.',

@@ -32,6 +32,7 @@ class GlacierTrigger {
   final ValueChanged<bool> setOpen;
 }
 
+/// Builds the trigger, wired with what [GlacierTrigger] hands it.
 typedef GlacierTriggerBuilder = Widget Function(BuildContext context, GlacierTrigger trigger);
 
 /// Builds a panel for where it ended up. [position] is null on the first frame, before it has been measured.
@@ -155,8 +156,14 @@ class _GlacierAnchoredLayerState extends State<GlacierAnchoredLayer> with Widget
   OverlayPortalController _portal = OverlayPortalController();
   final GlobalKey _selfKey = GlobalKey(debugLabel: 'GlacierAnchoredLayer child');
   final GlobalKey _panelKey = GlobalKey(debugLabel: 'GlacierAnchoredLayer panel');
+
+  /// Whether the panel is in the overlay: from opening until its exit has finished.
   bool _mounted = false;
+
+  /// Whether the global pointer route for presses outside is on.
   bool _listening = false;
+
+  /// Where the panel was last placed; null until it has been measured.
   AnchoredPosition? _position;
 
   GlacierAnchor get _anchor => widget.anchor ?? GlacierAnchor.key(_selfKey);
@@ -188,6 +195,7 @@ class _GlacierAnchoredLayerState extends State<GlacierAnchoredLayer> with Widget
     _portal = OverlayPortalController()..show();
   }
 
+  /// The panel has faded: it comes out of the overlay, unless it was opened again meanwhile.
   void _onExitComplete() {
     if (!mounted || widget.open || !_mounted) return;
     setState(() {
@@ -218,6 +226,7 @@ class _GlacierAnchoredLayerState extends State<GlacierAnchoredLayer> with Widget
     }
   }
 
+  /// Every press on the screen: one that lands on none of the panel, the anchor and the stack is a press outside.
   void _onPointer(PointerEvent event) {
     if (event is! PointerDownEvent || !_mounted) return;
     final outside = widget.onPressOutside;
@@ -299,6 +308,7 @@ class _Pose {
   const _Pose(this.opacity, this.scale, this.y);
   final double opacity, scale, y;
 
+  /// The pose part of the way from [a] to [b].
   static _Pose lerp(_Pose a, _Pose b, double t) => _Pose(a.opacity + (b.opacity - a.opacity) * t, a.scale + (b.scale - a.scale) * t, a.y + (b.y - a.y) * t);
 }
 
@@ -327,6 +337,8 @@ class _PresenceState extends State<_Presence> with SingleTickerProviderStateMixi
   late final AnimationController _controller = AnimationController(vsync: this)..addStatusListener(_onStatus);
   late final _PresenceOpacity _opacity = _PresenceOpacity(this);
   Curve _curve = Curves.linear;
+
+  /// The poses the running change goes between; [_now] is where it has got to.
   _Pose _from = _shown, _to = _shown;
   bool _started = false;
 
@@ -350,6 +362,7 @@ class _PresenceState extends State<_Presence> with SingleTickerProviderStateMixi
     _run();
   }
 
+  /// Sets off from [_from] to shown or hidden, as [_Presence.open] says, at the fast speed.
   void _run() {
     final timing = transition(GlacierTheme.of(context), Speed.fast, Ease.out);
     _curve = timing.curve;
@@ -409,6 +422,7 @@ class _PresenceOpacity extends Animation<double> with AnimationWithParentMixin<d
   double get value => _presence._now.opacity.clamp(0.0, 1.0);
 }
 
+/// Hands the presence's opacity to the panel inside it ([GlacierAnchoredLayer.opacityOf]).
 class _PresenceScope extends InheritedWidget {
   const _PresenceScope({required this.opacity, required super.child});
   final Animation<double> opacity;
@@ -477,6 +491,7 @@ class GlacierArrowGlass extends StatelessWidget {
       final side = placement.physicalSide(TextDirection.ltr);
       final vertical = side == PhysicalSide.top || side == PhysicalSide.bottom;
       final r = radius ?? t.radius('lg');
+      // The outline for a box that holds the panel and its tip: the panel is the box less the tip's depth.
       ArrowGlassShape shape(Size box) => buildArrowGlassShape(
             width: box.width - (vertical ? 0 : tip),
             height: box.height - (vertical ? tip : 0),
@@ -525,8 +540,11 @@ class GlacierArrowGlass extends StatelessWidget {
   }
 }
 
+/// The outline for a box of a size. The painters and the clipper below compare [key], a hash of everything else
+/// the outline is made from, to know when it has changed.
 typedef _ShapeOf = ArrowGlassShape Function(Size box);
 
+/// Cuts the glass to the outline.
 class _OutlineClipper extends CustomClipper<Path> {
   _OutlineClipper(this.shape, this.key);
   final _ShapeOf shape;
@@ -617,7 +635,8 @@ const Duration _hoverGrace = Duration(milliseconds: 150);
 /// - Escape pressed inside a panel that opens on hover closes it. In the React the focus Escape hands back to the
 ///   trigger is itself a reason to open, so the panel stayed.
 /// - `aria-haspopup` has no counterpart in Flutter's semantics; `aria-expanded` and `aria-controls` are carried.
-/// - The panel takes the design tokens in force at the trigger, where a portalled panel took the body's.
+/// - The panel takes the page's root tokens ([GlacierRootScope]), not those in force at the trigger, as a portalled
+///   panel took the body's.
 class GlacierPopover extends StatefulWidget {
   const GlacierPopover({
     super.key,
@@ -675,7 +694,11 @@ class _GlacierPopoverState extends State<GlacierPopover> {
   final FocusNode _triggerNode = FocusNode(debugLabel: 'GlacierPopover trigger', canRequestFocus: false, skipTraversal: true);
   final FocusNode _panelNode = FocusNode(debugLabel: 'GlacierPopover panel', skipTraversal: true);
   late bool _internal = widget.defaultOpen;
+
+  /// The hover's grace running: the panel closes when it ends unless the pointer or the focus comes back.
   Timer? _closeTimer;
+
+  /// Set while Escape puts focus back on a hover trigger, so that focus does not open the panel again.
   bool _handingBack = false;
 
   bool get _isOpen => widget.open ?? _internal;
@@ -689,6 +712,7 @@ class _GlacierPopoverState extends State<GlacierPopover> {
     widget.onOpenChange?.call(next);
   }
 
+  /// Takes back a close that was on its way.
   void _holdOpen() {
     _closeTimer?.cancel();
     _closeTimer = null;
@@ -699,6 +723,7 @@ class _GlacierPopoverState extends State<GlacierPopover> {
     _setOpenState(true);
   }
 
+  /// Closes after the hover's grace, unless [_holdOpen] or [_show] comes first.
   void _hideSoon() {
     _holdOpen();
     _closeTimer = Timer(_hoverGrace, () {
@@ -725,6 +750,7 @@ class _GlacierPopoverState extends State<GlacierPopover> {
     super.dispose();
   }
 
+  /// The trigger as built, with the hover, focus and Tab handling round it where the panel opens on hover.
   Widget _buildTrigger(BuildContext context) {
     final build = widget.trigger;
     if (build == null) return const SizedBox.shrink();
@@ -769,6 +795,7 @@ class _GlacierPopoverState extends State<GlacierPopover> {
     );
   }
 
+  /// The panel: the arrowed glass round the content, as a dialog with a focus of its own and Escape on it.
   Widget _buildPanel(BuildContext context, AnchoredPosition? position) {
     final t = GlacierTheme.of(context);
     // The panel's box takes every press that lands in it, as an element does, whatever its content leaves bare.

@@ -52,6 +52,7 @@ class TextedPerson {
   /// When their newest text already brought into the space was sent (ms since 1970): nothing older comes in twice.
   final int seen;
 
+  /// The same person, with their newest text brought in dated [at].
   TextedPerson withSeen(int at) => TextedPerson(number: number, name: name, seen: at, member: member);
 
   Map<String, Object> toJson() => {'n': number, 'm': name, 's': seen, 'i': ?member};
@@ -178,8 +179,10 @@ class SmsSpaces extends ChangeNotifier {
 
   // --- who is texted ------------------------------------------------------------------------------------------------
 
+  /// The choice the people texted for the space with [seed] are kept under.
   static String _key(String seed) => 'sms_space_$seed';
 
+  /// Who is in the space with [seed] by text, as kept on this phone; none where nothing readable is kept.
   List<TextedPerson> people(String seed) {
     try {
       return [for (final j in jsonDecode(_app?.choice(_key(seed), '[]') ?? '[]') as List) ?TextedPerson.fromJson(j)];
@@ -188,6 +191,7 @@ class SmsSpaces extends ChangeNotifier {
     }
   }
 
+  /// Keeps [list] as the people texted for [seed]'s space, and tells listeners.
   void _keep(String seed, List<TextedPerson> list) {
     _app?.set(_key(seed), jsonEncode([for (final p in list) p.toJson()]));
     notifyListeners();
@@ -239,6 +243,7 @@ class SmsSpaces extends ChangeNotifier {
     }
   }
 
+  /// Notes [number] as taken out of [seed]'s space ([out]), or no longer so.
   void _setStopped(String seed, String number, bool out) {
     final s = stopped(seed);
     if (!(out ? s.add(number) : s.remove(number))) return;
@@ -359,8 +364,10 @@ class SmsSpaces extends ChangeNotifier {
 
   // --- in: what the texted people send ------------------------------------------------------------------------------
 
+  /// The phone's conversation with each number, once asked for.
   final Map<String, int> _threads = {};
 
+  /// The phone's conversation with [number]; null where the phone can't say.
   Future<int?> _threadOf(String number) async {
     final had = _threads[number];
     if (had != null) return had;

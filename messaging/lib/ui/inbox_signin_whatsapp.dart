@@ -54,6 +54,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
     widget.network.begin();
   }
 
+  /// Shows the QR code on another screen: opens the pair room once, puts the code in it and shares the room's link.
   Future<void> _elsewhere() async {
     if (!_room.open) await _room.openRoom(onCame: () => _showCode());
     _showCode();
@@ -74,6 +75,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
     if (mounted) setState(() => _asking = false);
   }
 
+  /// The network changed: a new code goes to the pair room too, and once linked the room is told and the screen leaves.
   void _changed() {
     _showCode();
     if (widget.network.state == InboxState.ready && _room.open) _room.done();

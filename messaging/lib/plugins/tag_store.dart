@@ -86,6 +86,8 @@ class TagStore extends ChangeNotifier {
     _work(now: true);
   }
 
+  /// Classifies what waits, oldest asked first: for as long as [slice] allows, and [atOnce] of them whatever the time
+  /// where [now] (the list is about to draw them). The rest go on in a timer of their own, a slice at a time.
   void _work({required bool now}) {
     final store = _store;
     if (store == null || _gone) return;
@@ -124,6 +126,7 @@ class TagStore extends ChangeNotifier {
   }
 }
 
+/// One conversation's facts and the tags worked out of them (or, while it waits, the tags it had before).
 class _Held {
   const _Held(this.facts, this.mark, this.tags);
   final MessageFacts facts;

@@ -27,6 +27,8 @@ class PluginThread extends InheritedWidget {
   bool updateShouldNotify(PluginThread old) => false;
 }
 
+/// One conversation's side of the plugins, made by its screen: what the registry gives for this conversation, as
+/// widgets and menu lines.
 class ConversationPlugins {
   ConversationPlugins({required this.thread, required this.people, this.write, this.open, PluginRegistry? registry, this.effects = const SmsEffects()}) : registry = registry ?? PluginRegistry.instance;
 
@@ -43,6 +45,7 @@ class ConversationPlugins {
   final PluginRegistry registry;
   final PluginEffects effects;
 
+  /// The facts the header's buttons are asked with: the whole conversation's people, and its newest message's words.
   MessageFacts _conversation(Message? newest) {
     final all = people();
     if (newest != null) {
@@ -61,6 +64,7 @@ class ConversationPlugins {
   final _tagged = <String, (String, TagSet)>{};
   static const _kept = 500;
 
+  /// The tags of the message kept under [key], classified again only when its words or the plugins' switches change.
   TagSet _tagsOf(String key, MessageFacts facts, PluginStore store) {
     final mark = '${registry.switches(store)}\u0000${facts.text}';
     final had = _tagged[key];

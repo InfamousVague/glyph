@@ -54,6 +54,7 @@ object Scan {
  */
 class ScanActivity : Activity() {
     companion object {
+        /** The result's extra holding the code's words. */
         const val RESULT_TEXT = "text"
         private const val TAG = "GhostDesk"
         private const val PERMISSION = 51
@@ -66,7 +67,9 @@ class ScanActivity : Activity() {
     private var reader: ImageReader? = null
     private var thread: HandlerThread? = null
     private var background: Handler? = null
+    /** The camera's picture size, as the sensor lies (wider than tall). */
     private var size = Size(1280, 720)
+    /** When a frame was last looked through, in milliseconds: frames sooner than 120 ms after are let go. */
     private var lastRead = 0L
     @Volatile private var finished = false
 
@@ -120,6 +123,7 @@ class ScanActivity : Activity() {
         }
     }
 
+    /** Opens the back camera (or the only one), on the scanning thread, at the size nearest 1280 by 720. */
     private fun open() {
         val manager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
@@ -141,6 +145,7 @@ class ScanActivity : Activity() {
         }
     }
 
+    /** Sends the camera's frames two ways: to the screen, and to a reader whose frames are searched for a code. */
     private fun start(device: CameraDevice) {
         try {
             val texture = preview.surfaceTexture ?: return
@@ -215,6 +220,7 @@ class ScanActivity : Activity() {
         preview.setTransform(matrix)
     }
 
+    /** A pairing code was read: the screen ends with it, once, whatever later frames hold. */
     private fun found(text: String) {
         if (finished) return
         finished = true
@@ -224,6 +230,7 @@ class ScanActivity : Activity() {
         }
     }
 
+    /** Says what went wrong where the hint was; the screen stays until the person goes back. */
     private fun fail(why: String) {
         runOnUiThread { hint.text = why }
     }
