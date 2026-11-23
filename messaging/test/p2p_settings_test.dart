@@ -30,6 +30,15 @@ List<String> _words(WidgetTester tester, String key) => [for (final t in tester.
 
 Finder _switchIn(String key) => find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(GlacierSwitch));
 
+/// Lets what a press set off finish, however long the machine takes (two seconds at most), not for a length of time.
+Future<void> _until(WidgetTester tester, bool Function() ok) async {
+  for (var i = 0; i < 400 && !ok(); i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+    await tester.pump();
+  }
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
 Future<void> _pump(WidgetTester tester, AppState state, Listenable listenable, List<Widget> Function(BuildContext) rows) async {
   tester.view.physicalSize = const Size(412, 3600) * 2.0;
   tester.view.devicePixelRatio = 2.0;
@@ -171,16 +180,14 @@ void main() {
 
       // Switched off like any route: kept with the routes switched off, and the route says so.
       await tester.tap(_switchIn('route-p2p'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump(const Duration(milliseconds: 50));
+      await _until(tester, () => Net.instance.board!.off.contains('p2p') && !Net.instance.p2p!.on);
       expect(Net.instance.board!.off, {'p2p'});
       expect(state.choice('net_off', ''), 'p2p');
       expect(Net.instance.p2p!.on, isFalse);
       expect(_words(tester, 'route-p2p').last, startsWith('Off\n'));
       expect(tester.widget<GlacierSwitch>(_switchIn('route-p2p')).checked, isFalse);
       await tester.tap(_switchIn('route-p2p'));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump(const Duration(milliseconds: 50));
+      await _until(tester, () => Net.instance.board!.off.isEmpty && Net.instance.p2p!.on);
       expect([Net.instance.board!.off, state.choice('net_off', 'x'), Net.instance.p2p!.on], [isEmpty, '', isTrue]);
       expect(_words(tester, 'route-p2p').last, startsWith('Ready\n'));
       // Everything that was started is stopped before the page goes.
