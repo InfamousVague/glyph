@@ -201,8 +201,10 @@ class WebApp {
     for (final (ending, coding) in const [('br', 'br'), ('gz', 'gzip')]) {
       if (!takes.contains(coding)) continue;
       final packed = _file([...names.sublist(0, names.length - 1), '$name.$ending']);
-      // One left from an older build, beside a file written since, is not this file.
-      if (packed == null || packed.lastModifiedSync().isBefore(stat.modified)) continue;
+      // One left from an older build, beside a file written since, is not this file. Both times from a stat: on a Mac
+      // File.lastModifiedSync() has whole seconds and FileStat milliseconds, so a copy packed in the same second as its
+      // file looked older than it and was never sent (test/web_app_test.dart's packed file failed there, 2026-11-23).
+      if (packed == null || packed.statSync().modified.isBefore(stat.modified)) continue;
       body = packed;
       response.headers.set(HttpHeaders.contentEncodingHeader, coding);
       break;
