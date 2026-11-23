@@ -91,6 +91,10 @@ void _taken() {
 /// the build for app.gogho.st names gogho.st's; a relay's own build names none.
 const builtHub = String.fromEnvironment('GHOST_WEB_HUB');
 
+/// Whether this build joins calls (`node tool/build-web.mjs --calls`, `--dart-define=GHOST_WEB_CALLS=true`): off
+/// unless asked for (Sms.browserCalls).
+const webCalls = bool.fromEnvironment('GHOST_WEB_CALLS');
+
 /// Where the hub is for a page at [address]: the one the build names ([built], [builtHub]: app.gogho.st's is on
 /// gogho.st, an address of its own, so no page of the site's can read what the app keeps); or, for a build that names
 /// none, beside the app's own folder, `/hub` where the page is `/app/`, as a relay that serves the app itself has it
@@ -170,6 +174,8 @@ Future<void> _start(Browser b) async {
   Sms.standalone = true;
   Sms.browser = true;
   Sms.browserName = b.name;
+  // Calls, where this build has them (tool/build-web.mjs --calls): the page's own WebRTC, the app's own call code.
+  Sms.browserCalls = webCalls;
   Net.homeHub = hubFor(b.address);
   // What a page can't run is never made. Plugins: none of the app's own (they sort texts, draw cards for links
   // fetched from other sites, and add to calls: nothing a page has), and none from the Marketplace, which need a

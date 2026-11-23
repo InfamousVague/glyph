@@ -13,6 +13,7 @@ import '../art/lucide_more.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../voice/call_sound.dart';
 import '../voice/channels.dart';
 import '../voice/leveler.dart';
 import '../voice/voice.dart';
@@ -970,7 +971,7 @@ class _PersonSheet extends StatelessWidget {
                               child: Row(children: [
                                 AppIcon(Lucide.volume2, size: 18, color: t.color('app-ink-2')),
                                 SizedBox(width: t.space(3)),
-                                Expanded(child: VolumeSlider(value: v.volumeOf(id), onChanged: (x) => v.setVolume(id, x), label: 'Volume for $name')),
+                                Expanded(child: VolumeSlider(value: v.volumeOf(id).clamp(0.0, CallSound.most), max: CallSound.most, onChanged: (x) => v.setVolume(id, x), label: 'Volume for $name')),
                                 SizedBox(width: t.space(3)),
                                 SizedBox(width: 44, child: Text('${(v.volumeOf(id) * 100).round()}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
                               ]),

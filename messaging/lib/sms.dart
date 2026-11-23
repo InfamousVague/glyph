@@ -778,7 +778,7 @@ class Sms {
 
   /// A page in a browser (lib/web; Matt: "the full web client"): a device of its own ([standalone]) that has no folder
   /// to keep files in, no helper programs, nothing native behind the app's channels and, in this first version, no
-  /// calls. Screens leave out what would need one of those ([callsHere], and each place that asks this). Set before
+  /// calls unless its build has them. Screens leave out what would need one of those ([callsHere], and each place that asks this). Set before
   /// anything is drawn; false on every phone and computer.
   static bool browser = false;
 
@@ -787,9 +787,14 @@ class Sms {
   /// platforms.
   static String browserName = 'Browser';
 
-  /// Whether a voice or video call can be made or joined here. Not yet in a browser: the page's own WebRTC is not
-  /// joined to the app's calls yet, so nothing that would start one is offered there.
-  static bool get callsHere => !browser;
+  /// Whether a voice or video call can be made or joined here: on every phone and computer; in a browser where its
+  /// build has them ([browserCalls]), through the page's own WebRTC (lib/voice/call_sound.dart plays what arrives).
+  static bool get callsHere => !browser || browserCalls;
+
+  /// Calls in a browser (GMFB-30, GMFB-51): off unless the build turns them on (`tool/build-web.mjs --calls`, which
+  /// says `--dart-define=GHOST_WEB_CALLS=true`; lib/web/app.dart sets this as the page starts). Off, a browser offers
+  /// no way into a call, as before.
+  static bool browserCalls = false;
 
   /// A page in a browser whose window is wide enough to be laid out as a computer's (lib/web/app.dart, which says so as
   /// the window is sized): read at a computer's sizes then, and at a phone's in a narrow one. False everywhere else.

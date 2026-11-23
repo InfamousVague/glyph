@@ -12,8 +12,11 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../../sms.dart';
+import '../../voice/call_sound.dart';
 import '../../voice/channels.dart';
 import '../../voice/hangout.dart';
+import '../../voice/open_space.dart';
 import '../../voice/recorder.dart';
 import '../../voice/roles.dart';
 import '../../voice/voice.dart';
@@ -299,6 +302,16 @@ class SpaceCall {
         if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
         ...stageExtras(s, room),
         ...CallPlugins.extras(),
+        // In a browser, what its call leaves out, said where the call's choices are.
+        if (Sms.browser)
+          SpaceExtra(
+            label: 'In a browser',
+            icon: Lucide.info,
+            builtIn: true,
+            run: (context) => showChoices(context, title: 'In a browser', header: const Text(callsInBrowser), choices: [
+              Choice('Voice and video settings', LucideMore.headphones, () => push(context, (_) => const SettingsSectionScreen('voice'))),
+            ]),
+          ),
       ],
     );
   }
@@ -623,11 +636,11 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
 }
 
 /// Opens the space call's page as [design] draws it, over everything. False where the standard layout is to be used
-/// (Standard chosen, or not in a space's call).
+/// (Standard chosen, not in a space's call, or in an open space's, whose floor is its page: OpenSpaces.isCall).
 bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
   final d = design ?? SpaceDesign.of(AppState.of(context));
   final s = Voice.instance.session;
-  if (d == SpaceDesign.standard || s == null || !s.channel.hangout) return false;
+  if (d == SpaceDesign.standard || s == null || !s.channel.hangout || OpenSpaces.isCall(s)) return false;
   // On a narrow phone the call page itself is the design (inlineSpaceCall), so there is nothing to push over it.
   if (AppShell.maybeOf(context) != null && !AppShell.wideOf(context)) return false;
   Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
@@ -643,8 +656,9 @@ bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
   return true;
 }
 
-/// Whether a design other than Standard is chosen: the app's own layout then stays out of the way (lib/ui/shell.dart).
-bool spaceDesignChosen(BuildContext context) => SpaceDesign.of(AppState.of(context)) != SpaceDesign.standard;
+/// Whether the call there is is drawn by a design other than Standard: the app's own layout then stays out of the way
+/// (lib/ui/shell.dart). Never an open space's, which is drawn as its floor whatever design is chosen.
+bool spaceDesignChosen(BuildContext context) => SpaceDesign.of(AppState.of(context)) != SpaceDesign.standard && !OpenSpaces.isCall(Voice.instance.session);
 
 /// What a design not yet drawn shows: its name and the people, so the switch can be tried before it is done.
 class SpaceDesignStub extends StatelessWidget {
@@ -672,9 +686,10 @@ class SpaceDesignStub extends StatelessWidget {
 /// The chosen design drawn as the call page itself, where the call is a space's and the window is narrow (a phone, a
 /// folded Fold): wherever the call page is reached from — joining, the call banner, the Spaces tab — it is the design
 /// (Matt, 2026-11-16: "I don't see the new telegram like UI as the default in ghost calls ... i only see it when I open
-/// the phone to fullscreen not when it's closed and skinny"). Null where the app's own layout is to be drawn.
+/// the phone to fullscreen not when it's closed and skinny"). Null where the app's own layout is to be drawn, an open
+/// space's floor among them.
 Widget? inlineSpaceCall(BuildContext context, VoiceSession? s) {
-  if (s == null || !s.channel.hangout || AppShell.wideOf(context)) return null;
+  if (s == null || !s.channel.hangout || OpenSpaces.isCall(s) || AppShell.wideOf(context)) return null;
   final d = SpaceDesign.of(AppState.of(context));
   if (d == SpaceDesign.standard) return null;
   return SpaceCallPage(key: ValueKey('inline-${d.name}-${s.channel.room}'), design: d, inline: true);

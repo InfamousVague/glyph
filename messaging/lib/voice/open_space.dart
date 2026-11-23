@@ -439,7 +439,8 @@ class OpenSpace extends ChangeNotifier {
     return true;
   }
 
-  /// Someone came or went: places said again for a newcomer, and hearing worked out for who is here now.
+  /// Someone came or went: places said again for a newcomer, and hearing worked out for who is here now. A floor made
+  /// before its call is in (Voice.join) says nothing until then: those already there are newcomers to it as it joins.
   void _sessionChanged() {
     if (_disposed) return;
     final now = session.members.keys.toSet();
@@ -542,8 +543,9 @@ class OpenSpace extends ChangeNotifier {
   }
 }
 
-/// The open space this device is in the call of, if it is in one: made as the call is joined and let go of as it is
-/// left (Voice.join and leave call [follow], as they do the soundboard's).
+/// The open space this device is in the call of, if it is in one: made as the call is begun, before the relay has
+/// answered, and let go of as it is left (Voice.join and leave call [follow]), so the floor is on the screen from the
+/// first moment rather than once the call is in.
 class OpenSpaces extends ChangeNotifier {
   OpenSpaces._();
   static final OpenSpaces instance = OpenSpaces._();
@@ -555,6 +557,11 @@ class OpenSpaces extends ChangeNotifier {
 
   /// The floor of the call this device is in, where that call is an open space's.
   OpenSpace? get current => _current;
+
+  /// Whether [s] is an open space's call. Every surface that draws a call asks this, not whether a floor is followed
+  /// yet ([of]): the floor is drawn in place of the call's people, and no call design (lib/ui/space_designs) or list of
+  /// people is drawn in its place (Matt, 2026-11-23: "the open space is just showing up as a normal call for me").
+  static bool isCall(VoiceSession? s) => s != null && s.channel.kind == SpaceKind.open;
 
   /// The floor of [session], where it is the one followed.
   OpenSpace? of(VoiceSession? session) => session != null && identical(_current?.session, session) ? _current : null;

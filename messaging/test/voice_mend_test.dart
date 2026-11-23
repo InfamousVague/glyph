@@ -14,7 +14,9 @@ import 'package:ghost_messaging/voice/voice.dart';
 ///   again), and the relay itself restarting under everyone;
 /// - a connection that was working and broke;
 /// - an answer that never arrived;
-/// - two offers that crossed;
+/// - two offers that crossed (with relink offering only to those a stage held apart, the mending's lower id goes first
+///   and one offer is made; crossings themselves, the higher id's standing, are stage_links_test's and
+///   voice_mixed_builds_test's);
 /// - an older build on the other side, which never offers again by itself.
 
 /// The relay's rooms, with a way to cut one device off and bring it back as the carrier does (lib/net/hub_carrier.dart:
@@ -289,7 +291,10 @@ void main() {
     expect(media['b']!.count('offer to a'), 2);
   });
 
-  test('two offers that cross: the lower id\'s stands, and the other side answers it', () async {
+  // Both find the connection gone and look again at once: relink makes no offer of its own (it connects only those a
+  // stage held apart), and the mending's lower id goes first, so one offer is made and answered. Two offers that really
+  // cross (the higher's stands) are stage_links_test's.
+  test('both quick to look again after the connection broke: one offer, answered, connected', () async {
     await session('a').join();
     await session('b').join();
     await _until(allThrough, 'the call as it starts');

@@ -34,7 +34,8 @@ do (the app's `tool/web/headers.json`): the page's own policy as a `Content-Secu
 `frame-ancestors 'none'` (so the Argon2id worker, which the page's `<meta>` doesn't reach, is held to it too),
 `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
 `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` of `same-origin`, and a `Permissions-Policy` that
-asks for no camera, microphone, location or screen. HSTS is for the web server in front of the relay to say. Behind a
+lets the app's own page ask for the camera and the microphone (for calls, where its build has them) and nothing asks
+for location or the screen. HSTS is for the web server in front of the relay to say. Behind a
 web server, pass `/app/` on to the relay beside `/hub`. Without the option there is no `/app/`.
 
 Serve it from its own address if you can (as gogho.st does: app.gogho.st, the app's `tool/deploy-site.mjs`): a page

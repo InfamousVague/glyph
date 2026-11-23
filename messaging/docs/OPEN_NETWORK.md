@@ -368,6 +368,23 @@ there is no push to a browser yet.
 Tried against a relay on this machine (`dart run relay/bin/relay.dart`), with accounts made for the test
 (`tool/web/e2e.mjs`, in Chromium and WebKit).
 
+**Calls** (GMFB-30, GMFB-51) are the app's own call code (`lib/voice/`: the room protocol, its sealing, the TURN relay
+the hub hands out) on the browser's WebRTC: flutter_webrtc has a browser half, so `RtcMedia` runs there as it is. What
+differs is small: a browser plays a received sound only through a media element of the page's, so
+`lib/voice/call_sound.dart` puts each person's sound in an audio element (at their volume, up to as loud as they
+arrive; silenced as muting and deafening say; through the speaker chosen where the browser lets a page choose one,
+which Safari doesn't). Settings › Voice and video there has the microphone, the browser's own noise suppression, the
+sound's bit rate, stereo, echo cancellation and automatic gain, and the camera's quality, and says what a browser's call leaves out: recording, the voice changer, noise
+removal beyond the browser's own (RNNoise, DeepFilterNet), boosting past 100% and screen sharing, all of which need the
+app's native halves. Off unless the build has them (`node tool/build-web.mjs --calls`, `Sms.browserCalls`): the build
+on app.gogho.st and gogho.st/app has none until it is built so and deployed. Tried by `tool/web/e2e.mjs --calls`: two
+browsers ring each other and hear each other (WebRTC's own count of the sound's bytes and energy received, and the
+element playing it), muted is silence, both join a circle's voice space and hear each other, a camera's picture is
+decoded on the other side, and someone muted for one person alone is not played there. A browser remembers a
+microphone or camera allowed for a whole address, not for a page: at gogho.st/app the grant belongs to all of gogho.st
+(its other pages included, `/join` among them, a guest's way into a call), while app.gogho.st's is its own; one
+more reason the app has an address of its own.
+
 ### Its address
 
 Ours is served at **app.gogho.st**, an address of its own (`tool/deploy-site.mjs --app`, `tool/lib/web_site.mjs`),
@@ -390,8 +407,9 @@ Both addresses tell the browser the same things on every answer (`tool/web/heade
 `test/web_build_test.dart` and `relay/test/web_app_test.dart`): the page's own policy as a header, with
 `frame-ancestors 'none'` (the worker, `argon2id.js`, which the page's `<meta>` doesn't reach, is held to it too);
 `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
-`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` of `same-origin`, and a `Permissions-Policy` that asks
-for no camera, microphone, location or screen; `no-cache`, and a year only for the one file named by its hash. HSTS
+`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` of `same-origin`, and a `Permissions-Policy` that lets
+the page itself (and nothing framed in it) ask for the camera and the microphone, for calls, and nothing for location
+or the screen; `no-cache`, and a year only for the one file named by its hash. HSTS
 is app.gogho.st's; a relay's own server in front of it says its own.
 
 ### What a browser keeps, and what that is worth

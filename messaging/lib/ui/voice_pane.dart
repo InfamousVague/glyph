@@ -13,6 +13,8 @@ import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
+import '../sms.dart';
+import '../voice/call_sound.dart';
 import '../voice/channels.dart';
 import '../voice/rtc.dart';
 import '../voice/voice_fx.dart';
@@ -66,11 +68,14 @@ class _VoicePaneState extends State<VoicePane> {
   }
 
   /// DeepFilterNet is offered where this device runs it; RNNoise always (WebRTC's own stands in where it cannot run).
-  bool _offered(NoiseMode m) => m != NoiseMode.deepfilter || VoiceFx.available.contains(m);
+  /// In a browser neither: the page has the browser's own alone (callsInBrowser).
+  bool _offered(NoiseMode m) => Sms.browser ? m == NoiseMode.off || m == NoiseMode.webrtc : m != NoiseMode.deepfilter || VoiceFx.available.contains(m);
 
   /// The noise suppression chosen, marked where this device will use another in its place (VoiceSettings.noiseOn).
   /// Not marked until the device has been asked what it runs.
   String _noiseName(VoiceSettings v) {
+    // A browser runs its own alone, whatever was chosen on another device.
+    if (Sms.browser) return v.noiseOn(const {}).label;
     final used = v.noiseOn(VoiceFx.available);
     return used == v.noise || !_asked ? v.noise.label : '${v.noise.label} (Standard here)';
   }
@@ -124,18 +129,24 @@ class _VoicePaneState extends State<VoicePane> {
         description: const Text('Used in a call at once. The system\'s own follows whatever the device uses.'),
         children: [
           SettingRow(icon: icon(Lucide.mic), label: 'Microphone', value: Text(_name(_inputs, v.input, v.inputName)), onPress: () => _pick('Microphone', _inputs, v.input, _useInput)),
-          SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output, v.outputName)), onPress: () => _pick('Speaker or headset', _outputs, v.output, _useOutput)),
+          // A browser that can't send a page's sound to a speaker of its choosing (Safari) plays through the computer's.
+          if (CallSound.canChooseOutput)
+            SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output, v.outputName)), onPress: () => _pick('Speaker or headset', _outputs, v.output, _useOutput)),
         ],
       ),
+      if (Sms.browser) ...[gap, SettingsCallout(child: const Text(callsInBrowser))],
       gap,
       const AudioTest(),
       gap,
       PaneSection(
         title: 'Volume',
-        description: const Text('Over 100% is boosted: your microphone louder than it picks up, or everyone louder than the device plays.'),
+        description: Text(Sms.browser
+            ? 'How loud everyone is in a call. A browser plays nobody louder than they arrive.'
+            : 'Over 100% is boosted: your microphone louder than it picks up, or everyone louder than the device plays.'),
         children: [
-          _Level(icon: icon(Lucide.mic), label: 'Microphone', value: v.inputVolume, onChanged: (p) => set('voice_in_volume', '$p')),
-          _Level(icon: icon(Lucide.volume2), label: 'Output', value: v.outputVolume, onChanged: (p) => set('voice_out_volume', '$p')),
+          // The microphone's own volume is the native processing's (VoiceFx), which a browser hasn't got.
+          if (!Sms.browser) _Level(icon: icon(Lucide.mic), label: 'Microphone', value: v.inputVolume, onChanged: (p) => set('voice_in_volume', '$p')),
+          _Level(icon: icon(Lucide.volume2), label: 'Output', value: v.outputVolume, most: Sms.browser ? 100 : VoiceSettings.maxVolume, onChanged: (p) => set('voice_out_volume', '$p')),
         ],
       ),
       gap,
@@ -211,10 +222,13 @@ class _VoicePaneState extends State<VoicePane> {
 
 /// A volume, 0 to 200%, with its number: over 100 is boosted.
 class _Level extends StatelessWidget {
-  const _Level({required this.icon, required this.label, required this.value, required this.onChanged});
+  const _Level({required this.icon, required this.label, required this.value, required this.onChanged, this.most = VoiceSettings.maxVolume});
   final Widget icon;
   final String label;
   final int value;
+
+  /// The most it goes to, in percent.
+  final int most;
   final ValueChanged<int> onChanged;
 
   @override
@@ -232,7 +246,7 @@ class _Level extends StatelessWidget {
         ),
         SizedBox(width: t.space(3)),
         SizedBox(width: t.lenOf('6.5rem'), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
-        Expanded(child: VolumeSlider(value: value / 100, max: VoiceSettings.maxVolume / 100, label: label, onChanged: (x) => onChanged((x * 100).round()))),
+        Expanded(child: VolumeSlider(value: value.clamp(0, most) / 100, max: most / 100, label: label, onChanged: (x) => onChanged((x * 100).round()))),
         SizedBox(width: t.space(3)),
         SizedBox(
           width: t.lenOf('3.5rem'),
@@ -315,7 +329,9 @@ class _AudioTestState extends State<AudioTest> {
       title: 'Test',
       description: Text(inCall
           ? 'Leave the call to test your microphone and speaker here.'
-          : 'Talk, and the bar moves with your voice as a call hears it. With headphones on, hear yourself through the speaker chosen.'),
+          : Sms.browser
+              ? 'Talk, and the bar moves with your voice as a call hears it.'
+              : 'Talk, and the bar moves with your voice as a call hears it. With headphones on, hear yourself through the speaker chosen.'),
       footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
       children: [
         SettingRow(
@@ -335,7 +351,8 @@ class _AudioTestState extends State<AudioTest> {
               ),
             ),
           ),
-          SettingRow(
+          // A browser plays only what it is given (lib/voice/call_sound.dart), and the test's copy is never given.
+          if (!Sms.browser) SettingRow(
             icon: icon(LucideMore.headphones),
             label: 'Hear yourself',
             hint: const Text('Your microphone through the speaker chosen. Use headphones, or the speaker feeds back into the microphone.'),

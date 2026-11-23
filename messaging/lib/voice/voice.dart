@@ -138,10 +138,12 @@ class VoiceChannel {
   /// its kind (`.text`, `.files`), which can't be taken for a name or a key, so the page knows not to offer voice.
   String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}';
 
-  /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them.
+  /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them. An open
+  /// space's ends `.open` ([link]) and is read as one; before 0.12.21 it was refused as no link at all, as builds from
+  /// then still refuse it.
   static VoiceChannel? fromLink(String link) {
     final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
-    final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files))?$').firstMatch(hash);
+    final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$').firstMatch(hash);
     if (m == null) return null;
     var name = 'Space';
     try {
@@ -451,7 +453,9 @@ class MendTimes {
 /// - Back in the room after the relay was lost ([_back]): every connection is made again, as on coming in.
 /// - Every few seconds each member is looked at ([_mend]): where there is no working connection, one of the two
 ///   offers a new one (the lower id first, the other if it never does), again and again, further apart each time.
-/// - Two offers that cross are settled by id (the lower's stands), not left to fail both ways.
+/// - Two offers that cross are settled by id, the higher's standing (0.12.19 let the lower's stand; against it the higher
+///   gives way after a moment), not left to fail both ways. Which side mends first after a break (the lower id) is a
+///   separate choice, kept as 0.12.19 has it, so against 0.12.19 the same side goes first and the two don't cross.
 /// - What one member says is acted on in the order it was said, so a way to connect never overtakes its offer.
 /// Nothing new is said on the wire: a fresh offer is marked `a`, which every build since the relay fallback takes.
 class VoiceSession extends ChangeNotifier {
@@ -511,19 +515,38 @@ class VoiceSession extends ChangeNotifier {
 
   /// The stage changed (someone brought up to speak, or sent back to listen): connections that are now wanted are made
   /// (the lower id offers, so two never offer each other at once), and those between two who both listen let go.
+  ///
+  /// Only those held apart by the stage ([_withheld]) are offered to here. Anyone else is offered to by whoever came
+  /// into the call later ([join]): Voice asks this on every change in a space's call, so someone who had just come in,
+  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, and the two offers
+  /// crossed. Whatever still has no connection after that is [_mendAll]'s.
   void relink() {
     if (!joined) return;
     for (final id in members.keys.toList()) {
       if (!_links(id)) {
+        _withheld.add(id);
+        // Nothing waits between two who no longer connect: neither an offer of theirs kept nor an answer to this one's.
+        _dropKept(id);
+        _awaiting.remove(id);
+        _awaitingAgain.remove(id);
         if (_peers.containsKey(id)) {
           _offered.remove(id);
           unawaited(_peers.remove(id)?.close());
         }
-      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
-        unawaited(_offer(id));
+      } else if (_withheld.contains(id)) {
+        if (_peers.containsKey(id)) {
+          _withheld.remove(id);
+        } else if (route.me.compareTo(id) < 0) {
+          _withheld.remove(id);
+          unawaited(_offer(id));
+        }
       }
     }
   }
+
+  /// Those in the call this device has made no connection with because both listen on a stage ([_links]): when one is
+  /// brought up to speak, [relink] connects them.
+  final Set<String> _withheld = {};
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
@@ -667,7 +690,7 @@ class VoiceSession extends ChangeNotifier {
     _sayState();
     for (final id in members.keys.toList()) {
       // On a stage, two who both listen make no connection (GMFB-29).
-      if (_links(id)) unawaited(_offer(id));
+      _links(id) ? unawaited(_offer(id)) : _withheld.add(id);
     }
     _mendTimer?.cancel();
     _mendTimer = Timer.periodic(mend.every, (_) => _mendAll());
@@ -687,6 +710,10 @@ class VoiceSession extends ChangeNotifier {
     _unwell.clear();
     _tries.clear();
     _said.clear();
+    _awaitingAgain.clear();
+    for (final id in _kept.keys.toList()) {
+      _dropKept(id);
+    }
     for (final s in _subs) {
       await s.cancel();
     }
@@ -698,6 +725,7 @@ class VoiceSession extends ChangeNotifier {
     _offered.clear();
     _retried.clear();
     _relayed.clear();
+    _withheld.clear();
     members.clear();
     await media.stop();
     notifyListeners();
@@ -812,6 +840,8 @@ class VoiceSession extends ChangeNotifier {
       members[e.came!] = VoiceMember(e.came!);
       // An offer of this device's still unanswered was to them as they were before: theirs is the one to answer now.
       _awaiting.remove(e.came);
+      // They offer, unless the two of them both listen on a stage.
+      if (!_links(e.came!)) _withheld.add(e.came!);
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
@@ -826,6 +856,9 @@ class VoiceSession extends ChangeNotifier {
   /// Everything remembered of the tries to connect to [id].
   void _forget(String id) {
     _offered.remove(id);
+    _awaitingAgain.remove(id);
+    _dropKept(id);
+    _withheld.remove(id);
     _retried.remove(id);
     _relayed.remove(id);
     _awaiting.remove(id);
@@ -850,6 +883,53 @@ class VoiceSession extends ChangeNotifier {
 
   /// What each member said, waiting its turn ([_heard]).
   final Map<String, Future<void>> _said = {};
+
+  /// Those of [_awaiting] whose offer was marked again (`a`): a mending offer, which crosses another only with theirs.
+  final Set<String> _awaitingAgain = {};
+
+  /// An offer that crossed this device's own and was let wait, the higher id's standing ([_act], `offer`): the latest
+  /// from each, the ways to connect said after it, and when this side gives way if its own is still not answered.
+  final Map<String, Map<String, dynamic>> _kept = {};
+  final Map<String, List<Map<String, dynamic>>> _keptIce = {};
+  final Map<String, Timer> _keptUntil = {};
+
+  /// The most ways to connect held with a kept offer from one sender.
+  static const _keptIceMost = 64;
+
+  void _dropKept(String id) {
+    _kept.remove(id);
+    _keptIce.remove(id);
+    _keptUntil.remove(id)?.cancel();
+  }
+
+  /// Keeps [m], an offer from [from] crossing this device's own, for [_giveWay].
+  void _keep(String from, Map<String, dynamic> m) {
+    _kept[from] = m;
+    _keptIce[from] = [];
+    _keptUntil[from] ??= Timer(mend.first ~/ 2, () => _giveWay(from));
+  }
+
+  /// The offer kept from [from] while this device's own crossed it: where this one's is still not answered (0.12.19 and
+  /// 0.12.18 let the higher id's go unanswered too, from the other side), it is given up and theirs answered, with the
+  /// ways to connect they said after it. In turn with everything else they said ([_said]).
+  void _giveWay(String from) {
+    _keptUntil.remove(from);
+    final turn = (_said[from] ?? Future<void>.value()).then((_) async {
+      final offer = _kept.remove(from);
+      final ice = _keptIce.remove(from) ?? const [];
+      if (offer == null || !joined || _moving || !_awaiting.containsKey(from) || !_links(from)) return;
+      _awaiting.remove(from);
+      _awaitingAgain.remove(from);
+      await _peers.remove(from)?.close();
+      await _act(from, {...offer, 'a': 1});
+      for (final c in ice) {
+        try {
+          await _act(from, c);
+        } catch (_) {}
+      }
+    }).catchError((Object e) => debugPrint('voice: the offer kept from $from not taken: $e'));
+    _said[from] = turn;
+  }
 
   /// Back in the room after the relay was lost, with [there] in it now. While this device was gone everyone else was
   /// told it went and let go of their connection to it, so each is made again, as on coming in; whoever left meanwhile
@@ -960,6 +1040,7 @@ class VoiceSession extends ChangeNotifier {
   Future<void> _offer(String id, {bool? relayOnly, bool again = false}) async {
     _offered.add(id);
     _awaiting[id] = DateTime.now();
+    again ? _awaitingAgain.add(id) : _awaitingAgain.remove(id);
     final m = media;
     final relay = relayOnly ?? (m is FallbackMedia && m.hasRelay);
     relay ? _relayed.add(id) : _relayed.remove(id);
@@ -1065,14 +1146,24 @@ class VoiceSession extends ChangeNotifier {
         // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
-        // Both offered at once (each waits on the other's answer): the lower id's offer stands, and the other side
+        // Both offered at once (each waits on the other's answer): the higher id's offer stands, and the other side
         // gives its own up and answers. Left alone, each tried to take an offer on a connection that had made one,
-        // and neither connected.
+        // and neither connected. The higher's, because an app from 0.12.18 or before already in a space's call offers
+        // back from relink to whoever comes in only where its id is the lower, and gives its own offer up when it
+        // finds the newcomer's (the `j` below): the newcomer (a browser, always) keeps its offer and both connect at
+        // once. 0.12.19 settles it the other way round (the lower's stands), so against it each would let the other's
+        // wait: the higher keeps theirs ([_keep]) and gives way after a moment if its own is still not answered
+        // ([_giveWay]). An offer marked again (`a`) is answered at once unless this side's own is a mending offer too:
+        // then the two crossed as any two do.
         var crossed = false;
-        if (_awaiting.containsKey(from) && _peers.containsKey(from)) {
-          if (route.me.compareTo(from) < 0) return;
+        if ((m['a'] != 1 || _awaitingAgain.contains(from)) && _awaiting.containsKey(from) && _peers.containsKey(from)) {
+          if (route.me.compareTo(from) > 0) {
+            _keep(from, m);
+            return;
+          }
           crossed = true;
         }
+        _dropKept(from);
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
         // A connection that failed is still held here until something takes its place: this does.
         if (_peers.containsKey(from) && _up(from) == null) await _peers.remove(from)?.close();
@@ -1085,6 +1176,7 @@ class VoiceSession extends ChangeNotifier {
         if (!again || crossed) _offered.remove(from);
         if (again) await _peers.remove(from)?.close();
         _awaiting.remove(from);
+        _awaitingAgain.remove(from);
         // They are making the connection: this side's count of its own tries starts over.
         _unwell.remove(from);
         _offerJoin[from] = j;
@@ -1104,8 +1196,25 @@ class VoiceSession extends ChangeNotifier {
         if (j != null && j != _join) return;
         // One for an offer since given up (theirs stood, or a new one was made) has nothing waiting for it.
         if (_awaiting.remove(from) == null) return;
+        _awaitingAgain.remove(from);
+        // Answered: an offer of theirs kept meanwhile is let go, and the ways to connect held with it are this
+        // connection's as much as that one's (which of theirs said them isn't said): given to it.
+        final held = _keptIce[from] ?? const [];
+        _dropKept(from);
         await _peers[from]?.takeAnswer('${m['sdp']}');
+        for (final c in held) {
+          try {
+            await _peers[from]?.addCandidate((c['c'] as Map).cast<String, dynamic>());
+          } catch (_) {}
+        }
       case 'ice':
+        // Said after an offer kept for now ([_keep]): held with it.
+        final held = _keptIce[from];
+        if (held != null && m['c'] is Map) {
+          // A handful is all a connection says; past [_keptIceMost] the rest is not kept.
+          if (held.length < _keptIceMost) held.add(m);
+          return;
+        }
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());
     }
   }

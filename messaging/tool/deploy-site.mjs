@@ -205,7 +205,7 @@ ${DOMAIN} {
 			Referrer-Policy "no-referrer"
 			Cross-Origin-Opener-Policy "same-origin"
 			Cross-Origin-Resource-Policy "same-origin"
-			Permissions-Policy "camera=(), microphone=(), geolocation=(), display-capture=()"
+			Permissions-Policy "camera=(self), microphone=(self), geolocation=(), display-capture=()"
 		}
 		@apphashed path_regexp apphashed \\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+\\.[A-Za-z0-9]+$
 		handle @apphashed {
@@ -316,7 +316,7 @@ ${APP_HOST} {
 		Referrer-Policy "no-referrer"
 		Cross-Origin-Opener-Policy "same-origin"
 		Cross-Origin-Resource-Policy "same-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), display-capture=()"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), display-capture=()"
 		Strict-Transport-Security "max-age=31536000"
 	}
 	@clear {

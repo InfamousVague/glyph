@@ -5,6 +5,7 @@ import '../platform_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'call_sound.dart';
 import 'voice.dart';
 import 'voice_fx.dart';
 import 'voice_settings.dart';
@@ -93,9 +94,16 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       // times the auto leveler's gain for them where it is on (leveler.dart).
       // And, in an open space, times how much of them is heard from where this device stands (open_space.dart).
       final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0) * (_placed[id] ?? 1.0)).clamp(0.0, 6.0);
-      unawaited(Helper.setVolume(v, t).catchError((_) {}));
+      if (CallSound.playsItself) {
+        _out.set(id, volume: v, silent: !t.enabled);
+      } else {
+        unawaited(Helper.setVolume(v, t).catchError((_) {}));
+      }
     }
   }
+
+  /// Where the app plays what arrives itself (a browser: lib/voice/call_sound.dart), what plays it.
+  final CallSound _out = CallSound();
 
   /// How much of each person is heard from where this device stands in an open space (open_space.dart): 1 is all.
   final Map<String, double> _placed = {};
@@ -352,7 +360,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
         // Only the partner's own copy, by the ids given it: never the microphone.
         if (track == null || track.kind != 'audio' || !(track.id ?? '').startsWith(meterPrefix)) continue;
         if (track.enabled != hear) track.enabled = hear;
-        await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
+        // A browser plays nothing it isn't given to play (call_sound.dart): the copy is never given.
+        if (!CallSound.playsItself) await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
       }
     } catch (_) {}
   }
@@ -490,6 +499,12 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     final c = DeviceChoice.resolve(settings.output, settings.outputName, there);
     outputMissing = c.missing;
     _output = c.id;
+    // A browser plays what arrives through the page's own elements (call_sound.dart), sent to the speaker chosen
+    // where it lets a page choose.
+    if (CallSound.playsItself) {
+      await _out.output(c.id);
+      return _output;
+    }
     if (_os == 'android' && c.id.isEmpty) {
       await sound.speakerphone(true).catchError((_) {});
       return _output;
@@ -591,6 +606,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       await p.close();
     }
     _peers.clear();
+    _out.stopAll();
     remote.value = const {};
     sounds.value = const {};
     for (final s in [_mic, _cam, _screen]) {
@@ -846,6 +862,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
+    _out.stop(id);
     if (sounds.value.containsKey(id)) sounds.value = {...sounds.value}..remove(id);
     // A failure is left showing until a new try begins ([peerWith]); anything else goes with the connection.
     if (links.value[id] != PeerLink.failed) _link(id, null);
@@ -910,6 +927,7 @@ class _RtcPeer implements VoicePeer {
     if (track.kind == 'audio') {
       if (!_sounds.any((t) => t.id == track.id)) _sounds.add(track);
       if (identical(media._peers[id], this)) {
+        media._out.play(id, track);
         media._apply(id);
         // Said for a recording to tap (GMFB-52), with this connection's mark: one made again says a new one.
         final sound = track.id;

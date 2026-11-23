@@ -36,10 +36,11 @@ const readName = (b64, fallback) => {
 
 /**
  * The link's fragment: the channel's seed, its name, its owner's key (lib/voice/roles.dart), and its kind (lib/voice/voice.dart
- * SpaceKind: 'voice', or a texting or Files space's 'text' or 'files', which the link ends with). Null where it is not one.
+ * SpaceKind: 'voice', or a texting, Files or open space's 'text', 'files' or 'open', which the link ends with). Null where it
+ * is not one.
  */
 export function readLink(fragment) {
-  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files))?$/.exec(fragment ?? '');
+  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$/.exec(fragment ?? '');
   if (!m) return null;
   return { seed: m[1], name: readName(m[2], 'Space'), owner: m[3] ?? '', kind: m[4] ?? 'voice' };
 }

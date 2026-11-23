@@ -7,6 +7,8 @@
  *   node tool/web/e2e.mjs                   Chromium, then WebKit
  *   node tool/web/e2e.mjs --engine webkit   one of them
  *   node tool/web/e2e.mjs --web <folder> --shots <folder> --headed
+ *   node tool/build-web.mjs --calls --out build/web-calls && node tool/web/e2e.mjs --web build/web-calls --calls
+ *                                           a build with calls, and the steps marked (calls) in place of "no calls"
  *
  * WHAT IT DOES, in each engine
  *   1. Starts the relay (relay/bin/relay.dart, with Flutter's own Dart) on a free port of this machine, with a new
@@ -14,6 +16,11 @@
  *      two people are made here, with names nobody has.
  *   2. Two browsers (two contexts: nothing shared) open the page and sign up, each with a username and a password.
  *   3. One adds the other by username; the other accepts; each writes to the other and sees what the other wrote.
+ *  3c. (calls) One rings the other with a voice call from their conversation; the other answers; each hears the other:
+ *      the sound arrives (WebRTC's own numbers: bytes and energy received on a connection that went through) and plays
+ *      in an element of the page's (lib/voice/call_sound.dart); muted, the other hears silence; and the call is left.
+ *      The microphone is Chromium's stand-in (its fake devices: a tone). Not in WebKit, which Playwright can't give a
+ *      microphone (it knows no such permission, and getUserMedia waits for a prompt nobody can answer).
  *  3b. One shares feedback from the page (words alone: a page can't choose a picture yet), by the page's own fetch, to
  *      the hub's relay, beside the page or (--hub-port) at another address its policy names and whose relay lets the
  *      page read the answer (GHOST_APP_ORIGIN); this relay has no board to file it in, and the page shows it saying so.
@@ -23,6 +30,8 @@
  *   6. A second tab in the same browser is told the app is open in another tab; "Use it here" moves it over.
  *   7. One makes a circle and copies its invite link; the other joins by the link; each writes in its General space
  *      and reads what the other wrote there; its chat-and-voice space is its chat alone, with no way into a call.
+ *      (calls: both join its call instead, hear each other, one turns the camera on and the other receives the picture,
+ *      one mutes the other for themselves alone, and both leave.)
  *   8. Settings call it a browser, with an About of its own and none of what a browser has nothing to set for; and
  *      the Marketplace is on no key (Ctrl+5), in no quick switcher and in no list of shortcuts.
  *   9. One signs in on a third, new browser with the username and password: the same person, the friend still there,
@@ -60,7 +69,7 @@
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -81,6 +90,8 @@ const engines = option('engine', 'both') === 'both' ? ['chromium', 'webkit'] : [
 const hubPort = option('hub-port', null);
 // The people's first steps only: signing up, a friend, a message each way.
 const quick = args.includes('--quick');
+// A build with calls (tool/build-web.mjs --calls): the calls' steps, and none of the "no calls" checks.
+const calls = args.includes('--calls');
 
 if (!existsSync(join(webDir, 'index.html'))) {
   console.error(`e2e: no built app at ${webDir}: run node tool/build-web.mjs first.`);
@@ -184,6 +195,10 @@ class Seat {
       this.missingFonts.add(new URL(r.url()).pathname.split('/fallback-fonts/')[1]);
       this.fontMisses++;
     });
+    // Everything the page said, kept to be written beside the pictures when a run fails (--shots).
+    this.said = [];
+    page.on('console', (m) => this.said.push(`${m.type()}: ${m.text().slice(0, 2000)}`));
+    page.on('pageerror', (e) => this.said.push(`uncaught: ${String(e.message || e)} ${String(e.stack || '')}`));
     page.on('console', (m) => {
       if (m.type() !== 'error' || /GL Driver Message|WebGL|GPU stall/.test(m.text())) return;
       // Weighed at the end against the fonts missed: the two arrive in either order.
@@ -476,6 +491,57 @@ class Seat {
     }
   }
 
+  /// What this page receives in its calls now (calls), read as WebRTC itself says it: across every connection to another
+  /// person that went through (each made with ICE servers; the one-device meter is made with none), the sound's bytes
+  /// and energy received; and how many people's sounds are playing in an element of the page's, live and not muted.
+  async hearing() {
+    return this.page.evaluate(async () => {
+      let bytes = 0, energy = 0, connected = 0;
+      for (const pc of window.__ghostPcs ?? []) {
+        if (!pc.__ghostToPeople || pc.connectionState !== 'connected') continue;
+        connected++;
+        for (const r of (await pc.getStats()).values()) {
+          if (r.type === 'inbound-rtp' && r.kind === 'audio') {
+            bytes += r.bytesReceived ?? 0;
+            energy += r.totalAudioEnergy ?? 0;
+          }
+        }
+      }
+      const elements = [...document.querySelectorAll('#ghost-call-sound audio')];
+      const playing = elements.filter((e) => !e.paused && !e.muted && e.srcObject?.getAudioTracks().some((t) => t.readyState === 'live')).length;
+      return { bytes, energy, connected, elements: elements.length, playing };
+    });
+  }
+
+  /// Hears someone (calls): over [over] ms, sound arrived and was not silence, and is playing in the page.
+  async hears(who, { over = 2500, within = 45000 } = {}) {
+    const until = Date.now() + within;
+    let last;
+    for (;;) {
+      const a = await this.hearing();
+      await this.page.waitForTimeout(over);
+      const b = await this.hearing();
+      last = { bytes: b.bytes - a.bytes, energy: b.energy - a.energy, connected: b.connected, playing: b.playing, elements: b.elements };
+      if (last.connected > 0 && last.bytes > 1500 && last.energy > 1e-4 && last.playing > 0) return last;
+      if (Date.now() > until) throw new Problem(`${this.name} never heard ${who}: over ${over} ms ${JSON.stringify(last)}`);
+    }
+  }
+
+  /// Hears nothing from the call but silence (calls): sound still arrives (a muted microphone sends silence), with no
+  /// energy in it.
+  async hearsSilence(who, { over = 2500, within = 20000 } = {}) {
+    const until = Date.now() + within;
+    let last;
+    for (;;) {
+      const a = await this.hearing();
+      await this.page.waitForTimeout(over);
+      const b = await this.hearing();
+      last = { bytes: b.bytes - a.bytes, energy: b.energy - a.energy, connected: b.connected };
+      if (last.connected > 0 && last.energy < 1e-6) return last;
+      if (Date.now() > until) throw new Problem(`${this.name} still hears ${who}, who is muted: over ${over} ms ${JSON.stringify(last)}`);
+    }
+  }
+
   /// A picture of the page into the --shots folder, where one was named.
   async shot(name) {
     if (!shots) return;
@@ -539,7 +605,13 @@ async function run(engine) {
   // The hub elsewhere, where the build names one: the page's relay then serves the page alone, and the hub's lets the
   // page's address read what it answers the page's feedback (GHOST_APP_ORIGIN, as gogho.st's lets app.gogho.st).
   const hub = hubPort ? await startRelay({ port: hubPort, web: false, env: { GHOST_APP_ORIGIN: origin } }) : null;
-  const browser = await playwright[engine].launch({ headless: !headed });
+  // With calls, the browser's stand-in microphone and camera, asked for no permission and played without a press of
+  // their own (the press that joined is the page's; a browser with no window has no one to press).
+  // Playwright's WebKit can't be given a microphone: it knows no such permission, and getUserMedia waits for a prompt
+  // nobody can answer. There a build with calls is held to what it offers, and the calls themselves are Chromium's.
+  const talking = calls && engine === 'chromium';
+  const media = talking ? ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] : [];
+  const browser = await playwright[engine].launch({ headless: !headed, args: media });
   const seats = [];
   let skipping = false;
   // One numbered step: done, timed and said; passed over once the run is skipping to its end.
@@ -560,9 +632,33 @@ async function run(engine) {
     const copies = () => {
       if (navigator.clipboard) navigator.clipboard.writeText = async (text) => { window.__ghostCopied = text; };
     };
+    // Every WebRTC connection the page makes, kept where the script can ask it for its numbers (calls): marked where
+    // it was made with ICE servers, as each to another person is (lib/voice/rtc.dart; the meter is made with none).
+    const connections = () => {
+      const Made = window.RTCPeerConnection;
+      if (!Made) return;
+      window.__ghostPcs = [];
+      window.RTCPeerConnection = class extends Made {
+        constructor(config, ...rest) {
+          super(config, ...rest);
+          this.__ghostToPeople = !!config?.iceServers?.length;
+          window.__ghostPcs.push(this);
+        }
+      };
+    };
+    // Where an uncaught error was thrown from, said on the console (kept with the rest of what the page said: Seat.said).
+    const where = () => {
+      window.addEventListener('error', (e) => console.log(`[uncaught] ${e.message} at ${e.filename}:${e.lineno}:${e.colno} ${e.error?.stack ?? ''}`));
+      window.addEventListener('unhandledrejection', (e) => console.log(`[unhandled] ${String(e.reason)} ${e.reason?.stack ?? ''}`));
+    };
     const person = async () => {
       const context = await browser.newContext(size);
       await context.addInitScript(copies);
+      await context.addInitScript(where);
+      if (calls) {
+        await context.addInitScript(connections);
+        if (engine === 'chromium') await context.grantPermissions(['microphone', 'camera'], { origin });
+      }
       return context;
     };
     const mayaBrowser = await person(), samBrowser = await person();
@@ -629,14 +725,46 @@ async function run(engine) {
       // The conversation's row in the list: Maya's name, the first place it is written.
       await s.press(maya.username);
       await s.sees('Friend · encrypted');
-      // No calls in a browser yet, and no microphone: neither is offered. Nor the Marketplace on the rail.
-      await s.lacks('Voice call', 'Video call', 'Record a voice message', 'Marketplace');
+      // No calls in a browser without them, and no microphone: neither is offered. Nor the Marketplace on the rail.
+      await (calls ? s.lacks('Record a voice message', 'Marketplace') : s.lacks('Voice call', 'Video call', 'Record a voice message', 'Marketplace'));
+      // With calls, a friend is rung from their conversation.
+      if (calls) for (const offered of ['Voice call', 'Video call']) await s.sees(offered);
       await s.write('Encrypted message', answer);
       await s.sees(answer);
       await s.sees(hello);
       await m.sees(answer, { within: 20000 });
       await m.shot(`${engine}-Maya-7-answered`);
     });
+    if (calls && !talking) say(`  (calls: not tried in ${engine}, which can't be given a microphone here; what a build with calls offers is checked all the same)`);
+    if (talking) {
+      await step('(calls) Sam rings Maya with a voice call; she answers; each hears the other, muted is silence, and both leave', async () => {
+        await s.press('Voice call', { role: 'button' });
+        await m.sees('Answer', { within: 30000 });
+        await m.shot(`${engine}-Maya-7b-ringing`);
+        await m.press('Answer');
+        const heard = await m.hears('Sam');
+        const heardBack = await s.hears('Maya');
+        await m.shot(`${engine}-Maya-7c-in-call`);
+        await s.shot(`${engine}-Sam-7c-in-call`);
+        say(`      Maya hears Sam (${heard.bytes} bytes in ${2.5} s), Sam hears Maya (${heardBack.bytes} bytes)`);
+        await m.press('Mute', { role: 'button' });
+        await s.hearsSilence('Maya');
+        await m.press('Unmute', { role: 'button' });
+        await s.hears('Maya again');
+        await m.press('^Leave( call)?$', { like: true });
+        await s.press('^Leave( call)?$', { like: true });
+        // Left: no connection, and nothing playing.
+        for (const x of [m, s]) {
+          const until = Date.now() + 20000;
+          for (;;) {
+            const h = await x.hearing();
+            if (h.connected === 0 && h.elements === 0) break;
+            if (Date.now() > until) throw new Problem(`${x.name} left the call and still has ${JSON.stringify(h)}`);
+            await x.page.waitForTimeout(300);
+          }
+        }
+      });
+    }
     // Feedback goes from the page by its own fetch (lib/web/http.dart), to the hub's relay: beside the page, or at another
     // address (--hub-port), where the page's policy names it and the relay lets the page read the answer. This run's
     // relay has no board to file it in, and says so: the page showing those words is the answer having come back.
@@ -739,23 +867,72 @@ async function run(engine) {
       await m.shot(`${engine}-Maya-11-space`);
       await s.sees(inSpace, { within: 20000 });
     });
-    await step('Sam answers there, and Maya reads it; a voice space is its chat, with no way into a call', async () => {
+    await step(calls ? 'Sam answers there, and Maya reads it' : 'Sam answers there, and Maya reads it; a voice space is its chat, with no way into a call', async () => {
       await s.write('Message General', back);
       await s.sees(back);
       await s.sees(inSpace);
       await m.sees(back, { within: 20000 });
-      // The other space is chat and voice: in a browser, its chat alone.
+      // The other space is chat and voice: in a browser without calls, its chat alone.
       await s.press('Lounge, Chat & voice');
       await s.sees('Message Lounge');
-      await s.lacks('Join', 'Join voice', 'Start the call');
+      await (calls ? s.sees('Join voice') : s.lacks('Join', 'Join voice', 'Start the call'));
       await s.shot(`${engine}-Sam-12-voice-space`);
     });
+    if (talking) {
+      await step('(calls) both join Lounge\'s call and hear each other; Maya\'s camera reaches Sam; Sam mutes her for himself alone; both leave', async () => {
+        await s.press('Join voice');
+        await m.press('Lounge, Chat & voice');
+        await m.press('Join voice');
+        await m.hears('Sam');
+        await s.hears('Maya');
+        await s.shot(`${engine}-Sam-12b-in-lounge`);
+        // Maya's camera: Sam's connection receives her picture.
+        await m.press('^(Turn on camera|Camera|Video|Start video)$', { like: true });
+        const until = Date.now() + 30000;
+        for (;;) {
+          const frames = await s.page.evaluate(async () => {
+            let n = 0;
+            for (const pc of window.__ghostPcs ?? []) {
+              if (!pc.__ghostToPeople || pc.connectionState !== 'connected') continue;
+              for (const r of (await pc.getStats()).values()) if (r.type === 'inbound-rtp' && r.kind === 'video') n += r.framesDecoded ?? 0;
+            }
+            return n;
+          });
+          if (frames > 10) break;
+          if (Date.now() > until) throw new Problem(`Sam's page decoded ${frames} frames of Maya's camera.`);
+          await s.page.waitForTimeout(500);
+        }
+        await s.shot(`${engine}-Sam-12c-camera`);
+        await m.shot(`${engine}-Maya-12c-camera`);
+        // Sam mutes Maya for himself alone: her sound still arrives, and is not played (call_sound.dart).
+        // Her row in the list under the picture: in a window this tall the picture (4:3) leaves it under the call's
+        // buttons, so the window is made taller for the press, and put back after.
+        await s.page.setViewportSize({ width: 1180, height: 1100 });
+        await s.press(maya.username, { last: true });
+        await s.press(`Mute ${maya.username} for me`);
+        const until2 = Date.now() + 15000;
+        for (;;) {
+          const h = await s.hearing();
+          if (h.elements > 0 && h.playing === 0) break;
+          if (Date.now() > until2) throw new Problem(`Sam muted Maya for himself and still plays her: ${JSON.stringify(h)}`);
+          await s.page.waitForTimeout(300);
+        }
+        await m.hears('Sam, who muted her for himself alone');
+        await s.press(`Mute ${maya.username} for me`);
+        await s.hears('Maya again');
+        await s.page.keyboard.press('Escape');
+        await s.page.setViewportSize({ width: 1180, height: 780 });
+        await m.press('^Leave( call)?$', { like: true });
+        await s.press('^Leave( call)?$', { like: true });
+      });
+    }
     await step('Sam\'s Settings call this a browser, with an About of its own and none of what it has nothing to set for', async () => {
       await s.press('Settings', { role: 'button' });
       await s.sees('Appearance');
       await s.wheelTo('Emoji', 'About');
       await s.sees('Ghost Messaging in a browser');
-      await s.lacks('Voice and video', 'Sounds', 'Notifications', 'Updates', 'Your phone');
+      await (calls ? s.sees('Voice and video') : Promise.resolve());
+      await (calls ? s.lacks('Sounds', 'Notifications', 'Updates', 'Your phone') : s.lacks('Voice and video', 'Sounds', 'Notifications', 'Updates', 'Your phone'));
       await s.press('About');
       await s.sees('Not in the browser yet');
       await s.sees('What this browser keeps');
@@ -780,7 +957,7 @@ async function run(engine) {
       await s.wheelTo('Emoji', 'Keyboard shortcuts');
       await s.press('Keyboard shortcuts');
       await s.sees('Start something new');
-      await s.lacks('Marketplace', 'Push to talk', 'Mute or unmute');
+      await (calls ? s.lacks('Marketplace') : s.lacks('Marketplace', 'Push to talk', 'Mute or unmute'));
       await s.shot(`${engine}-Sam-15-shortcuts`);
     });
     await step('Maya brings her backup up to date from her browser, with her password: what a browser keeps can\'t do it by itself', async () => {
@@ -1153,6 +1330,7 @@ async function run(engine) {
     say(`  FAILED in ${engine}: ${e instanceof Problem ? e.message : e.stack}`);
     for (const x of seats) {
       await x.shot(`${engine}-${x.name}-failed`).catch(() => {});
+      if (shots) writeFileSync(join(shots, `${engine}-${x.name}-failed.txt`), x.said.join('\n'));
       if (x.errors.length) say(`    ${x.name}'s page logged: ${x.errors.slice(0, 6).join(' || ')}`);
     }
     return false;

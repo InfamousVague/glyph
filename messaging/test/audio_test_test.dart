@@ -5,8 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaDeviceInfo;
 import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/sms.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:ghost_messaging/ui/voice_pane.dart';
+import 'package:ghost_messaging/voice/call_sound.dart';
 import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/voice_settings.dart';
 
@@ -69,6 +71,65 @@ void main() {
     await settle(tester);
     expect(made!.stopped, isTrue, reason: 'the microphone is let go of');
     expect(find.text('Test your microphone'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // GMFB-30, GMFB-51: calls in a browser. Settings › Voice and video there has what a page can do (its microphone, the
+  // browser's own noise suppression, everyone's volume up to as loud as they arrive) and says what it leaves out;
+  // nothing that needs the app's native halves (the microphone's boost, RNNoise and DeepFilterNet, hearing yourself).
+  testWidgets('in a browser with calls, Voice and video has only what a page can do, and says what it leaves out', (tester) async {
+    ListPhone(const []).install();
+    _TestMedia? made;
+    AudioTest.make = (s) => made = _TestMedia(s);
+    RtcMedia.enumerate = () async => [MediaDeviceInfo(kind: 'audioinput', label: 'USB mic', deviceId: 'mic-1')];
+    Sms.browser = true;
+    Sms.browserCalls = true;
+    addTearDown(() {
+      AudioTest.make = null;
+      RtcMedia.enumerate = null;
+      Sms.browser = false;
+      Sms.browserCalls = false;
+    });
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const SettingsSectionScreen('voice'), AppState());
+    await settle(tester);
+    expect(find.text(callsInBrowser), findsOneWidget);
+    // The microphone as a device, and no volume of its own beside Output's.
+    expect(find.text('Microphone'), findsOneWidget);
+    expect(find.text('Output'), findsOneWidget);
+    expect(find.text('How loud everyone is in a call. A browser plays nobody louder than they arrive.'), findsOneWidget);
+    // The browser's own, whatever was chosen elsewhere; and only it, or none, to choose from.
+    expect(find.text('Standard'), findsOneWidget);
+    await tester.ensureVisible(find.text('Noise suppression'));
+    await settle(tester);
+    await tester.tap(find.text('Noise suppression'));
+    await settle(tester);
+    expect(find.textContaining('Standard ·'), findsOneWidget);
+    expect(find.textContaining('Off ·'), findsOneWidget);
+    expect(find.textContaining('RNNoise'), findsNothing);
+    expect(find.textContaining('DeepFilterNet'), findsNothing);
+    await tester.tapAt(const Offset(5, 5));
+    await settle(tester);
+    expect(find.textContaining('Standard ·'), findsNothing, reason: 'the choices put away');
+    await tester.ensureVisible(find.text('Test your microphone'));
+    await settle(tester);
+    await tester.tap(find.text('Test your microphone'));
+    await settle(tester);
+    expect(made?.started, isTrue);
+    expect(find.bySemanticsLabel('Hear yourself'), findsNothing);
+    await tester.tap(find.text('Stop the test'));
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on a phone or a computer it is all there, as before', (tester) async {
+    ListPhone(const []).install();
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const SettingsSectionScreen('voice'), AppState());
+    await settle(tester);
+    expect(find.text(callsInBrowser), findsNothing);
+    expect(find.text('Microphone'), findsNWidgets(2));
+    expect(find.text('Speaker or headset'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -4,13 +4,17 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
+import '../sms.dart';
 import '../ui/common.dart' show openDocs;
 import '../ui/settings.dart';
 import '../ui/settings_panes.dart' show aboutLicences, appVersion;
 import '../ui/whats_new.dart';
 
-/// What is not in a browser yet, as About says it: each is absent from the page's screens, not broken in them.
-const notInBrowserYet = 'Calls, voice messages and sounds, Files spaces, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Ghost Messaging on a phone or a computer.';
+/// What is not in a browser yet, as About says it: each is absent from the page's screens, not broken in them. Calls
+/// are there where the build has them (Sms.browserCalls), without what needs the app's native halves.
+String get notInBrowserYet => Sms.callsHere
+    ? 'Voice messages and sounds, Files spaces, plugins and the Marketplace, chats on other networks, and texts through a phone; and in a call, recording, the voice changer, noise removal beyond the browser\'s own and sharing your screen. They are in Ghost Messaging on a phone or a computer.'
+    : 'Calls, voice messages and sounds, Files spaces, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Ghost Messaging on a phone or a computer.';
 
 /// What the browser keeps, as About says it (lib/web/store.dart says it at length): all of it sealed, and the words and
 /// the password's key not at all.
@@ -55,7 +59,7 @@ List<SettingsSection> browserSettings() => [
               label: 'One tab at a time',
               hint: Text('A second tab offers to take over from the first, so each message arrives once.'),
             ),
-            const SettingRow(icon: AppIcon(Lucide.info, size: 18), label: 'Not in the browser yet', hint: Text(notInBrowserYet)),
+            SettingRow(icon: const AppIcon(Lucide.info, size: 18), label: 'Not in the browser yet', hint: Text(notInBrowserYet)),
           ]),
           aboutLicences(),
         ],
