@@ -166,7 +166,9 @@ class HangoutRoom extends ChangeNotifier {
   /// The circle's key came: what waited is said, and what couldn't be read is read.
   void _keyCame() {
     final circle = channel.circle, k = circleKeys;
-    if (circle == null || k == null || k.lacking(circle)) return;
+    // With no circle keys (switched off, or a space of no circle), what a build with them on left waiting goes now,
+    // under the seed's key, rather than wait for a key that never comes (third review, item 4).
+    if (circle != null && k != null && k.lacking(circle)) return;
     final said = [..._unsaid];
     _unsaid.clear();
     _keepUnsaid();

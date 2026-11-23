@@ -234,7 +234,7 @@ class Switchboard {
     if (sealed && key == null) return Delivery(envelope.id, tried: const ['no key is held for them, and it was to be sealed']);
     // The packet for routes that carry big ones: with this device's prekey, and sealed for forward secrecy where the
     // other end's devices have offered theirs. The one for small routes: sealed the old way, nothing added.
-    Uint8List? big, small;
+    Uint8List? big, small, oldCopy;
     if (sealed && envelope.ack) _remember(peer, envelope, metered: metered, only: only);
     final fs = sealed ? this.fs : null;
     if (fs != null && fs.loaded) {
@@ -248,10 +248,13 @@ class Switchboard {
       final targets = fs.targets(peer.id);
       // The old way: an answer or an ask carries nothing to keep secret; and where one of their devices can't open
       // forward-secret packets (a build from before, or one gone quiet), everything goes so that it can.
-      final old = envelope.kind == 'ack' || envelope.kind == fsAsk || targets.isEmpty || fs.needsOld(peer.id);
+      final old = envelope.kind == 'ack' || envelope.kind == fsAsk || targets.isEmpty;
       big = old
           ? Packet.wrap(from: me, sealed: true, payload: NetCrypto.seal(key!, clear))
           : Packet.wrap(from: me, sealed: true, fs: true, payload: await ForwardSecrecy.sealAway(from: me, to: peer.id, pairKey: key!, clear: clear, targets: targets));
+      // A device of theirs that can't do forward secrecy now: an old-sealed copy besides, for it (third review, item
+      // 3). Their other devices take the forward-secret one; the envelope's id drops whichever comes second.
+      if (!old && fs.needsOld(peer.id)) oldCopy = Packet.wrap(from: me, sealed: true, payload: NetCrypto.seal(key, clear));
     }
     Uint8List packetFor(Carrier c) {
       if (big != null && c.traits.maxPacket > smallRoute) return big;
@@ -266,6 +269,19 @@ class Switchboard {
         if (_fits(c, packetFor(c).length)) c,
     ];
     if (candidates.isEmpty) tried.add('no route reaches them now');
+    // The old-sealed copy goes first by the first route that takes big packets, unanswered.
+    final copy = oldCopy;
+    if (copy != null) {
+      final c = candidates.where((c) => c.traits.maxPacket > smallRoute).firstOrNull;
+      final pieces = c == null ? null : Packet.split(copy, c.traits.maxPacket, maxParts: c.traits.maxParts);
+      if (c != null && pieces != null) {
+        try {
+          for (final p in pieces) {
+            await c.send(peer, p);
+          }
+        } catch (_) {}
+      }
+    }
     for (final c in candidates) {
       final packet = packetFor(c);
       final pieces = Packet.split(packet, c.traits.maxPacket, maxParts: c.traits.maxParts);
@@ -344,19 +360,25 @@ class Switchboard {
   ///
   /// Only where its header names a sibling device this one knows of, never one passed on already (flag 8, from this
   /// account), each once even across restarts, and no more than [passOnBytes] a window (second review, A6).
+  ///
+  /// Third review, item 2: whenever its header names any device other than this one (the hub's stamp must match its
+  /// sender, so nobody else's junk gets this far), also from a device whose forward secrecy hasn't loaded, under the
+  /// byte cap. One that comes back to the device that passed it on (it was the only one online, and the relay handed
+  /// it back) is put back on the account's name, at most [ForwardSecrecy.mostPassTries] times in all.
   void _passOn(Packet whole, String via) {
     final fs = this.fs;
-    if (fs == null || !fs.loaded || whole.passed) return;
-    final siblings = fs.devicesOf(me)..remove(fs.device);
-    if (!ForwardSecrecy.devicesIn(whole.payload).any(siblings.contains)) return;
+    if (fs == null) return;
+    if (!ForwardSecrecy.devicesIn(whole.payload).any((d) => d != fs.device)) return;
+    final tag = NetCrypto.hex(NetCrypto.sha256(whole.payload).sublist(0, 8));
+    // Passed on already, by another device of this account, or by this one and come back to it.
+    if (whole.passed && !fs.passAgain(tag)) return;
     final now = _now();
     if (_passWindow == null || now.difference(_passWindow!) > passOnWindow) {
       _passWindow = now;
       _passedBytes = 0;
     }
     if (_passedBytes + whole.payload.length > passOnBytes) return;
-    final tag = NetCrypto.hex(NetCrypto.sha256(whole.payload).sublist(0, 8));
-    if (!fs.markPassed(tag)) return;
+    if (!whole.passed && !fs.markPassed(tag)) return;
     _passedBytes += whole.payload.length;
     final packet = Packet.wrap(from: whole.from, sealed: true, fs: true, passed: true, payload: whole.payload);
     final self = Peer(id: me);
@@ -389,9 +411,10 @@ class Switchboard {
       if (whole.fs) {
         final fs = this.fs;
         if (fs == null || !fs.loaded) {
-          // Not answered, and asked for again sealed the old way (an `fsk` with no prekey, which says this device
-          // can't do forward secrecy now).
+          // Not answered; passed on to a sibling that may open it, and asked for again with `nofs` and this device's
+          // name: the sender sends this device an old-sealed copy until it offers a prekey (third review, item 3).
           _askForKeys(peer!, a.carrier);
+          _passOn(whole, a.carrier);
           return;
         }
         final o = await fs.openAway(from: whole.from, to: me, pairKey: peer!.key!, payload: whole.payload);
@@ -425,7 +448,10 @@ class Switchboard {
     void maybeOld() {
       if (!whole.sealed || whole.fs || envelope.fs != null || (_carriers[a.carrier]?.traits.maxPacket ?? 0) <= smallRoute) return;
       if ((_now().millisecondsSinceEpoch - envelope.at).abs() > freshFor.inMilliseconds) return;
-      if (fs?.loaded ?? false) fs!.sawOld(peer!.id);
+      if (!(fs?.loaded ?? false)) return;
+      // A device that said which it is ('nofs' in an ask), or one that can't (a build from before).
+      final d = envelope.kind == fsAsk && envelope.body['nofs'] == 1 && envelope.body['d'] is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(envelope.body['d'] as String) ? envelope.body['d'] as String : '';
+      fs!.sawOld(peer!.id, device: d);
     }
 
     if (peer == null || peer.key == null) {
@@ -470,7 +496,9 @@ class Switchboard {
     final last = _fsAsked[peer.id];
     if (last != null && now.difference(last) < const Duration(minutes: 10)) return;
     _fsAsked[peer.id] = now;
-    unawaited(send(peer, Envelope(kind: fsAsk, ack: false), only: {via}).catchError((_) => const Delivery('')));
+    final f = fs;
+    final body = f != null && !f.loaded ? {'d': f.device, 'nofs': 1} : const <String, dynamic>{};
+    unawaited(send(peer, Envelope(kind: fsAsk, body: body, ack: false), only: {via}).catchError((_) => const Delivery('')));
   }
 
   /// Whether this name has not been seen before; the last two thousand are remembered.

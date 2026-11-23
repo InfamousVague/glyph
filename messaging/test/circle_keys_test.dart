@@ -636,4 +636,55 @@ void main() {
     expect(kept.containsKey('m0'), isFalse);
     await circles.clear();
   });
+
+  group('with circle keys switched off', () {
+    setUp(() => CircleKeys.enabled = false);
+    tearDown(() => CircleKeys.enabled = true);
+
+    test('what a build with them on left waiting in a space goes, under the seed\'s key', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), maya = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      addTearDown(mine.clear);
+      expect(mine.keys, isNull);
+      final c = (await mine.make(name: 'Book club'))!;
+      final text = c.spaces.firstWhere((s) => s.kind == SpaceKind.text);
+      final channel = c.channelOf(text);
+      final store = MemoryHangoutStore()..keepVotes('${channel.chatRoom}:u', jsonEncode([
+            {'w': {'t': 'msg', 'id': 'm-left', 'x': 'left waiting', 'at': 1, 'n': 'Maya'}, 'k': true, 'r': false},
+          ]));
+      final theirs = HangoutRoom(channel: channel, route: _Route(hub, owner.id), name: 'Owner', signer: KeysSigner(owner));
+      await theirs.open();
+      addTearDown(theirs.close);
+      final hers = HangoutRoom(channel: channel, route: _Route(hub, maya.id), name: 'Maya', signer: KeysSigner(maya), store: store);
+      expect(hers.circleKeys, isNull);
+      await hers.open();
+      addTearDown(hers.close);
+      await _until(() => theirs.messages.any((m) => m.text == 'left waiting'));
+      expect(theirs.messages.map((m) => m.text), contains('left waiting'));
+      expect(hers.waitingForKey, isFalse);
+    });
+
+    test('an inbox or a banned notice heard in a circle\'s room does nothing', () async {
+      final hub = _Hub();
+      final owner = NetKeys.generate(), sam = NetKeys.generate();
+      final mine = Circles.forTest(signer: KeysSigner(owner), route: _Route(hub, owner.id));
+      final his = Circles.forTest(signer: KeysSigner(sam), route: _Route(hub, sam.id));
+      addTearDown(mine.clear);
+      addTearDown(his.clear);
+      final c = (await mine.make(name: 'Book club'))!;
+      his.join(_copy(mine.bySeed(c.seed)!));
+      await _until(() => his.bySeed(c.seed)?.manifest.isSigned ?? false);
+      final ear = _Route(hub, owner.id);
+      await ear.join(c.room, c.token);
+      final k = CircleKeys.fresh();
+      ear.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode(await k.inboxSaid(c.seed, KeysSigner(owner))))));
+      final at = DateTime.now().millisecondsSinceEpoch;
+      final sig = NetCrypto.sign(owner, CircleRoom.outMessage(c.seed, sam.id, at));
+      ear.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'out', 'to': sam.id, 'at': at, 'k': NetCrypto.hex(owner.public), 'sig': NetCrypto.hex(sig)}))));
+      await _settle(150);
+      expect(mine.roomOf(c)!.inboxes, isEmpty);
+      expect(his.bySeed(c.seed), isNotNull, reason: 'not put out by a notice the manifest doesn\'t back');
+    });
+  });
 }

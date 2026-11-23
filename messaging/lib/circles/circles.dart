@@ -1712,14 +1712,16 @@ class CircleRoom {
     }
     switch (m['t']) {
       case 'out':
-        // Banned, as the owner or an admin says, in the last ten minutes.
+        // Banned, as the owner or an admin says, in the last ten minutes. Only with circle keys on (with them off the
+        // manifest says it, as before).
         final k = m['k'], sig = m['sig'], at = m['at'];
-        if (m['to'] != me || k is! String || sig is! String || at is! int || (DateTime.now().millisecondsSinceEpoch - at).abs() > const Duration(minutes: 10).inMilliseconds) return;
+        if (keys == null || m['to'] != me || k is! String || sig is! String || at is! int || (DateTime.now().millisecondsSinceEpoch - at).abs() > const Duration(minutes: 10).inMilliseconds) return;
         try {
           final key = NetCrypto.unhex(k);
           if (NetCrypto.idOf(key) == from && circle.manifest.canSign(from) && NetCrypto.verify(key, outMessage(circle.seed, me, at), NetCrypto.unhex(sig))) onOut?.call();
         } catch (_) {}
       case 'ik':
+        if (keys == null) return;
         final i = CircleKeys.inboxOf(circle.seed, from, m);
         if (i != null) _keepInbox(i);
       case 'rk' || 'kb':

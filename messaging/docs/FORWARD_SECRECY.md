@@ -91,8 +91,17 @@ HMAC, and AES-256-GCM (`FastGcm`). There are no new ciphers. Each EC operation t
 sealing for three devices takes about 20 ms. The old sealing takes about 0.06 ms. So sealing and opening run on one
 long-lived worker isolate, not on the one that draws the screens. Jobs go through it in a queue, in the order asked.
 What arrives is handled one packet at a time, in the order it came, so a ring, its cancel, or an edit can't be
-reordered by one packet taking longer to open than the next. Acknowledgements and `fsk` carry nothing worth keeping
-secret, so they get the old sealing (still with our prekey in them).
+reordered by one packet taking longer to open than the next. The worker is supervised:
+- each job has 5 seconds;
+- if the worker dies or errs, every job waiting is failed and the next job starts a new worker;
+- a start that failed is not kept.
+
+A job that fails is done on the main isolate instead, so a packet is never stuck and the queue moves on. A packet
+that can't be opened even then is dropped, not acknowledged. Old-sealed packets wait their turn behind forward-secret
+ones rather than skip ahead, to keep the order.
+
+Acknowledgements and `fsk` carry nothing worth keeping secret, so they get the old sealing (still with our prekey in
+them).
 
 ### Opening, replays, deletion
 
@@ -112,19 +121,27 @@ secret, so they get the old sealing (still with our prekey in them).
     30 seconds for clock skew) shows it as missed rather than ringing.
   - It passes the packet on, still sealed, to its own account's id, so a sibling can open it. The relay hands it to
     a sibling, or keeps it for whichever comes first. This is limited:
-    - only if the header names a sibling device this one has heard from (other than itself);
-    - only if forward secrecy is loaded here;
-    - never a packet that was itself passed on (flag 8), so it isn't passed on a second time;
-    - each packet once, remembered across restarts (the relay may hand a held own-id packet back to the very device
-      that passed it on);
+    - only if the header names any device other than this one. The device needn't know the other device: one back
+      after more than a week has forgotten its siblings;
+    - this applies whether or not forward secrecy is loaded here;
+    - a packet passed on by another device of the account (flag 8) is not passed on again;
+    - each packet once, remembered across restarts. One that comes back to the device that passed it on (it was the
+      only device online, and the relay handed the held packet back to it) is put back on the account's id, at most 3
+      times in all;
     - at most 256 KB per 10 minutes.
+    A relay updated with this change no longer hands a device back the own-id packets it sent itself. It keeps them
+    for the account's other devices, so that bounce stops happening. The app doesn't depend on that.
     The hub stamps each packet with the sender it authenticated. A packet whose own `from` doesn't match that stamp
     (or, for one passed on, isn't the account's own id) is dropped.
 - **Forward secrecy that can't load** (an iPhone's Keychain can't be read before its first unlock) is tried again
   every 30 seconds and whenever the app comes back. Until it loads, the device sends everything the old way with no
-  prekey. To a forward-secret packet it can't open, it answers with an `fsk` with no prekey. That `fsk` is new and
-  current and has no prekey, so the sender sends everything to that account the old way, starting with whatever is
-  still unacknowledged.
+  prekey. To a forward-secret packet it can't open, it does two things:
+  - it answers with an `fsk` saying which device it is and that it has no forward secrecy (`{d, nofs: 1}`);
+  - it passes the packet on to its siblings.
+
+  The sender then sends that account an old-sealed copy of each envelope besides the forward-secret one, until that
+  device offers a prekey. That happens as soon as it loads and sends anything, and the old copies stop. Its other
+  devices go on getting the forward-secret packet. Whatever was unacknowledged goes again at once.
 - **A new prekey** goes into the secret store before it is used or offered. If the write fails, nothing changes.
 - **Deletion.** The one-off private key is never kept anywhere. A prekey's private half is removed from memory and
   from the secret store at `keepFor`, and it isn't used even before the deletion actually runs. Signing out deletes
@@ -137,10 +154,14 @@ secret, so they get the old sealing (still with our prekey in them).
 - **A peer's device gone quiet** past 7 days (`useFor`) is forgotten. Packets are sealed for their other devices only,
   still forward secret. If the quiet device comes back and gets one, it can't open it: it answers with `fsk` and
   passes it on to its siblings, as above.
-- **A peer with a device that can't do forward secrecy.** An old-sealed envelope with no prekey in it, from an id, over
-  a route that carries prekeys, means that id has such a device: a build from before, or one whose forward secrecy
-  hasn't loaded. For 7 days after that (`oldDeviceFor`), everything to that id goes the old way, so that device can
-  read it. This applies to friends and to the account's own id (copies to an old sibling).
+- **A peer with a device that can't do forward secrecy.** This is known in two ways:
+  - an old-sealed envelope with no prekey in it, from an id, over a route that carries prekeys. That means a build
+    from before, which can't say which device it is;
+  - an `fsk` with `nofs` from a named device.
+
+  For 7 days after that (`oldDeviceFor`), every envelope to that id also goes as an old-sealed copy, which the device
+  reads. The id's other devices still get the forward-secret packet. For a named device, the copies stop as soon as it
+  offers a prekey. This applies to friends and to the account's own id (copies to an old sibling).
   - It counts only from an envelope that is new (its id not seen before, checked after the duplicate check) and
     current (its time within 5 minutes of now). So a replayed old packet can't turn forward secrecy off.
   - Duplicates are dropped by envelope id, as before.
@@ -161,7 +182,7 @@ step.
 - A new device, or one the sender hasn't heard of, answers with `fsk` and passes the packet on to the siblings it
   knows, as described above. The sender sends again, sealed for it too, whatever it hasn't had acknowledged.
 - A build from before on one of the account's devices never offers a prekey. Once it has sent anything, everything
-  to that account goes the old way for a week, so it reads it. Until it has sent something, it is unknown: what it
+  to that account also goes as an old-sealed copy for a week, so it reads it. Until it has sent something, it is unknown: what it
   gets sealed for its siblings it can't open, and it can't pass on or ask, so that is lost to that old device. The
   siblings still get it.
 - Device sync of history (GMFB-21) keeps working. Copies go to the account's own id, sealed to the siblings'
@@ -286,8 +307,9 @@ epoch key they've held, so earlier messages still open.
 - **Anything stored on a device.** Your message history is kept on your devices. Whoever takes a device reads what's
   stored there, forward secrecy or not. Forward secrecy protects traffic that was recorded, not your history.
 - **Traffic recorded before this release,** and anything sealed the old way. That includes:
-  - everything for a week to an account (yours included) that has a device without forward secrecy: a build from
-    before, or one whose Keychain wasn't unlocked yet;
+  - the old-sealed copy sent for a week to an account (yours included) that has a device without forward secrecy: a
+    build from before, or one whose Keychain wasn't unlocked yet. Copies to a named device stop once it offers a
+    prekey. Anyone who recorded the old copy can open it with the long-term key;
   - everything to and from builds from before;
   - acknowledgements and `fsk` (which hold no content);
   - data texts (SMS route).
@@ -324,14 +346,17 @@ epoch key they've held, so earlier messages still open.
 | Old build | New | Old sealing, accepted as always |
 | New | New, prekey heard within 7 days | Forward-secret sealing for every device of theirs heard from |
 | New | New, one of their devices quiet 7 to 15 days | Old sealing until it answers with a fresh prekey, or is forgotten at 15 days |
-| New | An account with a device that sent the old way in the last 7 days | Old sealing, so that device reads it |
+| New | An account with a device without forward secrecy in the last 7 days | Forward-secret packet plus an old-sealed copy for that device |
 | Any | Acknowledgements and `fsk` | Old sealing, with the prekey |
 | Any | Over data texts (SMS) | Old sealing, nothing added |
 | Circle, new, epoch held (switched off) | Circle, old build | Old build can't read it until it updates and is given the key |
 | Circle, old build | Circle, new | Seed's key, accepted |
 
-**Relay:** nothing changes, so there is nothing to deploy. Prekeys travel inside sealed envelopes, and circle keys
-travel in the circle's room as kept packets. A relay that knows nothing about this carries all of it.
+**Relay:** nothing is needed. Prekeys travel inside sealed envelopes, and circle keys travel in the circle's room as
+kept packets. A relay that knows nothing about this carries all of it. One optional relay change is written and
+tested (`relay/lib/hub.dart`, `relay/test/devices_test.dart`) but not deployed: a packet a device sends to its own
+name while nobody else of it is online is kept for the account's other devices, not handed back to that device. It
+saves passed-on packets from bouncing back. The app works without it.
 
 ## Not built yet
 
