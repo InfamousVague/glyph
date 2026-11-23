@@ -53,6 +53,7 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 | `/link/...` | The pages a network sign-in comes back to (only with those networks set up). |
 | `/market/...` | A Marketplace. The apps never read yours (above); the sample env file closes it. |
 | `/feedback`, `/bounty` | Ghost Messaging's own feedback board and bug bounty; off without their variables. |
+| `/app/...` | The app in a browser, as plain files, with `--web` (or `GHOST_WEB_DIR`); `/app/clear-site-data` answers `Clear-Site-Data: "storage"`, which the page asks for as it signs out. None without it. |
 | anything else | `Ghost Messaging relay` as plain text: a quick check that it is up. |
 
 It writes only under its data folder (`--data`): pairings, usernames and linked handles, sealed account backups,
@@ -75,7 +76,9 @@ three things, and you should keep them:
 - `GHOST_MARKET_ON=0` (the apps never read your Marketplace).
 
 Optional groups: a TURN server for calls (`GHOST_TURN_*`), link helpers for the apps' direct links between devices
-(`GHOST_LINK_HELPERS`: without one they link only on one network), Files limits (`GHOST_FILES_*`, lower
+(`GHOST_LINK_HELPERS`: without one they link only on one network), the app in a browser (`GHOST_WEB_DIR`; and
+`GHOST_APP_ORIGIN`, the address it is served from where that is one of its own, whose page may then read the answers
+to the reports and feedback it sends, and nothing else), Files limits (`GHOST_FILES_*`, lower
 `GHOST_FILES_TOTAL` to fit your disk), Twilio Verify for number checks (`GHOST_TWILIO_*`), network sign-ins
 (`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`, `GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only
 Ghost Messaging's own relay can use; leave them empty.
