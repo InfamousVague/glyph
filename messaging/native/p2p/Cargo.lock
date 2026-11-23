@@ -1044,8 +1044,10 @@ dependencies = [
  "iroh",
  "jni-sys 0.4.1",
  "n0-future",
+ "netdev",
  "tokio",
  "tokio-util",
+ "zeroize",
 ]
 
 [[package]]

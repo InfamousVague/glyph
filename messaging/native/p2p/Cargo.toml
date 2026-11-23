@@ -22,6 +22,11 @@ iroh = { version = "=1.5.0", default-features = false, features = ["tls-ring"] }
 tokio = { version = "=1.54.1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { version = "=0.7.20", default-features = false }
 n0-future = "=0.3.2"
+# Already in the tree by way of iroh, at these versions: this machine's network interfaces and their addresses (what a
+# node tells its friends, and the port it asks for on each network); and writing a node key over before its memory is
+# let go.
+netdev = { version = "=0.47.0", default-features = false }
+zeroize = { version = "=1.9.2", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The two JNI calls src/ffi.rs makes to hand iroh's DNS the app's context; iroh's resolver brings this in already.

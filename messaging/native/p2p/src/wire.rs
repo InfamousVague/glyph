@@ -20,6 +20,9 @@ pub const MAX_HELPER_LEN: usize = 200;
 pub const MAX_ADDRESSES: usize = 8;
 pub const MAX_ADDRESS_LEN: usize = 64;
 
+/// The most streams one TAKEN or DONE names: the Dart side says them once for all it handled of one batch of events.
+pub const MAX_LISTED: usize = 4096;
+
 pub mod cmd {
     pub const START: u8 = 0x01;
     pub const STOP: u8 = 0x02;
@@ -48,7 +51,8 @@ pub mod ev {
     pub const CLOSED: u8 = 0x0b;
 }
 
-/// Where a frame's bytes start in a FRAME event (and in a SEND command): after the kind and the stream.
+/// Where a frame's bytes start in a SEND command (after the kind and the stream), and how long a FRAME event's head is
+/// (the kind and the stream: the frame itself is handed over beside it, in a buffer of its own).
 pub const FRAME_AT: usize = 9;
 
 /// A set of channels: a channel is one byte on the wire, so any of 256.
@@ -97,6 +101,14 @@ impl std::fmt::Debug for Config {
     }
 }
 
+/// The node key is not left behind in memory this library lets go of (zeroize writes it over in a way the compiler
+/// keeps). iroh keeps its own copy for as long as the node is up, which it needs.
+impl Drop for Config {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(&mut self.secret);
+    }
+}
+
 /// Where another node last said it is (`Whereabouts`), as a dial is given it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Hint {
@@ -133,13 +145,13 @@ pub enum Command {
     Close {
         stream: u64,
     },
+    /// For each stream named, how many of its frames, of how many bytes in all, the app has handed on.
     Taken {
-        stream: u64,
-        frames: u32,
-        bytes: u32,
+        list: Vec<(u64, u32, u32)>,
     },
+    /// The streams whose CLOSED the app has handled.
     Done {
-        stream: u64,
+        list: Vec<u64>,
     },
     NetworkChanged,
 }
@@ -193,6 +205,18 @@ impl<'a> Reader<'a> {
             return Err(Malformed::TooLong);
         }
         String::from_utf8(self.take(len)?.to_vec()).map_err(|_| Malformed::NotText)
+    }
+
+    /// How many a list names: at least one, at most [`MAX_LISTED`], and no more than the bytes left could hold.
+    fn listed(&mut self) -> Result<usize, Malformed> {
+        let n = self.u16()? as usize;
+        if n == 0 {
+            return Err(Malformed::Short);
+        }
+        if n > MAX_LISTED {
+            return Err(Malformed::TooMany);
+        }
+        Ok(n)
     }
 
     fn channels(&mut self) -> Result<Channels, Malformed> {
@@ -255,8 +279,22 @@ impl Command {
                 return Ok(Command::Send { stream, len });
             }
             cmd::CLOSE => Command::Close { stream: r.u64()? },
-            cmd::TAKEN => Command::Taken { stream: r.u64()?, frames: r.u32()?, bytes: r.u32()? },
-            cmd::DONE => Command::Done { stream: r.u64()? },
+            cmd::TAKEN => {
+                let n = r.listed()?;
+                let mut list = Vec::with_capacity(n);
+                for _ in 0..n {
+                    list.push((r.u64()?, r.u32()?, r.u32()?));
+                }
+                Command::Taken { list }
+            }
+            cmd::DONE => {
+                let n = r.listed()?;
+                let mut list = Vec::with_capacity(n);
+                for _ in 0..n {
+                    list.push(r.u64()?);
+                }
+                Command::Done { list }
+            }
             cmd::NETWORK_CHANGED => Command::NetworkChanged,
             other => return Err(Malformed::Unknown(other)),
         };
@@ -345,9 +383,10 @@ pub enum Event {
         node: [u8; 32],
         channel: u8,
     },
-    /// Already in its bytes (the frame was read off the network straight into them): [`Event::frame`] made it.
+    /// A frame, read off the network straight into the buffer it is handed over in.
     Frame {
-        bytes: Vec<u8>,
+        stream: u64,
+        frame: Vec<u8>,
     },
     Sent {
         stream: u64,
@@ -360,34 +399,34 @@ pub enum Event {
 }
 
 impl Event {
-    /// The start of a FRAME event, for the frame's bytes to be read in after.
-    pub fn frame_header(stream: u64, room: usize) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(FRAME_AT + room);
-        bytes.push(ev::FRAME);
-        bytes.extend_from_slice(&stream.to_be_bytes());
-        bytes
-    }
-
-    /// A whole FRAME event.
-    pub fn frame(stream: u64, frame: &[u8]) -> Event {
-        let mut bytes = Self::frame_header(stream, frame.len());
-        bytes.extend_from_slice(frame);
-        Event::Frame { bytes }
+    /// A FRAME event's head: the kind and the stream. The frame goes beside it, as a buffer of its own.
+    pub fn frame_head(stream: u64) -> [u8; FRAME_AT] {
+        let mut head = [0u8; FRAME_AT];
+        head[0] = ev::FRAME;
+        head[1..].copy_from_slice(&stream.to_be_bytes());
+        head
     }
 
     /// The stream and the frame of a FRAME event.
     pub fn as_frame(&self) -> Option<(u64, &[u8])> {
         match self {
-            Event::Frame { bytes } if bytes.len() >= FRAME_AT => {
-                Some((u64::from_be_bytes(bytes[1..FRAME_AT].try_into().expect("eight bytes")), &bytes[FRAME_AT..]))
-            }
+            Event::Frame { stream, frame } => Some((*stream, frame)),
             _ => None,
         }
     }
 
-    pub fn encode(self) -> Vec<u8> {
+    /// The event as the app is handed it: its bytes, and for a FRAME, the frame beside them.
+    pub fn encode(self) -> (Vec<u8>, Option<Vec<u8>>) {
         match self {
-            Event::Frame { bytes } => bytes,
+            Event::Frame { stream, frame } => (Self::frame_head(stream).to_vec(), Some(frame)),
+            other => (other.encode_head(), None),
+        }
+    }
+
+    /// Every event but a FRAME, as its bytes.
+    fn encode_head(self) -> Vec<u8> {
+        match self {
+            Event::Frame { stream, .. } => Self::frame_head(stream).to_vec(),
             Event::Up { node } => [&[ev::UP][..], &node].concat(),
             Event::Down { problem } => [&[ev::DOWN][..], problem.as_bytes()].concat(),
             Event::Off => vec![ev::OFF],
@@ -485,8 +524,19 @@ mod tests {
             [&[cmd::DISALLOW][..], &[5u8; 32]].concat(),
             vec![cmd::OPEN_TO_ALL, 1, 1],
             [&[cmd::CLOSE][..], &9u64.to_be_bytes()].concat(),
-            [&[cmd::TAKEN][..], &9u64.to_be_bytes(), &1u32.to_be_bytes(), &2u32.to_be_bytes()].concat(),
-            [&[cmd::DONE][..], &9u64.to_be_bytes()].concat(),
+            [&[cmd::TAKEN, 0, 1][..], &9u64.to_be_bytes(), &1u32.to_be_bytes(), &2u32.to_be_bytes()].concat(),
+            [
+                &[cmd::TAKEN, 0, 2][..],
+                &9u64.to_be_bytes(),
+                &1u32.to_be_bytes(),
+                &2u32.to_be_bytes(),
+                &8u64.to_be_bytes(),
+                &3u32.to_be_bytes(),
+                &4u32.to_be_bytes(),
+            ]
+            .concat(),
+            [&[cmd::DONE, 0, 1][..], &9u64.to_be_bytes()].concat(),
+            [&[cmd::DONE, 0, 2][..], &9u64.to_be_bytes(), &10u64.to_be_bytes()].concat(),
         ];
         for bytes in &whole {
             assert!(Command::decode(bytes).is_ok(), "{bytes:?}");
@@ -509,6 +559,32 @@ mod tests {
         );
         assert_eq!(Command::decode(&[]), Err(Malformed::Empty));
         assert_eq!(Command::decode(&[0x7f]), Err(Malformed::Unknown(0x7f)));
+        // A list of streams is read whole, and says how long it is: never none, never more than are allowed.
+        assert_eq!(
+            Command::decode(
+                &[
+                    &[cmd::TAKEN, 0, 2][..],
+                    &9u64.to_be_bytes(),
+                    &1u32.to_be_bytes(),
+                    &2u32.to_be_bytes(),
+                    &8u64.to_be_bytes(),
+                    &3u32.to_be_bytes(),
+                    &4u32.to_be_bytes()
+                ]
+                .concat()
+            ),
+            Ok(Command::Taken { list: vec![(9, 1, 2), (8, 3, 4)] })
+        );
+        assert_eq!(
+            Command::decode(&[&[cmd::DONE, 0, 2][..], &9u64.to_be_bytes(), &10u64.to_be_bytes()].concat()),
+            Ok(Command::Done { list: vec![9, 10] })
+        );
+        assert_eq!(Command::decode(&[cmd::TAKEN, 0, 0]), Err(Malformed::Short));
+        assert_eq!(Command::decode(&[cmd::DONE, 0, 0]), Err(Malformed::Short));
+        let mut many = vec![cmd::DONE];
+        many.extend_from_slice(&((MAX_LISTED + 1) as u16).to_be_bytes());
+        many.resize(3 + (MAX_LISTED + 1) * 8, 0);
+        assert_eq!(Command::decode(&many), Err(Malformed::TooMany));
     }
 
     #[test]
@@ -539,45 +615,54 @@ mod tests {
         assert_eq!(format!("{set:?}"), "{0, 2, 255}");
     }
 
+    /// An event's bytes, where it is not a frame.
+    fn bytes(event: Event) -> Vec<u8> {
+        let (head, frame) = event.encode();
+        assert!(frame.is_none());
+        head
+    }
+
     #[test]
     fn events_are_laid_out_as_the_readme_says() {
-        assert_eq!(Event::Up { node: [1; 32] }.encode(), [&[ev::UP][..], &[1u8; 32]].concat());
-        assert_eq!(Event::Down { problem: "no".into() }.encode(), vec![ev::DOWN, b'n', b'o']);
-        assert_eq!(Event::Off.encode(), vec![ev::OFF]);
+        assert_eq!(bytes(Event::Up { node: [1; 32] }), [&[ev::UP][..], &[1u8; 32]].concat());
+        assert_eq!(bytes(Event::Down { problem: "no".into() }), vec![ev::DOWN, b'n', b'o']);
+        assert_eq!(bytes(Event::Off), vec![ev::OFF]);
         assert_eq!(
-            Event::Whereabouts { helper: Some("https://h".into()), addresses: vec!["1.2.3.4:5".into()] }.encode(),
+            bytes(Event::Whereabouts { helper: Some("https://h".into()), addresses: vec!["1.2.3.4:5".into()] }),
             [&[ev::WHEREABOUTS, 0, 9][..], b"https://h", &[1, 9], b"1.2.3.4:5"].concat()
         );
-        assert_eq!(Event::Whereabouts { helper: None, addresses: vec![] }.encode(), vec![ev::WHEREABOUTS, 0, 0, 0]);
+        assert_eq!(bytes(Event::Whereabouts { helper: None, addresses: vec![] }), vec![ev::WHEREABOUTS, 0, 0, 0]);
         assert_eq!(
-            Event::Path { node: [2; 32], kind: PathKind::Direct, rtt_ms: Some(7) }.encode(),
+            bytes(Event::Path { node: [2; 32], kind: PathKind::Direct, rtt_ms: Some(7) }),
             [&[ev::PATH][..], &[2u8; 32], &[2, 0, 0, 0, 7]].concat()
         );
         assert_eq!(
-            Event::Path { node: [2; 32], kind: PathKind::None, rtt_ms: None }.encode(),
+            bytes(Event::Path { node: [2; 32], kind: PathKind::None, rtt_ms: None }),
             [&[ev::PATH][..], &[2u8; 32], &[0, 255, 255, 255, 255]].concat()
         );
-        assert_eq!(Event::Opened { request: 3, stream: 4 }.encode(), vec![ev::OPENED, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4]);
+        assert_eq!(bytes(Event::Opened { request: 3, stream: 4 }), vec![ev::OPENED, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4]);
         assert_eq!(
-            Event::OpenFailed { request: 3, why: OpenError::TurnedAway, message: "x".into() }.encode(),
+            bytes(Event::OpenFailed { request: 3, why: OpenError::TurnedAway, message: "x".into() }),
             vec![ev::OPEN_FAILED, 0, 0, 0, 3, 3, b'x']
         );
         assert_eq!(
-            Event::Incoming { stream: 5, node: [9; 32], channel: 1 }.encode(),
+            bytes(Event::Incoming { stream: 5, node: [9; 32], channel: 1 }),
             [&[ev::INCOMING, 0, 0, 0, 0, 0, 0, 0, 5][..], &[9u8; 32], &[1]].concat()
         );
-        assert_eq!(Event::frame(6, b"abc").encode(), vec![ev::FRAME, 0, 0, 0, 0, 0, 0, 0, 6, b'a', b'b', b'c']);
-        assert_eq!(Event::frame(6, b"abc").as_frame(), Some((6, &b"abc"[..])));
-        assert_eq!(Event::Sent { stream: 6, frames: 258 }.encode(), vec![ev::SENT, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 1, 2]);
-        assert_eq!(Event::Closed { stream: 6, why: Closed::Overflow }.encode(), vec![ev::CLOSED, 0, 0, 0, 0, 0, 0, 0, 6, 5]);
+        // A frame is its head, and the frame itself beside it in a buffer of its own.
+        let frame = Event::Frame { stream: 6, frame: b"abc".to_vec() };
+        assert_eq!(frame.as_frame(), Some((6, &b"abc"[..])));
+        assert_eq!(frame.encode(), (vec![ev::FRAME, 0, 0, 0, 0, 0, 0, 0, 6], Some(b"abc".to_vec())));
+        assert_eq!(bytes(Event::Sent { stream: 6, frames: 258 }), vec![ev::SENT, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 1, 2]);
+        assert_eq!(bytes(Event::Closed { stream: 6, why: Closed::Overflow }), vec![ev::CLOSED, 0, 0, 0, 0, 0, 0, 0, 6, 5]);
     }
 
     #[test]
     fn whereabouts_never_say_more_than_the_app_keeps() {
         let many: Vec<String> = (0..20).map(|i| format!("10.0.0.{i}:1")).collect();
-        let bytes = Event::Whereabouts { helper: None, addresses: many }.encode();
-        assert_eq!(bytes[3] as usize, MAX_ADDRESSES);
-        let long = Event::Whereabouts { helper: None, addresses: vec!["x".repeat(MAX_ADDRESS_LEN + 1), "1.1.1.1:1".into()] }.encode();
+        let said = bytes(Event::Whereabouts { helper: None, addresses: many });
+        assert_eq!(said[3] as usize, MAX_ADDRESSES);
+        let long = bytes(Event::Whereabouts { helper: None, addresses: vec!["x".repeat(MAX_ADDRESS_LEN + 1), "1.1.1.1:1".into()] });
         assert_eq!(long[3], 1);
     }
 

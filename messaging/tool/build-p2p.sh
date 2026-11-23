@@ -38,7 +38,7 @@ need() { (cd "$CRATE" && rustup target add "$@" >/dev/null 2>&1) || { echo "x ru
 # built dependencies serve every kind.
 build() { (cd "$CRATE" && cargo rustc --quiet --release --locked --lib --crate-type "$1" --target "$2" -- $3); }
 # The seven functions the Dart side looks up (native/p2p/include/ghost_p2p.h): a library without one of them is no use.
-FUNCTIONS="ghost_p2p_abi ghost_p2p_node_id ghost_p2p_new ghost_p2p_command ghost_p2p_buffer_free ghost_p2p_drop ghost_p2p_drop_owned"
+FUNCTIONS="ghost_p2p_abi ghost_p2p_ready ghost_p2p_node_id ghost_p2p_new ghost_p2p_command ghost_p2p_drop ghost_p2p_finalize"
 
 if [ "$target" = mac ]; then
   need aarch64-apple-darwin x86_64-apple-darwin
@@ -70,14 +70,19 @@ if [ "$target" = android ]; then
   TOOLS=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/bin | head -1)
   LIB="$OUT/android/arm64-v8a/libghost_p2p.so"
   # The NDK's own clang compiles what C there is (ring's) and links; 16 KB pages, as Android 15 and later ask of every
-  # library an app carries.
+  # library an app carries; and named, so that the system loads one copy whether Kotlin loads it first (P2pCore.kt,
+  # which hands it the app's context) or Dart does (by that name): the copy with the context is the one Dart uses.
   CC_aarch64_linux_android="$TOOLS/aarch64-linux-android$ANDROID_API-clang" AR_aarch64_linux_android="$TOOLS/llvm-ar" \
     CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLS/aarch64-linux-android$ANDROID_API-clang" \
-    build cdylib aarch64-linux-android "-C link-arg=-Wl,-z,max-page-size=16384"
+    build cdylib aarch64-linux-android "-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-soname,libghost_p2p.so"
   mkdir -p "$OUT/android/arm64-v8a"
   "$TOOLS/llvm-strip" --strip-unneeded -o "$LIB" "$CRATE/target/aarch64-linux-android/release/libghost_p2p.so"
   "$TOOLS/llvm-readelf" -h "$LIB" | grep -q "Machine:.*AArch64" || { echo "x $LIB is not for arm64" >&2; exit 1; }
   if "$TOOLS/llvm-readelf" -lW "$LIB" | awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then echo "x $LIB is not aligned to 16 KB pages" >&2; exit 1; fi
+  "$TOOLS/llvm-readelf" -d "$LIB" | grep -q "(SONAME).*\[libghost_p2p.so\]" || { echo "x $LIB is not named libghost_p2p.so" >&2; exit 1; }
+  # Loading it runs none of its code (no initialiser): the app opens it when a node is first made, and nothing of it
+  # runs until that node is started.
+  if "$TOOLS/llvm-readelf" -d "$LIB" | grep -q -e "(INIT)" -e "(INIT_ARRAY)" -e "(PREINIT_ARRAY)"; then echo "x $LIB runs code of its own as it is loaded" >&2; exit 1; fi
   for f in $FUNCTIONS Java_com_infamousvague_ghostmessaging_P2pCore_nativeInstall; do
     "$TOOLS/llvm-readelf" --dyn-syms -W "$LIB" | grep -q " $f\$" || { echo "x $LIB has no $f" >&2; exit 1; }
   done

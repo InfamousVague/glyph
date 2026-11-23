@@ -3,16 +3,20 @@
 //! idle node costs are run by name (`cargo test cost -- --ignored --nocapture`).
 
 use std::{
-    collections::VecDeque,
-    net::{Ipv4Addr, SocketAddr},
+    collections::{HashMap, VecDeque},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 
-use iroh::{Endpoint, EndpointAddr, EndpointId, SecretKey, TransportAddr, endpoint::presets};
+use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey, TransportAddr, endpoint::presets};
 use tokio::{runtime::Handle, sync::mpsc, time::timeout};
 
 use crate::{
-    node::{ALPN, FRAME_COST, LINK_IDLE, NODE_BUDGET, Node, SEND_QUEUE_BYTES, STREAM_COST, STREAMS_PER_LINK, SendError, first_port, helper, node_id},
+    node::{
+        ALPN, FRAME_COST, Here, LINK_IDLE, Limits, Local, NODE_BUDGET, Node, PEER_SHARE, SEND_QUEUE_BYTES, STREAM_COST, STREAMS_PER_LINK, SendError,
+        TestSetup, dialable, first_port, frame_time, grow, helper, node_id, virtual_interface, worth_telling,
+    },
     wire::{Channels, Closed, Config, Event, Hint, MAX_FRAME, OpenError, PathKind, hex},
 };
 
@@ -34,8 +38,10 @@ struct Dev {
 impl Dev {
     fn new(n: u8) -> Dev {
         let (tx, said) = mpsc::unbounded_channel();
-        let node = Node::new(&Handle::current(), move |event| {
-            let _ = tx.send(event);
+        let node = Node::new(&Handle::current(), move |events| {
+            for event in events {
+                let _ = tx.send(event);
+            }
         });
         let secret = [n; 32];
         Dev { node, said, kept: VecDeque::new(), secret, id: node_id(&secret), takes: true }
@@ -82,8 +88,23 @@ impl Dev {
         .is_ok()
     }
 
+    /// Everything it has said and not been asked for yet, and whatever it says in the next moment.
+    async fn drain(&mut self) -> Vec<Event> {
+        let mut all: Vec<Event> = self.kept.drain(..).collect();
+        while let Ok(Some(event)) = timeout(Duration::from_millis(100), self.said.recv()).await {
+            all.push(event);
+        }
+        all
+    }
+
     async fn up(&mut self) {
         self.node.start(self.config());
+        self.came_up().await;
+    }
+
+    /// Started on a network the test names, for the port it asks for there.
+    async fn up_on(&mut self, network: &[u8]) {
+        self.node.start_with(self.config(), TestSetup { network: Some(network.to_vec()), ..TestSetup::default() });
         self.came_up().await;
     }
 
@@ -190,6 +211,11 @@ impl Dev {
         }
         panic!("the budget is not whole: {:?} of {NODE_BUDGET}", self.node.budget_free());
     }
+}
+
+/// What a test starts a node on a link helper inside the test with.
+fn on_helper(map: &iroh::RelayMap) -> TestSetup {
+    TestSetup { helper: Some(map.clone()), ..TestSetup::default() }
 }
 
 /// A stopped node's port can be bound again: at once, or within the moment the system takes to let a socket go.
@@ -815,9 +841,9 @@ async fn two_nodes_given_only_a_link_helper_find_each_other() {
     let written = url.to_string().trim_end_matches('/').to_string();
     let (mut a, mut b) = (Dev::new(26), Dev::new(27));
     let config = |d: &Dev| Config { secret: d.secret, helpers: vec![written.clone()], helpers_only: false };
-    a.node.start_with(config(&a), map.clone());
+    a.node.start_with(config(&a), on_helper(&map));
     a.came_up().await;
-    b.node.start_with(config(&b), map.clone());
+    b.node.start_with(config(&b), on_helper(&map));
     b.came_up().await;
     b.node.allow(a.id, only(&[0]));
     // Where it is: on the helper, said as the app wrote it.
@@ -842,7 +868,7 @@ async fn two_nodes_given_only_a_link_helper_find_each_other() {
 
     // A node that is not allowed gets nothing by the helper: refused before any handshake, it learns no address.
     let mut stranger = Dev::new(28);
-    stranger.node.start_with(config(&stranger), map.clone());
+    stranger.node.start_with(config(&stranger), on_helper(&map));
     stranger.came_up().await;
     let (why, _) = stranger.open(1, b.id, 0, &hint).await.expect_err("refused through the helper, before any handshake");
     assert_eq!(why, OpenError::TurnedAway);
@@ -855,9 +881,9 @@ async fn only_through_link_helpers_keeps_the_path_through_the_helper() {
     let (map, url, _helper) = iroh::test_utils::run_relay_server().await.expect("a link helper");
     let written = url.to_string().trim_end_matches('/').to_string();
     let (mut hidden, mut other) = (Dev::new(29), Dev::new(30));
-    hidden.node.start_with(Config { secret: hidden.secret, helpers: vec![written.clone()], helpers_only: true }, map.clone());
+    hidden.node.start_with(Config { secret: hidden.secret, helpers: vec![written.clone()], helpers_only: true }, on_helper(&map));
     hidden.came_up().await;
-    other.node.start_with(Config { secret: other.secret, helpers: vec![written.clone()], helpers_only: false }, map.clone());
+    other.node.start_with(Config { secret: other.secret, helpers: vec![written.clone()], helpers_only: false }, on_helper(&map));
     other.came_up().await;
     hidden.node.allow(other.id, only(&[0]));
     other.node.allow(hidden.id, only(&[0]));
@@ -908,23 +934,25 @@ fn port_of(hint: &Hint) -> u16 {
 }
 
 /// Where a node was last said to be is where it is after a stop and a start, and after the app has closed and
-/// opened: it asks for the port its key makes the first time, and for the port it had every time after. A port that
-/// something else has taken is not waited for: it starts on another, which is then its port.
+/// opened: it asks for the port its key makes for the network it is on the first time, and for the port it had there
+/// every time after. A port that something else has taken is not waited for: it starts on another, which is then its
+/// port on that network.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_node_keeps_its_port_and_takes_another_where_it_is_taken() {
+    let home = b"192.168.1.0/24".to_vec();
     // The port a key makes: the same every time, its own, and never one a service is given.
-    assert_eq!(first_port(&[81; 32]), first_port(&[81; 32]));
-    let made: std::collections::HashSet<u16> = (0..=255u8).map(|n| first_port(&[n; 32])).collect();
+    assert_eq!(first_port(&[81; 32], &home), first_port(&[81; 32], &home));
+    let made: std::collections::HashSet<u16> = (0..=255u8).map(|n| first_port(&[n; 32], &home)).collect();
     assert!(made.len() > 240, "256 keys made {} ports between them", made.len());
     assert!(made.iter().all(|port| *port >= 49152));
 
     // A key whose port nothing on this machine has just now (another run of these tests may have the first tried).
     let free = |port: u16| std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).is_ok();
-    let n = (81..=120u8).find(|n| free(first_port(&[*n; 32]))).expect("a key whose port is free");
+    let n = (81..=120u8).find(|n| free(first_port(&[*n; 32], &home))).expect("a key whose port is free");
     let mut a = Dev::new(n);
-    a.up().await;
+    a.up_on(&home).await;
     let port = port_of(&a.here().await);
-    assert_eq!(port, first_port(&a.secret), "its first port is not the one its key makes");
+    assert_eq!(port, first_port(&a.secret, &home), "its first port is not the one its key makes");
     // Both kinds of address on the one port (where this machine has IPv6 at all): asking for a port loses neither.
     let sockets = a.node.sockets();
     let has_ipv6 = std::net::UdpSocket::bind((std::net::Ipv6Addr::UNSPECIFIED, 0)).is_ok();
@@ -934,7 +962,7 @@ async fn a_node_keeps_its_port_and_takes_another_where_it_is_taken() {
     // Stopped and started at once, again and again: the port it had.
     for round in 0..5 {
         a.off().await;
-        a.up().await;
+        a.up_on(&home).await;
         assert_eq!(port_of(&a.here().await), port, "round {round}: it came back on another port");
     }
 
@@ -949,13 +977,38 @@ async fn a_node_keeps_its_port_and_takes_another_where_it_is_taken() {
         }
     })
     .await;
-    a.up().await;
+    a.up_on(&home).await;
     let other = port_of(&a.here().await);
     assert_ne!(other, port, "two sockets have one port");
     drop(taken);
     a.off().await;
-    a.up().await;
+    a.up_on(&home).await;
     assert_eq!(port_of(&a.here().await), other);
+    a.off().await;
+}
+
+/// The port does not follow a device from one network to the next: on another network a node asks for another port,
+/// the one its key makes for that network, and back on the first it asks for the one it had there. (Two networks are
+/// told apart by the networks of the interface the route to the internet goes by; the test names them.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_node_asks_for_another_port_on_another_network() {
+    let (home, cafe) = (b"192.168.1.0/24".to_vec(), b"10.20.0.0/22,2001:db8:5:6::/64".to_vec());
+    assert_ne!(first_port(&[90; 32], &home), first_port(&[90; 32], &cafe), "one key made one port for two networks");
+    let spread: std::collections::HashSet<u16> = (0..64u8).map(|n| first_port(&[90; 32], format!("10.{n}.0.0/16").as_bytes())).collect();
+    assert!(spread.len() > 56, "64 networks made {} ports between them", spread.len());
+    let free = |port: u16| std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).is_ok();
+    let n = (90..=130u8).find(|n| free(first_port(&[*n; 32], &home)) && free(first_port(&[*n; 32], &cafe))).expect("a key whose ports are free");
+    let mut a = Dev::new(n);
+    a.up_on(&home).await;
+    let at_home = port_of(&a.here().await);
+    assert_eq!(at_home, first_port(&a.secret, &home));
+    a.off().await;
+    a.up_on(&cafe).await;
+    let at_cafe = port_of(&a.here().await);
+    assert_eq!(at_cafe, first_port(&a.secret, &cafe), "on another network it asked for the port it had on the first");
+    a.off().await;
+    a.up_on(&home).await;
+    assert_eq!(port_of(&a.here().await), at_home, "back home it did not ask for the port it had there");
     a.off().await;
 }
 
@@ -1023,7 +1076,7 @@ async fn a_link_helper_is_asked_nothing_on_port_80() {
     assert_eq!(url.host_str(), Some("127.0.0.1"), "the helper is not where this test listens");
     let written = url.to_string().trim_end_matches('/').to_string();
     let mut hidden = Dev::new(32);
-    hidden.node.start_with(Config { secret: hidden.secret, helpers: vec![written], helpers_only: true }, map);
+    hidden.node.start_with(Config { secret: hidden.secret, helpers: vec![written], helpers_only: true }, on_helper(&map));
     hidden.came_up().await;
     // It is on its helper: iroh has looked at the network, and the check would have begun a fifth of a second in.
     while hidden.whereabouts().await.0.is_none() {}
@@ -1096,7 +1149,7 @@ mod cost {
         let (map, url, helper) = iroh::test_utils::run_relay_server().await.expect("a link helper");
         let written = url.to_string().trim_end_matches('/').to_string();
         let mut a = Dev::new(43);
-        a.node.start_with(Config { secret: a.secret, helpers: vec![written], helpers_only: false }, map);
+        a.node.start_with(Config { secret: a.secret, helpers: vec![written], helpers_only: false }, on_helper(&map));
         a.came_up().await;
         while a.whereabouts().await.0.is_none() {}
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -1152,4 +1205,652 @@ async fn how_often_a_caller_turned_away_learns_an_address() {
         caller.close().await;
     }
     println!("COST {learnt} of {tries} callers that were turned away had been shown another address");
+}
+
+// What the review of the core found (2026-11-23), each held to here.
+
+/// A node started with smaller limits than every node has, so that a test can fill them with a few callers.
+async fn up_with(n: u8, limits: Limits, helper: Option<&iroh::RelayMap>, helpers: Vec<String>) -> Dev {
+    let mut dev = Dev::new(n);
+    let config = Config { secret: dev.secret, helpers, helpers_only: false };
+    dev.node.start_with(config, TestSetup { helper: helper.cloned(), limits: Some(limits), network: None });
+    dev.came_up().await;
+    dev
+}
+
+/// The address another device on this machine reaches `dev` at that is not loopback: the one it says (this machine's
+/// own address on its network), so that a caller there comes from another address than the tests' callers on
+/// 127.0.0.1.
+async fn said(dev: &mut Dev) -> Hint {
+    loop {
+        let (_, addresses) = dev.whereabouts().await;
+        if let Some(a) = addresses.iter().find(|a| a.parse::<SocketAddr>().is_ok_and(|a| a.is_ipv4())) {
+            return Hint { helper: None, addresses: vec![a.clone()] };
+        }
+    }
+}
+
+/// A UDP relay on 127.0.0.1 in front of `victim` that passes on the first datagram its caller sends and nothing after,
+/// and passes back whatever the victim answers: the victim takes the caller's first packet, answers it, and waits for
+/// the rest of a handshake that never comes. (The review's probe: any machine that can send UDP to the port can do it.)
+async fn stalling(victim: SocketAddr) -> SocketAddr {
+    let socket = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("a socket"));
+    let at = socket.local_addr().expect("its address");
+    tokio::spawn(async move {
+        let (mut caller, mut passed) = (None, false);
+        let mut buffer = vec![0u8; 65536];
+        loop {
+            let Ok((n, from)) = socket.recv_from(&mut buffer).await else { return };
+            if from == victim {
+                if let Some(caller) = caller {
+                    let _ = socket.send_to(&buffer[..n], caller).await;
+                }
+            } else {
+                caller = Some(from);
+                if !passed {
+                    passed = true;
+                    let _ = socket.send_to(&buffer[..n], victim).await;
+                }
+            }
+        }
+    });
+    at
+}
+
+/// `n` callers with keys of their own, each through a relay of its own that stalls it after its first packet: so many
+/// handshakes begun with `victim`, from 127.0.0.1, that never end.
+async fn stall(victim: [u8; 32], port: u16, n: usize) -> Vec<Endpoint> {
+    let mut callers = Vec::new();
+    for i in 0..n {
+        let relay = stalling(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await;
+        let caller = Endpoint::builder(presets::Minimal)
+            .secret_key(SecretKey::from_bytes(&[(150 + i) as u8; 32]))
+            .relay_mode(RelayMode::Disabled)
+            .clear_address_lookup()
+            .bind()
+            .await
+            .expect("an endpoint");
+        let addr = EndpointAddr::from_parts(EndpointId::from_bytes(&victim).unwrap(), [TransportAddr::Ip(relay)]);
+        let dialling = caller.clone();
+        tokio::spawn(async move {
+            let _ = timeout(Duration::from_secs(30), dialling.connect(addr, ALPN)).await;
+        });
+        callers.push(caller);
+    }
+    callers
+}
+
+/// Waits until `dev` has `n` handshakes under way in its pool for anyone, and a moment more to see it stays so.
+async fn handshaking(dev: &Dev, n: usize) {
+    for _ in 0..400 {
+        if dev.node.handshaking().map(|(any, _)| any) >= Some(n) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(dev.node.handshaking().map(|(any, _)| any), Some(n), "handshakes under way");
+}
+
+/// Limits for the tests of the door: a small pool, callers stalled for the old ten seconds, and nobody asked to prove
+/// their address, unless a test says otherwise.
+fn door(handshakes: usize, per_source: usize) -> Limits {
+    Limits { handshakes, per_source, identity: Duration::from_secs(10), retry_from: usize::MAX, ..Limits::USUAL }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn handshakes_stalled_from_one_address_leave_room_for_everyone_else() {
+    let mut b = up_with(64, door(16, Limits::USUAL.per_source), None, vec![]).await;
+    let mut a = Dev::new(65);
+    a.up().await;
+    b.node.allow(a.id, only(&[0]));
+    let there = said(&mut b).await;
+    let port = there.addresses[0].parse::<SocketAddr>().unwrap().port();
+    // Twenty callers from one machine begin handshakes and never finish them: they take the places one address may.
+    let _stalled = stall(b.id, port, 20).await;
+    handshaking(&b, Limits::USUAL.per_source).await;
+    // A device allowed, from another address, links in the moment it is given.
+    a.open_within(1, b.id, 0, &there, Duration::from_secs(5)).await.expect("shut out by strangers' handshakes from another address");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_caller_has_three_seconds_to_say_who_it_is() {
+    let limits = Limits { identity: Limits::USUAL.identity, ..door(8, 8) };
+    assert_eq!(limits.identity, Duration::from_secs(3));
+    let mut b = up_with(66, limits, None, vec![]).await;
+    let mut a = Dev::new(67);
+    a.up().await;
+    b.node.allow(a.id, only(&[0]));
+    let there = said(&mut b).await;
+    let port = there.addresses[0].parse::<SocketAddr>().unwrap().port();
+    // Every place is taken by callers that never say who they are.
+    let _stalled = stall(b.id, port, 8).await;
+    handshaking(&b, 8).await;
+    // Each is let go three seconds in, so a device allowed that tries meanwhile gets in a moment after (its own QUIC
+    // tries again a second, two, four on); under the old ten seconds it would not, in this wait.
+    let began = std::time::Instant::now();
+    a.open_within(1, b.id, 0, &there, Duration::from_secs(8)).await.expect("held out by callers that never said who they are");
+    assert!(began.elapsed() < Duration::from_secs(8));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn under_pressure_a_caller_shows_it_is_where_it_says_before_anything_is_set_aside() {
+    let limits = Limits { retry_from: 4, ..door(8, 8) };
+    let mut b = up_with(68, limits, None, vec![]).await;
+    let mut a = Dev::new(69);
+    a.up().await;
+    b.node.allow(a.id, only(&[0]));
+    let there = said(&mut b).await;
+    let port = there.addresses[0].parse::<SocketAddr>().unwrap().port();
+    // Twelve callers: the first four are taken as they come; from then on each is asked to show it is where it says
+    // (QUIC's retry), which a caller that cannot be answered there never gets past, so no more places are taken.
+    let _stalled = stall(b.id, port, 12).await;
+    handshaking(&b, 4).await;
+    // A device that can be answered where it is shows it, and gets in.
+    a.open_within(1, b.id, 0, &there, Duration::from_secs(5)).await.expect("a caller that can be answered was not let through");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_caller_through_a_link_helper_that_was_let_in_has_places_strangers_cannot_take() {
+    let (map, url, _helper) = iroh::test_utils::run_relay_server().await.expect("a link helper");
+    let written = url.to_string().trim_end_matches('/').to_string();
+    let mut b = up_with(70, door(8, 8), Some(&map), vec![written.clone()]).await;
+    let a = up_with(71, Limits::USUAL, Some(&map), vec![written.clone()]).await;
+    b.node.allow(a.id, only(&[0]));
+    let mut a = a;
+    let on = loop {
+        let (helper, addresses) = b.whereabouts().await;
+        if helper.is_some() && !addresses.is_empty() {
+            break (helper, addresses);
+        }
+    };
+    let port = on.1.iter().filter_map(|a| a.parse::<SocketAddr>().ok()).find(|a| a.is_ipv4()).expect("an IPv4 address").port();
+    // Every place for callers straight to its address is taken.
+    let _stalled = stall(b.id, port, 8).await;
+    handshaking(&b, 8).await;
+    // The device it let in comes through the helper, which said who it is: it takes a place of its own.
+    a.open_within(1, b.id, 0, &Hint { helper: on.0.clone(), addresses: vec![] }, Duration::from_secs(8))
+        .await
+        .expect("a device let in by name, through a helper, was shut out by strangers straight to the address");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_caller_turned_away_again_and_again_is_not_answered_for_a_while() {
+    let limits = Limits { refusals: 3, ..Limits::USUAL };
+    let mut b = up_with(72, limits, None, vec![]).await;
+    let hint = b.here().await;
+    // A stranger dialling from one address, each time afresh (an endpoint that knows only the address it is given:
+    // one that has been turned away may have been shown another address of this node's, which is another source).
+    let dial = async || {
+        let caller = by_hand(73).await;
+        let tried = timeout(Duration::from_millis(2500), async {
+            match caller.connect(at(b.id, &hint), ALPN).await {
+                Ok(conn) => Some(conn.closed().await),
+                Err(_) => None,
+            }
+        })
+        .await;
+        caller.close().await;
+        tried
+    };
+    for n in 0..3 {
+        let closed = dial().await.expect("an answer").expect("a handshake");
+        assert!(
+            matches!(&closed, iroh::endpoint::ConnectionError::ApplicationClosed(c) if c.error_code == iroh::endpoint::VarInt::from_u32(1)),
+            "refusal {n}: {closed:?}"
+        );
+    }
+    // The fourth in the while gets no answer at all: no handshake's arithmetic is done for it.
+    assert!(!matches!(dial().await, Ok(Some(_))), "a caller turned away three times in a while was answered again");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn one_node_holds_no_more_than_its_share_of_what_is_read_and_not_taken() {
+    let (mut a, mut b, hint) = pair(74, 75).await;
+    let mut streams = Vec::new();
+    for request in 0..4 {
+        let ours = a.open(request, b.id, 0, &hint).await.expect("a stream");
+        let (theirs, ..) = b.incoming().await;
+        streams.push((ours, theirs));
+    }
+    // The app stops taking, and each stream is sent two frames of the most. Four streams' windows would take four
+    // frames; the sender's share takes two, and then nothing more of it is read.
+    b.takes = false;
+    let big = vec![1u8; MAX_FRAME];
+    for (ours, _) in &streams {
+        for _ in 0..2 {
+            a.node.send(*ours, &big).unwrap();
+        }
+    }
+    for _ in 0..2 {
+        b.next("a frame", |e| e.as_frame().is_some()).await;
+    }
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let held = NODE_BUDGET - b.node.budget_free().unwrap();
+    assert!(held <= PEER_SHARE, "one node holds {held} of what is read and not taken; its share is {PEER_SHARE}");
+    assert!(b.node.share_free(a.id).unwrap() < MAX_FRAME, "its share is not what holds it back");
+    // Another node is not held up by it.
+    let mut c = Dev::new(76);
+    c.up().await;
+    b.node.allow(c.id, only(&[0]));
+    b.takes = true;
+    let from_c = c.open(9, b.id, 0, &hint).await.expect("a stream from another node");
+    let (at_b, ..) = b.incoming().await;
+    c.node.send(from_c, &big).unwrap();
+    assert!(b.frame(at_b).await == big);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_stream_hands_the_app_no_more_frames_a_second_than_it_should() {
+    let mut b = Dev::new(77);
+    b.up().await;
+    let hint = b.here().await;
+    let peer = by_hand(78).await;
+    b.node.allow(*peer.id().as_bytes(), only(&[0]));
+    let conn = soon("a link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a link");
+    let (mut send, mut recv) = soon("a stream", conn.open_bi()).await.unwrap();
+    send.write_all(&[0]).await.unwrap();
+    let mut answer = [0u8; 1];
+    soon("its answer", recv.read_exact(&mut answer)).await.unwrap();
+    let (stream, ..) = b.incoming().await;
+    // Three thousand empty frames, as fast as they can go: they cost the app's thread as much as any frame each.
+    let many = 3000usize;
+    send.write_all(&vec![0u8; 4 * many]).await.unwrap();
+    let began = std::time::Instant::now();
+    for _ in 0..many {
+        assert!(b.frame(stream).await.is_empty());
+    }
+    let took = began.elapsed();
+    // A thousand at once, then a thousand a second: two seconds at the least for the rest.
+    assert!(took >= Duration::from_millis(1700), "{many} frames were handed over in {took:?}");
+    soon("the peer's endpoint to close", peer.close()).await;
+}
+
+#[test]
+fn a_frame_whose_length_was_said_has_its_bytes_come_at_32_kib_a_second_at_least() {
+    // The most a frame may take: ten seconds, and a second for every 32 KiB. (Was fifteen, and every 8 KiB: a frame of
+    // the most could hold its room for 143 seconds.)
+    assert_eq!(frame_time(0), Duration::from_secs(10));
+    assert_eq!(frame_time(MAX_FRAME), Duration::from_secs(10 + 32));
+    assert!(frame_time(MAX_FRAME) <= Duration::from_secs(45));
+}
+
+#[test]
+fn a_frame_grows_as_its_bytes_come_and_never_past_its_length() {
+    // In steps of 64 KiB to 600 000 bytes: room doubling as it goes, and never more than the frame's length (which is
+    // what the budget counts), where a plain resize would leave it at a megabyte.
+    let mut frame = Vec::new();
+    let len = 600_000;
+    while frame.len() < len {
+        let step = (len - frame.len()).min(64 * 1024);
+        grow(&mut frame, step, len);
+        assert!(frame.capacity() <= len, "{} of room for a frame of {len}", frame.capacity());
+    }
+    assert_eq!(frame.len(), len);
+    assert_eq!(frame.capacity(), len);
+    // A frame of the most the same.
+    let mut frame = Vec::new();
+    while frame.len() < MAX_FRAME {
+        let step = (MAX_FRAME - frame.len()).min(64 * 1024);
+        grow(&mut frame, step, MAX_FRAME);
+    }
+    assert_eq!(frame.capacity(), MAX_FRAME);
+}
+
+/// A host with a channel open to all, and a stranger let in only by it.
+async fn hosting(n: u8, helper: Option<&iroh::RelayMap>, helpers: Vec<String>) -> Dev {
+    let mut host = Dev::new(n);
+    let config = Config { secret: host.secret, helpers, helpers_only: false };
+    host.node.start_with(config, TestSetup { helper: helper.cloned(), ..TestSetup::default() });
+    host.came_up().await;
+    host.node.open_to_all(only(&[1]));
+    host
+}
+
+/// A node let in only because a channel is open to all is linked on the connection its handshake left, which iroh is
+/// never handed: so iroh sends it no list of this node's addresses, follows no path to it, and keeps nothing of it
+/// (what this node's iroh knows of it stays empty, where of a node let in by name it knows where it is). What it can
+/// still learn is what any device that completes a handshake can (README.md, "What a node that links can learn"): the
+/// address this node sends from towards each address it names, through iroh's hole punching. And the window QUIC keeps
+/// for its link is counted against the budget while it is up.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_node_let_in_only_by_a_channel_open_to_all_is_never_handed_to_iroh() {
+    let (map, url, _helper) = iroh::test_utils::run_relay_server().await.expect("a link helper");
+    let written = url.to_string().trim_end_matches('/').to_string();
+    let mut host = hosting(79, Some(&map), vec![written.clone()]).await;
+    let on = loop {
+        let (helper, addresses) = host.whereabouts().await;
+        if helper.is_some() && !addresses.is_empty() {
+            break helper;
+        }
+    };
+    let mut stranger = up_with(80, Limits::USUAL, Some(&map), vec![written.clone()]).await;
+    let mut friend = up_with(78, Limits::USUAL, Some(&map), vec![written]).await;
+    host.node.allow(friend.id, only(&[0]));
+    let ours = stranger.open(1, host.id, 1, &Hint { helper: on.clone(), addresses: vec![] }).await.expect("a stream on the channel open to all");
+    let (theirs, from, _) = host.incoming().await;
+    assert_eq!(from, stranger.id);
+    stranger.node.send(ours, b"hub, please").unwrap();
+    assert_eq!(host.frame(theirs).await, b"hub, please");
+    host.node.send(theirs, b"hello, whoever you are").unwrap();
+    assert_eq!(stranger.frame(ours).await, b"hello, whoever you are");
+    friend.open(1, host.id, 0, &Hint { helper: on, addresses: vec![] }).await.expect("a stream from a node let in by name");
+    host.incoming().await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert!(host.node.knows_of(stranger.id).await.is_empty(), "the stranger's link was handed to iroh");
+    assert!(!host.node.knows_of(friend.id).await.is_empty(), "a node let in by name is unknown to iroh: the test shows nothing");
+    assert!(!host.kept.iter().any(|e| matches!(e, Event::Path { node, .. } if *node == stranger.id)), "a path to a stranger was said");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_strangers_link_is_counted_against_the_budget_while_it_is_up() {
+    let mut host = hosting(81, None, vec![]).await;
+    let hint = host.here().await;
+    let mut stranger = Dev::new(82);
+    stranger.up().await;
+    let ours = stranger.open(1, host.id, 1, &hint).await.expect("a stream on the channel open to all");
+    let (theirs, ..) = host.incoming().await;
+    stranger.node.send(ours, b"hub, please").unwrap();
+    assert_eq!(host.frame(theirs).await, b"hub, please");
+    // What QUIC may hold for it unread, and the stream, are counted while it is up.
+    let held = NODE_BUDGET - host.node.budget_free().unwrap();
+    assert!(held >= 128 * 1024 + STREAM_COST, "a stranger's link counted {held} against the budget");
+    assert!(host.node.knows_of(stranger.id).await.is_empty(), "the stranger's link was handed to iroh");
+    // Gone, what it counted is given back.
+    stranger.node.close(ours);
+    stranger.closed(ours).await;
+    host.closed(theirs).await;
+    host.node.open_to_all(Channels::NONE);
+    host.budget_is_whole().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_lifecycle_that_ends_by_a_bug_leaves_nothing_running_and_says_it_is_down() {
+    let (mut a, mut b, hint) = pair(83, 84).await;
+    let _ours = a.open(1, b.id, 0, &hint).await.expect("a stream");
+    b.incoming().await;
+    let port = port_of(&hint);
+    b.node.fall();
+    match b.next("down", |e| matches!(e, Event::Down { .. })).await {
+        Event::Down { problem } => assert!(problem.contains("stopped by itself")),
+        _ => unreachable!(),
+    }
+    // What was running is ended as a stop ends it: its links, its tasks, its sockets.
+    port_is_free(port).await.unwrap_or_else(|e| panic!("the run of a lifecycle that fell still holds its port {port}: {e}"));
+    a.path(b.id, PathKind::None).await;
+    let (why, _) = a.open_within(2, b.id, 0, &hint, Duration::from_secs(2)).await.expect_err("nothing takes callers");
+    assert_eq!(why, OpenError::Unreachable);
+    // And a start is answered that it is down, not with silence.
+    b.node.start(b.config());
+    match b.next("an answer to the start", |e| matches!(e, Event::Up { .. } | Event::Down { .. })).await {
+        Event::Down { .. } => {}
+        other => panic!("a node whose lifecycle fell answered a start with {other:?}"),
+    }
+    b.node.open(3, a.id, 0, Duration::from_secs(1), Hint::default());
+    assert!(matches!(
+        b.next("an answer to open", |e| matches!(e, Event::OpenFailed { request: 3, .. })).await,
+        Event::OpenFailed { why: OpenError::NotUp, .. }
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_hint_never_takes_a_node_to_a_link_helper_it_was_not_given() {
+    // Two link helpers: one the node was given, and another, which a hint names. The other is never so much as
+    // connected to. (The test this replaces had no helper at all, so no connection to any could be made.)
+    let (map, url, own) = iroh::test_utils::run_relay_server().await.expect("a link helper");
+    let (_, other_url, other) = iroh::test_utils::run_relay_server().await.expect("another link helper");
+    let written = url.to_string().trim_end_matches('/').to_string();
+    let mut b = up_with(85, Limits::USUAL, Some(&map), vec![written.clone()]).await;
+    let mut a = up_with(86, Limits::USUAL, Some(&map), vec![written]).await;
+    b.node.allow(a.id, only(&[0]));
+    while b.whereabouts().await.0.is_none() {}
+    while a.whereabouts().await.0.is_none() {}
+    let before = other.metrics().server.accepts.get();
+    let elsewhere = Hint { helper: Some(other_url.to_string().trim_end_matches('/').to_string()), addresses: vec![] };
+    let (why, _) = a.open_within(1, b.id, 0, &elsewhere, Duration::from_secs(3)).await.expect_err("not by a helper of someone else's");
+    assert_eq!(why, OpenError::Unreachable);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(other.metrics().server.accepts.get(), before, "the node connected to a link helper it was not given");
+    assert!(own.metrics().server.accepts.get() >= 2, "the test's own helper took no connections: it shows nothing");
+}
+
+/// This machine's addresses as a test makes them up.
+fn local(interface: &str, ip: &str, prefix: u8, temporary: bool) -> (IpAddr, Local) {
+    let ip: IpAddr = ip.parse().unwrap();
+    let network = match ip {
+        IpAddr::V4(v4) => IpAddr::V4(Ipv4Addr::from(u32::from(v4) & (u32::MAX << (32 - prefix)))),
+        IpAddr::V6(v6) => IpAddr::V6(Ipv6Addr::from(u128::from(v6) & (u128::MAX << (128 - prefix)))),
+    };
+    (ip, Local { interface: interface.into(), tunnel: virtual_interface(interface), temporary, stale: false, network: (network, prefix) })
+}
+
+#[test]
+fn a_node_tells_the_addresses_of_the_network_it_is_on_and_no_others() {
+    let here = Here {
+        addrs: HashMap::from([
+            local("en0", "192.168.18.60", 24, false),
+            local("en0", "fe80::1", 64, false),
+            local("en0", "2001:db8:1:2::abcd", 64, false),
+            local("en0", "2001:db8:1:2::77", 64, true),
+            local("bridge100", "10.211.55.2", 24, false),
+            local("bridge101", "10.37.129.2", 24, false),
+            local("utun4", "fd00:aa::5", 64, false),
+            local("en7", "172.16.4.9", 16, false),
+            local("lo0", "127.0.0.1", 8, false),
+        ]),
+        default: Some("en0".into()),
+    };
+    let found = [
+        "192.168.18.60:5000",
+        "[fe80::1]:5000",
+        "[2001:db8:1:2::abcd]:5000",
+        "[2001:db8:1:2::77]:5000",
+        "10.211.55.2:5000",
+        "10.37.129.2:5000",
+        "[fd00:aa::5]:5000",
+        "172.16.4.9:5000",
+        "127.0.0.1:5000",
+        // Where the internet sees it, which a link helper said: no interface here has it.
+        "203.0.113.7:41000",
+    ]
+    .map(|a| a.parse::<SocketAddr>().unwrap());
+    let told: Vec<String> = worth_telling(found.into_iter(), &here).into_iter().map(|a| a.to_string()).collect();
+    // Public first; the privacy address and not the lasting one beside it; the network it is on; never a virtual
+    // machine's bridge, a VPN's tunnel, another interface, link-local or loopback.
+    assert_eq!(told, ["203.0.113.7:41000", "[2001:db8:1:2::77]:5000", "192.168.18.60:5000"]);
+    // With no route to the internet that can be told, every interface but the virtual ones'.
+    let here = Here { default: Some("utun4".into()), ..here };
+    let told: Vec<String> = worth_telling(found.into_iter(), &here).into_iter().map(|a| a.to_string()).collect();
+    assert_eq!(told, ["203.0.113.7:41000", "[2001:db8:1:2::77]:5000", "172.16.4.9:5000", "192.168.18.60:5000"]);
+    for name in [
+        "utun3",
+        "bridge100",
+        "vmnet8",
+        "vboxnet0",
+        "docker0",
+        "br-5f2a",
+        "veth12",
+        "wg0",
+        "tun0",
+        "tailscale0",
+        "awdl0",
+        "llw0",
+        "vEthernet (WSL)",
+        "VirtualBox Host-Only Network",
+        "ZeroTier One [8056c2e21c]",
+    ] {
+        assert!(virtual_interface(name), "{name}");
+    }
+    for name in ["en0", "en1", "eth0", "wlan0", "wlp3s0", "enp0s31f6", "rmnet_data0", "ccmni1", "Ethernet", "Wi-Fi"] {
+        assert!(!virtual_interface(name), "{name}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn on_this_machine_a_node_tells_no_address_of_a_virtual_machine_or_a_tunnel() {
+    let mut a = Dev::new(87);
+    a.up().await;
+    let (_, told) = a.whereabouts().await;
+    let here = Here::now_for_tests();
+    for address in &told {
+        let ip = address.parse::<SocketAddr>().unwrap().ip();
+        if let Some(local) = here.addrs.get(&ip) {
+            assert!(!local.tunnel, "it told {address}, on {}", local.interface);
+            assert!(!ip.is_loopback() && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local()), "it told {address}");
+        }
+    }
+}
+
+#[test]
+fn a_hint_is_dialled_only_where_it_names_another_device() {
+    let yes = [
+        "192.168.1.20:5000",
+        "10.0.0.5:1",
+        "100.64.3.2:9",
+        "203.0.113.5:7",
+        "[2001:db8::5]:7",
+        "[fd12::5]:7",
+        "[::ffff:203.0.113.5]:7",
+        "[64:ff9b::cb00:7105]:7",
+    ];
+    let no = [
+        "127.0.0.1:5000",
+        "127.9.9.9:5000",
+        "[::1]:5000",
+        "[::ffff:127.0.0.1]:5000",
+        "[64:ff9b::7f00:1]:5000",
+        "[::127.0.0.1]:5000",
+        "0.0.0.0:5000",
+        "0.1.2.3:5000",
+        "[::]:5000",
+        "169.254.10.1:5000",
+        "[::ffff:169.254.10.1]:5000",
+        "[fe80::1]:5000",
+        "224.0.0.251:5353",
+        "[ff02::fb]:5353",
+        "255.255.255.255:9",
+        "192.168.1.20:0",
+    ];
+    for a in yes {
+        assert!(dialable(&a.parse().unwrap(), false), "{a}");
+    }
+    for a in no {
+        assert!(!dialable(&a.parse().unwrap(), false), "{a}");
+    }
+    // The tests' own nodes, all on one machine, dial loopback; nothing else does.
+    assert!(dialable(&"127.0.0.1:5000".parse().unwrap(), true));
+}
+
+#[test]
+fn the_node_key_is_written_over_when_its_config_goes() {
+    let mut config = std::mem::ManuallyDrop::new(Config { secret: [0x5a; 32], helpers: vec![], helpers_only: false });
+    // SAFETY: dropped once, in place; its bytes are read after only as the plain array they are.
+    unsafe { std::ptr::drop_in_place(&mut *config) };
+    assert_eq!(config.secret, [0u8; 32]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_stream_opened_in_early_data_is_never_taken() {
+    // A peer that has linked once holds a ticket to link again with early data (QUIC's 0-RTT, which anyone who saw it
+    // could send again, and which iroh's TLS takes). A stream it opens in that early data is never taken: the link is
+    // closed for it, and the app hears nothing. Linking again without early data, it is taken.
+    let mut b = Dev::new(88);
+    b.up().await;
+    let hint = b.here().await;
+    let peer = by_hand(89).await;
+    b.node.allow(*peer.id().as_bytes(), only(&[0]));
+    let first = soon("a link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a link");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    first.close(0u32.into(), b"");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let connecting = peer.connect_with_opts(at(b.id, &hint), ALPN, Default::default()).await.expect("a dial");
+    let early = match connecting.into_0rtt() {
+        Ok(early) => early,
+        Err(_) => panic!("no ticket for early data: the test shows nothing"),
+    };
+    let (mut send, mut recv) = early.open_bi().await.expect("a stream in early data");
+    send.write_all(&[0, 0, 0, 0, 3, b'e', b'a', b'r']).await.unwrap();
+    let mut answer = [0u8; 1];
+    let answered = soon("an answer to the early stream", recv.read_exact(&mut answer)).await;
+    assert!(answered.is_err(), "a stream opened in early data was answered");
+    // (Closed while its handshake was still under way, where QUIC carries no reason of the app's own.)
+    let closed = soon("the link to close", early.closed()).await;
+    assert!(
+        matches!(&closed, iroh::endpoint::ConnectionError::ApplicationClosed(c) if c.error_code == iroh::endpoint::VarInt::from_u32(2))
+            || matches!(&closed, iroh::endpoint::ConnectionError::ConnectionClosed(c) if c.error_code == iroh::endpoint::TransportErrorCode::APPLICATION_ERROR),
+        "{closed:?}"
+    );
+    assert!(!b.comes(Duration::from_millis(500), |e| matches!(e, Event::Incoming { .. })).await, "a stream opened in early data was taken");
+    // Without early data, the same peer is taken.
+    let again = soon("a link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a link");
+    let (mut send, mut recv) = soon("a stream", again.open_bi()).await.unwrap();
+    send.write_all(&[0]).await.unwrap();
+    soon("its answer", recv.read_exact(&mut answer)).await.expect("taken without early data");
+    b.incoming().await;
+    soon("the peer's endpoint to close", peer.close()).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_link_takes_only_so_many_streams_opened_in_a_while() {
+    let mut b = Dev::new(90);
+    b.up().await;
+    let hint = b.here().await;
+    let peer = by_hand(91).await;
+    b.node.allow(*peer.id().as_bytes(), only(&[0]));
+    let conn = soon("a link", peer.connect(at(b.id, &hint), ALPN)).await.expect("a link");
+    let (mut taken, mut turned) = (0, 0);
+    for _ in 0..60 {
+        let (mut send, mut recv) = soon("a stream", conn.open_bi()).await.unwrap();
+        send.write_all(&[0]).await.unwrap();
+        let mut answer = [0u8; 1];
+        match soon("an answer", recv.read_exact(&mut answer)).await {
+            Ok(()) => taken += 1,
+            Err(_) => turned += 1,
+        }
+        let _ = send.reset(0u32.into());
+        let _ = recv.stop(0u32.into());
+    }
+    // Thirty-two at once, then two a second: of sixty opened in a moment, the rest are turned back, and the app hears
+    // only of those it took.
+    assert!((32..=40).contains(&taken), "{taken} of 60 were taken");
+    assert_eq!(taken + turned, 60);
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let heard = b.drain().await.iter().filter(|e| matches!(e, Event::Incoming { .. })).count();
+    assert!(heard <= taken, "the app heard of {heard} streams; {taken} were taken");
+    soon("the peer's endpoint to close", peer.close()).await;
+}
+
+/// Not a test: the Mac's end of the run on Android (integration_test/p2p_core_test.dart). A node on our link helper,
+/// started as the app would start it (https://gogho.st:7843, its name asked of this machine's DNS, its certificate held
+/// to the roots compiled in), that lets in the node the emulator's test starts (key 0xa6…) and answers each frame it is
+/// sent, for five minutes: `cargo test --release android_partner -- --ignored --nocapture`, then hand the node id it
+/// prints to the emulator's test as P2P_PARTNER.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "the Mac's end of the run on Android, by hand"]
+async fn android_partner() {
+    let emulator = node_id(&[0xa6; 32]);
+    let mut me = Dev::new(0xa5);
+    me.node.start(Config { secret: me.secret, helpers: vec!["https://gogho.st:7843".into()], helpers_only: false });
+    me.came_up().await;
+    me.node.allow(emulator, only(&[0]));
+    println!("PARTNER {}", hex(&me.id));
+    while me.whereabouts().await.0.is_none() {}
+    println!("PARTNER on the link helper");
+    let until = std::time::Instant::now() + Duration::from_secs(300);
+    while std::time::Instant::now() < until {
+        if !me.comes(Duration::from_secs(5), |e| matches!(e, Event::Incoming { .. })).await {
+            continue;
+        }
+        let (stream, from, _) = me.incoming().await;
+        println!("PARTNER a stream, from the emulator's node: {}", from == emulator);
+        let frame = me.frame(stream).await;
+        println!("PARTNER heard: {}", String::from_utf8_lossy(&frame));
+        me.node.send(stream, b"hello from the Mac").unwrap();
+        let kind = match me.next("a path", |e| matches!(e, Event::Path { node, .. } if *node == emulator)).await {
+            Event::Path { kind, .. } => kind,
+            _ => unreachable!(),
+        };
+        println!("PARTNER the path to it: {kind:?}");
+    }
+    me.off().await;
 }
