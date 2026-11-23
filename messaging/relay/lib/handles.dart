@@ -108,7 +108,8 @@ class Handles {
   /// The public key each connected install proved itself with (hub.dart), for the username it claims.
   final Map<String, String> _keys = {};
 
-  /// When each install looked someone up, so the usernames cannot be walked through.
+  /// When each identity looked someone up, so the usernames cannot be walked through. An account's devices sign in as
+  /// one identity, so its devices share the [lookupsAnHour] (the app's name watch shares them out: lib/net/name_watch.dart).
   final Map<String, List<DateTime>> _lookups = {};
   static const lookupsAnHour = 120;
 
