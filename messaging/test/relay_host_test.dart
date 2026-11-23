@@ -20,6 +20,7 @@ import 'package:ghost_relay/hub.dart';
 import 'support/direct_world.dart';
 import 'support/fake_p2p.dart';
 import 'support/host_support.dart';
+import 'support/hub_pair.dart';
 
 /// A relay hosted from the app (lib/relay_host; docs/OPEN_NETWORK.md, section 5; Matt, 2026-11-22: "i'd like everyone to
 /// be able to host a relay from their client"): the same hub gogho.st runs, in the app, with a folder and a key of its
@@ -195,6 +196,49 @@ void main() {
       }
     });
 
+    test('refused for too many wrong phrases lately, the route waits ten minutes before it asks again (not its usual few seconds)', () async {
+      final memory = MemoryHub(Hub(pass: phrase, passGuessesAnHour: 0));
+      var dials = 0;
+      final c = HubCarrier(url: memory.url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(milliseconds: 5), dial: (url) {
+        dials++;
+        return memory.dial(url);
+      })
+        ..pass = () => phrase;
+      await c.start();
+      await waitFor(() => c.passRefused == 'busy', 'never refused as busy');
+      expect(c.problem, 'Too many wrong pass phrases lately. Try again in a while.');
+      for (var i = 0; i < 30; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(dials, 1, reason: 'its usual wait is 5 ms here; this one is ten minutes');
+      expect(HubCarrier.passBusyWait, const Duration(minutes: 10));
+      await c.stop();
+    });
+
+    test('refused as wrong, the route waits for a phrase even when it is started again', () async {
+      final memory = MemoryHub(Hub(pass: phrase));
+      var dials = 0;
+      final c = HubCarrier(url: memory.url, signer: KeysSigner(NetKeys.generate()), retry: const Duration(milliseconds: 5), dial: (url) {
+        dials++;
+        return memory.dial(url);
+      })
+        ..pass = () => 'not the phrase';
+      await c.start();
+      await waitFor(() => c.passRefused == 'wrong', 'never refused as wrong');
+      await c.stop();
+      await c.start();
+      for (var i = 0; i < 30; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect([dials, c.state.value, c.passRefused], [1, CarrierState.down, 'wrong'], reason: 'started again, a wrong phrase would be refused the same, and counted');
+      // Given one, it is asked again at once.
+      c.pass = () => phrase;
+      c.passAgain();
+      await waitFor(() => c.state.value == CarrierState.up, 'never signed in with the phrase given');
+      expect(dials, 2);
+      await c.stop();
+    });
+
     test('changed, everyone is signed out to sign in again with the new one', () async {
       final host = makeHost(Kept());
       addTearDown(host.shutdown);
@@ -353,10 +397,25 @@ void main() {
         return (s: s, said: said, done: () => done);
       }
 
-      final long = await open();
-      expect((jsonDecode(long.said.first as String) as Map)['hello'], isA<String>());
-      await long.s.add(DirectFrames.encode(jsonEncode({'id': 'x' * (17 << 10)})));
+      // A good hello, signed, made longer than 16 KB: refused for its length alone, before it is read. (One of 15 KB
+      // signs in.)
+      Future<String> hello(({P2pStream s, List<Object?> said, bool Function() done}) line, NetKeys keys, int length) async {
+        final nonce = NetCrypto.unhex((jsonDecode(line.said.first as String) as Map)['hello'] as String);
+        final sig = NetCrypto.sign(keys, [...utf8.encode(HubCarrier.greeting), ...nonce]);
+        final m = jsonEncode({'id': keys.id, 'key': base64Encode(keys.public), 'sig': base64Encode(sig), 'pad': ''});
+        return m.replaceFirst('"pad":""', '"pad":"${'x' * (length - m.length)}"');
+      }
+
+      final fits = await open(), fitsKeys = NetKeys.generate();
+      await fits.s.add(DirectFrames.encode(await hello(fits, fitsKeys, 15 << 10)));
+      await w.until(() => fits.said.length > 1, 'a hello of 15 KB was never answered');
+      expect((jsonDecode(fits.said[1] as String) as Map)['ok'], true);
+      await fits.s.close();
+      await w.until(() => host.connections == 0, 'it never left');
+      final long = await open(), longKeys = NetKeys.generate();
+      await long.s.add(DirectFrames.encode(await hello(long, longKeys, 17 << 10)));
       await w.until(long.done, 'a first message of 17 KB was taken');
+      expect(long.said, hasLength(1), reason: 'nothing said back but the hub\'s own hello');
       final odd = await open();
       await odd.s.add(Uint8List.fromList([9, 1, 2, 3]));
       await w.until(odd.done, 'a frame of no kind was taken');

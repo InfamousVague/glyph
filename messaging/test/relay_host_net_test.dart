@@ -113,6 +113,7 @@ void main() {
     await first.setOn(true);
     final own = first.ownUrl!;
     await Net.instance.shutdown();
+    expect([first.state, first.on], [HostState.off, true], reason: 'it stops with the routes, as the app closes; the choice stays');
     // The app opened again, its relay the one on this device.
     app.set('net_hub', own);
     Net.relayHostMaker = hostHere;
