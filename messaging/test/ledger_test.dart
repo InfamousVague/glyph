@@ -42,6 +42,22 @@ class _HeldStore implements FsStore {
   }
 }
 
+/// [store], whose reads wait while [hold] is set.
+class _HeldReads implements FsStore {
+  _HeldReads(this.store);
+  final MemoryFsStore store;
+  Completer<void>? hold;
+  @override
+  Future<String?> read(String name) async {
+    final h = hold;
+    if (h != null) await h.future;
+    return store.read(name);
+  }
+
+  @override
+  Future<void> write(String name, String value) => store.write(name, value);
+}
+
 String _hex32() => NetCrypto.hex(NetCrypto.randomBytes(16));
 
 /// Makes the relay drop the next packet it passes to [i] on its connection now, once: it tells the sender it passed
@@ -168,6 +184,55 @@ void main() {
       expect([l.sessions.length, l.relays['wss://r/hub']!.checks.length, l.relays['wss://r/hub']!.wrong.length], [Ledger.mostSessions, Ledger.mostChecks, Ledger.mostWrong]);
     });
 
+    // Switching Direct off takes the ledger with the direct route while the app goes on (lib/net/net.dart): what came
+    // then is listed nowhere. Compared afterwards as though it had been, whatever a friend's device said it sent
+    // meanwhile read as dropped by the relay.
+    test('Direct switched off: the ledger says so in what is kept, and the next one compares only what came after it began; what was listed stays', () async {
+      final l = make();
+      await l.load();
+      final f = peer(friend), first = Envelope(kind: 'text');
+      l.came(f, first, via: 'hub');
+      l.sent(f, Envelope(kind: 'text'), via: 'hub', handed: Handed.passed);
+      l.checked('wss://r/hub', friend, 'd1', matched: 1);
+      final since = l.horizon(friend)!;
+      await clock.pass(_minute);
+      await l.pause();
+      await l.shutdown();
+      expect((jsonDecode(store.kept[Ledger.indexName]!) as Map)['p'], clock.ms);
+      // An hour with Direct off: what came then was listed nowhere.
+      await clock.pass(const Duration(hours: 1));
+      final began = clock.ms;
+      final next = make();
+      await next.load();
+      expect([since < began, next.horizon(friend)], [true, began], reason: 'only what came after it began is compared');
+      expect([for (final x in next.gotFrom(friend)) x.id], [first.id], reason: 'what was listed stays');
+      expect([next.sentTo(friend).length, next.relays['wss://r/hub']!.matched(clock.ms)], [1, 1]);
+      // Written again without the mark, so the one after it compares from where this one began, not from its own start.
+      await clock.pass(Ledger.saveAfter);
+      expect((jsonDecode(store.kept[Ledger.indexName]!) as Map).containsKey('p'), isFalse);
+      await next.shutdown();
+      await clock.pass(const Duration(hours: 1));
+      final after = make();
+      await after.load();
+      expect(after.horizon(friend), began);
+    });
+
+    test('switched off while what is kept is still being read: the mark waits for the reading, which is done once', () async {
+      final l = make();
+      await l.load();
+      l.came(peer(friend), Envelope(kind: 'text'), via: 'hub');
+      l.putMissing(friend, 'x1', 'made');
+      await l.shutdown();
+      final slow = _HeldReads(store)..hold = Completer<void>();
+      final next = Ledger(store: slow, me: me, device: device, isFriend: (id) => id == friend, now: clock.now, timer: clock.timer);
+      final loading = next.load(), pausing = next.pause();
+      await clock.settle();
+      slow.hold!.complete();
+      await Future.wait([loading, pausing]);
+      expect((jsonDecode(store.kept[Ledger.indexName]!) as Map)['p'], isA<int>());
+      expect([next.gotFrom(friend).length, next.missingFrom(friend).length], [1, 1]);
+    });
+
     test('what another device kept (its choices restored here) is not this device\'s: none of it is read, and it is written over', () async {
       final l = make();
       await l.load();
@@ -272,6 +337,40 @@ void main() {
       await w.settle();
       expect(_ldgBy(b), ['sum by p2p', 'sum by p2p']);
       expect(_record(w, b)!.wrong, hasLength(1));
+    });
+
+    // Direct switched off on Sam's computer while the app went on, and on again after it started anew: the app takes the
+    // ledger with the direct route (lib/net/net.dart). Maya's sum names what she sent meanwhile, which came by the relay
+    // while no ledger listened: it was asked for again, sent straight, put down against the relay as passed on and
+    // never come, and Sam had it twice.
+    test('what came while Direct was switched off, listed nowhere, is never taken for something the relay dropped', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      expect((await a.text(b.account, 'hello')).acked, isTrue);
+      await w.clock.pass(_minute);
+      // Switched off at Sam's: his ledger goes with the direct route, as the app takes them down.
+      await b.check!.stop();
+      b.board.log = null;
+      await b.ledger!.pause();
+      await b.ledger!.shutdown();
+      b
+        ..ledger = null
+        ..check = null;
+      expect((await a.text(b.account, 'while it was off')).acked, isTrue);
+      await w.clock.pass(_minute);
+      // The app starts anew, Direct switched on again.
+      await b.restart();
+      await w.clock.pass(const Duration(minutes: 3));
+      final sending = a.text(b.account, 'straight', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await sending).acked, isTrue);
+      await w.until(() => (_record(w, b)?.checks.length ?? 0) > 0, 'Sam\'s computer compared');
+      await w.settle();
+      expect([b.ledger!.missingFrom(a.account.id), _record(w, b)!.wrong], [isEmpty, isEmpty]);
+      expect(_ldgBy(a), ['sum by p2p'], reason: 'nothing was asked for again');
+      expect(b.texts, ['hello', 'while it was off', 'straight'], reason: 'nothing came twice');
     });
 
     test('one the relay kept and lost when it started again: put down as that, which is no fault of the relay\'s, once it came straight (D2)', () async {

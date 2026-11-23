@@ -12,4 +12,7 @@ abstract final class IrohNode implements P2pNode {
 
   /// A node, or null where the library is not in this build: always null here.
   static IrohNode? make() => null;
+
+  /// Lets go of it: there is never one to let go of here.
+  void dispose();
 }

@@ -687,7 +687,10 @@ void main() {
       await a.start();
       final c = a.p2p.carrier;
       expect([c.id, c.name], ['p2p', 'Direct']);
-      expect(c.about, 'Straight between your devices and your friends\', with no server in between. Their device sees your network address; nobody else does.');
+      // What switching it on means (Matt's brief, 2026-11-23): who learns this device's address, who is told, and what a
+      // link helper sees. The row drawn before the route is made says the same (Settings › Routes).
+      expect(c.about, 'Straight between your devices and your friends\', for when the relay server can\'t carry something. Their devices learn this device\'s network address, and nobody else is told it. A link helper sees which devices link and how much they send, never who they are or what is said.');
+      expect([c.id, c.name, c.about], [P2pCarrier.routeId, P2pCarrier.label, P2pCarrier.aboutWords]);
       expect([c.traits.maxPacket, c.traits.metered, c.traits.live, c.traits.wakes], [HubCarrier.maxPacket, false, true, false]);
       expect(a.board.carriers.map((r) => r.id), ['hub', 'p2p']);
       expect(c.state.value, CarrierState.up, reason: 'ready, though a phone\'s node is down until there is something to say');
