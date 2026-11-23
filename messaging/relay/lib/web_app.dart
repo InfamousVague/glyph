@@ -80,7 +80,7 @@ class WebApp {
         'Referrer-Policy': 'no-referrer',
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Resource-Policy': 'same-origin',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), display-capture=()',
+        'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), display-capture=()',
       };
 
   /// Whether there is an app to serve: the folder is there and has its page.

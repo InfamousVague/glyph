@@ -12,6 +12,8 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
+import '../../sms.dart';
+import '../../voice/call_sound.dart';
 import '../../voice/channels.dart';
 import '../../voice/hangout.dart';
 import '../../voice/recorder.dart';
@@ -275,6 +277,16 @@ class SpaceCall {
         if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
         ...stageExtras(s, room),
         ...CallPlugins.extras(),
+        // In a browser, what its call leaves out, said where the call's choices are.
+        if (Sms.browser)
+          SpaceExtra(
+            label: 'In a browser',
+            icon: Lucide.info,
+            builtIn: true,
+            run: (context) => showChoices(context, title: 'In a browser', header: const Text(callsInBrowser), choices: [
+              Choice('Voice and video settings', LucideMore.headphones, () => push(context, (_) => const SettingsSectionScreen('voice'))),
+            ]),
+          ),
       ],
     );
   }

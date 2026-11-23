@@ -12,6 +12,8 @@
  *   node tool/build-web.mjs --out <folder>    somewhere else
  *   node tool/build-web.mjs --base /app/      where it will be served from (/app/, as the relay serves it)
  *   node tool/build-web.mjs --hub <wss://…>   the hub it speaks to (none: the one beside the page, /hub where it is /app/)
+ *   node tool/build-web.mjs --calls           with calls (GMFB-30, GMFB-51): the page's own WebRTC joins spaces' calls and
+ *                                             friends' and groups' calls (lib/sms.dart browserCalls); without it, none
  *
  *   dart run relay/bin/relay.dart --web build/web      then: http://127.0.0.1:8787/app/
  *   node tool/web/e2e.mjs                               two people using it, in Chromium and WebKit
@@ -28,6 +30,7 @@
  *        --pwa-strategy=none      no service worker (web/flutter_bootstrap.js sets none up)
  *        --base-href              where the page is served from
  *        --dart-define=GHOST_WEB_HUB   the hub, where one is named (lib/web/app.dart: hubFor)
+ *        --dart-define=GHOST_WEB_CALLS=true   with --calls (lib/web/app.dart: webCalls)
  *      and, where a hub is named, the page's policy lets it speak to that one too (connect-src), and send there the
  *      feedback, and a report where the hub is Ghost Messaging's own (tool/lib/web_site.mjs connectFor).
  *   4. Takes the four emoji sets off the list of fonts a browser loads before its first frame (eleven megabytes):
@@ -72,6 +75,7 @@ const out = resolve(option('out', join(ROOT, 'build', forApp ? 'web-app' : 'web'
 const profile = args.includes('--profile');
 const base = option('base', forApp ? '/' : '/app/');
 const hub = option('hub', forApp ? APP_HUB : '');
+const withCalls = args.includes('--calls');
 if (!base.startsWith('/') || !base.endsWith('/')) fail(`--base starts and ends with a slash (${base}).`);
 if (hub && !goodHub(hub)) fail(`--hub is a wss:// address with a path (or ws:// to this computer, for a try here): ${hub}`);
 
@@ -97,7 +101,7 @@ if (existsSync(join(ROOT, 'extension', 'node_modules', '@noble', 'hashes'))) {
 const version = /^version:\s*(\S+?)\+(\d+)/m.exec(readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8'));
 const built = spawnSync(
   'flutter',
-  ['build', 'web', '-t', 'lib/web/main.dart', profile ? '--profile' : '--release', '--no-web-resources-cdn', '--csp', '--pwa-strategy=none', '--no-wasm-dry-run', `--base-href=${base}`, ...(hub ? [`--dart-define=GHOST_WEB_HUB=${hub}`] : []), '-o', out],
+  ['build', 'web', '-t', 'lib/web/main.dart', profile ? '--profile' : '--release', '--no-web-resources-cdn', '--csp', '--pwa-strategy=none', '--no-wasm-dry-run', `--base-href=${base}`, ...(hub ? [`--dart-define=GHOST_WEB_HUB=${hub}`] : []), ...(withCalls ? ['--dart-define=GHOST_WEB_CALLS=true'] : []), '-o', out],
   { cwd: ROOT, stdio: 'inherit' },
 );
 if (built.status !== 0) fail('flutter build web failed.');
@@ -205,7 +209,7 @@ const first = ['index.html', 'flutter_bootstrap.js', named, 'canvaskit/chromium/
 const emojiInUse = 'assets/assets/emoji/NotoColor.ttf';
 const sum = (names, key) => names.reduce((n, name) => n + (sizes.get(name)?.[key] ?? 0), 0);
 const all = [...sizes.keys()];
-console.log(`\nGhost Messaging for a browser${version ? ` ${version[1]} (${version[2]})` : ''}, ${profile ? 'profile' : 'release'}, to be served from ${base}${forApp ? ' of app.gogho.st' : ''}, speaking to ${hub || 'the hub beside it'}: ${out}`);
+console.log(`\nGhost Messaging for a browser${version ? ` ${version[1]} (${version[2]})` : ''}, ${profile ? 'profile' : 'release'}, to be served from ${base}${forApp ? ' of app.gogho.st' : ''}, speaking to ${hub || 'the hub beside it'}, ${withCalls ? 'with calls' : 'without calls (--calls for them)'}: ${out}`);
 console.log(`  the app's JavaScript   ${show(named)}`);
 console.log(`  Argon2id, as a worker  ${show('argon2id.js')}`);
 console.log('  a first visit fetches, before the first screen:');

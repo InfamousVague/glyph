@@ -5,6 +5,7 @@ import '../platform_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'call_sound.dart';
 import 'voice.dart';
 import 'voice_fx.dart';
 import 'voice_settings.dart';
@@ -84,9 +85,16 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
       // Each person's own volume times the output volume (Settings › Voice and video), boosted to twice at most, and
       // times the auto leveler's gain for them where it is on (leveler.dart).
       final v = ((_volume[id] ?? 1.0) * settings.outputVolume / 100 * (_leveled[id] ?? 1.0)).clamp(0.0, 6.0);
-      unawaited(Helper.setVolume(v, t).catchError((_) {}));
+      if (CallSound.playsItself) {
+        _out.set(id, volume: v, silent: !t.enabled);
+      } else {
+        unawaited(Helper.setVolume(v, t).catchError((_) {}));
+      }
     }
   }
+
+  /// Where the app plays what arrives itself (a browser: lib/voice/call_sound.dart), what plays it.
+  final CallSound _out = CallSound();
 
   /// The auto leveler's gain for each person (leveler.dart): 1 is as they arrive.
   final Map<String, double> _leveled = {};
@@ -323,7 +331,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
         // Only the partner's own copy, by the ids given it: never the microphone.
         if (track == null || track.kind != 'audio' || !(track.id ?? '').startsWith(meterPrefix)) continue;
         if (track.enabled != hear) track.enabled = hear;
-        await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
+        // A browser plays nothing it isn't given to play (call_sound.dart): the copy is never given.
+        if (!CallSound.playsItself) await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
       }
     } catch (_) {}
   }
@@ -410,7 +419,11 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   /// Plays the call through another speaker or headset.
   Future<void> setOutput(String deviceId) async {
     settings = settings.copyWith(output: deviceId);
-    if (deviceId.isNotEmpty) await Helper.selectAudioOutput(deviceId).catchError((_) {});
+    if (CallSound.playsItself) {
+      await _out.output(deviceId);
+    } else if (deviceId.isNotEmpty) {
+      await Helper.selectAudioOutput(deviceId).catchError((_) {});
+    }
   }
 
   @override
@@ -420,7 +433,9 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     _mic ??= await navigator.mediaDevices.getUserMedia({'audio': _audioAsked, 'video': false});
     // And again with the microphone open: the native hook is there only once WebRTC is (android VoiceFx.kt).
     unawaited(VoiceFx.apply(settings));
-    if (settings.output.isNotEmpty) {
+    if (CallSound.playsItself) {
+      await _out.output(settings.output);
+    } else if (settings.output.isNotEmpty) {
       await Helper.selectAudioOutput(settings.output).catchError((_) {});
     } else if (!kIsWeb && PlatformInfo.isAndroid) {
       await Helper.setSpeakerphoneOn(true);
@@ -458,6 +473,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
       await p.close();
     }
     _peers.clear();
+    _out.stopAll();
     remote.value = const {};
     for (final s in [_mic, _cam, _screen]) {
       for (final t in s?.getTracks() ?? const <MediaStreamTrack>[]) {
@@ -668,6 +684,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   void _gone(String id) {
     if (_peers.remove(id) != null) _retune();
     remote.value = {...remote.value}..remove(id);
+    _out.stop(id);
     // A failure is left showing until a new try begins ([peerWith]); anything else goes with the connection.
     if (links.value[id] != PeerLink.failed) _link(id, null);
   }
@@ -725,7 +742,10 @@ class _RtcPeer implements VoicePeer {
     final track = e.track;
     if (track.kind == 'audio') {
       if (!_sounds.any((t) => t.id == track.id)) _sounds.add(track);
-      if (identical(media._peers[id], this)) media._apply(id);
+      if (identical(media._peers[id], this)) {
+        media._out.play(id, track);
+        media._apply(id);
+      }
       return;
     }
     if (track.kind != 'video') return;

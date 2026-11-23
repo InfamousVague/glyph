@@ -395,6 +395,7 @@ void main() {
     setUp(() => before = Sms.calls);
     tearDown(() {
       Sms.browser = false;
+      Sms.browserCalls = false;
       Sms.browserWide = false;
       Sms.browserName = 'Browser';
       Sms.standalone = false;
@@ -474,6 +475,28 @@ void main() {
       // A Files space made elsewhere says where it opens, in its page's place; the others are their chat.
       expect(circleSpacePage(const VoiceChannel(seed: 'aa', name: 'Shelf', kind: SpaceKind.files)), isA<FilesNotHere>());
       expect(circleSpacePage(lounge), isA<HangoutScreen>());
+    });
+
+    // GMFB-30, GMFB-51: a build with calls (tool/build-web.mjs --calls) joins them through the page's own WebRTC.
+    test('with calls in its build, a browser offers them: the spaces\' calls, their keys, Voice and video, and says what a call leaves out', () async {
+      asAPage();
+      expect(webCalls, isFalse, reason: 'off unless the build turns them on');
+      Sms.browserCalls = true;
+      expect(Sms.callsHere, isTrue);
+      // Into a call as anywhere else: here no relay is connected, which is what stops it, not the browser.
+      const lounge = VoiceChannel(seed: 'aa', name: 'Lounge');
+      await expectLater(Voice.instance.join(lounge), throwsA(isA<StateError>().having((e) => e.message, 'what it says', 'The relay server isn\'t connected.')));
+      for (final c in KeyCommand.values) {
+        expect(Keys.offered(c), c != KeyCommand.marketplace, reason: c.name);
+      }
+      final model = SettingsModel(AppState());
+      final shown = [for (final s in settingsSections) if (s.when?.call(model) ?? true) s.id];
+      expect(shown, contains('voice'));
+      expect(shortcutsSummary(model), 'Push to talk off');
+      expect(notInBrowserYet, isNot(startsWith('Calls')));
+      expect(notInBrowserYet, contains('recording, the voice changer'));
+      Sms.browserCalls = false;
+      expect(notInBrowserYet, startsWith('Calls, '));
     });
 
     testWidgets('a Files space says it isn\'t in the browser yet', (tester) async {
