@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -345,7 +345,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   /// `deviceId` as the speaker; the Mac's and the phones' take `deviceId` as the microphone. Asked as `deviceId` on
   /// Windows, every choice of microphone was the system's first (Matt, 2026-11-21: "the device picker is not working
   /// in windows").
-  static bool get _sourceIds => !kIsWeb && (Platform.isWindows || Platform.isLinux);
+  static bool get _sourceIds => !kIsWeb && (PlatformInfo.isWindows || PlatformInfo.isLinux);
 
   Map<String, Object> get _audioAsked => {
         if (settings.input.isNotEmpty && !_sourceIds) 'deviceId': settings.input,
@@ -379,7 +379,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     settings = settings.copyWith(input: deviceId);
     // The computers' audio device modules hold one microphone for every track: chosen there too, in case a new
     // track's constraint is not read.
-    if (deviceId.isNotEmpty && !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+    if (deviceId.isNotEmpty && !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux)) {
       await Helper.selectAudioInput(deviceId).catchError((_) {});
     }
     final old = _mic;
@@ -422,7 +422,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     unawaited(VoiceFx.apply(settings));
     if (settings.output.isNotEmpty) {
       await Helper.selectAudioOutput(settings.output).catchError((_) {});
-    } else if (!kIsWeb && Platform.isAndroid) {
+    } else if (!kIsWeb && PlatformInfo.isAndroid) {
       await Helper.setSpeakerphoneOn(true);
     }
     // A light test: the microphone by itself, measured by the native half ([light]).
@@ -468,7 +468,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     _mic = null;
     _cam = null;
     localVideo.value = null;
-    if (_screen != null && !kIsWeb && Platform.isAndroid) unawaited(screenService?.call(false));
+    if (_screen != null && !kIsWeb && PlatformInfo.isAndroid) unawaited(screenService?.call(false));
     _screen = null;
     _screenHeight = null;
     localScreen.value = null;
@@ -514,13 +514,13 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
   static double screenScale(double? height) => height == null || height <= 1080 ? 1.0 : height / 1080;
 
   @override
-  bool get screenSupported => !kIsWeb && (Platform.isAndroid || Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  bool get screenSupported => !kIsWeb && (PlatformInfo.isAndroid || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
   @override
   Future<List<ScreenSource>> screenSources() async {
-    if (kIsWeb || Platform.isAndroid || Platform.isIOS) return const [];
+    if (kIsWeb || PlatformInfo.isAndroid || PlatformInfo.isIOS) return const [];
     // The Mac asks for Screen Recording once (System Settings › Privacy); without it every picture is blank.
-    if (Platform.isMacOS) await Helper.requestCapturePermission().catchError((_) => false);
+    if (PlatformInfo.isMacOS) await Helper.requestCapturePermission().catchError((_) => false);
     try {
       final found = await desktopCapturer.getSources(types: [SourceType.Screen, SourceType.Window], thumbnailSize: ThumbnailSize(320, 200));
       return [
@@ -542,7 +542,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     if (!screenSupported) return false;
     MediaStream stream;
     try {
-      if (Platform.isAndroid) {
+      if (PlatformInfo.isAndroid) {
         // The system's question first, then the service, then the capture (CallService.kt says why).
         final yes = await Helper.requestCapturePermission();
         if (!yes) return false;
@@ -560,13 +560,13 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
       }
     } catch (e) {
       debugPrint('rtc: the screen was not shared: $e');
-      if (Platform.isAndroid) await screenService?.call(false);
+      if (PlatformInfo.isAndroid) await screenService?.call(false);
       return false;
     }
     final track = stream.getVideoTracks().firstOrNull;
     if (track == null) {
       await stream.dispose();
-      if (Platform.isAndroid) await screenService?.call(false);
+      if (PlatformInfo.isAndroid) await screenService?.call(false);
       return false;
     }
     // Another share in this one's place: the old one goes.
@@ -602,7 +602,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia {
     // As with the camera: the renderer lets go first (GMFB-5).
     await Future<void>.delayed(const Duration(milliseconds: 120));
     await _dispose(was);
-    if (!kIsWeb && Platform.isAndroid) await screenService?.call(false);
+    if (!kIsWeb && PlatformInfo.isAndroid) await screenService?.call(false);
   }
 
   static Future<void> _dispose(MediaStream s) async {

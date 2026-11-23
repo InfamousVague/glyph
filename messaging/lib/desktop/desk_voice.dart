@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 
 import '../sms.dart';
@@ -64,9 +65,9 @@ class DeskVoice {
   /// Ends it and keeps it as a file to send: `{path, millis}`, as the phone's `voiceFinish` answers.
   static Future<Map<String, Object?>> finish({Directory? into}) async {
     final sound = await stopBytes();
-    final dir = into ?? Directory('${Directory.systemTemp.path}${Platform.pathSeparator}ghost-voice');
+    final dir = into ?? Directory('${Directory.systemTemp.path}${PlatformInfo.pathSeparator}ghost-voice');
     dir.createSync(recursive: true);
-    final file = File('${dir.path}${Platform.pathSeparator}voice-${DateTime.now().millisecondsSinceEpoch}.m4a');
+    final file = File('${dir.path}${PlatformInfo.pathSeparator}voice-${DateTime.now().millisecondsSinceEpoch}.m4a');
     await file.writeAsBytes(sound, flush: true);
     return {'path': file.path, 'millis': m4aMillis(sound)};
   }

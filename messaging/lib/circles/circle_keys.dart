@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:isolate';
+import '../aside.dart';
 import 'dart:typed_data';
 
 import '../net/crypto.dart';
@@ -331,7 +331,7 @@ class CircleKeys {
   static Future<List<Map<String, Object?>>> _boxesAway(Uint8List circleKey, String seed, CircleEpoch h, Uint8List key, List<CircleInbox> to) async {
     List<Map<String, Object?>> make() => [for (final i in to) ?_box(circleKey, seed, h, key, i)];
     if (!offThread || to.length < 2) return make();
-    return Isolate.run(make);
+    return runAside(make);
   }
 
   /// Takes an `rk` or `kb` heard in [c]'s room by this device's identity [me]: the header where the owner or an admin

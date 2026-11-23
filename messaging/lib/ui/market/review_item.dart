@@ -11,7 +11,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:isolate';
+import '../../aside.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -433,7 +433,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
 
   /// Both diffs on an isolate of their own. A static function, so the closure the isolate is sent holds the lines
   /// alone and never this screen's state.
-  static Future<(List<String>?, List<String>?)> _diffBoth(List<String>? before, List<String>? asked, List<String> now) => Isolate.run(() => (before == null ? null : lineDiff(before, now), asked == null ? null : lineDiff(asked, now)));
+  static Future<(List<String>?, List<String>?)> _diffBoth(List<String>? before, List<String>? asked, List<String> now) => runAside(() => (before == null ? null : lineDiff(before, now), asked == null ? null : lineDiff(asked, now)));
 
   /// The screenshots [shas] names (route 12, by their place), each held to its hash there and decoded in Dart: every one
   /// is a stranger's bytes, on the one device that holds the review key and the admin session, so none reaches the

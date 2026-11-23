@@ -20,6 +20,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../platform_info.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -146,7 +147,7 @@ class VoiceChanger extends ChangeNotifier {
   /// Asking ElevenLabs now (its list, or a recording).
   bool busy = false;
 
-  String get _dir => folder ?? (Platform.isAndroid ? '${Directory.systemTemp.parent.path}/files/voicechanger' : '${DeskStore.defaultDir().path}/voicechanger');
+  String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/voicechanger' : '${DeskStore.defaultDir().path}/voicechanger');
   File get _file => File('$_dir/elevenlabs.json');
 
   void _load() {
@@ -174,7 +175,7 @@ class VoiceChanger extends ChangeNotifier {
       final dir = Directory(_dir)..createSync(recursive: true);
       final f = _file;
       if (!f.existsSync()) f.createSync();
-      if (!Platform.isWindows) {
+      if (!PlatformInfo.isWindows) {
         Process.runSync('chmod', ['700', dir.path]);
         Process.runSync('chmod', ['600', f.path]);
       }
@@ -388,7 +389,7 @@ class VoiceChanger extends ChangeNotifier {
     final client = _client();
     try {
       final boundary = 'ghost-${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}';
-      final name = path.split(Platform.pathSeparator).last.split('/').last.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final name = path.split(PlatformInfo.pathSeparator).last.split('/').last.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       List<int> field(String n, String value) => utf8.encode('--$boundary\r\nContent-Disposition: form-data; name="$n"\r\n\r\n$value\r\n');
       final body = BytesBuilder(copy: false)
         ..add(field('model_id', model))
@@ -413,7 +414,7 @@ class VoiceChanger extends ChangeNotifier {
       if (res.statusCode != 200) throw VoiceChangerProblem(_why(res.statusCode, utf8.decode(back, allowMalformed: true)));
       if (back.length < 200) throw const VoiceChangerProblem('ElevenLabs sent back nothing to play.');
       final dot = path.lastIndexOf('.');
-      final out = File('${dot > path.lastIndexOf(Platform.pathSeparator) ? path.substring(0, dot) : path}-changed.mp3');
+      final out = File('${dot > path.lastIndexOf(PlatformInfo.pathSeparator) ? path.substring(0, dot) : path}-changed.mp3');
       await out.writeAsBytes(back, flush: true);
       return out.path;
     } on VoiceChangerProblem {

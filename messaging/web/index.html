@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Ghost Messaging in a browser: the page `flutter build web -t lib/web/main.dart` copies to build/web beside the
+    app itself (main.dart.js) and what loads it.
+
+    Where the app is served from. `flutter build web` writes its base-href option here ("/" where none is given);
+    served from a folder, it is that folder, starting and ending with a slash.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta name="description" content="Ghost Messaging in your browser: high-quality text, voice and video in one app.">
+  <meta name="theme-color" content="#000000">
+
+  <!-- Added to an iPhone's home screen. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Ghost Messaging">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- The app's icon (tool/app_icon.py writes these from art/app-icon.png). -->
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <title>Ghost Messaging</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- The icon's own black until the app has drawn its first frame, not a white flash. -->
+  <style>
+    html, body { height: 100%; margin: 0; background: #000000; }
+  </style>
+</head>
+<body>
+  <!-- Written by `flutter build web`: it loads Flutter's engine, then main.dart.js. -->
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

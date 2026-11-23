@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,7 +16,7 @@ class Ducking {
 
   /// Said before a call opens the microphone and again once it is open (VoiceFx.apply), and when the switch changes.
   static Future<void> apply({required bool duckOthers}) async {
-    if (kIsWeb || !Platform.isWindows) return;
+    if (kIsWeb || !PlatformInfo.isWindows) return;
     try {
       await _channel.invokeMethod<int>('set', {'leaveOthers': !duckOthers});
     } on MissingPluginException {

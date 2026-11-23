@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import '../platform_info.dart';
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import 'package:flutter/widgets.dart';
@@ -70,7 +70,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
 
   AccountHelper get _n => widget.network;
   HelperService get _s => _n.service;
-  bool get _computer => !Platform.isAndroid && !Platform.isIOS;
+  bool get _computer => !PlatformInfo.isAndroid && !PlatformInfo.isIOS;
 
   @override
   void dispose() {

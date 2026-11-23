@@ -12,7 +12,8 @@ library;
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
+import '../platform_info.dart';
+import '../aside.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:video_player/video_player.dart';
 
+import 'mpv_property.dart';
 import 'recorder.dart';
 
 class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
@@ -99,7 +101,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
           final got = await _channel.invokeMethod<Map>('decode', {'path': recording.path, 'track': i + 1, 'out': raw});
           final fromRate = (got?['rate'] as num?)?.toInt() ?? rate;
           final channels = (got?['channels'] as num?)?.toInt() ?? 1;
-          await Isolate.run(() => toMono48k(raw, pcm, fromRate: fromRate, channels: channels));
+          await runAside(() => toMono48k(raw, pcm, fromRate: fromRate, channels: channels));
           try {
             File(raw).deleteSync();
           } catch (_) {}
@@ -108,13 +110,13 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
         _set(opening: (i + 1) / keys.length * 0.8);
       }
       final paths = List.of(_pcm);
-      final waves = await Isolate.run(() => [for (final p in paths) waveform(p)]);
+      final waves = await runAside(() => [for (final p in paths) waveform(p)]);
       meter.load({for (var i = 0; i < keys.length; i++) keys[i]: waves[i]});
       length = _pcm.fold<int>(0, (n, p) => math.max(n, File(p).lengthSync() ~/ 2));
       // A WAV of each beside its samples, for its player.
       for (final p in _pcm) {
         final wav = p.replaceAll(RegExp(r'\.pcm$'), '.wav');
-        if (!File(wav).existsSync() || File(wav).lengthSync() != File(p).lengthSync() + 44) await Isolate.run(() => wrapWav(p, wav));
+        if (!File(wav).existsSync() || File(wav).lengthSync() != File(p).lengthSync() + 44) await runAside(() => wrapWav(p, wav));
         final player = _VoicePlayer.make();
         await player.open(wav);
         _players.add(player);
@@ -239,7 +241,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
       final gains = [
         for (final k in keys) mix.gain(k) == 1 ? const <GainPoint>[] : [(sample: 0, gain: mix.gain(k))],
       ];
-      await Isolate.run(() => mixPcm(paths, mixed, gains: gains));
+      await runAside(() => mixPcm(paths, mixed, gains: gains));
       final out = '${CallRecorder.folder().path}/$id.mp4';
       await CallRecorder.makeMp4([mixed, ...paths], out, ['Everyone', ...recording.people], work: work.path);
       try {
@@ -286,7 +288,7 @@ class RecordingPlayback extends ChangeNotifier implements RecordingDesk {
 /// One voice's player: media_kit (libmpv) on Android, the Mac and Windows, the video_player package (AVFoundation) on
 /// the iPhone, as the app's video player has them (lib/ui/video_engine.dart).
 abstract class _VoicePlayer {
-  static _VoicePlayer make() => !kIsWeb && Platform.isIOS ? _AvVoice() : _MpvVoice();
+  static _VoicePlayer make() => !kIsWeb && PlatformInfo.isIOS ? _AvVoice() : _MpvVoice();
 
   Future<void> open(String path);
   Future<void> play();
@@ -307,9 +309,8 @@ class _MpvVoice implements _VoicePlayer {
   Future<void> open(String path) async {
     mk.MediaKit.ensureInitialized();
     final p = _player = mk.Player();
-    final native = p.platform;
-    // Up to twice as loud, as a fader goes (mpv's own most is 130%).
-    if (native is mk.NativePlayer) await native.setProperty('volume-max', '${(RecordingMix.most * 100).round()}');
+    // Up to twice as loud, as a fader goes (mpv's own most is 130%). Not in a browser (mpv_property.dart).
+    await setMpvProperty(p, 'volume-max', '${(RecordingMix.most * 100).round()}');
     await p.open(mk.Media(path), play: false);
   }
 
