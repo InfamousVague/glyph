@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../app_state.dart';
 import '../net/carrier.dart';
+import '../net/hub_link.dart';
 import '../net/net.dart';
 import '../net/packet.dart';
 import '../net/switchboard.dart';
@@ -605,11 +605,11 @@ class _AppPort implements FriendsPort {
 
   @override
   Future<bool> probe() async {
-    WebSocket? socket;
+    HubLink? socket;
     try {
-      socket = await WebSocket.connect(Net.instance.hubUrl).timeout(const Duration(seconds: 5));
+      socket = await dialHub(Net.instance.hubUrl).timeout(const Duration(seconds: 5));
       // A hub says hello first (relay/lib/hub.dart).
-      final first = await socket.first.timeout(const Duration(seconds: 5));
+      final first = await socket.said.first.timeout(const Duration(seconds: 5));
       return first is String && first.contains('"hello"');
     } catch (_) {
       return false;

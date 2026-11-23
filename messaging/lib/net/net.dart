@@ -9,6 +9,7 @@ import 'carrier.dart';
 import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'hub_carrier.dart';
+import 'hub_link.dart';
 import 'packet.dart';
 import 'relay_choice.dart';
 import 'sms_carrier.dart';
@@ -341,7 +342,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// the address is tidied ([tidyRelayAddress]), asked ([checkRelay]), and [confirm], where given, asked with the
   /// tidied address before anything changes. Empty, or our own address, is ours again and needs no check. Says why
   /// it didn't move, or null where it did (or the person said no at [confirm]: then declined is true).
-  Future<({String? problem, bool declined})> useRelay(String typed, {RelayConnect? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm}) async {
+  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm}) async {
     final url = tidyRelayAddress(typed);
     if (url == null) return (problem: 'That isn\'t a relay server\'s address. It looks like relay.example.com or wss://relay.example.com/hub.', declined: false);
     if (url.isEmpty || url == defaultHub) {

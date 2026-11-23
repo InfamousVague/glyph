@@ -22,6 +22,8 @@ dependencies:
   flutter_webrtc: 1.6.3
   # TDLib's C functions for the Telegram inbox (lib/inbox/td_json.dart): Dart's own FFI helpers, already in the lock.
   ffi: ^2.1.0
+  # The browser's own WebSocket, for the hub's route in a web page (lib/net/hub_link_web.dart): already in the lock.
+  web: ^1.1.0
   # The video player on the phone (lib/ui/video_screen.dart; Matt, 2026-11-15: "id like a video player built with
   # glacier UI right now it looks like a very old android core system player"): ExoPlayer under the app's own controls.
   video_player: ^2.14.1
