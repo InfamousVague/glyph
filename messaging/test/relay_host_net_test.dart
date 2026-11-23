@@ -18,6 +18,7 @@ import 'package:ghost_messaging/net/relay_choice.dart';
 import 'package:ghost_messaging/relay_host/address.dart';
 import 'package:ghost_messaging/relay_host/hosting.dart';
 import 'package:ghost_messaging/relay_host/relay_host_io.dart';
+import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/hub.dart';
 import 'package:ghost_relay/relay.dart';
 
@@ -167,9 +168,11 @@ void main() {
     final p2p = Net.instance.p2p!;
     await waitFor(() => p2p.loaded && p2p.helpers.isNotEmpty, 'never signed in to the first relay');
     // A hosted relay whose keeper's relay named no helpers, reached (here) in memory in Direct's place.
-    final hosted = MemoryHub(Hub());
+    // (A relay of its own name: the one an address names must be the one that answers.)
+    final fed = Federation(config: const FedConfig(mode: FedMode.list, via: Net.defaultHub), dial: (_) => Future.error(StateError('no via here')));
+    final hosted = MemoryHub(Hub(federation: fed));
     HubDials.hosted = hosted.dial;
-    final url = '${GhostRelayAddress(relay: 'ab' * 16, node: 'cd' * 32, via: Net.defaultHub)}';
+    final url = '${GhostRelayAddress(relay: fed.id, node: 'cd' * 32, via: Net.defaultHub)}';
     await Net.instance.setHub(url);
     await waitFor(() => Net.instance.hub!.state.value == CarrierState.up, 'never signed in to the hosted relay');
     await pumpEventQueue();
