@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
@@ -260,6 +261,107 @@ void main() {
       expect(b[theo]!.vouchersOf(mayaAt(theo)).length, 1, reason: 'the limit the year is for');
       clock += 355 * day;
       expect(b[theo]!.vouchersOf(mayaAt(theo)), isEmpty);
+    });
+  });
+
+  // From the review of 2026-11-23 (did-fix.md).
+  group('review fixes', () {
+    test('one friend toggling a vouch: the person tells each friend once, later, and takes at most four changes an hour', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), x = VouchPort(w, 'x');
+      final others = [for (var i = 0; i < 10; i++) VouchPort(w, 'f$i')];
+      final b = await makeFriends([(maya, x), for (final o in others) (maya, o)], carryAfter: const Duration(hours: 1));
+      final mayaAtX = b[x]!.byId(maya.keys.id)!;
+      final changes = <bool>[];
+      b[maya]!.vouches.addListener(() => changes.add(true));
+      for (var i = 0; i < 20; i++) {
+        await b[x]!.vouch(mayaAtX, on: i.isEven);
+        await pumpEventQueue();
+      }
+      expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo'), isEmpty, reason: 'nothing at once');
+      expect(changes.length, lessThanOrEqualTo(Buddies.vouchesAnHour), reason: 'the hour\'s changes from one friend are capped');
+      await b[maya]!.carryNow();
+      await b[maya]!.carryNow();
+      expect(maya.sent.where((s) => s.envelope.body['s'] == 'vo').length, 11, reason: 'one envelope a friend, and none again for the same');
+      for (final y in b.values) {
+        y.dispose();
+      }
+    });
+
+    test('a long list of one voucher\'s entries costs one signature check', () {
+      final sam = NetKeys.generate(), maya = NetKeys.generate(), theo = NetKeys.generate();
+      final viewer = Vouches.inMemory()..load(theo.id);
+      final recent = DateTime.now().millisecondsSinceEpoch - 600000;
+      final list = [for (var i = 0; i < 500; i++) {'b': sam.id, 't': recent + i, 's': base64Encode(List.filled(64, i % 250 + 1))}];
+      final before = NetCrypto.verifications;
+      viewer.tookCarried(maya.id, list, friendKey: base64Encode(maya.public), keyOf: (id) => id == sam.id ? base64Encode(sam.public) : null);
+      expect(NetCrypto.verifications - before, lessThanOrEqualTo(1));
+    });
+
+    test('a withdrawal is carried only while what it took back could still count, and an unchecked one is not kept', () async {
+      var clock = DateTime.utc(2026, 11, 23).millisecondsSinceEpoch;
+      const day = 24 * 3600 * 1000;
+      final sam = NetKeys.generate(), maya = NetKeys.generate(), theo = NetKeys.generate();
+      final samKey = base64Encode(sam.public), mayaKey = base64Encode(maya.public);
+      Future<Uint8List> sign(List<int> m) async => NetCrypto.sign(sam, m);
+      final samV = Vouches.inMemory(now: () => clock)..load(sam.id, key: samKey);
+      final held = Vouches.inMemory(now: () => clock)..load(maya.id, key: mayaKey);
+      // A withdrawal of nothing Maya held: kept (against an old vouch sent again) and never carried.
+      clock += day;
+      final bare = await samV.make(me: sam.id, forId: maya.id, forKey: mayaKey, on: false, sign: sign);
+      expect(held.heard(bare.toJson(), from: sam.id, fromKey: samKey, me: maya.id, meKey: mayaKey), isTrue);
+      expect(held.carry(), isEmpty);
+      // A vouch, then its withdrawal: carried until the vouch would have run out.
+      final yes = await samV.make(me: sam.id, forId: maya.id, forKey: mayaKey, on: true, sign: sign);
+      held.heard(yes.toJson(), from: sam.id, fromKey: samKey, me: maya.id, meKey: mayaKey);
+      clock += 100 * day;
+      final no = await samV.make(me: sam.id, forId: maya.id, forKey: mayaKey, on: false, sign: sign);
+      held.heard(no.toJson(), from: sam.id, fromKey: samKey, me: maya.id, meKey: mayaKey);
+      expect(held.carry().single['x'], 1);
+      clock = yes.until;
+      expect(held.carry(), isEmpty);
+      // A viewer keeps no withdrawal it couldn't check (a stranger's, or forged), whatever the profile says later.
+      final viewer = Vouches.inMemory(now: () => clock)..load(theo.id);
+      final fake = [for (var i = 0; i < 64; i++) {'b': NetCrypto.hex(NetCrypto.sha256([i]).sublist(0, 16)), 't': clock - day, 's': base64Encode(List.filled(64, 7)), 'x': 1}];
+      viewer.tookCarried(maya.id, fake, friendKey: mayaKey, keyOf: (_) => null);
+      expect(viewer.carried[maya.id] ?? const {}, isEmpty);
+    });
+
+    test('two devices of the voucher: a withdrawal on the one whose clock is behind still wins', () async {
+      final sam = NetKeys.generate(), maya = NetKeys.generate();
+      final samKey = base64Encode(sam.public), mayaKey = base64Encode(maya.public);
+      Future<Uint8List> sign(List<int> m) async => NetCrypto.sign(sam, m);
+      final phone = Vouches.inMemory(now: () => 2000000)..load(sam.id, key: samKey);
+      final laptop = Vouches.inMemory(now: () => 1000000)..load(sam.id, key: samKey); // 16 minutes behind
+      final yes = await phone.make(me: sam.id, forId: maya.id, forKey: mayaKey, on: true, sign: sign);
+      // Maya's profile carries the phone's vouch back to the laptop.
+      laptop.tookCarried(maya.id, [yes.carried()], friendKey: mayaKey, keyOf: (id) => id == sam.id ? samKey : null);
+      expect(laptop.givenFor(maya.id, forKey: mayaKey), isNotNull, reason: 'the laptop knows Sam vouches');
+      final no = await laptop.make(me: sam.id, forId: maya.id, forKey: mayaKey, on: false, sign: sign);
+      expect(no.t, greaterThan(yes.t));
+      final held = Vouches.inMemory(now: () => 2000000)..load(maya.id, key: mayaKey);
+      held.heard(yes.toJson(), from: sam.id, fromKey: samKey, me: maya.id, meKey: mayaKey);
+      expect(held.heard(no.toJson(), from: sam.id, fromKey: samKey, me: maya.id, meKey: mayaKey), isTrue);
+      expect(held.held[sam.id]!.on, isFalse);
+    });
+
+    test('two devices of the one vouched for, saying a little apart: the viewer merges them, and the count holds', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), sam = VouchPort(w, 'sam'), ana = VouchPort(w, 'ana'), theo = VouchPort(w, 'theo');
+      final b = await makeFriends([(maya, sam), (maya, ana), (maya, theo), (sam, theo), (ana, theo)]);
+      await b[sam]!.vouch(b[sam]!.byId(maya.keys.id)!);
+      await b[ana]!.vouch(b[ana]!.byId(maya.keys.id)!);
+      await pumpEventQueue();
+      final mayaAtTheo = b[theo]!.byId(maya.keys.id)!;
+      expect(b[theo]!.vouchersOf(mayaAtTheo).length, 2);
+      // Maya's other device heard only Sam's.
+      final samsOnly = [b[maya]!.vouches.held[sam.keys.id]!.carried()];
+      maya.deliver(theo, Envelope(kind: 'buddy', body: {'s': 'vo', 'vo': samsOnly}));
+      await pumpEventQueue();
+      expect(b[theo]!.vouchersOf(mayaAtTheo).length, 2);
+      for (final y in b.values) {
+        y.dispose();
+      }
     });
   });
 }

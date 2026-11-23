@@ -127,15 +127,35 @@ class Vouches extends ChangeNotifier {
   bool hidden = false;
   String? _for;
 
+  /// This account's own key (base64), to check its own words as a friend's profile carries them back.
+  String? _myKey;
+
+  /// For a withdrawal held ([held], by voucher): until when it is carried to friends, which is when the vouch it took
+  /// back would have run out. One that took back nothing this account carried is never carried: no friend could be
+  /// counting what it takes back.
+  final Map<String, int> _carryUntil = {};
+
+  /// Friends this account stopped being friends with whose vouch it held, and when: carried to friends (`vd`) for a
+  /// year, so they stop counting that vouch even though they merge what each device of this account says.
+  final Map<String, int> dropped = {};
+
+  /// What friends' profiles said they dropped (by friend, then voucher: when): a vouch by that voucher older than
+  /// that is no longer counted for them.
+  final Map<String, Map<String, int>> floors = {};
+
   static String _key(String me) => 'vouches:$me';
 
   /// Reads what is kept for the account [me] (another account on this device keeps its own).
-  void load(String me) {
+  void load(String me, {String? key}) {
+    if (key != null) _myKey = key;
     if (_for == me) return;
     _for = me;
     given.clear();
     held.clear();
     carried.clear();
+    _carryUntil.clear();
+    dropped.clear();
+    floors.clear();
     hidden = false;
     try {
       final j = jsonDecode(_read(_key(me)));
@@ -161,6 +181,25 @@ class Vouches extends ChangeNotifier {
           }
         }
         hidden = j['hide'] == true;
+        final dr = j['dr'];
+        if (dr is Map) {
+          for (final e in dr.entries) {
+            if (e.key is String && e.value is int) dropped[e.key as String] = e.value as int;
+          }
+        }
+        final fl = j['fl'];
+        if (fl is Map) {
+          for (final e in fl.entries) {
+            if (e.key is! String || e.value is! Map) continue;
+            floors[e.key as String] = {for (final x in (e.value as Map).entries) if (x.key is String && x.value is int) x.key as String: x.value as int};
+          }
+        }
+        final cu = j['cu'];
+        if (cu is Map) {
+          for (final e in cu.entries) {
+            if (e.key is String && e.value is int && held[e.key]?.on == false) _carryUntil[e.key as String] = e.value as int;
+          }
+        }
       }
     } catch (_) {}
     if (_prune()) _save();
@@ -183,6 +222,15 @@ class Vouches extends ChangeNotifier {
       from(m);
     }
     carried.removeWhere((_, m) => m.isEmpty);
+    _carryUntil.removeWhere((by, until) => until <= now || held[by]?.on != false);
+    final year = Vouch.lasts.inMilliseconds;
+    final before = this.dropped.length + floors.length;
+    this.dropped.removeWhere((_, at) => at + year <= now);
+    for (final f in floors.values) {
+      f.removeWhere((_, at) => at + year <= now);
+    }
+    floors.removeWhere((_, f) => f.isEmpty);
+    if (this.dropped.length + floors.length != before) dropped = true;
     return dropped;
   }
 
@@ -195,6 +243,9 @@ class Vouches extends ChangeNotifier {
         'held': [for (final v in held.values) v.carried()],
         'carried': {for (final e in carried.entries) e.key: [for (final v in e.value.values) v.carried()]},
         if (hidden) 'hide': true,
+        if (_carryUntil.isNotEmpty) 'cu': _carryUntil,
+        if (dropped.isNotEmpty) 'dr': dropped,
+        if (floors.isNotEmpty) 'fl': floors,
       }));
     }
     notifyListeners();
@@ -222,7 +273,10 @@ class Vouches extends ChangeNotifier {
   /// sent. Always later than the word it replaces, whatever the clock says.
   Future<Vouch> make({required String me, required String forId, required String forKey, required bool on, required Future<Uint8List> Function(List<int> message) sign}) async {
     load(me);
-    final before = given[forId]?.t ?? 0;
+    // Later than this account's newest word about them, whichever device said it: another device's comes back in their
+    // profile (found in review, 2026-11-23: a withdrawal made on a device whose clock was behind lost to the vouch).
+    final back = _ownCarried(forId, forKey);
+    final before = [given[forId]?.t ?? 0, back?.t ?? 0].reduce((a, b) => a > b ? a : b);
     final t = _now() > before ? _now() : before + 1;
     final sig = await sign(Vouch.signedBytes(by: me, forId: forId, forKey: forKey, on: on, t: t));
     final v = Vouch(by: me, forId: forId, on: on, t: t, sig: sig);
@@ -239,38 +293,80 @@ class Vouches extends ChangeNotifier {
     if (_prune()) _save();
     final v = Vouch.fromJson(body);
     if (v == null || v.by != from || v.forId != me || !v.goodAt(_now()) || !v.checks(byKey: fromKey, forKey: meKey)) return false;
+    final had = held[v.by];
+    if (v.t < (dropped[v.by] ?? 0)) return false;
     if (!_newer(held, v)) return false;
+    dropped.remove(v.by);
+    if (v.on) {
+      _carryUntil.remove(v.by);
+    } else if (had != null && had.on && had.goodAt(_now())) {
+      _carryUntil[v.by] = had.until;
+    }
     _cap(held);
     _save();
     return true;
   }
 
-  /// What a friend's profile said they hold ([list], the carried form), in place of what it said before: a voucher it
-  /// no longer names is gone (the friend dropped them, or hid them all), except that a word older than one seen before
-  /// from the same voucher is passed over, and a taken-back word seen before is kept, so a vouch taken back and later
-  /// carried again in its old form stays taken back. A voucher [keyOf] names a key for (a friend of this account's) is
-  /// checked as it comes; the rest are kept as they came, and checked if that voucher becomes a friend.
-  void tookCarried(String friend, Object? list, {String? Function(String id)? keyOf, String? friendKey}) {
+  /// What a friend's profile said they hold ([list], the carried form), merged with what was held before, newest per
+  /// voucher, so two devices of theirs saying a little apart don't make the count flip (found in review, 2026-11-23).
+  /// Where they hid their vouches ([hidden]) the said ones go. A voucher [keyOf] names a key for (a friend of this
+  /// account's, or this account itself) is checked as it comes, once, on the newest the list has of them, so a long
+  /// list costs no more checks than it has vouchers; the rest are kept unchecked (counted only if that voucher becomes a
+  /// friend and then checks), and an unchecked withdrawal isn't kept at all.
+  void tookCarried(String friend, Object? list, {bool hidden = false, Object? dropped, String? Function(String id)? keyOf, String? friendKey}) {
     if (list is! List || _for == null) return;
     if (_prune()) _save();
-    final had = carried[friend] ?? const <String, Vouch>{};
-    final now = <String, Vouch>{};
+    final now = _now();
+    var floorsChanged = false;
+    if (dropped is Map) {
+      final f = floors.putIfAbsent(friend, () => {});
+      for (final e in dropped.entries.take(2 * most)) {
+        final at = e.value;
+        if (e.key is! String || at is! int || at > now + Vouch.ahead.inMilliseconds || at + Vouch.lasts.inMilliseconds <= now) continue;
+        if (at > (f[e.key] ?? 0)) {
+          f[e.key as String] = at;
+          floorsChanged = true;
+        }
+      }
+      if (f.isEmpty) floors.remove(friend);
+    }
+    final floor = floors[friend] ?? const <String, int>{};
+    final newest = <String, Vouch>{};
     for (final j in list.take(2 * most)) {
       final v = Vouch.fromJson(j, forId: friend);
-      if (v == null || v.by == friend || !v.goodAt(_now())) continue;
+      if (v == null || v.by == friend || !v.goodAt(now) || v.t < (floor[v.by] ?? 0)) continue;
+      _newer(newest, v);
+    }
+    final had = carried[friend] ?? const <String, Vouch>{};
+    final into = {...had};
+    for (final v in newest.values) {
+      final before = into[v.by];
+      if (before != null && before.t >= v.t) continue;
       final k = keyOf?.call(v.by);
-      if (k != null && friendKey != null && !v.checks(byKey: k, forKey: friendKey)) continue;
-      final seen = had[v.by];
-      _newer(now, seen != null && seen.t > v.t ? seen : v);
+      final checked = k != null && friendKey != null && v.checks(byKey: k, forKey: friendKey);
+      if (k != null && !checked) continue;
+      if (!v.on && !checked) continue;
+      into[v.by] = v;
     }
-    for (final v in had.values) {
-      if (!v.on && !now.containsKey(v.by)) now[v.by] = v;
-    }
-    _cap(now);
+    if (hidden) into.removeWhere((_, v) => v.on);
+    into.removeWhere((by, v) => v.on && v.t < (floor[by] ?? 0));
+    _cap(into);
     String said(Map<String, Vouch> m) => jsonEncode([for (final v in m.values) v.carried()]);
-    if (said(now) == said(had)) return;
-    carried[friend] = now;
+    if (said(into) == said(had)) {
+      if (floorsChanged) _save();
+      return;
+    }
+    carried[friend] = into;
     _save();
+  }
+
+  /// This account's own newest word about [forId] as their profile carried it back, where it is this account's by its
+  /// key; null otherwise.
+  Vouch? _ownCarried(String forId, String forKey) {
+    final me = _for, key = _myKey;
+    final v = me == null ? null : carried[forId]?[me];
+    if (v == null || key == null || !v.checks(byKey: key, forKey: forKey)) return null;
+    return v;
   }
 
   /// What this account's profile carries to its friends: the newest said and taken back of those it holds, or nothing
@@ -278,7 +374,7 @@ class Vouches extends ChangeNotifier {
   List<Map<String, Object>> carry() {
     if (hidden) return const [];
     final now = _now();
-    final all = held.values.where((v) => v.goodAt(now)).toList()..sort((a, b) => b.t.compareTo(a.t));
+    final all = held.values.where((v) => v.goodAt(now) && (v.on || (_carryUntil[v.by] ?? 0) > now)).toList()..sort((a, b) => b.t.compareTo(a.t));
     return [for (final v in all) v.carried()];
   }
 
@@ -291,7 +387,10 @@ class Vouches extends ChangeNotifier {
   /// [id] is no longer a friend (removed, blocked, or they ended it): their vouch for this account goes, this account's
   /// for them, and what their profile carried.
   void forget(String id) {
+    _carryUntil.remove(id);
+    if (held[id]?.on ?? false) dropped[id] = _now();
     final a = held.remove(id), b = given.remove(id), c = carried.remove(id);
+    floors.remove(id);
     if (a != null || b != null || c != null) _save();
   }
 
@@ -304,13 +403,17 @@ class Vouches extends ChangeNotifier {
     final now = _now();
     return [
       for (final f in friends)
-        if (words[id(f)] case final v? when id(f) != forId && v.on && v.goodAt(now) && v.checks(byKey: key(f), forKey: forKey)) f,
+        if (words[id(f)] case final v? when id(f) != forId && v.on && v.goodAt(now) && v.t >= (floors[forId]?[id(f)] ?? 0) && v.checks(byKey: key(f), forKey: forKey)) f,
     ];
   }
 
-  /// This account's vouch for [forId] where it gave one and it is good now; null otherwise.
-  Vouch? givenFor(String forId) {
-    final v = given[forId];
+  /// This account's newest word about [forId] (key [forKey]), from this device or as their profile carried back
+  /// another device's ([myKey] checks it is this account's), where it is a vouch good now; null otherwise.
+  Vouch? givenFor(String forId, {String? forKey, String? myKey}) {
+    if (myKey != null) _myKey = myKey;
+    var v = given[forId];
+    final back = forKey == null ? null : _ownCarried(forId, forKey);
+    if (back != null && (v == null || back.t > v.t)) v = back;
     return v != null && v.on && v.goodAt(_now()) ? v : null;
   }
 }

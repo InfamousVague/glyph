@@ -34,7 +34,7 @@ String vouchDay(DateTime d) => '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'M
 String yourVouchWords(DateTime until) => 'You vouch for them, until ${vouchDay(until)}';
 
 /// What Vouch for says under it.
-const vouchHint = 'Say this account is really them, for a year. Only your friends who are theirs too will see it.';
+const vouchHint = 'Say this account is really them, for a year. Their friends receive it; only those who are your friends too count it.';
 
 /// The choices on [b]'s card (a friend's): Vouch for them, or take it back.
 List<Choice> vouchChoices(BuildContext context, Buddy b, {Buddies? buddies}) {
@@ -55,7 +55,7 @@ List<Choice> vouchChoices(BuildContext context, Buddy b, {Buddies? buddies}) {
   return [
     // A vouch is good for a year from when it was given; giving it again starts the year again.
     Choice('Vouch for $name again', Lucide.userCheck, () => unawaited(go(true)), hint: 'Yours runs out ${vouchDay(until)}. Again, it lasts a year from today'),
-    Choice('Take back your vouch for $name', Lucide.undo2, () => unawaited(go(false)), hint: 'They and your friends stop counting it'),
+    Choice('Take back your vouch for $name', Lucide.undo2, () => unawaited(go(false)), hint: 'Their friends who saw it are told; it stops counting'),
   ];
 }
 
@@ -121,7 +121,7 @@ class VouchesSection extends StatelessWidget {
         final who = b.vouchersOf(null);
         return PaneSection(
           title: 'Vouches',
-          description: const Text('A friend can vouch that this account is really you. Each of your friends sees how many of their own friends vouch for you, never a count of everyone.'),
+          description: const Text('A friend can vouch that this account is really you, for a year. Your friends receive the vouches you hold, and each counts only those by their own friends: never a count of everyone.'),
           children: [
             SettingRow(
               key: const ValueKey('vouches-mine'),

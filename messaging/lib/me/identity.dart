@@ -126,12 +126,12 @@ class Proof {
   /// The most a statement may be, in characters.
   static const most = 280;
 
-  /// The most a pasted one is read to: anything longer is not one of ours.
+  /// The most a block (from BEGIN to END) may be: anything longer is not one of ours. What is around it is not counted.
   static const _mostRead = 8192;
 
   /// [text] as it is signed and checked.
   static String tidy(String text) {
-    final lines = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n').map((l) => l.trim()).toList();
+    final lines = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n').map(_trim).toList();
     while (lines.isNotEmpty && lines.first.isEmpty) {
       lines.removeAt(0);
     }
@@ -140,6 +140,14 @@ class Proof {
     }
     return lines.join('\n');
   }
+
+  /// Spaces and tabs off both ends, and nothing else: tool/check-proof.mjs and any other checker trim the same.
+  static String _trim(String line) => line.replaceAll(_ends, '');
+  static final _ends = RegExp(r'^[ \t]+|[ \t]+$');
+
+  /// What a time and a signature must look like, exactly (the signature after + and / are read as - and _).
+  static final timeShape = RegExp(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$');
+  static final signatureShape = RegExp(r'^[A-Za-z0-9_-]{86}$');
 
   /// A time as a proof writes it: UTC, to the second.
   static String timeOf(DateTime at) {
@@ -173,12 +181,12 @@ class Proof {
 
   /// Whose [pasted] is, where it is a proof whose signature checks out: what is around the block is passed over.
   static ProofCheck check(String pasted) {
-    if (pasted.length > _mostRead) return _bad('That is too long to be a proof.');
     final text = pasted.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final a = text.indexOf(begin);
     final b = a < 0 ? -1 : text.indexOf(end, a + begin.length);
     if (a < 0 || b < 0) return _bad('No proof found. Paste the whole block, from its BEGIN line to its END line.');
-    final lines = text.substring(a + begin.length, b).split('\n').map((l) => l.trim()).toList();
+    if (b + end.length - a > _mostRead) return _bad('That is too long to be a proof.');
+    final lines = text.substring(a + begin.length, b).split('\n').map(_trim).toList();
     while (lines.isNotEmpty && lines.first.isEmpty) {
       lines.removeAt(0);
     }
@@ -187,18 +195,20 @@ class Proof {
     for (; i < lines.length && lines[i].isNotEmpty; i++) {
       final at = lines[i].indexOf(':');
       if (at < 0) return _bad('The proof\'s lines were changed: "${lines[i]}" isn\'t one of them.');
-      fields[lines[i].substring(0, at).trim().toLowerCase()] = lines[i].substring(at + 1).trim();
+      fields[_trim(lines[i].substring(0, at)).toLowerCase()] = _trim(lines[i].substring(at + 1));
     }
     final did = fields['account'] ?? '', time = fields['signed'] ?? '', sigText = fields['signature'] ?? '';
     final statement = tidy(lines.skip(i).join('\n'));
     final key = Did.keyOf(did);
-    final signed = DateTime.tryParse(time);
+    final signed = timeShape.hasMatch(time) ? DateTime.tryParse(time) : null;
     if (key == null) return _bad('The account it names isn\'t one this app can read.', did: did, statement: statement);
     Uint8List? sig;
-    try {
-      final padded = sigText.replaceAll('+', '-').replaceAll('/', '_');
-      sig = base64Url.decode(padded + '=' * ((4 - padded.length % 4) % 4));
-    } catch (_) {}
+    final url = sigText.replaceAll('+', '-').replaceAll('/', '_');
+    if (signatureShape.hasMatch(url)) {
+      try {
+        sig = base64Url.decode('$url==');
+      } catch (_) {}
+    }
     if (sig == null || sig.length != 64 || signed == null) return _bad('Part of the proof is missing or was changed.', did: did, key: key, statement: statement, signed: signed);
     if (!NetCrypto.verify(key, signedBytes(did, time, statement), sig)) {
       return _bad('The signature doesn\'t match: the words, the time or the account were changed, or it was never signed by that account.', did: did, key: key, statement: statement, signed: signed);

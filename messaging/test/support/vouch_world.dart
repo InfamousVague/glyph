@@ -74,7 +74,8 @@ class VouchPort implements BuddiesPort, BuddiesSigner {
 Buddy friendOf(VouchPort p) => Buddy(username: p.name, id: p.keys.id, key: p.key, state: 'yes', at: 1);
 
 /// Makes each pair in [pairs] friends, then starts every one.
-Future<Map<VouchPort, Buddies>> makeFriends(List<(VouchPort, VouchPort)> pairs, {Map<VouchPort, Vouches>? stores}) async {
+/// Each carries what it holds to friends [carryAfter] after it changes (none: as soon as the event queue turns).
+Future<Map<VouchPort, Buddies>> makeFriends(List<(VouchPort, VouchPort)> pairs, {Map<VouchPort, Vouches>? stores, Duration carryAfter = Duration.zero}) async {
   final lists = <VouchPort, List<Buddy>>{};
   for (final (a, b) in pairs) {
     lists.putIfAbsent(a, () => []).add(friendOf(b));
@@ -83,7 +84,7 @@ Future<Map<VouchPort, Buddies>> makeFriends(List<(VouchPort, VouchPort)> pairs, 
   final out = <VouchPort, Buddies>{};
   for (final e in lists.entries) {
     e.key.list = jsonEncode([for (final b in e.value) b.toJson()]);
-    out[e.key] = Buddies(e.key, vouches: stores?[e.key]);
+    out[e.key] = Buddies(e.key, vouches: stores?[e.key], carryAfter: carryAfter);
     await out[e.key]!.start();
   }
   return out;

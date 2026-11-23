@@ -31,9 +31,12 @@ function base58(text) {
   return Buffer.concat([Buffer.alloc(zeros), n === 0n ? Buffer.alloc(0) : Buffer.from(hex, 'hex')]);
 }
 
+// Spaces and tabs off both ends of a line, and nothing else (lib/me/identity.dart trims the same).
+const trim = (x) => x.replace(/^[ \t]+|[ \t]+$/g, '');
+
 // The statement as it is signed: line ends made \n, each line trimmed, blank lines at either end dropped.
 function tidy(lines) {
-  const l = lines.map((x) => x.trim());
+  const l = lines.map(trim);
   while (l.length && !l[0]) l.shift();
   while (l.length && !l[l.length - 1]) l.pop();
   return l.join('\n');
@@ -43,15 +46,16 @@ const text = readFileSync(process.argv[2] ?? 0, 'utf8').replace(/\r\n?/g, '\n');
 const a = text.indexOf(BEGIN);
 const b = a < 0 ? -1 : text.indexOf(END, a + BEGIN.length);
 if (a < 0 || b < 0) fail('no proof found (it runs from its BEGIN line to its END line)');
+if (b + END.length - a > 8192) fail('the block is too long to be a proof');
 
-const lines = text.slice(a + BEGIN.length, b).split('\n').map((x) => x.trim());
+const lines = text.slice(a + BEGIN.length, b).split('\n').map(trim);
 while (lines.length && !lines[0]) lines.shift();
 const fields = {};
 let i = 0;
 for (; i < lines.length && lines[i]; i++) {
   const at = lines[i].indexOf(':');
   if (at < 0) fail(`a line was changed: "${lines[i]}"`);
-  fields[lines[i].slice(0, at).trim().toLowerCase()] = lines[i].slice(at + 1).trim();
+  fields[trim(lines[i].slice(0, at)).toLowerCase()] = trim(lines[i].slice(at + 1));
 }
 const did = fields.account ?? '';
 const time = fields.signed ?? '';
@@ -72,7 +76,10 @@ const key = createPublicKey({
   format: 'jwk',
 });
 
-const signature = Buffer.from((fields.signature ?? '').replace(/\+/g, '-').replace(/\//g, '_'), 'base64url');
+if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(time)) fail('the Signed line is missing or not a time like 2026-11-23T10:15:07Z');
+const sigText = (fields.signature ?? '').replace(/\+/g, '-').replace(/\//g, '_');
+if (!/^[A-Za-z0-9_-]{86}$/.test(sigText)) fail('the signature is missing, cut short or changed');
+const signature = Buffer.from(sigText, 'base64url');
 if (signature.length !== 64) fail('the signature is missing or cut short');
 
 const message = Buffer.from(`ghost-proof v1\n${did}\n${time}\n${statement}`, 'utf8');

@@ -87,4 +87,9 @@ void main() {
     }
     await tester.pump(const Duration(seconds: 5));
   });
+
+  test('the words say who receives a vouch: all of their friends, though only mutual friends count it (review, 2026-11-23)', () {
+    expect(vouchHint, contains('Their friends receive it; only those who are your friends too count it.'));
+    expect(vouchHint, isNot(contains('Only your friends who are theirs too will see it')));
+  });
 }

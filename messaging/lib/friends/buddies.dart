@@ -219,7 +219,7 @@ class Buddies extends ChangeNotifier {
 
   /// [lookups]: the account's budget of lookups made of the app's own accord, which the name watch shares (the app's
   /// own: LookupBudget.instance); one of its own where none is given.
-  Buddies(this._port, {this.spread = const Duration(seconds: 2), LookupBudget? lookups, Vouches? vouches})
+  Buddies(this._port, {this.spread = const Duration(seconds: 2), this.carryAfter = const Duration(minutes: 3), LookupBudget? lookups, Vouches? vouches})
       : _lookups = lookups ?? LookupBudget(),
         _vouches = vouches;
 
@@ -441,7 +441,7 @@ class Buddies extends ChangeNotifier {
     // This account's vouches (lib/friends/vouches.dart), kept under its own name.
     try {
       final me = _me = await _port.me();
-      vouches.load(me.id);
+      vouches.load(me.id, key: me.key);
     } catch (_) {}
     _subs.add(_port.greetings.listen((g) => unawaited(_greeting(g.from, g.envelope))));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
@@ -833,13 +833,16 @@ class Buddies extends ChangeNotifier {
   /// Whether vouching is done here: not on a computer that speaks through its phone, where the phone's friends are.
   bool get vouchesHere => !_remote && _port is BuddiesSigner;
 
-  /// This account's vouch for [b], where it gave one and has not taken it back.
-  bool vouchedFor(Buddy b) => vouches.givenFor(b.id) != null;
+  /// This account's vouch for [b], where it gave one that is good now and has not taken it back (on this device or, as
+  /// [b]'s profile carries it back, another of this account's).
+  bool vouchedFor(Buddy b) => _givenFor(b) != null;
+
+  Vouch? _givenFor(Buddy b) => vouches.givenFor(b.id, forKey: b.key, myKey: _me?.key);
 
   /// When this account's vouch for [b] runs out, where it gave one that is good now; null otherwise. Vouch for again
   /// renews it for another year.
   DateTime? vouchRunsOut(Buddy b) {
-    final v = vouches.givenFor(b.id);
+    final v = _givenFor(b);
     return v == null ? null : DateTime.fromMillisecondsSinceEpoch(v.until);
   }
 
@@ -862,52 +865,89 @@ class Buddies extends ChangeNotifier {
     await _port.send(b.id, Envelope(kind: 'vouch', body: v.toJson()));
   }
 
-  /// Whether this account carries the vouches it holds to its friends; hiding them tells friends so at once.
+  /// Whether this account carries the vouches it holds to its friends. Friends are told with the next carrying
+  /// ([carryAfter]), with `vh` so they let go of what was carried before.
   Future<void> hideVouches(bool hide) async {
     vouches.setHidden(hide);
     notifyListeners();
-    await _carryToFriends();
+    _carrySoon();
   }
 
-  /// Tells every friend what this account now holds (a vouch came, or went, or the person hid them).
-  Future<void> _carryToFriends() async {
-    final carry = vouches.carry();
+  /// How long after what this account holds changes before friends are told, once, whatever changed meanwhile (found
+  /// in review, 2026-11-23: each change was sent to every friend at once, so one friend toggling a vouch could fill an
+  /// away friend's mailbox on the relay and wake every iPhone).
+  final Duration carryAfter;
+  Timer? _carrier;
+
+  /// What friends were last told this account holds, so the same is not sent again.
+  String? _carried;
+
+  /// The most vouch changes taken from one friend in an hour; past that they wait (a friend's app sends again).
+  static const vouchesAnHour = 4;
+  final Map<String, List<DateTime>> _vouchesFrom = {};
+
+  void _carrySoon() {
+    _carrier ??= Timer(carryAfter, () {
+      _carrier = null;
+      unawaited(carryNow());
+    });
+  }
+
+  /// Tells every friend what this account now holds, where it isn't what they were last told: one envelope each. The
+  /// timer calls it; a test calls it itself.
+  @visibleForTesting
+  Future<void> carryNow() async {
+    _carrier?.cancel();
+    _carrier = null;
+    final body = _carryBody();
+    final said = jsonEncode(body);
+    if (said == _carried) return;
+    _carried = said;
     for (final b in friends) {
       try {
-        await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'vo', 'vo': carry}));
+        await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'vo', ...body}));
       } catch (_) {}
     }
   }
 
-  /// A friend vouched for this account, or took it back.
+  /// What a profile says of the vouches held: `vo`; `vh` where the person hid them; `vd`, the friends whose vouch this
+  /// account dropped (no longer friends) and when.
+  Map<String, Object> _carryBody() => {'vo': vouches.carry(), if (vouches.hidden) 'vh': 1, if (vouches.dropped.isNotEmpty) 'vd': {...vouches.dropped}};
+
+  /// A friend vouched for this account, or took it back: at most [vouchesAnHour] changes an hour from each.
   void _heardVouch(String from, Map body) {
     final had = byId(from), me = _me;
     if (had == null || had.state != 'yes' || me == null) return;
+    final now = DateTime.now();
+    final recent = (_vouchesFrom[from] ?? const <DateTime>[]).where((t) => now.difference(t) < const Duration(hours: 1)).toList();
+    if (recent.length >= vouchesAnHour) return;
     if (vouches.heard(body, from: from, fromKey: had.key, me: me.id, meKey: me.key)) {
+      _vouchesFrom[from] = [...recent, now];
       notifyListeners();
-      unawaited(_carryToFriends());
+      _carrySoon();
     }
   }
 
   /// What a friend's sealed profile says they hold (`vo`), where it says it.
   void _heardCarried(Buddy had, Map body) {
     if (!body.containsKey('vo')) return;
-    vouches.tookCarried(had.id, body['vo'], friendKey: had.key, keyOf: (id) {
+    vouches.tookCarried(had.id, body['vo'], hidden: body['vh'] == 1, dropped: body['vd'], friendKey: had.key, keyOf: (id) {
+      if (id == _me?.id) return _me!.key;
       final f = byId(id);
       return f?.state == 'yes' ? f!.key : null;
     });
     notifyListeners();
   }
 
-  /// [id] is no longer a friend: their vouch goes, and friends are told.
+  /// [id] is no longer a friend: their vouch goes, and friends are told with the next carrying.
   void _dropVouches(String id) {
     final held = vouches.held[id]?.on ?? false;
     vouches.forget(id);
-    if (held) unawaited(_carryToFriends());
+    if (held) _carrySoon();
   }
 
   /// What friends are told of this person in a sealed envelope: [_profile], and the vouches it holds.
-  Map<String, Object> _sealedProfile() => {..._profile(), 'vo': vouches.carry()};
+  Map<String, Object> _sealedProfile() => {..._profile(), ..._carryBody()};
 
   /// What friends are told of this person. The picture and status since 2026-11-19 (`p`, `st`); a build from before
   /// passes over them.
@@ -1264,6 +1304,7 @@ class Buddies extends ChangeNotifier {
     _poll?.cancel();
     _again?.cancel();
     _teller?.cancel();
+    _carrier?.cancel();
     _across?.homesChanged.removeListener(_homesChanged);
     for (final s in _subs) {
       s.cancel();

@@ -69,4 +69,34 @@ void main() {
     expect(no.exitCode, 1, reason: '${no.stdout}${no.stderr}');
     expect('${no.stdout}', contains('Does not check out'));
   });
+
+  test('the app and tool/check-proof.mjs agree on every edge the review found (docs/proofs.md)', () async {
+    final k = NetKeys.generate();
+    final block = await Proof.make('I am @matt on Ghost Messaging', publicKey: k.public, sign: (m) async => NetCrypto.sign(k, m));
+    final did = Did.ofKey(k.public);
+    String signedOver(String time, String words) {
+      final sig = NetCrypto.sign(k, Proof.signedBytes(did, time, words));
+      return [Proof.begin, 'Account: $did', if (time.isNotEmpty) 'Signed: $time', 'Signature: ${base64Url.encode(sig).replaceAll('=', '')}', '', words, Proof.end].join('\n');
+    }
+
+    final cases = <String, (String, bool)>{
+      'as made': (block, true),
+      'indented with spaces and tabs': (block.split('\n').map((l) => ' \t$l\t ').join('\r\n'), true),
+      'a trailing NEL (U+0085) on the statement': (block.replaceFirst('Ghost Messaging\n', 'Ghost Messaging\u0085\n'), false),
+      'a trailing no-break space': (block.replaceFirst('Ghost Messaging\n', 'Ghost Messaging \n'), false),
+      'junk after the signature': (block.replaceFirstMapped(RegExp(r'Signature: (\S+)'), (m) => 'Signature: ${m[1]}!!*~'), false),
+      'no Signed line': (signedOver('', 'hello'), false),
+      'a time not to the second in UTC': (signedOver('2026-11-23 10:15:07', 'hello'), false),
+      'inside a page longer than 8192 characters': ('${'x' * 9000}\n$block\n${'y' * 9000}', true),
+      'a block longer than 8192 characters': (block.replaceFirst('\n\n', '\n\n${'\n' * 9000}'), false),
+    };
+    final dir = Directory.systemTemp.createTempSync('proofs');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    for (final e in cases.entries) {
+      final f = File('${dir.path}/${e.key.hashCode}.txt')..writeAsStringSync(e.value.$1);
+      final node = await Process.run('node', ['tool/check-proof.mjs', f.path]);
+      expect(Proof.check(e.value.$1).good, e.value.$2, reason: 'the app, ${e.key}');
+      expect(node.exitCode == 0, e.value.$2, reason: 'check-proof.mjs, ${e.key}: ${node.stdout}');
+    }
+  });
 }
