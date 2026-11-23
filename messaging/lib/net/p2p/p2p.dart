@@ -901,6 +901,29 @@ class P2p extends ChangeNotifier {
     }
   }
 
+  /// Asks [account] for its cards at once, saying which are held: a device of theirs not among them says its own.
+  Future<void> _askAgain(String account) async {
+    final peer = account == me ? _minePeer : _friendsNow[account];
+    if (peer == null || !_on || !mayLink(account)) return;
+    await _say(peer, {'t': 'card?', 'h': _held(account)});
+  }
+
+  /// A device of [account]'s at [nodeId] proved on a stream that it is theirs: heard from now.
+  void heardFrom(String account, String nodeId) {
+    final list = _cards[account];
+    final i = list?.indexWhere((d) => d.nodeId == nodeId) ?? -1;
+    if (list == null || i < 0) return;
+    final d = list[i], now = nowMs;
+    list[i] = P2pDevice(d.card, where: d.where, heard: now);
+    // Kept, though not at every stream: once an hour at most.
+    if (now - d.heard >= _hour) _saveCards();
+  }
+
+  /// How long a device of a friend's may go unheard from (no card, no meet, no proved stream) while another of theirs
+  /// is heard from, before a send dials it no more: an install of theirs from before (a phone reset, the app put back)
+  /// has a card good for weeks, and nobody is there. Its card stays until it runs out, and it may still dial in.
+  static const staleAfter = Duration(days: 16);
+
   /// Answers [peer] with this device's card. Not while Direct is off, and not a friend while the person is Invisible
   /// (an answer now says this device is here): they are told when that ends.
   void _answerOrLater(Peer peer) {
@@ -936,8 +959,12 @@ class P2p extends ChangeNotifier {
     final list = _cards[from] ?? <P2pDevice>[];
     final at = list.indexWhere((d) => d.card.device == card.device);
     final had = at < 0 ? null : list[at];
-    // An older card than the one held is a copy from before.
-    if (had != null && card.made < had.card.made) return null;
+    // An older card than the one held for that device: for the same node, a copy from before. For another node it is
+    // taken, as a device whose clock went back makes its cards "older" and could not otherwise replace its card for up to
+    // 30 days; and in case it is a copy from before put back (the relay can send again what it carried), the account is
+    // asked at once with the cards held, so a device of theirs whose own card is newer says it again.
+    final older = had != null && card.made < had.card.made;
+    if (older && had.nodeId == card.nodeId) return null;
     final sameNode = had != null && had.nodeId == card.nodeId;
     var where = whereOf(body['w'], now: now);
     // Where it is: what it says now, nothing included (its node is down, or it chose "Only through link helpers"),
@@ -963,6 +990,7 @@ class P2p extends ChangeNotifier {
       _told[from] = _Told(told.card, told.at, told.asked, 0);
       _saveTold();
     }
+    if (older) _quietly(_askAgain(from));
     _allow();
     _watchDue();
     carrier.heard(card.nodeId);

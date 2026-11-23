@@ -355,12 +355,19 @@ void main() {
       await a.board.send(a.to(b.account), _said(w, {'t': 'card?', 'h': [b.p2p.card!.tag]}), only: {'hub'});
       await w.settle();
       expect(a.heard.sublist(heard), ['card from sam']);
-      // An older card for a device than the one held is a copy from before: not taken.
+      // An older card for a device than the one held, for the same node, is a copy from before: not taken. One for
+      // another node is taken (a device whose clock went back), and Sam's account asked at once in case it is a copy.
       final device = cards.last.device;
-      final older = await DeviceCard.make(KeysSigner(b.account.keys), device: device, nodeId: NetCrypto.hex(NetCrypto.randomBytes(32)), now: w.clock.now().subtract(const Duration(hours: 1)));
-      await b.board.send(b.to(a.account), _said(w, _telling(a, older)), only: {'hub'});
+      final sameNode = await DeviceCard.make(KeysSigner(b.account.keys), device: device, nodeId: cards.last.nodeId, now: w.clock.now().subtract(const Duration(hours: 1)));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, sameNode)), only: {'hub'});
       await w.settle();
       expect(a.p2p.devicesOf(b.account.id).firstWhere((d) => d.card.device == device).card, cards.last);
+      final asked = b.heard.length;
+      final otherNode = await DeviceCard.make(KeysSigner(b.account.keys), device: device, nodeId: NetCrypto.hex(NetCrypto.randomBytes(32)), now: w.clock.now().subtract(const Duration(hours: 1)));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, otherNode)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id).firstWhere((d) => d.card.device == device).card, otherNode);
+      expect(b.heard.sublist(asked), ['card? from maya']);
     });
 
     test('a card that runs out is dropped and its node let in no longer; a device makes its own again with a week left and tells it once', () async {
@@ -390,6 +397,57 @@ void main() {
       expect(a.p2p.devicesOf(b.account.id).map((d) => d.card.device), [b.device]);
       expect(a.node.allowed.keys, [b.p2p.nodeId]);
       expect(a.plain.kept[P2p.cardsName], isNot(contains(gone.nodeId)));
+    });
+
+    // From the second review's notes: a device whose clock went back could not replace its card for up to 30 days, and
+    // the cards of a friend's earlier installs were dialled for as long.
+    test('an "older" card for another node is taken, and the account asked at once in case it is a copy from before; an install not heard from in sixteen days, while another of theirs has been, is not dialled', () async {
+      final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      final current = b.p2p.card!;
+      // A device of Sam's made itself a new node key while its clock was ten days behind: its new card is "older" than
+      // the one held for it. (Here no device of his contradicts it: his has Direct switched off for the moment.)
+      await b.board.setOn('p2p', false);
+      final behind = await DeviceCard.make(KeysSigner(b.account.keys), device: b.device, nodeId: 'ab' * 32, now: w.clock.now().subtract(const Duration(days: 10)));
+      final heard = b.heard.length;
+      await b.board.send(b.to(a.account), _said(w, _telling(a, behind)), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id).single.nodeId, 'ab' * 32, reason: 'taken: another node');
+      // And Sam's account was asked at once, saying which card is held, in case it is a copy from before.
+      expect(b.heard.sublist(heard), ['card? from maya']);
+      // A copy from before, older still and naming yet another node: taken, asked, and Sam's device, whose own card is
+      // newer, says it again. That is the one held.
+      await b.board.setOn('p2p', true);
+      final before = await DeviceCard.make(KeysSigner(b.account.keys), device: b.device, nodeId: 'cd' * 32, now: w.clock.now().subtract(const Duration(days: 12)));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, before)), only: {'hub'});
+      await w.settle();
+      expect(b.heard.sublist(heard), ['card? from maya', 'card? from maya']);
+      expect(a.p2p.devicesOf(b.account.id).single.card, current);
+      // The same card for the same node, older than the one held: a copy from before, and nothing is asked.
+      final older = await DeviceCard.make(KeysSigner(b.account.keys), device: b.device, nodeId: current.nodeId, now: w.clock.now().subtract(const Duration(days: 2)));
+      await b.board.send(b.to(a.account), _said(w, _telling(a, older)), only: {'hub'});
+      await w.settle();
+      expect([a.p2p.devicesOf(b.account.id).single.card, b.heard.sublist(heard).length], [current, 2]);
+
+      // An install of Sam's from before (the app put back on a phone): its card is good for weeks, nobody is there.
+      final gone = w.mesh.node();
+      await gone.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+      w.mesh.unreachable(gone);
+      await b.board.send(b.to(a.account), _said(w, _telling(a, await _cardOf(w, b.account, node: gone.nodeId), where: gone.whereabouts.value!.toJson())), only: {'hub'});
+      await w.settle();
+      expect(a.p2p.devicesOf(b.account.id), hasLength(2));
+      await w.clock.pass(const Duration(days: 17));
+      // Sam's real device is heard from again (a link with it, proved), the other not.
+      await w.relayGone();
+      expect((await b.text(a.account, 'still me', only: {'p2p'})).acked, isTrue);
+      await w.clock.pass(const Duration(minutes: 3));
+      final dials = w.mesh.dialsTo(gone.nodeId!);
+      final d = await a.text(b.account, 'to his devices', only: {'p2p'});
+      expect(d.acked, isTrue);
+      await w.clock.pass(const Duration(seconds: 5));
+      expect(w.mesh.dialsTo(gone.nodeId!) - dials, 0, reason: 'not dialled: not heard from in seventeen days, while his other device was today');
     });
 
     test('a card that can\'t be signed (a keystore that refuses) is tried again ten minutes on, not at once, and told then', () async {

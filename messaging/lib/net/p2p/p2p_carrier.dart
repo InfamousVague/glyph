@@ -279,6 +279,7 @@ class P2pCarrier implements Carrier, LiveLinks {
       if (who == null || !p2p.mayLink(who)) return _close(node, line);
       line.account = who;
       if (line.stream.incoming) _prove(node, line, who);
+      p2p.heardFrom(who, line.stream.nodeId);
       _said(node, line);
       // Proved: it takes the place of the oldest proved one, where there are as many as are held.
       for (var proved = node.lines.where((l) => l.account != null && !identical(l, line)).toList(); proved.length >= mostLines; proved.removeAt(0)) {
@@ -488,7 +489,10 @@ class P2pCarrier implements Carrier, LiveLinks {
     if (packet.length > maxPacket) throw CarrierError('too long for a direct link');
     final account = peer.id;
     if (!p2p.mayLink(account)) throw CarrierError('this device does not link with them now');
-    final devices = p2p.devicesOf(account);
+    // Not a device of theirs unheard from in [P2p.staleAfter] while another has been: an install from before.
+    final known = p2p.devicesOf(account);
+    final latest = known.fold(0, (int n, d) => d.heard > n ? d.heard : n);
+    final devices = [for (final d in known) if (latest - d.heard < P2p.staleAfter.inMilliseconds || linkedTo(account, d.nodeId)) d];
     if (devices.isEmpty) throw CarrierError('no device of theirs is known');
     final until = p2p.nowMs + p2p.policy.dialFor.inMilliseconds;
     p2p.busy(true);
