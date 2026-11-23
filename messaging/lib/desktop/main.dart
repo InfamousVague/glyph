@@ -50,6 +50,7 @@ import 'own_calls.dart';
 import '../friends/buddies.dart';
 import '../me/me.dart';
 import '../standalone/standalone.dart';
+import '../standalone/unreadable.dart';
 import '../friends/handover.dart' show DeskHandover;
 import '../standalone/welcome.dart';
 import '../ui/account_screens.dart' show RestartScreen, SignInScreen;
@@ -98,7 +99,12 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final alone = await store.load() == null;
   if (alone) {
     final own = StandaloneCalls(Directory('${store.dir.path}/standalone'), keychain: const bool.fromEnvironment('GHOST_DESK_KEYCHAIN', defaultValue: kReleaseMode));
-    await own.load();
+    try {
+      await own.loadAgain();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'computer'));
+    }
     Sms.calls = own;
     Sms.standalone = true;
   }

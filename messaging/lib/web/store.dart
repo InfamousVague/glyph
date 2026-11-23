@@ -18,9 +18,14 @@ import 'browser.dart';
 /// - **What is not kept here at all**: the recovery words and the key the password makes. They are opened from the
 ///   backup with the password each time they are wanted (lib/account/account.dart: showing the words, a new password,
 ///   the backup brought up to date, the devices listed or one removed) and forgotten again. The password-sealed copy
-///   of the backup is kept, so whoever reads it could try passwords against it: a long password is what stands in the
-///   way.
-/// - **Signing out, or being removed from the account, deletes the whole database**, the key with it ([wipe]).
+///   of the backup is kept, so whoever reads it could try passwords against it, as fast as they like: a long password
+///   is what stands in the way. So is the key the account's devices seal copies to each other with (Me.mineSecret),
+///   which opens every copy of what is said with friends by username, both ways, and never changes.
+/// - **Signing out, or being removed from the account, deletes the whole database**, the key with it ([wipe]), and
+///   asks the server for `Clear-Site-Data: "storage"`. Deleted, the database is gone to the page and to anyone using
+///   the browser after; but the browser may keep its bytes among the profile's files for a while (Chrome did, the key
+///   among them, until the clearing above took them away). On a shared computer, a private window, or clearing the
+///   browser's data for the app, is safer.
 class WebStandaloneStore implements StandaloneStore {
   WebStandaloneStore(this.store);
   final BrowserStore store;
@@ -59,6 +64,10 @@ class WebStandaloneStore implements StandaloneStore {
 
   @override
   Future<void> writeState(String text) => store.writeSealed(stateName, text);
+
+  /// Opened and makes no sense: what else this store holds can't be trusted either.
+  @override
+  Future<void> unreadableState() async => throw StoreLost(stateName);
 
   @override
   Future<String?> readIdentity() async {

@@ -32,6 +32,7 @@ import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
 import 'standalone/standalone.dart';
+import 'standalone/unreadable.dart';
 import 'standalone/wake.dart';
 import 'standalone/welcome.dart';
 import 'emoji_sets.dart';
@@ -114,7 +115,12 @@ Future<void> main() async {
   // computer is (lib/desktop) stays that phone's companion.
   if (PlatformInfo.isIOS) {
     if (File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
-    await standaloneSetup();
+    try {
+      await standaloneSetup();
+    } catch (_) {
+      // What it keeps couldn't be read: said, and nothing started, so nothing is written over it.
+      return runApp(const StoreUnreadableNotice(device: 'iPhone'));
+    }
   } else {
     // The phone's friends by username are kept in Dart, beside its texts (lib/standalone/overlay.dart): an iPhone
     // writes to them by username (Matt, 2026-11-15: "Yes, Android next").

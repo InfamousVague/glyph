@@ -58,8 +58,15 @@ class StandaloneFiles implements StandaloneStore {
     dir.createSync(recursive: true);
   }
 
+  /// None yet (a first start) is null; anything else that stops it being read is thrown, for the app not to start on.
   @override
-  Future<String?> readState() => _file.readAsString();
+  Future<String?> readState() async => _file.existsSync() ? _file.readAsString() : null;
+
+  /// Kept aside as `standalone.json.unreadable-<ms>`, never written over or deleted by the app.
+  @override
+  Future<void> unreadableState() async {
+    if (_file.existsSync()) _file.renameSync('${_file.path}.unreadable-${DateTime.now().millisecondsSinceEpoch}');
+  }
 
   @override
   Future<void> writeState(String text) async {

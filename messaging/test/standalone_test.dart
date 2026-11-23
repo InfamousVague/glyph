@@ -118,6 +118,40 @@ void main() {
     expect((await again.invokeMethod<Map>('prefs'))!, {StandaloneCalls.noteKey: 'removed'});
   });
 
+  // The second review: a read that failed at start was taken for "nothing kept", and the first write after replaced
+  // the real conversations. What can't be read is not started on; what makes no sense is kept aside, never written over.
+  test('what can\'t be read just now is not started on, and nothing is written over it', () async {
+    final dir = Directory('${root.path}/a')..createSync(recursive: true);
+    // The JSON is there, and can't be read just now (here: not readable by this user).
+    final json = File('${dir.path}/standalone.json')..writeAsStringSync('{"prefs":{"theme":"dark"},"buddies":"[]"}');
+    Process.runSync('chmod', ['000', json.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', json.path]));
+    final c = StandaloneCalls(dir, keychain: false);
+    await expectLater(c.loadAgain(tries: 2, apart: Duration.zero), throwsA(isA<FileSystemException>()));
+    Process.runSync('chmod', ['644', json.path]);
+    expect(json.readAsStringSync(), '{"prefs":{"theme":"dark"},"buddies":"[]"}', reason: 'left as it was');
+    expect(File('${dir.path}/identity.key').existsSync(), isFalse, reason: 'no one new made in its place');
+  });
+
+  test('what was read and makes no sense is kept aside, and the app starts without writing over it', () async {
+    final a = await install('a');
+    await a.invokeMethod('netTextIn', {'address': '@bee', 'body': 'kept', 'at': 1000});
+    await a.flushed();
+    final dir = Directory('${root.path}/a');
+    File('${dir.path}/standalone.json').writeAsStringSync('{"prefs": {"theme": "da');
+    final again = await install('a');
+    expect(await again.invokeMethod<List>('conversations'), isEmpty);
+    final aside = [for (final f in dir.listSync().whereType<File>()) if (f.path.contains('standalone.json.unreadable-')) f];
+    expect(aside, hasLength(1));
+    expect(aside.single.readAsStringSync(), '{"prefs": {"theme": "da');
+    // Written after: the JSON anew, the one kept aside untouched.
+    await again.invokeMethod('setPref', {'key': 'theme', 'value': 'dark'});
+    await again.flushed();
+    expect(aside.single.readAsStringSync(), '{"prefs": {"theme": "da');
+    // Who it is was read as ever.
+    expect((await again.invokeMethod<Map>('netIdentity'))!['id'], (await a.invokeMethod<Map>('netIdentity'))!['id']);
+  });
+
   test('where it lives: Application Support beside tmp, not inside it (iOS gives the app no HOME)', () {
     final dir = StandaloneCalls.defaultDir().path;
     expect(dir, endsWith('/Library/Application Support/Ghost Messaging'));

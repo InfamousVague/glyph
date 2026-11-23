@@ -82,18 +82,44 @@ class StandaloneCalls implements SmsCalls {
   }
 
   /// Throws [StoreLost] where what is kept is there and can't be opened (a browser's store, lib/web/store.dart): the
-  /// page wipes it and the person signs in again, rather than this device quietly becoming someone new.
+  /// page wipes it and the person signs in again, rather than this device quietly becoming someone new. Throws
+  /// whatever else stopped it being read just now (a browser's store busy or full, a file that can't be read): this
+  /// start is not made, and its caller says so and tries again ([loadAgain]). Started empty, its first write would
+  /// have replaced the conversations it couldn't read.
   Future<void> load() async {
     await store.open();
-    try {
-      final j = jsonDecode((await store.readState())!) as Map;
-      _prefs = {for (final e in ((j['prefs'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
-      _buddies = (j['buddies'] as String?) ?? '[]';
-      chats.load(j);
-    } on StoreLost {
-      rethrow;
-    } catch (_) {}
+    final text = await store.readState();
+    if (text != null) {
+      try {
+        final j = jsonDecode(text) as Map;
+        _prefs = {for (final e in ((j['prefs'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
+        _buddies = (j['buddies'] as String?) ?? '[]';
+        chats.load(j);
+      } catch (_) {
+        // Read, and it makes no sense: kept aside (a browser's store is lost instead), and the app starts without it.
+        _prefs = {};
+        _buddies = '[]';
+        chats.load(const {});
+        await store.unreadableState();
+      }
+    }
     _keys = await _identity();
+  }
+
+  /// [load], tried [tries] times a moment apart where what is kept couldn't be read just now; the last error where it
+  /// never could, for the caller to say (StoreUnreadableNotice) rather than start with nothing. A store lost is not
+  /// tried again.
+  Future<void> loadAgain({int tries = 3, Duration apart = const Duration(milliseconds: 400)}) async {
+    for (var i = 1;; i++) {
+      try {
+        return await load();
+      } on StoreLost {
+        rethrow;
+      } catch (_) {
+        if (i >= tries) rethrow;
+        await Future<void>.delayed(apart);
+      }
+    }
   }
 
   Future<NetKeys> _identity() async {
@@ -368,7 +394,8 @@ class StandaloneCalls implements SmsCalls {
 /// directory and calls run here ([Sms.standalone]).
 Future<void> standaloneSetup({Directory? dir, bool? keychain}) async {
   final calls = StandaloneCalls(dir ?? StandaloneCalls.defaultDir(), keychain: keychain ?? kReleaseMode);
-  await calls.load();
+  // What can't be read just now is not started on (lib/main.dart says so instead).
+  await calls.loadAgain();
   Sms.calls = calls;
   Sms.standalone = true;
 }

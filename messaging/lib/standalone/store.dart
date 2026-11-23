@@ -10,8 +10,14 @@ abstract class StandaloneStore {
   Future<void> open();
 
   /// The JSON as it was last kept, or null where there is none yet. Throws [StoreLost] where it is there and can't be
-  /// opened.
+  /// opened, and whatever else stopped it being read just now: the app does not start on that, so it never writes
+  /// over what it couldn't read (StandaloneCalls.load).
   Future<String?> readState();
+
+  /// What [readState] gave makes no sense (damaged, or written by something else): kept aside where it can be (a
+  /// computer's or an iPhone's folder keeps it beside the rest), so the app can start without writing over it. A
+  /// browser's store can't be trusted after it, and throws [StoreLost].
+  Future<void> unreadableState();
 
   /// Keeps [text] as the JSON, whole or not at all. Never two at once: whoever calls waits for one before the next.
   Future<void> writeState(String text);
