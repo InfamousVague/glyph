@@ -7,6 +7,7 @@ import 'dart:io' show File;
 import 'platform_info.dart';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
@@ -21,6 +22,7 @@ import 'friends/buddies.dart';
 import 'friends/handover.dart';
 import 'me/me.dart';
 import 'accent.dart';
+import 'app_lock/app_lock.dart';
 import 'summaries.dart';
 import 'app_state.dart';
 import 'inbox/curl_sync.dart';
@@ -57,6 +59,7 @@ import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
 import 'ui/account_screens.dart' show RestartScreen;
 import 'ui/add_me.dart' show askToAdd;
+import 'ui/app_lock_ui.dart' show AppLockGate;
 import 'ui/call_moved_note.dart';
 import 'relay_host/hosting.dart' show hostAwayIn;
 import 'ui/relay_host_section.dart' show askToUseRelay;
@@ -152,6 +155,9 @@ Future<void> main() async {
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);
+  // The app's lock (GMFB-46, lib/app_lock), read before the first page is drawn: with a PIN set the app opens locked.
+  // An iPhone keeps the lock's record as a computer does (the Keychain, and a file that says it is set).
+  await AppLock.start(state, folder: PlatformInfo.isIOS ? StandaloneCalls.defaultDir() : null, keychain: kReleaseMode);
   Sms.instance.listen();
   _logErrors();
   _watchFrames();
@@ -266,8 +272,9 @@ class GhostMessagingApp extends StatelessWidget {
               enabled: true,
               // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
               // (lib/ui/recording_float.dart); nothing floats over the pages but the note that a call moved to
-              // another of the person's devices (lib/ui/call_moved_note.dart, GMFB-50).
-              child: InkOverrides(child: _SystemBars(child: GlacierToastProvider(child: CallMovedNote(child: child!)))),
+              // another of the person's devices (lib/ui/call_moved_note.dart, GMFB-50). Over all of it, toasts too, the
+              // lock screen while the app is locked (lib/ui/app_lock_ui.dart, GMFB-46).
+              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: CallMovedNote(child: child!))))),
             ),
           ),
           home: home ?? const _Home(),
