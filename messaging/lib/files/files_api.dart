@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import '../aside.dart';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
-import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/foundation.dart' show immutable, kIsWeb;
 
+import '../net/crypto.dart' show NetCrypto;
+import '../net/file_seal_async.dart';
 import '../net/hub_carrier.dart' show NetSigner;
+import 'files_http.dart';
 
 /// Why the files server said no: its words, and what it answered (a 409 says where an upload has got to in [have]).
 class FilesError implements Exception {
@@ -28,7 +30,7 @@ class FilesError implements Exception {
 /// A Files space's files on the relay (relay/lib/files.dart), spoken to over plain HTTPS: its token on every request,
 /// and every write signed with this install's hub key ([NetSigner], the key it is known by in the space's roster).
 class FilesApi {
-  FilesApi({required this.base, required this.space, required this.token, required this.signer, HttpClient? client}) : _http = client ?? (HttpClient()..connectionTimeout = const Duration(seconds: 15));
+  FilesApi({required this.base, required this.space, required this.token, required this.signer, FilesHttp? http}) : _http = http ?? defaultFilesHttp();
 
   /// Where the files are served: `https://gogho.st/files` for the relay at `wss://gogho.st/hub`.
   final Uri base;
@@ -37,7 +39,9 @@ class FilesApi {
   final String space;
   final String token;
   final NetSigner signer;
-  final HttpClient _http;
+
+  /// How requests go (lib/files/files_http.dart): dart:io's HttpClient in the app, the page's fetch in a browser.
+  final FilesHttp _http;
 
   /// Where the files of the relay at [hubUrl] are: the same server, `/files` in place of `/hub`.
   static Uri baseFor(String hubUrl) {
@@ -49,77 +53,64 @@ class FilesApi {
 
   /// The hex SHA-256 of a body to sign. A blob's piece is 4 MB: hashed on the UI's isolate with pointycastle that was
   /// some 200 ms each, the app frozen for the whole of an upload (GMFB-6, @matt: "The app is super laggy when in a
-  /// voice call and uploading a video to the files"). A large body is hashed on another isolate, with package:crypto.
+  /// voice call and uploading a video to the files"). A large body is hashed on another isolate, with package:crypto;
+  /// in a browser, which has no other isolate, by the browser's own SHA-256 (lib/net/file_seal_async.dart).
   static Future<String> bodySha(List<int> body) async {
     if (body.length < 256 * 1024) return crypto.sha256.convert(body).toString();
     final bytes = body is Uint8List ? body : Uint8List.fromList(body);
+    if (kIsWeb) return NetCrypto.hex(await SealAsync.sha256(bytes));
     return runAside(() => crypto.sha256.convert(bytes).toString());
   }
 
   String _path(String rest) => '${base.path.endsWith('/') ? base.path.substring(0, base.path.length - 1) : base.path}/$space$rest';
 
-  /// Opens a request carrying the space's token; with [signBody], signed by this install's hub key too.
-  Future<HttpClientRequest> _open(String method, String rest, {List<int>? signBody, bool sayHash = false}) async {
-    final path = _path(rest);
-    final req = await _http.openUrl(method, base.replace(path: path.split('?').first, query: path.contains('?') ? path.substring(path.indexOf('?') + 1) : null));
-    req.headers.set(HttpHeaders.authorizationHeader, 'Ghost $token');
+  /// The headers of a request carrying the space's token; with [signBody], signed by this install's hub key too.
+  Future<Map<String, String>> _headers(String method, String path, {List<int>? signBody, bool sayHash = false}) async {
+    final headers = {'authorization': 'Ghost $token'};
     if (signBody != null) {
       // Signed over what the relay sees: the method, the path with its query, the time and the body's hash.
       final time = DateTime.now().millisecondsSinceEpoch;
       final sha = await bodySha(signBody);
       final words = 'ghost-files v1\n$method\n$path\n$time\n$sha';
       final sig = await signer.sign(utf8.encode(words));
-      req.headers
-        ..set('x-ghost-key', base64Encode(signer.publicKey))
-        ..set('x-ghost-time', '$time')
-        ..set('x-ghost-sig', base64Encode(sig));
+      headers
+        ..['x-ghost-key'] = base64Encode(signer.publicKey)
+        ..['x-ghost-time'] = '$time'
+        ..['x-ghost-sig'] = base64Encode(sig);
       // A blob's piece says its hash and length up front, so the relay checks the signature before it reads the body
       // (Matt, 2026-11-17: "Finish the missing pieces that went unfinished"). The words signed are the same as ever, so
       // a relay from before this reads the headers as nothing and checks the signature at the end, as it did.
       if (sayHash) {
-        req.headers
-          ..set('x-ghost-body-sha256', sha)
-          ..set('x-ghost-body-length', '${signBody.length}');
+        headers
+          ..['x-ghost-body-sha256'] = sha
+          ..['x-ghost-body-length'] = '${signBody.length}';
       }
     }
-    return req;
+    return headers;
   }
 
+  /// The address of [path] (which may carry a query) on the relay.
+  Uri _url(String path) => base.replace(path: path.split('?').first, query: path.contains('?') ? path.substring(path.indexOf('?') + 1) : null);
+
   /// The answer as JSON; a status of 300 or more is thrown as a [FilesError] with the relay's words.
-  Future<Map<String, dynamic>> _json(HttpClientResponse res) async {
-    final text = await res.transform(utf8.decoder).join();
+  Future<Map<String, dynamic>> _json(FilesAnswer res) async {
+    final text = await res.body.transform(utf8.decoder).join();
     Map<String, dynamic> m;
     try {
       m = (jsonDecode(text) as Map).cast<String, dynamic>();
     } catch (_) {
       m = {};
     }
-    if (res.statusCode >= 300) throw FilesError(res.statusCode, m['err'] is String ? m['err'] as String : 'The files server said ${res.statusCode}.', have: (m['have'] as num?)?.toInt(), seq: (m['seq'] as num?)?.toInt());
+    if (res.status >= 300) throw FilesError(res.status, m['err'] is String ? m['err'] as String : 'The files server said ${res.status}.', have: (m['have'] as num?)?.toInt(), seq: (m['seq'] as num?)?.toInt());
     return m;
   }
 
-  /// One request and its JSON answer. Every way of not reaching the server comes out as a [FilesError] of status 0.
+  /// One request and its JSON answer. Every way of not reaching the server comes out as a [FilesError] of status 0
+  /// (the transport's to say: lib/files/files_http.dart).
   Future<Map<String, dynamic>> _call(String method, String rest, {List<int>? body, bool sign = false, bool sayHash = false}) async {
-    try {
-      final req = await _open(method, rest, signBody: sign ? (body ?? const []) : null, sayHash: sayHash);
-      if (body != null) {
-        req.contentLength = body.length;
-        req.add(body);
-      } else {
-        req.contentLength = 0;
-      }
-      return await _json(await req.close());
-    } on FilesError {
-      rethrow;
-    } on SocketException catch (e) {
-      throw FilesError(0, 'Can\'t reach the files server (${e.osError?.message ?? e.message}).');
-    } on HttpException catch (e) {
-      throw FilesError(0, 'Can\'t reach the files server (${e.message}).');
-    } on TimeoutException {
-      throw FilesError(0, 'The files server didn\'t answer.');
-    } on HandshakeException {
-      throw FilesError(0, 'Can\'t reach the files server securely.');
-    }
+    final path = _path(rest);
+    final headers = await _headers(method, path, signBody: sign ? (body ?? const []) : null, sayHash: sayHash);
+    return _json(await _http.send(method, _url(path), headers, body));
   }
 
   /// Makes the space on the relay, or finds it: [owner] (the space owner's public key, hex) may remove anyone's file.
@@ -163,33 +154,26 @@ class FilesApi {
 
   /// The blob from [start] on (to [end], inclusive, where given), as it streams in. Throws a [FilesError] for a refusal.
   Future<Stream<List<int>>> read(String blob, {int start = 0, int? end}) async {
-    try {
-      final req = await _open('GET', '/blobs/$blob');
-      if (start > 0 || end != null) req.headers.set(HttpHeaders.rangeHeader, 'bytes=$start-${end ?? ''}');
-      final res = await req.close();
-      if (res.statusCode != HttpStatus.ok && res.statusCode != HttpStatus.partialContent) await _json(res);
-      if (start > 0 && res.statusCode == HttpStatus.ok) {
-        // A server that ignored the Range: what was had is skipped.
-        var skip = start;
-        return res.map((piece) {
-          if (skip <= 0) return piece;
-          if (piece.length <= skip) {
-            skip -= piece.length;
-            return const <int>[];
-          }
-          final rest = piece.sublist(skip);
-          skip = 0;
-          return rest;
-        });
-      }
-      return res;
-    } on FilesError {
-      rethrow;
-    } on SocketException catch (e) {
-      throw FilesError(0, 'Can\'t reach the files server (${e.osError?.message ?? e.message}).');
-    } on HttpException catch (e) {
-      throw FilesError(0, 'Can\'t reach the files server (${e.message}).');
+    final path = _path('/blobs/$blob');
+    final headers = await _headers('GET', path);
+    if (start > 0 || end != null) headers['range'] = 'bytes=$start-${end ?? ''}';
+    final res = await _http.send('GET', _url(path), headers, null);
+    if (res.status != 200 && res.status != 206) await _json(res);
+    if (start > 0 && res.status == 200) {
+      // A server that ignored the Range: what was had is skipped.
+      var skip = start;
+      return res.body.map((piece) {
+        if (skip <= 0) return piece;
+        if (piece.length <= skip) {
+          skip -= piece.length;
+          return const <int>[];
+        }
+        final rest = piece.sublist(skip);
+        skip = 0;
+        return rest;
+      });
     }
+    return res.body;
   }
 
   /// Drops its connections at once, whatever is under way on them.
