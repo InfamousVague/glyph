@@ -241,11 +241,23 @@ Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url,
   return (yes: yes, pass: phrase.isEmpty ? null : phrase);
 }
 
+/// Asked before a relay's link is followed at all: the app connects to the address only on a yes.
+Future<bool> checkFirst(BuildContext context, String url) async {
+  var yes = false;
+  await showChoices(
+    context,
+    title: 'Check this relay?',
+    header: _words(context, [checkFirstWords(url)]),
+    choices: [Choice('Check it', Lucide.check, () => yes = true)],
+  );
+  return yes;
+}
+
 /// A relay's link was opened (`ghostmsg://relay?a=…`, from a host's QR code or a shared link): asked first, then used.
 Future<void> askToUseRelay(BuildContext context, String link) async {
   final address = relayFromLink(link);
   if (address == null) return toast(context, 'That relay link isn\'t complete. Ask for it again.', tone: GlacierToastTone.danger);
-  final r = await Net.instance.useRelay(address, decide: (url, check) => decideRelay(context, url, check));
+  final r = await Net.instance.useRelay(address, askFirst: (url) => checkFirst(context, url), decide: (url, check) => decideRelay(context, url, check));
   if (!context.mounted || r.declined) return;
   toast(context, r.problem ?? 'Using ${relayInUseWords(Net.instance.hubUrl)}', tone: r.problem == null ? GlacierToastTone.neutral : GlacierToastTone.danger);
 }

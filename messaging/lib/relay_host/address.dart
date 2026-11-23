@@ -82,6 +82,9 @@ class GhostRelayAddress {
   int get hashCode => Object.hash(relay, node, via);
 }
 
+/// Said where a hosted relay's address named one relay and another answered.
+const wrongRelayWords = 'Another relay answered there, not the one this address names.';
+
 /// Whether [text] is a hosted relay's address at all (and so not a WebSocket's).
 bool isGhostRelay(String text) => text.trim().toLowerCase().startsWith('${GhostRelayAddress.scheme}://');
 
@@ -92,8 +95,11 @@ String lanHubUrl(String address, int port) => 'ws://${address.contains(':') ? '[
 /// what the host's QR code holds, and what it shares.
 String relayLink(String address) => 'ghostmsg://relay?a=${Uri.encodeQueryComponent(address)}';
 
-/// The relay's address a [relayLink] carries, where [text] is one and what it carries is a relay's address (a hosted
-/// relay's, or a WebSocket's ending in /hub); null for anything else.
+/// The relay's address a [relayLink] carries, where [text] is one and what it carries is a relay a link may name: a
+/// hosted relay's own address, or a plain WebSocket on the local network ([isLocalNetworkHub]); null for anything else.
+/// Any other relay, a public `wss://` one included, is taken only typed in (found in the second review, 2026-11-23: a
+/// link could name any relay, and on Android a relay that says it doesn't know the account makes the app forget the
+/// account's words and keys, lib/account/account.dart, Account.check; a link is not to be enough for that).
 String? relayFromLink(String text) {
   final s = text.trim();
   if (!s.toLowerCase().startsWith('ghostmsg://relay')) return null;
@@ -107,5 +113,31 @@ String? relayFromLink(String text) {
   final hosted = GhostRelayAddress.parse(a);
   if (hosted != null) return '$hosted';
   final hub = canonicalHub(a);
-  return hub != null && hub.endsWith('/hub') ? hub : null;
+  return hub != null && hub.endsWith('/hub') && isLocalNetworkHub(hub) ? hub : null;
+}
+
+/// Whether [url] is a plain WebSocket (`ws://`) to an address on a local network: a private IPv4 range (10/8,
+/// 172.16/12, 192.168/16), this device (127/8, ::1), an IPv6 unique-local address (fc00::/7), or a name ending in
+/// `.local`.
+bool isLocalNetworkHub(String url) {
+  final Uri u;
+  try {
+    u = Uri.parse(url);
+  } catch (_) {
+    return false;
+  }
+  if (u.scheme != 'ws') return false;
+  final host = u.host.toLowerCase();
+  if (host.endsWith('.local') && host.length > '.local'.length) return true;
+  final v4 = RegExp(r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$').firstMatch(host);
+  if (v4 != null) {
+    final b = [for (var i = 1; i <= 4; i++) int.parse(v4.group(i)!)];
+    if (b.any((x) => x > 255)) return false;
+    return b[0] == 10 || b[0] == 127 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168);
+  }
+  if (host.contains(':')) {
+    final h = host.replaceAll(RegExp(r'[\[\]]'), '');
+    return h == '::1' || RegExp(r'^f[cd][0-9a-f]{0,2}:').hasMatch(h);
+  }
+  return false;
 }

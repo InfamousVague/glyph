@@ -496,6 +496,14 @@ class HubCarrier implements Carrier {
       relay = HubRelay.from(m['relay']);
       hosted = m['hosted'] == true;
       asksPass = m['pass'] == true;
+      // A hosted relay's address names the relay: another answering there is not signed in to (found in the second
+      // review, 2026-11-23: nothing checked it).
+      final named = GhostRelayAddress.parse(url);
+      if (named != null && relay?.id != named.relay) {
+        _drop('wrong relay');
+        _lost(wrongRelayWords);
+        return;
+      }
       // The hub's number, signed: only the holder of this install's key connects under its name. To a hub that takes
       // it, bound to the host dialled ([greetingV2]); to one from before, as ever.
       final v2 = m['v2'] == true;

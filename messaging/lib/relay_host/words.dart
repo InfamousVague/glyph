@@ -80,3 +80,6 @@ String viaWords(ViaLink link, String via) {
     ViaKind.down => '$host can\'t be reached just now. It is tried again by itself.',
   };
 }
+
+/// Asked before a relay's link is followed: the address it carries, and that checking it connects there.
+String checkFirstWords(String url) => 'A link asks this app to use the relay at $url. To see what it is, the app connects to it. Nothing changes until you say yes after that.';

@@ -138,6 +138,10 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
   }
   await _close(ws, sub);
   if (!ok) return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
+  // A hosted relay's address names the relay: the one that answers must be it (found in the second review,
+  // 2026-11-23: anything at that node was taken).
+  final named = GhostRelayAddress.parse(url);
+  if (named != null && relay?.id != named.relay) return RelayCheck.failed(wrongRelayWords);
   return RelayCheck.answered(DateTime.now().difference(started), relay: relay, hosted: hosted, asksPass: asksPass);
 }
 

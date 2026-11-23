@@ -730,7 +730,11 @@ class Net extends ChangeNotifier implements PeerBook {
   /// [decide], where given in [confirm]'s place, is asked with what the relay said of itself ([RelayCheck]: whether it
   /// runs in someone's app, whether it asks for a pass phrase) and answers with the person's yes and the phrase they gave.
   /// A relay that asks for a phrase is not moved to without one (but this device's own, whose phrase the app knows).
-  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm, Future<({bool yes, String? pass})> Function(String url, RelayCheck check)? decide}) async {
+  ///
+  /// [askFirst], where given, is asked with the tidied address before anything is dialled: a relay's link opened from
+  /// elsewhere is asked about before the app connects to the address it carries (found in the second review,
+  /// 2026-11-23: it dialled first). No is declined, nothing dialled.
+  Future<({String? problem, bool declined})> useRelay(String typed, {HubDial? connect, Duration timeout = const Duration(seconds: 8), Future<bool> Function(String url)? confirm, Future<({bool yes, String? pass})> Function(String url, RelayCheck check)? decide, Future<bool> Function(String url)? askFirst}) async {
     final url = tidyRelayAddress(typed);
     if (url == null) return (problem: 'That isn\'t a relay server\'s address. It looks like relay.example.com or wss://relay.example.com/hub.', declined: false);
     if (url.isEmpty || url == defaultHub) {
@@ -738,6 +742,7 @@ class Net extends ChangeNotifier implements PeerBook {
       return (problem: null, declined: false);
     }
     if (url == hubUrl) return (problem: null, declined: false);
+    if (askFirst != null && !await askFirst(url)) return (problem: null, declined: true);
     final check = await checkRelay(url, connect: connect, timeout: timeout);
     if (!check.ok) return (problem: check.problem, declined: false);
     String? pass;
