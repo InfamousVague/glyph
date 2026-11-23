@@ -258,6 +258,49 @@ class UsernameChats {
     _changed(t.id);
   }
 
+  // --- a new device's history (GMFB-53) -----------------------------------------------------------------------------
+
+  /// What this device holds of its conversations with friends by username, for another device of the account that has
+  /// just been signed in on (Friends.historyKind): each conversation's address and its newest [most] messages, oldest
+  /// first, as `[words, when, 1 where ours]`. Lines about calls and messages that never went are left out.
+  List<({String address, List<PastRow> rows})> history({int most = 300}) => [
+        for (final t in threads.values)
+          if (isUsername(t.address))
+            (
+              address: t.address,
+              rows: [
+                for (final r in t.rows.length > most ? t.rows.sublist(t.rows.length - most) : t.rows)
+                  if (r.notice == null && r.state != 'failed' && r.state != 'sending' && r.body.isNotEmpty) (t: r.body, at: r.at, o: r.out),
+              ],
+            ),
+      ]..removeWhere((c) => c.rows.isEmpty);
+
+  /// [PastRow]s from `[words, when, 1 where ours]` lists (as [history] is sent); anything else in [j] is passed over.
+  static List<PastRow> pastRows(Object? j) => [
+        if (j is List)
+          for (final r in j)
+            if (r is List && r.length >= 3 && r[0] is String && r[1] is num) (t: r[0] as String, at: (r[1] as num).toInt(), o: r[2] == 1 || r[2] == true),
+      ];
+
+  /// Messages of the conversation with [address] that another device of the account holds (its [history]), kept here
+  /// in their places by when they were written, each once: one already here (the same words, at the same moment, the
+  /// same way) is passed over, so two devices answering, or a copy that came live meanwhile, keep nothing twice. Past
+  /// messages, so nothing is made unread. How many were new.
+  int keepHistory(String address, List<PastRow> rows) {
+    if (!isUsername(address) || rows.isEmpty) return 0;
+    final t = threadWith(address);
+    var added = 0;
+    for (final p in rows) {
+      if (p.t.isEmpty || t.rows.any((r) => r.at == p.at && r.out == p.o && r.body == p.t)) continue;
+      final row = ChatRow(id: _nextRow++, body: p.t, at: p.at, out: p.o, state: p.o ? 'sent' : 'received');
+      final before = t.rows.indexWhere((r) => r.at > p.at);
+      before < 0 ? t.rows.add(row) : t.rows.insert(before, row);
+      added++;
+    }
+    if (added > 0) _changed(t.id);
+    return added;
+  }
+
   /// To a friend by username: by the routes ([Friends.sendText] keeps it here as it goes). Pictures and groups are not
   /// carried this way yet.
   Future<int> send(String address, String body) async {

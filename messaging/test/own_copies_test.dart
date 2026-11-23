@@ -127,8 +127,9 @@ void main() {
     final first = Friends(phone);
     await first.start(app);
     expect(await first.sendText('@ben', 'Dinner at 8?'), isTrue);
-    await _until(() => phone.mineSent.isNotEmpty, 'the copy went to the account\'s other devices');
-    final copy = phone.mineSent.single;
+    // (Beside it, the device's one asking for its account's history, GMFB-53.)
+    await _until(() => phone.mineSent.any((e) => e.kind == Friends.copyKind), 'the copy went to the account\'s other devices');
+    final copy = phone.mineSent.where((e) => e.kind == Friends.copyKind).single;
     await first.shutdown();
 
     // The app opened again, with the choices it kept; the relay hands over what the Mac passed on meanwhile.

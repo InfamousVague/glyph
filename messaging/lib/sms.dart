@@ -1053,6 +1053,13 @@ class Sms {
   /// Keeps [body], which came from [address] by the routes, as a text that arrived is kept, and says so as one is.
   Future<void> netTextIn(String address, String body, int at) => _calls.invokeMethod('netTextIn', {'address': address, 'body': body, 'at': at});
 
+  /// The conversations with friends by username kept here, for a new device of the account (GMFB-53;
+  /// lib/standalone/chats.dart history): `{a: address, r: [[words, when, 1 where ours], …]}` each.
+  Future<List<Map>> netHistory() async => ((await _calls.invokeMethod('netHistory')) as List? ?? const []).cast<Map>();
+
+  /// Messages of [address]'s conversation another device of the account held, kept here once each: how many were new.
+  Future<int> netHistoryKeep(String address, List<List<Object>> rows) async => ((await _calls.invokeMethod('netHistoryKeep', {'address': address, 'rows': rows})) as num?)?.toInt() ?? 0;
+
   /// Data texts (android NetSms.kt): whether this phone can send them, and one sent to [address] carrying [bytes].
   Future<bool> netSmsAvailable() async => await _calls.invokeMethod<bool>('netSmsAvailable') ?? false;
   Future<void> netSmsSend(String address, Uint8List bytes) => _calls.invokeMethod('netSmsSend', {'address': address, 'bytes': bytes});

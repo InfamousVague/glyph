@@ -279,6 +279,12 @@ class StandaloneCalls implements SmsCalls {
         chats.textIn('${a['address']}', '${a['body']}', (a['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch);
         return null;
 
+      // A new device's history (GMFB-53): what is held here for it, and what another device held, taken.
+      case 'netHistory':
+        return [for (final c in chats.history()) {'a': c.address, 'r': [for (final r in c.rows) [r.t, r.at, r.o ? 1 : 0]]}];
+      case 'netHistoryKeep':
+        return chats.keepHistory('${a['address']}', UsernameChats.pastRows(a['rows']));
+
       // The list and a conversation.
       case 'conversations':
         return [for (final t in chats.sorted()) chats.conversation(t)];

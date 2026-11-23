@@ -99,6 +99,25 @@ class FakePort implements FriendsPort {
   @override
   bool isMine(Peer peer) => peer.id == 'mine';
 
+  /// The conversations with friends by username this device holds (GMFB-53), and what another device's history added.
+  final pastHeld = <String, List<PastRow>>{};
+  final pastKept = <String, List<PastRow>>{};
+
+  @override
+  Future<List<({String address, List<PastRow> rows})>> history() async => [for (final e in pastHeld.entries) (address: e.key, rows: e.value)];
+
+  @override
+  Future<int> keepHistory(String address, List<PastRow> rows) async {
+    final kept = pastKept.putIfAbsent(address, () => []);
+    var added = 0;
+    for (final r in rows) {
+      if (kept.contains(r)) continue;
+      kept.add(r);
+      added++;
+    }
+    return added;
+  }
+
   @override
   Future<Delivery> send(Peer peer, Envelope envelope, {bool metered = false, bool sealed = true, Set<String>? only}) async {
     sent.add((to: peer.address ?? '', id: peer.id, envelope: envelope, metered: metered, sealed: sealed, only: only));
