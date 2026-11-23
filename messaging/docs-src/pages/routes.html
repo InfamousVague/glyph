@@ -68,16 +68,17 @@
 <h2 id="checked">How the relay is checked</h2>
 <p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
 <ul>
-<li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay ever gives a friend's username to a different key, their profile says so, and you're still talking to the friend you added: the relay can't swap them for someone else. Their app is told too, by every route there is, so they know the relay gave their username away. If it happens to your own username, you're told at once.</li>
-<li><b>Add-me links</b> carry the start of your key after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
-<li><b>Messages</b> <soon/>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything the relay said it passed on but never delivered, or kept and never handed over, comes straight, and is noted. A device that was away while another of yours took a message isn't counted against the relay.</li>
+<li><b>Usernames.</b> Each friend you added by username is looked up again once a day, and your own each time you connect. If the relay that once gave a friend's username to them now gives it to another account, their profile says so; usually it's because they changed or gave up their username and someone else took it. Either way you're still talking to the friend you added: the relay can't swap them for someone else. If a friend tells their app they go by a new username, and the relay agrees, that's the one looked up from then on. Their app is told too, through the relay and over a direct link where one is open. Each relay is its own directory, so on a relay of your own nobody's username is held against what ours said.</li>
+<li><b>Your own username.</b> If the relay gives it to another account, you're told once, calmly, with the usual reasons: you gave it up or changed it on another of your devices, made a new key for this phone (the old key still holds it), or use another relay.</li>
+<li><b>Add-me links</b> carry your account's name (made from your key) after a <code>#</code>, which no browser sends to any server. Whoever opens your link adds that key and no other, whatever the relay says.</li>
+<li><b>Messages</b> <soon/>. With <b>Direct</b>, your device and a friend's compare, over a direct link, which messages went between them and when, never what they said. Anything your device never got is sent again straight. Only once it has come is anything held against the relay, and then as the friend's device's word. A device that was away while another of yours took a message, or a message lost when the relay restarted, isn't counted against it.</li>
 </ul>
 
 <m-screen title="Routes" back caption="Settings › Routes, Checking the relay, in a build with Direct.">
   <m-section title="Checking the relay" foot="What is compared is which messages went and came, and when: never their words.">
     <m-row icon="shield-check" hue="green" label="Last checked 5 min ago, with 3 devices" hint="Of Ghost Messaging's relay (gogho.st), over direct links with your friends' devices."/>
-    <m-row icon="check" hue="green" label="212 messages matched this week" hint="1 was made up for: it came straight because this device was away while another of yours took it."/>
-    <m-row icon="circle-alert" hue="red" label="Said it passed on a message from Maya, and it never came" hint="21 Nov"/>
+    <m-row icon="check" hue="green" label="212 messages matched this week" hint="1 came straight after the relay didn't bring it."/>
+    <m-row icon="circle-alert" hue="red" label="Maya's device says the relay passed on a message to you, and it never came by the relay" hint="21 Nov"/>
     <m-row icon="refresh-cw" hue="blue" label="Check now" hint="Dials the friends the relay says are here, and compares." chev/>
     <m-row icon="at-sign" hue="blue" label="Asks the relay about 4 friends' usernames each day" hint="Last asked 2 h ago."/>
   </m-section>
