@@ -52,7 +52,7 @@ through this server (Matt, 2026-11-14: "for right now we can use our servers to 
 It is `lib/hub.dart`, with its own signature checking in `lib/p256.dart`, and is described with the rest of the
 app's routes in [../docs/network.md](../docs/network.md). Behind a web server it needs one more line beside the
 relay's: in Caddy, `handle /hub { reverse_proxy 127.0.0.1:8787 }`. What it holds for people who are away is in
-memory: at most 96 MB of packets, and 20,000 connections. On disk it keeps the relay's own key and the home records
+memory: at most 96 MB of packets (each counted with 256 bytes for what holding it costs), and 20,000 connections. On disk it keeps the relay's own key and the home records
 people gave it where it talks to other relays (`relay-key.json`, `homes.json`: "Other relays", below), and the names
 of the accounts that sign in bound to it (`hub-v2.json`, below).
 

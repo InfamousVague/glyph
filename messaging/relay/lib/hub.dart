@@ -317,9 +317,17 @@ class Hub {
 
   /// How much is held for everyone together, in bytes, and how many may be connected: a server with a few hundred
   /// megabytes to itself, open to anyone who can make a key, is not to be filled by them.
+  ///
+  /// A held packet is counted as its bytes and [heldOverhead] more: what holding it costs beside its bytes. Counted
+  /// by its bytes alone, one connection sending the smallest packets to made-up names filled several times
+  /// [heldBytes] of memory before the count said full.
   final int heldBytes;
   final int maxConnections;
   int _held = 0;
+
+  /// What holding one packet costs beside its bytes: its place in a mailbox, the byte array's and the record's own
+  /// headers, when it came. Rounded up, so [heldBytes] is never less than the memory it stands for.
+  static const heldOverhead = 256;
 
   static const maxPacket = 64 * 1024;
 
@@ -801,7 +809,7 @@ class Hub {
         final back = [for (final h in all) if (h.byDevice != null && h.byDevice == made.device) h];
         final held = [for (final h in all) if (!back.contains(h)) h];
         if (back.isNotEmpty) _mail[made.id] = back;
-        _held -= held.fold<int>(0, (n, h) => n + h.frame.length);
+        _held -= held.fold<int>(0, (n, h) => n + h.cost);
         final cutoff = _now().subtract(holdFor);
         final fresh = held.where((h) => h.at.isAfter(cutoff)).toList();
         _tell(socket, {'ok': true, 'held': fresh.length, 'now': _now().millisecondsSinceEpoch, 'since': started.millisecondsSinceEpoch, if (helpers.isNotEmpty) 'helpers': helpers});
@@ -1013,10 +1021,10 @@ class Hub {
     var size = box.fold<int>(0, (n, h) => n + h.frame.length);
     final back = <_Held>[];
     for (final h in items.reversed) {
-      if (box.length + back.length >= mailboxFrames || size + h.frame.length > mailboxBytes || _held + h.frame.length > heldBytes) break;
+      if (box.length + back.length >= mailboxFrames || size + h.frame.length > mailboxBytes || _held + h.cost > heldBytes) break;
       back.insert(0, h);
       size += h.frame.length;
-      _held += h.frame.length;
+      _held += h.cost;
     }
     box.insertAll(0, back);
     if (box.isEmpty) _mail.remove(to);
@@ -1025,12 +1033,12 @@ class Hub {
   bool _hold(String to, Uint8List frame, {String? byDevice}) {
     final box = _mail[to] ??= [];
     final size = box.fold<int>(0, (n, h) => n + h.frame.length);
-    if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + frame.length > heldBytes) {
+    if (box.length >= mailboxFrames || size + frame.length > mailboxBytes || _held + _Held.costOf(frame) > heldBytes) {
       if (box.isEmpty) _mail.remove(to);
       return false;
     }
     box.add(_Held(frame, _now(), byDevice: byDevice));
-    _held += frame.length;
+    _held += _Held.costOf(frame);
     // Their app is closed: woken where it can be (an iPhone's push; an Android phone looks for itself).
     pushes?.held(to);
     return true;
@@ -1178,7 +1186,7 @@ class Hub {
       final box = _mail[id]!;
       for (final h in box.where((h) => !h.at.isAfter(cutoff)).toList()) {
         box.remove(h);
-        _held -= h.frame.length;
+        _held -= h.cost;
       }
       if (box.isEmpty) _mail.remove(id);
     }
@@ -1335,6 +1343,10 @@ class _Held {
   _Held(this.frame, this.at, {this.byDevice});
   final Uint8List frame;
   final DateTime at;
+
+  /// What this counts as against [Hub.heldBytes]: its bytes and what holding it costs.
+  int get cost => costOf(frame);
+  static int costOf(Uint8List frame) => frame.length + Hub.heldOverhead;
 
   /// For a packet an identity sent to its own name: which of its devices sent it (its hello's `device`). That device
   /// isn't handed it back: it is kept for the identity's other devices (GMFB-26, an app passing on a packet it couldn't
