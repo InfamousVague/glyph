@@ -27,6 +27,7 @@ import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
 import '../kit/settings_type.dart';
+import '../custom_theme.dart';
 import '../looks.dart';
 import '../sms.dart';
 import '../sounds.dart';
@@ -48,6 +49,7 @@ import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart';
+import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import 'space_designs/space_design.dart';
 import '../summaries.dart';
@@ -109,10 +111,13 @@ List<SettingsSection> _ownSections() => [
     group: 'look',
     summary: (m) {
       final look = m.app.look;
+      final own = CustomTheme.used(m.app);
+      if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textSize != 'default') '${m.app.textSize} text'].join(' · ');
       return [
         if (look != Look.ghost) look.label,
         if (look.forced == null) switch (m.app.theme) { 'light' => look.lightName, 'dark' => look.darkName, _ => 'System theme' },
         '${m.app.bubble == 'theme' ? (look == Look.ghost ? 'White' : look.label) : bubbleColor(m.app.bubble).name} bubbles',
+        if (m.app.font == 'readable') 'Readable font',
         if (m.app.textSize != 'default') '${m.app.textSize} text',
       ].join(' · ');
     },
@@ -399,16 +404,42 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
   final app = m.app;
   final palette = PhonePalette.current != null;
   final look = app.look;
+  // A look of one's own in use (GMFB-41, lib/custom_theme.dart): it has one brightness, as some of the app's do.
+  final own = CustomTheme.used(app);
   return [
     // Looks for the whole app (Matt, 2026-11-16: "spend some time making a few themes for ghost"), above Theme, which
     // only a look with both a light and a dark half has.
     PaneSection(
       title: 'Look',
-      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below.'),
-      children: [SettingRowBox(child: LookPicker(app: app))],
+      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours, and share it as a code.'),
+      children: [
+        SettingRowBox(child: LookPicker(app: app)),
+        // Your own looks (GMFB-41, from the Uplink gap review: "custom CSS-style themes"): made from four colours, or
+        // taken in from a code someone shared.
+        SettingRow(
+          key: const ValueKey('make-own-look'),
+          icon: _icon(Lucide.palette),
+          label: 'Make your own look',
+          hint: const Text('Choose the background, surface, text and accent colours'),
+          onPress: () => push<void>(context, (_) => CustomThemeEditor(app: app)),
+        ),
+        SettingRow(
+          key: const ValueKey('paste-look'),
+          icon: _icon(Lucide.clipboardPaste),
+          label: 'Paste a look\'s code',
+          hint: const Text('One someone shared with you'),
+          onPress: () => pasteTheme(context, app),
+        ),
+      ],
     ),
     PaneSection(title: 'Theme', children: [
-      if (look.forced == null)
+      if (own != null)
+        SettingRow(
+          icon: _icon(Lucide.sunMoon),
+          label: 'Theme',
+          hint: Text('${own.name} is always ${own.dark ? 'dark' : 'light'}, whatever the phone is set to.'),
+        )
+      else if (look.forced == null)
         SettingRow(
           icon: _icon(Lucide.sunMoon),
           label: 'Theme',
@@ -446,7 +477,23 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
-    PaneSection(title: 'Text', footer: Text(Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'), children: [
+    PaneSection(title: 'Text', footer: Text('${Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'} Readable draws everything in Atkinson Hyperlegible Next, made so that no two letters look alike: easier for many people with dyslexia or low vision.'), children: [
+      // A face for reading (GMFB-41, from the Uplink gap review: "dyslexia font"), over any look's own.
+      SettingRow(
+        icon: _icon(LucideMore.type),
+        label: 'Font',
+        layout: SettingRowLayout.stacked,
+        control: GlacierSegmentedControl(
+          key: const ValueKey('font-choice'),
+          fullWidth: true,
+          value: app.font,
+          onValueChange: app.setFont,
+          options: const [
+            GlacierSegmentedOption(value: 'default', label: Text('Default')),
+            GlacierSegmentedOption(value: 'readable', label: Text('Readable')),
+          ],
+        ),
+      ),
       SettingRow(
         icon: _icon(LucideMore.type),
         label: 'Text size',
