@@ -401,7 +401,9 @@ class MendTimes {
 /// - Back in the room after the relay was lost ([_back]): every connection is made again, as on coming in.
 /// - Every few seconds each member is looked at ([_mend]): where there is no working connection, one of the two
 ///   offers a new one (the lower id first, the other if it never does), again and again, further apart each time.
-/// - Two offers that cross are settled by id (the higher's stands: see the offer's own words), not left to fail both ways.
+/// - Two offers that cross are settled by id, the higher's standing (0.12.19 let the lower's stand; against it the higher
+///   gives way after a moment), not left to fail both ways. Which side mends first after a break (the lower id) is a
+///   separate choice, kept as 0.12.19 has it, so against 0.12.19 the same side goes first and the two don't cross.
 /// - What one member says is acted on in the order it was said, so a way to connect never overtakes its offer.
 /// Nothing new is said on the wire: a fresh offer is marked `a`, which every build since the relay fallback takes.
 class VoiceSession extends ChangeNotifier {
@@ -629,6 +631,10 @@ class VoiceSession extends ChangeNotifier {
     _unwell.clear();
     _tries.clear();
     _said.clear();
+    _awaitingAgain.clear();
+    for (final id in _kept.keys.toList()) {
+      _dropKept(id);
+    }
     for (final s in _subs) {
       await s.cancel();
     }
@@ -741,6 +747,8 @@ class VoiceSession extends ChangeNotifier {
   /// Everything remembered of the tries to connect to [id].
   void _forget(String id) {
     _offered.remove(id);
+    _awaitingAgain.remove(id);
+    _dropKept(id);
     _withheld.remove(id);
     _retried.remove(id);
     _relayed.remove(id);
@@ -766,6 +774,50 @@ class VoiceSession extends ChangeNotifier {
 
   /// What each member said, waiting its turn ([_heard]).
   final Map<String, Future<void>> _said = {};
+
+  /// Those of [_awaiting] whose offer was marked again (`a`): a mending offer, which crosses another only with theirs.
+  final Set<String> _awaitingAgain = {};
+
+  /// An offer that crossed this device's own and was let wait, the higher id's standing ([_act], `offer`): the latest
+  /// from each, the ways to connect said after it, and when this side gives way if its own is still not answered.
+  final Map<String, Map<String, dynamic>> _kept = {};
+  final Map<String, List<Map<String, dynamic>>> _keptIce = {};
+  final Map<String, Timer> _keptUntil = {};
+
+  void _dropKept(String id) {
+    _kept.remove(id);
+    _keptIce.remove(id);
+    _keptUntil.remove(id)?.cancel();
+  }
+
+  /// Keeps [m], an offer from [from] crossing this device's own, for [_giveWay].
+  void _keep(String from, Map<String, dynamic> m) {
+    _kept[from] = m;
+    _keptIce[from] = [];
+    _keptUntil[from] ??= Timer(mend.first ~/ 2, () => _giveWay(from));
+  }
+
+  /// The offer kept from [from] while this device's own crossed it: where this one's is still not answered (0.12.19 and
+  /// 0.12.18 let the higher id's go unanswered too, from the other side), it is given up and theirs answered, with the
+  /// ways to connect they said after it. In turn with everything else they said ([_said]).
+  void _giveWay(String from) {
+    _keptUntil.remove(from);
+    final turn = (_said[from] ?? Future<void>.value()).then((_) async {
+      final offer = _kept.remove(from);
+      final ice = _keptIce.remove(from) ?? const [];
+      if (offer == null || !joined || _moving || !_awaiting.containsKey(from)) return;
+      _awaiting.remove(from);
+      _awaitingAgain.remove(from);
+      await _peers.remove(from)?.close();
+      await _act(from, {...offer, 'a': 1});
+      for (final c in ice) {
+        try {
+          await _act(from, c);
+        } catch (_) {}
+      }
+    }).catchError((Object e) => debugPrint('voice: the offer kept from $from not taken: $e'));
+    _said[from] = turn;
+  }
 
   /// Back in the room after the relay was lost, with [there] in it now. While this device was gone everyone else was
   /// told it went and let go of their connection to it, so each is made again, as on coming in; whoever left meanwhile
@@ -876,6 +928,7 @@ class VoiceSession extends ChangeNotifier {
   Future<void> _offer(String id, {bool? relayOnly, bool again = false}) async {
     _offered.add(id);
     _awaiting[id] = DateTime.now();
+    again ? _awaitingAgain.add(id) : _awaitingAgain.remove(id);
     final m = media;
     final relay = relayOnly ?? (m is FallbackMedia && m.hasRelay);
     relay ? _relayed.add(id) : _relayed.remove(id);
@@ -979,16 +1032,22 @@ class VoiceSession extends ChangeNotifier {
         final j = m['j'];
         // Both offered at once (each waits on the other's answer): the higher id's offer stands, and the other side
         // gives its own up and answers. Left alone, each tried to take an offer on a connection that had made one,
-        // and neither connected. The higher's, because an app from before 677fd6dc7 already in a space's call offers
+        // and neither connected. The higher's, because an app from 0.12.18 or before already in a space's call offers
         // back from relink to whoever comes in only where its id is the lower, and gives its own offer up when it
         // finds the newcomer's (the `j` below): the newcomer (a browser, always) keeps its offer and both connect at
-        // once. An offer marked again (`a`) is always answered: whoever sent it has let go of the connection this
-        // side's offer was waiting on.
+        // once. 0.12.19 settles it the other way round (the lower's stands), so against it each would let the other's
+        // wait: the higher keeps theirs ([_keep]) and gives way after a moment if its own is still not answered
+        // ([_giveWay]). An offer marked again (`a`) is answered at once unless this side's own is a mending offer too:
+        // then the two crossed as any two do.
         var crossed = false;
-        if (m['a'] != 1 && _awaiting.containsKey(from) && _peers.containsKey(from)) {
-          if (route.me.compareTo(from) > 0) return;
+        if ((m['a'] != 1 || _awaitingAgain.contains(from)) && _awaiting.containsKey(from) && _peers.containsKey(from)) {
+          if (route.me.compareTo(from) > 0) {
+            _keep(from, m);
+            return;
+          }
           crossed = true;
         }
+        _dropKept(from);
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
         // A connection that failed is still held here until something takes its place: this does.
         if (_peers.containsKey(from) && _up(from) == null) await _peers.remove(from)?.close();
@@ -1001,6 +1060,7 @@ class VoiceSession extends ChangeNotifier {
         if (!again || crossed) _offered.remove(from);
         if (again) await _peers.remove(from)?.close();
         _awaiting.remove(from);
+        _awaitingAgain.remove(from);
         // They are making the connection: this side's count of its own tries starts over.
         _unwell.remove(from);
         _offerJoin[from] = j;
@@ -1020,8 +1080,24 @@ class VoiceSession extends ChangeNotifier {
         if (j != null && j != _join) return;
         // One for an offer since given up (theirs stood, or a new one was made) has nothing waiting for it.
         if (_awaiting.remove(from) == null) return;
+        _awaitingAgain.remove(from);
+        // Answered: an offer of theirs kept meanwhile is let go, and the ways to connect held with it are this
+        // connection's as much as that one's (which of theirs said them isn't said): given to it.
+        final held = _keptIce[from] ?? const [];
+        _dropKept(from);
         await _peers[from]?.takeAnswer('${m['sdp']}');
+        for (final c in held) {
+          try {
+            await _peers[from]?.addCandidate((c['c'] as Map).cast<String, dynamic>());
+          } catch (_) {}
+        }
       case 'ice':
+        // Said after an offer kept for now ([_keep]): held with it.
+        final held = _keptIce[from];
+        if (held != null && m['c'] is Map) {
+          held.add(m);
+          return;
+        }
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());
     }
   }
