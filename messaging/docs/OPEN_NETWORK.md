@@ -417,6 +417,21 @@ temporary files and delete it when the tab closes; Safari holds it in memory, so
 down by the app. Tried by `tool/web/e2e.mjs --files`: one browser uploads a file to a circle's Files space, by the
 picker and by a drop, the other sees it and downloads it, byte for byte, in Chromium and WebKit.
 
+**A device's conversations** (GMFB-53): the account's backup carries friends and circles, never conversations, and the
+copies an account's devices pass each other carry what is said from then on; so a device signed in on (a browser, an
+iPhone, a computer of its own) asks its account's other devices for the conversations with friends they hold
+(`lib/friends/friends.dart`, `mine-ask`, `mine-past`, `mine-got`), at each start that is due until an answer that
+carried something has ended, or every other device on the account's list has answered with nothing. Anyone holding the
+account's key can send the account anything, so the answer can't go on a device's word alone: the asking goes by the hub,
+which hands it to the account's other devices with the device that sent it, as that device named itself in its hello
+(`docs/network.md`, "The hub"); the account's device list keeps that hub name beside the device's number (`h`, given as
+it is listed, and from its next check by a device holding the account's key that was listed before); and a device answers
+only where `acct-hello` with both says they belong together. It answers each device once (again a day on only where that
+device never said it had it all, which is taken only from that device for that asking), with only conversations with
+the account's present friends, the newest 300 messages each, at most 12 parts of 40 KB, and Settings › Devices says
+"History sent to" the device as the list names it. A relay from before keeps no hub names and stamps nothing: there
+nothing is answered.
+
 ### Its address
 
 Ours is served at **app.gogho.st**, an address of its own (`tool/deploy-site.mjs --app`, `tool/lib/web_site.mjs`),
