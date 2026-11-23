@@ -796,6 +796,14 @@ class Sms {
   /// no way into a call, as before.
   static bool browserCalls = false;
 
+  /// Files spaces in a browser (GMFB-30; docs/OPEN_NETWORK.md part 6): off unless the build turns them on
+  /// (`tool/build-web.mjs --files`, which says `--dart-define=GHOST_WEB_FILES=true`; lib/web/app.dart sets this as the
+  /// page starts). Off, a browser offers no Files space, as before.
+  static bool browserFiles = false;
+
+  /// Whether a circle's Files spaces open here: on every phone and computer, and in a browser whose build has them.
+  static bool get filesHere => !browser || browserFiles;
+
   /// A page in a browser whose window is wide enough to be laid out as a computer's (lib/web/app.dart, which says so as
   /// the window is sized): read at a computer's sizes then, and at a phone's in a narrow one. False everywhere else.
   static bool browserWide = false;
@@ -1044,6 +1052,13 @@ class Sms {
 
   /// Keeps [body], which came from [address] by the routes, as a text that arrived is kept, and says so as one is.
   Future<void> netTextIn(String address, String body, int at) => _calls.invokeMethod('netTextIn', {'address': address, 'body': body, 'at': at});
+
+  /// The conversations with friends by username kept here, for a new device of the account (GMFB-53;
+  /// lib/standalone/chats.dart history): `{a: address, r: [[words, when, 1 where ours], …]}` each.
+  Future<List<Map>> netHistory() async => ((await _calls.invokeMethod('netHistory')) as List? ?? const []).cast<Map>();
+
+  /// Messages of [address]'s conversation another device of the account held, kept here once each: how many were new.
+  Future<int> netHistoryKeep(String address, List<List<Object>> rows) async => ((await _calls.invokeMethod('netHistoryKeep', {'address': address, 'rows': rows})) as num?)?.toInt() ?? 0;
 
   /// Data texts (android NetSms.kt): whether this phone can send them, and one sent to [address] carrying [bytes].
   Future<bool> netSmsAvailable() async => await _calls.invokeMethod<bool>('netSmsAvailable') ?? false;

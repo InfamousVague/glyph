@@ -1173,6 +1173,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && !_beside && app.flag('rcs_notice');
     // The recovery words put off at sign-up (GMFB-3): a reminder until they are seen in Settings › Me.
     final wordsDue = !widget.archived && _query.isEmpty && !_selecting && _section == null && app.flag(wordsLater, fallback: false);
+    // The conversations another device handed over were cut short (Friends.historyKind's `e: 2`): said once, here.
+    final partDue = !widget.archived && _query.isEmpty && !_selecting && _section == null && app.flag('history_partial', fallback: false);
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
     final beside = AppShell.wideOf(context) ? open : null;
@@ -1269,7 +1271,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
         ),
       ]);
     } else {
-      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0) + (wordsDue ? 1 : 0);
+      final extras = (lead != null ? 1 : 0) + (notice ? 1 : 0) + (wordsDue ? 1 : 0) + (partDue ? 1 : 0);
       // In the frame the way to the archive is the pill's ring, with its number.
       final tail = !framed && !widget.archived && archivedCount > 0 && _query.isEmpty && !_selecting && _section == null;
       // What the filter hides, said at the list's foot with the way to see it: nothing is lost quietly.
@@ -1285,6 +1287,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
           }
           if (wordsDue && i == (lead != null ? 1 : 0) + (notice ? 1 : 0)) {
             return _WordsNotice(onShow: () => push(context, (_) => const ShowWordsScreen()), onDismiss: () => app.setFlag(wordsLater, false));
+          }
+          if (partDue && i == (lead != null ? 1 : 0) + (notice ? 1 : 0) + (wordsDue ? 1 : 0)) {
+            return HistoryPartNotice(onDismiss: () => app.setFlag('history_partial', false));
           }
           final at = i - extras;
           if (at < rows.length && rows[at] is InboxChat) {
@@ -1592,6 +1597,32 @@ class _RefreshableListState extends State<RefreshableList> {
 
 /// Over the list until it is dismissed, where the app this one replaced keeps RCS chats: why some people's texts may
 /// not be arriving, and the way to what to do about it (Settings › Android).
+/// Your other device handed over your newest conversations and not all of them (GMFB-53: an answer is at most
+/// Friends.historyParts parts): said over the list, until put away.
+class HistoryPartNotice extends StatelessWidget {
+  const HistoryPartNotice({super.key, required this.onDismiss});
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      key: const ValueKey('history-part-notice'),
+      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.history, size: 18, color: t.color('app-ink-2'))),
+          SizedBox(width: t.space(3)),
+          Expanded(child: Text('Your newest conversations came from your other device. Older conversations stay on your other device.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4))),
+          IconTap(icon: Lucide.x, label: 'Dismiss', size: 16, box: t.lenOf('2.25rem'), onPressed: onDismiss),
+        ]),
+      ),
+    );
+  }
+}
+
 /// The recovery words, put off at sign-up, still to be written down (GMFB-3): the way to them, or put away.
 class _WordsNotice extends StatelessWidget {
   const _WordsNotice({required this.onShow, required this.onDismiss});

@@ -408,7 +408,11 @@ class Accounts {
             list.removeWhere((x) => x['d'] == d);
             if (list.length >= maxDevices) return err('That account is signed in on $maxDevices devices. Remove one first.');
             final day = now.toUtc().toIso8601String().substring(0, 10);
-            list.add({'d': d, 'n': _short(add['n'], 60), 'p': _short(add['p'], 20), 'at': day, 'seen': day});
+            final h = add['h'];
+            // The device's name on the hub as well (its hello's `device`), where it says it: what the hub vouches for in
+            // what an account sends its own name (hub.dart toPeerFromDevice), so its other devices can tell which listed
+            // device a packet came from (GMFB-53: a history goes only to the device that asked).
+            list.add({'d': d, 'n': _short(add['n'], 60), 'p': _short(add['p'], 20), 'at': day, 'seen': day, if (h is String && h.length == 32 && _hex.hasMatch(h)) 'h': h});
           }
           // A device taken off the list: the account's own signed words for it are kept, and handed to that device when it
           // next asks (`acct-hello`), so it can see for itself that the account removed it before it deletes anything.
@@ -457,7 +461,12 @@ class Accounts {
           // Removed by the account: its signed words for this device go with the answer ([acct-devices] keeps them).
           final gone = _accounts[address]?['gone'];
           final proof = mine == null && gone is Map ? gone[d] : null;
-          tell({'dir': 'acct-hello', 'a': address, 'known': mine != null, 'account': _accounts.containsKey(address), if (proof != null) 'removed': proof});
+          // Asked with a hub name too (`h`): whether the device listed is that one on the hub (`hm`), and then its name on
+          // the list (`n`), for the account's other devices; only to whoever holds both its numbers. Asked without, the
+          // answer is as it always was.
+          final h = said['h'];
+          final hm = h is String && mine != null && mine['h'] == h;
+          tell({'dir': 'acct-hello', 'a': address, 'known': mine != null, 'account': _accounts.containsKey(address), if (proof != null) 'removed': proof, if (h is String) 'hm': hm, if (hm) 'n': mine['n']});
         case 'acct-leave':
           // A device taking itself off the account's list as it signs out: a page in a browser, which keeps no account
           // key to sign with (the app's lib/account/account.dart). No signature, as for `acct-hello`: the device's own

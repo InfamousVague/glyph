@@ -1053,6 +1053,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
             ),
         ],
       ),
+      // The last time this device handed its conversations to another of the account (GMFB-53; Friends.historyKind):
+      // said here, so a handover the person didn't make is seen, and the device it went to can be removed above.
+      if (Account.instance.store.choice('history_note', '').isNotEmpty) ...[
+        _gap(context),
+        SettingsCallout(child: Text('${Account.instance.store.choice('history_note', '')}. Your conversations with friends go to each device signed in on your account, once. If you don\'t know that device, remove it and change your password.')),
+      ],
       _gap(context),
       // Every device signed in is connected at once since the hub keeps each of a name's devices (relay/lib/hub.dart).
       const SettingsCallout(child: Text('Every device signed in is connected as your account at once, and each gets what is sent to you. Each browser you sign in on, and each private window, is a device of its own here until it signs out or you remove it; an account has room for 20.')),

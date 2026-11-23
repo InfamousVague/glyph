@@ -9,6 +9,8 @@
  *   node tool/web/e2e.mjs --web <folder> --shots <folder> --headed
  *   node tool/build-web.mjs --calls --out build/web-calls && node tool/web/e2e.mjs --web build/web-calls --calls
  *                                           a build with calls, and the steps marked (calls) in place of "no calls"
+ *   node tool/build-web.mjs --files --out build/web-files && node tool/web/e2e.mjs --web build/web-files --files
+ *                                           a build with Files spaces, and the steps marked (files)
  *
  * WHAT IT DOES, in each engine
  *   1. Starts the relay (relay/bin/relay.dart, with Flutter's own Dart) on a free port of this machine, with a new
@@ -32,9 +34,15 @@
  *      and reads what the other wrote there; its chat-and-voice space is its chat alone, with no way into a call.
  *      (calls: both join its call instead, hear each other, one turns the camera on and the other receives the picture,
  *      one mutes the other for themselves alone, and both leave.)
+ *  7b. (files) The circle is made with a Files space too. Sam puts two files in it from his browser: one by the
+ *      browser's own picker (a few megabytes of random bytes: many chunks, several pieces), one dropped on the page (a
+ *      few words). Maya, in hers, sees both listed, opens the words and reads them in the page, and downloads the other
+ *      to her browser's downloads: the bytes she gets are the bytes Sam put up. Every request went to the relay
+ *      (FilesApi over the page's fetch), every chunk sealed and opened by the browser's own AES-GCM.
  *   8. Settings call it a browser, with an About of its own and none of what a browser has nothing to set for; and
  *      the Marketplace is on no key (Ctrl+5), in no quick switcher and in no list of shortcuts.
  *   9. One signs in on a third, new browser with the username and password: the same person, the friend still there,
+ *      and the conversation with him from before, handed over by her other browser (GMFB-53),
  *      both browsers in the account's devices as browsers, after the password. How long signing in took is said.
  *  10. The page's own Argon2id (web/argon2id.js, in a worker) is held to test/vectors/argon2id.json.
  *  11. In a narrow window the page is laid out as a phone; wide again, as a computer.
@@ -92,6 +100,8 @@ const hubPort = option('hub-port', null);
 const quick = args.includes('--quick');
 // A build with calls (tool/build-web.mjs --calls): the calls' steps, and none of the "no calls" checks.
 const calls = args.includes('--calls');
+// A build with Files spaces (tool/build-web.mjs --files): the files' steps.
+const withFiles = args.includes('--files');
 
 if (!existsSync(join(webDir, 'index.html'))) {
   console.error(`e2e: no built app at ${webDir}: run node tool/build-web.mjs first.`);
@@ -211,7 +221,7 @@ class Seat {
       const u = new URL(r.url());
       // Where the build names a hub elsewhere (--hub-port), what the page sends beside it over plain HTTP too: feedback
       // (tool/lib/web_site.mjs sentBeside; a report goes nowhere from a page made for a relay not Ghost Messaging's).
-      if (hubPort && u.host === `127.0.0.1:${hubPort}` && u.pathname === '/feedback') return;
+      if (hubPort && u.host === `127.0.0.1:${hubPort}` && (u.pathname === '/feedback' || u.pathname.startsWith('/files/'))) return;
       if (u.origin !== origin && !['data:', 'blob:', 'about:'].includes(u.protocol)) this.outside.add(`${u.origin}${u.pathname}`);
     });
     page.on('websocket', (w) => {
@@ -837,6 +847,13 @@ async function run(engine) {
       await s.clickAside('Colour');
       // A browser can choose no picture yet, and keeps no files: neither is offered.
       await s.lacks('Choose a picture');
+      if (withFiles) {
+        // (files) A Files space among its first spaces.
+        await s.wheelTo('Icon', 'Add a space');
+        await s.press('Add a space');
+        await s.press('^Files(,|$)', { like: true });
+        await s.sees('^Files(,.*)?$', { like: true });
+      }
       await s.wheelTo('Icon', 'Make the circle');
       await s.press('Make the circle');
       await s.sees('Lighthouse made');
@@ -926,6 +943,45 @@ async function run(engine) {
         await s.press('^Leave( call)?$', { like: true });
       });
     }
+    if (withFiles) {
+      const picked = new Uint8Array(3 * 1024 * 1024 + 4321);
+      for (let i = 0; i < picked.length; i += 65536) crypto.getRandomValues(picked.subarray(i, Math.min(picked.length, i + 65536)));
+      const pickedName = `picked from ${engine}.bin`, droppedName = `dropped from ${engine}.txt`;
+      const droppedWords = `Words dropped on the page in ${engine}, sealed in the browser.`;
+      await step('(files) Sam puts a file in the circle\'s Files space by the picker and another by a drop; both go up', async () => {
+        await s.press('^Files, Files', { like: true });
+        await s.sees('Upload');
+        const [chooser] = await Promise.all([s.page.waitForEvent('filechooser', { timeout: 30000 }), s.press('Upload')]);
+        await chooser.setFiles({ name: pickedName, mimeType: 'application/octet-stream', buffer: Buffer.from(picked) });
+        // A file dropped on the page: the browser's own drag and drop, with a File of the page's making.
+        await s.page.evaluate(({ name, words }) => {
+          const dt = new DataTransfer();
+          dt.items.add(new File([words], name, { type: 'text/plain' }));
+          for (const type of ['dragenter', 'dragover', 'drop']) document.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        }, { name: droppedName, words: droppedWords });
+        await s.sees(`^${pickedName}, `, { like: true, within: 120000 });
+        await s.sees(`^${droppedName}, `, { like: true, within: 60000 });
+        await s.gone('Going up', { within: 120000 });
+        await s.shot(`${engine}-Sam-12f-files`);
+      });
+      await step('(files) Maya sees both, reads the dropped words in the page, and downloads the picked file: the same bytes', async () => {
+        await m.press('^Files, Files', { like: true });
+        await m.sees(`^${pickedName}, `, { like: true, within: 60000 });
+        await m.sees(`^${droppedName}, `, { like: true });
+        await m.press(`^${droppedName}, `, { like: true });
+        await m.sees(droppedWords, { within: 60000 });
+        await m.shot(`${engine}-Maya-12f-words`);
+        // Back from the preview to the list (its own Back, the page's last).
+        await m.press('Back', { last: true });
+        await m.sees(`^${pickedName}, `, { like: true });
+        await m.press(`More for ${pickedName}`);
+        const [download] = await Promise.all([m.page.waitForEvent('download', { timeout: 120000 }), m.press('Download')]);
+        if (download.suggestedFilename() !== pickedName) throw new Problem(`Maya's download is called ${download.suggestedFilename()}, not ${pickedName}.`);
+        const got = readFileSync(await download.path());
+        if (!Buffer.from(picked).equals(got)) throw new Problem(`Maya downloaded ${got.length} bytes, not the ${picked.length} Sam put up${got.length === picked.length ? ' (the same length, other bytes)' : ''}.`);
+        await m.shot(`${engine}-Maya-12g-downloaded`);
+      });
+    }
     await step('Sam\'s Settings call this a browser, with an About of its own and none of what it has nothing to set for', async () => {
       await s.press('Settings', { role: 'button' });
       await s.sees('Appearance');
@@ -992,6 +1048,13 @@ async function run(engine) {
       await elsewhere.press('Contacts', { role: 'button' });
       await elsewhere.sees(`${sam.username}, Ghost`, { within: 30000 });
       await elsewhere.shot(`${engine}-Maya-15-signed-in`);
+      // Her conversation with Sam, said before this browser existed: her other browser, still open, hands it over
+      // (GMFB-53: "none of my messages appear in the sidebar"; Friends.historyAsk). In the list, and opened, both ways.
+      await elsewhere.press('Messages', { role: 'button' });
+      await elsewhere.press(sam.username, { within: 60000 });
+      await elsewhere.sees(hello, { within: 30000 });
+      await elsewhere.sees(answer);
+      await elsewhere.shot(`${engine}-Maya-15b-history`);
       // Her two browsers, in her list of devices, each called what it is: after her password, which a browser keeps
       // nothing in place of.
       await elsewhere.press('Settings', { role: 'button' });

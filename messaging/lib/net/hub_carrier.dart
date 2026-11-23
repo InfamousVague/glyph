@@ -519,6 +519,15 @@ class HubCarrier implements Carrier {
     if (data is List<int>) {
       if (data.length > 17 && data[0] == 1) {
         _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(17)), from: NetCrypto.hex(data.sublist(1, 17))));
+      } else if (data.length > 18 && data[0] == 7 && data.length > 18 + data[17]) {
+        // What this account sent its own name, with the device that sent it, as the hub vouches (asked for with `stamp`
+        // in the hello; relay/lib/hub.dart toPeerFromDevice): a history goes only to the device that asked (GMFB-53).
+        final n = data[17];
+        String? device;
+        try {
+          device = utf8.decode(data.sublist(18, 18 + n));
+        } catch (_) {}
+        _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(18 + n)), from: NetCrypto.hex(data.sublist(1, 17)), device: device));
       } else if (data.length > 33 && data[0] == 2) {
         _roomPackets.add((room: NetCrypto.hex(data.sublist(1, 17)), from: NetCrypto.hex(data.sublist(17, 33)), bytes: Uint8List.fromList(data.sublist(33))));
       } else if (data.length > 33 && data[0] == 4) {
@@ -564,7 +573,7 @@ class HubCarrier implements Carrier {
         } catch (_) {}
       }
       if (!identical(_ws, ws)) return;
-      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (device.isNotEmpty) 'device': device, if (_hubMode != 'online') 'mode': _hubMode, 'pass': ?proof}));
+      ws.say(jsonEncode({'id': signer.id, 'key': base64Encode(signer.publicKey), 'sig': base64Encode(sig), if (v2) 'v': 2, if (v2) 'host': host, if (device.isNotEmpty) 'device': device, if (device.isNotEmpty) 'stamp': true, if (_hubMode != 'online') 'mode': _hubMode, 'pass': ?proof}));
     } else if (m.containsKey('ok') && !_ready) {
       if (m['ok'] != true) {
         _drop('refused');

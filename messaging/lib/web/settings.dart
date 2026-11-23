@@ -13,8 +13,8 @@ import '../ui/whats_new.dart';
 /// What is not in a browser yet, as About says it: each is absent from the page's screens, not broken in them. Calls
 /// are there where the build has them (Sms.browserCalls), without what needs the app's native halves.
 String get notInBrowserYet => Sms.callsHere
-    ? 'Voice messages and sounds, Files spaces, plugins and the Marketplace, chats on other networks, and texts through a phone; and in a call, recording, the voice changer, noise removal beyond the browser\'s own and sharing your screen. They are in Ghost Messaging on a phone or a computer.'
-    : 'Calls, voice messages and sounds, Files spaces, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Ghost Messaging on a phone or a computer.';
+    ? 'Voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone; and in a call, recording, the voice changer, noise removal beyond the browser\'s own and sharing your screen. They are in Ghost Messaging on a phone or a computer.'
+    : 'Calls, voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Ghost Messaging on a phone or a computer.';
 
 /// What the browser keeps, as About says it (lib/web/store.dart says it at length): all of it sealed, and the words and
 /// the password's key not at all.

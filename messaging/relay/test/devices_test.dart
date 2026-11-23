@@ -38,7 +38,7 @@ class _Install {
         key = other.key,
         id = other.id;
 
-  Future<Map> connect(String url, {bool peek = false, String? device, String? mode}) async {
+  Future<Map> connect(String url, {bool peek = false, String? device, String? mode, bool stamp = false}) async {
     final socket = await WebSocket.connect(url);
     if (!peek) ws = socket;
     socket.done.then((_) => closed = true);
@@ -59,7 +59,7 @@ class _Install {
     });
     final nonce = _unhex((await first.future)['hello'] as String);
     final sig = P256.sign(scalar, [...utf8.encode(Hub.greeting), ...nonce], _bytes(32));
-    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true, 'device': ?device, 'mode': ?mode}));
+    socket.add(jsonEncode({'id': id, 'key': base64Encode(key), 'sig': base64Encode(sig), if (peek) 'peek': true, 'device': ?device, 'mode': ?mode, if (stamp) 'stamp': true}));
     return hello.future.timeout(const Duration(seconds: 5));
   }
 
@@ -114,6 +114,41 @@ void main() {
     expect((await desk.connect(url, device: 'desk'))['held'], 1);
     await _settle();
     expect(desk.frames.single.sublist(17), [9, 9, 9]);
+  });
+
+  // GMFB-53: what an account sends its own name says which of its devices sent it, to a device that asks (a history goes
+  // only to the device that asked for it); every other connection and every other packet is handed exactly as before.
+  test('a packet to its own name is handed with the sending device to its devices that ask, live and kept; as before to the rest', () async {
+    final phone = _Install(), desk = _Install.copyOf(phone), old = _Install.copyOf(phone), friend = _Install();
+    await phone.connect(url, device: 'phone');
+    await desk.connect(url, device: 'desk', stamp: true);
+    await old.connect(url, device: 'old');
+    await friend.connect(url, stamp: true);
+    await _settle();
+    phone.sendTo(phone, [5, 6]);
+    friend.sendTo(desk, [8]);
+    await _settle();
+    final from = _unhex(phone.id);
+    expect(desk.frames[0], [Hub.toPeerFromDevice, ...from, 5, ...utf8.encode('phone'), 5, 6], reason: 'stamped for the device that asked');
+    expect(old.frames.first, [Hub.toPeer, ...from, 5, 6], reason: 'byte for byte as before for one that did not');
+    expect(desk.frames[1], [Hub.toPeer, ..._unhex(friend.id), 8], reason: 'someone else\'s packet is as before');
+    // Kept while the asking device was away: stamped as it is handed over.
+    await desk.ws.close();
+    await old.ws.close();
+    await _settle();
+    phone.sendTo(phone, [9]);
+    await _settle();
+    final back = _Install.copyOf(phone);
+    expect((await back.connect(url, device: 'desk', stamp: true))['held'], 1);
+    await _settle();
+    expect(back.frames, [[Hub.toPeerFromDevice, ...from, 5, ...utf8.encode("phone"), 9]]);
+    // A device that names none is never vouched for: as before.
+    final nameless = _Install.copyOf(phone);
+    await nameless.connect(url);
+    await _settle();
+    nameless.sendTo(nameless, [4]);
+    await _settle();
+    expect(back.frames.last, [Hub.toPeer, ...from, 4]);
   });
 
   test('the same device again takes its own place; one from before devices still takes the place of another', () async {

@@ -299,6 +299,10 @@ one; Settings › Network takes its address.
    one talks to others: `relay/README.md`, "Other relays") the answer carries `"fed": true` and never says whether they
    are connected (`"here": false`, taken), `"waiting": true` where it waits on this relay for theirs, or `nak` with
    `home`, `busy`, `far` or `refused`, which the app says as the reason in the conversation.
+   A packet an account sends its own name goes, to each of its devices whose hello said `"stamp": true`, as
+   `[7][from: 16 bytes][n][device: n bytes][packet]`, the device being the sender's hello's `device` (live and as kept);
+   to every other connection, and every other packet, as before. The hub is the only one who can say which device
+   sent something (the account's devices share its key): what a device's history goes to rests on it (below).
 3. `{"watch": [names]}` is answered `{"here": [those connected]}`, then `{"came": name}` and `{"went": name}`.
 4. Rooms: `{"join": <32 hex>, "token": <64 hex>}`, both made by the members from a key only they hold; the first to
    name a room sets its token. `{"room", "ok", "members"}` to the one joining, `{"room", "came"}` to the rest;

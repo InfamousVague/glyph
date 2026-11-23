@@ -37,12 +37,24 @@ import '../../kit/picture_decode.dart';
 /// libmpv came in (Matt, 2026-11-18: "add support for playing mkv video files and mp4's within the app").
 bool get playsVideo => true;
 
+/// Whether a page in a browser brings [f] into the tab to show it when it is opened (FilesStore.browser holds what
+/// comes down in the tab, and Safari holds that in memory): a picture of 8 MB at most (the app's own bound for one read
+/// whole), words of 16 MB at most (the first 256 KB shown), a sound or a video of 512 MB at most. Anything else is
+/// downloaded only when the person asks (the review of web-files, F2).
+bool browserShowsHere(SpaceFile f) => switch (f.kind) {
+      FileKind.image => f.size <= 8 << 20,
+      FileKind.text || FileKind.code => f.size <= 16 << 20,
+      FileKind.audio || FileKind.video => f.size <= 512 << 20,
+      _ => false,
+    };
+
 /// Opens [f]: a video straight into the player, played as it comes down (lib/files/file_stream.dart; Matt, 2026-11-18:
 /// "do we need to download the whole file to play? would it be possible to setup streaming and buffering of the
 /// file?"), or from the disk where it is here already; anything else in its preview.
 void openSpaceFile(BuildContext context, VoiceChannel c, SpaceFile f, {FilesStore? store, bool chat = false}) {
   final s = store ?? FilesStore.instance;
-  if (f.kind == FileKind.video && playsVideo) {
+  // In a browser a video comes down first, its progress in the preview, then plays from the tab (FilesStore.browser).
+  if (f.kind == FileKind.video && playsVideo && !s.browser) {
     final have = s.cached(f);
     Navigator.of(context).push(videoRoute(have != null ? VideoScreen(path: have, title: f.name, poster: f.thumb) : VideoScreen.stream(stream: s.stream(c, f), title: f.name, poster: f.thumb)));
     return;
@@ -73,6 +85,11 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   /// Sound played as it comes down: _AudioPlayer holds the stream itself.
   bool _streamed = false;
 
+  /// In a browser: what came down, read back from the tab for a picture or words (a page reads no path); and a file
+  /// too big to bring into the tab just to show it ([browserShowsHere]).
+  Uint8List? _bytes;
+  bool _tooBig = false;
+
   @override
   void initState() {
     super.initState();
@@ -84,17 +101,38 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
   void _bring() {
     _error = null;
     final had = _store.cached(widget.file);
-    if (had != null) {
+    if (had != null && !_store.browser) {
       _path = had;
       return;
     }
-    // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18).
-    if (widget.file.kind == FileKind.audio && playsVideo) {
+    // In a browser, what would be held whole in the tab only to be looked at is not brought down by opening it
+    // (browserShowsHere): Download is there, for the person to choose (Safari keeps what a tab holds in memory).
+    if (_store.browser && had == null && !browserShowsHere(widget.file)) {
+      _tooBig = true;
+      return;
+    }
+    // Sound plays as it comes down, as a video does, rather than after the whole of it (Matt, 2026-11-18). Not in a
+    // browser, which has no server to play from.
+    if (widget.file.kind == FileKind.audio && playsVideo && !_store.browser) {
       _streamed = true;
       return;
     }
-    unawaited(_store.fetch(widget.channel, widget.file).then((p) {
-      if (mounted) setState(() => _path = p);
+    unawaited(_store.fetch(widget.channel, widget.file).then((p) async {
+      // A browser's picture or words, read back from where the tab holds them (the first 256 KB of words).
+      final kind = widget.file.kind;
+      final bytes = !_store.browser
+          ? null
+          : kind == FileKind.text || kind == FileKind.code
+              ? await HeldFiles.bytes(p, most: _WordsState.most)
+              : kind == FileKind.image
+                  ? await HeldFiles.bytes(p)
+                  : null;
+      if (mounted) {
+        setState(() {
+          _path = p;
+          _bytes = bytes;
+        });
+      }
     }, onError: (Object e) {
       if (mounted) setState(() => _error = e is FilesError ? e : FilesError(0, '$e'));
     }));
@@ -158,6 +196,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       return _note(t, _error!.offline ? Lucide.wifiOff : Lucide.circleAlert, _error!.message, action: _Pill(label: 'Try again', icon: Lucide.refreshCw, onPressed: () => setState(_bring)));
     }
     if (_streamed && f.kind == FileKind.audio) return _AudioPlayer(key: ValueKey('stream ${f.id}'), file: f, stream: () => _store.stream(widget.channel, widget.file));
+    if (_tooBig) return _other(t, f, '', note: 'Too big to show in a browser (${fileSize(f.size)}). Download it, or open it in Ghost Messaging on a phone or a computer.');
     final path = _path;
     if (path == null) {
       final coming = _store.downloading(f);
@@ -183,7 +222,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             maxScale: 8,
             child: Center(
               // A picture of a few megabytes is read at once, so it shows on the first frame; a bigger one is streamed.
-              child: f.size <= 8 << 20
+              child: _bytes != null
+                  ? Image.memory(_bytes!, fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
+                  : f.size <= 8 << 20
               // Decoded no wider than the screen's pixels (twice, for zooming in): a picture that claims to be tens of
               // thousands across is not unpacked whole.
                   ? Image.memory(fileBytes(path) ?? Uint8List(0), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: _decodeWidth(context), errorBuilder: (_, _, _) => _other(t, f, path))
@@ -194,7 +235,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       case FileKind.audio:
         return _AudioPlayer(key: ValueKey(path), path: path, file: f, stream: null);
       case FileKind.text || FileKind.code:
-        return _Words(path: path, code: f.kind == FileKind.code);
+        return _Words(path: path, code: f.kind == FileKind.code, bytes: _bytes, size: f.size);
       case FileKind.video when playsVideo:
         return _other(t, f, path, play: true);
       default:
@@ -214,7 +255,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       };
 
   /// Anything not shown here: its mark, name and size, and the ways to open it elsewhere.
-  Widget _other(Tokens t, SpaceFile f, String path, {bool play = false, bool runs = false}) => Center(
+  Widget _other(Tokens t, SpaceFile f, String path, {bool play = false, bool runs = false, String? note}) => Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(t.space(6)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -226,6 +267,10 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             SizedBox(height: t.space(5)),
             // A program or a script (FilePlatform.runsCode) is never opened from here: anyone in the space could have
             // added it. It says what it is, by its real ending, and can be shown in its folder or saved.
+            if (note != null) ...[
+              SettingsCallout(icon: AppIcon(Lucide.info, size: 18), child: Text(note)),
+              SizedBox(height: t.space(4)),
+            ],
             if (runs) ...[
               SettingsCallout(
                 icon: AppIcon(Lucide.triangleAlert, size: 18),
@@ -236,7 +281,9 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
             Wrap(spacing: t.space(2), runSpacing: t.space(2), alignment: WrapAlignment.center, children: [
               if (play)
                 _Pill(label: 'Play', icon: Lucide.play, strong: true, onPressed: () => Navigator.of(context).push(videoRoute(VideoScreen(path: path, title: f.name, poster: f.thumb))))
-              else if (!runs)
+              // Never in a browser: a file opened in a tab of the app's address could be a page whose script reads
+              // what the app keeps there (docs/OPEN_NETWORK.md, part 6). It is downloaded instead.
+              else if (!runs && FilePlatform.canOpen)
                 _Pill(label: 'Open', icon: Lucide.externalLink, strong: true, onPressed: () => FilePlatform.open(path, f.name)),
               if (FilePlatform.canSave) _Pill(label: FilePlatform.canShare ? 'Save' : 'Download', icon: LucideMore.download, onPressed: () => fileAction(context, widget.channel, f, _store, (p) => FilePlatform.save(p, f.name, f.mime), doneWords: true)),
               if (FilePlatform.canShare) _Pill(label: 'Share', icon: Lucide.share2, onPressed: () => FilePlatform.share(path, f.name, f.mime)),
@@ -281,9 +328,14 @@ class _Pill extends StatelessWidget {
 
 /// A text or code file's words: the first 256 KB, said where there is more.
 class _Words extends StatefulWidget {
-  const _Words({required this.path, required this.code});
+  const _Words({required this.path, required this.code, this.bytes, this.size});
   final String path;
   final bool code;
+
+  /// The file's bytes where they are held already (a browser's: its first 256 KB), in place of reading [path]; and
+  /// how long the whole file is.
+  final Uint8List? bytes;
+  final int? size;
 
   @override
   State<_Words> createState() => _WordsState();
@@ -297,6 +349,12 @@ class _WordsState extends State<_Words> {
   @override
   void initState() {
     super.initState();
+    final held = widget.bytes;
+    if (held != null) {
+      _text = utf8.decode(held.length > most ? Uint8List.sublistView(held, 0, most) : held, allowMalformed: true);
+      _more = (widget.size ?? held.length) > most;
+      return;
+    }
     unawaited(() async {
       final f = File(widget.path);
       final length = await f.length();
