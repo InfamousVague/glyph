@@ -394,6 +394,43 @@ void main() {
     expect(node.pathTo(other.nodeId!)!.kind, P2pPathKind.direct);
   });
 
+  // The second review, S5: Friends' "a route that costs nothing is up" was true whenever Direct was on, even with the
+  // relay down and nothing linked: a text then tried the direct route for five seconds before going as SMS, a group's
+  // message was marked failed rather than refused as offline, and what waited for an answer was sent again every ten
+  // seconds.
+  test('Friends counts the direct route as a way that costs nothing only while it reaches someone: a link to a friend\'s device open', () async {
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    final app = AppState();
+    await Net.instance.start(app, carriers: [hub]);
+    final p2p = Net.instance.p2p!;
+    await _until(() => p2p.loaded && p2p.card != null, 'what the direct network keeps was read');
+    await Friends.instance.start(app);
+    addTearDown(() async {
+      await Friends.instance.shutdown();
+      Friends.instance = null;
+    });
+    expect(Friends.instance.online, isTrue, reason: 'the relay\'s route is up');
+    await hub.stop();
+    await pumpEventQueue();
+    expect(p2p.carrier.state.value, CarrierState.up, reason: 'Direct is on, and ready to dial');
+    expect(Friends.instance.online, isFalse, reason: 'but it reaches nobody now');
+    // A friend's device linked: it reaches someone.
+    final theirs = mesh.node();
+    await theirs.start(P2pConfig(secret: NetCrypto.randomBytes(32)));
+    final card = await DeviceCard.make(KeysSigner(sam), device: 'ab' * 16, nodeId: theirs.nodeId!, now: DateTime.now());
+    hub.state.value = CarrierState.up;
+    hub.take(Packet.wrap(from: sam.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: P2p.kind, body: {'t': 'card', 'c': card.toJson(), 'w': theirs.whereabouts.value!.toJson(), 'h': [p2p.card!.tag]}, ack: false).encode())), from: sam.id);
+    await _until(() => p2p.devicesOf(sam.id).isNotEmpty, 'Sam\'s card was taken');
+    await hub.stop();
+    theirs.allow(p2p.nodeId!, {P2pChannel.packets});
+    final ends = <HandEnd>[];
+    theirs.opened.listen((s) => ends.add(HandEnd(s, linkKey: LinkWords.linkKey(keyWith(sam)), account: sam.id, node: theirs.nodeId!, them: me.id)));
+    expect(await p2p.carrier.send(Peer(id: sam.id, key: keyWith(sam)), Packet.wrap(from: me.id, sealed: true, payload: NetCrypto.seal(keyWith(sam), Envelope(kind: 'ping', ack: false).encode()))), Handed.passed);
+    expect(ends.single.proved, isTrue);
+    expect(Friends.instance.online, isTrue);
+  });
+
   test('a device the account is gone from forgets its place on the direct network: the key, the cards and what was told', () async {
     Net.p2pNode = () => node;
     final hub = PlainCarrier('hub');
