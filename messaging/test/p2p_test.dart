@@ -1853,6 +1853,42 @@ void main() {
       expect([a.node.config!.helpersOnly, a.plain.kept[P2p.helpersOnlyName], a.node.whereabouts.value!.addresses.length], [false, 'off', 1]);
     });
 
+    // The second review, S14: switching "Only through link helpers" on told no friend, and a friend kept the old
+    // addresses whenever what came next said nothing of where the device is.
+    test('switching "Only through link helpers" tells friends at once, and anything newer that says nothing of where a device is clears the addresses held for it', () async {
+      final a = w.install(w.account('maya')), b = w.install(w.account('sam'), computer: true);
+      w.friends(a, b);
+      await a.start();
+      await b.start();
+      // Maya's phone, in use, answers a meet from Sam's computer with where it is.
+      await b.board.send(b.to(a.account), _said(w, {'t': 'meet', 'c': b.p2p.card!.toJson(), 'w': b.node.whereabouts.value!.toJson(), 'h': [a.p2p.card!.tag]}), only: {'hub'});
+      await w.settle();
+      expect(b.p2p.devicesOf(a.account.id).single.where!.addresses, a.node.whereabouts.value!.addresses);
+      // Only through link helpers: Sam's computer is told at once, and holds no address of hers after.
+      final heard = b.heard.length;
+      await a.p2p.setHelpersOnly(true);
+      await w.settle();
+      expect(b.heard.sublist(heard), ['card from maya']);
+      expect(b.p2p.devicesOf(a.account.id).single.where, isNull);
+      // And switched off again: told again, with where it is now that it says it.
+      await w.clock.pass(_minute);
+      await a.p2p.setHelpersOnly(false);
+      await w.settle();
+      expect(b.heard.sublist(heard), ['card from maya', 'card from maya']);
+      // A newer word that says nothing of where it is (its node down) clears what was held; an older one doesn't.
+      await b.board.send(b.to(a.account), _said(w, {'t': 'meet', 'c': b.p2p.card!.toJson(), 'w': b.node.whereabouts.value!.toJson(), 'h': [a.p2p.card!.tag]}), only: {'hub'});
+      await w.settle();
+      expect(b.p2p.devicesOf(a.account.id).single.where, isNotNull);
+      final cardNow = a.p2p.card!;
+      await a.board.send(a.to(b.account), Envelope(kind: P2p.kind, body: {'t': 'card', 'c': cardNow.toJson(), 'h': [b.p2p.card!.tag]}, ack: false, at: w.clock.ms - 60000), only: {'hub'});
+      await w.settle();
+      expect(b.p2p.devicesOf(a.account.id).single.where, isNotNull, reason: 'older than what is held');
+      await w.clock.pass(_second);
+      await a.board.send(a.to(b.account), Envelope(kind: P2p.kind, body: {'t': 'card', 'c': cardNow.toJson(), 'h': [b.p2p.card!.tag]}, ack: false, at: w.clock.ms), only: {'hub'});
+      await w.settle();
+      expect(b.p2p.devicesOf(a.account.id).single.where, isNull);
+    });
+
     test('a node that can\'t start: the route is down and says why, a send goes on to the next route, and it is tried again after a while', () async {
       final lan = PlainCarrier.pair('lan');
       final a = w.install(w.account('maya'), computer: true, also: [lan.$1]), b = w.install(w.account('sam'), computer: true, also: [lan.$2]);

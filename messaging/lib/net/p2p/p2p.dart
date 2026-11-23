@@ -852,11 +852,11 @@ class P2p extends ChangeNotifier {
     switch (e.body['t']) {
       case 'card':
         // A device that does not hold this one's card is told it.
-        if (_take(from, e.body) != null && !_holdsMine(e.body)) _answerOrLater(peer);
+        if (_take(from, e.body, sent: e.at) != null && !_holdsMine(e.body)) _answerOrLater(peer);
       case 'card?':
         if (!_holdsMine(e.body)) _answerOrLater(peer);
       case 'meet':
-        final took = _take(from, e.body);
+        final took = _take(from, e.body, sent: e.at);
         if (took == null) break;
         // One the relay kept for a while is no longer "I am up": its card is taken, and it is answered as a card is.
         if ((nowMs - e.at).abs() <= Switchboard.freshFor.inMilliseconds && _mayMeet(peer)) {
@@ -879,8 +879,8 @@ class P2p extends ChangeNotifier {
 
   /// Takes the card in [body], and where its device is, as [from]'s: only a card that names [from], checked whole
   /// (card.dart), newer than or the same as the one held for that device. The device as it is held now; null where
-  /// nothing was taken.
-  P2pDevice? _take(String from, Map<String, dynamic> body) {
+  /// nothing was taken. [sent] is when the envelope says it was made.
+  P2pDevice? _take(String from, Map<String, dynamic> body, {int? sent}) {
     final now = nowMs;
     // No more of one account's cards are looked at in an hour than [P2pPolicy.takesAnHour].
     final looked = _looked[from] ??= [];
@@ -906,8 +906,10 @@ class P2p extends ChangeNotifier {
     if (had != null && card.made < had.card.made) return null;
     final sameNode = had != null && had.nodeId == card.nodeId;
     var where = whereOf(body['w'], now: now);
-    // Where it is: what it says now, unless that is older than what is held for the same node.
-    if (sameNode && had.where != null && (where == null || where.at < had.where!.at)) where = had.where;
+    // Where it is: what it says now, nothing included (its node is down, or it chose "Only through link helpers"),
+    // unless what it says is older than what is held for the same node (second review, S14).
+    final said = where?.at ?? (sent == null || sent > now ? now : sent);
+    if (sameNode && had.where != null && said < had.where!.at) where = had.where;
     final taken = P2pDevice(card, where: where, heard: now);
     if (had != null) {
       list[at] = taken;
@@ -1294,6 +1296,15 @@ class P2p extends ChangeNotifier {
     if (only == _helpersOnly) return;
     _helpersOnly = only;
     _reconfigure();
+    // Everyone told this device's card is told it again, with where it is now: switched on, so they hold none of its
+    // addresses from before; switched off, so they can dial it straight again (second review, S14).
+    if (_loaded) {
+      for (final e in _told.entries.toList()) {
+        _told[e.key] = _Told('', e.value.at, e.value.asked, e.value.asks);
+      }
+      _saveTold();
+      _quietly(_tell());
+    }
     notifyListeners();
     try {
       await _plain.write(helpersOnlyName, only ? 'on' : 'off');
