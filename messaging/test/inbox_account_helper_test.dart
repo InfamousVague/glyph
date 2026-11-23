@@ -346,6 +346,38 @@ void main() {
       n2.dispose();
     });
 
+    // Matt, 2026-11-23: "messages are being un marked from read when relaunching the app". The file was written two
+    // seconds after the last change, however long changes kept coming: with a busy account (names, messages elsewhere,
+    // reactions, each a change) a chat read was never written, and the app opened again with it unread.
+    test('a chat read is on the disk soon, however many changes keep coming after it', () async {
+      final after = AccountHelper.saveAfter, within = AccountHelper.saveWithin;
+      AccountHelper.saveAfter = const Duration(milliseconds: 150);
+      AccountHelper.saveWithin = const Duration(milliseconds: 500);
+      addTearDown(() {
+        AccountHelper.saveAfter = after;
+        AccountHelper.saveWithin = within;
+      });
+      final (n, helper) = await started(linked: true);
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 0, 'last': 1000});
+      helper.event(msg('t1', 'm1', 'hi', ts: 1000));
+      await settle();
+      expect(n.chats.single.unread, 1);
+      await n.markRead('t1');
+      // Something else changes every 50 ms for two seconds: never 150 ms of quiet.
+      for (var i = 0; i < 40; i++) {
+        helper.event(msg('t2', 'x$i', 'elsewhere', mine: true, ts: 2000 + i));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      // The app is closed without a word (no flush, as a quit gives none) and opened again.
+      final again = FakeHelper()..linked = true;
+      final n2 = AccountHelper(instagramService, link: () async => again, folder: dir.path);
+      await n2.start(AppState());
+      await settle();
+      expect(n2.chats.where((c) => c.id == 't1').map((c) => c.unread), [0], reason: 'read before the app closed');
+      n2.dispose();
+      n.dispose();
+    });
+
     test('only the newest messages of a chat are kept on disk', () async {
       final (n, helper) = await started(linked: true);
       for (var i = 0; i < 450; i++) {

@@ -250,12 +250,31 @@ void main() {
     expect([for (final m in said) if (m['t'] == 'answer') m], hasLength(1));
   });
 
+  // The other side of a crossing: the lower id, with an offer of its own out, gives it up for the higher's and answers.
+  test('two first offers that cross: the lower id gives its own up and answers the higher\'s', () async {
+    final hub = _Hub();
+    final c = VoiceChannel.make('Lounge');
+    final other = _Route(hub, 'b2');
+    await other.join(c.room, c.token);
+    final said = <Map<String, dynamic>>[];
+    other.packets.listen((p) => said.add((jsonDecode(utf8.decode(NetCrypto.open(c.key, p.bytes)!)) as Map).cast<String, dynamic>()));
+    final media = _Media();
+    final a = VoiceSession(channel: c, route: _Route(hub, 'a1'), media: media, name: 'a1')..listens = (_) => false;
+    await a.join();
+    await _settle();
+    expect(media.offers, ['b2']);
+    other.send(c.room, NetCrypto.seal(c.key, utf8.encode(jsonEncode({'t': 'offer', 'to': 'a1', 'sdp': _Peer._opus, 'j': 'b2-join'}))));
+    await _settle();
+    expect([for (final m in said) if (m['t'] == 'answer') m], hasLength(1), reason: 'the higher\'s offer is answered');
+    expect(media.closed, contains('b2'), reason: 'its own offer given up');
+    await a.leave();
+  });
+
   // A stage: b2 is being brought up to speak while c3 comes in; c3's roster still reads b2 a listener at its join, so it
-  // offers nothing to b2, and b2 waits for an offer that never comes. After a moment the lower id offers.
+  // offers nothing to b2, and b2 waits for an offer that never comes. After a moment the lower id offers (the call's
+  // mending, VoiceSession._mendAll, here at a test's pace).
   test('two whose stage rosters disagree for a moment as one comes in still connect', () async {
-    final was = VoiceSession.offerGrace;
-    VoiceSession.offerGrace = const Duration(milliseconds: 200);
-    addTearDown(() => VoiceSession.offerGrace = was);
+    const quick = MendTimes(every: Duration(milliseconds: 40), first: Duration(milliseconds: 150), second: Duration(milliseconds: 600), finding: Duration(seconds: 5));
     final hub = _Hub();
     final c = VoiceChannel.make('Town hall');
     final media = {'a1': _Media(), 'b2': _Media(), 'c3': _Media()};
@@ -266,7 +285,7 @@ void main() {
     };
     final sessions = <String, VoiceSession>{};
     VoiceSession session(String id) {
-      final s = VoiceSession(channel: c, route: _Route(hub, id), media: media[id]!, name: id)..listens = (x) => listeningAt[id]!.contains(x);
+      final s = VoiceSession(channel: c, route: _Route(hub, id), media: media[id]!, name: id, mend: quick)..listens = (x) => listeningAt[id]!.contains(x);
       s.addListener(s.relink);
       return sessions[id] = s;
     }

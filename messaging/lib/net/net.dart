@@ -367,6 +367,11 @@ class Net extends ChangeNotifier implements PeerBook {
     try {
       final me = await Sms.instance.netIdentity();
       id = me.id;
+      // The account's key, read before any route is up: until it was, nothing the account's other devices sent to its
+      // own name could be opened ([byId]), and it was read only once this device sent a copy itself. So a device just
+      // opened dropped every copy the relay had kept for it (Matt, 2026-11-23: "messages are not in sync across mobile
+      // and desktop").
+      await mine();
       await _readPeers(direct: wantDirect);
       final signer = _signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
@@ -753,6 +758,8 @@ class Net extends ChangeNotifier implements PeerBook {
     _friendIds = {};
     recent.clear();
     id = null;
+    // The account's key goes with it: the next account signed in here reads its own.
+    _mineKey = null;
     _signer = null;
     _device = null;
     // The node goes with the routes (stopped by P2p.shutdown above), let go of in the core: the next account signed in

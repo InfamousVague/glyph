@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import '../names.dart';
 import 'dart:convert';
 
@@ -362,13 +363,52 @@ class VoiceMember {
       VoiceMember(id, name: name, muted: muted, video: video, screen: screen, guest: guest, username: username, notices: notices, recording: recording, agreed: agreed, declined: declined, captions: captions, hand: hand);
 }
 
+/// Media that can say how its connection to someone stands, so a call can mend one that broke ([VoiceSession] looks
+/// every few seconds). lib/voice/rtc.dart's is one; a test's may be.
+abstract class LinkedMedia {
+  /// true: through. false: not through yet, or lost and trying by itself. null: no connection, or one that failed.
+  bool? linkUp(String id);
+}
+
+/// How long a call waits before it mends a connection ([VoiceSession]'s `mend`): short in a test.
+@immutable
+class MendTimes {
+  const MendTimes({this.every = const Duration(seconds: 2), this.first = const Duration(seconds: 3), this.second = const Duration(seconds: 10), this.finding = const Duration(seconds: 15)});
+
+  /// How often every connection is looked at.
+  final Duration every;
+
+  /// How long the one of two with the lower id leaves a missing connection before offering a new one, and how long the
+  /// other does: the first has the first go, so the two don't offer each other at once; the second is for when the
+  /// first never does (an older build, which only starts over once).
+  final Duration first, second;
+
+  /// How long a connection may be finding its way (or have lost it) before it is let go of and made again.
+  final Duration finding;
+}
+
 /// Being in one channel: joined on the hub, a connection to each member, and what each says of themselves.
 ///
 /// Who connects to whom: whoever comes in makes an offer to each who is already there; those there answer. So two
 /// never offer each other at once. What is said (offers, answers, ways to connect, and each member's name, muted
 /// and video) is sealed with the channel's key and sent to the room, naming who it is for where it is for one.
+///
+/// **Mending** (Matt, 2026-11-23: "add better reconnect logic to calls it seems like they can get hung up if one person
+/// leaves or a new person joins everyone needs to re connect"). A call used to be set up once, as each came in, and
+/// never again: a connection that broke later, an answer that never arrived, or this device's own connection to the
+/// relay dropping for a moment (everyone else is told it went and lets go of it, and it was never offered to again)
+/// left people in the call who could not hear each other until they left and came back. Now:
+/// - Back in the room after the relay was lost ([_back]): every connection is made again, as on coming in.
+/// - Every few seconds each member is looked at ([_mend]): where there is no working connection, one of the two
+///   offers a new one (the lower id first, the other if it never does), again and again, further apart each time.
+/// - Two offers that cross are settled by id (the higher's stands: see the offer's own words), not left to fail both ways.
+/// - What one member says is acted on in the order it was said, so a way to connect never overtakes its offer.
+/// Nothing new is said on the wire: a fresh offer is marked `a`, which every build since the relay fallback takes.
 class VoiceSession extends ChangeNotifier {
-  VoiceSession({required this.channel, required this.route, required this.media, required this.name, this.username, this.kbps = 510, this.stereo = true});
+  VoiceSession({required this.channel, required this.route, required this.media, required this.name, this.username, this.kbps = 510, this.stereo = true, this.mend = const MendTimes()});
+
+  /// How patiently connections are mended.
+  final MendTimes mend;
 
   /// Opus as the settings ask (lib/voice/voice_settings.dart).
   final int kbps;
@@ -424,9 +464,8 @@ class VoiceSession extends ChangeNotifier {
   ///
   /// Only those held apart by the stage ([_withheld]) are offered to here. Anyone else is offered to by whoever came
   /// into the call later ([join]): Voice asks this on every change in a space's call, so someone who had just come in,
-  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, both sides held an
-  /// offer of their own, neither could take the other's, and the two never connected (seen in a browser against a relay
-  /// with no TURN server; with one, the second try through it connected them 15 s later).
+  /// before their offer arrived, was offered to here as well whenever this side's id was the lower, and the two offers
+  /// crossed. Whatever still has no connection after that is [_mendAll]'s.
   void relink() {
     if (!joined) return;
     for (final id in members.keys.toList()) {
@@ -443,15 +482,6 @@ class VoiceSession extends ChangeNotifier {
           _withheld.remove(id);
           unawaited(_offer(id));
         }
-      } else if (!_peers.containsKey(id) && route.me.compareTo(id) < 0) {
-        // Someone to connect with who came in a while ago and still has made no connection here: their offer never
-        // came (on a stage, their roster read the two of them as listeners as they came in, and has changed since).
-        // The lower id offers, as for the stage's own changes.
-        final came = _cameAt[id];
-        if (came != null && DateTime.now().difference(came) >= offerGrace) {
-          _cameAt.remove(id);
-          unawaited(_offer(id));
-        }
       }
     }
   }
@@ -459,21 +489,6 @@ class VoiceSession extends ChangeNotifier {
   /// Those in the call this device has made no connection with because both listen on a stage ([_links]): when one is
   /// brought up to speak, [relink] connects them.
   final Set<String> _withheld = {};
-
-  /// When each came in whose offer is awaited ([_event]): one that hasn't come within [offerGrace] is made here.
-  final Map<String, DateTime> _cameAt = {};
-
-  /// How long whoever came in has to offer before the lower id offers in their place ([relink]).
-  @visibleForTesting
-  static Duration offerGrace = const Duration(seconds: 4);
-
-  /// The route to the relay was lost ([RoomEvent.closed]): the next list of who is here (the carrier joining the room
-  /// again by itself) is a coming back, and this device offers to everyone again, as it did joining.
-  bool _dropped = false;
-
-  /// Those this device has offered to and not yet had an answer from: where their own first offer crosses it, the
-  /// higher id lets its offer go unanswered ([_heard], `offer`).
-  final Set<String> _awaiting = {};
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn on video.
   bool locked = false, videoLocked = false;
@@ -596,6 +611,8 @@ class VoiceSession extends ChangeNotifier {
       // On a stage, two who both listen make no connection (GMFB-29).
       _links(id) ? unawaited(_offer(id)) : _withheld.add(id);
     }
+    _mendTimer?.cancel();
+    _mendTimer = Timer.periodic(mend.every, (_) => _mendAll());
     notifyListeners();
   }
 
@@ -605,6 +622,13 @@ class VoiceSession extends ChangeNotifier {
     if (joined) Sounds.instance.play(UiSound.hangoutLeave);
     if (joined) route.leave(channel.room);
     joined = false;
+    _mendTimer?.cancel();
+    _mendTimer = null;
+    _lost = false;
+    _awaiting.clear();
+    _unwell.clear();
+    _tries.clear();
+    _said.clear();
     for (final s in _subs) {
       await s.cancel();
     }
@@ -617,9 +641,6 @@ class VoiceSession extends ChangeNotifier {
     _retried.clear();
     _relayed.clear();
     _withheld.clear();
-    _cameAt.clear();
-    _awaiting.clear();
-    _dropped = false;
     members.clear();
     await media.stop();
     notifyListeners();
@@ -679,6 +700,19 @@ class VoiceSession extends ChangeNotifier {
   }
 
   void _event(RoomEvent e) {
+    // The relay was lost: nothing can be said or heard in the room until it is back, which the carrier sees to by
+    // itself, joining the room again and saying who is in it then.
+    if (e.closed) {
+      if (joined && !_lost) {
+        _lost = true;
+        notifyListeners();
+      }
+      return;
+    }
+    if (e.members != null) {
+      if (joined && _lost) _back(e.members!);
+      return;
+    }
     // Another device of this identity is not someone else in the call.
     if (e.came == route.me || e.went == route.me) return;
     if (e.came != null) {
@@ -689,51 +723,117 @@ class VoiceSession extends ChangeNotifier {
         Sounds.instance.play(UiSound.someoneJoined);
       }
       members[e.came!] = VoiceMember(e.came!);
-      // They offer, unless the two of them both listen on a stage; where they don't in time, the lower id does (relink).
-      if (!_links(e.came!)) {
-        _withheld.add(e.came!);
-      } else {
-        final id = e.came!;
-        _cameAt[id] = DateTime.now();
-        Timer(offerGrace + const Duration(milliseconds: 50), () {
-          if (joined && members.containsKey(id) && !_peers.containsKey(id)) relink();
-        });
-      }
+      // An offer of this device's still unanswered was to them as they were before: theirs is the one to answer now.
+      _awaiting.remove(e.came);
+      // They offer, unless the two of them both listen on a stage.
+      if (!_links(e.came!)) _withheld.add(e.came!);
       _sayState();
     } else if (e.went != null) {
       final was = members.remove(e.went) != null;
-      _offered.remove(e.went);
-      _retried.remove(e.went);
-      _relayed.remove(e.went);
-      _withheld.remove(e.went);
-      _cameAt.remove(e.went);
-      _awaiting.remove(e.went);
+      _forget(e.went!);
       unawaited(_peers.remove(e.went)?.close());
       // The last of the others gone: the call is over, said so; anyone else going is someone leaving.
       if (was) Sounds.instance.play(members.isEmpty ? UiSound.callEnded : UiSound.someoneLeft);
-    } else if (e.closed) {
-      _dropped = true;
-    } else if (e.members != null && _dropped && joined) {
-      // Back on the relay after losing it: the others let go of this device when the hub said it went, and connect
-      // again only if this device offers, as on joining. Marked again (`a`), so whoever still holds the old connection
-      // lets it go first.
-      _dropped = false;
-      for (final id in e.members!) {
-        if (id == route.me || (refuse?.call(id) ?? false)) continue;
-        members.putIfAbsent(id, () => VoiceMember(id));
-      }
-      _sayState();
-      for (final id in members.keys.toList()) {
-        if (_links(id)) {
-          _retried.remove(id);
-          unawaited(_peers.remove(id)?.close());
-          unawaited(_offer(id, again: true));
-        } else {
-          _withheld.add(id);
-        }
-      }
     }
     notifyListeners();
+  }
+
+  /// Everything remembered of the tries to connect to [id].
+  void _forget(String id) {
+    _offered.remove(id);
+    _withheld.remove(id);
+    _retried.remove(id);
+    _relayed.remove(id);
+    _awaiting.remove(id);
+    _unwell.remove(id);
+    _tries.remove(id);
+    _offerJoin.remove(id);
+  }
+
+  // --- mending (the class's own words say why) -------------------------------------------------------------------------
+
+  /// The relay is lost and this device is out of the room until it is back ([_back]).
+  bool get reconnecting => _lost;
+  bool _lost = false;
+  Timer? _mendTimer;
+
+  /// Offers of this device's not answered yet, with when each was made.
+  final Map<String, DateTime> _awaiting = {};
+
+  /// Since when there has been no working connection to each member, and how many times one was made again.
+  final Map<String, DateTime> _unwell = {};
+  final Map<String, int> _tries = {};
+
+  /// What each member said, waiting its turn ([_heard]).
+  final Map<String, Future<void>> _said = {};
+
+  /// Back in the room after the relay was lost, with [there] in it now. While this device was gone everyone else was
+  /// told it went and let go of their connection to it, so each is made again, as on coming in; whoever left meanwhile
+  /// is let go of. (After the relay itself restarts everyone comes back in turn, each offering to those back before.)
+  void _back(List<String> there) {
+    _lost = false;
+    final now = {for (final id in there) if (id != route.me && !(refuse?.call(id) ?? false)) id};
+    for (final id in members.keys.toList()) {
+      if (now.contains(id)) continue;
+      members.remove(id);
+      _forget(id);
+      unawaited(_peers.remove(id)?.close());
+    }
+    for (final id in now) {
+      members.putIfAbsent(id, () => VoiceMember(id));
+    }
+    _sayState();
+    for (final id in members.keys.toList()) {
+      if (!_links(id)) continue;
+      _forget(id);
+      unawaited(_peers.remove(id)?.close());
+      unawaited(_offer(id, again: true));
+    }
+    notifyListeners();
+  }
+
+  /// How the connection to [id] stands: true through, false finding its way, null none or failed. Media that can't say
+  /// counts a connection there is as through.
+  bool? _up(String id) {
+    if (!_peers.containsKey(id)) return null;
+    final m = media;
+    return m is LinkedMedia ? (m as LinkedMedia).linkUp(id) : true;
+  }
+
+  /// Looks at every member ([MendTimes.every]): where this device should be connected to one and is not, and has
+  /// waited its turn, the connection is let go of and offered anew.
+  void _mendAll() {
+    if (!joined || _moving || _lost) return;
+    final now = DateTime.now();
+    _unwell.removeWhere((id, _) => !members.containsKey(id));
+    for (final id in members.keys.toList()) {
+      if (!_links(id) || (refuse?.call(id) ?? false)) {
+        _unwell.remove(id);
+        continue;
+      }
+      final up = _up(id);
+      if (up == true) {
+        // Through: the next time it breaks is a first time again.
+        _unwell.remove(id);
+        _tries.remove(id);
+        _retried.remove(id);
+        _awaiting.remove(id);
+        continue;
+      }
+      final waited = now.difference(_unwell[id] ??= now);
+      final tries = _tries[id] ?? 0;
+      // The lower id has the first go; each try waits twice as long as the one before, up to eight times.
+      final turn = (route.me.compareTo(id) < 0 ? mend.first : mend.second) * (1 << math.min(tries, 3));
+      // One still finding its way is given its time first.
+      if (waited < (up == false ? mend.finding + turn : turn)) continue;
+      _tries[id] = tries + 1;
+      _unwell[id] = now;
+      _awaiting.remove(id);
+      unawaited(_peers.remove(id)?.close());
+      // Through the relay alone and through every path, turn about.
+      final m = media;
+      unawaited(_offer(id, relayOnly: m is FallbackMedia && m.hasRelay && tries.isEven, again: true));
+    }
   }
 
   /// The connection to [id]: the one there is, or one made now whose candidates are said to them (`ice`).
@@ -775,8 +875,7 @@ class VoiceSession extends ChangeNotifier {
   /// relay first"), [relayOnly] said for a second try.
   Future<void> _offer(String id, {bool? relayOnly, bool again = false}) async {
     _offered.add(id);
-    _awaiting.add(id);
-    _cameAt.remove(id);
+    _awaiting[id] = DateTime.now();
     final m = media;
     final relay = relayOnly ?? (m is FallbackMedia && m.hasRelay);
     relay ? _relayed.add(id) : _relayed.remove(id);
@@ -842,6 +941,16 @@ class VoiceSession extends ChangeNotifier {
       unawaited(_peers.remove(from)?.close());
       return;
     }
+    // One member's words are acted on in the order they were said: taking an offer waits on WebRTC, and a way to
+    // connect said right behind it must not get in first. What goes wrong with one is no reason to drop the next.
+    final turn = (_said[from] ?? Future<void>.value()).then((_) => _act(from, m)).catchError((Object e) => debugPrint('voice: ${m['t']} from $from not taken: $e'));
+    _said[from] = turn;
+    return turn;
+  }
+
+  /// Acts on what [from] said to this device ([_heard] opened it and saw it is for here).
+  Future<void> _act(String from, Map<String, dynamic> m) async {
+    if (!joined || _moving) return;
     switch (m['t']) {
       case 'dc':
         // The bridge to Discord saying who is in the Discord voice channel, and who is talking there.
@@ -865,22 +974,35 @@ class VoiceSession extends ChangeNotifier {
         if (m['x'] is String) onCaption?.call(from, m['x'] as String, m['f'] == true);
       case 'offer':
         members.putIfAbsent(from, () => VoiceMember(from));
-        // Both offered each other first at once (a build from before 677fd6dc7 still offers back to whoever comes in):
-        // the higher id lets theirs go unanswered, and they, finding this side's offer, let their own go and answer it.
-        if (m['a'] != 1 && _awaiting.contains(from) && _peers.containsKey(from) && route.me.compareTo(from) > 0) return;
-        _awaiting.remove(from);
         // An offer from another join of theirs (another device, or the app opened again) is a new connection: the old
         // one goes first, whether or not 'moved' got here (an older build says none).
         final j = m['j'];
+        // Both offered at once (each waits on the other's answer): the higher id's offer stands, and the other side
+        // gives its own up and answers. Left alone, each tried to take an offer on a connection that had made one,
+        // and neither connected. The higher's, because an app from before 677fd6dc7 already in a space's call offers
+        // back from relink to whoever comes in only where its id is the lower, and gives its own offer up when it
+        // finds the newcomer's (the `j` below): the newcomer (a browser, always) keeps its offer and both connect at
+        // once. An offer marked again (`a`) is always answered: whoever sent it has let go of the connection this
+        // side's offer was waiting on.
+        var crossed = false;
+        if (m['a'] != 1 && _awaiting.containsKey(from) && _peers.containsKey(from)) {
+          if (route.me.compareTo(from) > 0) return;
+          crossed = true;
+        }
         if (_peers.containsKey(from) && j != null && _offerJoin[from] != j) await _peers.remove(from)?.close();
+        // A connection that failed is still held here until something takes its place: this does.
+        if (_peers.containsKey(from) && _up(from) == null) await _peers.remove(from)?.close();
         // Through the relay alone (the first try where there is one), and started over after no way through was
         // found (_failed, marked a; an older build marks a second try r alone): the failed connection goes.
         // Where both offered at once, this side's own connection is not let go of for a first try.
         final relay = m['r'] == 1;
-        final again = m['a'] == 1 || (relay && !_offered.contains(from));
+        final again = crossed || m['a'] == 1 || (relay && !_offered.contains(from));
         // They offered: this side answers, and waits for them to start over if it fails.
-        if (!again) _offered.remove(from);
+        if (!again || crossed) _offered.remove(from);
         if (again) await _peers.remove(from)?.close();
+        _awaiting.remove(from);
+        // They are making the connection: this side's count of its own tries starts over.
+        _unwell.remove(from);
         _offerJoin[from] = j;
         final answer = await _peerFor(from, relayOnly: relay).takeOffer('${m['sdp']}');
         _say({'t': 'answer', 'to': from, 'sdp': highestOpus(answer, kbps: kbps, stereo: stereo), 'j': ?j});
@@ -889,13 +1011,15 @@ class VoiceSession extends ChangeNotifier {
       case 'moved':
         // They came in on another of their devices: the connection to the one they left goes, and their offer makes a
         // new one.
+        _awaiting.remove(from);
         unawaited(_peers.remove(from)?.close());
         notifyListeners();
       case 'answer':
         // One meant for another device of this identity's (its offer's mark, not this one's) is not taken here.
         final j = m['j'];
         if (j != null && j != _join) return;
-        _awaiting.remove(from);
+        // One for an offer since given up (theirs stood, or a new one was made) has nothing waiting for it.
+        if (_awaiting.remove(from) == null) return;
         await _peers[from]?.takeAnswer('${m['sdp']}');
       case 'ice':
         if (m['c'] is Map) await _peerFor(from).addCandidate((m['c'] as Map).cast<String, dynamic>());

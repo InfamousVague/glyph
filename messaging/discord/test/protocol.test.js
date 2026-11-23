@@ -106,3 +106,17 @@ test('identity and sign-in: the hub (checking the signature as hub.dart does) le
   assert.deepEqual(states.slice(0, 3), [true, false, true]);
   hub.stop();
 });
+
+test('a join still waiting fails when its room is left or the hub stopped, and never hangs', async () => {
+  // A hub that is never reached, so every join waits.
+  const hub = new Hub({ url: 'ws://fake', me: makeIdentity(), connect: () => { throw new Error('down'); }, retryMs: 60_000 });
+  hub.start();
+  const k = spaceKeys(SEED);
+  const settled = (p) => Promise.race([p.then(() => 'joined', (e) => e.message), new Promise((r) => setTimeout(() => r('still waiting'), 200))]);
+  const left = hub.join(k.voiceRoom, k.voiceToken);
+  const other = hub.join(k.chatRoom, k.chatToken);
+  hub.leave(k.voiceRoom);
+  assert.equal(await settled(left), 'left the room');
+  hub.stop();
+  assert.equal(await settled(other), 'hub stopped');
+});

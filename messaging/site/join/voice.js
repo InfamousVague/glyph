@@ -234,11 +234,13 @@ export class Hangout {
       this.members.set(from, { ...had, name: String(m.n ?? ''), muted: !!m.m, video: !!m.v, guest: !!m.g });
       this.change();
     } else if (m.t === 'offer') {
-      // Started over through the relay alone after no way through was found (lib/voice/voice.dart _failed).
-      const again = m.r === 1;
+      // Started over: through the relay alone after no way through was found (`r`), or a connection the app is
+      // mending (`a`: lib/voice/voice.dart _failed, _mendAll). Either way the one held here goes and theirs is answered.
+      const relay = m.r === 1;
+      const again = relay || m.a === 1;
       if (again) { this.peers.get(from)?.close(); this.peers.delete(from); this.early.delete(from); }
       else this.offered.delete(from);
-      const pc = this.pc(from, again);
+      const pc = this.pc(from, relay);
       await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
       await this.flush(from);
       for (const t of pc.getTransceivers()) {

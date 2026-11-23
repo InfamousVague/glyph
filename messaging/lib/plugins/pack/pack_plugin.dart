@@ -55,8 +55,9 @@ class PackPlugin extends GhostPlugin {
   /// `(p, e) => registry.failed(p, e)`; PluginRegistry.instance.failed where none is given.
   final void Function(PackPlugin plugin, Object error) onError;
 
-  /// What happened to it that its owner keeps: 'paused' once, `'refused <verb>'` each time. Called synchronously from
-  /// whatever is asking it, often a build, so its listener only records (B.9.2).
+  /// What happened to it, told to its owner: 'paused' once, `'refused <verb>'` each time. InstalledPlugins keeps only
+  /// the pause (a refusal reaches it as an error, through [onError]). Called synchronously from whatever is asking it,
+  /// often a build, so its listener only records (B.9.2).
   final void Function(PackPlugin plugin, String what)? onTrouble;
 
   final Future<bool> Function(String url)? _openLink;

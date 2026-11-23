@@ -523,7 +523,24 @@ func fetchAvatar(ctx context.Context, address, dest string) bool {
 		return false
 	}
 	_ = os.MkdirAll(avatarDir(), 0o700)
-	return writeWhole(dest, io.LimitReader(resp.Body, 5<<20)) == nil
+	return writeWhole(dest, &atMost{r: resp.Body, left: maxAvatar}) == nil
+}
+
+// maxAvatar is the largest picture kept for a person or a chat.
+const maxAvatar = 5 << 20
+
+// atMost reads [r] and fails once more than [left] bytes have come, so a longer body is refused, not kept cut short.
+type atMost struct {
+	r    io.Reader
+	left int64
+}
+
+func (a *atMost) Read(p []byte) (int, error) {
+	n, err := a.r.Read(p)
+	if a.left -= int64(n); a.left < 0 {
+		return n, errors.New("the file is too large")
+	}
+	return n, err
 }
 
 // sayAgain says a person ("u…") or a chat ("t…") again, now that their picture is kept.
