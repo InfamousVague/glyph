@@ -350,17 +350,25 @@ is app.gogho.st's; a relay's own server in front of it says its own.
   changes). The password-sealed copy is kept, so whoever opens the store could try passwords against it as fast as
   they like: a long password is what stands in the way.
 - **Signing out deletes the whole database**, its key with it, asks the server for `Clear-Site-Data: "storage"`
-  (`relay/lib/web_app.dart`, app.gogho.st's block), and loads the page again at the welcome; it takes itself off the
+  (`relay/lib/web_app.dart`, app.gogho.st's block; answered only to the page's own asking, `Sec-Fetch-Site:
+  same-origin`, so a link to it from anywhere else signs nobody out), and loads the page again at the welcome; it takes itself off the
   account's devices by its own number (`acct-leave`, `relay/lib/accounts.dart`), which needs no account key. Deleted,
   the database is gone to the page and to whoever uses the browser next; Chrome kept its bytes, the key among them,
   among the profile's files for a while after, until the `Clear-Site-Data` answer took them away. On a computer others
   use, a private window, or clearing the browser's data for the app, is the safer way.
 - **Removed from another device**, it does the same: a page left open within a few minutes, as soon as its tab is
-  looked at again, or as the hub's connection comes back; a page closed, the next time it is opened. It deletes only
-  on the account's own word: the relay keeps the signed removal (`acct-devices`' `remove`) and hands it to the device,
-  which checks the account key's signature over its own number. A relay that doesn't know the device (another relay,
-  one that lost what it kept, a sign-up never listed, one saying what isn't so) can't make it delete anything: the
-  device says the relay doesn't know it, and offers to sign in again. An iPhone or a computer of its own does the same.
+  looked at again, or as the hub's connection comes back; a page closed, the next time it is opened. The relay keeps the
+  account's signed removal (`acct-devices`' `remove`, kept through every backup brought up to date) and hands it to the
+  device, which checks the account key's signature over its own number; each sign-in gives a device a new number, so
+  no removal signed before can name it. A browser also deletes everything where the relay holds the account and
+  doesn't list it, signed or not: what it keeps is a copy, and it can't be on another relay than its page's. An iPhone
+  or a computer of its own deletes everything only on the signed removal; where the relay holds the account and doesn't
+  list it with nothing signed (a relay from before removals were kept, a removal made before it was deployed), it forgets
+  the account's words and keys and keeps its conversations, as every device did before and an Android phone still does.
+  A relay that doesn't hold the account at all (another relay, one that lost what it kept) can make no device delete
+  or forget anything: it says so, and offers to list the device again, which puts the account on that relay from the
+  device without signing in (signing in would put the backup's friends and circles in place of the device's). The relay
+  is to be deployed before an app with this (`relay/README.md`).
   A store that can't be opened (a record under another key, or changed) is deleted too, and the person is asked to
   sign in again, never made someone new under the account's choices; one that can't be read just now (busy, full) is
   not started on, and nothing is written over it.

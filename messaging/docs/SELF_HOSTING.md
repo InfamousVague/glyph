@@ -53,7 +53,7 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 | `/link/...` | The pages a network sign-in comes back to (only with those networks set up). |
 | `/market/...` | A Marketplace. The apps never read yours (above); the sample env file closes it. |
 | `/feedback`, `/bounty` | Ghost Messaging's own feedback board and bug bounty; off without their variables. |
-| `/app/...` | The app in a browser, as plain files, with `--web` (or `GHOST_WEB_DIR`); `/app/clear-site-data` answers `Clear-Site-Data: "storage"`, which the page asks for as it signs out. None without it. |
+| `/app/...` | The app in a browser, as plain files, with `--web` (or `GHOST_WEB_DIR`); `/app/clear-site-data` answers `Clear-Site-Data: "storage"` to the page's own asking (`Sec-Fetch-Site: same-origin`) as it signs out, and is a file that isn't there to anything else. None without it. |
 | anything else | `Ghost Messaging relay` as plain text: a quick check that it is up. |
 
 It writes only under its data folder (`--data`): pairings, usernames and linked handles, sealed account backups,

@@ -80,6 +80,16 @@ lives ten minutes and is never written.
 
 ## On our server
 
+**Deploy the relay before any app that deletes an account from a removed device** (the `web` branch's change; the
+app's `lib/account/account.dart` `check`). Such an app deletes everything of the account from an iPhone, a computer of
+its own or a browser only on the account's own signed removal, which the relay keeps (`acct-devices`' `gone`) and
+hands back with `acct-hello`. A relay from before hands out none: under it a removed iPhone or computer only forgets
+the account's words and keys, as the release before did, and nothing is deleted. A removal made before this relay was
+deployed was never kept either: those devices do the same. The same deploy keeps push tokens one per device
+(`pushes.json`, read as it was), answers `/app/clear-site-data` only to the page itself, and needs
+`GHOST_APP_ORIGIN=https://app.gogho.st` in its env for app.gogho.st's reports and feedback (`deploy-relay.mjs --env`
+replaces the whole file: put the rest of it in too).
+
     node tool/deploy-relay.mjs --keep-connection && node tool/deploy-site.mjs --caddy   # the first time: one login
     node tool/deploy-relay.mjs                                                          # after that, when relay/ changes
     flutter test tool/net/live_hub_test.dart --dart-define=HUB=wss://ghost-sms.com/hub  # two made-up installs through it
