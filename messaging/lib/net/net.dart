@@ -393,7 +393,8 @@ class Net extends ChangeNotifier implements PeerBook {
 
   void _startLedger(Switchboard board, P2p p2p, AppState app, String me, String device, ForwardSecrecy fs) {
     try {
-      final ledger = _ledger = Ledger(store: _ChoiceFsStore(app), me: me, device: device, isFriend: _friendIds.contains);
+      // Friends as they are each time it asks: the set is made anew whenever the people are read again.
+      final ledger = _ledger = Ledger(store: _ChoiceFsStore(app), me: me, device: device, isFriend: (id) => _friendIds.contains(id));
       board.log = ledger;
       ledger.addListener(_directChanged);
       unawaited(ledger.load());

@@ -12,6 +12,7 @@ import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/net/ledger.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
 import 'package:ghost_messaging/net/p2p/node.dart';
@@ -513,6 +514,40 @@ void main() {
     expect([p2p.loaded, p2p.card, p2p.nodeId, p2p.devicesOf(sam.id)], [false, null, null, isEmpty]);
     expect([node.state.value, node.allowed], [P2pState.off, isEmpty]);
     expect(p2p.carrier.reaches(Peer(id: sam.id, key: keyWith(sam))), isFalse);
+  });
+
+  // Checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3).
+  test('the ledger the relay is checked by: made with the direct route, told by the switchboard, listing friends as the records say each time, and forgotten at sign-out', () async {
+    Net.p2pNode = () => node;
+    final hub = PlainCarrier('hub');
+    final app = AppState();
+    await Net.instance.start(app, carriers: [hub]);
+    final ledger = Net.instance.ledger!;
+    await _until(() => ledger.loaded && Net.instance.p2p!.loaded, 'read');
+    expect([Net.instance.board!.log, Net.instance.check], [same(ledger), isNotNull]);
+    // To a friend: listed. To someone who has only asked: not.
+    final toSam = Envelope(kind: 'text', body: {'t': 'hi'}), toAsker = Envelope(kind: 'text', body: {'t': 'hi'});
+    await Net.instance.send(Net.instance.byId(sam.id)!, toSam, only: {'hub'});
+    await Net.instance.send(Net.instance.byId(asker.id)!, toAsker, only: {'hub'});
+    expect([for (final x in ledger.sentTo(sam.id)) [x.id, x.via]], [[toSam.id, 'hub']]);
+    expect(ledger.sentTo(asker.id), isEmpty);
+    // The records change (the asker said yes), read again: listed from now, as the records say now.
+    buddies[1]['s'] = 'yes';
+    await Net.instance.refresh();
+    final again = Envelope(kind: 'text', body: {'t': 'hi again'});
+    await Net.instance.send(Net.instance.byId(asker.id)!, again, only: {'hub'});
+    expect([for (final x in ledger.sentTo(asker.id)) x.id], [again.id]);
+    await ledger.flush();
+    expect([app.choice(Ledger.indexName, ''), app.choice(Ledger.bookName(sam.id), ''), app.choice(Ledger.bookName(asker.id), '')], everyElement(isNotEmpty));
+    expect(app.choice(Ledger.bookName(sam.id), ''), isNot(contains('hi')), reason: 'no words');
+    // Signing out (the relay says this device is no longer the account's): nothing of it is left.
+    final account = Account(relay: _Gone(), port: SmsAccountPort(), store: AppMeStore(app), profiles: AppAccountProfiles());
+    app.set('acct_address', '0x52908400098527886E0F7030069857D2E4169EE7');
+    await account.check();
+    for (final name in [Ledger.indexName, Ledger.relayName, Ledger.bookName(sam.id), Ledger.bookName(asker.id)]) {
+      expect(app.choice(name, ''), isEmpty, reason: name);
+    }
+    expect(ledger.sentTo(sam.id), isEmpty);
   });
 
   test('where no routes were ever set up, signing out still deletes what the direct network kept', () async {
