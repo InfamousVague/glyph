@@ -1,0 +1,178 @@
+<p>The relay is mostly two WebSockets, the hub and the pairing relay. Beside them it answers a small set of plain HTTP routes: a circle's sealed files, the plugin Marketplace, feedback, and the pages that link a handle. This page lists every one. The public relay is at <code>https://gogho.st</code>. Anyone can run their own from the source: <code>dart run relay/bin/relay.dart --port 8787</code>. The WebSocket protocols are on <a href="/docs/dev-hub/">The hub and pairing protocols</a>, and a Postman collection of these routes is on <a href="/docs/dev-api/">API overview and Postman</a>.</p>
+
+<h2 id="conventions">Conventions</h2>
+<ul>
+  <li><b>No CORS.</b> The relay sets no <code>Access-Control-*</code> header and has no <code>OPTIONS</code> handling. These routes are for the app and for scripts, not for a page in a browser on another site.</li>
+  <li><b>No match is not an error.</b> A request that fits no route, whatever its method, answers <code>200</code> with the plain text <code>Ghost Messaging relay</code>. There is no separate health route: this is it.</li>
+  <li><b>JSON</b> answers are <code>application/json; charset=utf-8</code>. Request bodies are read as UTF-8 JSON or raw bytes; no <code>Content-Type</code> is looked at.</li>
+  <li><b>Hex is lowercase.</b> Ids and hashes in paths must match their shape exactly, or the route does not exist.</li>
+  <li><b>Times</b> are whole milliseconds since 1970, as decimal digits.</li>
+  <li><b>Per-address limits</b> go by the first value of <code>X-Forwarded-For</code>, or the connection's address where there is none.</li>
+</ul>
+<p>Each module says no in its own shape:</p>
+<table>
+  <tr><th>Module</th><th>A refusal</th><th>Notes</th></tr>
+  <tr><td>Files</td><td><code>{"err": "No such space."}</code></td><td>A sentence. A few carry more: <code>have</code>, <code>done</code>, <code>seq</code>.</td></tr>
+  <tr><td>Feedback</td><td><code>{"error": "Feedback is sent with POST."}</code></td><td>A sentence, under <code>error</code>, not <code>err</code>.</td></tr>
+  <tr><td>Marketplace</td><td><code>{"ok": false, "error": "not_found", "message": "There's nothing here by that name."}</code></td><td><code>error</code> is a fixed code; <code>message</code> is for people. Every success carries <code>"ok": true</code>.</td></tr>
+</table>
+<p>Outside the modules, a path whose percent-escapes are not UTF-8 answers <code>400</code> with no body, and an error nothing else caught answers <code>500</code> with no body.</p>
+
+<h2 id="signing">Signing a request</h2>
+<p>Writes to Files, feedback, and most of the Marketplace are signed with the install's own key, the same one the hub knows it by. No account or password is involved.</p>
+<table>
+  <tr><th>Thing</th><th>Format</th></tr>
+  <tr><td>Key</td><td>P-256 (secp256r1). The public key is 33 bytes compressed: <code>02</code> or <code>03</code>, then x. In a header it is standard base64 with padding, 44 characters.</td></tr>
+  <tr><td>Signature</td><td>ECDSA over the SHA-256 of the signed string. 64 bytes: r (32, big-endian) then s (32). Not DER. Standard base64, 88 characters.</td></tr>
+  <tr><td>Id</td><td>The first 16 bytes of the SHA-256 of the 33 key bytes, as 32 lowercase hex digits. This is who the relay says wrote something.</td></tr>
+  <tr><td>Body hash</td><td>SHA-256 of the body's bytes, 64 lowercase hex digits. For an empty body: <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>.</td></tr>
+</table>
+<p>All three modules take the same three headers and sign five lines joined by a line feed (<code>\n</code>), as UTF-8, with no line feed after the last. Only the first line and a few rules differ.</p>
+<pre><code>x-ghost-key:  &lt;base64 of the 33-byte public key&gt;
+x-ghost-time: &lt;milliseconds since 1970&gt;
+x-ghost-sig:  &lt;base64 of the 64-byte signature&gt;</code></pre>
+<p>The relay remembers what each key signed, so the same request sent twice is refused the second time. To try again, sign again with a new time.</p>
+
+<h3>Files</h3>
+<p>Every Files route but <code>GET /files</code> also carries the space's token: <code>Authorization: Ghost &lt;token&gt;</code>, 64 lowercase hex digits. Reads need only the token. Writes need the token and the signature.</p>
+<pre><code>ghost-files v1
+&lt;METHOD&gt;
+&lt;path and query, as sent&gt;
+&lt;time&gt;
+&lt;body sha256 hex&gt;</code></pre>
+<ul>
+  <li>The third line is the whole request target, query included: <code>/files/0123456789abcdef0123456789abcdef/log?after=7</code>.</li>
+  <li>The time may be up to 10 minutes from the relay's clock, either way.</li>
+  <li>Where the body is not read (<code>DELETE /files/{space}</code>, <code>POST …/done</code>), sign the empty body's hash.</li>
+  <li>For a blob's piece sent with <code>x-ghost-body-sha256</code>, the last line is that header's value, and the signature is checked before the body is read.</li>
+  <li>Any failure answers <code>401 {"err": "Bad signature."}</code>.</li>
+</ul>
+
+<h3>Feedback</h3>
+<pre><code>ghost-feedback v1
+POST
+/feedback
+&lt;time&gt;
+&lt;body sha256 hex&gt;</code></pre>
+<ul>
+  <li>The third line is the path alone, with no query.</li>
+  <li>The time may be up to 5 minutes from the relay's clock.</li>
+</ul>
+
+<h3>Marketplace</h3>
+<pre><code>ghost-market v1
+&lt;METHOD&gt;
+&lt;path&gt;
+&lt;time&gt;
+&lt;body sha256 hex&gt;</code></pre>
+<ul>
+  <li>The third line is the path alone. A signed request with any query string is refused.</li>
+  <li>The time may be up to 5 minutes from the relay's clock.</li>
+  <li>A <code>POST</code> must say its body up front, in two more headers: <code>x-ghost-body-sha256</code> (64 lowercase hex digits; the last signed line) and <code>x-ghost-body-length</code> (the length in bytes, equal to <code>Content-Length</code>). A chunked body is refused.</li>
+  <li>A <code>GET</code> or <code>DELETE</code> must send neither of those headers and no body, and signs the empty body's hash.</li>
+  <li>A missing header answers <code>401 unsigned</code>. A bad key, time or signature, or a repeat, answers <code>401 bad_signature</code>. A broken shape (a query, a header sent twice, a length that does not match) answers <code>400 bad_request</code>.</li>
+</ul>
+<p>A signed <code>GET /market/mine</code> looks like this:</p>
+<pre><code>GET /market/mine HTTP/1.1
+Host: gogho.st
+x-ghost-key: AqGyw9Tl9gcYKTpLXG1+j5ChssPU5fYHGCk6S1xtfo+Q
+x-ghost-time: 1795000000000
+x-ghost-sig: &lt;88 base64 characters&gt;</code></pre>
+<p>and its signature is over these bytes:</p>
+<pre><code>ghost-market v1
+GET
+/market/mine
+1795000000000
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code></pre>
+
+<h3>Signatures inside Marketplace bodies</h3>
+<p>Review's decisions are signed a second time, by the reviewer's key, so that the apps can check them without trusting the relay. Each is the same kind of signature over lines joined by <code>\n</code>, and travels as a JSON object with exactly the fields shown. Here <code>key</code> and <code>sig</code> are strict base64: the standard alphabet, padded, no whitespace.</p>
+<table>
+  <tr><th>What</th><th>Signed string</th><th>Object</th></tr>
+  <tr><td>Approval</td><td><code>ghost-market approve v1\n&lt;plugin&gt;\n&lt;version&gt;\n&lt;sha256&gt;</code></td><td><code>{"v": 1, "plugin", "version", "sha256", "key", "sig", "at"}</code></td></tr>
+  <tr><td>Revocation</td><td><code>ghost-market revoke v1\n&lt;plugin&gt;\n&lt;sha256&gt;\n&lt;at&gt;\n&lt;why&gt;</code></td><td><code>{"v": 1, "plugin", "sha256", "at", "why", "key", "sig"}</code></td></tr>
+  <tr><td>Retirement</td><td><code>ghost-market retire v1\n&lt;key&gt;</code> (the key's base64 text)</td><td><code>{"v": 1, "key", "at", "sig"}</code></td></tr>
+</table>
+
+<h2 id="general">General</h2>
+<p>The relay has one answer for anything it does not recognise. A script can use it to see that a relay is there.</p>
+<relay-routes group="general"/>
+
+<h2 id="link">Sign-in links</h2>
+<p>These are pages for a browser, not an API to call. When someone links a Discord, Telegram or X handle, the app asks the hub for a sign-in address and opens it. The address holds a state made for that install, good for 10 minutes and for one sign-in. The relay checks the sign-in with the network, links the handle, and tells the install over the hub. A network whose keys are not set on the server is off, and its page says the link is no good.</p>
+<relay-routes group="link"/>
+
+<h2 id="word">Invite words</h2>
+<p>A circle can be joined by a word. The relay keeps, under the SHA-256 of the word, a sealed link of at most 1024 characters that the app gave it over the hub. It never sees the word or what the link opens. This one route is how the site's join page looks a word up.</p>
+<relay-routes group="word"/>
+
+<h2 id="files">Files</h2>
+<p>A space's files live on the relay as sealed blobs, beside an ordered log of sealed operations that says what the files are. The relay can't read either: names, keys and contents are sealed by the apps. It sees the space's id, each blob's size, when things were written, and the id of the install that wrote them.</p>
+<p>A space is named by an id (32 hex digits) and guarded by a token (64 hex digits), both made by the apps from the space's secret. The relay keeps only the token's hash, and a wrong token is answered exactly as a space that isn't there. Anyone with the token can read. Writing also takes a signature, so a blob is written and finished only by whoever started it, and removed by them, the space's owner, or a moderator who shows the space's signed roster.</p>
+<p>Uploading a file is three steps: reserve a blob with its size, send its pieces in order, then finish it. An upload cut short carries on from <code>have</code>.</p>
+<table>
+  <tr><th>Limit</th><th>Default</th></tr>
+  <tr><td>One file</td><td>50,004,194,304 bytes</td></tr>
+  <tr><td>One space</td><td>100,000,000,000 bytes, 10,000 blobs</td></tr>
+  <tr><td>One piece of a blob</td><td>8 MiB</td></tr>
+  <tr><td>One log operation</td><td>32,768 bytes</td></tr>
+  <tr><td>A space's log</td><td>20,000 entries, 16 MiB</td></tr>
+  <tr><td>Writes by one install</td><td>600 a minute</td></tr>
+  <tr><td>Spaces made by one install</td><td>20</td></tr>
+  <tr><td>A space nobody opens</td><td>Removed after 90 days</td></tr>
+  <tr><td>An unfinished blob</td><td>Dropped 24 hours after its last write</td></tr>
+</table>
+<relay-routes group="files"/>
+
+<h2 id="feedback">Feedback</h2>
+<p>The app's Share feedback sends one signed report. The relay files it on the server's feedback board and answers with the ticket's id. It keeps nothing itself. A username in the report is filed as given when the signing key holds that username, and marked not verified otherwise. On a relay with no board set up the route answers <code>503</code>.</p>
+<p>Limits: 5 reports an hour and 20 a day from one install, 300 a day from everyone, 10 MiB a report, three screenshots of 3 MiB each.</p>
+<relay-routes group="feedback"/>
+
+<h2 id="market">Marketplace</h2>
+<p>The Marketplace holds plugins from other developers and the queue they wait in for review. A plugin's package is one JSON file in the <a href="/docs/plugin-format/">ghost-plugin/1</a> format, sent in canonical form (keys sorted, no whitespace) and named by its SHA-256.</p>
+<p>Anyone can read the catalog, the withdrawals list, approved packages and listed screenshots. A developer signs with the key that holds the username in the plugin's <code>developer</code> field. Review is an install that holds one of the relay's admin usernames and signed in to the admin page over the hub in the last 8 hours, or the last 30 minutes for approving, revoking, blocking and listing. No password travels over these routes.</p>
+<p>The relay is not trusted with a plugin. An approval is the reviewer's own signature over the plugin's id, version and hash, and the app checks it against review keys it already knows before it adds anything. The catalog carries no names or pictures: the app fetches each package and reads them from it.</p>
+<p>The relay keeps packages, screenshots, submissions with their notes, reports, and a log of what review did. A report is kept without its sender's key.</p>
+<table>
+  <tr><th>Limit</th><th>Default</th></tr>
+  <tr><td>One package</td><td>262,144 bytes</td></tr>
+  <tr><td>Screenshots</td><td>4, PNG, 1 MiB each, 64 to 2,400 pixels a side</td></tr>
+  <tr><td>A signed body</td><td>6 MiB</td></tr>
+  <tr><td>Submissions</td><td>5 a day and 3 waiting, by one developer</td></tr>
+  <tr><td>A new username</td><td>Can submit 7 days after it is claimed</td></tr>
+  <tr><td>Public reads</td><td>240 a minute from one address; the catalog and withdrawals 10 a minute</td></tr>
+  <tr><td>Signed requests</td><td>300 an hour by one key, 60 a minute from one address</td></tr>
+</table>
+<note kind="info" title="Checking a plugin without sending it">
+<p><code>POST /market/submissions</code> with <code>{"check": true, "package": "…"}</code> runs the relay's checks and keeps nothing. <a href="/docs/plugin-submit/">Submit a plugin</a> covers the app's side.</p>
+</note>
+<relay-routes group="market"/>
+
+<h2 id="own">Running your own</h2>
+<p>The relay is one Dart program with no dependencies beyond Dart's own library. It listens over plain HTTP on this machine alone unless told otherwise, so on a server it sits behind a web server that holds the certificate.</p>
+<pre><code>dart run relay/bin/relay.dart [--host 127.0.0.1] [--port 8787] [--data relay-data] [--verbose]</code></pre>
+<table>
+  <tr><th>Flag</th><th>Default</th><th>Meaning</th></tr>
+  <tr><td><code>--host &lt;address&gt;</code></td><td><code>127.0.0.1</code></td><td>Where to listen.</td></tr>
+  <tr><td><code>--port &lt;number&gt;</code></td><td><code>$PORT</code>, else <code>8787</code></td><td>The port.</td></tr>
+  <tr><td><code>--data &lt;folder&gt;</code></td><td><code>relay-data</code></td><td>Where everything it keeps is written.</td></tr>
+  <tr><td><code>--verbose</code></td><td>off</td><td>Says when an install joins or leaves. Never an address, never a whole id.</td></tr>
+  <tr><td><code>--help</code>, <code>-h</code></td><td></td><td>Prints the flags.</td></tr>
+</table>
+<p>Everything else is set in the environment. Each family is optional: a feature whose values are not set is off, and every limit has a default.</p>
+<table>
+  <tr><th>Family</th><th>What it sets</th><th>Most useful</th></tr>
+  <tr><td><code>GHOST_PUBLIC_URL</code></td><td>The relay's public address, used to build sign-in links and the networks' return addresses.</td><td>Default <code>https://ghost-sms.com</code>: set it to your own.</td></tr>
+  <tr><td><code>GHOST_DISCORD_*</code>, <code>GHOST_X_*</code>, <code>GHOST_TELEGRAM_*</code></td><td>Each network's sign-in.</td><td><code>GHOST_DISCORD_ID</code> and <code>GHOST_DISCORD_SECRET</code>; <code>GHOST_X_ID</code> (<code>GHOST_X_SECRET</code> optional); <code>GHOST_TELEGRAM_BOT</code> and <code>GHOST_TELEGRAM_TOKEN</code>.</td></tr>
+  <tr><td><code>GHOST_TWILIO_*</code>, <code>GHOST_TEXT_TO</code>, <code>GHOST_TEXTS_A_DAY</code></td><td>Verifying a phone number by a texted code.</td><td><code>GHOST_TWILIO_SID</code>, <code>GHOST_TWILIO_TOKEN</code>, <code>GHOST_TWILIO_VERIFY</code> (all three, or it is off); <code>GHOST_TEXT_TO</code> (number prefixes that may be texted, default <code>+1</code>); <code>GHOST_TEXTS_A_DAY</code> (200).</td></tr>
+  <tr><td><code>GHOST_ADMIN_*</code></td><td>The admin page, and so who review is.</td><td><code>GHOST_ADMIN_USER</code>, <code>GHOST_ADMIN_HASH</code> (empty: nobody can sign in), <code>GHOST_ADMIN_NAMES</code> (usernames that may).</td></tr>
+  <tr><td><code>GHOST_APNS_*</code></td><td>Waking a closed iPhone.</td><td><code>GHOST_APNS_KEY_FILE</code>, <code>GHOST_APNS_KEY_ID</code>, <code>GHOST_APNS_TEAM_ID</code>, <code>GHOST_APNS_TOPIC</code>. Without them tokens are kept and nothing is sent.</td></tr>
+  <tr><td><code>GHOST_FILES_*</code></td><td>Files' limits.</td><td><code>GHOST_FILES_MAX_FILE</code>, <code>GHOST_FILES_SPACE_QUOTA</code>, <code>GHOST_FILES_TOTAL</code> (300,000,000,000 bytes for all spaces), <code>GHOST_FILES_IDLE_DAYS</code> (90), <code>GHOST_FILES_WRITES_PER_MINUTE</code> (600), <code>GHOST_FILES_MAX_BODY</code> (8 MiB, at most 10).</td></tr>
+  <tr><td><code>GHOST_NOTION_*</code></td><td>Feedback's board.</td><td><code>GHOST_NOTION_TOKEN</code> and <code>GHOST_NOTION_FEEDBACK</code>. Both, or feedback answers <code>503</code>.</td></tr>
+  <tr><td><code>GHOST_MARKET_*</code></td><td>The Marketplace's switch, limits and review keys.</td><td><code>GHOST_MARKET_ON</code> (<code>1</code>; <code>0</code> turns it off), <code>GHOST_MARKET_REVIEW_KEYS</code> (a comma list of review keys in base64; empty takes the signed-in admin's own key), <code>GHOST_MARKET_NEED_VERIFIED</code> (<code>0</code>), <code>GHOST_MARKET_NAME_AGE_DAYS</code> (7), <code>GHOST_MARKET_MAX_PACKAGE</code> (262144), <code>GHOST_MARKET_TOTAL</code> (1 GiB on disk).</td></tr>
+</table>
+<note kind="warn" title="The app only trusts review keys it knows">
+<p>Your own relay can run a Marketplace, but the app adds a plugin only when its approval is signed by a review key the app was built with. Approvals from your relay's reviewers mean nothing to an unchanged app.</p>
+</note>
+<p>The full list of variables, with each one's least and most, is in the source: <code>relay/lib/files.dart</code>, <code>relay/lib/market.dart</code>, <code>relay/lib/handles.dart</code>, <code>relay/lib/feedback.dart</code> and <code>relay/lib/pushes.dart</code>.</p>

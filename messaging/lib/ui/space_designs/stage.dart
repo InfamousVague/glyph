@@ -56,6 +56,7 @@ class _StageCallState extends State<StageCall> {
   /// The comments: a sheet over the stage on a phone (shut until asked for), a column on a computer (open until shut).
   bool? _comments;
 
+  /// The width from which the call is laid out as a computer's window.
   static const _wide = 880.0;
 
   SpaceCall get call => widget.call;
@@ -270,6 +271,7 @@ class _Live extends StatelessWidget {
   }
 }
 
+/// The heading over a group of faces (On camera, On stage, Listening): its icon, its name and how many are in it.
 class _Section extends StatelessWidget {
   const _Section({required this.look, required this.icon, required this.label, required this.count});
   final _Look look;
@@ -444,6 +446,7 @@ class _Listener extends StatelessWidget {
   }
 }
 
+/// A small round mark on the rim of a face: mic off, or camera on.
 class _Badge extends StatelessWidget {
   const _Badge({required this.look, required this.icon, required this.color, this.small = false});
   final _Look look;

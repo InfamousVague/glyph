@@ -34,6 +34,8 @@ class DeskCache {
 
   File _file(String name) => File('${dir.path}/$name.bin');
 
+  /// What is kept under [name], opened and read as JSON; null where there is none, or it does not open under the
+  /// key (another pairing's, or damaged).
   Future<Object?> _read(String name) async {
     final key = _key();
     if (key == null) return null;
@@ -77,6 +79,8 @@ class DeskCache {
     return (items: o['items'] as List, limit: (o['limit'] as num?)?.toInt() ?? (o['items'] as List).length, ended: o['ended'] == true);
   }
 
+  /// Keeps a conversation's messages, with how many were asked for ([limit]) and whether the phone has none older
+  /// ([ended]).
   Future<void> saveMessages(int thread, List<dynamic> items, int limit, {bool ended = false}) => _write('t$thread', {'v': 1, 'limit': limit, 'ended': ended, 'items': items});
 
   /// A conversation that is gone from the phone is gone from here.

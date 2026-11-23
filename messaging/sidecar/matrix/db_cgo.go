@@ -8,6 +8,8 @@ package main
 
 const sqliteDriver = "sqlite3-fk-wal"
 
+// sqliteURI is the store's address for this driver, which turns on foreign keys and WAL itself: writes take their lock
+// at once, and a busy store is waited on for five seconds.
 func sqliteURI(path string) string {
 	return "file:" + path + "?_txlock=immediate&_busy_timeout=5000"
 }

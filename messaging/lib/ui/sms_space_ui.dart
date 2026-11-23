@@ -24,6 +24,8 @@ CircleSpace? smsSpaceOf(VoiceChannel space) {
   return s != null && smsTexterOf(s) != null ? s : null;
 }
 
+/// The page of an SMS space's people: each of the circle's members with how the space's messages reach them, and,
+/// on the phone that texts for it, a name and number to add someone by text.
 class TextedPeopleScreen extends StatefulWidget {
   const TextedPeopleScreen({super.key, required this.space});
   final VoiceChannel space;
@@ -43,6 +45,7 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
     super.dispose();
   }
 
+  /// Adds the name and number typed to those the space texts, and clears the fields once they are in.
   Future<void> _add() async {
     final ok = await SmsSpaces.instance.add(widget.space, _name.text, _number.text);
     if (!mounted) return;

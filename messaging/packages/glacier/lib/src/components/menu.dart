@@ -44,6 +44,7 @@ class GlacierMenuItemStyle {
   /// The wash under a hovered, focused or open row: `--glacier-hover`, or `--glacier-danger-soft` for a danger row.
   final Color? hoverColor;
 
+  /// This style with [over] laid on it: each field [over] sets wins, and the text styles are merged.
   GlacierMenuItemStyle merge(GlacierMenuItemStyle? over) {
     if (over == null) return this;
     return GlacierMenuItemStyle(
@@ -142,6 +143,7 @@ class _PanelScope extends InheritedWidget {
   bool updateShouldNotify(_PanelScope old) => !identical(old.panel, panel) || old.style != style;
 }
 
+/// What a panel does with a key that reaches it: the menu's own handler, or a flyout's.
 typedef _PanelKeys = KeyEventResult Function(KeyEvent event, _MenuPanelState panel);
 
 /// The glass panel shared by Menu and MenuSub flyouts (`MenuPanel` in Menu.tsx, `.menu` in Menu.module.css): a
@@ -176,8 +178,11 @@ class _MenuPanel extends StatefulWidget {
 }
 
 class _MenuPanelState extends State<_MenuPanel> {
+  /// The panel's own focus, where its keys are heard and where focus rests when no row can take it.
   final FocusNode _node = FocusNode(debugLabel: 'GlacierMenu panel', skipTraversal: true);
   final ScrollController _scroll = ScrollController();
+
+  /// The rows in this panel, each signed up by itself as it mounts ([_MenuRowState.didChangeDependencies]).
   final Set<_MenuRowState> _rows = {};
 
   @override
@@ -352,6 +357,7 @@ class _MenuGlass extends StatelessWidget {
   }
 }
 
+/// Whether two lists of layers paint alike, for a painter deciding whether to repaint.
 bool _sameShadows(List<CssShadow> a, List<CssShadow> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
@@ -467,7 +473,8 @@ class _SurfacePainter extends CustomPainter {
 ///   the keyboard out of an open menu; on the page those keys did nothing.
 /// - `onOpenChange` is called when the state changes, and not again while it is already closing.
 /// - `aria-haspopup` has no counterpart in Flutter's semantics; `aria-expanded` and `aria-controls` are carried.
-/// - The panel takes the design tokens in force at the trigger, where a portalled panel took the body's.
+/// - The panel takes the page's root tokens ([GlacierRootScope]), not those in force at the trigger, as a portalled
+///   panel took the body's.
 /// - `ContextMenu`, which shares Menu.tsx, is not ported; a menu at a point is `anchor: GlacierAnchor.point(...)`.
 class GlacierMenu extends StatefulWidget {
   const GlacierMenu({
@@ -509,24 +516,31 @@ class GlacierMenu extends StatefulWidget {
 
 class _GlacierMenuState extends State<GlacierMenu> {
   final GlobalKey _triggerKey = GlobalKey(debugLabel: 'GlacierMenu trigger');
+
+  /// The menu's panel and every flyout's, so a press in any of them is inside the menu.
   final GlacierLayerStack _stack = GlacierLayerStack();
+
+  /// Whether it is open, where the menu holds that itself (no `open` given).
   late bool _internal = widget.defaultOpen;
 
   bool get _isOpen => widget.open ?? _internal;
   GlacierAnchor get _anchor => widget.anchor ?? GlacierAnchor.key(_triggerKey);
   String get _menuId => 'glacier-menu-${identityHashCode(this)}';
 
+  /// Opens or closes: the menu's own state where it holds it, and the listener told, only on a real change.
   void _setOpenState(bool next) {
     if (!mounted || next == _isOpen) return;
     if (widget.open == null) setState(() => _internal = next);
     widget.onOpenChange?.call(next);
   }
 
+  /// Closes the menu and puts focus back on what it hangs from: Escape, or a row chosen.
   void _close() {
     _setOpenState(false);
     _anchor.focus();
   }
 
+  /// The root panel's keys, after the roving ones: Escape, Tab, and the side arrows swallowed.
   KeyEventResult _onKey(KeyEvent event, _MenuPanelState panel) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     if (panel.navigate(event)) return KeyEventResult.handled;
@@ -583,6 +597,8 @@ class _GlacierMenuState extends State<GlacierMenu> {
 // MenuSub
 // ---------------------------------------------------------------------------------------------------------------------
 
+/// How long the pointer rests on a flyout's row before it opens, how long after leaving before it closes, and the
+/// gap in logical pixels between the row's panel and the flyout.
 const Duration _subOpenDelay = Duration(milliseconds: 120);
 const Duration _subCloseDelay = Duration(milliseconds: 300);
 const double _subOffset = 2;
@@ -641,10 +657,16 @@ class GlacierMenuSub extends StatefulWidget {
 class _GlacierMenuSubState extends State<GlacierMenuSub> {
   final GlobalKey<_MenuRowState> _rowKey = GlobalKey(debugLabel: 'GlacierMenuSub row');
   final GlobalKey<_MenuPanelState> _panelKey = GlobalKey(debugLabel: 'GlacierMenuSub panel');
+
+  /// Used only where the flyout stands outside any menu; inside one it joins the menu's stack.
   final GlacierLayerStack _ownStack = GlacierLayerStack();
   bool _isOpen = false;
+
+  /// The hover's waits: one running while the pointer rests on the row, one after it has left.
   Timer? _openTimer;
   Timer? _closeTimer;
+
+  /// The panel this row is in: the menu's own, or the flyout it flies out of.
   _MenuScope? _scope;
 
   void _clearOpen() {
@@ -657,6 +679,7 @@ class _GlacierMenuSubState extends State<GlacierMenuSub> {
     _closeTimer = null;
   }
 
+  /// Opens the flyout now. [withFocus] (a key or a press, not a hover) sends focus to its first row.
   void _openSub(bool withFocus) {
     _clearOpen();
     _clearClose();
@@ -675,6 +698,7 @@ class _GlacierMenuSubState extends State<GlacierMenuSub> {
     if (mounted && _isOpen) setState(() => _isOpen = false);
   }
 
+  /// Closes the flyout after the close delay, unless the pointer comes back first.
   void _scheduleClose() {
     _clearClose();
     _closeTimer = Timer(_subCloseDelay, () {
@@ -729,6 +753,7 @@ class _GlacierMenuSubState extends State<GlacierMenuSub> {
 
   bool get _rtl => Directionality.of(context) == TextDirection.rtl;
 
+  /// Keys on the row itself: the arrow that opens the flyout.
   KeyEventResult _onRowKey(FocusNode node, KeyEvent event) {
     if (widget.disabled || event is KeyUpEvent) return KeyEventResult.ignored;
     // APG: the arrow that points INTO the flyout opens it, so the horizontal arrows invert under RTL.
@@ -738,6 +763,7 @@ class _GlacierMenuSubState extends State<GlacierMenuSub> {
     return KeyEventResult.handled;
   }
 
+  /// Keys inside the flyout's panel, after the roving ones: the arrow back to the row, and Escape.
   KeyEventResult _onPanelKey(KeyEvent event, _MenuPanelState panel) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     if (panel.navigate(event)) return KeyEventResult.handled;
@@ -930,13 +956,17 @@ class _MenuRow extends StatefulWidget {
 class _MenuRowState extends State<_MenuRow> {
   /// `tabIndex={-1}`: focus comes by the arrow keys, and Tab does not stop here.
   final FocusNode _node = FocusNode(debugLabel: 'GlacierMenu row', skipTraversal: true);
+
+  /// The panel this row has signed up with.
   _MenuPanelState? _panel;
 
+  /// Where the row's top is on the screen, which is what orders a panel's rows; last where it is not laid out.
   double get _top {
     final box = context.findRenderObject();
     return box is RenderBox && box.hasSize ? box.localToGlobal(Offset.zero).dy : double.infinity;
   }
 
+  /// Takes the keyboard's focus and scrolls itself into view in a panel that scrolls.
   void focus() {
     _node.requestFocus();
     final box = context.findRenderObject();
@@ -978,6 +1008,7 @@ class _MenuRowState extends State<_MenuRow> {
     final line = em * (text.height ?? t.len('glacier-leading-sm'));
     final gap = t.space(3);
 
+    // A row with a name of its own is read by that name, and what it shows is kept from the screen reader.
     Widget heard(Widget child) => named ? ExcludeSemantics(child: child) : child;
 
     final children = <Widget>[
@@ -1149,6 +1180,7 @@ class GlacierMenuLabel extends StatelessWidget {
     );
   }
 
+  /// The same [Text] with its words in capitals, still read out as they were written.
   static Widget _uppercase(Text text) {
     final data = text.data;
     if (data == null) return text;

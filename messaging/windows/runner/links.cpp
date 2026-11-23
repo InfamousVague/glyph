@@ -15,14 +15,18 @@
 
 namespace {
 
+// What marks a WM_COPYDATA as a link from another copy of this app.
 constexpr ULONG_PTR kLinkMessage = 0x47484C4B;  // "GHLK"
+// How a running copy's window is found: its class (win32_window.cpp) and its title (main.cpp).
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 constexpr const wchar_t kWindowTitle[] = L"Ghost Messaging";
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
+// Links that came before the app asked for them, and whether it has asked yet.
 std::vector<std::string> g_pending;
 bool g_taken = false;
 
+// A link came: handed to the app if it has asked for links, else held until it does.
 void Opened(const std::wstring& link) {
   std::string url = Utf8FromUtf16(link.c_str());
   if (url.empty()) return;
@@ -33,6 +37,7 @@ void Opened(const std::wstring& link) {
   }
 }
 
+// Sets one text value in the registry, making its key where there is none; [name] null for the key's default value.
 bool SetKey(HKEY root, const std::wstring& path, const wchar_t* name, const std::wstring& value) {
   HKEY key;
   if (RegCreateKeyExW(root, path.c_str(), 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) != ERROR_SUCCESS) return false;
@@ -68,6 +73,7 @@ bool HandToRunningCopy(const std::wstring& link) {
   data.cbData = static_cast<DWORD>((link.size() + 1) * sizeof(wchar_t));
   data.lpData = const_cast<wchar_t*>(link.c_str());
   DWORD_PTR answer = 0;
+  // A copy that is hung is given three seconds; then this one opens as if there were none.
   if (!SendMessageTimeoutW(other, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 3000, &answer)) return false;
   // Windows lets the copy the person started bring the other to the front.
   AllowSetForegroundWindow(ASFW_ANY);
@@ -80,6 +86,7 @@ void RegisterLinkScheme() {
   wchar_t exe[MAX_PATH];
   DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
   if (n == 0 || n >= MAX_PATH) return;
+  // Written at every start, so the scheme follows the app to wherever it now is.
   const std::wstring root = L"Software\\Classes\\ghostmsg";
   SetKey(HKEY_CURRENT_USER, root, nullptr, L"URL:Ghost Messaging");
   SetKey(HKEY_CURRENT_USER, root, L"URL Protocol", L"");
@@ -107,6 +114,7 @@ void RegisterLinks(flutter::BinaryMessenger* messenger, const std::wstring& firs
 bool LinkCopied(HWND window, LPARAM lparam) {
   auto data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
   if (data == nullptr || data->dwData != kLinkMessage || data->lpData == nullptr || data->cbData < sizeof(wchar_t)) return false;
+  // The bytes are the link with its closing zero, which is taken off.
   std::wstring link(static_cast<const wchar_t*>(data->lpData), data->cbData / sizeof(wchar_t));
   while (!link.empty() && link.back() == L'\0') link.pop_back();
   Opened(link);

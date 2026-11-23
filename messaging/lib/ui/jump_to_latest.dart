@@ -71,6 +71,7 @@ class ScrollMemory {
   static ScrollController controllerFor(String Function() chat) => _ChatScrollController(chat);
 }
 
+/// A controller whose list starts at its chat's kept spot, asked for each time a list is attached.
 class _ChatScrollController extends ScrollController {
   _ChatScrollController(this.chat) : super(keepScrollOffset: false);
   final String Function() chat;
@@ -169,6 +170,7 @@ class _JumpToLatestState extends State<JumpToLatest> {
     _begin();
   }
 
+  /// Starts over for [JumpToLatest.chat] from what [ScrollMemory] kept of it.
   void _begin() {
     final spot = ScrollMemory.of(widget.chat);
     // Always somewhere to go, the newest where nothing was kept: a space's page moved to another room still has the
@@ -230,6 +232,8 @@ class _JumpToLatestState extends State<JumpToLatest> {
     _seenKnown = true;
   }
 
+  /// After the list is laid out: moves it towards the spot being put back, as far as the chat holds, then reads where
+  /// it stands ([_scrolled]).
   void _afterFrame() {
     // Once a frame however often the parent builds in it.
     if (_framePending) return;
@@ -275,6 +279,7 @@ class _JumpToLatestState extends State<JumpToLatest> {
     });
   }
 
+  /// The list moved: keeps where it is, marks what is seen at the foot, and decides whether the arrow shows.
   void _scrolled() {
     final c = widget.controller;
     if (!c.hasClients || !mounted) return;
@@ -320,6 +325,7 @@ class _JumpToLatestState extends State<JumpToLatest> {
     return false;
   }
 
+  /// The arrow pressed: down to the newest message, giving up any spot still being put back.
   void _jump() {
     final c = widget.controller;
     if (!c.hasClients) return;

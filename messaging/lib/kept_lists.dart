@@ -16,12 +16,17 @@ class KeptLists {
   KeptLists._();
   static final KeptLists instance = KeptLists._();
 
+  /// The app's choices, which hold the networks' lists; set as the app starts (lib/main.dart), null in a test.
   AppState? app;
   Timer? _push;
+
+  /// The account's copy has been read and joined in since the app opened: nothing is written over it before that.
   bool _pulled = false;
 
+  /// What parts the items of a list kept as one choice: the unit separator, which no id has in it.
   static const _sep = '\u001f';
 
+  /// The lists as they are here: the networks' (the `inbox_` choices) and Android's hidden conversations and texts.
   Future<Map<String, Object?>> _local() async {
     final hidden = await Sms.instance.hiddenLists();
     return {
@@ -40,6 +45,8 @@ class KeptLists {
     _push = Timer(const Duration(seconds: 5), () => unawaited(push()));
   }
 
+  /// Keeps the lists on the account now, after reading the account's own first where that has not been done.
+  /// Quietly nothing where the relay cannot be reached.
   Future<void> push() async {
     try {
       if (!_pulled) await pull();

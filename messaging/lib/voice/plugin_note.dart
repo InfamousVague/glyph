@@ -18,6 +18,8 @@ class PluginChatNote {
   /// Facts for the card, by name: "by", "seconds", "voices", "savedTo". Words, each short.
   final Map<String, String> details;
 
+  // What is taken from the wire: the plugin and kind as short lowercase words, at most [mostDetails] details, each
+  // value cut to [detailMost] characters.
   static final _word = RegExp(r'^[a-z0-9_]{1,32}$');
   static final _key = RegExp(r'^[A-Za-z0-9_]{1,32}$');
   static const mostDetails = 8;

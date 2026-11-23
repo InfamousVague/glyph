@@ -4,6 +4,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+/** What a token looks like: checked before anything is hashed or compared. */
 export const TOKEN_SHAPE = /^[0-9a-f]{32}$/;
 const hash = (token) => createHash('sha256').update(token, 'utf8').digest();
 
@@ -23,6 +24,7 @@ export class TokenStore {
     }
   }
 
+  /** The store kept in links.json under `dir`, which is made (the owner's alone) if it is not there. */
   static open(dir, options) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     return new TokenStore(join(dir, 'links.json'), options);
@@ -64,6 +66,7 @@ export class TokenStore {
     return n;
   }
 
+  /** The whole file written anew: to a temporary file, flushed to disk, then renamed over the old one. */
   save() {
     if (!this.file) return;
     mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });

@@ -67,6 +67,8 @@ class Packet {
   final bool passed;
   static const _passed = 8;
 
+  // The first byte holds the version in its high four bits and these flags in its low. [head] is how many bytes
+  // come before a whole packet's envelope, [partHead] before a part's piece.
   static const version = 1;
   static const _sealed = 1;
   static const _part = 2;
@@ -108,6 +110,7 @@ class Packet {
     ];
   }
 
+  /// The packet [bytes] are, whole or a part; null for another version, or one cut short.
   static Packet? parse(List<int> bytes) {
     if (bytes.length < head + 1 || (bytes[0] >> 4) != version) return null;
     final from = NetCrypto.hex(bytes.sublist(1, head));
@@ -151,6 +154,7 @@ class PartJoiner {
   }
 }
 
+/// The pieces of one packet come so far, how many there are to be, and when the first came.
 class _Open {
   _Open(this.count, this.since);
   final int count;

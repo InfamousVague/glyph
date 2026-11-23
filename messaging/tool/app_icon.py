@@ -38,6 +38,8 @@ SMALL = {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96}
 LANCZOS = Image.Resampling.LANCZOS
 
 
+# The picture at SCALE in the middle of a square of `size`, for Android's adaptive icon: as 'foreground' on the
+# black background, otherwise (monochrome) white whose alpha is the picture's brightness.
 def shrunk(picture, size, mode):
     inner = round(size * SCALE)
     small = picture.resize((inner, inner), LANCZOS)

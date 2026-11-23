@@ -78,7 +78,11 @@ class _GlacierDensitySelectorState extends State<GlacierDensitySelector> {
   static const _modes = GlacierDensityMode.values;
 
   final ScrollController _scroll = ScrollController();
+
+  /// Keeps the one scroll view (and its place) whether or not the fades and the scrollbar are built round it.
   final GlobalKey _viewportKey = GlobalKey();
+
+  /// A focus node a card, with the group's keys on it.
   late final List<FocusNode> _nodes = [
     for (final mode in _modes) FocusNode(debugLabel: 'density ${mode.token}', onKeyEvent: (node, event) => _onKey(mode, event)),
   ];
@@ -111,6 +115,7 @@ class _GlacierDensitySelectorState extends State<GlacierDensitySelector> {
     }
   }
 
+  /// Reports a card chosen. From the keyboard ([focus]) the card also takes the focus and is scrolled into view.
   void _select(GlacierDensityMode mode, {bool focus = false}) {
     if (widget.disabled) return;
     widget.onValueChange(mode);
@@ -124,6 +129,7 @@ class _GlacierDensitySelectorState extends State<GlacierDensitySelector> {
     Scrollable.ensureVisible(card, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart);
   }
 
+  /// The arrows step to the next or previous card, round the ends; Home and End go to the first and the last.
   KeyEventResult _onKey(GlacierDensityMode mode, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
@@ -138,6 +144,7 @@ class _GlacierDensitySelectorState extends State<GlacierDensitySelector> {
     return KeyEventResult.handled;
   }
 
+  /// One card: the preview over its name, as a radio of the group.
   Widget _option(Tokens t, GlacierDensityMode mode) {
     final selected = mode == widget.value;
     final disabled = widget.disabled;
@@ -314,6 +321,7 @@ class _Scrollbar extends StatelessWidget {
     final thumb = math.min(1.0, math.max(0.12, share));
     final along = reach > 0 ? at / reach : 0.0;
 
+    // Scrolls so the pointer is at the middle of the thumb (the share of the content in view), within the ends.
     void scrollFrom(Offset local, Size track) {
       if (track.width <= 0) return;
       final from = rtl ? track.width - local.dx : local.dx;
@@ -434,6 +442,7 @@ class _DensityPreview extends StatelessWidget {
       GlacierDensityMode.spacious => ('0.38rem', '0.5rem', '0.23rem', '0.32rem', true),
       GlacierDensityMode.moreSpace => ('0.6rem', '0.6rem', '0.16rem', '0.22rem', false),
     };
+    // One bar standing for a line of text: [width] is its share of the canvas.
     Widget stroke(double width, String height, String color) {
       final ink = t.color(color);
       return FractionallySizedBox(

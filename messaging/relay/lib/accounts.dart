@@ -48,6 +48,9 @@ class Accounts {
 
   /// A sealed blob as the app makes it: the backup is a few hundred bytes, friends and circles gzipped beside it.
   static const maxBlob = 64 * 1024;
+
+  /// [maxAccounts]: the most accounts kept. [maxDevices]: the most devices signed in to one account. [skew]: how far
+  /// from this server's clock the time in a signed body may be.
   static const maxAccounts = 200000;
   static const maxDevices = 20;
 
@@ -61,6 +64,7 @@ class Accounts {
   static const findsAnHour = 30;
   static const getsAnHour = 6;
   static const getsForAccountAnHour = 10;
+  // Signed changes (acct-put, acct-devices, acct-delete) from one connection in an hour.
   static const writesAnHour = 60;
 
   /// A number typed for an account's verified one that is not it, per connection and per account in an hour: without
@@ -77,8 +81,11 @@ class Accounts {
 
   /// address (lower case) -> {id, key, bind, pw, pwv, seed, at, devices: [{d, n, p, at, seen}]}
   final Map<String, Map<String, Object?>> _accounts = {};
+  // The hub's name for an identity -> its account's address.
   final Map<String, String> _byId = {};
 
+  // When each thing limited by the hour was last done, by connection (the hub's name) or, for the `For` ones, by the
+  // account's address: what [_room] counts.
   final Map<String, List<DateTime>> _finds = {};
   final Map<String, List<DateTime>> _gets = {};
   final Map<String, List<DateTime>> _getsFor = {};
@@ -93,6 +100,7 @@ class Accounts {
   /// on the way (or said twice) cannot be said again inside its ten minutes.
   final Map<String, DateTime> _used = {};
 
+  // The length of every blob kept, held under [maxBytes]; [_sizeOf] is one account's share.
   int _bytes = 0;
 
   /// What an account costs of [maxBytes]: its two blobs, and the removals kept for its devices (`gone`).
@@ -187,6 +195,7 @@ class Accounts {
     }
   }
 
+  /// Whether [key] has room for one more of something limited to [anHour] in an hour; counts this one where it has.
   static bool _room(Map<String, List<DateTime>> lists, String key, DateTime now, int anHour) {
     final list = lists[key] ??= [];
     list.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
@@ -229,6 +238,7 @@ class Accounts {
 
   static final _hex = RegExp(r'^[0-9a-f]+$');
   static final _address = RegExp(r'^0x[0-9a-f]{40}$');
+  // The bytes of lowercase hex, with or without `0x` before it; null where [s] is not that.
   static List<int>? _unhex(Object? s) {
     if (s is! String) return null;
     final t = s.startsWith('0x') ? s.substring(2) : s;
@@ -329,6 +339,7 @@ class Accounts {
           if (account == null) return tell({'dir': 'acct-find', 'name': name, 'none': true});
           tell({'dir': 'acct-find', 'name': name, 'phone': _phoneOf(account.$2) != null, 'kdf': ?_kdfOf(account.$2['pw'])});
         case 'acct-text':
+          // Texts a code to the account's verified number, for acct-get to check.
           final name = said['name'];
           final account = name is String ? _ofName(name) : null;
           final h = handles;
@@ -463,6 +474,7 @@ class Accounts {
           }
           tell({'dir': 'acct-leave', 'a': address, 'gone': gone});
         case 'acct-delete':
+          // The account and both its blobs gone, signed by the account; one that was never here is ok too.
           if (!_room(_writes, id, now, writesAnHour)) return err('Too many changes this hour. Try again later.');
           final (body, why) = _signed(said, 'delete', id);
           if (body == null) return err(why!);
@@ -481,6 +493,7 @@ class Accounts {
     }
   }
 
+  /// [s] trimmed and cut to [n] characters (a device's name and platform); empty where it is no text.
   static String _short(Object? s, int n) {
     final t = s is String ? s.trim() : '';
     return t.length > n ? t.substring(0, n) : t;

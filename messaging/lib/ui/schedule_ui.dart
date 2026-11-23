@@ -76,6 +76,8 @@ void _schedule(BuildContext context, ScheduleTarget to, String words, DateTime a
 /// A day and a time of one's own: the page's answer, or null where it was left.
 Future<DateTime?> pickScheduleTime(BuildContext context, {DateTime? from}) => push<DateTime>(context, (_) => ScheduleTimePage(from: from));
 
+/// The "Pick a time" page: a chip for each of the next eight days, steppers for the hour and for the minutes in
+/// fives, and Schedule, which answers with the time chosen and can't be pressed for one that has passed.
 class ScheduleTimePage extends StatefulWidget {
   const ScheduleTimePage({super.key, this.from});
 
@@ -90,6 +92,7 @@ class _ScheduleTimePageState extends State<ScheduleTimePage> {
   late DateTime _now = Scheduled.now();
   late DateTime _at = widget.from ?? DateTime(_now.year, _now.month, _now.day, _now.hour + 1);
 
+  /// The time chosen so far, moved to [day].
   DateTime _onDay(DateTime day) => DateTime(day.year, day.month, day.day, _at.hour, _at.minute);
 
   void _step(Duration by) => setState(() => _at = _at.add(by));
@@ -180,6 +183,7 @@ class ScheduledStrip extends StatelessWidget {
   }
 }
 
+/// One waiting message in the strip: when it goes and its first line, or "Not sent" in red for one that is stuck.
 class _ScheduledRow extends StatelessWidget {
   const _ScheduledRow({required this.message});
   final ScheduledMessage message;
@@ -192,6 +196,7 @@ class _ScheduledRow extends StatelessWidget {
         Choice('Change the time', Lucide.clock, () async {
           final at = await pickScheduleTime(context, from: message.when);
           if (at == null) return;
+          // A new time is the old one cancelled and the same words scheduled again.
           Scheduled.instance.cancel(message.id);
           Scheduled.instance.add((kind: message.kind, target: message.target, who: message.who), message.text, at);
         }),

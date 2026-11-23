@@ -26,6 +26,7 @@ import 'sms.dart';
 import 'standalone/chats.dart';
 import 'voice/channels.dart';
 
+/// One message waiting for its time. Kept as JSON under short keys ([toJson]).
 @immutable
 class ScheduledMessage {
   const ScheduledMessage({required this.id, required this.kind, required this.target, required this.text, required this.at, this.who = '', this.tries = 0, this.problem});
@@ -43,6 +44,8 @@ class ScheduledMessage {
 
   /// Times sending it failed; after [Scheduled.maxTries] it waits for Send now or Cancel.
   final int tries;
+
+  /// Why the last try failed, in words.
   final String? problem;
 
   DateTime get when => DateTime.fromMillisecondsSinceEpoch(at);
@@ -50,6 +53,7 @@ class ScheduledMessage {
   /// Which conversation: [kind] and [target] together.
   String get conversation => '$kind:$target';
 
+  /// Failed as often as it is tried by itself: it is not sent again until the person says.
   bool get stuck => tries >= Scheduled.maxTries;
 
   ScheduledMessage copyWith({int? at, int? tries, String? problem}) =>
@@ -68,10 +72,12 @@ class ScheduledMessage {
 /// A conversation's key for scheduling: the kind and target a [ScheduledMessage] carries.
 typedef ScheduleTarget = ({String kind, String target, String who});
 
+/// The messages waiting, and the timer that sends each when its time comes. Tells its listeners on any change.
 class Scheduled extends ChangeNotifier {
   Scheduled._();
   static final Scheduled instance = Scheduled._();
 
+  /// The app's choice the list is kept under, and how many times a message is tried before it is left [stuck].
   static const storeKey = 'scheduled_messages';
   static const maxTries = 3;
 
@@ -84,6 +90,8 @@ class Scheduled extends ChangeNotifier {
   AppState? _app;
   Timer? _timer;
   bool _sending = false;
+
+  /// How many were made in this run: put after the time in an id, so two made in the same instant differ.
   int _made = 0;
   List<ScheduledMessage> _all = [];
 
@@ -123,6 +131,7 @@ class Scheduled extends ChangeNotifier {
     }
   }
 
+  /// Sorts the list, writes it to the app's choices and tells the listeners: after every change.
   void _keep() {
     _all.sort((a, b) => a.at.compareTo(b.at));
     _app?.set(storeKey, jsonEncode([for (final m in _all) m.toJson()]));
@@ -163,6 +172,8 @@ class Scheduled extends ChangeNotifier {
     }
   }
 
+  /// Sends [m]: gone from the list where it went, else kept with one more try against it and why. One cancelled
+  /// while it was being sent is left gone.
   Future<bool> _try(ScheduledMessage m) async {
     String? problem;
     var ok = false;

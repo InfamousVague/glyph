@@ -16,10 +16,14 @@ import '../../net/hub_carrier.dart' show NetSigner;
 import 'format.dart' show packTextOk;
 import 'review_keys.dart';
 
+/// The exact words each signature is over, a line for each part. The first line names what is signed, so a signature
+/// made for one of the three never passes for another. The relay checks the same words.
 String approvalWords(String plugin, String version, String sha256) => 'ghost-market approve v1\n$plugin\n$version\n$sha256';
 String revocationWords(String plugin, String sha256, int at, String why) => 'ghost-market revoke v1\n$plugin\n$sha256\n$at\n$why';
 String retirementWords(String key) => 'ghost-market retire v1\n$key';
 
+/// The reviewer's signature over one package of one plugin at one version: what lets a pack from the Marketplace
+/// install, kept beside it (approval.json) and checked again at every load.
 class PackApproval {
   const PackApproval({required this.plugin, required this.version, required this.sha256, required this.key, required this.sig, required this.at, this.v = 1});
   final int v;                 // 1
@@ -41,6 +45,8 @@ class PackApproval {
   Map<String, Object?> toJson() => {'v': v, 'plugin': plugin, 'version': version, 'sha256': sha256, 'key': key, 'sig': sig, 'at': at};
 }
 
+/// The reviewer's signed withdrawal of one package of one plugin, with the reason: a device that holds it switches
+/// that copy off and never installs it again.
 class PackRevocation {
   const PackRevocation({required this.plugin, required this.sha256, required this.at, required this.why, required this.key, required this.sig, this.v = 1});
   final int v;

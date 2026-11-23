@@ -6,7 +6,9 @@ import { EndBehaviorType, VoiceConnectionStatus, entersState, joinVoiceChannel }
 import { ChannelType, PermissionFlagsBits, WebhookClient } from 'discord.js';
 import { dcPeople, ghostToBotMessage, ghostToWebhook } from './bridge/mapping.js';
 
+/** How long a voice connection has to become ready, joining or rejoining. */
 const READY_MS = 20_000;
+/** Discord's error code for a webhook that is no longer there. */
 const UNKNOWN_WEBHOOK = 10015;
 
 /** The permissions a bridged channel needs, by the names /discord/voice/join answers with. */
@@ -28,9 +30,12 @@ export function channelInfo(client, guild, channelId) {
   return { name: channel.name, missing, full };
 }
 
+/** The `discord` object bridge.js works through, for this gateway client. store: the BridgeStore, where each
+ * channel's webhook is kept. */
 export function discordSide({ client, store, log }) {
   const hooks = new Map(); // "guild:channel" -> WebhookClient
 
+  /** The channel's webhook, made and kept the first time; null when the bot may not manage webhooks there. */
   async function webhookFor(guild, channel) {
     const key = `${guild.id}:${channel.id}`;
     if (hooks.has(key)) return hooks.get(key);
@@ -60,6 +65,8 @@ export function discordSide({ client, store, log }) {
         throw new Error(`voice did not connect: ${e?.message ?? e}`);
       }
 
+      // Each speaker's packets are subscribed to when they first talk; the stream ends after a second of silence and
+      // is opened again the next time they do.
       const listening = new Map(); // user id -> receive stream
       const listen = (userId) => {
         if (listening.has(userId) || userId === client.user.id) return;
@@ -75,6 +82,7 @@ export function discordSide({ client, store, log }) {
       conn.receiver.speaking.on('start', started);
       conn.receiver.speaking.on('end', ended);
 
+      // A connection lost any other way than by the bridge's own destroy(): one rejoin, then on.lost(), said once.
       let ours = false; // destroyed by the bridge itself
       let rejoined = false;
       let gaveUp = false;
@@ -133,6 +141,7 @@ export function discordSide({ client, store, log }) {
       await me.setNickname(text, 'Ghost Messaging: who is talking from Ghost').catch(() => {});
     },
 
+    /** A Ghost member's message into the channel's chat: through the webhook, under their name, else as the bot. */
     async postText(guildId, channelId, message) {
       const guild = client.guilds.cache.get(guildId);
       const channel = guild?.channels.cache.get(channelId);

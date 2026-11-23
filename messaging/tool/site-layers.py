@@ -77,6 +77,7 @@ def pill(image, box, radius):
     return piece
 
 
+# Writes a piece to site/shots as a WebP: under `name` in the light theme, `name`-dark in the dark.
 def save(piece, name, theme="light"):
     name = name if theme == "light" else f"{name}-dark"
     OUT.mkdir(parents=True, exist_ok=True)
@@ -133,6 +134,7 @@ def stack_markup():
     return "\n".join(lines)
 
 
+# Puts stack_markup() between the STACK markers of site/index.html; nothing where the page has no markers.
 def write_stack():
     page = ROOT / "site" / "index.html"
     html = page.read_text()

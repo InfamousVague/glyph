@@ -91,12 +91,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     ]);
   }
 
+  /// Leave group, asked first.
   void _leave(Group g) {
     showChoices(context, title: 'Leave ${g.title}? Its conversation stays on this phone, and you can be added again.', choices: [
       Choice('Leave group', Lucide.logOut, () => _try(() => Groups.instance.leave(g.id)), danger: true),
     ]);
   }
 
+  /// Makes a change to the group of friends, and says why in a toast where it is refused.
   Future<void> _try(Future<void> Function() change) async {
     try {
       await change();
@@ -120,6 +122,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     super.dispose();
   }
 
+  /// Reads the conversation again, whether it is an RCS group, and (one person only) where encryption and friendship
+  /// stand with them. Run at the start and whenever the phone says something changed.
   Future<void> _load() async {
     try {
       // This one alone: the whole list is a long read on a phone with thousands.
@@ -138,6 +142,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     } catch (_) {}
   }
 
+  /// Sets one of the conversation's switches (muted, pinned and the like) on the phone, then reads it back.
   Future<void> _flag(String name, bool on) async {
     await Sms.instance.threadFlag(name, widget.thread, on);
     _load();

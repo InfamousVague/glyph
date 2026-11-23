@@ -71,6 +71,9 @@ abstract final class MarketReads {
   static const int package = PackLimits.packageBytes, shot = PackLimits.shotBytes, other = 2 * 1024 * 1024;
 }
 
+/// The Marketplace's routes on one relay, a method each, numbered as the relay numbers them. Reading the catalog, the
+/// withdrawals, packages and screenshots needs no identity; reporting, submitting and reviewing are signed by [signer].
+/// Every failure is a [MarketError].
 class MarketApi {
   MarketApi({required this.hubUrl, this.signer, MarketTransport? transport, DateTime Function()? now})
       : _transport = transport ?? (PlatformInfo.isWeb ? pageHttp : _http),
@@ -214,6 +217,7 @@ class MarketApi {
 
   static const _tooLarge = MarketError('too_large', 'The Marketplace sent more than the app reads.');
 
+  // Each name that goes into a path is held to its shape first, so nothing else can ever be put into one.
   static String _text(Object? v) => v is String ? v : '';
   static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
   static final _hex24 = RegExp(r'^[0-9a-f]{24}$');

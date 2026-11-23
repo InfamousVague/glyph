@@ -41,6 +41,7 @@ abstract final class _D {
   static const grounds = [Color(0xFF353A6B), Color(0xFF2E4A3B), Color(0xFF5A3D2C), Color(0xFF4F2E4C), Color(0xFF2C4A55), Color(0xFF4F4630)];
   static const avatars = [Color(0xFF5865F2), Color(0xFF3BA55C), Color(0xFFE67E22), Color(0xFFEB459E), Color(0xFF1ABC9C), Color(0xFFD9A51C)];
 
+  /// The index into [grounds] and [avatars] for a person: the same for the same id every time.
   static int hue(String id) => id.codeUnits.fold(7, (a, c) => (a * 31 + c) & 0x7fffffff) % grounds.length;
 }
 
@@ -452,6 +453,8 @@ class _ControlBar extends StatelessWidget {
   }
 }
 
+/// How a bar button is coloured: plain grey; lit (white, the camera while on); alarm (red on a red tint: muted,
+/// deafened, or locked off); danger (solid red, Leave).
 enum _Look { plain, lit, alarm, danger }
 
 /// A rounded button of the bar with its word under it. [onMore] adds Discord's chevron for devices beside the icon.

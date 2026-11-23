@@ -3,12 +3,11 @@ import AVFoundation
 import Flutter
 import UIKit
 
-/// Voice messages on the Mac (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and sticker selector to
-/// the desktop app as well"): recording one with the Mac's microphone for the phone to send, and playing one the
-/// phone holds. The phone's own half is android/.../Voice.kt, and what is recorded here is what it records: AAC in an
-/// `.m4a`, speech at 24 kbit/s, so the phone sends it as it sends its own.
+/// Voice messages on the iPhone, as the Mac's are (Matt, 2026-11-14: "Add an emoji picker, file upload, voice memo and
+/// sticker selector to the desktop app as well"): recording one with the microphone, and playing one. What is
+/// recorded here is what Android's half records (android/.../Voice.kt): AAC in an `.m4a`, speech at 24 kbit/s.
 ///
-/// The microphone is open only between `start` and `stop` or `cancel`. macOS asks for it the first time
+/// The microphone is open only between `start` and `stop` or `cancel`. iOS asks for it the first time
 /// (NSMicrophoneUsageDescription). A recording is written to this
 /// run's folder in the temporary directory (DeskVideo's, removed as the app opens and quits), read back when it
 /// stops, and removed at once.
@@ -19,10 +18,11 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
 
   private var recorder: AVAudioRecorder?
   private var file: URL?
+  /// The most bytes a recording may weigh (0 for no limit), and whether this one has reached it.
   private var most = 0
   private var full = false
 
-  /// Starts recording, asking macOS for the microphone first where it has not been asked: `ok`, or `denied`.
+  /// Starts recording, asking iOS for the microphone first where it has not been asked: `ok`, or `denied`.
   func start(most bytes: Int, done: @escaping ([String: Any]) -> Void) {
     switch AVCaptureDevice.authorizationStatus(for: .audio) {
     case .authorized:
@@ -36,6 +36,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     }
   }
 
+  /// The recording itself, once the microphone is allowed: AAC in an .m4a, 16 kHz mono at 24 kbit/s.
   private func begin(most bytes: Int) -> [String: Any] {
     cancel()
     guard let url = try? DeskVideo.place(named: "voice-\(UUID().uuidString).m4a") else { return ["ok": false, "error": "The recording has nowhere to go"] }
@@ -83,6 +84,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     return data
   }
 
+  /// Ends the recording and keeps nothing of it.
   func cancel() {
     guard let recorder else { return }
     recorder.stop()
@@ -94,6 +96,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
   // MARK: playing
 
   private var player: AVAudioPlayer?
+  /// The message part whose sound is in [player].
   private var playing = -1
   private var ticker: Timer?
 
@@ -125,6 +128,7 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     return nil
   }
 
+  /// Tells [heard] where the sound has got to, about eight times a second while it plays.
   private func tick() {
     ticker?.invalidate()
     ticker = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
@@ -133,12 +137,14 @@ final class DeskSound: NSObject, AVAudioPlayerDelegate {
     }
   }
 
+  /// Holds the sound where it is; [play] with the same part goes on from there.
   func pause() {
     player?.pause()
     ticker?.invalidate()
     say(playing: false)
   }
 
+  /// Stops the sound and lets it go, saying nothing more about it.
   func halt() {
     ticker?.invalidate()
     ticker = nil

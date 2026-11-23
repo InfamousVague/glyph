@@ -17,6 +17,8 @@
 //	{"id":12,"op":"who","aci":"…","profile":false}           → {"aci","name","number","avatar","about","aboutEmoji"}: the person's Signal profile fetched where nothing names them (always, with "profile":true)
 //	{"id":13,"op":"group_info","to":"<group id>"}            → the group in full (groupInfo): title, description, picture, timer, members with roles, who may do what
 //	{"id":14,"op":"group_update","to":"…","change":{…}}      → the group in full once changed: any of title, description, avatar (a picture's path, "" none), timer (seconds, 0 off), add, remove, admin, unadmin (ACIs), announcements_only, edit_info and add_members ("members" or "admins"), leave
+//	{"id":15,"op":"block","aci":"…","on":true}               → null; blocks the person (false unblocks), here and on their other devices
+//	{"id":16,"op":"blocked"}                                 → [{"aci","name","number","avatar"}…]: everyone blocked that this device knows of
 //
 // Answers: {"id":1,"ok":true,"result":…} or {"id":1,"ok":false,"error":"…"}. Events, unasked, each with "ev": ready,
 // qr, linked, link_failed, connected, disconnected, message and edited (each with "mentions":[{"start","length","aci"}]),
@@ -64,6 +66,7 @@ import (
 // stamps is a request's "ts": one message time, or a list of them.
 type stamps []uint64
 
+// UnmarshalJSON takes a number as a list of one, a list as it is, and null as none.
 func (s *stamps) UnmarshalJSON(b []byte) error {
 	b = bytes.TrimSpace(b)
 	if len(b) > 0 && b[0] == '[' {
@@ -86,11 +89,13 @@ func (s *stamps) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// quote names the message a send answers: its time, as Signal names messages, and its author's ACI.
 type quote struct {
 	TS     uint64 `json:"ts"`
 	Author string `json:"author"`
 }
 
+// request is one line the app sends. Fields not used by an op are left empty.
 type request struct {
 	ID      int64           `json:"id"`
 	Op      string          `json:"op"`
@@ -130,6 +135,13 @@ type groupEdit struct {
 	Leave             bool     `json:"leave"`
 }
 
+// dir is the --dir flag: where the store, the log and the avatars are kept. out is standard output, one JSON object a
+// line; outLock keeps lines whole when goroutines speak at once.
+//
+// mu guards the second group. db and container are the open store (nil only while forget swaps it for a fresh one);
+// cli is the linked device's client, nil when not linked; connected is the last word said to the app, so "connected"
+// and "disconnected" are each said once a change; stopLoops ends the client's connectLoop; linking cancels a link
+// still waiting for its scan.
 var (
 	dir     string
 	log     zerolog.Logger
@@ -145,6 +157,7 @@ var (
 	linking   context.CancelFunc
 )
 
+// say writes one line, an answer or an event, to standard output.
 func say(v any) {
 	outLock.Lock()
 	defer outLock.Unlock()
@@ -160,6 +173,8 @@ func event(name string, fields map[string]any) {
 	say(m)
 }
 
+// main opens the store, connects the device linked before (if any), says "ready", then answers requests (each on a
+// goroutine of its own) until standard input closes.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Signal store is kept")
 	flag.Parse()
@@ -205,6 +220,7 @@ func main() {
 	mu.Unlock()
 }
 
+// parseRequest reads one line as a request. A line that is not JSON, or names no op, is an error (and is passed over).
 func parseRequest(line []byte) (request, error) {
 	var r request
 	err := json.Unmarshal(line, &r)
@@ -222,6 +238,7 @@ func answer(id int64, result any, err error) map[string]any {
 	return map[string]any{"id": id, "ok": true, "result": result}
 }
 
+// handle does one request and says its answer.
 func handle(r request) {
 	result, err := do(r)
 	say(answer(r.ID, result, err))
@@ -231,6 +248,8 @@ func handle(r request) {
 
 func dbPath() string { return filepath.Join(dir, "signal.db") }
 
+// openStore opens signalmeow's SQLite store (the account's keys, sessions, contacts and groups), bringing its tables
+// up to date.
 func openStore() error {
 	// The store holds the account's keys: readable by the person alone.
 	if f, err := os.OpenFile(dbPath(), os.O_CREATE|os.O_RDWR, 0o600); err == nil {
@@ -252,6 +271,7 @@ func openStore() error {
 	return nil
 }
 
+// firstDevice is the linked device the store holds, or nil: the helper keeps one Signal account.
 func firstDevice() *store.Device {
 	devs, err := container.GetAllDevices(bg())
 	if err != nil {
@@ -266,6 +286,7 @@ func firstDevice() *store.Device {
 	return nil
 }
 
+// bg is a context that carries the helper's log, so signalmeow writes to it.
 func bg() context.Context { return log.WithContext(context.Background()) }
 
 // --- the connection -------------------------------------------------------------------------------------------------
@@ -304,6 +325,7 @@ func connectLoop(ctx context.Context, c *signalmeow.Client) {
 			return
 		}
 		log.Err(err).Msg("start receive loops")
+		// 2, 4, 8… seconds, never more than two and a half minutes.
 		wait := min(time.Duration(2<<min(retry, 7))*time.Second, 150*time.Second)
 		select {
 		case <-time.After(wait):
@@ -330,6 +352,8 @@ func socketsUp(c *signalmeow.Client) (authed, unauthed bool) {
 	return c.AuthedWS != nil && c.AuthedWS.IsConnected(), c.UnauthedWS != nil && c.UnauthedWS.IsConnected()
 }
 
+// setConnected tells the app when [c]'s connection comes up or goes down: only on a change, and only while [c] is
+// still the client in use.
 func setConnected(c *signalmeow.Client, now bool) {
 	mu.Lock()
 	if cli != c || connected == now {
@@ -398,6 +422,7 @@ func forget() error {
 
 var errNotLinked = errors.New("not linked to Signal")
 
+// client is the linked client, or errNotLinked. Takes mu itself: never call it with mu held.
 func client() (*signalmeow.Client, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -409,6 +434,7 @@ func client() (*signalmeow.Client, error) {
 
 // --- requests -------------------------------------------------------------------------------------------------------
 
+// do carries out one request and returns its result.
 func do(r request) (any, error) {
 	// A send is given a minute, under the app's own wait (lib/inbox/signal.dart), so what went wrong is said to it
 	// rather than the app giving up first; a download or an upload has longer.
@@ -541,6 +567,7 @@ func do(r request) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("author: %w", err)
 		}
+		// The receipt goes to whoever wrote the messages (the chat itself, where no author is named); none for your own.
 		if len(r.TS) == 0 || author.UUID == c.Store.ACI {
 			return nil, nil
 		}
@@ -590,8 +617,10 @@ func do(r request) (any, error) {
 	return nil, fmt.Errorf("unknown op %q", r.Op)
 }
 
+// now is the time in milliseconds: what Signal stamps a message with, and names it by ever after.
 func now() uint64 { return uint64(time.Now().UnixMilli()) }
 
+// status is whether a device is linked and connected, and whose account it is.
 func status(ctx context.Context) map[string]any {
 	mu.Lock()
 	c, conn := cli, connected
@@ -608,6 +637,7 @@ func status(ctx context.Context) map[string]any {
 	return s
 }
 
+// ownName is the person's own name: from the account record Signal syncs, else the profile the store holds.
 func ownName(ctx context.Context, c *signalmeow.Client) string {
 	if ar := c.Store.AccountRecord; ar != nil {
 		if n := strings.TrimSpace(ar.GetGivenName() + " " + ar.GetFamilyName()); n != "" {
@@ -632,6 +662,8 @@ func parseChat(to string) (libsignalgo.ServiceID, types.GroupIdentifier, error) 
 	return sid, "", nil
 }
 
+// send sends [dm] (words, a reaction, a delete) to a person or a group. A group send that reached at least one member
+// counts as sent; one cut short by the request's time limit says so.
 func send(ctx context.Context, c *signalmeow.Client, to string, dm *signalpb.DataMessage) error {
 	user, group, err := parseChat(to)
 	if err != nil {
@@ -677,6 +709,7 @@ func send(ctx context.Context, c *signalmeow.Client, to string, dm *signalpb.Dat
 	return err
 }
 
+// resultErr is a send to one person as an error: nil where Signal took it.
 func resultErr(res signalmeow.SendMessageResult) error {
 	if res.WasSuccessful {
 		return nil
@@ -687,6 +720,8 @@ func resultErr(res signalmeow.SendMessageResult) error {
 	return errors.New("Signal did not take the message")
 }
 
+// upload encrypts and uploads the file at [path] and returns the pointer a message carries to it, with its kind
+// (read from its first bytes where the app names none), its name and, for a picture, its size in pixels.
 func upload(ctx context.Context, c *signalmeow.Client, path, mime, name string) (*signalpb.AttachmentPointer, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -735,6 +770,8 @@ func parsePointer(raw json.RawMessage) (*signalpb.AttachmentPointer, error) {
 	return &ptr, nil
 }
 
+// download fetches and decrypts the attachment [ptr] names into [path], by way of a ".part" file beside it, so
+// [path] is only ever a whole file.
 func download(ctx context.Context, ptr *signalpb.AttachmentPointer, path string) error {
 	if path == "" {
 		return errors.New("no path")
@@ -774,6 +811,7 @@ func link(name string) error {
 	}
 	go func() {
 		defer cancel()
+		// Twenty codes of 45 seconds each: the fifteen minutes.
 		for round := 0; round < 20; round++ {
 			roundCtx, roundCancel := context.WithCancel(ctx)
 			ch := signalmeow.PerformProvisioning(roundCtx, c, name, false)
@@ -838,6 +876,7 @@ func provisionRound(ctx context.Context, ch chan signalmeow.ProvisioningResponse
 	}
 }
 
+// linked takes the device signalmeow has just kept in the store, connects it and says "linked".
 func linked(data *store.DeviceData) {
 	mu.Lock()
 	c := container
@@ -854,6 +893,7 @@ func linked(data *store.DeviceData) {
 	event("linked", map[string]any{"aci": data.ACI.String(), "number": data.Number})
 }
 
+// linkWhy is a failed link in words a person can act on, by the status Signal's server answered with.
 func linkWhy(err error) string {
 	var le signalmeow.DeviceLinkError
 	if errors.As(err, &le) {
@@ -889,6 +929,7 @@ func keepAvatar(key string, data []byte) string {
 	return p
 }
 
+// keptAvatar is the path of the picture kept under [key], else empty.
 func keptAvatar(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	p := filepath.Join(avatarDir(), hex.EncodeToString(sum[:12]))
@@ -898,6 +939,7 @@ func keptAvatar(key string) string {
 	return ""
 }
 
+// nullable is [s], or JSON's null for an empty one.
 func nullable(s string) any {
 	if s == "" {
 		return nil
@@ -905,6 +947,8 @@ func nullable(s string) any {
 	return s
 }
 
+// recipientName is what to call someone: the nickname the person gave them, else their name in the phone's contacts,
+// else the name on their Signal profile.
 func recipientName(r *types.Recipient) string {
 	if r == nil {
 		return ""
@@ -912,6 +956,8 @@ func recipientName(r *types.Recipient) string {
 	return strings.TrimSpace(cmp.Or(r.Nickname, r.ContactName, r.Profile.Name))
 }
 
+// contact is someone as the app is told them. Their picture is the one the phone's contact sync sent, else their
+// profile's, downloaded once and kept; with a nil [c] or [ctx] nothing is downloaded.
 func contact(ctx context.Context, c *signalmeow.Client, r *types.Recipient) map[string]any {
 	avatar := ""
 	if len(r.ContactAvatar.Image) > 0 {
@@ -936,6 +982,7 @@ func contact(ctx context.Context, c *signalmeow.Client, r *types.Recipient) map[
 	}
 }
 
+// contacts is everyone the store knows of but the person themselves.
 func contacts(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
 	all, err := c.Store.RecipientStore.LoadAllContacts(ctx)
 	if err != nil {
@@ -1054,6 +1101,8 @@ func announceName(c *signalmeow.Client, aci uuid.UUID) {
 	}()
 }
 
+// groups is every group the store has a key for, each described afresh from Signal; one that cannot be fetched is
+// left out. The ids are read from signalmeow's own table, which it offers no call to list.
 func groups(ctx context.Context, c *signalmeow.Client) ([]map[string]any, error) {
 	mu.Lock()
 	d := db
@@ -1123,6 +1172,7 @@ func access(a signalmeow.AccessControl) string {
 	}
 }
 
+// accessOf is access turned round, for a change the app asks for: only "members" and "admins" may be set.
 func accessOf(s string) (*signalmeow.AccessControl, error) {
 	switch s {
 	case "admins":
@@ -1312,6 +1362,8 @@ func senderName(c *signalmeow.Client, aci uuid.UUID) string {
 
 // --- events ---------------------------------------------------------------------------------------------------------
 
+// onEvent takes what signalmeow hears, on its receive loop, and tells the app. Always true: the event is dealt with,
+// so Signal's server need not send it again.
 func onEvent(raw events.SignalEvent) bool {
 	mu.Lock()
 	c := cli
@@ -1354,6 +1406,7 @@ func onEvent(raw events.SignalEvent) bool {
 	return true
 }
 
+// nonNil is [ts], or an empty list for none: so the app is sent [] and never null.
 func nonNil(ts []uint64) []uint64 {
 	if ts == nil {
 		return []uint64{}
@@ -1361,6 +1414,7 @@ func nonNil(ts []uint64) []uint64 {
 	return ts
 }
 
+// chatEvent turns something said in a chat into the app's event: "edited", "reaction", "deleted" or "message".
 func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 	// An edit (Matt, 2026-11-17: "Add support for edited messages on telegram and signal and the ability to see the
 	// original message"): which message, by its first time, and its words now; the app keeps what it said before.
@@ -1405,6 +1459,8 @@ func chatEvent(c *signalmeow.Client, evt *events.ChatEvent) {
 	}
 }
 
+// message is a message as the app is told it: who wrote it and where, its words, its attachments (a sticker among
+// them), its mentions and the message it quotes. "ts", Signal's name for the message, is in milliseconds.
 func message(c *signalmeow.Client, chat string, group bool, sender uuid.UUID, dm *signalpb.DataMessage) map[string]any {
 	atts := dm.GetAttachments()
 	media := make([]map[string]any, 0, len(atts)+1)
@@ -1465,6 +1521,8 @@ func mentionsOf(dm *signalpb.DataMessage) []map[string]any {
 	return out
 }
 
+// mediaOf is an attachment as the app is told it: what it is, and its pointer (where it is and the key to it), which
+// the app hands back to "download" as it is.
 func mediaOf(a *signalpb.AttachmentPointer) map[string]any {
 	ptr, err := protojson.Marshal(a)
 	if err != nil {
@@ -1491,6 +1549,7 @@ func logFile() *os.File {
 	return f
 }
 
+// announced is what has been told to the app this run: group ids (announceGroup) and "name:<aci>" (announceName).
 var (
 	announcedMu sync.Mutex
 	announced   = map[string]bool{}

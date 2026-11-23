@@ -9,10 +9,13 @@ import '../tokens/tokens.dart';
 /// theme, so reduced motion collapses them here as it does on the page.
 enum Motion { fadeIn, fadeOut, scaleIn, scaleOut, slideUp, slideDown, slideLeft, slideRight, riseIn, collapse, expand, shake, pulse, bounce, shimmer }
 
+/// The steps of the duration scale: `--glacier-duration-NAME`.
 enum Speed { instant, fast, normal, slow, slower }
 
+/// The easings: `--glacier-ease-NAME`, by way of [_easeToken].
 enum Ease { out, inOut, spring, exit }
 
+/// The spring presets [springDescription] gives.
 enum Spring { snappy, smooth, bouncy }
 
 const _easeToken = {Ease.out: 'out', Ease.inOut: 'in-out', Ease.spring: 'spring', Ease.exit: 'exit'};
@@ -39,6 +42,7 @@ class MotionTiming {
   MotionTiming delayed(Duration by) => MotionTiming(duration, curve, by);
 }
 
+/// The timing for a speed and an easing, from the motion tokens in force.
 MotionTiming transition(Tokens tokens, [Speed speed = Speed.normal, Ease ease = Ease.out]) =>
     MotionTiming(tokens.duration('glacier-duration-${speed.name}'), tokens.curve('glacier-ease-${_easeToken[ease]}'));
 
@@ -73,6 +77,8 @@ class _Pose {
       );
 }
 
+/// One [Motion] written out: where it starts, where it rests, where it leaves to (null where it has no exit and
+/// is simply taken away), and its default speed and easing. Offsets are in logical pixels.
 class _Spec {
   const _Spec(this.initial, this.rest, this.exit, this.speed, this.ease);
   final _Pose initial, rest;
@@ -81,6 +87,7 @@ class _Spec {
   final Ease ease;
 }
 
+/// The poses of each [Motion]. The attention effects have none: they are drawn from the clock in the build.
 _Spec _spec(Motion kind) {
   const hidden = _Pose(opacity: 0), shown = _Pose();
   switch (kind) {
@@ -149,6 +156,9 @@ class GlacierMotion extends StatefulWidget {
 
 class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(vsync: this);
+
+  /// Whether the first entrance has been set off, the exit is playing, and the exit has finished (nothing is
+  /// built from then on).
   bool _started = false;
   bool _leaving = false;
   bool _gone = false;
@@ -175,6 +185,7 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
     }
   }
 
+  /// Puts the child at its first pose and plays the entrance, after [GlacierMotion.delay] where there is one.
   void _enter() {
     _controller.value = 0;
     _wait?.cancel();
@@ -185,6 +196,7 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
     }
   }
 
+  /// Starts the clock: once through for an entrance or a shake, round and round for pulse, bounce and shimmer.
   void _begin() {
     if (!mounted) return;
     final tokens = GlacierTheme.of(context);
@@ -209,8 +221,11 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
     }
   }
 
+  /// A looping effect's period, or no time at all under reduced motion.
   Duration _reduced(Tokens tokens, Duration looped) => tokens.reducedMotion ? Duration.zero : looped;
 
+  /// Plays the exit and then stops building the child and calls [GlacierMotion.onGone]; at once where the kind
+  /// has no exit. A child shown again before the exit ends is left alone.
   void _leave() {
     _wait?.cancel();
     final spec = _spec(widget.kind);

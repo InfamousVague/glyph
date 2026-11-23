@@ -19,10 +19,12 @@ import '../net/net.dart';
 import 'api.dart';
 import 'seal.dart';
 
+/// The phone's end of the link: one connection to the relay, kept up and made again while the choice is on.
 class ApiRemote {
   ApiRemote._();
   static final ApiRemote instance = ApiRemote._();
 
+  // The connection; the next try, and how many have failed; the secret and relay wanted now; whether the link is on.
   WebSocket? _ws;
   Timer? _retry;
   int _tries = 0;
@@ -57,6 +59,8 @@ class ApiRemote {
     return hub.endsWith('/hub') ? '${hub.substring(0, hub.length - 4)}/relay' : 'wss://gogho.st/relay';
   }
 
+  /// Brings the link in line with the person's choices: closed where off, made again where the secret or the relay
+  /// changed, left alone where it is as wanted.
   Future<void> apply(AppState app) async {
     final want = on(app);
     final conn = want ? connection(app) : null;
@@ -84,6 +88,7 @@ class ApiRemote {
     await ws?.close();
   }
 
+  /// Dials the secret's channel on the relay as its phone end, and says the token.
   Future<void> _connect(ApiSeal seal) async {
     if (!_wanted) return;
     state.value = 'connecting';
@@ -107,6 +112,8 @@ class ApiRemote {
     }
   }
 
+  /// What comes down the link. Text is the relay's own word (refused, or whether a client is there); bytes are a
+  /// client's sealed request, answered sealed.
   Future<void> _heard(WebSocket ws, ApiSeal seal, Object? data) async {
     if (data is String) {
       Map? m;
@@ -137,6 +144,7 @@ class ApiRemote {
     if (identical(_ws, ws)) ws.add(seal.seal(Uint8List.fromList(utf8.encode(jsonEncode(answer)))));
   }
 
+  /// The link went, or was never made: tried again after four seconds, then twice as long each time, a minute at most.
   void _lost(ApiSeal seal, WebSocket? ws, String why) {
     if (ws != null && !identical(_ws, ws)) return;
     _ws = null;

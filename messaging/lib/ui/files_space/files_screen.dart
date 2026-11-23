@@ -50,6 +50,7 @@ import '../space_invite.dart';
 import 'file_badge.dart';
 import 'file_preview.dart';
 
+/// The page of the Files space [channel]. It holds the space's room open while it shows, for its chat.
 class FilesSpaceScreen extends StatefulWidget {
   const FilesSpaceScreen({super.key, required this.channel, this.store});
   final VoiceChannel channel;
@@ -99,9 +100,11 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     super.dispose();
   }
 
+  // List or grid, and the order: kept among the app's choices, the same for every Files space.
   String _view(AppState? app) => app?.choice('files_view', 'list') ?? 'list';
   FilesSort _sort(AppState? app) => FilesSort.of(app?.choice('files_sort', 'newest'));
 
+  /// Upload: files chosen in the device's picker go up into the folder shown.
   Future<void> _pick() async {
     if (!_store.canUpload(_c)) {
       toast(context, 'Your role here can\'t add files.', tone: GlacierToastTone.danger);
@@ -118,6 +121,8 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     }
   }
 
+  /// Sends files picked or dropped up into the folder shown, where this person's role may add. The app's own copies
+  /// ([PickedFile.owned]) and the person's own files go up apart, so the store knows which it was handed.
   void _add(List<PickedFile> picked) {
     if (picked.isEmpty || !mounted) return;
     if (!_store.canUpload(_c)) {
@@ -134,6 +139,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
 
   void _menu(SpaceFile f) => showFileMenu(context, _c, f, store: _store, onOpen: () => _openFile(f), here: _folder);
 
+  /// Shows [folder] (null for the top), and puts any search away.
   void _go(String? folder) => setState(() {
         _folder = folder;
         _query = '';
@@ -517,6 +523,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
         );
       });
 
+  /// The grid view: [head] scrolling with it, then a tile for each folder and after them each file.
   Widget _grid(Tokens t, FilesSpace space, List<String> subs, List<SpaceFile> files, List<Widget> head, double bottom, bool searching) => CustomScrollView(
         key: const ValueKey('files-grid'),
         slivers: [
@@ -541,6 +548,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
         ],
       );
 
+  /// The sort control, which opens the orders to choose from: a button with the order's name, or [compact], an icon.
   Widget _sortButton(Tokens t, AppState? app, FilesSort sort, {bool compact = false}) {
     void pick() => showChoices(context, title: 'Sort files by', choices: [
           for (final s in FilesSort.values)
@@ -769,6 +777,7 @@ class FolderTile extends StatelessWidget {
 /// The widths of a wide list's columns after the name: size, who, when, folder.
 const _columnFlex = [2, 3, 2, 2];
 
+/// A wide list's cells after the name, one for each of [words], at the columns' widths: a row's, or the header's.
 List<Widget> _fileColumns(Tokens t, List<String> words, {bool header = false}) => [
       for (final (i, w) in words.indexed)
         Expanded(
@@ -1307,6 +1316,7 @@ void askFileWords(BuildContext context, {required String title, String initial =
   push<void>(context, (_) => _WordsPage(title: title, initial: initial, hint: hint, then: then));
 }
 
+/// The page [askFileWords] opens: one field and Done. An empty answer is not taken.
 class _WordsPage extends StatefulWidget {
   const _WordsPage({required this.title, required this.initial, required this.then, this.hint});
   final String title;

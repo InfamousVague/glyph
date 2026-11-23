@@ -33,7 +33,10 @@ const welcomeNoName = 'friend';
 /// Whether [space] is read-only.
 bool readOnlyOf(CircleSpace space) => space.extra['rdo'] == true;
 
+/// What a manifest says of its welcome and its system space, read from fields of its own that an older build keeps
+/// and passes on unread.
 extension CircleWelcome on CircleManifest {
+  /// The welcome's field (`wl`) as a map; empty where the manifest has none.
   Map<String, Object?> get _wl => extra['wl'] is Map ? (extra['wl'] as Map).cast<String, Object?>() : const {};
 
   /// The welcome's words, trimmed; '' where it has none.
@@ -124,10 +127,13 @@ enum SystemNoteKind {
   unadmin('u');
 
   const SystemNoteKind(this.wire);
+
+  /// Its letter where notes are kept; a letter this build doesn't know is no kind.
   final String wire;
   static SystemNoteKind? of(Object? w) => values.where((k) => k.wire == w).firstOrNull;
 }
 
+/// One line in a circle's system space: what happened, to whom, and when. Kept on this device (Circles._note).
 @immutable
 class CircleSystemNote {
   const CircleSystemNote({required this.kind, required this.id, required this.name, required this.at});

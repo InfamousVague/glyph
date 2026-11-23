@@ -113,6 +113,8 @@ final class UpdatesChannel: NSObject {
 
   // MARK: the channel
 
+  /// `installed` (this version, and where a download goes), `install` (check and unpack a download, off the main
+  /// thread: "ready", "manual: <why>", or why not) and `restart`.
   private func asked(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     switch call.method {
     case "installed":
@@ -149,11 +151,13 @@ final class UpdatesChannel: NSObject {
 
   // MARK: putting it in place
 
+  /// How unpacking ended: the new version waiting to be swapped in, or why the person must replace the app by hand.
   enum Staging {
     case ready(Staged)
     case manual(String)
   }
 
+  /// Why an update was not put in place, in words: they are the answer Dart gets.
   struct Refusal: Error, CustomStringConvertible {
     let description: String
     init(_ words: String) { description = words }
@@ -193,6 +197,7 @@ final class UpdatesChannel: NSObject {
     let folder = folder(beside: target)
     try? manager.removeItem(at: folder)
     try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+    // Every refusal from here takes the hidden folder with it: nothing half unpacked is left beside the app.
     func refuse(_ words: String) -> Refusal {
       try? manager.removeItem(at: folder)
       return Refusal(words)
@@ -253,6 +258,7 @@ final class UpdatesChannel: NSObject {
     return (info as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String
   }
 
+  /// Whether macOS marked [url] as downloaded (quarantined), which would have Gatekeeper ask before it opens.
   static func hasQuarantine(_ url: URL) -> Bool {
     getxattr(url.path, "com.apple.quarantine", nil, 0, 0, 0) >= 0
   }
@@ -361,6 +367,7 @@ final class UpdatesChannel: NSObject {
 
   // MARK: small things
 
+  /// Runs [tool] to its end, its output thrown away: its exit status, or -1 where it would not start.
   @discardableResult
   static func run(_ tool: String, _ arguments: [String]) -> Int32 {
     let process = Process()

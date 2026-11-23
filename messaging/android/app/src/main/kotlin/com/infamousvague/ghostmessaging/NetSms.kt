@@ -43,6 +43,7 @@ object NetSms {
         return telephony.simState == TelephonyManager.SIM_STATE_READY
     }
 
+    /** Sends [bytes] to [address] as one data text on [PORT]; 133 bytes at most, which is all one holds. */
     @Suppress("DEPRECATION")
     fun send(context: Context, address: String, bytes: ByteArray) {
         require(bytes.size <= 133) { "too long for a data text" }
@@ -64,6 +65,7 @@ object NetSms {
         }
     }
 
+    /** Holds a data text that came with nobody listening, for the screens to take when they are there. */
     private fun keep(context: Context, from: String, bytes: ByteArray) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         synchronized(this) {
@@ -74,6 +76,7 @@ object NetSms {
         }
     }
 
+    /** What is held, read back as who it is from, its bytes and when it came; those older than [KEEP_FOR] left out. */
     private fun kept(json: String?, now: Long): MutableList<Triple<String, ByteArray, Long>> {
         val out = mutableListOf<Triple<String, ByteArray, Long>>()
         if (json == null) return out

@@ -9,6 +9,7 @@ export const CODE_TTL_MS = 10 * 60 * 1000;
 /** Codes a server may have waiting at once; the oldest goes when a new one is made past it. */
 const PER_GUILD = 5;
 
+/** The codes waiting to be claimed. `now` and `ttl` are for tests. */
 export class Codes {
   constructor({ now = Date.now, ttl = CODE_TTL_MS } = {}) {
     this.now = now;
@@ -47,6 +48,7 @@ export class Codes {
     for (const [code, v] of this.byCode) if (v.guildId === guildId) this.byCode.delete(code);
   }
 
+  /** Expired codes forgotten; run before every read. */
   prune() {
     const t = this.now();
     for (const [code, v] of this.byCode) if (v.expires <= t) this.byCode.delete(code);

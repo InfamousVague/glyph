@@ -30,9 +30,13 @@ import 'narration.dart';
 @immutable
 class GuideLook {
   const GuideLook(this.hues, this.icon, this.tiles);
+
+  /// The names of the wash's colours (band.dart's guideHues), the first the page's own.
   final List<String> hues;
   final LucideIcon icon;
   final List<LucideIcon> tiles;
+
+  /// The page's own colour, the first hue's deep shade: its dot, its ticks and its buttons wear it.
   Color get hue => guideHues[hues.first]!.$1;
 }
 
@@ -88,6 +92,9 @@ Future<void> openOnboarding(BuildContext context) => Navigator.of(context, rootN
       ),
     );
 
+/// The walkthrough a new install opens with: its pages ([guidePages]) one at a time, each with its band, its words
+/// (read aloud where the voice is on) and its step. Shown by lib/main.dart until Ghost can send texts or they are
+/// passed by, and again from Settings › About ([replay]).
 class Onboarding extends StatefulWidget {
   const Onboarding({super.key, this.onDone, this.replay = false, this.voice = const GuideVoice(), this.initialStatus});
 
@@ -107,6 +114,8 @@ class Onboarding extends StatefulWidget {
 class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
   final PageController _pager = PageController();
   int _page = 0;
+
+  /// What the phone lets the app do, as last asked; null until it has answered.
   SmsStatus? _status;
 
   /// The voice, on unless switched off; kept, as Ghost.md keeps its own.
@@ -150,6 +159,8 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     }
   }
 
+  /// Asks the phone again what the app may do: as the walkthrough opens, and each time the app comes back from
+  /// Android's own pages, where it may have been made the texting app.
   Future<void> _look() async {
     try {
       final s = await Sms.instance.status();
@@ -157,6 +168,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  /// Reads the page's words aloud, where the voice is on.
   Future<void> _say() async {
     if (!mounted || !_voiceOn) return;
     await widget.voice.play(narrationAsset(guidePages[_page].$1));
@@ -186,6 +198,8 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     _page == guidePages.length - 1 ? _finish() : _go(_page + 1);
   }
 
+  /// The walkthrough is done: an install finishing it for the first time is marked to be asked for its username
+  /// and password next, and has seen every note of what's new up to this version.
   void _finish() {
     widget.voice.stop();
     if (!widget.replay && !AppState.of(context).flag('onboarded', fallback: false)) AppState.of(context).setFlag(accountDueKey, true);
@@ -277,6 +291,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     );
   }
 
+  /// One page: its band, its title, its words, and what is done on it.
   Widget _pageAt(BuildContext context, int i) {
     final t = context.tokens;
     final (id, title, look) = guidePages[i];

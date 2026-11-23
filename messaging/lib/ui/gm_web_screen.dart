@@ -39,6 +39,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
   Uint8List? _secret;
   String? _room;
   Uint8List? _key;
+  // The code last said in the room, so the same one is not said again each second.
   String? _sentQr;
   StreamSubscription<Object?>? _came;
 
@@ -58,6 +59,8 @@ class _GmWebScreenState extends State<GmWebScreen> {
 
   bool get _paired => _s['paired'] == true;
 
+  /// Asks the helper how it stands (each second while the page is open): a new code is said in the pairing room, and
+  /// once paired the room is told and left.
   Future<void> _look() async {
     try {
       final s = await Sms.instance.gmWebState();
@@ -102,6 +105,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
     if (mounted) setState(() => _s = s);
   }
 
+  /// Says [m] in the pairing room, sealed with the room's key; nothing where there is no room or no connection.
   void _say(Map<String, Object?> m) {
     final room = _room, key = _key, hub = Net.instance.hub;
     if (room == null || key == null || hub == null) return;
@@ -111,6 +115,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
     } catch (_) {}
   }
 
+  /// Leaves the pairing room and no longer asks the relay connection to stay up for it.
   void _endRoom() {
     _came?.cancel();
     final room = _room;
@@ -120,6 +125,8 @@ class _GmWebScreenState extends State<GmWebScreen> {
     unawaited(Net.instance.want('gmpair', false));
   }
 
+  /// The page to open on a computer to see the code: the room's secret is after the #, which is never sent to the
+  /// server.
   String? get _link => _secret == null ? null : 'https://gogho.st/pair/#${NetCrypto.hex(_secret!)}';
 
   @override

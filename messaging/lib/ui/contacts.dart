@@ -42,6 +42,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   String? _error;
   String _query = '';
   Timer? _debounce;
+  // Counts the searches begun, so an answer that comes after a newer search was asked is dropped.
   int _asked = 0;
   bool _opening = false;
 
@@ -60,6 +61,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     super.dispose();
   }
 
+  /// Asks the phone for the contacts that match [query] (all of them for an empty one).
   Future<void> _look(String query) async {
     final asked = ++_asked;
     try {
@@ -126,6 +128,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
+  /// Writes to [s] by the way [r]: their chat on a network, or the conversation with their number or username.
   void _reach(Someone s, Reach r) {
     final c = r.contact;
     if (c != null) {
@@ -159,6 +162,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     ]);
   }
 
+  /// A network's own mark by its id; the plain message icon for one not known here (texts).
   Widget _mark(String network, double size) {
     final n = Inbox.instance.named(network);
     return n == null ? AppIcon(Lucide.messageSquare, size: size) : inboxMark(n, size: size);
@@ -278,6 +282,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  /// The list of everyone blocked: in the pane in the app's frame, else a page over this one.
   void _openBlocked() {
     final shell = AppShell.maybeOf(context);
     if (shell != null) {

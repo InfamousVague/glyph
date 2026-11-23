@@ -11,6 +11,7 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
   private var playing: [AVAudioPlayer] = []
   private var looping: AVAudioPlayer?
 
+  /// The `ghost/sound` channel: play (a WAV's bytes, once or looped) and stop.
   func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "ghost/sound", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
@@ -29,6 +30,7 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
     }
   }
 
+  /// Plays the WAV in [data]; a looped one takes the place of the ring before it. One that can't be read is not heard.
   private func play(_ data: Data, loop: Bool) {
     guard let player = try? AVAudioPlayer(data: data) else { return }
     if loop {
@@ -43,6 +45,7 @@ final class Sounds: NSObject, AVAudioPlayerDelegate {
     player.play()
   }
 
+  /// Ends the ring; sounds played once run to their end.
   private func stop() {
     looping?.stop()
     looping = nil

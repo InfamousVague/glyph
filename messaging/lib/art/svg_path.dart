@@ -9,6 +9,7 @@ import 'dart:ui';
 Path parseSvgPath(String d) {
   final path = Path();
   var at = 0;
+  // Past spaces, commas and line ends: whatever stands between two numbers.
   void skip() {
     while (at < d.length) {
       final c = d.codeUnitAt(at);
@@ -20,6 +21,8 @@ Path parseSvgPath(String d) {
     }
   }
 
+  // The next number: a sign, digits with at most one point, and an exponent where digits follow its e. A second
+  // point or a sign starts the next number, as paths are written with nothing between ("1.5.5", "0-3").
   double number() {
     skip();
     final start = at;
@@ -57,6 +60,7 @@ Path parseSvgPath(String d) {
     return set;
   }
 
+  // A letter is a command, but for e and E, which belong to a number's exponent.
   bool isCommand(int c) => (c >= 0x41 && c <= 0x5a && c != 0x45) || (c >= 0x61 && c <= 0x7a && c != 0x65);
 
   var x = 0.0, y = 0.0, startX = 0.0, startY = 0.0;
@@ -153,6 +157,7 @@ Path parseSvgPath(String d) {
   return path;
 }
 
+/// The paths parsed so far, by the string each was written as: one kind filled the usual way, one even-odd.
 final Map<String, Path> _paths = {}, _evenOdd = {};
 
 /// No more paths than this are kept of either kind. The icons' own are a few hundred strings, there for good; a

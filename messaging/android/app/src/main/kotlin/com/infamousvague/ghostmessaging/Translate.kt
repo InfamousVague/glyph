@@ -78,6 +78,7 @@ object Translate {
         else -> throw IllegalArgumentException("Not something translation does: $op")
     }
 
+    /** The one language identifier, made the first time it is wanted. */
     private fun identifier(): LanguageIdentifier = identifier ?: synchronized(this) {
         // Every guess is wanted, however unsure: how sure is enough is decided below, by how long the text is.
         identifier ?: LanguageIdentification.getClient(LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.01f).build()).also { identifier = it }
@@ -90,6 +91,7 @@ object Translate {
      */
     private val aliases = mapOf("nb" to "no", "nn" to "no", "fil" to "tl", "iw" to "he", "in" to "id", "ji" to "yi")
 
+    /** A language tag as the models name it: "pt-BR" and "pt_BR" are "pt", and the [aliases] are followed. */
     private fun base(tag: String): String = tag.substringBefore('-').substringBefore('_').lowercase().let { aliases[it] ?: it }
 
     /** The phone's own language, as its base subtag ("en"). */
@@ -179,6 +181,7 @@ object Translate {
         return open
     }
 
+    /** A translator [take] handed out is done with: closed now if it was let go while in use. */
     @Synchronized
     private fun give(open: Open) {
         open.users--
@@ -195,6 +198,7 @@ object Translate {
         try { open.translator.close() } catch (_: Throwable) {}
     }
 
+    /** The languages whose models are on the phone; none where ML Kit does not say within five seconds. */
     private fun downloaded(): Set<String> = try {
         Tasks.await(RemoteModelManager.getInstance().getDownloadedModels(TranslateRemoteModel::class.java), 5, TimeUnit.SECONDS).map { it.language }.toSet()
     } catch (_: Throwable) { emptySet() }

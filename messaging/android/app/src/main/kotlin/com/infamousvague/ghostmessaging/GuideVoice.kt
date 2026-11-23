@@ -15,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel
 object GuideVoice {
     private var player: MediaPlayer? = null
 
+    /** The `ghost/guide` channel: play (an asset by its Flutter name) and stop. */
     fun register(context: Context, messenger: BinaryMessenger) {
         val app = context.applicationContext
         MethodChannel(messenger, "ghost/guide").setMethodCallHandler { call, result ->
@@ -26,10 +27,12 @@ object GuideVoice {
         }
     }
 
+    /** Plays [asset] in place of whatever was playing; false where it is missing or cannot be played. */
     @Synchronized
     private fun play(context: Context, asset: String): Boolean {
         stop()
         return runCatching {
+            // Where Flutter put the asset inside the APK.
             val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(asset)
             context.assets.openFd(key).use { fd ->
                 player = MediaPlayer().apply {

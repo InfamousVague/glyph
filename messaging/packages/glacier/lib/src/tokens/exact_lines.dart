@@ -53,6 +53,8 @@ class ExactLines extends SingleChildRenderObjectWidget {
     ..baseline = baseline;
 }
 
+/// [ExactLines]' render object: sizes itself to the child's lines at [lineHeight] each and paints, measures and
+/// hit-tests each line where that puts it.
 class RenderExactLines extends RenderProxyBox {
   RenderExactLines({required double lineHeight, double? baseline}) : _lineHeight = lineHeight, _baseline = baseline;
 
@@ -140,6 +142,8 @@ class RenderExactLines extends RenderProxyBox {
     return constraints.constrain(Size(dry.width, lines * _lineHeight));
   }
 
+  /// An intrinsic height of the child's as this box has it: its whole lines at [lineHeight] each, or unchanged
+  /// where it is not made of whole lines.
   double _scaled(double childHeight) {
     final drawn = _engineLine(childHeight);
     final lines = drawn > 0 ? (childHeight / drawn).round() : 0;

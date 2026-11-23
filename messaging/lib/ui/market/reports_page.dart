@@ -22,6 +22,7 @@ import 'market_forms.dart';
 /// Who sent a report, as the reviewer reads it.
 String reporterWords(ReportView r) => r.username == null ? 'No username' : '@${r.username} (${r.verified ? 'verified' : 'not verified'})';
 
+/// The reviewer's list of reports, each with a way to mark it done.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, this.api, this.ask});
 
@@ -60,6 +61,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  /// Marks [r] dealt with; where the relay wants a fresh admin sign-in, signs in over this page and tries again.
   Future<void> _done(ReportView r) async {
     setState(() => _busy.add(r.rid));
     try {

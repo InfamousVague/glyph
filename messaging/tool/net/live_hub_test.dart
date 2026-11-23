@@ -17,12 +17,14 @@ import 'package:ghost_messaging/net/switchboard.dart';
 /// come, one passed while both are there, and a room joined and left.
 const hub = String.fromEnvironment('HUB');
 
+/// The peers an install knows, by id alone: all this test's switchboards ask of an address book.
 class _Book implements PeerBook {
   final Map<String, Peer> all = {};
   @override
   Peer? byId(String id) => all[id];
 }
 
+/// Starts a carrier and gives it ten seconds to reach the hub; fails with the carrier's own reason if it does not.
 Future<void> _up(HubCarrier c) async {
   await c.start();
   for (var i = 0; i < 400 && c.state.value != CarrierState.up; i++) {

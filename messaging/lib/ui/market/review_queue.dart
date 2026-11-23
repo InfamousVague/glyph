@@ -36,6 +36,7 @@ String reviewRowHint(ReviewRow r, {String? current}) => [
       if (r.blocked) 'developer blocked',
     ].join(' · ');
 
+/// The queue's page: its submissions in groups by where they stand, each opening its review, and the reports.
 class ReviewQueueScreen extends StatefulWidget {
   const ReviewQueueScreen({super.key, this.api, this.ask});
 

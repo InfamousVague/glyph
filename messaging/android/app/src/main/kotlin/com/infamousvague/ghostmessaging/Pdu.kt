@@ -72,6 +72,7 @@ object Pdu {
         else -> Charsets.UTF_8
     }
 
+    /** One part of a multipart body: a text, a picture, the SMIL layout. [charset] is an IANA MIBenum (106: UTF-8). */
     class Part(
         val contentType: String,
         val data: ByteArray,
@@ -85,6 +86,7 @@ object Pdu {
         fun text(): String = String(data, charsetOf(charset))
     }
 
+    /** A message as read: [type] is one of the message types above, and only the headers that kind carries are set. */
     class Message(
         val type: Int,
         val transactionId: String? = null,
@@ -109,12 +111,14 @@ object Pdu {
 
     // --- reading -----------------------------------------------------------------------------------------------------
 
+    /** Reads WSP's value forms out of [b], moving [i] past each one read. */
     private class Reader(val b: ByteArray) {
         var i = 0
         fun more() = i < b.size
         fun u8(): Int = b[i++].toInt() and 0xFF
         fun peek(): Int = b[i].toInt() and 0xFF
 
+        /** A variable-length integer: seven bits a byte, most significant first, the high bit on all but the last. */
         fun uintvar(): Int {
             var v = 0
             while (true) {
@@ -130,6 +134,7 @@ object Pdu {
             return if (c < 31) c else if (c == 31) uintvar() else throw IllegalStateException("not a value length: $c")
         }
 
+        /** A NUL-terminated text, read as UTF-8, without the marks WSP may put in front of it. */
         fun text(): String {
             if (more() && peek() == 0x7F) i++ // Quote: the text starts with a byte >= 128
             if (more() && peek() == 0x22) i++ // Quoted-string's leading quote
@@ -213,8 +218,13 @@ object Pdu {
         }
     }
 
+    /** An address as people write it: "+15551234567/TYPE=PLMN" on the wire is "+15551234567". */
     private fun bareAddress(a: String): String = a.substringBefore("/TYPE=").trim()
 
+    /**
+     * Reads a whole MMS message: its headers, then, after the content type, the parts of a multipart body. Headers it
+     * does not know are skipped by the general rule; bytes cut short may throw, which is the caller's to catch.
+     */
     fun parse(bytes: ByteArray): Message {
         val r = Reader(bytes)
         var type = 0
@@ -257,6 +267,7 @@ object Pdu {
                     val len = r.valueLength()
                     val end = r.i + len
                     val token = r.u8()
+                    // 0x80: an address follows. 0x81: the MMSC is to fill in the sender, and nothing follows.
                     if (token == 0x80 && r.i < end) from = bareAddress(r.encodedString())
                     r.i = end
                 }
@@ -275,6 +286,8 @@ object Pdu {
     private fun parseMultipart(r: Reader): List<Part> {
         val out = mutableListOf<Part>()
         if (!r.more()) return out
+        // A count, then for each part: the length of its headers, the length of its data, the headers (content type
+        // first), the data.
         val count = r.uintvar()
         repeat(count) {
             if (!r.more()) return out
@@ -308,6 +321,7 @@ object Pdu {
 
     // --- writing -----------------------------------------------------------------------------------------------------
 
+    /** Writes the same value forms the [Reader] reads. */
     private class Writer {
         val o = ByteArrayOutputStream()
         fun u8(v: Int) = o.write(v and 0xFF)
@@ -329,8 +343,10 @@ object Pdu {
         fun toByteArray(): ByteArray = o.toByteArray()
     }
 
+    /** WSP's one-byte code for a content type, where it has one. */
     private fun wellKnown(type: String): Int? = CONTENT_TYPES.entries.firstOrNull { it.value == type }?.key
 
+    /** A part's content type in the general form: the type, UTF-8 as the charset of a text, and the part's name. */
     private fun Writer.partContentType(part: Part) {
         val inner = Writer()
         val code = wellKnown(part.contentType)
@@ -410,6 +426,7 @@ object Pdu {
         return w.toByteArray()
     }
 
+    /** An address as the MMSC wants it: an email address as it is, a phone number as its digits marked "/TYPE=PLMN". */
     private fun addressForWire(a: String): String {
         if (a.contains('@')) return a
         val digits = a.filter { it.isDigit() || it == '+' }

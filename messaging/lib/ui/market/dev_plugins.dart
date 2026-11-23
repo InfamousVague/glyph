@@ -124,6 +124,7 @@ List<Widget> devPluginsPane(BuildContext context, AppState app, {PluginRegistry?
   ];
 }
 
+/// Loads a plugin in development from a file the person picks.
 Future<void> _fromFile(BuildContext context) async {
   final PickedPlugin? picked;
   try {
@@ -136,6 +137,7 @@ Future<void> _fromFile(BuildContext context) async {
   await loadDevPlugin(context, () => InstalledPlugins.instance.loadDev(picked!.bytes, DevSource('file', path: picked.path, name: picked.name)));
 }
 
+/// Loads a plugin in development from the words on the clipboard.
 Future<void> _pasted(BuildContext context) async {
   final data = await Clipboard.getData('text/plain');
   final text = data?.text?.trim() ?? '';

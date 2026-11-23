@@ -27,6 +27,7 @@ const fail = (why) => {
   console.error(`x ${why}`);
   process.exit(1);
 };
+/** Runs a command and gives back what it printed, trimmed; stops everything if it fails. */
 const run = (cmd, args, opts = {}) => {
   const r = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
   if (r.status !== 0) fail(`${cmd} ${args.join(' ')} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 400)}`);
@@ -46,6 +47,10 @@ function mirror(from, files, to) {
   }
 }
 
+/**
+ * Makes the public [repo] hold exactly [files] of [from], as one commit named [message] pushed to its main. The
+ * checkout is kept in build/public between runs. With nothing changed nothing is committed; a dry run only lists.
+ */
 function publish(repo, from, files, message) {
   const at = join(ROOT, 'build/public', repo.split('/')[1]);
   if (!existsSync(join(at, '.git'))) {
@@ -79,6 +84,7 @@ const tar = spawnSync('git', ['archive', '--format=tar', 'HEAD', '.'], { cwd: RO
 if (tar.status !== 0) fail(`git archive failed: ${tar.stderr}`);
 const untar = spawnSync('tar', ['-x', '-C', snapshot], { input: tar.stdout });
 if (untar.status !== 0) fail(`tar failed: ${untar.stderr}`);
+/** The files committed at HEAD under [dir], by their paths from it. */
 const listed = (dir) => run('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD', '.'], { cwd: dir }).split('\0').filter(Boolean);
 
 // The whole app, as committed.

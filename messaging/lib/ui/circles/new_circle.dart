@@ -183,6 +183,7 @@ class SpaceKindCards extends StatelessWidget {
   }
 }
 
+/// One kind's card: its mark, its name and what it is for.
 class _KindCard extends StatelessWidget {
   const _KindCard({required this.kind, required this.chosen, required this.tall, required this.onPress});
   final SpaceKind kind;
@@ -305,6 +306,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
   String? _picture;
   // The two spaces a circle starts with (Circles.make's own): one to text in, one to talk in.
   final _spaces = [_Draft('General', SpaceKind.text), _Draft('Lounge', SpaceKind.voice)];
+  // The ids of the friends ticked to bring.
   final Set<String> _with = {};
   bool _making = false;
 
@@ -322,6 +324,8 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
     super.dispose();
   }
 
+  /// Makes the circle with its drafted spaces (one with no name goes by its kind's), shares it with the friends
+  /// ticked, says how that went, and opens it.
   Future<void> _make() async {
     if (_making) return;
     setState(() => _making = true);
@@ -353,6 +357,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
     }
   }
 
+  /// A drafted space's menu: rename it, make it another kind, or leave it out.
   void _spaceMenu(_Draft d) {
     showChoices(context, title: '${d.name} · ${spaceKindTitle(d.kind)}', choices: [
       Choice('Rename', Lucide.pencil, () => askCircleWords(context, title: 'Rename ${d.name}', initial: d.name, then: (n) => setState(() => d.name = n))),
@@ -368,6 +373,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
     ]);
   }
 
+  /// The name a space added here starts with, by its kind.
   static String _firstName(SpaceKind k) => switch (k) {
         SpaceKind.voice => 'Voice',
         SpaceKind.text => 'Chat',
@@ -485,6 +491,8 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
     super.dispose();
   }
 
+  /// Adds the space to the circle as it stands now: by its kind's name where none is typed, and marked as an SMS
+  /// space, texted for by this phone, where that was chosen and this phone can.
   Future<void> _add() async {
     if (_adding) return;
     setState(() => _adding = true);
@@ -779,6 +787,7 @@ void askCircleWords(BuildContext context, {required String title, String initial
   unawaited(push<void>(context, (_) => _WordsPage(title: title, initial: initial, hint: hint, then: then)));
 }
 
+/// The page [askCircleWords] opens: one field and Done. With a [hint], leaving it empty is an answer too.
 class _WordsPage extends StatefulWidget {
   const _WordsPage({required this.title, required this.initial, required this.then, this.hint});
   final String title;

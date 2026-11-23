@@ -47,6 +47,8 @@ class StandaloneCalls implements SmsCalls {
   /// Where the JSON, the identity's key and the secrets are kept (store.dart).
   final StandaloneStore store;
 
+  /// Who this iPhone is, once [load] has run; the person's choices; and the friends by username, as the JSON
+  /// [Buddies] gave to be kept.
   NetKeys? _keys;
   Map<String, String> _prefs = {};
   String _buddies = '[]';
@@ -134,6 +136,7 @@ class StandaloneCalls implements SmsCalls {
     return made;
   }
 
+  /// The write before this one: each waits for the last, so the file is never written by two at once.
   Future<void> _last = Future.value();
 
   /// Nothing more is kept ([close], or everything here wiped): what is asked to be written after is let go.
@@ -202,6 +205,7 @@ class StandaloneCalls implements SmsCalls {
     return (await _answer(method, a)) as T?;
   }
 
+  /// Answers one of the phone's calls by its name, in the shape the phone answers in.
   Future<Object?> _answer(String method, Map a) async {
     int thread() => (a['thread'] as num).toInt();
     switch (method) {

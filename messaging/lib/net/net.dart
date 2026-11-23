@@ -170,6 +170,9 @@ class Net extends ChangeNotifier implements PeerBook {
 
   /// Goes up whenever anyone's presence on the hub changes (HubCarrier.presence).
   final ValueNotifier<int> presence = ValueNotifier(0);
+
+  // Whether the app is put away, and the names watched beside the phone's own people: told to each hub route as it
+  // is made.
   bool _away = false;
   final Set<String> _alsoWatch = {};
 
@@ -179,6 +182,7 @@ class Net extends ChangeNotifier implements PeerBook {
     _p2p?.presenceChanged();
   }
 
+  /// [hub], set up for presence: listened to, told whether the app is away, and asked about the extra names.
   HubCarrier _presenceOf(HubCarrier hub) {
     hub.presence.addListener(_presenceChanged);
     hub.awayNow = _away;
@@ -265,6 +269,7 @@ class Net extends ChangeNotifier implements PeerBook {
   // "@friend". The first address that matched sent a friend's words to that member. Who an address is, is the record
   // for it to say (Friends.idOf, by the id its key makes), and the routes are asked by that id ([byId]).
 
+  /// Notes something the routes did, for Settings › Network; the newest thirty are kept.
   void _note(String words, {String? via}) {
     recent.insert(0, NetEvent(words, via: via));
     if (recent.length > 30) recent.removeLast();
@@ -456,6 +461,7 @@ class Net extends ChangeNotifier implements PeerBook {
     });
   }
 
+  /// Reads from the phone who the routes reach, each with their name as the contacts have it.
   Future<void> _readPeers() async {
     final list = await Sms.instance.netPeers();
     final found = <String, Peer>{};
@@ -593,12 +599,14 @@ class Net extends ChangeNotifier implements PeerBook {
     }
   }
 
+  /// Turns the whole network on or off, and keeps the choice.
   Future<void> setOn(bool value) async {
     _app?.setFlag('net_on', value);
     await _apply();
     notifyListeners();
   }
 
+  /// Switches the route [id] on or off, and keeps the choice.
   Future<void> setRoute(String id, bool value) async {
     final board = _board;
     if (board == null) return;
@@ -740,6 +748,7 @@ class _PhoneSigner implements NetSigner {
   Future<Uint8List> sign(List<int> message) => Sms.instance.netSign(message);
 }
 
+/// Data texts by the phone's native side, for the SMS route.
 class _PhoneSms implements SmsBridge {
   @override
   Future<bool> available() => Sms.instance.netSmsAvailable();

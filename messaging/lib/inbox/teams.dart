@@ -47,11 +47,13 @@ class Teams extends InboxNetwork {
   @override
   final bool soon;
 
+  // What Ghost asks leave to do, the page the code is typed on, and how often the chats and the open one are asked for.
   static const scopes = 'offline_access User.Read Chat.ReadWrite ChatMessage.Send';
   static const devicePage = 'https://microsoft.com/devicelogin';
   static const _idle = Duration(seconds: 30);
   static const _open = Duration(seconds: 6);
 
+  // What the page says for the two refusals that are not the person's mistake.
   static const workOnly = 'Microsoft Teams works with work and school accounts only. Personal Microsoft accounts (Teams free) can\'t be read by other apps.';
   static const adminNeeded = 'Your organisation needs its IT admin to approve Ghost Messaging before you can sign in. Ask them to allow it in Microsoft Entra, then try again.';
 
@@ -77,6 +79,7 @@ class Teams extends InboxNetwork {
 
   List<InboxChat> _chats = const [];
   final Map<String, List<InboxMessage>> _messages = {};
+  /// Each chat's link to the page of messages before the oldest held, as Graph gave it; null once there are none.
   final Map<String, String?> _olderLink = {};
 
   /// Pictures in messages (a hosted content's address), by the number [InboxMedia.fileId] gives them, and where each
@@ -167,11 +170,14 @@ class Teams extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Asks again, [every] from now, whether the code has been approved.
   void _schedulePoll(String device, Duration every) {
     _codePoll?.cancel();
     _codePoll = Timer(every, () => _poll(device, every));
   }
 
+  /// One asking of Microsoft whether the person has approved the code yet: a token where they have, another wait
+  /// where they haven't, the sign-in ended where the code ran out or was refused.
   Future<void> _poll(String device, Duration every) async {
     if (_state != InboxState.signingIn || _code == null) return;
     final Map r;
@@ -236,6 +242,7 @@ class Teams extends InboxNetwork {
     return desc.isNotEmpty ? desc.split('\r\n').first : 'Microsoft refused the sign-in ($err).';
   }
 
+  /// Takes a token answer: the access token and when it runs out, and a new refresh token where one came.
   void _took(Map r) {
     _access = r['access_token'] as String?;
     final refresh = r['refresh_token'] as String?;
@@ -244,6 +251,7 @@ class Teams extends InboxNetwork {
     _accessUntil = DateTime.now().add(Duration(seconds: _int(r['expires_in'], 3600) - 60));
   }
 
+  /// Saves what signs in again next time: the refresh token and who signed in, never the access token.
   void _save() => _app?.set('teams_session', jsonEncode({'refresh': _refresh, 'me': _me, 'tenant': _tenant, 'account': _account}));
 
   /// An access token that has not run out, from the refresh token where it has.
@@ -291,6 +299,7 @@ class Teams extends InboxNetwork {
     notifyListeners();
   }
 
+  /// Signed in: the chats are asked for now and every [_idle] after.
   void _ready() {
     _state = InboxState.ready;
     _error = null;
@@ -338,6 +347,7 @@ class Teams extends InboxNetwork {
     }
   }
 
+  /// A chat as Graph lists it, with its members. Learns this account's tenant from its own membership on the way.
   InboxChat? _chat(Map c) {
     final cid = c['id'] as String?;
     if (cid == null) return null;
@@ -396,6 +406,7 @@ class Teams extends InboxNetwork {
     }
   }
 
+  /// A message as Graph gives it; null for a deleted one, or an event Graph doesn't describe.
   InboxMessage? _message(String chatId, Map p) {
     final mid = p['id'] as String?;
     if (mid == null || p['deletedDateTime'] != null) return null;
@@ -454,8 +465,11 @@ class Teams extends InboxNetwork {
     );
   }
 
+  /// The number a hosted picture goes by ([InboxMedia.fileId]): its address's hash, kept to 30 bits so it is never
+  /// negative.
   static int _fileId(String url) => url.hashCode & 0x3fffffff;
 
+  /// Graph's reactions, one a person, counted into one a kind, with this account's marked.
   List<InboxReaction> _reactions(List? raw) {
     final counts = <String, int>{};
     final mine = <String>{};
@@ -471,6 +485,7 @@ class Teams extends InboxNetwork {
   static const _named = {'like': '👍', 'heart': '❤️', 'laugh': '😂', 'surprised': '😮', 'sad': '😢', 'angry': '😡'};
   static String _emoji(String type) => _named[type] ?? type;
 
+  /// A system message's event in a line ("Ana joined", "Call ended"); null for a kind not written out here.
   static String? _event(Map? e) {
     if (e == null) return null;
     final kind = '${e['@odata.type'] ?? ''}';
@@ -559,6 +574,7 @@ class Teams extends InboxNetwork {
   @override
   Future<void> reply(String chatId, String messageId, String text) => _send(chatId, text, replyTo: messageId);
 
+  /// Sends [text], as a reply to [replyTo] where given: shown at once as "sending", then as Graph has it, or "failed".
   Future<void> _send(String chatId, String text, {String? replyTo}) async {
     text = text.trim();
     if (text.isEmpty || _state != InboxState.ready) return;
@@ -633,6 +649,7 @@ class Teams extends InboxNetwork {
     notifyListeners();
   }
 
+  /// [now] with this account's [emoji] put on or taken off: what is shown at once, before Graph answers.
   static List<InboxReaction> _changed(List<InboxReaction> now, String emoji, bool remove) {
     final out = <InboxReaction>[];
     var found = false;
@@ -734,9 +751,11 @@ class Teams extends InboxNetwork {
   /// examples write them; anything else unsafe is escaped.
   static String _seg(String id) => Uri.encodeComponent(id).replaceAll('%3A', ':').replaceAll('%40', '@');
 
+  // Graph's time (ISO 8601) as local time, and a number that may have come as a string.
   static DateTime? _date(Object? s) => s is String ? DateTime.tryParse(s)?.toLocal() : null;
   static int _int(Object? v, int fallback) => v is int ? v : int.tryParse('${v ?? ''}') ?? fallback;
 
+  /// What went wrong, in words for the page.
   static String _plain(Object e) {
     if (e is _Said) return e.message;
     if (e is _Status) {
@@ -778,6 +797,7 @@ class TeamsCode {
   final DateTime until;
 }
 
+/// An answer of 400 or more: its status, and Graph's error code and message.
 class _Status implements Exception {
   const _Status(this.code, this.error, this.message);
   final int code;
@@ -786,6 +806,7 @@ class _Status implements Exception {
   String toString() => 'Microsoft Graph $code ${error ?? ''} ${message ?? ''}'.trim();
 }
 
+/// A failure already in words for the person.
 class _Said implements Exception {
   const _Said(this.message);
   final String message;

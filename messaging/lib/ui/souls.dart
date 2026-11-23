@@ -88,6 +88,7 @@ class _SoulsChipState extends State<SoulsChip> {
     super.dispose();
   }
 
+  /// Says a gift that came (souls, souls taken back, or a badge) in a toast, once: the gift is cleared as it is read.
   void _gift() {
     if (!mounted || Me.instance.gifts.value.isEmpty) return;
     final all = Me.instance.takeGifts();
@@ -216,6 +217,7 @@ Future<void> showSouls(BuildContext context) {
   ));
 }
 
+/// The sheet [showSouls] slides up from the foot of the screen.
 class SoulsSheet extends StatelessWidget {
   const SoulsSheet({super.key});
 

@@ -21,6 +21,7 @@ import 'plugin_art.dart';
 /// The hues the band runs through, top start to bottom end (Ghost.md's Market band, by name rather than hex).
 const List<String> bandHues = ['indigo', 'purple', 'rose', 'orange'];
 
+/// The band itself, at the top of the page's list.
 class PluginsBand extends StatelessWidget {
   const PluginsBand({super.key, required this.plugins, required this.added, required this.line, required this.wide, this.compact = false});
 

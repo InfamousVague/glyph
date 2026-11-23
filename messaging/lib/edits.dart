@@ -4,8 +4,10 @@ import 'sms.dart';
 /// follow-up text after this.
 const correctionPrefix = 'Correction: ';
 
+/// The follow-up text for a message edited to say [body].
 String correctionText(String body) => '$correctionPrefix$body';
 
+/// What [foldCorrections] makes of a conversation.
 class EditFold {
   const EditFold({required this.messages, required this.corrected});
 

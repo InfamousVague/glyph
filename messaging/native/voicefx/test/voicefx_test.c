@@ -6,9 +6,11 @@
 
 #include "voicefx.h"
 
+/* CHECK prints what was checked, as "ok" or "FAIL", and counts the failures: the test goes on past one. */
 static int failed = 0;
 #define CHECK(c, ...) do { if (!(c)) { failed++; printf("FAIL: "); printf(__VA_ARGS__); printf("\n"); } else { printf("ok: "); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
+/* White noise, -1 to 1. */
 static float noise(void) { return ((float)rand() / (float)RAND_MAX * 2 - 1); }
 
 /* The energy of white noise left after [blocks] blocks at [rate], the first second let settle. */

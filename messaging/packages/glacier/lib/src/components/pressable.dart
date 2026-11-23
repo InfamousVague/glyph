@@ -87,6 +87,7 @@ class _GlacierPressableState extends State<GlacierPressable> {
     if (mounted) setState(change);
   }
 
+  /// Takes a pointer's coming or going. A disabled control tells its listener only of the going.
   void _hover(bool on) {
     if (on == _hovered) return;
     _set(() => _hovered = on);
@@ -101,6 +102,7 @@ class _GlacierPressableState extends State<GlacierPressable> {
   Timer? _hold;
   bool _held = false;
 
+  /// Starts timing a finger's hold: past the long-press time it is marked held, and its lift is no tap.
   void _watchHold() {
     _endHold();
     if (!_touch || widget.onLongPress != null) return;
@@ -119,6 +121,7 @@ class _GlacierPressableState extends State<GlacierPressable> {
     super.dispose();
   }
 
+  /// The gesture's tap: the press, unless the finger was held too long.
   void _tapped() {
     final held = _held;
     _endHold();
@@ -234,6 +237,7 @@ class _GlacierFocusRingState extends State<GlacierFocusRing> {
   }
 }
 
+/// Strokes the ring [offset] outside the child's box, its corners rounded to match.
 class _RingPainter extends CustomPainter {
   _RingPainter(this.color, this.radius, this.offset, this.width);
   final Color color;
