@@ -113,6 +113,16 @@ void main() {
       await pumpEventQueue();
       expect(h.answerTo(n), {'nak': n, 'err': 'big'});
       expect(h.answerTo(m), {'ack': m, 'here': true});
+      // A frame far past what any packet can be: the link is closed, and nothing more is read from that relay.
+      h.socket.add(Uint8List.fromList([Federation.toRelay, 0, 0, 0, 9, ...unhex(bob.id), ...unhex(pat.id), ...List.filled(Hub.maxPacket + 300, 1)]));
+      await pumpEventQueue();
+      expect([h.socket.isOpen, b.fed.linkedWith(h.id), h.answerTo(9)], [false, false, isNull]);
+      // And words far longer than anything a link says.
+      final talker = HandRelay();
+      await talker.link(b);
+      talker.socket.add(jsonEncode({'fed': 'home', 'rec': 'x' * 70000}));
+      await pumpEventQueue();
+      expect([talker.socket.isOpen, b.fed.linkedWith(talker.id)], [false, false]);
     });
 
     test('a link nothing has crossed for ten minutes is closed, and opened again when next needed', () async {

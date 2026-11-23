@@ -190,7 +190,7 @@ String? canonicalHub(String address) {
 ///
 /// Of two records for one account the higher count is held, whoever gave it; nothing here is ever made by the relay.
 class HomeBook {
-  HomeBook({this.file, this.maxOwn = 50000, this.maxOthers = 20000});
+  HomeBook({this.file, this.maxOwn = 20000, this.maxOthers = 10000});
 
   /// Where the relay's own people's records are kept; null keeps nothing across restarts.
   final File? file;

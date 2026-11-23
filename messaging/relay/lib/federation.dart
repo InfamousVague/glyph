@@ -190,7 +190,7 @@ class Federation {
     this.maxPeers = 256,
     this.queuePackets = 2000,
     this.queueBytes = 16 << 20,
-    this.queuedBytes = 64 << 20,
+    this.queuedBytes = 32 << 20,
     this.checksAnHour = 600,
     this.checksASecond = 20,
     this.hellosAMinute = 30,
@@ -1077,7 +1077,11 @@ class Federation {
   /// [peer]'s address turned out to be this relay's own: remembered, and what waited for it is handed over here.
   void _isMe(_Peer peer) {
     final url = '${peer.url}';
+    _selfUrls.remove(url);
     _selfUrls[url] = _now();
+    while (_selfUrls.length > 256) {
+      _selfUrls.remove(_selfUrls.keys.first);
+    }
     peer.dialling = false;
     for (final out in peer.queue.toList()) {
       _dequeue(out);
@@ -1227,6 +1231,11 @@ class Federation {
   }
 
   void _heard(_Link link, Object? data) {
+    // Far past anything a link carries: not a relay that keeps the rules, and nothing more is read from it.
+    if ((data is List<int> && data.length > Hub.maxPacket + 256) || (data is String && data.length > 65536)) {
+      link.socket.close(WebSocketStatus.messageTooBig, 'too big');
+      return _lost(link);
+    }
     if (data is List<int>) {
       if (data.isEmpty) return;
       if (data[0] == toRelay) return _took(link, data, 37, null);

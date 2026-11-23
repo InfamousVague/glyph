@@ -50,7 +50,7 @@ everyone on the same relay), and its people can now also be friends with people 
 - **What it sees more:** which of its people talk to people on which other relay, and when. Still never what.
 - **What it keeps more:** its own key (`relay-key.json`: keep it private, and keep it; it is who your relay is to the
   others) and the records its people gave it (`homes.json`). With another relay unreachable, packets for it wait in
-  memory (at most 16 MB a relay, 64 MB in all, seven days).
+  memory (at most 16 MB a relay, 32 MB in all, seven days).
 - **Moving.** Someone who moves to another relay signs a record with the next count; their app gives it to the relay
   they leave and the one they join, and tells their friends a few at a time. The relay they left tells any relay that
   still sends it their packets where they live now.

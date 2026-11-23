@@ -133,6 +133,36 @@ void main() {
     expect(maya.texts.single.text, 'still here');
   });
 
+  test('a relay that no longer holds a friend\'s record (it keeps only so many) is told again when it only keeps a packet for them', () async {
+    // Alex's relay holds one record of people on other relays, no more.
+    net = RelayNet();
+    a = net.relay('a.test', maxOthers: 1);
+    b = net.relay('b.test');
+    final c = net.relay('c.test');
+    final alex = await app('alex', a), maya = await app('maya', b), zoe = await app('zoe', c);
+    for (final (who, at) in [(maya, 'maya@b.test'), (zoe, 'zoe@c.test')]) {
+      await alex.buddies.add(at);
+      await until(() => who.buddies.requests.isNotEmpty, 'the request never arrived');
+      await who.buddies.accept(who.buddies.requests.single);
+      await until(() => alex.buddies.byId(who.id)?.state == 'yes', 'they never became friends');
+    }
+    // Something is written to Zoe, so hers is the one record the relay holds; Maya's is the one let go.
+    expect((await alex.write(zoe, 'hello')).acked, isTrue);
+    await until(() => net.feds[a.url]!.homes.of(maya.id) == null || net.feds[a.url]!.homes.of(zoe.id) != null, 'the relay never settled');
+    if (net.feds[a.url]!.homes.of(maya.id) != null) {
+      // (Whichever it kept, the other is the one tried: the two are the same case.)
+      expect(net.feds[a.url]!.homes.of(zoe.id), isNull);
+    }
+    final gone = net.feds[a.url]!.homes.of(maya.id) == null ? maya : zoe;
+    final first = await alex.write(gone, 'are you there');
+    expect([first.handed, alex.hub.passedOn(gone.id)], [Handed.held, false], reason: 'the relay kept it here: it did not know where they live');
+    // The app heard that, and said their record again: the next is passed on.
+    await until(() => net.feds[a.url]!.homes.of(gone.id) != null, 'the relay was not told again');
+    final second = await alex.write(gone, 'now');
+    expect([second.handed, second.acked, alex.hub.passedOn(gone.id)], [Handed.passed, true, true]);
+    expect(gone.texts.map((t) => t.text), contains('now'));
+  });
+
   test('a friend\'s forged or older record is ignored, and a newer one of their own is taken', () async {
     final (alex, maya) = await friends();
     final held = Map.of(maya.friend.home!);

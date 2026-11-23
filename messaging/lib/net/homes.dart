@@ -101,6 +101,7 @@ class Homes extends ChangeNotifier {
     detach();
     _hub = hub;
     hub.onSignIn = _first;
+    hub.onKeptHere = _keptHere;
     _sub = hub.homes.listen(_heard);
     hub.state.addListener(_state);
     _state();
@@ -110,6 +111,7 @@ class Homes extends ChangeNotifier {
     final hub = _hub;
     if (hub == null) return;
     if (identical(hub.onSignIn, _first)) hub.onSignIn = null;
+    if (identical(hub.onKeptHere, _keptHere)) hub.onKeptHere = null;
     hub.state.removeListener(_state);
     _sub?.cancel();
     _sub = null;
@@ -234,6 +236,22 @@ class Homes extends ChangeNotifier {
 
   /// [id] is no longer a friend: their record is no longer given.
   void forget(String id) => _friends.remove(id);
+
+  final Map<String, DateTime> _saidAgain = {};
+
+  /// The relay only kept a packet here for [id], who lives on another relay: it no longer holds their record (it
+  /// keeps only so many of other relays' people, and forgets them when it starts again). Said again, at most once a
+  /// minute for one friend, so what is sent next is passed on; what friends write is sent again until it is answered
+  /// (lib/friends/friends.dart), so nothing written is lost by it.
+  void _keptHere(String id) {
+    final rec = _friends[id];
+    if (rec == null || !_up || !relayTalks || !_elsewhere(rec)) return;
+    final now = _now(), last = _saidAgain[id];
+    if (last != null && now.difference(last) < const Duration(minutes: 1)) return;
+    _saidAgain[id] = now;
+    _saidAgain.removeWhere((k, _) => !_friends.containsKey(k));
+    _hub!.sayHandles({'dir': 'home', 'rec': rec});
+  }
 
   void _heard(Map<String, dynamic> m) {
     if (m['dir'] != 'home') return;

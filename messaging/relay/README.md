@@ -66,8 +66,8 @@ What an app says of them over its hub connection:
 | `{"dir":"whois","name":"maya","at":"relay.example"}` | `{"dir":"whois","name","at","id","key","home": her record where that relay holds one}`; or `"none":true`, with `"why"` where it is not that nobody has the name: `off` (this relay doesn't talk to that one), `refused` (that one won't), `down`, `busy`. An `at` that is this relay itself is an ordinary lookup, answered with `"at"` and `"here":true` |
 | `[1][number][to][packet]` to someone who lives elsewhere | `{"ack": number,"here": bool,"fed":true}` (what their relay said, or `false` where it waits here), or `{"nak": number,"err"}`: `full`, `far` (their relay is one this relay can't or won't pass to), `refused` |
 
-Records of people who gave theirs here themselves are kept in `homes.json` (the newest 50,000 given); others' (a
-friend's, one another relay gave) are the 20,000 used most lately, in memory. An install may have 600 records checked
+Records of people who gave theirs here themselves are kept in `homes.json` (the newest 20,000 given); others' (a
+friend's, one another relay gave) are the 10,000 used most lately, in memory. An install may have 600 records checked
 an hour and a linked relay may give 240 a minute, the relay checks 20 a second for everyone, and asking after someone
 else's (`home?`) counts as a lookup, held to the 120 an hour an install has for usernames.
 
@@ -111,10 +111,12 @@ asked again for ten minutes. At most 64 links, and 30 hellos a minute.
   one's people send, to the relay their friend lives on and no further: two links at most. The hosted relay believes
   the relay it stays linked to as an app believes its relay.
 - **Unreachable.** With the other relay down the packet waits here and the sender is told it is kept: 2,000 packets or
-  16 MB for one relay, seven days, 64 MB for all relays together (a quarter of it at most for what other relays asked
-  to be kept), 256 relays waited on. A sender hears within four seconds either way.
+  16 MB for one relay, seven days, 32 MB for all relays together (a quarter of it at most for what other relays asked
+  to be kept; what is on its way over an open link is counted apart, 64 MB in all), 256 relays waited on. A sender
+  hears within four seconds either way.
 - **Other `nak`s:** `limit` (over what this relay takes from that one: the sender keeps it and sends again in 15
-  seconds), `full` (their mailbox, or what is kept, is full), `big`, `far` (it would take a third link).
+  seconds), `full` (their mailbox, or what is kept, is full), `big`, `far` (it would take a third link). A frame far
+  past what a packet can be closes the link.
 
 **Dialling out.** The addresses dialled come from other people (a record, a name typed after an `@`, the address a
 relay claims), so each is held to this before anything is dialled: `wss://` only, port 443, a path ending `/hub`, no

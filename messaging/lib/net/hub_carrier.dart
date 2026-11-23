@@ -165,6 +165,11 @@ class HubCarrier implements Carrier {
   /// it was only kept here, as for someone who lives here.
   bool passedOn(String id) => _crossed.contains(id);
 
+  /// Told each time the relay only kept a packet here for [id], not here and not passed to another relay: for
+  /// someone who lives on another relay it means the relay no longer holds their home record (lib/net/homes.dart
+  /// says it again).
+  void Function(String id)? onKeptHere;
+
   /// Takes a packet another connection of this install's brought, as though this route had: what another relay was
   /// keeping for this install, handed over while that relay was asked something (lib/net/relay_ask.dart).
   void adopt(String from, Uint8List bytes) => _arrived.add(Arrived(id, bytes, from: from));
@@ -402,7 +407,14 @@ class HubCarrier implements Carrier {
       (dir == 'home' || dir == 'home?' || (dir == 'err' && (about == 'home' || about == 'home?')) ? _homes : _handles).add(m);
     } else if (m.containsKey('ack')) {
       final to = _sentTo.remove(m['ack']);
-      if (to != null) m['fed'] == true ? _crossed.add(to) : _crossed.remove(to);
+      if (to != null) {
+        if (m['fed'] == true) {
+          _crossed.add(to);
+        } else {
+          _crossed.remove(to);
+          if (m['here'] != true) onKeptHere?.call(to);
+        }
+      }
       _sent.remove(m['ack'])?.complete(m['here'] == true ? Handed.passed : Handed.held);
     } else if (m.containsKey('nak')) {
       _sentTo.remove(m['nak']);

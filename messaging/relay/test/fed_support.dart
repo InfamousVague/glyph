@@ -151,14 +151,14 @@ class TestRelay {
       random: Random(seed),
       queuePackets: queuePackets ?? 2000,
       queueBytes: queueBytes ?? 16 << 20,
-      queuedBytes: queuedBytes ?? 64 << 20,
+      queuedBytes: queuedBytes ?? 32 << 20,
       maxLinks: maxLinks ?? 64,
       maxPeers: maxPeers ?? 256,
       checksAnHour: checksAnHour ?? 600,
       checksASecond: checksASecond ?? 1000,
       hellosAMinute: hellosAMinute ?? 1000,
       recordsAMinute: recordsAMinute ?? 240,
-      homes: dataDir == null ? HomeBook(maxOwn: maxOwn ?? 50000, maxOthers: maxOthers ?? 20000) : null,
+      homes: dataDir == null ? HomeBook(maxOwn: maxOwn ?? 20000, maxOthers: maxOthers ?? 10000) : null,
     );
     handles = Handles(now: net.now, random: Random(seed + 100))..load();
     hub = Hub(now: net.now, random: Random(seed + 200), handles: handles, federation: fed ? this.fed : null, heldBytes: heldBytes);

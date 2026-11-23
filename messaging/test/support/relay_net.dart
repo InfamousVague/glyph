@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:ghost_messaging/net/hub_link.dart';
 import 'package:ghost_relay/federation.dart';
 import 'package:ghost_relay/handles.dart';
+import 'package:ghost_relay/home_record.dart' show HomeBook;
 import 'package:ghost_relay/hub.dart';
 
 import 'hub_pair.dart';
@@ -51,10 +52,10 @@ class RelayNet {
 
   /// A relay at `wss://<host>/hub`. [mode] is whether it links with other relays; [federation] false makes a hub with
   /// none of it at all, as one from before; [handles] false one that keeps no usernames either.
-  MemoryHub relay(String host, {FedMode mode = FedMode.open, bool federation = true, bool handles = true, Set<String> block = const {}}) {
+  MemoryHub relay(String host, {FedMode mode = FedMode.open, bool federation = true, bool handles = true, Set<String> block = const {}, int? maxOthers}) {
     final url = 'wss://$host/hub';
     final seed = _seeds[url] ??= ++_seed * 10;
-    final fed = federation ? Federation(config: FedConfig(mode: mode, publicHub: url, block: block), dial: fedDial, random: Random(seed), checksASecond: 1000, hellosAMinute: 1000) : null;
+    final fed = federation ? Federation(config: FedConfig(mode: mode, publicHub: url, block: block), dial: fedDial, random: Random(seed), checksASecond: 1000, hellosAMinute: 1000, homes: maxOthers == null ? null : HomeBook(maxOthers: maxOthers)) : null;
     final hub = Hub(handles: handles ? (Handles(random: Random(seed + 1))..load()) : null, federation: fed, random: Random(seed + 2));
     if (fed != null) feds[url] = fed;
     return byUrl[url] = MemoryHub(hub, url);

@@ -358,5 +358,32 @@ void main() {
       expect(net.dialled, hasLength(1));
       expect(await carol.signIn(a), {'ok': true, 'held': 2});
     });
+
+    test('no more addresses are remembered as this relay\'s own than its most: the one found longest ago is looked at again', () async {
+      final a = TestRelay(net, 'a.test');
+      final alice = Install();
+      await alice.signIn(a);
+      final people = [for (var i = 0; i < 258; i++) Install()];
+      for (var i = 0; i < 258; i++) {
+        net.hubs['wss://alias$i.test/hub'] = a.hub;
+        alice.say({'dir': 'home', 'rec': people[i].record(['wss://alias$i.test/hub'])});
+      }
+      await pumpEventQueue();
+      // Each is dialled once and found to be this relay; 257 of them, one more than it remembers.
+      for (var i = 0; i < 257; i++) {
+        alice.send(people[i].id, [1]);
+        await pumpEventQueue();
+      }
+      expect(net.dialled, hasLength(257));
+      // The newest is remembered: nothing is dialled for it again. The first has been let go: it is dialled again.
+      alice.send(people[256].id, [2]);
+      await pumpEventQueue();
+      expect(net.dialled, hasLength(257));
+      alice.send(people[0].id, [2]);
+      await pumpEventQueue();
+      expect(net.dialled.last, 'wss://alias0.test/hub');
+      expect(net.dialled, hasLength(258));
+      expect(a.hub.heldFor(people[0].id), 2, reason: 'and it is still kept here, as for anyone here');
+    });
   });
 }
