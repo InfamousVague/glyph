@@ -47,6 +47,11 @@ class CircleKeys {
   /// The app's own, set by Circles as it starts; HangoutRoom seals a circle space's chat with it.
   static CircleKeys? app;
 
+  /// Whether circles change their key at all. Off until the circle half of GMFB-26 is ready (docs/FORWARD_SECRECY.md):
+  /// with it off no device has circle keys, so every circle is sealed with its seed's keys and nothing of this is said
+  /// in its rooms, exactly as before this ticket. A test of the circle keys switches it on.
+  static bool enabled = false;
+
   final FsStore _secrets;
 
   /// Which of its identity's devices this is (HubCarrier.device): boxes are sealed per device.

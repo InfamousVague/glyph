@@ -67,9 +67,13 @@ class CarrierTraits {
 
 /// Something a route brought.
 class Arrived {
-  const Arrived(this.carrier, this.bytes, {this.address});
+  const Arrived(this.carrier, this.bytes, {this.address, this.from});
   final String carrier;
   final Uint8List bytes;
+
+  /// Who sent it, as the route itself vouches (the relay's hub checks a signature at hello and stamps each packet with
+  /// the sender's name); null where the route can't say.
+  final String? from;
 
   /// Where the route itself knows it came from (the number a text came from).
   final String? address;

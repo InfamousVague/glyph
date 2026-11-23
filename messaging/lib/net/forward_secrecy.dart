@@ -76,6 +76,12 @@ class ForwardSecrecy {
   static const peersName = 'fs_peers';
   static const seenName = 'fs_seen';
   static const oldName = 'fs_old';
+  static const passedName = 'fs_passed';
+
+  /// Packets this device passed on to its own name (a tag of each), kept across restarts: the relay may hand one back
+  /// to the device that passed it on, which must not pass it on again (second review, A6). The newest [mostPassed].
+  final LinkedHashSet<String> _passed = LinkedHashSet();
+  static const mostPassed = 1000;
 
   /// How long a packet sealed the old way without a prekey (a build from before, or a device whose forward secrecy
   /// couldn't load) from an id is taken to mean that id has such a device: everything to it is sealed the old way
@@ -148,6 +154,10 @@ class ForwardSecrecy {
       for (final x in j) {
         if (x is List && x.length == 2 && x[0] is String && x[1] is String) _seen[x[0] as String] = x[1] as String;
       }
+    } catch (_) {}
+    _passed.clear();
+    try {
+      _passed.addAll((jsonDecode(await _plain.read(passedName) ?? '[]') as List).whereType<String>());
     } catch (_) {}
     _old.clear();
     try {
@@ -249,18 +259,45 @@ class ForwardSecrecy {
   }
 
   /// Whether what goes to [peer] must be sealed the old way, so every device of theirs can read it: one of their
-  /// devices sent without forward secrecy within [oldDeviceFor], or one has gone quiet past [useFor] (its prekey may
-  /// be sealed to no longer) without yet being forgotten at [keepFor]. Never silently leaving a device out (finding 1).
+  /// devices sent, freshly, without forward secrecy within [oldDeviceFor]. A device of theirs gone quiet doesn't count
+  /// (second review, A8): it is forgotten past [useFor], and a packet it then can't open brings it in by `fsk` and is
+  /// passed on to its siblings.
   bool needsOld(String peer) {
-    final now = _now().millisecondsSinceEpoch;
     final old = _old[peer];
-    if (old != null && now - old < oldDeviceFor.inMilliseconds) return true;
-    return (_peers[peer] ?? const <String, FsBundle>{}).values.any((b) => b.device != device && now - b.made >= useFor.inMilliseconds && now - b.made < keepFor.inMilliseconds);
+    return old != null && _now().millisecondsSinceEpoch - old < oldDeviceFor.inMilliseconds;
+  }
+
+  /// The device names in a forward-secret packet's header, those it was sealed for; empty for one that isn't one.
+  static List<String> devicesIn(List<int> payload) {
+    if (payload.isEmpty) return const [];
+    final n = payload[0];
+    if (payload.length < 1 + 33 + n * _entry) return const [];
+    return [for (var i = 0; i < n; i++) NetCrypto.hex(payload.sublist(34 + i * _entry, 34 + i * _entry + 16))];
+  }
+
+  /// The devices of [peer] heard from within [useFor], by name: for this account's own name, its siblings.
+  Set<String> devicesOf(String peer) => {for (final b in targets(peer)) b.device};
+
+  /// Marks the packet tagged [tag] as passed on; false where it was already. Kept across restarts.
+  bool markPassed(String tag) {
+    if (!_passed.add(tag)) return false;
+    while (_passed.length > mostPassed) {
+      _passed.remove(_passed.first);
+    }
+    _saveSeenSoon();
+    return true;
   }
 
   /// The devices of [peer] a packet to them is sealed for: each one's newest prekey that is younger than [useFor].
   List<FsBundle> targets(String peer) {
     final now = _now().millisecondsSinceEpoch;
+    // Silent past [useFor]: forgotten (A8).
+    final devices = _peers[peer];
+    if (devices != null && devices.values.any((b) => now - b.made >= useFor.inMilliseconds)) {
+      devices.removeWhere((_, b) => now - b.made >= useFor.inMilliseconds);
+      if (devices.isEmpty) _peers.remove(peer);
+      unawaited(_savePeers());
+    }
     return [
       for (final b in (_peers[peer] ?? const <String, FsBundle>{}).values)
         if (b.device != device && now - b.made < useFor.inMilliseconds) b,
@@ -301,11 +338,17 @@ class ForwardSecrecy {
   }
 
   /// [seal], on an isolate of its own where [offThread]: a packet for several devices is several EC multiplications.
-  static Future<Uint8List> sealAway({required String from, required String to, required List<int> pairKey, required List<int> clear, required List<FsBundle> targets}) {
-    if (!offThread) return Future.value(seal(from: from, to: to, pairKey: pairKey, clear: clear, targets: targets));
-    final key = Uint8List.fromList(pairKey), bytes = Uint8List.fromList(clear), list = List<FsBundle>.of(targets);
-    return Isolate.run(() => seal(from: from, to: to, pairKey: key, clear: bytes, targets: list));
+  /// On one long-lived worker isolate, in the order asked (second review, A7): never hundreds of isolates at once, and
+  /// a ring and its cancel sealed in the order they were sent.
+  static Future<Uint8List> sealAway({required String from, required String to, required List<int> pairKey, required List<int> clear, required List<FsBundle> targets}) async {
+    if (!offThread) return seal(from: from, to: to, pairKey: pairKey, clear: clear, targets: targets);
+    final out = await _FsWorker.one.call(['seal', from, to, Uint8List.fromList(pairKey), Uint8List.fromList(clear), [for (final t in targets) t.toJson()]]);
+    if (out is! Uint8List) throw StateError('could not seal');
+    return out;
   }
+
+  /// Stops the worker isolate (a test's end; the app's lasts as long as it does).
+  static void stopWorker() => _FsWorker.stop();
 
   /// [open], with its EC multiplication on an isolate of its own where [offThread].
   Future<FsOpened> openAway({required String from, required String to, required List<int> pairKey, required List<int> payload}) async {
@@ -317,9 +360,22 @@ class ForwardSecrecy {
     return _finish(clear, found.prekey!, bytes);
   }
 
-  /// [_unwrap] on an isolate of its own: static, so the closure holds nothing but [a].
-  static Future<Uint8List?> _unwrapAway(({Uint8List scalar, String device, String from, String to, Uint8List key, Uint8List payload, int at, int head}) a) =>
-      Isolate.run(() => _unwrap(a.scalar, a.device, a.from, a.to, a.key, a.payload, a.at, a.head));
+  /// [_unwrap] on the worker isolate, in order.
+  static Future<Uint8List?> _unwrapAway(({Uint8List scalar, String device, String from, String to, Uint8List key, Uint8List payload, int at, int head}) a) async {
+    final out = await _FsWorker.one.call(['open', a.scalar, a.device, a.from, a.to, a.key, a.payload, a.at, a.head]);
+    return out is Uint8List ? out : null;
+  }
+
+  /// What the worker isolate does with one job ([_FsWorker]).
+  static Object? work(List job) {
+    switch (job[0]) {
+      case 'seal':
+        return seal(from: job[1] as String, to: job[2] as String, pairKey: job[3] as Uint8List, clear: job[4] as Uint8List, targets: [for (final t in job[5] as List) ?FsBundle.fromJson(t)]);
+      case 'open':
+        return _unwrap(job[1] as Uint8List, job[2] as String, job[3] as String, job[4] as String, job[5] as Uint8List, job[6] as Uint8List, job[7] as int, job[8] as int);
+    }
+    return null;
+  }
 
   /// Opens [payload], sealed from [from] to [to] under the pair's key [pairKey], with this device's prekeys.
   FsOpened open({required String from, required String to, required List<int> pairKey, required List<int> payload}) {
@@ -399,6 +455,7 @@ class ForwardSecrecy {
     _seenTimer?.cancel();
     _seenTimer = null;
     await _plain.write(seenName, jsonEncode([for (final e in _seen.entries) [e.key, e.value]]));
+    await _plain.write(passedName, jsonEncode([..._passed]));
   }
 
   /// Deletes everything: this device's prekeys and what it knows of others'. For signing out.
@@ -407,6 +464,7 @@ class ForwardSecrecy {
     _peers.clear();
     _seen.clear();
     _old.clear();
+    _passed.clear();
     _seenTimer?.cancel();
     _seenTimer = null;
     await _secrets.write(secretsName, '');
@@ -502,4 +560,65 @@ class FsOpened {
   const FsOpened(this.result, {this.clear});
   final FsResult result;
   final Uint8List? clear;
+}
+
+/// One long-lived isolate that seals and opens forward-secret packets in the order asked: jobs go in a queue, answers
+/// come back in the same order (second review, A7).
+class _FsWorker {
+  static _FsWorker? _one;
+  static _FsWorker get one => _one ??= _FsWorker();
+
+  static void stop() {
+    final w = _one;
+    _one = null;
+    w?._isolate?.kill(priority: Isolate.immediate);
+    w?._from?.close();
+    for (final c in w?._waiting.values ?? const <Completer<Object?>>[]) {
+      c.complete(null);
+    }
+  }
+
+  Isolate? _isolate;
+  ReceivePort? _from;
+  SendPort? _to;
+  Future<void>? _starting;
+  final Map<int, Completer<Object?>> _waiting = {};
+  int _next = 0;
+
+  Future<void> _start() async {
+    final from = _from = ReceivePort();
+    final ready = Completer<SendPort>();
+    from.listen((m) {
+      if (m is SendPort) {
+        ready.complete(m);
+      } else if (m is List && m.length == 2) {
+        _waiting.remove(m[0])?.complete(m[1]);
+      }
+    });
+    _isolate = await Isolate.spawn(_main, from.sendPort);
+    _to = await ready.future;
+  }
+
+  Future<Object?> call(List job) async {
+    await (_starting ??= _start());
+    final id = _next++;
+    final c = _waiting[id] = Completer<Object?>();
+    _to!.send([id, job]);
+    return c.future;
+  }
+
+  static void _main(SendPort back) {
+    final jobs = ReceivePort();
+    back.send(jobs.sendPort);
+    jobs.listen((m) {
+      final id = (m as List)[0];
+      Object? out;
+      try {
+        out = ForwardSecrecy.work(m[1] as List);
+      } catch (_) {
+        out = null;
+      }
+      back.send([id, out]);
+    });
+  }
 }

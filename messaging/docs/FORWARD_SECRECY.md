@@ -4,6 +4,12 @@ From the Uplink gap review: "Forward secrecy and key rotation for friends and ci
 2026-11-22. This file is the design: what was built, what it protects, what it does not, the wire format, and how it
 works with one account on several devices and with builds from before it.
 
+> **Status.** The friends half (friends and an account's own devices) is on. The circle half is built but **switched
+> off** (`CircleKeys.enabled = false`). With it off, circles behave exactly as before this ticket: they are sealed with
+> their seeds' keys, nothing about epochs, inboxes or `k?` is said in their rooms, and banning someone doesn't change
+> a circle's key. Forward secrecy does not cover circles yet. The circle sections below describe the design that is
+> still being finished, behind that switch.
+
 Code: `lib/net/forward_secrecy.dart` (friends and an account's own devices), `lib/circles/circle_keys.dart` (circles),
 with the switchboard (`lib/net/switchboard.dart`), the circle's room (`CircleRoom` in `lib/circles/circles.dart`) and a
 space's chat (`HangoutRoom` in `lib/voice/hangout.dart`) using them. Tests: `test/forward_secrecy_test.dart`,
@@ -82,9 +88,11 @@ account's id, the salt is the words' key, and the targets are the account's othe
 
 The primitives are only ones the app already used: P-256 ECDH (pointycastle), HKDF-SHA256 built from the existing
 HMAC, and AES-256-GCM (`FastGcm`). There are no new ciphers. Each EC operation takes about 7 ms in a debug build, so
-sealing for three devices takes about 20 ms. The old sealing takes about 0.06 ms. So sealing and opening run on an
-isolate of their own (`Isolate.run`), not on the one that draws the screens. Acknowledgements and `fsk` carry nothing
-worth keeping secret, so they get the old sealing (still with our prekey in them).
+sealing for three devices takes about 20 ms. The old sealing takes about 0.06 ms. So sealing and opening run on one
+long-lived worker isolate, not on the one that draws the screens. Jobs go through it in a queue, in the order asked.
+What arrives is handled one packet at a time, in the order it came, so a ring, its cancel, or an edit can't be
+reordered by one packet taking longer to open than the next. Acknowledgements and `fsk` carry nothing worth keeping
+secret, so they get the old sealing (still with our prekey in them).
 
 ### Opening, replays, deletion
 
@@ -96,16 +104,27 @@ worth keeping secret, so they get the old sealing (still with our prekey in them
 - **A packet this device can't open.** If there is no entry for it (the sender hadn't heard of it yet), its prekey
   is gone, or its own forward secrecy hasn't loaded yet, the device doesn't acknowledge the packet. It does two
   things instead:
-  - It sends back an `fsk` envelope that carries only its prekey, at most every 10 minutes per peer. The sender's
-    switchboard keeps every sealed envelope of every kind that hasn't been acknowledged for 5 minutes (at most 200).
-    On an `fsk` it sends them again, sealed anew so the new device is included. That covers calls ringing, group
-    messages, buddy messages and copies, not just the texts Friends re-sends itself.
-  - It passes the packet on, still sealed, to its own account's id, once per packet. The relay hands it to a sibling
-    device that can open it, or keeps it for whichever comes first. So a message that reached only the wrong device
-    while the right one slept is not lost.
+  - It sends back an `fsk` envelope carrying its prekey, at most every 10 minutes per peer. The sender's switchboard
+    keeps every sealed envelope of every kind that hasn't been acknowledged for 5 minutes (at most 200). On an `fsk`
+    it sends them again, sealed anew so the new device is included. That covers calls ringing, group messages, buddy
+    messages and copies, not just the texts Friends re-sends itself. A ring older than its ringing time (35 seconds),
+    or one whose cancel is also waiting, is not sent again. A device receiving a ring more than 35 seconds old (plus
+    30 seconds for clock skew) shows it as missed rather than ringing.
+  - It passes the packet on, still sealed, to its own account's id, so a sibling can open it. The relay hands it to
+    a sibling, or keeps it for whichever comes first. This is limited:
+    - only if the header names a sibling device this one has heard from (other than itself);
+    - only if forward secrecy is loaded here;
+    - never a packet that was itself passed on (flag 8), so it isn't passed on a second time;
+    - each packet once, remembered across restarts (the relay may hand a held own-id packet back to the very device
+      that passed it on);
+    - at most 256 KB per 10 minutes.
+    The hub stamps each packet with the sender it authenticated. A packet whose own `from` doesn't match that stamp
+    (or, for one passed on, isn't the account's own id) is dropped.
 - **Forward secrecy that can't load** (an iPhone's Keychain can't be read before its first unlock) is tried again
   every 30 seconds and whenever the app comes back. Until it loads, the device sends everything the old way with no
-  prekey, which tells its friends to do the same (see below).
+  prekey. To a forward-secret packet it can't open, it answers with an `fsk` with no prekey. That `fsk` is new and
+  current and has no prekey, so the sender sends everything to that account the old way, starting with whatever is
+  still unacknowledged.
 - **A new prekey** goes into the secret store before it is used or offered. If the write fails, nothing changes.
 - **Deletion.** The one-off private key is never kept anywhere. A prekey's private half is removed from memory and
   from the secret store at `keepFor`, and it isn't used even before the deletion actually runs. Signing out deletes
@@ -115,14 +134,16 @@ worth keeping secret, so they get the old sealing (still with our prekey in them
 
 - **A peer that has never offered a prekey** (a build from before, or someone not yet heard from since updating):
   the old pair's-key sealing, exactly as before, with our prekey added. Their answer brings theirs.
-- **A peer with a device gone quiet.** If any of their devices' newest prekeys is between 7 and 15 days old (`useFor`
-  to `keepFor`), everything to them goes the old way, so that device isn't left out. Its answer brings a fresh
-  prekey. After 15 days the device is forgotten, because its prekey would be deleted by then anyway.
-- **A peer with a device that can't do forward secrecy.** An old-sealed packet with no prekey in it, from an id, over
+- **A peer's device gone quiet** past 7 days (`useFor`) is forgotten. Packets are sealed for their other devices only,
+  still forward secret. If the quiet device comes back and gets one, it can't open it: it answers with `fsk` and
+  passes it on to its siblings, as above.
+- **A peer with a device that can't do forward secrecy.** An old-sealed envelope with no prekey in it, from an id, over
   a route that carries prekeys, means that id has such a device: a build from before, or one whose forward secrecy
   hasn't loaded. For 7 days after that (`oldDeviceFor`), everything to that id goes the old way, so that device can
-  read it. This applies to friends and to the account's own id (copies to an old sibling). Duplicates are dropped by
-  envelope id, as before.
+  read it. This applies to friends and to the account's own id (copies to an old sibling).
+  - It counts only from an envelope that is new (its id not seen before, checked after the duplicate check) and
+    current (its time within 5 minutes of now). So a replayed old packet can't turn forward secrecy off.
+  - Duplicates are dropped by envelope id, as before.
 - **Small routes.** Data texts (the SMS route, 133 bytes a part) always get the old sealing, with no prekey added, so
   a ringing call still fits in one text.
 - **Receiving.** Packets sealed the old way are always accepted. Otherwise one old device of an account, or a stale
@@ -137,15 +158,18 @@ device of the account that has offered a prekey. Every device in that list can o
 lost packets need no special handling, because each packet stands alone and there is no chain state to fall out of
 step.
 
-- A new device, or one the sender hasn't heard of, answers with `fsk` and passes the packet on to its siblings, as
-  described above. The sender sends again, sealed for it too, whatever it hasn't had acknowledged.
+- A new device, or one the sender hasn't heard of, answers with `fsk` and passes the packet on to the siblings it
+  knows, as described above. The sender sends again, sealed for it too, whatever it hasn't had acknowledged.
 - A build from before on one of the account's devices never offers a prekey. Once it has sent anything, everything
-  to that account goes the old way for a week, so it reads it. Until it has sent something, it is unknown. A packet
-  it can't open is passed on to the old build's siblings and is not acknowledged.
+  to that account goes the old way for a week, so it reads it. Until it has sent something, it is unknown: what it
+  gets sealed for its siblings it can't open, and it can't pass on or ask, so that is lost to that old device. The
+  siblings still get it.
 - Device sync of history (GMFB-21) keeps working. Copies go to the account's own id, sealed to the siblings'
   prekeys, or the old way while a sibling without forward secrecy has been heard from.
 
-## Circles: a new key when someone is put out
+## Circles: a new key when someone is put out (switched off)
+
+Everything in this section is behind `CircleKeys.enabled`, which is off. With it off, none of it happens.
 
 ### Epochs
 
@@ -238,9 +262,8 @@ epoch key they've held, so earlier messages still open.
   message in an ongoing conversation.
 - **Passive healing.** Someone who copied a device's secrets but doesn't interfere with traffic loses the ability to
   read new messages once the device has made a new prekey (within a day) and its friends have heard of it.
-- **Circles after a ban or kick.** The person put out (and their changed app) can't read what is said afterwards in
-  the circle's room or its spaces' chat and reactions. They can't get the new key under a new identity without
-  coming in openly. Nobody can slip in a key of their own.
+- **Circles: nothing yet.** The circle half is switched off, so circles are sealed with their seeds' keys as before.
+  A banned member who kept the seeds can still read a circle with a changed app.
 - **Replays** of forward-secret packets are acknowledged but not delivered again, even across restarts, while the
   packet is among the newest 5,000 opened or its prekey still exists. After that its prekey is gone, so it can't be
   opened at all.
@@ -250,7 +273,6 @@ epoch key they've held, so earlier messages still open.
 - **Anything stored on a device.** Your message history is kept on your devices. Whoever takes a device reads what's
   stored there, forward secrecy or not. Forward secrecy protects traffic that was recorded, not your history.
 - **Traffic recorded before this release,** and anything sealed the old way. That includes:
-  - everything to someone with a device gone quiet for 7 to 15 days;
   - everything for a week to an account (yours included) that has a device without forward secrecy: a build from
     before, or one whose Keychain wasn't unlocked yet;
   - everything to and from builds from before;
@@ -263,6 +285,8 @@ epoch key they've held, so earlier messages still open.
   and their device ids. The relay already knows those from the hello.
 - **Encrypted texts with a phone number** (`E2e.kt`, the "Send my key" encryption for SMS) are a separate system and
   are unchanged.
+- **Circles, entirely, for now.** The circle half is switched off (see Status). Once it is on, the design still
+  leaves the following open.
 - **Circles are not forward secret.** Members keep every epoch key they held, and a stolen member's device opens
   every epoch it held. Rotation is about people put out, not about time.
 - **Leaving a circle doesn't change its key.** Leaving can't be told apart from going offline, and anyone who keeps
@@ -289,7 +313,7 @@ epoch key they've held, so earlier messages still open.
 | New | An account with a device that sent the old way in the last 7 days | Old sealing, so that device reads it |
 | Any | Acknowledgements and `fsk` | Old sealing, with the prekey |
 | Any | Over data texts (SMS) | Old sealing, nothing added |
-| Circle, new, epoch held | Circle, old build | Old build can't read it until it updates and is given the key |
+| Circle, new, epoch held (switched off) | Circle, old build | Old build can't read it until it updates and is given the key |
 | Circle, old build | Circle, new | Seed's key, accepted |
 
 **Relay:** nothing changes, so there is nothing to deploy. Prekeys travel inside sealed envelopes, and circle keys

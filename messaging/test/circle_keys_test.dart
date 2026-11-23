@@ -108,6 +108,7 @@ bool _opensWithSeedsOnly(Circle c, Uint8List bytes, {CircleKeys? keys}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  CircleKeys.enabled = true;
   CircleKeys.offThread = false;
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 

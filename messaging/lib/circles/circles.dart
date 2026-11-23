@@ -116,7 +116,7 @@ class Circles extends ChangeNotifier {
     final c = Circles._()
       ..signerOverride = signer
       .._route = route;
-    c._wireKeys(CircleKeys.fresh());
+    if (CircleKeys.enabled) c._wireKeys(CircleKeys.fresh());
     if (app != null) {
       c._app = app;
       c._load(app);
@@ -173,9 +173,12 @@ class Circles extends ChangeNotifier {
     _app = app;
     _load(app);
     try {
-      final k = CircleKeys(secrets: _CircleSecrets(), device: HubCarrier.device);
-      await k.load();
-      CircleKeys.app = _wireKeys(k);
+      // Switched off as a whole for now (CircleKeys.enabled): circles are sealed with their seeds' keys, as before.
+      if (CircleKeys.enabled) {
+        final k = CircleKeys(secrets: _CircleSecrets(), device: HubCarrier.device);
+        await k.load();
+        CircleKeys.app = _wireKeys(k);
+      }
     } catch (_) {}
     // Who a message's writer is now, for an edit to be theirs from any of their devices (lib/voice/hangout.dart).
     HangoutRoom.sameAs = sameAs;
@@ -1737,7 +1740,7 @@ class CircleRoom {
         // Banned and asking (come back by the link): told so, signed, since the manifest that says so is sealed under a
         // key they are no longer given. At most once a minute each.
         final s = signer;
-        if (s != null && s.id == me && circle.manifest.removed.contains(from) && circle.manifest.canSign(me)) {
+        if (keys != null && s != null && s.id == me && circle.manifest.removed.contains(from) && circle.manifest.canSign(me)) {
           final last = _toldOut[from];
           if (last == null || DateTime.now().difference(last) > const Duration(minutes: 1)) {
             _toldOut[from] = DateTime.now();

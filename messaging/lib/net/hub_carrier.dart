@@ -287,7 +287,7 @@ class HubCarrier implements Carrier {
     if (!identical(_ws, ws)) return;
     if (data is List<int>) {
       if (data.length > 17 && data[0] == 1) {
-        _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(17))));
+        _arrived.add(Arrived(id, Uint8List.fromList(data.sublist(17)), from: NetCrypto.hex(data.sublist(1, 17))));
       } else if (data.length > 33 && data[0] == 2) {
         _roomPackets.add((room: NetCrypto.hex(data.sublist(1, 17)), from: NetCrypto.hex(data.sublist(17, 33)), bytes: Uint8List.fromList(data.sublist(33))));
       } else if (data.length > 33 && data[0] == 4) {

@@ -17,7 +17,8 @@ String _device() => NetCrypto.hex(NetCrypto.randomBytes(16));
 
 /// A clock a test moves on by hand.
 class Clock {
-  DateTime t = DateTime(2026, 11, 22, 12);
+  // From now: an envelope carries the real time it was made, which freshness is judged against.
+  DateTime t = DateTime.now();
   DateTime now() => t;
   void pass(Duration d) => t = t.add(d);
 }
@@ -89,7 +90,7 @@ class BusCarrier implements Carrier {
   /// Whatever is sent is dropped while this is set (a packet lost on the way).
   bool lose = false;
 
-  void take(Uint8List packet) => _arrived.add(Arrived(id, packet));
+  void take(Uint8List packet, {String? from}) => _arrived.add(Arrived(id, packet, from: from));
 
   @override
   Future<void> start() async {
@@ -97,7 +98,7 @@ class BusCarrier implements Carrier {
     final list = bus.here[owner] ??= [];
     if (!list.contains(this)) list.add(this);
     for (final h in bus.held.remove(owner) ?? const <(String, Uint8List)>[]) {
-      take(h.$2);
+      take(h.$2, from: h.$1);
     }
   }
 
@@ -120,7 +121,7 @@ class BusCarrier implements Carrier {
       return Handed.held;
     }
     for (final c in there) {
-      scheduleMicrotask(() => c.take(packet));
+      scheduleMicrotask(() => c.take(packet, from: owner));
     }
     return Handed.passed;
   }
@@ -194,6 +195,13 @@ class Phone {
 bool _isFs(Uint8List packet) => Packet.parse(packet)!.fs;
 
 Future<void> _tick([int ms = 40]) => Future<void>.delayed(Duration(milliseconds: ms));
+
+Future<void> _until(bool Function() ok) async {
+  final end = DateTime.now().add(const Duration(seconds: 10));
+  while (!ok() && DateTime.now().isBefore(end)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
 
 void main() {
   // Sealing and opening off the screens' isolate is held to in one test below; the rest run inline, for speed.
@@ -567,22 +575,75 @@ void main() {
       expect(a.board.unanswered, 0);
     });
 
-    test('a device that can\'t open a packet passes it on, still sealed, to its own account: the sleeping phone opens it later', () async {
+    /// Bob's phone and Mac, each having heard of the other (a copy each way), and Alice having heard of the phone
+    /// only: the Mac is new to her.
+    Future<(Phone, Phone, Phone)> phoneAndNewMac() async {
       final a = await phone(alice, [bob]);
       final phoneB = await phone(bob, [alice]);
       await phoneB.say(alice, 'p');
       await _tick();
-      await phoneB.hub.stop();
       final macB = await phone(bob, [alice]);
-      // Nothing is sent again here: only the passing on can bring it to the phone.
-      a.hub.lose = false;
+      await macB.board.send(macB.mine, Envelope(kind: 'mine', body: {'t': 'mac copy'}));
+      await phoneB.board.send(phoneB.mine, Envelope(kind: 'mine', body: {'t': 'phone copy'}));
+      await _tick();
+      expect(macB.dev.fs.devicesOf(bob.id), {phoneB.dev.device});
+      return (a, phoneB, macB);
+    }
+
+    test('a device that can\'t open a packet passes it on, still sealed, to its own account: the sleeping phone opens it later', () async {
+      final (a, phoneB, macB) = await phoneAndNewMac();
+      await phoneB.hub.stop();
+      // Nothing is sent again here (no answer wanted): only the passing on can bring it to the phone.
       await a.board.send(a.peerOf(bob), Envelope(kind: 'group', body: {'g': 'x', 'do': 'text', 't': 'for the group'}, ack: false));
       await _tick(80);
-      expect(macB.got.where((r) => r.envelope.kind == 'group'), isEmpty, reason: 'not sealed for the mac, and not answered, so not sent again');
-      expect(bus.held[bob.id], isNotEmpty, reason: 'passed on to Bob\'s own name, held for his phone');
+      expect(macB.got.where((r) => r.envelope.kind == 'group'), isEmpty);
+      final held = bus.held[bob.id]!;
+      expect(held, hasLength(1), reason: 'passed on to Bob\'s own name, held for his phone');
+      expect(Packet.parse(held.single.$2)!.passed, isTrue, reason: 'marked as passed on');
       await phoneB.hub.start();
       await _tick(80);
       expect(phoneB.got.where((r) => r.envelope.kind == 'group').single.envelope.body['t'], 'for the group');
+    });
+
+    test('passing on: only where a sibling is named, never twice (not after a restart either), never from a stranger\'s say-so, and not without limit', () async {
+      final (a, phoneB, macB) = await phoneAndNewMac();
+      await phoneB.hub.stop();
+      // Sealed for a device nobody of Bob's knows: not passed on.
+      final stranger = Dev(clock);
+      await stranger.fs.load();
+      final key = a.peerOf(bob).key!;
+      Uint8List forged(List<FsBundle> to, {bool passed = false}) => Packet.wrap(from: alice.id, sealed: true, fs: true, passed: passed, payload: ForwardSecrecy.seal(from: alice.id, to: bob.id, pairKey: key, clear: Envelope(kind: 'x', ack: false).encode(), targets: to));
+      macB.hub.take(forged([stranger.fs.bundle!]), from: alice.id);
+      await _tick();
+      expect(bus.held[bob.id], isNull, reason: 'no sibling of the mac\'s is named in it');
+      // Already passed on once (flag 8), come back from Bob's own name: not passed on again.
+      macB.hub.take(forged([phoneB.dev.fs.bundle!], passed: true), from: bob.id);
+      await _tick();
+      expect(bus.held[bob.id], isNull);
+      // A packet claiming to be Alice's that the hub says came from someone else: dropped.
+      macB.hub.take(forged([phoneB.dev.fs.bundle!]), from: stranger.device);
+      await _tick();
+      expect(bus.held[bob.id], isNull);
+      // A real one: passed on once; the same again, also after a restart, not again.
+      final real = forged([phoneB.dev.fs.bundle!]);
+      macB.hub.take(real, from: alice.id);
+      await _tick();
+      expect(bus.held[bob.id], hasLength(1));
+      await macB.restart();
+      await macB.board.start();
+      await _tick();
+      // Coming back, the relay hands the mac what it held for Bob: its own passed-on packet. Not passed on again.
+      expect(bus.held[bob.id] ?? const [], isEmpty);
+      macB.hub.take(real, from: alice.id);
+      await _tick();
+      expect(bus.held[bob.id] ?? const [], isEmpty, reason: 'remembered across the restart');
+      // At most passOnBytes a window.
+      for (var i = 0; i < 400; i++) {
+        macB.hub.take(Packet.wrap(from: alice.id, sealed: true, fs: true, payload: ForwardSecrecy.seal(from: alice.id, to: bob.id, pairKey: key, clear: List.filled(1000, i % 256), targets: [phoneB.dev.fs.bundle!])), from: alice.id);
+      }
+      await _tick(300);
+      final bytes = bus.held[bob.id]!.fold<int>(0, (n, h) => n + h.$2.length);
+      expect(bytes, lessThanOrEqualTo(Switchboard.passOnBytes + 4096));
     });
 
     test('an old build on the account: once it is heard from, what goes to the account is sealed the old way so it can read it', () async {
@@ -610,35 +671,56 @@ void main() {
       expect(oldTablet.got.map((r) => r.envelope.body['t']), contains('phone copy'));
       // A week without hearing it: forward secret again.
       clock.pass(ForwardSecrecy.oldDeviceFor + const Duration(hours: 1));
-      await phoneB.say(alice, 'refresh');
-      await _tick();
       expect(a.dev.fs.needsOld(bob.id), isFalse);
     });
 
-    test('a device of theirs gone quiet past a week is not left out: the old way, until it is forgotten', () async {
+    test('a replayed old packet with no prekey doesn\'t turn forward secrecy off', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]), oldTablet = await phone(bob, [alice], fs: false);
+      await phoneB.say(alice, 'p');
+      await _tick();
+      final mark = bus.carried.length;
+      await oldTablet.say(alice, 'from the tablet');
+      await _tick();
+      final old = bus.carried[mark];
+      // Alice starts with a clean slate (as if a week had gone by), and the old packet is played to her again later.
+      await a.dev.fs.wipe();
+      await a.dev.fs.load();
+      await phoneB.say(alice, 'p again');
+      await _tick();
+      clock.pass(const Duration(minutes: 30));
+      await a.restart();
+      await a.board.start();
+      a.hub.take(old, from: bob.id);
+      await _tick();
+      expect(a.dev.fs.needsOld(bob.id), isFalse, reason: 'its time is half an hour gone: not fresh');
+      // And not fresh in the same run either: the same envelope id twice.
+      clock.t = DateTime.now();
+      a.hub.take(old, from: bob.id);
+      await _tick();
+      expect(a.dev.fs.needsOld(bob.id), isFalse, reason: 'seen before');
+    });
+
+    test('a device of theirs gone quiet is forgotten past a week; the rest still get forward secrecy', () async {
       final a = await phone(alice, [bob]);
       final phoneB = await phone(bob, [alice]), macB = await phone(bob, [alice]);
       await phoneB.say(alice, 'p');
       await macB.say(alice, 'm');
       await _tick();
       await macB.hub.stop();
-      clock.pass(ForwardSecrecy.useFor + const Duration(hours: 1));
+      clock.pass(const Duration(days: 4));
       await phoneB.dev.fs.refresh();
       await phoneB.say(alice, 'still here');
       await _tick();
-      expect(a.dev.fs.targets(bob.id).map((t) => t.device), [phoneB.dev.device]);
-      expect(a.dev.fs.needsOld(bob.id), isTrue, reason: 'the mac\'s prekey is stale, not yet forgotten');
+      clock.pass(const Duration(days: 4));
+      expect(a.dev.fs.targets(bob.id).map((t) => t.device), [phoneB.dev.device], reason: 'the mac, silent eight days, is forgotten');
+      expect(a.dev.fs.needsOld(bob.id), isFalse);
       final before = bus.carried.length;
-      await a.say(bob, 'for the mac too');
-      expect(_isFs(bus.carried[before]), isFalse);
-      clock.pass(ForwardSecrecy.keepFor);
-      await phoneB.dev.fs.refresh();
-      await phoneB.say(alice, 'and still');
-      await _tick();
-      expect(a.dev.fs.needsOld(bob.id), isFalse, reason: 'past keepFor the mac is forgotten');
+      await a.say(bob, 'forward secret still');
+      expect(_isFs(bus.carried[before]), isTrue);
     });
 
-    test('forward secrecy that can\'t load yet: nothing it can\'t open is answered or lost, and it loads when it can', () async {
+    test('forward secrecy that can\'t load yet: what it can\'t open is not answered; it says so, and gets it again the old way', () async {
       final a = await phone(alice, [bob]);
       final phoneB = await phone(bob, [alice]);
       await phoneB.say(alice, 'p');
@@ -649,13 +731,53 @@ void main() {
       ipad.befriend(alice);
       expect(ipad.dev.fs.loaded, isFalse);
       await phoneB.hub.stop();
-      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call'}, ack: false));
-      await _tick(80);
-      expect(ipad.got, isEmpty);
-      expect(bus.held[bob.id], isNotEmpty, reason: 'passed on for the phone');
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'c9'}));
+      await _tick(120);
+      expect(ipad.got.where((r) => r.envelope.kind == 'voice').length, 1, reason: 'sent again sealed the old way after its asking');
+      expect(a.dev.fs.needsOld(bob.id), isTrue);
       locked.failReads = false;
       expect(await ipad.dev.fs.tryLoad(), isTrue);
       expect(ipad.dev.fs.bundle, isNotNull);
+    });
+
+    test('in order: what comes is handled one after another, even opened on the worker isolate', () async {
+      ForwardSecrecy.offThread = true;
+      addTearDown(() {
+        ForwardSecrecy.offThread = false;
+        ForwardSecrecy.stopWorker();
+      });
+      final a = await phone(alice, [bob]);
+      final b = await phone(bob, [alice]);
+      await a.say(bob, 'warm');
+      await _tick();
+      // A forward-secret packet (opened on the worker) then one sealed the old way (opened at once): handled in the
+      // order they came, not the quicker first.
+      final key = a.peerOf(bob).key!;
+      Uint8List fsText(String t) => Packet.wrap(from: alice.id, sealed: true, fs: true, payload: ForwardSecrecy.seal(from: alice.id, to: bob.id, pairKey: key, clear: Envelope(kind: 'text', body: {'t': t}, ack: false).encode(), targets: [b.dev.fs.bundle!]));
+      Uint8List oldText(String t) => Packet.wrap(from: alice.id, sealed: true, payload: NetCrypto.seal(key, Envelope(kind: 'text', body: {'t': t}, ack: false).encode()));
+      for (var i = 0; i < 10; i++) {
+        b.hub.take(i.isEven ? fsText('$i') : oldText('$i'), from: alice.id);
+      }
+      await _until(() => b.words.length == 11);
+      expect(b.words.skip(1), [for (var i = 0; i < 10; i++) '$i']);
+    });
+
+    test('a ring that has stopped ringing, or was called off, is not sent again', () async {
+      final a = await phone(alice, [bob]);
+      final phoneB = await phone(bob, [alice]);
+      await phoneB.say(alice, 'p');
+      await _tick();
+      await phoneB.hub.stop();
+      final macB = await phone(bob, [alice]);
+      a.hub.lose = true;
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'old'}, at: DateTime.now().millisecondsSinceEpoch - 60000));
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'call', 'i': 'off'}));
+      await a.board.send(a.peerOf(bob), Envelope(kind: 'voice', body: {'t': 'cancel', 'i': 'off'}));
+      a.hub.lose = false;
+      // The mac asks: only the cancel goes again.
+      await macB.board.send(macB.peerOf(alice), Envelope(kind: Switchboard.fsAsk, ack: false));
+      await _tick(100);
+      expect([for (final r in macB.got) if (r.envelope.kind == 'voice') r.envelope.body['t']], ['cancel']);
     });
 
     test('a new prekey is never offered before the secret store has it', () async {

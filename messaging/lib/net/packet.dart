@@ -57,10 +57,15 @@ class Envelope {
 ///     [version and flags | part][from, 16 bytes][which packet, 4 bytes][part number][how many][a piece of the above's last field]
 ///
 /// The flags: 1 sealed, 2 a part, 4 sealed for forward secrecy (lib/net/forward_secrecy.dart, GMFB-26), whose last
-/// field is laid out as that file says. A build from before takes a forward-secret packet for an ordinary sealed one,
+/// field is laid out as that file says, 8 passed on by a device of the account it was for to the account's own name,
+/// unopened (never passed on again). A build from before takes a forward-secret packet for an ordinary sealed one,
 /// can't open it, and drops it; it is only sent to devices that said they can open it.
 class Packet {
-  Packet._(this.from, this.sealed, this.payload, this.group, this.index, this.count, {this.fs = false});
+  Packet._(this.from, this.sealed, this.payload, this.group, this.index, this.count, {this.fs = false, this.passed = false});
+
+  /// Passed on, unopened, by a device of the account it was for (flag 8).
+  final bool passed;
+  static const _passed = 8;
 
   static const version = 1;
   static const _sealed = 1;
@@ -84,8 +89,8 @@ class Packet {
 
   bool get isPart => group != null;
 
-  static Uint8List wrap({required String from, required bool sealed, required List<int> payload, bool fs = false}) =>
-      Uint8List.fromList([(version << 4) | (sealed ? _sealed : 0) | (sealed && fs ? _fs : 0), ...NetCrypto.unhex(from), ...payload]);
+  static Uint8List wrap({required String from, required bool sealed, required List<int> payload, bool fs = false, bool passed = false}) =>
+      Uint8List.fromList([(version << 4) | (sealed ? _sealed : 0) | (sealed && fs ? _fs : 0) | (sealed && fs && passed ? _passed : 0), ...NetCrypto.unhex(from), ...payload]);
 
   /// [packet] as the pieces a route that carries at most [max] bytes at a time can take, or the packet itself where
   /// it fits. Null when it would take more than [maxParts].
@@ -108,11 +113,12 @@ class Packet {
     final from = NetCrypto.hex(bytes.sublist(1, head));
     final sealed = bytes[0] & _sealed != 0;
     final fs = sealed && bytes[0] & _fs != 0;
-    if (bytes[0] & _part == 0) return Packet._(from, sealed, Uint8List.fromList(bytes.sublist(head)), null, 0, 1, fs: fs);
+    final passed = fs && bytes[0] & _passed != 0;
+    if (bytes[0] & _part == 0) return Packet._(from, sealed, Uint8List.fromList(bytes.sublist(head)), null, 0, 1, fs: fs, passed: passed);
     if (bytes.length < partHead + 1) return null;
     final count = bytes[head + 5], index = bytes[head + 4];
     if (count == 0 || index >= count) return null;
-    return Packet._(from, sealed, Uint8List.fromList(bytes.sublist(partHead)), NetCrypto.hex(bytes.sublist(head, head + 4)), index, count, fs: fs);
+    return Packet._(from, sealed, Uint8List.fromList(bytes.sublist(partHead)), NetCrypto.hex(bytes.sublist(head, head + 4)), index, count, fs: fs, passed: passed);
   }
 }
 
@@ -141,7 +147,7 @@ class PartJoiner {
     open.pieces[part.index] = part.payload;
     if (open.pieces.length < open.count) return null;
     _open.remove(key);
-    return Packet._(part.from, part.sealed, Uint8List.fromList([for (var i = 0; i < open.count; i++) ...open.pieces[i]!]), null, 0, 1, fs: part.fs);
+    return Packet._(part.from, part.sealed, Uint8List.fromList([for (var i = 0; i < open.count; i++) ...open.pieces[i]!]), null, 0, 1, fs: part.fs, passed: part.passed);
   }
 }
 

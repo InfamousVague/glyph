@@ -33,7 +33,7 @@
 <h2 id="forward">Forward secrecy</h2>
 <p>Messages between friends, and the copies your devices send each other, are sealed so that they stay safe even if your recovery words, your password or your account backup leak later. Each of your devices makes a fresh key every day and deletes it about two weeks later. A message is sealed with a one-off key that is thrown away as soon as it's sent. Someone who saved the scrambled traffic can't open it afterwards, even with your recovery words.</p>
 <ul>
-  <li><b>What it doesn't cover:</b> the messages saved on your devices (whoever has your unlocked phone can read your history), who you talk to and when, and data texts. It also doesn't cover messages to people on an older version of Ghost, or the first message to someone you haven't heard from in a week; those use the earlier sealing.</li>
+  <li><b>What it doesn't cover:</b> the messages saved on your devices (whoever has your unlocked phone can read your history), who you talk to and when, and data texts. It also doesn't cover circles yet, or messages to someone who has a device on an older version of Ghost; those use the earlier sealing.</li>
   <li>If your recovery words leak, someone could pretend to be you from then on. Compare <a href="/docs/encryption/#verify">safety numbers</a> if something seems off, and make a new account if your words were exposed.</li>
 </ul>
 <h2 id="reporting">Reporting</h2>
@@ -47,13 +47,7 @@
 <p><ui>Settings › Reports you've made</ui> lists what you've reported from this device: who, why and when, never the messages.</p>
 
 <h2 id="circles">In circles</h2>
-<p>A circle's messages are sealed with a key everyone in it has. When the owner or an admin <a href="/docs/roles/#remove">removes or kicks someone</a>, the circle gets a new key, which goes to everyone else and not to them. What's said afterwards in the circle and its spaces' chat can't be read by them, even with an altered app.</p>
-<ul>
-  <li>They can still see that people are talking, though not what's said. If they still have the circle's link, they can come back in under a new account, and everyone sees them join. Files spaces and voice-space call setup still use the circle's original keys.</li>
-  <li>Someone on an older version of Ghost can't read the circle after a key change until they update.</li>
-  <li>If your device hasn't got a circle's new key yet, what you write there waits, and the space says so, until the key arrives.</li>
-  <li>Leaving a circle doesn't change its key.</li>
-</ul>
+<p>A circle's messages are sealed with a key everyone in it has. Forward secrecy doesn't cover circles yet. Removing someone stops their app joining, but it doesn't change that key, so an old or altered app that kept it could still read what's said. For anything a removed person mustn't read, make a new circle. See <a href="/docs/roles/#remove">Removing someone</a>.</p>
 
 <h2 id="leave">Leaving</h2>
 <ul>
