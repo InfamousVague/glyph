@@ -10,6 +10,13 @@ import 'node_ffi.dart';
 /// core's library: the app asks for it only once the person has switched Direct on (Net.p2pNode).
 P2pNode? makeP2pNode() => IrohNode.make();
 
+/// Lets go of a node [makeP2pNode] made, stopped already, when the routes it was made for are gone (sign-out): the
+/// core frees it and all it kept (the port it had on each network among them), and nothing can be asked of it again.
+/// A test's stand-in is left as it is.
+void letP2pNodeGo(P2pNode node) {
+  if (node is IrohNode) node.dispose();
+}
+
 /// Whether the app's builds for this platform carry the core, so that Direct is offered (Net.p2pNode, set where the app
 /// starts): Android's (tool/release.mjs), the Mac's (tool/release-mac.mjs), Windows' and Linux's (their workflows,
 /// .github/workflows/messaging-{windows,linux}.yml). Not an iPhone's, which carries none yet (ios/), nor a browser's.

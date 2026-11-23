@@ -56,6 +56,9 @@ void main() {
   late List<Map<String, Object?>> e2e;
   late List<Map<String, Object?>> buddies;
   late bool e2eFails, secretsLocked;
+
+  /// Set, a read of the secret store waits on it, as a slow Keychain holds one.
+  late Completer<void>? secretsHeld;
   late FakeP2pMesh mesh;
   late FakeP2pNode node;
 
@@ -85,6 +88,7 @@ void main() {
     buddies = [buddy('sam', sam, 'yes'), buddy('asker', asker, 'asked')];
     e2eFails = false;
     secretsLocked = false;
+    secretsHeld = null;
     mesh = FakeP2pMesh();
     node = mesh.node();
     asked = [];
@@ -111,6 +115,8 @@ void main() {
           value.isEmpty ? secrets.remove('${a['name']}') : secrets['${a['name']}'] = value;
           return null;
         case 'secretRead':
+          final held = secretsHeld;
+          if (held != null) await held.future;
           if (secretsLocked) throw PlatformException(code: 'locked');
           return secrets['${a['name']}'];
       }
@@ -774,6 +780,71 @@ void main() {
     expect(identical(first, second), isFalse);
     expect(node.allowed.keys, [theirs.nodeId], reason: 'let go of by the one going before the new one let it in');
     expect([for (final c in Net.instance.board!.carriers) if (c.id == 'p2p') identical(c, second.carrier)], [true]);
+  });
+
+  // The review of Direct's switch (2026-11-23): Net.start read Direct's choice at three points with awaits between,
+  // and a switch before the switchboard was made only wrote the choice. Switched on while the routes were set up, no
+  // direct network was ever made (Settings said "Starting…" for ever); switched off, it was made and held all the same.
+  Future<void> switchedWhileStarting(AppState app, bool on) async {
+    secretsHeld = Completer<void>();
+    final starting = Net.instance.start(app, carriers: [PlainCarrier('hub')]);
+    for (var i = 0; i < 200 && !asked.contains('secretRead'); i++) {
+      await pumpEventQueue();
+    }
+    expect(asked, contains('secretRead'), reason: 'the start reached the secret store (forward secrecy\'s prekeys)');
+    await Net.instance.setDirect(on);
+    secretsHeld!.complete();
+    secretsHeld = null;
+    await starting;
+  }
+
+  test('Direct switched on while the routes are set up is made once they are, friends asked and the ledger kept', () async {
+    var made = 0;
+    Net.p2pNode = () {
+      made++;
+      return node;
+    };
+    await switchedWhileStarting(AppState(), true);
+    expect([Net.instance.directOn, made, Net.instance.board!.off], [true, 1, isEmpty]);
+    final p2p = Net.instance.p2p!;
+    expect(Net.instance.board!.carriers.map((c) => c.id), ['hub', 'p2p']);
+    expect(Net.instance.friends.map((p) => p.id), unorderedEquals([sam.id, nell.id]));
+    expect([Net.instance.ledger, Net.instance.check], [isNotNull, isNotNull]);
+    await _until(() => p2p.loaded, 'it read what it keeps');
+  });
+
+  test('Direct switched off while the routes are set up makes nothing of the direct network: no node, no route, no ledger', () async {
+    var made = 0;
+    Net.p2pNode = () {
+      made++;
+      return node;
+    };
+    await switchedWhileStarting(_directOn(), false);
+    await pumpEventQueue(times: 50);
+    expect([Net.instance.directOn, made, Net.instance.p2p, Net.instance.ledger, Net.instance.check, Net.instance.board!.log], [false, 0, null, null, null, null]);
+    expect(Net.instance.board!.off, {'p2p'});
+    expect(Net.instance.board!.carriers.map((c) => c.id), ['hub']);
+    expect(node.calls, isEmpty, reason: 'nothing was asked of a node');
+  });
+
+  test('the node goes with the routes at sign-out: the next account signed in on this device has a node of its own', () async {
+    final made = <FakeP2pNode>[];
+    Net.p2pNode = () {
+      final n = mesh.node();
+      made.add(n);
+      return n;
+    };
+    await Net.instance.start(_directOn(), carriers: [PlainCarrier('hub')]);
+    expect(made, hasLength(1));
+    // Off and on again in one sign-in: the same node.
+    await Net.instance.setDirect(false);
+    await Net.instance.setDirect(true);
+    expect([made.length, identical(Net.instance.p2p!.node, made.single)], [1, true]);
+    await Net.instance.shutdown();
+    expect(made.single.state.value, P2pState.off);
+    await Net.instance.start(_directOn(), carriers: [PlainCarrier('hub')]);
+    expect(made, hasLength(2), reason: 'the first account\'s node was started again for the next');
+    expect(identical(Net.instance.p2p!.node, made.last), isTrue);
   });
 
   // Matt's brief: "Set Net.p2pNode = makeP2pNode where the app starts, for builds with the core." Not on an iPhone: no
