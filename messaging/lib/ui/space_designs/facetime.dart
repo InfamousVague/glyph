@@ -661,7 +661,7 @@ class _Capsule extends StatelessWidget {
         // No Chat where the chat is under the call already (SpaceSplit).
         for (final w in [if (!call.chatBelow) b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
         Container(width: 1, height: 40, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: _white.withValues(alpha: 0.18)),
-        for (final w in [b.devices, b.settings, b.minimize]) slot(w),
+        for (final w in [b.devices, b.settings, if (call.onMinimize != null) b.minimize]) slot(w),
         const SizedBox(width: 8),
         slot(b.end),
       ]),

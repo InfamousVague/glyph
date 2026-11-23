@@ -263,7 +263,7 @@ class _TopBar extends StatelessWidget {
               ]),
             ),
             if (!alone) ...[_ViewSwitch(gallery: gallery, onView: onView, iconsOnly: compact), const SizedBox(width: 10)],
-            _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize, iconOnly: compact),
+            if (call.onMinimize != null) _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize, iconOnly: compact),
           ]),
         );
       });

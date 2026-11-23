@@ -163,7 +163,7 @@ class _Header extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(side, top, side, t.space(2)),
       child: Row(children: [
         // Minimise takes what the round buttons leave, sitting on the left at its own width.
-        Expanded(child: Align(alignment: Alignment.centerLeft, child: _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
+        Expanded(child: Align(alignment: Alignment.centerLeft, child: call.onMinimize == null ? const SizedBox.shrink() : _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
         SizedBox(width: t.space(2)),
         if (camera) ...[_Camera(call: call, look: look, size: 38), SizedBox(width: t.space(1))],
         // Sharing the screen to the stage, where this device can (GMFB-27).

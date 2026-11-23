@@ -217,6 +217,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // Alone in the call, the default design in the split's top part: the waiting words are never cut by the buttons,
+  // and the four buttons (no Chat) are an evenly spaced group, not three and a gap and Leave at the far right.
+  for (final size in const [Size(1280, 800), Size(1024, 700), Size(1440, 900)]) {
+    final at = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('at $at alone, the waiting words clear the buttons and the buttons are evenly spaced', (tester) async {
+      await _open(tester, size);
+      _join(_lounge, others: false);
+      await settle(tester);
+      openSpaceCall(tester.element(find.byType(HangoutScreen)));
+      await settle(tester);
+      final call = tester.getRect(find.byKey(const ValueKey('space-split-call')));
+      final buttons = [for (final b in ['Video', 'Deafen', 'Mute', 'Leave']) tester.getRect(find.bySemanticsLabel(b).last)];
+      final top = buttons.map((r) => r.top).reduce((a, b) => a < b ? a : b);
+      for (final b in buttons) {
+        expect(call.contains(b.center), isTrue, reason: 'each button in the call\'s part');
+      }
+      final waiting = find.text('Waiting for others to join');
+      if (size.height >= 800) expect(waiting, findsOneWidget, reason: 'room to say so at $at');
+      if (waiting.evaluate().isNotEmpty) {
+        final w = tester.getRect(waiting);
+        expect(w.bottom, lessThanOrEqualTo(top), reason: 'the waiting words above the buttons, not under them');
+        expect(w.top, greaterThanOrEqualTo(call.top), reason: 'nor above the call\'s part');
+      }
+      // Nothing scrolled out of sight: the list is at its top and does not scroll at all alone.
+      final list = tester.state<ScrollableState>(find.descendant(of: find.byKey(const ValueKey('space-split-call')), matching: find.byType(Scrollable)).first);
+      expect(list.position.maxScrollExtent, 0, reason: 'alone, the people and the waiting words fit without scrolling');
+      final xs = [for (final b in buttons) b.center.dx];
+      final gaps = [for (var i = 1; i < xs.length; i++) xs[i] - xs[i - 1]];
+      for (final g in gaps) {
+        expect(g, closeTo(gaps.first, 1), reason: 'even gaps between the buttons: $gaps');
+      }
+      final mid = (xs.first + xs.last) / 2;
+      expect(mid, closeTo(call.center.dx, 2), reason: 'the group in the middle of the call');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('video tiles fit the top part', (tester) async {
     await _open(tester, const Size(1280, 800));
     _join(_lounge, video: true);
@@ -241,14 +278,20 @@ void main() {
 
   // The pictures: joined, alone and with others, and with video, at a computer's size, dark.
   testWidgets('shots', (tester) async {
-    for (final (name, others, video) in [('alone', false, false), ('joined', true, false), ('video', true, true)]) {
-      await _open(tester, const Size(1280, 800), dark: true);
+    for (final (name, others, video, design, size) in [
+      ('alone', false, false, null, const Size(1280, 800)),
+      ('joined', true, false, null, const Size(1280, 800)),
+      ('video', true, true, null, const Size(1280, 800)),
+      ('alone-1024x700', false, false, null, const Size(1024, 700)),
+      for (final d in SpaceDesign.values) ('design-${d.name}', true, false, d, const Size(1280, 800)),
+    ]) {
+      await _open(tester, size, dark: true, design: design);
       _join(_lounge, others: others, video: video);
       await settle(tester);
       // As the pre-split build opened the space's call from its page.
       openSpaceCall(tester.element(find.byType(HangoutScreen)));
       await settle(tester);
-      await _shot('$name-1280x800-dark');
+      await _shot(name.contains('x') ? '$name-dark' : '$name-1280x800-dark');
       Voice.instance.session = null;
       Voice.instance.putLook(_lounge.room, const []);
       await tester.pumpWidget(const SizedBox.shrink());
