@@ -266,11 +266,22 @@ class _InstallSigner implements NetSigner {
 }
 
 /// A secret store that can be locked, as an iPhone's Keychain is before its first unlock: nothing is read or written.
+/// With [gate] set, a read waits until it completes, as a slow store's does.
 class LockableStore extends MemoryFsStore {
   bool locked = false;
+  Completer<void>? gate;
+
+  /// How many reads are waiting at the [gate] now.
+  int waiting = 0;
   @override
   Future<String?> read(String name) async {
     if (locked) throw StateError('locked');
+    final g = gate;
+    if (g != null) {
+      waiting++;
+      await g.future;
+      waiting--;
+    }
     return super.read(name);
   }
 

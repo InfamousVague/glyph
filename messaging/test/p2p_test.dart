@@ -1818,7 +1818,7 @@ void main() {
       await w.settle();
       expect(a.secrets.kept[P2p.keyName], isEmpty);
       for (final name in P2p.keptNames) {
-        expect(a.plain.kept[name], isEmpty, reason: name);
+        expect(a.plain.kept[name] ?? '', isEmpty, reason: name);
       }
       expect(a.plain.kept[P2p.helpersOnlyName], 'on', reason: 'a choice, not the account\'s');
       expect([a.node.state.value, a.node.allowed, a.p2p.carrier.lines, b.p2p.carrier.lines], [P2pState.off, isEmpty, 0, 0]);
@@ -1848,6 +1848,34 @@ void main() {
       b.node.throws.addAll({'state', 'whereabouts', 'stop', 'close', 'disallow', 'paths'});
       await b.stop();
       expect(b.running, isFalse);
+    });
+
+    // The second review, S16: the link helpers were written after a wipe, and a read of what is kept still under way
+    // as the wipe ran wrote a new node key after it.
+    test('nothing is written after signing out: not the link helpers the relay names, nor what a read under way as it signed out would make', () async {
+      final a = w.install(w.account('maya'), computer: true);
+      await a.start();
+      await a.p2p.wipe();
+      a.p2p.setHelpers(const ['https://after.example']);
+      await w.settle();
+      expect(a.plain.kept[P2p.helpersName] ?? '', isEmpty);
+      // A slow secret store: the app starts, its read of the node key is under way, and it signs out meanwhile.
+      final b = w.install(w.account('sam'));
+      b.secrets.gate = Completer<void>();
+      final starting = b.start();
+      await w.until(() => b.secrets.waiting > 0, 'the read of the node key is under way');
+      expect(b.p2p.loaded, isFalse);
+      final wiping = b.p2p.wipe();
+      await w.settle();
+      b.secrets.gate!.complete();
+      b.secrets.gate = null;
+      await wiping;
+      await starting;
+      await w.settle();
+      for (final name in [P2p.idName, P2p.cardName, P2p.cardsName, P2p.toldName, P2p.helpersName]) {
+        expect(b.plain.kept[name] ?? '', isEmpty, reason: name);
+      }
+      expect([b.secrets.kept[P2p.keyName] ?? '', b.p2p.loaded, b.p2p.nodeId], [isEmpty, false, null]);
     });
 
     test('a node key made under one account is never carried to another', () async {

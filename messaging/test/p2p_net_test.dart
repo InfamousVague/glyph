@@ -10,6 +10,7 @@ import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/me/me.dart' show AppMeStore, Me;
 import 'package:ghost_messaging/net/carrier.dart';
 import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/forward_secrecy.dart' show MemoryFsStore;
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/net.dart';
 import 'package:ghost_messaging/net/p2p/card.dart';
@@ -43,6 +44,7 @@ void main() {
   final sam = NetKeys.generate(), nell = NetKeys.generate(), asker = NetKeys.generate(), member = NetKeys.generate();
   Uint8List keyWith(NetKeys them) => NetCrypto.netKey(NetCrypto.conversationKey(me, them.public)!);
   late Map<String, String> secrets;
+  late List<String> secretWrites;
   late List<Map<String, Object?>> peers;
   late List<Map<String, Object?>> e2e;
   late List<Map<String, Object?>> buddies;
@@ -56,6 +58,7 @@ void main() {
   setUp(() {
     HttpOverrides.global = null;
     secrets = {};
+    secretWrites = [];
     // As Android's netPeers has them: those encryption is on with (Net.peers), the members of this phone's groups
     // (Groups.peers), and friends by username, asked or asking (Buddies.peers).
     peers = [
@@ -91,6 +94,7 @@ void main() {
           return const <Object>[];
         case 'secretKeep':
           final value = '${a['value'] ?? ''}';
+          secretWrites.add('${a['name']}');
           value.isEmpty ? secrets.remove('${a['name']}') : secrets['${a['name']}'] = value;
           return null;
         case 'secretRead':
@@ -456,7 +460,7 @@ void main() {
     expect(account.signedIn, isFalse);
     expect(secrets.keys, isNot(contains(P2p.keyName)));
     for (final name in P2p.keptNames) {
-      expect(app.choice(name, 'unset'), isEmpty, reason: name);
+      expect(app.choice(name, ''), isEmpty, reason: name);
     }
     expect([p2p.loaded, p2p.card, p2p.nodeId, p2p.devicesOf(sam.id)], [false, null, null, isEmpty]);
     expect([node.state.value, node.allowed], [P2pState.off, isEmpty]);
@@ -476,9 +480,27 @@ void main() {
     await account.check();
     expect(secrets.keys, isNot(contains(P2p.keyName)));
     for (final name in P2p.keptNames) {
-      expect(app.choice(name, 'unset'), isEmpty, reason: name);
+      expect(app.choice(name, ''), isEmpty, reason: name);
     }
     expect(AccountCrypto.goodAddress('0x52908400098527886E0F7030069857D2E4169EE7'), isTrue);
+  });
+
+  // The second review: with no node, signing out wrote an empty node key to the secret store and five empty choices.
+  test('with nothing of the direct network kept, signing out writes none of it', () async {
+    final app = AppState()..set('acct_address', '0x52908400098527886E0F7030069857D2E4169EE7');
+    expect(Net.instance.p2p, isNull);
+    final account = Account(relay: _Gone(), port: SmsAccountPort(), store: AppMeStore(app), profiles: AppAccountProfiles());
+    await account.check();
+    expect(account.signedIn, isFalse);
+    expect(secretWrites, isNot(contains(P2p.keyName)));
+    expect(app.withPrefix('p2p_'), isEmpty);
+    // And the direct network's own forgetting, where one ran, the same.
+    final plain = MemoryFsStore(), kept = MemoryFsStore();
+    await P2p.forget(kept, plain);
+    expect([kept.writes, plain.writes], [0, 0]);
+    plain.kept[P2p.cardsName] = '{}';
+    await P2p.forget(kept, plain);
+    expect([kept.writes, plain.writes, plain.kept[P2p.cardsName]], [0, 1, '']);
   });
 }
 

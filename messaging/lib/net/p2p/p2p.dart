@@ -425,21 +425,22 @@ class P2p extends ChangeNotifier {
     } catch (_) {}
     // A node key made while this install was another account is never carried over: the two would be one device to
     // anyone who knew both.
-    if (id != null && id['a'] is String && id['a'] != me) {
+    if (id != null && id['a'] is String && id['a'] != me && !_wiped) {
       await forget(_secrets, _plain);
       key = null;
       id = null;
     }
+    if (_wiped || _gone) return;
     if (key == null) {
       key = NetCrypto.randomBytes(32);
-      await _secrets.write(keyName, jsonEncode({'a': me, 'k': NetCrypto.hex(key)}));
+      await _keep(_secrets, keyName, jsonEncode({'a': me, 'k': NetCrypto.hex(key)}));
     }
     final tag = NetCrypto.hex(NetCrypto.sha256([...utf8.encode('ghost-p2p node key '), ...key]).sublist(0, 8));
     var nodeId = id != null && id['g'] == tag && isNodeId(id['n']) ? id['n'] as String : null;
     if (nodeId == null) {
       nodeId = await _answered(node.idOf(key));
       if (!isNodeId(nodeId)) throw StateError('the direct network gave no node id');
-      await _plain.write(idName, jsonEncode({'a': me, 'g': tag, 'n': nodeId}));
+      await _keep(_plain, idName, jsonEncode({'a': me, 'g': tag, 'n': nodeId}));
     }
     final now = nowMs;
     // The link helpers the relay last named, until it names them again: a start while it is away still has them.
@@ -607,7 +608,7 @@ class P2p extends ChangeNotifier {
       if (!_loaded) return false;
       _card = made;
       _signFailed = 0;
-      await _plain.write(cardName, jsonEncode(made.toJson()));
+      await _keep(_plain, cardName, jsonEncode(made.toJson()));
       return true;
     } catch (_) {
       // Not signed now (a keystore that would not): the one held serves while it is good, and it is tried again
@@ -1240,11 +1241,12 @@ class P2p extends ChangeNotifier {
 
   /// The link helpers the relay named as this app signed in (HubCarrier.helpers). A change restarts a running node.
   void setHelpers(List<String> said) {
+    if (_wiped || _gone) return;
     final next = tidyHelpers(said);
     _helpersSaid = true;
     if (listEquals(next, _helpers)) return;
     _helpers = next;
-    unawaited(_plain.write(helpersName, jsonEncode(next)).catchError((Object _) {}));
+    unawaited(_keep(_plain, helpersName, jsonEncode(next)).catchError((Object _) {}));
     _reconfigure();
     notifyListeners();
   }
@@ -1328,12 +1330,21 @@ class P2p extends ChangeNotifier {
 
   void _saveCards() {
     if (!_loaded) return;
-    unawaited(_plain.write(cardsName, jsonEncode({for (final e in _cards.entries) e.key: [for (final d in e.value) d.toJson()]})).catchError((Object _) {}));
+    unawaited(_keep(_plain, cardsName, jsonEncode({for (final e in _cards.entries) e.key: [for (final d in e.value) d.toJson()]})).catchError((Object _) {}));
   }
 
   void _saveTold() {
     if (!_loaded) return;
-    unawaited(_plain.write(toldName, jsonEncode({for (final e in _told.entries) e.key: e.value.toJson()})).catchError((Object _) {}));
+    unawaited(_keep(_plain, toldName, jsonEncode({for (final e in _told.entries) e.key: e.value.toJson()})).catchError((Object _) {}));
+  }
+
+  /// Writes [value] under [name] in [store], unless this device has been signed out of meanwhile ([wipe]); and where
+  /// that happened while it was being written, writes it empty again, so nothing of the account outlives the wipe
+  /// (second review, S16).
+  Future<void> _keep(FsStore store, String name, String value) async {
+    if (_wiped) return;
+    await store.write(name, value);
+    if (_wiped) await store.write(name, '');
   }
 
   /// Signing out: the node is stopped and nobody is let in, and the node key, the node id, this device's card, the
@@ -1392,9 +1403,10 @@ class P2p extends ChangeNotifier {
 
   /// Deletes what the direct network keeps on a device, where none is running to [wipe] itself.
   static Future<void> forget(FsStore secrets, FsStore plain) async {
-    await secrets.write(keyName, '');
+    // Only what is there: nothing is written where nothing was kept.
+    if ((await secrets.read(keyName) ?? '').isNotEmpty) await secrets.write(keyName, '');
     for (final name in keptNames) {
-      await plain.write(name, '');
+      if ((await plain.read(name) ?? '').isNotEmpty) await plain.write(name, '');
     }
   }
 
