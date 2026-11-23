@@ -19,6 +19,7 @@ import '../me/cosmetics.dart';
 import '../me/me.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
+import '../net/name_watch.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
@@ -335,7 +336,15 @@ class _ProfileCardState extends State<_ProfileCard> {
             builder: (context, _) => _BadgeSection(badges: SpecialBadges.instance.of(g.id, username: g.username, me: g.me), section: section),
           )
         : const SizedBox.shrink();
+    // The name watch (lib/net/name_watch.dart): the relay now gives this friend's username to another key. They are
+    // still the key that was added; this only says so.
+    final renamed = g == null || g.me || g.id.isEmpty ? null : NameWatch.instance?.changeFor(g.id);
     final panel = <Widget>[
+      if (renamed != null)
+        section(
+          'The relay',
+          Text('The relay now says @${renamed.username} is a different key; you are still talking to the ${name.isEmpty ? '@${renamed.username}' : name} you added.', key: const ValueKey('profile-name-watch'), style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-danger'), height: 1.4)),
+        ),
       if (bio.isNotEmpty) section('About me', Text(bio, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink'), height: 1.4))),
       badgeList,
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),

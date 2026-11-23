@@ -12,6 +12,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
+import 'package:ghost_messaging/net/name_watch.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
@@ -129,6 +130,33 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
   }
+
+  // The name watch (lib/net/name_watch.dart; docs/OPEN_NETWORK.md, section 3): the relay now gives a friend's username to
+  // another key, and their card says so; they are still who was added.
+  testWidgets('a friend whose username the relay now gives to another key: their card says so, and that they are still who you added', (tester) async {
+    final kept = {
+      NameWatch.keptName: jsonEncode({
+        'x': {_maya: ['maya', 'c' * 32, DateTime(2026, 11, 22).millisecondsSinceEpoch]},
+      }),
+    };
+    NameWatch.instance = NameWatch(me: () => 'me', username: () => 'me', friends: () => [const WatchedName('maya', _maya, 'k')], whois: (_) async => null, tell: (_, _) async {}, read: (n) => kept[n] ?? '', write: (n, v) => kept[n] = v, now: DateTime.now, timer: (_, _) => Timer(Duration.zero, () {}))..start();
+    addTearDown(() => NameWatch.instance = null);
+    final h = await SpaceHarness.load(tester);
+    final (:room, route: _) = _room();
+    await room.open();
+    await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: room)), 'profile-name-watch');
+    await tester.tap(find.text('Maya Chen').first);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.widget<Text>(find.byKey(const ValueKey('profile-name-watch'))).data, 'The relay now says @maya is a different key; you are still talking to the Maya Chen you added.');
+    // Kevin, whose username the relay gives as ever, has no such line.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Kevin Moss').first);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('profile-name-watch')), findsNothing);
+    NameWatch.instance!.dispose();
+    await tester.pump(const Duration(seconds: 1));
+  });
 
   testWidgets('a friend\'s card has the message box with Send inside it, as every conversation\'s has', (tester) async {
     final h = await SpaceHarness.load(tester);

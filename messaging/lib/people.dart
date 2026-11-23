@@ -9,6 +9,9 @@ import 'friends/buddies.dart';
 import 'friends/friends.dart';
 import 'friends/groups.dart';
 import 'me/me.dart';
+import 'net/carrier.dart';
+import 'net/hub_carrier.dart';
+import 'net/name_watch.dart';
 import 'net/net.dart';
 import 'scheduled.dart';
 import 'voice/channels.dart';
@@ -25,7 +28,7 @@ import 'voice/channels.dart';
 /// voice and circles are started as a paired computer's (lib/desktop/main.dart).
 void startOwnFriends(AppState app) {
   // Friends' words go by the routes ([Friends]): a friend by username's, here; a number's, still by the phone's texts.
-  Net.instance.start(app).then((_) => Friends.instance.start(app));
+  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => _checkRelay(app));
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
   // A Ghost account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
   // a way to login on desktop just to claim a username, i would like to be able to link a session to a new account").
@@ -51,7 +54,7 @@ void _hearBuddies() {
 }
 
 void startPeople(AppState app) {
-  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
+  Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => _checkRelay(app)).then((_) => Groups.instance.start()).then((_) => Voice.instance.start(app)).then((_) => Circles.instance.start(app));
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has
   // been.
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
@@ -76,6 +79,58 @@ void startPeople(AppState app) {
     Buddies.instance.addListener(hearBuddies);
     Me.instance.addListener(hearBuddies);
   });
+}
+
+/// What checks the relay where the app runs its own network (docs/OPEN_NETWORK.md, section 3). Friends' unanswered
+/// words are given to the ledger's comparing, to send again straight where a friend's device says they never came
+/// (lib/net/ledger.dart; only where the build has the direct route). And the name watch (lib/net/name_watch.dart), which
+/// needs no direct route: friends' usernames asked of the relay again once a day and this person's own at each
+/// sign-in, the answers held against the keys that were added, and a friend told by every route where the relay gives
+/// their username to another key.
+void _checkRelay(AppState app) {
+  Net.instance.addHolder(Friends.instance.heldFor);
+  if (NameWatch.instance != null) return;
+  final watch = NameWatch.instance = NameWatch(
+    me: () => Net.instance.id,
+    username: () => Me.instance.username,
+    friends: () => [for (final b in Buddies.instance.friends) WatchedName(b.username, b.id, b.key)],
+    whois: Me.instance.whois,
+    tell: (id, envelope) async {
+      final board = Net.instance.board, peer = Net.instance.byId(id);
+      if (board != null && peer != null && peer.key != null) await board.sendEveryWay(peer, envelope);
+    },
+    read: (name) => app.choice(name, ''),
+    // Its own bookkeeping, which no screen draws from the choices: nothing is drawn again for it.
+    write: app.keep,
+  );
+  Net.instance.listen((r) {
+    if (r.envelope.kind == NameWatch.kind) watch.heard(r.peer.id, r.envelope, sealed: r.sealed);
+  });
+  // Each sign-in to the relay, whichever relay is in use: its own username is asked again.
+  HubCarrier? hub;
+  var wasUp = false;
+  void relay() {
+    final up = hub?.state.value == CarrierState.up;
+    if (up && !wasUp) unawaited(watch.signedIn());
+    wasUp = up;
+  }
+
+  void follow() {
+    final now = Net.instance.hub;
+    if (identical(now, hub)) return;
+    hub?.state.removeListener(relay);
+    hub = now;
+    wasUp = false;
+    now?.state.addListener(relay);
+    relay();
+  }
+
+  Net.instance.addListener(follow);
+  Buddies.instance.addListener(watch.friendsChanged);
+  // Settings › Routes draws what it found again (Net.direct is what its pages listen to).
+  watch.addListener(() => Net.instance.direct.value++);
+  watch.start();
+  follow();
 }
 
 /// Snoozes (lib/snooze.dart), each said when it ends: a notification on the phone that opens the app.

@@ -10,6 +10,8 @@ import '../me/me.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
+import '../net/ledger.dart' show Ledger;
+import '../net/name_watch.dart' show NameWatch;
 import '../net/net.dart';
 import '../net/p2p/p2p.dart';
 import '../sms.dart';
@@ -443,6 +445,15 @@ class Account extends ChangeNotifier {
       } catch (_) {}
     }
     for (final name in P2p.keptNames) {
+      if (store.choice(name, '').isNotEmpty) store.set(name, '');
+    }
+    // And the ledger the relay is checked by, and what the name watch kept (lib/net/ledger.dart, name_watch.dart): what
+    // went to whom and came from whom, and what the relay said of friends' usernames, are nothing of the next account's.
+    try {
+      await Net.instance.ledger?.wipe();
+    } catch (_) {}
+    NameWatch.instance?.wipe();
+    for (final name in [...Ledger.keptIn(store.choice(Ledger.indexName, '')), ...NameWatch.keptNames]) {
       if (store.choice(name, '').isNotEmpty) store.set(name, '');
     }
     notifyListeners();

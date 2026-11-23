@@ -27,6 +27,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
 import '../friends/buddies.dart';
+import '../net/name_watch.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'new_group.dart';
@@ -337,6 +338,18 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     // What the packs and the Marketplace have to say as it happens: a pack withdrawn (with the way to its page), paused,
     // loaded from the API, and a developer's decisions.
     _notices = [InstalledPlugins.instance.notices.listen(_notice), MarketState.instance.notices.listen(_notice)];
+    // The name watch's word on this person's own username, the moment it comes (lib/net/name_watch.dart): the relay gave
+    // it to another key, by its own answer or as a friend's app saw.
+    _names = NameWatch.notices.listen(_nameNotice);
+  }
+
+  StreamSubscription<NameChange>? _names;
+
+  void _nameNotice(NameChange c) {
+    if (!mounted) return;
+    final by = c.by;
+    final who = by == null ? null : (Buddies.instance.byId(by)?.shown ?? 'A friend');
+    toast(context, who == null ? 'The relay now gives your username @${c.username} to another key. Friends who added you still reach you: Settings › Routes says more.' : '$who\'s app saw the relay give your username @${c.username} to another key. Settings › Routes says more.', tone: GlacierToastTone.danger);
   }
 
   List<StreamSubscription<PackNotice>> _notices = const [];
@@ -572,6 +585,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   void dispose() {
     FriendCalls.instance.ended.removeListener(_callEnded);
     _ringActions?.cancel();
+    unawaited(_names?.cancel());
     HardwareKeyboard.instance.removeHandler(_key);
     if (identical(live, this)) live = null;
     Voice.instance.removeListener(_voiceChanged);

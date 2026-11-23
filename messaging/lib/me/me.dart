@@ -405,6 +405,12 @@ class Me extends ChangeNotifier {
       case 'admin-badge':
       case 'admin-log':
         _waiting.remove('${m['dir']}:')?.complete(m);
+      case 'whois':
+        // Answered by the name asked, so two lookups at once (the name watch's and the add-friend drawer's) each get
+        // their own answer; a relay that echoes no name answers whichever asked without one.
+        final asked = m['name'];
+        final c = (asked is String ? _waiting.remove('whois:${tidyHandle(asked)}') : null) ?? _waiting.remove('whois:');
+        c?.complete(m);
       case 'link':
       case 'proof':
       case 'text':
@@ -412,7 +418,6 @@ class Me extends ChangeNotifier {
       case 'unlinked':
       case 'forgotten':
       case 'claim':
-      case 'whois':
       case 'badges':
       case 'released':
       case 'keep':
@@ -445,8 +450,9 @@ class Me extends ChangeNotifier {
       case 'err':
         final about = m['about'] as String?;
         final error = MeError((m['err'] as String?) ?? 'That did not work.');
-        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked".
-        for (final key in ['$about:${network ?? ''}', if (about == 'check' || about == 'code') 'linked:${network ?? ''}']) {
+        // A check that fails, or a code that is not the one sent, answers whoever waits for "linked"; a lookup refused
+        // (too many in an hour) answers every lookup waiting, as each would be refused.
+        for (final key in ['$about:${network ?? ''}', if (about == 'check' || about == 'code') 'linked:${network ?? ''}', if (about == 'whois') ..._waiting.keys.where((k) => k.startsWith('whois:'))]) {
           final c = _waiting.remove(key);
           if (c != null && !c.isCompleted) c.completeError(error);
         }
@@ -532,13 +538,13 @@ class Me extends ChangeNotifier {
     throw MeError('The phone does not do that for a computer.');
   }
 
-  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25)}) {
+  Future<Map<String, dynamic>> _ask(Map<String, Object?> what, String answer, {Duration wait = const Duration(seconds: 25), String? key}) {
     final stand = asking;
     if (stand != null) return stand(what);
     final hub = _hub;
     if (hub == null || !hub.sayHandles(what)) return Future.error(MeError('The relay server can\'t be reached right now.'));
     _app?.setFlag('me_used', true);
-    final key = '$answer:${what['p'] ?? ''}';
+    key ??= '$answer:${what['p'] ?? ''}';
     _waiting.remove(key);
     final done = _waiting[key] = Completer<Map<String, dynamic>>();
     return done.future.timeout(wait, onTimeout: () {
@@ -801,7 +807,8 @@ class Me extends ChangeNotifier {
 
   /// Who has the username [name]: their install and its public key, or null where nobody does.
   Future<({String id, String key})?> whois(String name) async {
-    final got = await _ask({'dir': 'whois', 'name': tidyHandle(name)}, 'whois');
+    final n = tidyHandle(name);
+    final got = await _ask({'dir': 'whois', 'name': n}, 'whois', key: 'whois:$n');
     if (got['none'] == true || got['id'] is! String || got['key'] is! String) return null;
     return (id: got['id'] as String, key: got['key'] as String);
   }

@@ -272,7 +272,7 @@ class Buddies extends ChangeNotifier {
       case 'lookup':
         return {'found': (await lookup('${what['u'] ?? ''}')).name, 'list': list()};
       case 'add':
-        final b = await add('${what['u'] ?? ''}');
+        final b = await add('${what['u'] ?? ''}', keyPrefix: what['kp'] is String ? what['kp'] as String : null);
         return {'buddy': b.toJson(), 'list': list()};
       case 'accept':
         final b = await accept(want());
@@ -385,12 +385,19 @@ class Buddies extends ChangeNotifier {
   }
 
   /// Asks [username] to be friends. Throws a [MeError] where nobody has that username, or it is this install's.
-  Future<Buddy> add(String username) async {
-    if (_remote) return Buddy.fromJson((await _ask({'op': 'add', 'u': username}))['buddy'])!;
+  ///
+  /// [keyPrefix], from an add-me link (lib/friends/add_link.dart): the first hex digits of the account name the person
+  /// who shared it has. The relay's answer is refused where its key doesn't make a name that begins so: it gave the
+  /// username to someone else, and nothing is kept or sent.
+  Future<Buddy> add(String username, {String? keyPrefix}) async {
+    if (_remote) return Buddy.fromJson((await _ask({'op': 'add', 'u': username, 'kp': ?keyPrefix}))['buddy'])!;
     final name = tidyHandle(username);
     if (_port.username == null) throw MeError('Choose your own username first.');
     final found = await _port.whois(name);
     if (found == null) throw MeError('Nobody has the username @$name.');
+    if (keyPrefix != null && !keyMatches(found, keyPrefix)) {
+      throw MeError('The relay gave @$name to a different key than the link names, so nothing was sent. Ask them for their link again, or check their username with them.');
+    }
     final me = await _port.me();
     if (found.id == me.id) throw MeError('That\'s you.');
     final had = byId(found.id);
@@ -402,6 +409,18 @@ class Buddies extends ChangeNotifier {
     await _save();
     await _port.send(found.id, Envelope(kind: 'hello', body: {'buddy': 'ask', 'k': me.key, ..._profile()}), sealed: false);
     return b;
+  }
+
+  /// Whether [found] (the relay's answer for a username) is the key an add-me link names by [keyPrefix]: the account
+  /// name is the one its key makes, and begins with those digits.
+  static bool keyMatches(({String id, String key}) found, String keyPrefix) {
+    final want = keyPrefix.toLowerCase();
+    if (want.isEmpty || !found.id.startsWith(want)) return false;
+    try {
+      return NetCrypto.idOf(base64Decode(found.key)) == found.id;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<Buddy> accept(Buddy b) async {
