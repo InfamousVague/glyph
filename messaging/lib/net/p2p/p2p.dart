@@ -281,6 +281,24 @@ class P2p extends ChangeNotifier {
   /// others by itself when the relay has gone.
   bool get inUse => !_away;
 
+  /// How the node stands, and where it says this device is: as node.dart says it, and down, or nowhere, where the
+  /// core breaks its word and throws.
+  P2pState get nodeState {
+    try {
+      return node.state.value;
+    } catch (_) {
+      return P2pState.down;
+    }
+  }
+
+  Whereabouts? get nodeWhere {
+    try {
+      return node.whereabouts.value;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// This device's node id, once read; and its card, once made.
   String? get nodeId => _nodeId;
   DeviceCard? get card => _card;

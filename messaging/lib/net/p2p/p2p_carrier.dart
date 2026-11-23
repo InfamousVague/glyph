@@ -52,8 +52,9 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// The longest packet carried, each way: the hub's, so a packet made for one route fits the other.
   static const maxPacket = HubCarrier.maxPacket;
 
-  /// The most streams held with one node; a newer one takes the place of the oldest.
-  static const mostLines = 2;
+  /// The most proved streams held with one node: one newly proved takes the place of the oldest. And the most not yet
+  /// proved: a newer one takes the place of the oldest of those, and never of one that has proved whose it is.
+  static const mostLines = 2, mostProving = 2;
 
   static final _words = utf8.encode('ghost-p2p link v2\n');
   static const _mark = 0, _nonceMark = 2, _proofMark = 3, _nonceLength = 16;
@@ -146,8 +147,10 @@ class P2pCarrier implements Carrier, LiveLinks {
       return;
     }
     final node = _nodes[s.nodeId] ??= _Node();
-    while (node.lines.length >= mostLines) {
-      _close(node, node.lines.first);
+    // A stream that has not proved whose it is takes the place of another such, never of one that has (second review,
+    // S3): a friend who names someone else's node as his can't close her links with this device by dialling it.
+    for (var proving = node.lines.where((l) => l.account == null).toList(); proving.length >= mostProving; proving.removeAt(0)) {
+      _close(node, proving.first);
     }
     final line = _Line(s, claimed, dialled: dialled, nonce: NetCrypto.randomBytes(_nonceLength));
     node.lines.add(line);
@@ -233,6 +236,10 @@ class P2pCarrier implements Carrier, LiveLinks {
       line.account = who;
       if (line.stream.incoming) _prove(node, line, who);
       _said(node, line);
+      // Proved: it takes the place of the oldest proved one, where there are as many as are held.
+      for (var proved = node.lines.where((l) => l.account != null && !identical(l, line)).toList(); proved.length >= mostLines; proved.removeAt(0)) {
+        _close(node, proved.first);
+      }
       p2p.linesChanged();
       node.bump();
       return;
@@ -261,8 +268,10 @@ class P2pCarrier implements Carrier, LiveLinks {
     line.timer?.cancel();
     line.sub?.cancel();
     node.lines.remove(line);
-    // Dialled, and never proved: as good as not reached.
-    if (line.account == null && !line.stream.incoming) node.failed = p2p.nowMs;
+    // Dialled for an account, and never proved to be its: as good as not reached, for that account alone. The same
+    // node dialled for another account is another matter (second review, S3).
+    final dialled = line.dialled;
+    if (line.account == null && dialled != null) node.dialFor(dialled).failed = p2p.nowMs;
     p2p.linesChanged();
     node.bump();
   }
@@ -283,7 +292,7 @@ class P2pCarrier implements Carrier, LiveLinks {
     for (final line in node.lines.toList()) {
       _close(node, line);
     }
-    if (node.dials == 0) _nodes.remove(nodeId);
+    if (node.dials.values.every((d) => d.dials == 0)) _nodes.remove(nodeId);
     node.bump();
   }
 
@@ -300,8 +309,10 @@ class P2pCarrier implements Carrier, LiveLinks {
   /// The network changed: devices that could not be reached may be now.
   void networkChanged() {
     for (final node in _nodes.values.toList()) {
-      node.failed = 0;
-      node.dialledAt = -1;
+      for (final dial in node.dials.values) {
+        dial.failed = 0;
+        dial.dialledAt = -1;
+      }
       node.bump();
     }
   }
@@ -325,14 +336,16 @@ class P2pCarrier implements Carrier, LiveLinks {
       if (line != null) return line;
       final device = p2p.deviceAt(account, nodeId);
       final now = p2p.nowMs;
-      if (device == null || !p2p.mayLink(account) || now >= until || p2p.node.state.value != P2pState.up) return null;
+      if (device == null || !p2p.mayLink(account) || now >= until || p2p.nodeState != P2pState.up) return null;
       // Dialled where nothing is on its way already: by where it last said it was, again when it says anew, and
-      // not again within a while of failing.
+      // not again within a while of failing. All of it for this account at this node: what became of a dial for
+      // another account to the same node says nothing of this one (second review, S3).
+      final dial = node.dialFor(account);
       final said = device.where?.at ?? 0;
-      final anew = said > node.dialledAt;
-      if (!node.proving && (node.dials == 0 || anew) && (anew || now - node.failed >= p2p.policy.redialAfter.inMilliseconds)) {
-        node.dials++;
-        node.dialledAt = said;
+      final anew = said > dial.dialledAt;
+      if (!node.proving(account) && (dial.dials == 0 || anew) && (anew || now - dial.failed >= p2p.policy.redialAfter.inMilliseconds)) {
+        dial.dials++;
+        dial.dialledAt = said;
         Future<P2pStream> opening;
         try {
           opening = p2p.node.open(nodeId, P2pChannel.packets, hint: p2p.hintFor(device), timeout: Duration(milliseconds: until - now));
@@ -340,18 +353,18 @@ class P2pCarrier implements Carrier, LiveLinks {
           opening = Future.error(e);
         }
         unawaited(opening.then((s) {
-          node.dials--;
-          node.failed = 0;
+          dial.dials--;
+          dial.failed = 0;
           _adopt(s, dialled: account);
           node.bump();
         }, onError: (Object _) {
-          node.dials--;
-          node.failed = p2p.nowMs;
+          dial.dials--;
+          dial.failed = p2p.nowMs;
           node.bump();
         }));
       }
       // Nothing on its way, and no answer to a meet to wait for: there is no more to hope for now.
-      if (node.dials == 0 && !node.proving && !p2p.awaited(account)) return null;
+      if (dial.dials == 0 && !node.proving(account) && !p2p.awaited(account)) return null;
       await _changed(node, until);
     }
   }
@@ -485,20 +498,22 @@ class _Line {
   bool closed = false;
 }
 
-/// What is under way with one node: its streams, the dials on their way to it, and whoever waits for either.
+/// What is under way with one node: its streams, the dials on their way to it for each account it is said to be a
+/// device of, and whoever waits for either.
 class _Node {
   final List<_Line> lines = [];
-  int dials = 0;
 
-  /// The time on the whereabouts the last dial went by; -1 before any.
-  int dialledAt = -1;
-
-  /// When it last could not be reached, in milliseconds; 0 where it since could, or the network changed.
-  int failed = 0;
+  /// The dials to it, for each account whose device it was dialled as.
+  final Map<String, _Dial> dials = {};
   Completer<void>? changed;
 
+  _Dial dialFor(String account) => dials[account] ??= _Dial();
+
   _Line? proved(String account) => lines.where((l) => l.account == account && !l.closed).firstOrNull;
-  bool get proving => lines.any((l) => l.account == null && !l.closed);
+
+  /// Whether a stream that may yet prove to be [account]'s is open: one dialled for it, or one the other end opened
+  /// that [account]'s card names.
+  bool proving(String account) => lines.any((l) => l.account == null && !l.closed && (l.dialled == null ? l.claimed.contains(account) : l.dialled == account));
 
   /// Something changed: whoever waits looks again.
   void bump() {
@@ -506,4 +521,12 @@ class _Node {
     changed = null;
     c?.complete();
   }
+}
+
+/// The dials to one node for one account: how many are on their way, the time on the whereabouts the last went by
+/// (-1 before any), and when it last could not be reached (0 where it since could, or the network changed).
+class _Dial {
+  int dials = 0;
+  int dialledAt = -1;
+  int failed = 0;
 }

@@ -853,6 +853,49 @@ void main() {
       expect(a1.p2p.devicesOf(xan.id).map((d) => d.nodeId), isNot(contains(a2.p2p.nodeId)));
     });
 
+    // The second review, S3 (R2-E): what was known of a dial was kept by node, for whichever account it was dialled
+    // for. A dial "for Xan" to Yara's node that failed his proof marked her node unreachable for half a minute, and a
+    // new stream to it closed the oldest, whoever had proved it.
+    test('a friend who names another friend\'s node as his costs only his own route: her device is dialled at once after, and her proved links are never closed for his', () async {
+      final maya = w.account('maya'), xan = w.account('xan'), yara = w.account('yara');
+      final a = w.install(maya, computer: true), x = w.install(xan, computer: true), y = w.install(yara, computer: true);
+      w.friends(a, x);
+      w.friends(a, y);
+      for (final i in [a, x, y]) {
+        await i.start();
+      }
+      await w.clock.pass(_minute);
+      final lie = await _cardOf(w, xan, node: y.p2p.nodeId);
+      await x.board.send(x.to(maya), _said(w, _telling(a, lie, where: {...y.node.whereabouts.value!.toJson(), 't': w.clock.ms})), only: {'hub'});
+      await w.settle();
+      await w.relayGone();
+      w.mesh.unreachable(x.node);
+      final toXan = a.text(xan, 'for xan', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await toXan).sent, isFalse);
+      // At once, something for Yara: her device is dialled and takes it.
+      final dials = w.mesh.dialsTo(y.p2p.nodeId!);
+      final toYara = a.text(yara, 'for yara', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 1));
+      final d = await toYara;
+      expect([d.sent, d.acked, w.mesh.dialsTo(y.p2p.nodeId!) - dials], [true, true, 1]);
+      expect(y.texts, ['for yara']);
+      // Two proved links with her device now (her device opens a second, as a device may).
+      final second = HandEnd(await y.node.open(a.p2p.nodeId!, P2pChannel.packets), linkKey: y.p2p.linkKey(maya.id)!, account: yara.id, node: y.p2p.nodeId!, them: maya.id);
+      await w.settle();
+      expect(second.proved, isTrue);
+      expect(a.p2p.carrier.lines, 2);
+      // Half a minute on, another dial "for Xan" to her node: it fails his proof, and closes neither of hers.
+      await w.clock.pass(const Duration(seconds: 31));
+      final dialsNow = w.mesh.dialsTo(y.p2p.nodeId!);
+      final again = a.text(xan, 'for xan again', only: {'p2p'});
+      await w.clock.pass(const Duration(seconds: 5));
+      expect((await again).sent, isFalse);
+      expect(w.mesh.dialsTo(y.p2p.nodeId!) - dialsNow, 1, reason: 'dialled as his again');
+      expect([second.done, a.p2p.carrier.lines, a.p2p.carrier.linkedTo(yara.id, y.p2p.nodeId!)], [false, 2, true]);
+      expect((await a.text(yara, 'still linked', only: {'p2p'})).acked, isTrue);
+    });
+
     test('a frame longer than the relay\'s packet is refused both ways, and a stream is let go after ninety seconds with nothing said', () async {
       final a = w.install(w.account('maya'), computer: true), b = w.install(w.account('sam'), computer: true);
       w.friends(a, b);
