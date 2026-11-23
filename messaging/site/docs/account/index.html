@@ -85,9 +85,11 @@
 </div></div></figure>
 <ul>
   <li><b>Change password</b>: your backup is sealed again with the new one. Your recovery words stay the same.</li>
-  <li><b>Signed in on these devices</b>: remove a device you no longer have. It's signed out the next time it connects.</li>
-  <li><b>Sign out of this device</b>: the device becomes someone new. Your friends and circles stay with your account and come back when you sign in again.</li>
+  <li><b>Signed in on these devices</b>: remove a device you no longer have. The next time it connects it's signed out: an iPhone, a computer without a phone or a browser deletes everything of your account from itself; an Android phone, or a computer linked to one, forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations. Each browser you sign in on, and each private window, is a device here until it signs out or you remove it.</li>
+  <li><b>Sign out of this device</b>: the device becomes someone new. Your friends and circles stay with your account and come back when you sign in again. On an iPhone or a computer without a phone, your conversations, spaces and choices stay on the device unless you choose <b>Sign out and delete everything here</b>; on an Android phone your texts and conversations stay.</li>
+  <li><b>Sign out of this browser</b>: in a browser, everything of your account is deleted from it, always.</li>
 </ul>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>In a browser</b><p>A browser keeps neither your recovery words nor your password's key, so it asks for your password to show the words, change the password, list or remove your devices, and bring your backup up to date (<span class="ui-path">Update your backup</span>). Everything else it keeps is sealed with a key the browser holds for the page, but anything running in the page, such as a browser extension allowed on it, could open it. On a computer you share, sign out when you're done.</p></div></aside>
 
     <nav class="prevnext"><a class="prev" href="/docs/first-run/"><small>Previous</small>The first time you open it</a><a class="next" href="/docs/how-accounts-work/"><small>Next</small>How your account works</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
