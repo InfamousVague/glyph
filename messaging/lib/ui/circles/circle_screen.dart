@@ -238,7 +238,7 @@ class CircleRow extends StatelessWidget {
     String line;
     if (inVoice.isNotEmpty) {
       final names = inVoice.take(3).map(voice.nameOf).join(', ');
-      line = '$count · ${inVoice.length == 1 ? '$names is talking' : '$names talking'}';
+      line = '$count · ${inVoice.length == 1 ? talkingAlone(names) : '$names talking'}';
     } else if (newest != null) {
       final me = voice.hangoutFor(where!)?.me;
       final who = newest.from == me ? 'You' : (newest.name.isNotEmpty ? newest.name : voice.nameOf(newest.from));

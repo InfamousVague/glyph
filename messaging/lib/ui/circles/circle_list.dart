@@ -365,12 +365,15 @@ class CircleSectionHeading extends StatelessWidget {
   }
 }
 
+/// "Maya is talking", or "You're talking" where the one talking is this device's person.
+String talkingAlone(String name) => name == 'You' ? 'You\'re talking' : '$name is talking';
+
 /// What a space's row says under its name: who is talking in a call (green), how many files a Files space holds, or
 /// the newest message; null where there is nothing to say.
 String? circleSpaceLine(CircleSpaceView s) {
   if (s.live) {
     final names = s.inVoice.take(3).join(', ');
-    return s.inVoice.length == 1 ? '$names is talking' : '${s.inVoice.length} talking · $names';
+    return s.inVoice.length == 1 ? talkingAlone(names) : '${s.inVoice.length} talking · $names';
   }
   if (s.kind == SpaceKind.files && s.files != null && (s.lastMessage == null || s.unread == 0)) return s.files == 0 ? 'No files yet' : '${s.files} ${s.files == 1 ? 'file' : 'files'}';
   return s.lastMessage;

@@ -246,6 +246,11 @@ void main() {
     expect(line('Drop box'), 'Sam: Added flashcards.zip');
     expect(line('Study room'), isNull);
   });
+
+  test('one person talking reads as a sentence, "You\'re talking" when it is you', () {
+    expect(talkingAlone('Maya'), 'Maya is talking');
+    expect(talkingAlone('You'), 'You\'re talking');
+  });
 }
 
 /// The app's fonts, so the pictures show words.
