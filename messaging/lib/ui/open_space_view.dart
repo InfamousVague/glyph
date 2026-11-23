@@ -27,6 +27,34 @@ typedef OpenFigureBuilder = Widget Function(BuildContext context, OpenFigure who
 /// A person as their profile picture with the call's ripple round it while they talk.
 Widget avatarFigure(BuildContext context, OpenFigure who, Widget face) => RippleAvatar(name: who.name, level: who.level, muted: who.muted, size: who.size, child: face);
 
+/// An open space's call wherever a call is drawn (lib/ui/hangout_screen.dart, a phone's and a computer's): its floor,
+/// from the first moment, and never the normal call in its place. The floor is made as the call is begun
+/// (OpenSpaces.follow in Voice.join); should a frame come before it, the room's ground is drawn with a word that it
+/// is coming in, rather than anything that looks like another kind of call.
+class OpenSpaceFloor extends StatelessWidget {
+  const OpenSpaceFloor({super.key, required this.session, this.bottomInset = 0});
+  final VoiceSession session;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: OpenSpaces.instance,
+        builder: (context, _) {
+          final floor = OpenSpaces.instance.of(session);
+          if (floor != null) return OpenSpaceView(key: ValueKey('open-floor-${session.channel.room}'), session: session, floor: floor, bottomInset: bottomInset);
+          final t = context.tokens;
+          return ColoredBox(
+            key: const ValueKey('open-floor-coming'),
+            color: t.color('app-paper'),
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: Center(child: _Pill(child: Text('Coming into ${session.channel.name}…', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))))),
+            ),
+          );
+        },
+      );
+}
+
 /// An open space's floor seen from above (lib/voice/open_space.dart; Matt, 2026-11-23: "a top down view and lets you
 /// move around in the space ... allow walking around with wasd or arrow keys"). This device stays in the middle of the
 /// view and the floor moves under it. Walk with W A S D or the arrow keys while the floor has the keyboard, or press
@@ -328,7 +356,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                     alignment: Alignment.topLeft,
                     child: _Pill(
                       child: Text(
-                        Sms.computer ? (_focus.hasFocus ? 'Walk with W A S D or the arrow keys, or press where to go' : 'Press the floor, then walk with W A S D or the arrow keys') : 'Press where to go. The nearer someone is, the louder they are.',
+                        // Before the relay has answered the floor is already here, and says the call is coming.
+                        !session.joined ? 'Connecting…' : Sms.computer ? (_focus.hasFocus ? 'Walk with W A S D or the arrow keys, or press where to go' : 'Press the floor, then walk with W A S D or the arrow keys') : 'Press where to go. The nearer someone is, the louder they are.',
                         style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),
                       ),
                     ),

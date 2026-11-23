@@ -286,7 +286,8 @@ if (circle) {
 const link = readLink(location.hash);
 if (!link) { show('bad'); throw new Error('not a hangout link'); }
 // A texting or Files space has no voice: its chat alone, with no microphone or camera asked for.
-const chatOnly = link.kind !== 'voice';
+// An open space is a call too: here, with no floor, everyone is heard whole (lib/voice/open_space.dart).
+const chatOnly = link.kind !== 'voice' && link.kind !== 'open';
 document.title = link.name + ' · Ghost Messaging';
 for (const id of ['title', 'call-title']) $(id).textContent = link.name;
 if (chatOnly) {

@@ -982,12 +982,17 @@ class Voice extends ChangeNotifier {
       await leave();
       movedAway.moved(c);
     };
+    // An open space's floor is followed from here, before the chat is held and the relay has answered: the floor is
+    // on the screen at once, saying it is connecting, and not the normal call until the relay answers (Matt,
+    // 2026-11-23: "the open space is just showing up as a normal call for me and it took a really long time to load").
+    OpenSpaces.instance.follow();
     // A hangout's chat and roles while in its call: whoever is banned is not answered, and the roster is done.
     final room = await hold(c);
     if (room != null) {
       if (room.putOut != null) {
         session = null;
         media = null;
+        OpenSpaces.instance.follow();
         await release(c);
         throw StateError(room.putOut!);
       }
@@ -1018,8 +1023,6 @@ class Voice extends ChangeNotifier {
       WatchTogether.instance.follow();
       // And its soundboard (soundboard.dart).
       Soundboard.instance.follow();
-      // And its floor, where it is an open space (open_space.dart).
-      OpenSpaces.instance.follow();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
       // And the voice changer, live, where it is on (live_changer.dart).

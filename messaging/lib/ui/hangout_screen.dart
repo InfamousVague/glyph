@@ -215,9 +215,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
         // In the call on a narrow phone: the chosen design is the page (space_design.dart).
-        // An open space is its own page, the floor (lib/ui/open_space_view.dart): no design is drawn in its place.
-        final floor = OpenSpaces.instance.of(s);
-        final design = floor != null ? null : inlineSpaceCall(context, s);
+        // An open space is its own page, the floor (lib/ui/open_space_view.dart): no design is drawn in its place
+        // (inlineSpaceCall asks OpenSpaces.isCall).
+        final open = OpenSpaces.isCall(s);
+        final design = inlineSpaceCall(context, s);
         if (design != null) return design;
         final pad = MediaQuery.paddingOf(context).bottom;
         final wide = AppShell.wideOf(context);
@@ -323,15 +324,19 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // In the call beside the list (a computer, a wide phone): the people and the dock here, the chat and the videos
         // in the pane (Matt, 2026-11-15: "the voice on desktop should show up on the left side with the right side
         // reserved for chat").
+        // An open space's here too is its floor, as on a phone: this page is the pane beside a circle's list.
         if (wide) {
           return _page(
             room,
             actions: actions,
             body: Stack(children: [
-              ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
-                children: [CallPanel(session: s, videos: false)],
-              ),
+              if (open)
+                OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))
+              else
+                ListView(
+                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
+                  children: [CallPanel(session: s, videos: false)],
+                ),
               Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
             ]),
           );
@@ -347,8 +352,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
                 child: _tab == 'chat'
                     ? chat
                     // An open space: the floor in the people's place, the dock over its foot.
-                    : floor != null
-                        ? OpenSpaceView(session: s, floor: floor, bottomInset: dockAt + NavPill.clearance(t))
+                    : open
+                        ? OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))
                         : ListView(
                             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
                             children: [CallPanel(session: s)],
@@ -404,7 +409,7 @@ class _HangoutStageState extends State<HangoutStage> {
         final chat = room == null ? const SizedBox.shrink() : HangoutChat(room: room);
         final videos = s != null && CallVideos.any(s);
         // In an open space's call: its floor over the chat, as the videos are (lib/ui/open_space_view.dart).
-        final floor = OpenSpaces.instance.of(s);
+        final open = OpenSpaces.isCall(s);
         return GhostPage(
           title: 'Chat',
           back: false,
@@ -419,9 +424,9 @@ class _HangoutStageState extends State<HangoutStage> {
             if (room != null && widget.channel.circle != null) _membersButton(context, room),
             if (room != null && widget.channel.circle == null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
           ],
-          body: floor != null
+          body: open
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(flex: 3, child: OpenSpaceView(session: s!, floor: floor)),
+                  Expanded(flex: 3, child: OpenSpaceFloor(session: s!)),
                   if (videos) ...[
                     Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
                     SizedBox(height: 200, child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)), child: CallVideos(session: s))),

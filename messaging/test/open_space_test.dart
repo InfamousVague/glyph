@@ -106,7 +106,26 @@ void main() {
     await _until(() => media['b']!.gains['a'] == 1, 'heard whole again');
   });
 
-  test('walking by the keys: a heading moves this device until it is let go, and never off the floor', () async {
+  test('a floor made as its call is begun, before the relay answers (Voice.join), says where it stands once the call is in', () async {
+    await come('b', const Offset2(460, 400));
+    media['a'] = FakeMedia();
+    final s = sessions['a'] = VoiceSession(channel: c, route: FakeRoute(hub, 'a'), media: media['a']!, name: 'a');
+    final a = floors['a'] = OpenSpace(s, store: stores['a'] = FakeStore(), random: math.Random(1));
+    a.walkTo(const Offset2(400, 400));
+    while (a.walking) {
+      a.step(10);
+    }
+    // Nothing said yet: not in the call.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(floors['b']!.placeOf('a').said, isFalse);
+    final w = Stopwatch()..start();
+    await s.join();
+    await _until(() => floors['b']!.placeOf('a').said && a.placeOf('b').said, 'each knows where the other stands');
+    expect(w.elapsed, lessThan(OpenSpace.beatEvery), reason: 'said as the call came in, not at the next beat');
+    expect(floors['b']!.placeOf('a').at, const Offset2(400, 400));
+  });
+
+  test('walking by the keys:a heading moves this device until it is let go, and never off the floor', () async {
     final a = await come('a', const Offset2(100, 100));
     a.head(-1, -1);
     expect(a.walking, isTrue);
