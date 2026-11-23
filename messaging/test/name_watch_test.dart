@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/me/lookup_budget.dart';
 import 'package:ghost_messaging/me/me.dart' show Me, MeError;
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/name_watch.dart';
@@ -85,7 +86,7 @@ NameWatch _watchOf(World w, Install i, String username, Map<String, Account> fri
 }
 
 /// A watch with no installs under it: its own clock, the directory, and what it keeps.
-NameWatch _bare(FakeClock clock, _Directory dir, {required String me, String? Function()? username, List<WatchedName> Function()? friends, Map<String, String>? kept, String Function()? relay, Future<String?> Function()? held, ({int index, int of}) Function()? share, List<(String, Envelope)>? told, List<({String name, int at})>? asked}) {
+NameWatch _bare(FakeClock clock, _Directory dir, {required String me, String? Function()? username, List<WatchedName> Function()? friends, Map<String, String>? kept, String Function()? relay, Future<String?> Function()? held, ({int index, int of}) Function()? share, List<(String, Envelope)>? told, List<({String name, int at})>? asked, LookupBudget? lookups}) {
   final store = kept ?? <String, String>{};
   return NameWatch(
     me: () => me,
@@ -98,6 +99,7 @@ NameWatch _bare(FakeClock clock, _Directory dir, {required String me, String? Fu
     held: held,
     relay: relay ?? () => _relay,
     share: share,
+    lookups: lookups,
     tell: (id, e) async => told?.add((id, e)),
     read: (name) => store[name] ?? '',
     write: (name, value) => store[name] = value,
@@ -419,6 +421,123 @@ void main() {
     buddies.dispose();
   });
 
+  test('Accept, where the relay refuses the lookup as one too many in the hour: says so, and by when one frees up, never to connect; the request waits, and nothing more is looked up of the app\'s own accord for the hour', () async {
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    final me = NetKeys.generate(), maya = NetKeys.generate(), theo = NetKeys.generate();
+    final budget = LookupBudget(now: clock.now);
+    final port = _Port(dir, me)
+      ..list = jsonEncode([
+        for (final (u, k) in [('maya', maya), ('theo', theo)]) Buddy(username: u, id: k.id, key: base64Encode(k.public), state: 'invited', at: clock.ms).toJson(),
+      ]);
+    final buddies = Buddies(port, lookups: budget);
+    await buddies.start();
+    dir.names['maya'] = maya;
+    dir.names['theo'] = theo;
+    dir.refuses = true;
+    Object? said;
+    try {
+      await buddies.accept(buddies.all.first);
+    } catch (e) {
+      said = e;
+    }
+    expect(said, isA<MeError>());
+    expect('$said', allOf(contains('only so many lookups an hour'), contains('within the hour'), isNot(contains('connected'))));
+    expect(buddies.requests, hasLength(2));
+    // Nothing of the app's own accord until the hour is up: the requests' checks, and the name watch, which shares it.
+    final at = dir.asked.length;
+    expect(await buddies.checkRequests(), 0);
+    final cleo = NetKeys.generate();
+    final watch = _bare(clock, dir, me: me.id, friends: () => [_friend('cleo', cleo)], kept: {NameWatch.keptName: jsonEncode({'me': me.id, 'r': {_relay: {'c': {cleo.id: clock.ms - const Duration(days: 10).inMilliseconds}}}})}, lookups: budget);
+    await clock.pass(const Duration(minutes: 59));
+    expect(dir.asked.length, at);
+    watch.dispose();
+    buddies.dispose();
+    // By when one frees up: an hour after the first lookup the relay was still counting, where this device made one.
+    final b2 = LookupBudget(now: clock.now)..took();
+    await clock.pass(const Duration(minutes: 20));
+    b2.refused();
+    expect(b2.freesBy, clock.ms + const Duration(minutes: 40).inMilliseconds);
+    expect(Buddies.busyWords('maya', b2.freesBy, now: clock.now()), contains('within 40 minutes'));
+  });
+
+  test('one budget for what the account looks up of the app\'s own accord: the name watch\'s lookups and the friend requests\' checks together, shared out among the account\'s devices; the requests leave the watch a third, and the relay saying too many to either stops both', () async {
+    expect(LookupBudget.mostAnHour, lessThanOrEqualTo(Handles.lookupsAnHour ~/ 4), reason: 'most of the relay\'s lookups are left to the person');
+    expect([LookupBudget().perDevice, LookupBudget().forRequests], [30, 20]);
+    final clock = FakeClock();
+    final dir = _Directory(clock);
+    // One of three devices: ten an hour, of which the requests' checks may take seven.
+    final budget = LookupBudget(share: () => (index: 1, of: 3), now: clock.now);
+    expect([budget.perDevice, budget.forRequests], [10, 7]);
+    final me = NetKeys.generate();
+    final port = _Port(dir, me);
+    final buddies = Buddies(port, lookups: budget);
+    await buddies.start();
+    // Strangers' requests, each looked up as it comes: seven, and no more this hour.
+    for (var i = 0; i < 12; i++) {
+      final s = NetKeys.generate();
+      dir.names['stranger$i'] = s;
+      port.hellos.add((from: s.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'stranger$i', 'k': base64Encode(s.public)})));
+    }
+    await clock.settle();
+    expect(dir.asked, hasLength(7));
+    expect(buddies.requests, hasLength(12));
+    // The watch has its third left: three of its friends, all due, are asked this hour, and no more.
+    final friends = [for (var i = 0; i < 6; i++) _friend('friend$i', NetKeys.generate())];
+    final long = clock.ms - const Duration(days: 10).inMilliseconds;
+    final watch = _bare(clock, dir, me: me.id, friends: () => friends, share: () => (index: 1, of: 3), lookups: budget, kept: {
+      NameWatch.keptName: jsonEncode({
+        'me': me.id,
+        'r': {
+          _relay: {'c': {for (final f in friends) f.id: long}},
+        },
+      }),
+    });
+    await clock.pass(const Duration(minutes: 30));
+    expect(dir.asked.where((x) => x.name.startsWith('friend')), hasLength(3));
+    expect(await buddies.checkRequests(), 0);
+    expect(dir.asked, hasLength(10), reason: 'ten this hour, all told');
+    // An hour on: the relay says too many to a request's check, and the watch asks nothing for the hour after.
+    await clock.pass(const Duration(minutes: 31));
+    dir.refuses = true;
+    final before = dir.asked.length;
+    await buddies.checkRequests();
+    expect(dir.asked.length, greaterThan(before));
+    final refused = dir.asked.length;
+    await clock.pass(const Duration(minutes: 59));
+    expect(dir.asked.length, refused, reason: 'neither the watch nor the requests asked');
+    // And the other way: the watch told too many, the requests' checks wait.
+    dir.refuses = false;
+    await clock.pass(const Duration(minutes: 2));
+    final budget2 = LookupBudget(now: clock.now);
+    final port2 = _Port(dir, me);
+    final buddies2 = Buddies(port2, lookups: budget2);
+    await buddies2.start();
+    final w2 = _bare(clock, dir, me: me.id, friends: () => friends, lookups: budget2, kept: {
+      NameWatch.keptName: jsonEncode({
+        'me': me.id,
+        'r': {
+          _relay: {'c': {for (final f in friends) f.id: long}},
+        },
+      }),
+    });
+    dir.refuses = true;
+    await clock.pass(const Duration(minutes: 1));
+    expect(budget2.refusedUntil, isNotNull);
+    dir.refuses = false;
+    final s = NetKeys.generate();
+    dir.names['late'] = s;
+    final n = dir.asked.length;
+    port2.hellos.add((from: s.id, envelope: Envelope(kind: 'hello', body: {'buddy': 'ask', 'u': 'late', 'k': base64Encode(s.public)})));
+    await clock.settle();
+    expect(dir.asked.length, n, reason: 'not looked up of the phone\'s own accord');
+    expect(buddies2.requests.single.checked, isFalse);
+    w2.dispose();
+    buddies2.dispose();
+    watch.dispose();
+    buddies.dispose();
+  });
+
   test('PROBE 2, fixed: its own username given up or changed on another device and taken since: said calmly and once, not at every sign-in; gone when this device\'s username changes or is given up, or nobody holds it', () async {
     final clock = FakeClock();
     final dir = _Directory(clock);
@@ -590,7 +709,6 @@ void main() {
   });
 
   test('S1 and N2: the relay\'s lookups are the account\'s, so its devices share the days between them, not the friends, and the watch\'s share of an hour: each friend asked once a day by one device, and every device asks about every friend in n days; told too many, a device asks nothing for an hour', () async {
-    expect(NameWatch.mostAnHour, lessThanOrEqualTo(Handles.lookupsAnHour ~/ 4), reason: 'most of the relay\'s lookups are left to the person');
     final clock = FakeClock();
     final dir = _Directory(clock);
     final friends = [for (var i = 0; i < 90; i++) WatchedName('friend$i', NetCrypto.hex(NetCrypto.randomBytes(16)), 'k')];
@@ -628,7 +746,7 @@ void main() {
     // Never more than the account's share an hour, all devices together.
     final times = [for (final x in dir.asked) x.at];
     for (final t in times) {
-      expect(times.where((u) => u >= t && u - t < const Duration(hours: 1).inMilliseconds).length, lessThanOrEqualTo(NameWatch.mostAnHour));
+      expect(times.where((u) => u >= t && u - t < const Duration(hours: 1).inMilliseconds).length, lessThanOrEqualTo(LookupBudget.mostAnHour));
     }
     for (final d in devices) {
       d.dispose();
@@ -750,7 +868,7 @@ void main() {
       expect(times[i] - times[i - 1], greaterThanOrEqualTo(NameWatch.gap.inMilliseconds));
     }
     for (final t in times) {
-      expect(times.where((u) => u >= t && u - t < const Duration(hours: 1).inMilliseconds).length, lessThanOrEqualTo(NameWatch.mostAnHour));
+      expect(times.where((u) => u >= t && u - t < const Duration(hours: 1).inMilliseconds).length, lessThanOrEqualTo(LookupBudget.mostAnHour));
     }
     for (var h = 0; h < 24; h++) {
       expect(times.any((t) => t - start >= h * 3600000 && t - start < (h + 1) * 3600000), isTrue, reason: 'hour $h');

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../me/lookup_budget.dart';
 import 'crypto.dart';
 import 'ledger.dart' show LedgerTimer;
 import 'packet.dart';
@@ -153,9 +154,10 @@ class _Relay {
 /// sign-in after does not say it again, and a friend's word about it is said once a week at most.
 ///
 /// **Lookups.** The relay answers an account 120 lookups an hour, counted for all its devices together (they sign in as
-/// one; relay/lib/handles.dart): the watch takes no more than [mostAnHour] of them for the whole account, shared out
-/// among the account's devices it knows of (`share`), a minute apart, and none for an hour after the relay says too
-/// many. What is shared out is the time, not the friends: with n devices, each asks about every friend every n days, on
+/// one; relay/lib/handles.dart): the watch's lookups and the friend requests' checks are held to one budget for the
+/// whole account, shared out among the account's devices it knows of (`lookups`: LookupBudget, of which the requests
+/// leave the watch a third), the watch's a minute apart, and none for an hour after the relay says too many. What is
+/// shared out is the time, not the friends: with n devices, each asks about every friend every n days, on
 /// its own day of the n, so the account still asks about each friend once a day and every device sees what the relay
 /// says of every friend (the review, N2). What a device shows of a friend it asks again a day on, whatever its day, so
 /// it is never left standing once nobody holds the name (N3).
@@ -174,12 +176,14 @@ class NameWatch extends ChangeNotifier {
     Future<String?> Function()? held,
     void Function(String id, String username)? rename,
     ({int index, int of}) Function()? share,
+    LookupBudget? lookups,
     DateTime Function()? now,
     LedgerTimer? timer,
   })  : _relayOf = relay,
         _holds = held,
         _rename = rename,
         _share = share,
+        _lookups = lookups ?? LookupBudget(share: share, now: now),
         _now = now ?? DateTime.now,
         _timer = timer ?? Timer.new;
 
@@ -189,13 +193,9 @@ class NameWatch extends ChangeNotifier {
   /// The envelope a friend is told with.
   static const kind = 'name';
 
-  /// How often each friend's username is asked again; how many lookups an hour the watch takes for the whole account at
-  /// most (the relay answers an account 120); how far apart they are; and how long none is made after the relay says
-  /// too many.
+  /// How often the account asks about each friend's username, and how far apart this device's lookups are at least.
   static const every = Duration(days: 1);
-  static const mostAnHour = 20;
   static const gap = Duration(minutes: 1);
-  static const refusedFor = Duration(hours: 1);
 
   /// Its own username is asked at each sign-in, but not more often than this.
   static const ownEvery = Duration(minutes: 10);
@@ -244,12 +244,14 @@ class NameWatch extends ChangeNotifier {
   final void Function(String name, String value) write;
 
   /// The relay in use (its address); which username this key holds on it (Me.heldName: the name's hash, null for
-  /// none); what takes a friend's new username once confirmed (Buddies.rename); and this device's share of the
-  /// account's lookups, among the account's devices it knows of.
+  /// none); what takes a friend's new username once confirmed (Buddies.rename); this device's place among the account's
+  /// devices it knows of; and the account's budget of lookups made of the app's own accord, which this device's friend
+  /// requests' checks share (the app's: LookupBudget.instance).
   final String Function()? _relayOf;
   final Future<String?> Function()? _holds;
   final void Function(String id, String username)? _rename;
   final ({int index, int of}) Function()? _share;
+  final LookupBudget _lookups;
   final DateTime Function() _now;
   final LedgerTimer _timer;
 
@@ -261,7 +263,6 @@ class NameWatch extends ChangeNotifier {
   final List<({String username, String id, String relay, int at})> _heldUnder = [];
   final Map<String, int> _heard = {}, _renameAsked = {};
   final Map<String, String> _renames = {};
-  final List<int> _asked = [];
   String? _keptFor;
   int _ownAsked = 0, _lastAsked = 0, _retry = 0;
   Timer? _next;
@@ -351,12 +352,6 @@ class NameWatch extends ChangeNotifier {
     }
   }
 
-  /// The lookups an hour this device takes: its share of [mostAnHour], two at least.
-  int get _budget {
-    final n = mostAnHour ~/ _shareNow.of;
-    return n < 2 ? 2 : n;
-  }
-
   void start() {
     if (_started || _gone) return;
     _started = true;
@@ -425,26 +420,22 @@ class NameWatch extends ChangeNotifier {
     return (time: at(0) % every.inMilliseconds, day: at(4));
   }
 
-  /// Whether one more lookup may be made now: no more than this device's share of [mostAnHour] in the last hour, [gap]
-  /// apart, and none while the relay has said too many.
+  /// Whether one more lookup may be made now: within this device's share of the account's lookups ([_lookups]), none
+  /// while the relay has said too many, [gap] apart, and none while the relay couldn't be asked a while ago.
   bool _mayAsk() {
     final now = nowMs;
-    _asked.removeWhere((t) => now - t >= const Duration(hours: 1).inMilliseconds || t > now);
     if (_lastAsked > now) _lastAsked = now;
-    if (_retry > now + refusedFor.inMilliseconds) _retry = now;
-    return _asked.length < _budget && now - _lastAsked >= gap.inMilliseconds && now >= _retry;
+    if (_retry > now + retryAfter.inMilliseconds) _retry = now;
+    return _lookups.may(watch: true) && now - _lastAsked >= gap.inMilliseconds && now >= _retry;
   }
 
   /// When the next lookup may be made, by [_mayAsk].
   int _nextSlot() {
     final now = nowMs;
-    _asked.removeWhere((t) => now - t >= const Duration(hours: 1).inMilliseconds || t > now);
     if (_lastAsked > now) _lastAsked = now;
     var at = _lastAsked + gap.inMilliseconds;
-    if (_asked.length >= _budget) {
-      final free = _asked[_asked.length - _budget] + const Duration(hours: 1).inMilliseconds;
-      if (free > at) at = free;
-    }
+    final free = _lookups.nextFree(watch: true);
+    if (free > at) at = free;
     if (_retry > at) at = _retry;
     return at;
   }
@@ -490,14 +481,18 @@ class NameWatch extends ChangeNotifier {
 
   /// Notes a lookup made now.
   void _count() {
-    final now = nowMs;
-    _asked.add(now);
-    _lastAsked = now;
+    _lookups.took();
+    _lastAsked = nowMs;
   }
 
-  /// What became of a lookup that threw: the relay said too many (none for an hour), or couldn't be asked (ten minutes).
+  /// What became of a lookup that threw: the relay said too many (nothing of the app's own accord for an hour, the
+  /// friend requests' checks included: [_lookups]), or couldn't be asked (ten minutes).
   void _failed(Object e) {
-    _retry = nowMs + ('$e'.contains('Too many lookups') ? refusedFor : retryAfter).inMilliseconds;
+    if (LookupBudget.isRefusal(e)) {
+      _lookups.refused();
+    } else {
+      _retry = nowMs + retryAfter.inMilliseconds;
+    }
   }
 
   /// After a lookup: kept. Its own username, where a sign-in came while it was under way, is asked next ([_askDue]: S6).

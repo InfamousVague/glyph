@@ -10,6 +10,7 @@ import 'circles/circles.dart';
 import 'friends/buddies.dart';
 import 'friends/friends.dart';
 import 'friends/groups.dart';
+import 'me/lookup_budget.dart';
 import 'me/me.dart';
 import 'net/carrier.dart';
 import 'net/hub_carrier.dart';
@@ -102,6 +103,17 @@ Future<void> quietly(FutureOr<void> Function() step) async {
 void _checkRelay(AppState app) {
   Net.instance.addHolder(Friends.instance.heldFor);
   if (NameWatch.instance != null) return;
+  // The relay's lookups are the account's, shared by all its devices: this one's place among those forward secrecy has
+  // heard from this week, for the name watch's days and for the share of the lookups made of the app's own accord,
+  // which the friend requests' checks take from too (LookupBudget).
+  ({int index, int of}) share() {
+    final me = Net.instance.id, fs = Net.instance.board?.fs;
+    final devices = {HubCarrier.device, if (me != null && fs != null) ...fs.devicesOf(me)}.where((d) => d.isNotEmpty).toList()..sort();
+    final at = devices.indexOf(HubCarrier.device);
+    return at < 0 ? (index: 0, of: 1) : (index: at, of: devices.length);
+  }
+
+  LookupBudget.instance.share = share;
   final watch = NameWatch.instance = NameWatch(
     me: () => Net.instance.id,
     username: () => Me.instance.username,
@@ -111,14 +123,8 @@ void _checkRelay(AppState app) {
     held: Me.instance.heldName,
     // Each relay is its own directory.
     relay: () => Net.instance.hubUrl,
-    // The relay's lookups are the account's, shared by all its devices: this one's share, among those forward secrecy
-    // has heard from this week.
-    share: () {
-      final me = Net.instance.id, fs = Net.instance.board?.fs;
-      final devices = {HubCarrier.device, if (me != null && fs != null) ...fs.devicesOf(me)}.where((d) => d.isNotEmpty).toList()..sort();
-      final at = devices.indexOf(HubCarrier.device);
-      return at < 0 ? (index: 0, of: 1) : (index: at, of: devices.length);
-    },
+    share: share,
+    lookups: LookupBudget.instance,
     tell: (id, envelope) async {
       final board = Net.instance.board, peer = Net.instance.byId(id);
       if (board != null && peer != null && peer.key != null) await board.sendEveryWay(peer, envelope);

@@ -7,6 +7,7 @@ import '../games/game_activity.dart';
 import '../invites/pending_invites.dart';
 import '../me/me.dart';
 import '../me/cosmetics.dart';
+import '../me/lookup_budget.dart';
 import '../me/pictures.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -137,15 +138,18 @@ class Buddies extends ChangeNotifier {
   /// What the phone last said its friends are, as it said it ([refresh]).
   String? _lastSaid;
 
-  Buddies(this._port);
+  /// [lookups]: the account's budget of lookups made of the app's own accord, which the name watch shares (the app's
+  /// own: LookupBudget.instance); one of its own where none is given.
+  Buddies(this._port, {LookupBudget? lookups}) : _lookups = lookups ?? LookupBudget();
 
   static Buddies? _instance;
-  static Buddies get instance => _instance ??= Buddies(_AppBuddiesPort());
+  static Buddies get instance => _instance ??= Buddies(_AppBuddiesPort(), lookups: LookupBudget.instance);
 
   @visibleForTesting
   static set instance(Buddies? b) => _instance = b;
 
   final BuddiesPort _port;
+  final LookupBudget _lookups;
   final List<StreamSubscription<Object?>> _subs = [];
   List<Buddy> all = [];
   bool _started = false;
@@ -339,33 +343,34 @@ class Buddies extends ChangeNotifier {
 
   /// What the directory says of [username] for the install [id] ([Buddy.check]): `ok`, `other`, `nobody`, or '' where
   /// the relay can't be asked now (or answered about another name: Me.whois).
-  Future<String> _lookUp(String username, String id) async {
+  Future<String> _lookUp(String username, String id) async => (await _lookUpWhy(username, id)).said;
+
+  /// [_lookUp], and whether the relay refused it as one too many in the hour: then nothing more is looked up of the
+  /// app's own accord for a while, the name watch's lookups included ([_lookups]).
+  Future<({String said, bool refused})> _lookUpWhy(String username, String id) async {
     try {
       final found = await _port.whois(tidyHandle(username));
-      return found == null ? 'nobody' : (found.id == id ? 'ok' : 'other');
-    } catch (_) {
-      return '';
+      return (said: found == null ? 'nobody' : (found.id == id ? 'ok' : 'other'), refused: false);
+    } catch (e) {
+      final refused = LookupBudget.isRefusal(e);
+      if (refused) _lookups.refused();
+      return (said: '', refused: refused);
     }
   }
 
-  /// The lookups this phone made of its own accord (requests as they came, and asked about again: [checkRequests]) in
-  /// the last hour, and when each request, by install and username, last had an answer. The relay answers so many
-  /// lookups an hour for each install (relay/lib/handles.dart, lookupsAnHour: 120), and strangers' requests could use
-  /// them all, so that no request could be accepted and nobody added for an hour (found in review, 2026-11-23): at most
-  /// [lookupsAnHour] of them, each request once an hour; past that a request is looked up when Accept is pressed.
-  final List<DateTime> _lookedUp = [];
+  /// When each request, by install and username, last had an answer. The relay answers an account so many lookups an
+  /// hour, counted for all its devices together (relay/lib/handles.dart, lookupsAnHour: 120), and strangers' requests
+  /// could use them all, so that no request could be accepted and nobody added for an hour (found in review,
+  /// 2026-11-23): requests are looked up of the app's own accord within the account's budget, which the name watch
+  /// shares and the account's devices share out ([_lookups]: LookupBudget.forRequests an hour on this device), each
+  /// request once an hour; past that a request is looked up when Accept is pressed.
   final Map<String, DateTime> _answered = {};
-  static const lookupsAnHour = 30;
 
-  /// Whether this phone may look up the request [what] (`<id>:<username>`) of its own accord now ([_lookedUp]).
+  /// Whether this phone may look up the request [what] (`<id>:<username>`) of its own accord now: counted where it may.
   bool _mayLookUp(String what) {
-    final now = DateTime.now();
-    _lookedUp.removeWhere((t) => now.difference(t) > const Duration(hours: 1));
     final last = _answered[what];
-    if (last != null && now.difference(last) < const Duration(hours: 1)) return false;
-    if (_lookedUp.length >= lookupsAnHour) return false;
-    _lookedUp.add(now);
-    return true;
+    if (last != null && DateTime.now().difference(last) < const Duration(hours: 1)) return false;
+    return _lookups.take();
   }
 
   /// A request's lookup of this phone's own accord: [_lookUp], within [_mayLookUp]; null where it may not be made now.
@@ -381,7 +386,7 @@ class Buddies extends ChangeNotifier {
   void _replace(Buddy b) => all = [for (final o in all) o.id == b.id ? b : o];
 
   /// Asks the directory again about each request it hasn't said `ok` to ([Buddy.check]), of this phone's own accord and
-  /// so within [lookupsAnHour]: what it says now is kept with each. None is forgotten on one answer: one whose username
+  /// so within the account's budget ([_mayLookUp]): what it says now is kept with each. None is forgotten on one answer: one whose username
   /// it gives someone else stays, shown so and not to be accepted, until it is declined or the directory says otherwise.
   /// How many changed.
   @visibleForTesting
@@ -517,7 +522,7 @@ class Buddies extends ChangeNotifier {
     if (_remote) return Buddy.fromJson((await _ask({'op': 'accept', 'id': b.id}))['buddy'])!;
     var it = b;
     if (b.state == 'invited' && !b.checked) {
-      final said = await _lookUp(b.username, b.id);
+      final (:said, :refused) = await _lookUpWhy(b.username, b.id);
       if (said != 'ok') {
         final now = byId(b.id);
         if (said.isNotEmpty && now != null && now.state == 'invited' && now.username == b.username && now.check != said) {
@@ -527,6 +532,7 @@ class Buddies extends ChangeNotifier {
         throw MeError(switch (said) {
           'other' => 'The relay gives @${b.username} to someone else, so this request didn\'t come from them. It stays until you decline it.',
           'nobody' => 'The relay doesn\'t know the username @${b.username}, so this request can\'t be checked. It waits here.',
+          _ when refused => busyWords(b.username, _lookups.freesBy),
           _ => '@${b.username} can\'t be checked with the relay server right now, so the request waits until it can be. Try again once you\'re connected.',
         });
       }
@@ -540,6 +546,15 @@ class Buddies extends ChangeNotifier {
     await _save();
     await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._profile()}));
     return yes;
+  }
+
+  /// What Accept says where the relay refused the lookup as one too many in the hour: the relay's hourly limit, and by
+  /// when one frees up at the latest ([LookupBudget.freesBy], ms; null for within the hour), never to connect.
+  @visibleForTesting
+  static String busyWords(String username, int? freesBy, {DateTime? now}) {
+    final left = freesBy == null ? 60 : ((freesBy - (now ?? DateTime.now()).millisecondsSinceEpoch) / 60000).ceil();
+    final within = left >= 60 ? 'within the hour' : (left <= 1 ? 'within a minute' : 'within $left minutes');
+    return 'The relay answers only so many lookups an hour, and this account has used them up for now, so @$username can\'t be checked yet. One frees up $within: try Accept again then. The request waits here.';
   }
 
   Future<void> decline(Buddy b) async {

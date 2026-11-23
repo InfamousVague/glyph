@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../circles/circles.dart';
 import '../friends/buddies.dart';
+import '../me/lookup_budget.dart';
 import '../me/me.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -458,6 +459,7 @@ class Account extends ChangeNotifier {
       if (files != null) await Ledger.forget(files);
     } catch (_) {}
     NameWatch.instance?.wipe();
+    LookupBudget.instance.clear();
     // (A build before the ledger had files of its own kept it with the choices.)
     for (final name in [...Ledger.keptIn(store.choice(Ledger.indexName, '')), ...NameWatch.keptNames]) {
       if (store.choice(name, '').isNotEmpty) store.set(name, '');
