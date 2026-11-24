@@ -16,6 +16,7 @@ import 'codes.dart';
 import 'cleaner.dart';
 import 'embeds.dart';
 import 'game_activity.dart';
+import 'performance.dart';
 import 'human_check.dart';
 import 'kinds.dart';
 import 'live_captions.dart';
@@ -40,7 +41,7 @@ import 'watch_together.dart';
 // Kinds before Spam: a text that is plainly political or a debt collector is that, whatever else it shows; the kinds
 // that are shown (deliveries, reminders) leave a text that looks like spam to Spam.
 // Translate last: it adds to a conversation and takes nothing from the list, and is off until it is added.
-const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), HumanCheckPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), AutoLevelerPlugin(), VoiceChangerPlugin(), GameActivityPlugin(), ...networkPlugins];
+const List<GhostPlugin> shippedPlugins = [CodesPlugin(), KindsPlugin(), SpamPlugin(), EmbedsPlugin(), ActionsPlugin(), RepliesPlugin(), QuietPlugin(), StrangersPlugin(), HumanCheckPlugin(), CleanerPlugin(), TranslatePlugin(), RecordCallPlugin(), ScribePlugin(), LiveCaptionsPlugin(), WatchTogetherPlugin(), SoundboardPlugin(), AutoLevelerPlugin(), VoiceChangerPlugin(), GameActivityPlugin(), PerformancePlugin(), ...networkPlugins];
 
 /// The person's choices as the plugins' side reads and writes them: the app's own ([AppStore]), or a map in a test.
 abstract interface class PluginStore {

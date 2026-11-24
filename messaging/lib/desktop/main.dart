@@ -24,6 +24,7 @@ import '../sms.dart';
 import '../ui/app_lock_ui.dart' show AppLockGate;
 import '../ui/call_moved_note.dart';
 import '../ui/files_space/share_in.dart';
+import '../ui/performance_row.dart';
 import '../ui/window_chrome.dart';
 import 'ui/desk_title_bar.dart';
 import 'ui/launch_splash.dart';
@@ -395,7 +396,11 @@ class _DesktopAppState extends State<DesktopApp> {
                 child: AppLockGate(
                   dragStrip: true,
                   child: GlacierToastProvider(
-                    child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
+                    // Under the title bar (the app's own strip on a Mac, the system's elsewhere), the Performance
+                    // plugin's row while it is on (lib/ui/performance_row.dart).
+                    child: MacChrome.stripEnabled
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: PerformanceUnder(navigator: _navigator, child: _recorded(child!)))])
+                        : PerformanceUnder(navigator: _navigator, child: _recorded(child!)),
                   ),
                 ),
               ),

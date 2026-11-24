@@ -285,6 +285,14 @@ and a connection. None of it was changed. Asked of Matt, not done:
 - Cosmetics that move (`lib/ui/cosmetics_ui.dart`) repeat for as long as they are on the screen. Not measured: the
   test accounts had none.
 
+## Reading a real phone
+
+The Performance plugin (lib/plugins/performance.dart, lib/perf/app_usage.dart; Marketplace › Performance) measures
+the app from inside it, on the device itself: a row under the title bar with the processor, memory and frames, a
+count of spikes, and a log to copy with a line a minute that names the busiest threads on Android and Linux, read
+on with the app put away. A log copied from the Fold after an hour of ordinary use, a call among it, is the
+measurement this page does not have.
+
 ## Setting it up again
 
 ```sh

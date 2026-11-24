@@ -54,6 +54,7 @@ import 'sounds.dart';
 import 'keys.dart';
 import 'gm/rcs_share.dart';
 import 'sms.dart';
+import 'ui/performance_row.dart';
 import 'ui/circles/circle_invite_card.dart' show openCircleLink;
 import 'ui/common.dart' show toast;
 import 'ui/dialup/dialup.dart' show RetroSegment, isBevelChrome;
@@ -274,7 +275,8 @@ class GhostMessagingApp extends StatelessWidget {
               // (lib/ui/recording_float.dart); nothing floats over the pages but the note that a call moved to
               // another of the person's devices (lib/ui/call_moved_note.dart, GMFB-50). Over all of it, toasts too, the
               // lock screen while the app is locked (lib/ui/app_lock_ui.dart, GMFB-46).
-              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: CallMovedNote(child: child!))))),
+              // Under the status bar, the Performance plugin's row while it is on (lib/ui/performance_row.dart).
+              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: child!)))))),
             ),
           ),
           home: home ?? const _Home(),
