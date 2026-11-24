@@ -118,6 +118,20 @@ abstract class ConversationList {
   Future<void> markShownRead();
 }
 
+/// Whether [row] of the list (a conversation, a network's chat or a space) holds something not read yet that its
+/// person has not asked to hear nothing of: a muted one is not brought up the list for what is said in it.
+bool isUnreadRow(Object row) => switch (row) {
+      Conversation c => c.unread && !c.muted,
+      InboxChat c => c.unread > 0 && !c.muted,
+      VoiceChannel v => Voice.instance.unreadIn(v) > 0,
+      _ => false,
+    };
+
+/// [rows] of the list with the unread ones first (Matt, 2026-11-24: "sort unread messages at the top in the app, new
+/// messages should come first (before unreads)"). Each part keeps the order it came in, which is the newest first:
+/// so what was written last is at the very top, older unread ones under it, and everything read after those.
+List<Object> unreadRowsFirst(List<Object> rows) => [for (final r in rows) if (isUnreadRow(r)) r, for (final r in rows) if (!isUnreadRow(r)) r];
+
 class _ConversationsScreenState extends State<ConversationsScreen> implements ConversationList {
   @override
   List<Conversation> get order => _shown;
@@ -417,9 +431,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       for (final v in Voice.instance.channels)
         if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.summary.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
-    if (chats.isEmpty && spaces.isEmpty) return shown;
+    if (chats.isEmpty && spaces.isEmpty) {
+      // [_shown] has the pinned ones first where this is the main list: unread first among them, and among the rest.
+      if (_section != null) return unreadRowsFirst(shown);
+      return [...unreadRowsFirst([for (final c in shown) if (c.pinned) c]), ...unreadRowsFirst([for (final c in shown) if (!c.pinned) c])];
+    }
     if (_section != null) {
-      return ([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList();
+      return unreadRowsFirst(([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList());
     }
     bool pinnedChat(InboxChat c) => Inbox.instance.named(c.network)?.isPinned(c) ?? false;
     final pinned = <(DateTime, Object)>[for (final c in shown) if (c.pinned) (c.date, c), for (final c in chats) if (pinnedChat(c)) (c.date, c)]..sort((a, b) => b.$1.compareTo(a.$1));
@@ -432,7 +450,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       for (final v in spaces) if (oldest == null || !v.$1.isBefore(oldest)) v,
     ]
       ..sort((a, b) => b.$1.compareTo(a.$1));
-    return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+    return [...unreadRowsFirst([for (final m in pinned) m.$2]), ...unreadRowsFirst([for (final m in merged) m.$2])];
   }
 
   /// Snoozed conversations out of the list until their time, and those back from a snooze at its top until opened
