@@ -24,6 +24,7 @@ class CircleSpaceView {
     this.lastMessage,
     this.lastAt,
     this.inVoice = const [],
+    this.people = const [],
     this.here = false,
     this.files,
   });
@@ -45,6 +46,11 @@ class CircleSpaceView {
   /// The names of who is in its call now (a voice space's), this device among them as "You" while it is in it.
   final List<String> inVoice;
 
+  /// The same people one by one, each with who they are, for the faces and names listed under the space (Matt,
+  /// 2026-11-24: "show a list of connected users in the sidebar under the voice space with profile pictures and names
+  /// like discord does"). Empty where only the names are known.
+  final List<CircleVoicePerson> people;
+
   /// This device is in its call.
   final bool here;
 
@@ -61,6 +67,17 @@ class CircleSpaceView {
 
   /// Its kind's mark (headphones, a speech bubble, a folder).
   LucideIcon get icon => spaceKindIcon(kind);
+}
+
+/// Someone in a space's call, as the circle's list draws them under the space: who they are on the relay ([id], `me`
+/// for this device), and the name to show.
+@immutable
+class CircleVoicePerson {
+  const CircleVoicePerson({required this.id, required this.name});
+  final String id;
+  final String name;
+
+  bool get me => id == 'me';
 }
 
 /// A heading of a circle's list and the spaces under it.

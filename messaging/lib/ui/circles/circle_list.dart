@@ -21,10 +21,13 @@ import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
-import '../../sms.dart' show Sms;
+import '../../sms.dart' show Person, Sms;
+import '../../voice/channels.dart' show Voice;
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
+import '../hangout_screen.dart' show SpaceFace;
+import '../ripple_avatar.dart';
 import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
@@ -284,7 +287,11 @@ class CircleSpaceList extends StatelessWidget {
       children: [
         for (final g in view.sections) ...[
           if (g.name != null) CircleSectionHeading(name: g.name!, onAdd: view.canEdit ? () => view.onNewSpace(section: g.name) : null),
-          for (final s in g.spaces) CircleSpaceTile(space: s, selected: s.seed == view.selected, onPress: () => view.onOpen(s), onLongPress: view.onSpaceMenu == null ? null : () => view.onSpaceMenu!(s)),
+          for (final s in g.spaces) ...[
+            CircleSpaceTile(space: s, selected: s.seed == view.selected, onPress: () => view.onOpen(s), onLongPress: view.onSpaceMenu == null ? null : () => view.onSpaceMenu!(s)),
+            // Who is in its call, each a row under it.
+            if (s.people.isNotEmpty) CircleVoicePeople(space: s, onPress: () => view.onOpen(s)),
+          ],
         ],
         if (view.spaces.isEmpty)
           Padding(
@@ -370,13 +377,89 @@ String talkingAlone(String name) => name == 'You' ? 'You\'re talking' : '$name i
 
 /// What a space's row says under its name: who is talking in a call (green), how many files a Files space holds, or
 /// the newest message; null where there is nothing to say.
+///
+/// Their names are left out of a call's line where they are listed under the space, each with a face
+/// ([CircleVoicePeople]): there the line says how many.
 String? circleSpaceLine(CircleSpaceView s) {
   if (s.live) {
     final names = s.inVoice.take(3).join(', ');
-    return s.inVoice.length == 1 ? talkingAlone(names) : '${s.inVoice.length} talking · $names';
+    if (s.inVoice.length == 1) return talkingAlone(names);
+    return s.people.isNotEmpty ? '${s.inVoice.length} talking' : '${s.inVoice.length} talking · $names';
   }
   if (s.kind == SpaceKind.files && s.files != null && (s.lastMessage == null || s.unread == 0)) return s.files == 0 ? 'No files yet' : '${s.files} ${s.files == 1 ? 'file' : 'files'}';
   return s.lastMessage;
+}
+
+/// Who is in a space's call, listed under the space in the circle's list: a face and a name each, as Discord lists who
+/// is in a voice channel (Matt, 2026-11-24: "show a list of connected users in the sidebar under the voice space with
+/// profile pictures and names like discord does"). The face is their profile picture where this device has it
+/// ([SpaceFace]), else their initials. While this device is in the call itself, whoever is talking has a green ring
+/// and their name in the ink. A press opens the space, as a press on the space does.
+class CircleVoicePeople extends StatelessWidget {
+  const CircleVoicePeople({super.key, required this.space, required this.onPress});
+  final CircleSpaceView space;
+  final VoidCallback onPress;
+
+  /// At most this many are listed; the rest are counted in a last line.
+  static const most = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final bevel = isBevelChrome(t);
+    // Under the space's name: past the row's own margin and padding, its mark, and the gap after the mark.
+    final mark = bevel ? 28.0 : t.lenOf('1.875rem');
+    final indent = (bevel ? 0 : t.space(2)) + t.space(3) + mark + t.space(3) + 2;
+    final voice = Voice.instance;
+    // The space's own room knows each person's picture; none where the space is not one this device holds (a test's).
+    final room = voice.hangoutFor(space.channel);
+    final shown = space.people.take(most).toList();
+    final rest = space.people.length - shown.length;
+    const face = 22.0;
+    Widget rows(Map<String, double> levels) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          for (final p in shown)
+            () {
+              final talking = (levels[p.id] ?? 0) > RippleAvatar.talking;
+              final picture = room != null
+                  ? SpaceFace(room: room, id: p.me ? room.me : p.id, name: p.name, size: face)
+                  : Avatar(people: [Person(address: 'space:${p.id}', name: p.name)], size: face);
+              return Padding(
+                key: ValueKey('circle-voice-${space.seed}-${p.id}'),
+                padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+                child: Row(children: [
+                  // The ring is always there, clear while they are quiet, so a face does not jump as they speak.
+                  Container(
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: BoxDecoration(
+                      shape: bevel ? BoxShape.rectangle : BoxShape.circle,
+                      border: Border.all(color: talking ? t.online : const Color(0x00000000), width: 1.5),
+                    ),
+                    child: picture,
+                  ),
+                  SizedBox(width: t.space(2)),
+                  Expanded(
+                    child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: talking ? 'medium' : 'regular', color: t.color(talking ? 'app-ink' : 'app-ink-2'))),
+                  ),
+                ]),
+              );
+            }(),
+          if (rest > 0)
+            Padding(
+              padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+              child: Text('and $rest more', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+            ),
+          SizedBox(height: t.space(1)),
+        ]);
+    // How loud each is, where this device is in the call and so hears them; from outside it nobody is ringed.
+    final session = space.here ? voice.session : null;
+    final levels = session == null ? null : (voice.media?.levels ?? session.media.levels);
+    return GlacierPressable(
+      key: ValueKey('circle-voice-${space.seed}'),
+      onPressed: onPress,
+      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}',
+      builder: (context, _) => levels == null ? rows(const {}) : ValueListenableBuilder<Map<String, double>>(valueListenable: levels, builder: (context, l, _) => rows(l)),
+    );
+  }
 }
 
 /// A space's row: its kind's mark in the kind's colour, its name (bold while unread), what is going on in it, then

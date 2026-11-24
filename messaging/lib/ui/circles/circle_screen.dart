@@ -140,6 +140,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           lastMessage: last == null ? null : '${who(last)}: ${last.summary}',
           lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
+          people: [for (final id in ids) CircleVoicePerson(id: id, name: id == 'me' ? 'You' : voice.nameOf(id))],
           here: here,
           files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
         );
