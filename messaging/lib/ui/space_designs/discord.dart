@@ -128,7 +128,8 @@ class _Header extends StatelessWidget {
         // On a phone Invite and Settings keep only their icons (their words are still read), so the name has room.
         _HeaderButton(icon: Lucide.userPlus, label: SpaceWords.invite, compact: !wide, onPressed: invite == null ? null : () => invite(context)),
         _HeaderButton(icon: LucideMore.settings, label: SpaceWords.settings, compact: !wide, onPressed: settings == null ? null : () => settings(context)),
-        if (!call.chatBelow) _HeaderButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat),
+        // Under the split, the chat is the one below the call: this shows and hides that one.
+        if (call.hasChatButton) _HeaderButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: call.chatBelow ? call.chatShown : chatOpen, onPressed: call.chatBelow ? call.onChatBelow! : onChat),
         if (wide && !(call.chatBelow && minimize == null)) _HeaderButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: minimize),
       ]),
     );

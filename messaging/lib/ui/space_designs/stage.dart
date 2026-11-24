@@ -662,7 +662,8 @@ class _Bar extends StatelessWidget {
           ),
         ),
         SizedBox(width: t.space(2)),
-        if (!call.chatBelow) _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: comments, onPressed: onComments),
+        // Under the split, the chat is the one below the call: this shows and hides that one.
+        if (call.hasChatButton) _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: call.chatBelow ? call.chatShown : comments, onPressed: call.chatBelow ? call.onChatBelow! : onComments),
         _Round(look: look, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
         if (camera) _Camera(call: call, look: look),
         SizedBox(width: t.space(1)),

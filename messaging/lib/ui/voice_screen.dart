@@ -309,8 +309,14 @@ class CallVideos extends StatelessWidget {
 
 /// The call's buttons: the microphone, the sound, the camera and leaving, in a dock like the app's pill.
 class CallDock extends StatelessWidget {
-  const CallDock({super.key, required this.session});
+  const CallDock({super.key, required this.session, this.chatShown = true, this.onChat});
   final VoiceSession session;
+
+  /// Where the call has its space's chat under it (SpaceSplit): whether that chat is shown, and what puts it away and
+  /// brings it back, as a button beside Leave (Matt, 2026-11-24: "add a button next to the leave button for hiding
+  /// and showing the chat"). Null: no such button.
+  final bool chatShown;
+  final VoidCallback? onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +376,7 @@ class CallDock extends StatelessWidget {
               // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
               if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
+              if (onChat != null) button(LucideMore.messageCircle, chatShown ? 'Hide chat' : 'Show chat', onChat!, on: chatShown),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),

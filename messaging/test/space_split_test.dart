@@ -120,8 +120,12 @@ void _expectSplit(WidgetTester tester, {required String how}) {
   final composer = tester.getRect(find.byType(ComposerBox));
   expect(chat.contains(composer.center), isTrue, reason: '$how: the composer in the chat\'s part');
   expect(find.text('on my way'), findsOneWidget, reason: '$how: the chat\'s messages under the call');
-  // The call's own Chat button and chat panel aren't needed: the chat is there.
-  expect(find.bySemanticsLabel('Chat'), findsNothing, reason: '$how: no Chat button');
+  // The call's own chat panel isn't needed: the chat is there. Its Chat button shows and hides that chat (Matt,
+  // 2026-11-24: "add a button next to the leave button for hiding and showing the chat"), and is beside Leave.
+  expect(find.bySemanticsLabel('Chat'), findsOneWidget, reason: '$how: one Chat button, for the chat under the call');
+  final chatAt = tester.getRect(find.bySemanticsLabel('Chat')), leaveAt = tester.getRect(find.bySemanticsLabel('Leave').last);
+  expect(chatAt.right, lessThanOrEqualTo(leaveAt.left + 1), reason: '$how: Chat before Leave');
+  expect(leaveAt.left - chatAt.right, lessThan(120), reason: '$how: and next to it');
   expect(find.byKey(const ValueKey('tg-chat-panel')), findsNothing, reason: '$how: no chat panel beside the call');
   expect(find.byType(CallBanner), findsNothing, reason: '$how: no banner for the call on the screen');
 }
@@ -182,18 +186,40 @@ void main() {
     });
   }
 
-  // Every design draws the top part, with no Chat of its own; Standard draws the app's people and dock.
+  // Every design draws the top part; Standard draws the app's people and dock. Each one's Chat button (Stage's
+  // Comments, the dock's Hide chat) puts the chat under the call away and brings it back, and opens no panel of the
+  // design's own (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the chat").
   for (final design in SpaceDesign.values) {
-    testWidgets('with ${design.label}, the call over its chat and no Chat button of its own', (tester) async {
+    testWidgets('with ${design.label}, the call over its chat, and its Chat button puts that chat away and brings it back', (tester) async {
       await _open(tester, const Size(1280, 800), design: design);
       _join(_lounge);
       await settle(tester);
       expect(find.byType(SpaceSplit), findsOneWidget);
       expect(find.byType(SpaceCallPage), design == SpaceDesign.standard ? findsNothing : findsOneWidget);
       if (design == SpaceDesign.standard) expect(find.byType(CallDock), findsOneWidget, reason: 'the call\'s buttons once');
-      expect(find.bySemanticsLabel('Chat'), findsNothing);
-      expect(find.bySemanticsLabel('Comments'), findsNothing);
-      expect(find.text('on my way'), findsOneWidget);
+      expect(find.text('on my way'), findsOneWidget, reason: 'the chat is under the call to begin with');
+      final pane = tester.getRect(find.byType(SpaceSplit));
+      final before = tester.getRect(find.byKey(const ValueKey('space-split-call')));
+      expect(before.height, lessThan(pane.height - SpaceSplit.chatLeast + 1));
+
+      // Full screen's buttons say their word twice (the button's own, and the word under it).
+      final button = find.bySemanticsLabel(RegExp(r'^(Chat|Comments|Hide chat)(\n\1)?$'));
+      expect(button, findsOneWidget, reason: 'one button for the chat, the design\'s own');
+      await tester.tap(button);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('space-split-chat')), findsNothing, reason: 'the chat put away');
+      expect(find.text('on my way'), findsNothing);
+      expect(find.byKey(const ValueKey('space-split-handle')), findsNothing, reason: 'and no line to drag');
+      expect(tester.getRect(find.byKey(const ValueKey('space-split-call'))).height, closeTo(pane.height, 1), reason: 'the call has the whole pane');
+      expect(Voice.instance.session, isNotNull, reason: 'still in the call');
+      expect(tester.takeException(), isNull);
+
+      final back = find.bySemanticsLabel(RegExp(r'^(Chat|Comments|Show chat)(\n\1)?$'));
+      expect(back, findsOneWidget);
+      await tester.tap(back);
+      await settle(tester);
+      expect(find.text('on my way'), findsOneWidget, reason: 'and brought back');
+      expect(tester.getRect(find.byKey(const ValueKey('space-split-call'))).height, closeTo(before.height, 1), reason: 'the call where the line was left');
       expect(tester.takeException(), isNull);
     });
   }
@@ -228,7 +254,8 @@ void main() {
       openSpaceCall(tester.element(find.byType(HangoutScreen)));
       await settle(tester);
       final call = tester.getRect(find.byKey(const ValueKey('space-split-call')));
-      final buttons = [for (final b in ['Video', 'Deafen', 'Mute', 'Leave']) tester.getRect(find.bySemanticsLabel(b).last)];
+      // Chat beside Leave: it puts the chat under the call away (Matt, 2026-11-24).
+      final buttons = [for (final b in ['Video', 'Deafen', 'Mute', 'Chat', 'Leave']) tester.getRect(find.bySemanticsLabel(b).last)];
       final top = buttons.map((r) => r.top).reduce((a, b) => a < b ? a : b);
       for (final b in buttons) {
         expect(call.contains(b.center), isTrue, reason: 'each button in the call\'s part');

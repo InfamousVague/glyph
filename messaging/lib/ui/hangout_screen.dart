@@ -335,13 +335,18 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // you can still quickly navigate the circle"). The chosen design draws the call (its own header, its people
         // and buttons, no Chat of its own); Standard draws the app's people and dock under the space's header.
         if (wide && !open) {
-          final design = SpaceDesign.of(AppState.of(context));
+          final app = AppState.of(context);
+          final design = SpaceDesign.of(app);
           final below = chatOver(pill);
+          // The chat under the call can be put away, by a button beside Leave (Matt, 2026-11-24: "add a button next to
+          // the leave button for hiding and showing the chat"): kept with the device's choices ([SpaceSplit.chatPref]).
+          final chatShown = SpaceSplit.chatShown(app);
+          void toggleChat() => SpaceSplit.setChatShown(app, !chatShown);
           if (design != SpaceDesign.standard) {
             return ColoredBox(
               color: t.color('glacier-bg'),
               child: SpaceSplit(
-                call: SpaceCallPage(key: ValueKey('split-${design.name}-${s.channel.room}'), design: design, inline: true, chatBelow: true),
+                call: SpaceCallPage(key: ValueKey('split-${design.name}-${s.channel.room}'), design: design, inline: true, chatBelow: true, chatShown: chatShown, onChatBelow: toggleChat),
                 chat: below,
               ),
             );
@@ -355,7 +360,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                   padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), NavPill.clearance(t) + t.space(4)),
                   children: [CallPanel(session: s)],
                 ),
-                Positioned(left: 0, right: 0, bottom: t.space(3), child: Center(child: CallDock(session: s))),
+                Positioned(left: 0, right: 0, bottom: t.space(3), child: Center(child: CallDock(session: s, chatShown: chatShown, onChat: toggleChat))),
               ]),
               chat: below,
             ),
@@ -500,6 +505,13 @@ class SpaceSplit extends StatefulWidget {
   /// The call's share of the pane, as dragged, under this name in the device's choices.
   static const pref = 'space_split_call';
 
+  /// Whether the chat under the call is shown, under this name in the device's choices: on unless it was put away with
+  /// the Chat button beside Leave (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the
+  /// chat"). Put away, the call has the whole pane, and stays so for every space until the button brings it back.
+  static const chatPref = 'space_split_chat';
+  static bool chatShown(AppState? app) => app?.flag(chatPref) ?? true;
+  static void setChatShown(AppState app, bool shown) => app.setFlag(chatPref, shown);
+
   /// Two thirds, as Matt asked.
   static const share = 0.66;
 
@@ -529,17 +541,20 @@ class _SpaceSplitState extends State<SpaceSplit> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final app = AppState.maybeOf(context);
+    final shown = SpaceSplit.chatShown(app);
     return LayoutBuilder(builder: (context, box) {
       final high = box.maxHeight;
-      final top = SpaceSplit.callHeight(high, _share ?? _kept(app));
+      // With the chat put away the call has the whole pane, and there is no line to drag. The call stays the same
+      // first child either way, so nothing of it is made again as the chat goes and comes.
+      final top = shown ? SpaceSplit.callHeight(high, _share ?? _kept(app)) : high;
       final grip = SplitHandle.widthOf(context);
       return Stack(children: [
         Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SizedBox(key: const ValueKey('space-split-call'), height: top, child: widget.call),
-          Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
-          Expanded(key: const ValueKey('space-split-chat'), child: widget.chat),
+          if (shown) Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+          if (shown) Expanded(key: const ValueKey('space-split-chat'), child: widget.chat),
         ]),
-        Positioned(
+        if (shown) Positioned(
           key: const ValueKey('space-split-handle'),
           left: 0,
           right: 0,

@@ -190,6 +190,8 @@ class SpaceCall {
     this.bridged = false,
     this.extras = const [],
     this.chatBelow = false,
+    this.chatShown = true,
+    this.onChatBelow,
   });
 
   /// A stage's items in the call's menu (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak,
@@ -222,7 +224,7 @@ class SpaceCall {
   static bool mayInvite(VoiceChannel channel, HangoutRoom? room) => channel.group == null && (room == null || room.can(Perm.invite));
 
   /// The call [Voice] is in, as it stands now; null when there is none. [minimize] puts the page away.
-  static SpaceCall? live({VoidCallback? minimize, bool chatBelow = false}) {
+  static SpaceCall? live({VoidCallback? minimize, bool chatBelow = false, bool chatShown = true, VoidCallback? onChatBelow}) {
     final v = Voice.instance;
     final s = v.session;
     if (s == null) return null;
@@ -274,6 +276,8 @@ class SpaceCall {
       changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, CallRecorder.instance]),
       bridged: s.channel.discord != null,
       chatBelow: chatBelow,
+      chatShown: chatShown,
+      onChatBelow: onChatBelow,
       room: room,
       muted: s.muted,
       deafened: s.deafened,
@@ -371,6 +375,16 @@ class SpaceCall {
   /// The space's chat is shown under the call by the page round it (SpaceSplit, a computer's pane): the design leaves
   /// out its own Chat button and its chat panel (Matt, 2026-11-23: "the chat and compose bar at the bottom").
   final bool chatBelow;
+
+  /// Under the call ([chatBelow]): whether that chat is shown now, and what puts it away and brings it back (Matt,
+  /// 2026-11-24: "add a button next to the leave button for hiding and showing the chat"). A design's own Chat button
+  /// does that there, in place of opening a panel of its own. Null: nothing to put away, and no button.
+  final bool chatShown;
+  final VoidCallback? onChatBelow;
+
+  /// Whether a design draws its Chat button: always on its own page, and under the split where the chat there can be
+  /// put away.
+  bool get hasChatButton => !chatBelow || onChatBelow != null;
 
   /// The level at which someone counts as talking (RippleAvatar.talking).
   static const talking = RippleAvatar.talking;
@@ -549,8 +563,12 @@ abstract final class SpaceWords {
 /// A space's call as the chosen [design] draws it, over the whole window: built again from the call as it changes,
 /// and closed when the call ends.
 class SpaceCallPage extends StatefulWidget {
-  const SpaceCallPage({super.key, required this.design, this.inline = false, this.chatBelow = false});
+  const SpaceCallPage({super.key, required this.design, this.inline = false, this.chatBelow = false, this.chatShown = true, this.onChatBelow});
   final SpaceDesign design;
+
+  /// With [chatBelow]: whether the chat under the call is shown, and what shows and hides it ([SpaceCall.onChatBelow]).
+  final bool chatShown;
+  final VoidCallback? onChatBelow;
 
   /// Drawn as the top of a computer's pane with the space's chat under it (SpaceSplit): no Chat button or chat panel
   /// of its own, and nothing to put away to (the pane is the space's own page). Always [inline] too.
@@ -619,12 +637,12 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   @override
   Widget build(BuildContext context) {
     final minimize = widget.chatBelow ? null : _close;
-    final call = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow);
+    final call = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow);
     if (call == null) return const SizedBox.shrink();
     return ListenableBuilder(
       listenable: call.changes,
       builder: (context, _) {
-        final now = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow) ?? call;
+        final now = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow) ?? call;
         final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
         // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;

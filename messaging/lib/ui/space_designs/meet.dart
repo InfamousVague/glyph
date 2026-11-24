@@ -98,7 +98,8 @@ class _MeetCallState extends State<MeetCall> {
             _SideButton(c: c, icon: Lucide.info, label: 'Details', on: _panel == _Panel.details, onPressed: () => _toggle(_Panel.details)),
             _SideButton(c: c, icon: Lucide.users, label: SpaceWords.people, badge: '${call.people.length}', on: _panel == _Panel.people, onPressed: () => _toggle(_Panel.people)),
             // Not where the chat is under the call already (SpaceSplit).
-            if (!call.chatBelow) _SideButton(c: c, icon: Lucide.messageSquare, label: SpaceWords.chat, on: _panel == _Panel.chat, onPressed: () => _toggle(_Panel.chat)),
+            // Under the split, the chat is the one below the call: Chat shows and hides that one.
+            if (call.hasChatButton) _SideButton(c: c, icon: Lucide.messageSquare, label: SpaceWords.chat, on: call.chatBelow ? call.chatShown : _panel == _Panel.chat, onPressed: call.chatBelow ? call.onChatBelow! : () => _toggle(_Panel.chat)),
           ]),
         ),
       ]),
@@ -196,7 +197,7 @@ class _MeetCallState extends State<MeetCall> {
       ),
       _Pill(c: c, icon: SpaceWords.videoIcon(call), label: SpaceWords.video(call), off: !call.video, size: size, onPressed: call.videoLocked ? null : call.onVideo),
       _Pill(c: c, icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), off: call.deafened, size: size, onPressed: call.onDeafen),
-      if (!call.chatBelow) _Pill(c: c, icon: Lucide.messageSquare, label: SpaceWords.chat, size: size, onPressed: () => _toggle(_Panel.chat)),
+      if (call.hasChatButton) _Pill(c: c, icon: Lucide.messageSquare, label: SpaceWords.chat, size: size, onPressed: call.chatBelow ? call.onChatBelow! : () => _toggle(_Panel.chat)),
       _Pill(c: c, icon: Lucide.ellipsisVertical, label: 'More', semantic: 'More options', on: _more, size: size, onPressed: () => setState(() => _more = !_more)),
       _Pill(c: c, icon: _hangUp, label: SpaceWords.leave, semantic: 'Leave call', danger: true, size: size, onPressed: call.onLeave),
     ]);
