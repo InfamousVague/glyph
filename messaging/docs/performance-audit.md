@@ -285,6 +285,40 @@ and a connection. None of it was changed. Asked of Matt, not done:
 - Cosmetics that move (`lib/ui/cosmetics_ui.dart`) repeat for as long as they are on the screen. Not measured: the
   test accounts had none.
 
+## The Mac freezing as a call starts and ends (found and fixed 2026-11-24)
+
+Matt, 2026-11-24: "connecting to a call still freezes the mac and shows a pinwheel animation", then, on the
+MacBook Air, "it lagged on the call end". Sampled on that Mac with `sample <pid> 15 5` back to back while he joined
+and left a call in 0.12.26 (whose Dart macOS names, the build's `App.framework.dSYM` being on the disk), and read
+with the scripts beside the samples in `build/mac-hang`.
+
+Both were the same shape: **the app's main thread waiting on WebRTC while WebRTC waited on the system's sound.**
+On a Mac flutter_webrtc uses Apple's audio engine with its voice processing, and starting or stopping the
+microphone there takes about three seconds on WebRTC's worker thread (`AudioEngineDevice::InitRecording` →
+`-[AVAudioEngine prepare]` → `AudioUnitInitialize`, waiting on CoreAudio's lock while `coreaudiod` rebuilds the
+device's IO context). That alone freezes nothing. But flutter_webrtc answers every call from Dart on the main thread,
+and some of its answers ask the worker thread and wait:
+
+- **Joining (3.2 s):** `getReceivers` → `-[RTCRtpReceiver parameters]` → a blocking call to the worker, while the
+  worker was in `InitRecording`. The app asked for the meter's receivers at every level reading, 6.7 times a second
+  (`RtcMedia._silenceSink`, to keep this device from hearing itself), so one of those was always in the way.
+  **Fixed:** the meter's far end is silenced by the tracks its connection announces, and the platform is told only
+  when something changes; the connection is asked for its receivers on Android alone, every two seconds.
+- **Leaving (2.6 s):** `peerConnectionClose` → `PeerConnection::Close()`, which waits while the worker stops the
+  sound. **Fixed** on the Mac: the native half closes the connection first, on another thread
+  (`macos/Runner/VoiceFx.swift` `closeConnection`, `RtcMedia.closeConnection`), and the plugin's own close then
+  finds it closed.
+
+**Not seen on the Mac since the fix** (it needs a release to try), and left as they are: `getSenders`,
+`getTransceivers` and `setParameters` where a connection is set up or its bitrate retuned (`_fillOwn`, `_highest`),
+which ask the same threads; and the three seconds themselves, which are Apple's voice processing starting. Without it
+(`bypassVoiceProcessing`) the engine starts in a few hundredths of a second, and echo cancelling would be WebRTC's
+own: a change for ears to judge.
+
+Also in those samples, from 0.12.25 and so without names: bringing the window back from the Dock was followed by
+about eight seconds of Dart on the main thread, a second and more of it handing something large to another isolate
+(`SendPort.send`). Not found yet; a sample of 0.12.26 doing the same would name it.
+
 ## Reading a real phone
 
 The Performance plugin (lib/plugins/performance.dart, lib/perf/app_usage.dart; Marketplace › Performance) measures

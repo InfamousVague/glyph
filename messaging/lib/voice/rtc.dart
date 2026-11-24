@@ -334,7 +334,11 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     }
     // What reaches the meter's other end is never heard: held to silence at every reading, not trusted to one event
     // (Matt, 2026-11-16: "I can hear myself also if I mute and unmute in a space": on the phone the track was played).
-    unawaited(_silenceSink());
+    // Told again only what has changed; and on Android the connection is asked for its receivers every two seconds.
+    _sinceAsked++;
+    final ask = _asksReceivers && _sinceAsked >= 13;
+    if (ask) _sinceAsked = 0;
+    unawaited(_silenceSink(ask: ask));
     // Where the sender says nothing, the level of what reached the meter's other end.
     final sink = _meterSink;
     if (sink != null && !next.containsKey('me')) {
@@ -411,14 +415,22 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       sink.onIceCandidate = (c) {
         if (c.candidate != null) unawaited(meter.addCandidate(c).catchError((_) {}));
       };
-      // What arrives is never played.
-      sink.onTrack = (_) => unawaited(_silenceSink());
-      await meter.addTransceiver(
+      // What arrives is never played: each copy of the microphone it is handed is kept ([_sinkTracks]) and silenced.
+      _sinkTracks.clear();
+      _sinkQuiet.clear();
+      sink.onTrack = (e) {
+        _noteConnection(sink, e.track);
+        final t = e.track;
+        if (t.kind == 'audio' && (t.id ?? '').startsWith(meterPrefix) && !_sinkTracks.any((x) => x.id == t.id)) _sinkTracks.add(t);
+        unawaited(_silenceSink());
+      };
+      final sending = await meter.addTransceiver(
         track: mic.getAudioTracks().first,
         kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
         // Low: only its level is wanted.
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: [mic], sendEncodings: [RTCRtpEncoding(maxBitrate: 16000)]),
       );
+      _noteConnection(meter, sending.sender);
       final offer = await meter.createOffer();
       await meter.setLocalDescription(offer);
       // The partner's copy of the microphone gets ids of its own. flutter_webrtc finds a track by its id, looking at
@@ -429,8 +441,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       final trackId = micTrack.id;
       final sdp = offer.sdp ?? '';
       if (trackId == null || trackId.isEmpty || !sdp.contains(trackId)) {
-        await meter.close();
-        await sink.close();
+        await closeConnection(meter);
+        await closeConnection(sink);
         _opening = false;
         return;
       }
@@ -456,28 +468,92 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     _meterSink = null;
     _energy = null;
     _energyTime = null;
-    await meter?.close();
-    await sink?.close();
+    _sinkTracks.clear();
+    _sinkQuiet.clear();
+    if (meter != null) await closeConnection(meter);
+    if (sink != null) await closeConnection(sink);
   }
 
+  /// The copies of the microphone the meter's other end has been handed, as its `onTrack` said, and which of them
+  /// were last told to be quiet (by their ids): what [_silenceSink] works from.
+  final List<MediaStreamTrack> _sinkTracks = [];
+  final Map<String, bool> _sinkQuiet = {};
+
+  /// How many readings since the meter's other end was last asked for its receivers ([_silenceSink] `ask`).
+  int _sinceAsked = 0;
+
   /// Switches off every track the meter's other end receives and turns it to nothing, so this device never plays its
-  /// own microphone back. Asked again and again (every reading), since on some phones a receiver's track is made, or
-  /// made again, without the event that announces it.
-  Future<void> _silenceSink() async {
+  /// own microphone back.
+  ///
+  /// It works from the tracks the connection announced ([_sinkTracks]) and says something to the platform only when
+  /// a track is new or what it should be has changed. It used to ask the connection for its receivers at every
+  /// reading, 6.7 times a second. On a Mac that question is answered by WebRTC's worker thread and the app's main
+  /// thread waits for the answer, and while WebRTC starts the microphone the worker is busy for about three seconds
+  /// (the system's audio engine and its voice processing): the whole window froze, under a pinwheel, each time a call
+  /// was joined alone (Matt, 2026-11-24: "connecting to a call still freezes the mac and shows a pinwheel animation";
+  /// sampled on his MacBook Air: 3.2 s in `-[RTCRtpReceiver parameters]` under `getReceivers`, the worker in
+  /// `AudioEngineDevice::InitRecording`). [ask] asks all the same, for a phone whose receiver's track is made, or made
+  /// again, without the event that announces it: Android alone, every two seconds ([_readLevelsOnce]).
+  Future<void> _silenceSink({bool ask = false}) async {
     final sink = _meterSink;
     if (sink == null) return;
     // The audio test alone, never a call: the copy played back through the speaker chosen ([hearMyself]).
     final hear = hearMyself && _peers.isEmpty;
-    try {
-      for (final r in await sink.getReceivers()) {
-        final track = r.track;
-        // Only the partner's own copy, by the ids given it: never the microphone.
-        if (track == null || track.kind != 'audio' || !(track.id ?? '').startsWith(meterPrefix)) continue;
+    if (ask) {
+      try {
+        for (final r in await sink.getReceivers()) {
+          final t = r.track;
+          // Only the partner's own copy, by the ids given it: never the microphone.
+          if (t == null || t.kind != 'audio' || !(t.id ?? '').startsWith(meterPrefix)) continue;
+          // The one held by that id may be an older making of it: this one is what plays now.
+          _sinkTracks.removeWhere((x) => x.id == t.id);
+          _sinkTracks.add(t);
+          _sinkQuiet.remove(t.id);
+        }
+      } catch (_) {}
+    }
+    for (final track in _sinkTracks.toList()) {
+      try {
         if (track.enabled != hear) track.enabled = hear;
         // A browser plays nothing it isn't given to play (call_sound.dart): the copy is never given.
-        if (!CallSound.playsItself) await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
-      }
-    } catch (_) {}
+        final id = track.id ?? '';
+        if (!CallSound.playsItself && _sinkQuiet[id] != !hear) {
+          _sinkQuiet[id] = !hear;
+          await Helper.setVolume(hear ? 1 : 0, track).catchError((_) {});
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Whether the meter's other end is asked for its receivers now and then ([_silenceSink]): on Android, where a
+  /// receiver's track has been made again without saying so. Nowhere else: on a Mac the asking can hold the window.
+  static bool get _asksReceivers => !kIsWeb && PlatformInfo.isAndroid;
+
+  // --- closing a connection without holding the window ----------------------------------------------------------------
+
+  /// Each connection's name on the platform, where it has been learnt ([_noteConnection]).
+  static final Expando<String> _connectionIds = Expando<String>('rtc connection');
+
+  /// Remembers [pc]'s name on the platform from something of its that carries it ([from]: a sender, a receiver or a
+  /// track flutter_webrtc made for it), for [closeConnection]. Nothing is asked of the platform for it.
+  static void _noteConnection(RTCPeerConnection pc, Object? from) {
+    if (from == null || _connectionIds[pc] != null) return;
+    try {
+      final id = (from as dynamic).peerConnectionId;
+      if (id is String && id.isNotEmpty) _connectionIds[pc] = id;
+    } catch (_) {
+      // Not one of the platform's own (a browser's, a test's): closed the usual way.
+    }
+  }
+
+  /// Closes [pc]. On a Mac the native half closes it first, off the main thread ([VoiceFx.closeAside]): closing waits
+  /// for WebRTC to stop its sound, the system takes seconds over that, and flutter_webrtc closes on the main thread,
+  /// so the window froze as a call ended (Matt, 2026-11-24: "it lagged on the call end"; sampled: 2.6 s in
+  /// `PeerConnection::Close`). The plugin's own close then finds it closed and comes straight back.
+  static Future<void> closeConnection(RTCPeerConnection pc) async {
+    final id = _connectionIds[pc];
+    if (id != null && VoiceFx.closesAside) await VoiceFx.closeAside(id);
+    await pc.close();
   }
 
   /// Settings' audio test (GMFB-2, @kevin: "When testing voice calls it is difficult to diagnose issues without an in
@@ -727,10 +803,13 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     }
     levels.value = const {};
     links.value = const {};
-    await _meter?.close();
+    final meter = _meter, meterSink = _meterSink;
     _meter = null;
-    await _meterSink?.close();
     _meterSink = null;
+    _sinkTracks.clear();
+    _sinkQuiet.clear();
+    if (meter != null) await closeConnection(meter);
+    if (meterSink != null) await closeConnection(meterSink);
     _energy = _energyTime = null;
     for (final p in _peers.values.toList()) {
       await p.close();
@@ -1121,7 +1200,10 @@ class _RtcPeer implements VoicePeer {
     pc.onIceCandidate = (c) {
       if (c.candidate != null) onCandidate({'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
-    pc.onTrack = (e) => _taking = _taking.then((_) => _took(e)).catchError((Object err) => debugPrint('rtc: track from $id not shown: $err'));
+    pc.onTrack = (e) {
+      RtcMedia._noteConnection(pc, e.track);
+      _taking = _taking.then((_) => _took(e)).catchError((Object err) => debugPrint('rtc: track from $id not shown: $err'));
+    };
     pc.onConnectionState = (s) {
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _connected = true;
@@ -1150,7 +1232,8 @@ class _RtcPeer implements VoicePeer {
   /// One sound and one picture both ways, for the side that offers.
   Future<void> _addOwn(RTCPeerConnection pc) async {
     final mic = media._mic!.getAudioTracks().first;
-    await pc.addTransceiver(track: mic, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [media._mic!]));
+    final sound = await pc.addTransceiver(track: mic, kind: RTCRtpMediaType.RTCRtpMediaTypeAudio, init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [media._mic!]));
+    RtcMedia._noteConnection(pc, sound.sender);
     await pc.addTransceiver(
       kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, sendEncodings: [RTCRtpEncoding(maxBitrate: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).bitrate, maxFramerate: 30, scaleResolutionDownBy: media.settings.sendTo(media._peers.length, videoFor(media._peers.length)).scale)]),
@@ -1269,7 +1352,7 @@ class _RtcPeer implements VoicePeer {
     if (identical(media._peers[id], this)) media._gone(id);
     if (made != null) {
       final pc = await made;
-      await pc.close();
+      await RtcMedia.closeConnection(pc);
       // Let go of by the platform too: it finds a received track by its id among every connection it still holds, and
       // a connection made again brings their sound under the same id, so a recording asking for it could be handed
       // this closed one's, which is silent (GMFB-52).
