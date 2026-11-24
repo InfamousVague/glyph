@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../desk_stamp.dart';
 import '../games/game_activity.dart';
 import '../invites/pending_invites.dart';
 import '../me/me.dart';
@@ -385,9 +386,14 @@ class Buddies extends ChangeNotifier {
   Future<void> refresh() async {
     if (!_remote) return;
     try {
-      await _ask({'op': 'list'});
+      final r = await _ask({'op': 'list', if (_phoneStamp != null) 'have': _phoneStamp});
+      // The mark of the list the phone gave (lib/desk_stamp.dart), said back next time; none from a phone from before.
+      _phoneStamp = r['stamp'] is String ? r['stamp'] as String : null;
     } catch (_) {}
   }
+
+  /// On a computer: the mark the phone gave its friends list last, so that an unchanged list comes as a word.
+  String? _phoneStamp;
 
   /// On the phone: what a paired computer asks of friends by username ([_ask] there). Each answer carries the list.
   Future<Object?> forComputer(Map<String, Object?> what) async {
@@ -416,7 +422,9 @@ class Buddies extends ChangeNotifier {
         // The computer's game, said to friends in this phone's name: the phone is who they are friends with.
         await sayActivity(GameActivity.fromJson(what['ga']));
     }
-    return {'list': list(), 'ga': GameActivities.instance.all()};
+    final answer = <String, Object?>{'list': list(), 'ga': GameActivities.instance.all()};
+    // The computer's asking every twenty seconds, answered in a word where it has all of this already ([stampedFor]).
+    return what['op'] == 'list' ? stampedFor(what['have'], answer) : answer;
   }
 
   /// On a phone: reads the kept list, listens to the routes, and begins asking unanswered requests again. On a

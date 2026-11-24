@@ -165,3 +165,143 @@ blur off: an option for the Linux build); game sensing does not run on Linux.
    each change into their own listeners, if a profile still shows its builds.
 3. The stores read whole at start, and a store a chat rather than one file (finding 4's remainder), if start-up or
    memory shows it.
+
+# The phone's battery: calls and a paired computer (2026-11-24)
+
+Matt, 2026-11-24, with Android's battery page showing Ghost Messaging at 17.1% for the day under "High CPU usage":
+"please see what you can do about the high CPU usage on the app run some profiling on an emulator on this machine",
+and "I suspect a large cost is in the voice calling so make sure we test every part of the app". Read at 0.12.25.
+
+**How it was measured.** A profile build (`flutter build apk --profile`) on two Android 16 emulators on a Mac, each
+signed in to a relay of this branch run on the Mac, friends with each other, in real calls with each other. Two
+numbers for each state, over 20 to 30 seconds: every thread's CPU time from `/proc` (`tool/perf/threads.py`), and
+where the Dart went, from the VM's sampling profiler (`tool/perf/cpu_profile.dart`); and `simpleperf` for which
+library a thread's time was in. Percentages are of one emulator core. **Nothing here was measured on a phone:** the
+emulators had no sound to capture or play (silence was encoded and sent), a real phone's cores and radio are not an
+emulator's, and what the Fold itself spends was never read. The order of the findings should hold; the numbers are
+the emulator's.
+
+How to set it up again is at the end.
+
+## What each state costs
+
+| State (one phone) | Before | After |
+|---|---|---|
+| Signed in, the list on the screen, nothing happening | 0.03% | the same |
+| The spaces list, a friend sitting in a space | 0.1% | the same |
+| Scrolling the list | about 10% | the same |
+| Alone in a voice space, the app put away | about 7% | 0.03% |
+| Alone in a voice space, on the screen | 7 to 11% | the same (see "left") |
+| A call with one other person, on the screen | 9.0 to 9.4% | about 1.5 less (8.0 to 9.7% read) |
+| A call with one other person, the app put away | 9.5% | about 2.5 less (7.5 to 8.6% read) |
+| An open space with one other, standing still | 10.0% | not measured again |
+| An open space, walking | 14.5% | not measured again |
+
+**A call's totals don't compare cleanly between runs.** WebRTC's own sound threads read differently from one run
+of the app to the next by more than what was saved (the capture thread alone between 2.5% and 3.6% for the same
+call), so the last two rows give what the threads that did the removed work stopped spending, which read the same
+every run: the signalling thread from 0.6 to 0.8% down to under 0.07%, Android's garbage collector from 0.35 to
+0.96% down to about 0.1%, and the app's main thread from 0.9 to 1.3% down to 0.6 to 0.8% on the screen and to 0.03
+to 0.07% put away; against that, a tap on a voice adds 0.1 to 0.3% to the playout thread while the app is seen.
+
+A phone with nothing going on is as quiet as it can be. What costs is a call, whether or not anyone is looking at
+it, and (not measured, read from the code) a paired computer's asking.
+
+## Findings
+
+### 1. Alone in a space, the phone ran a whole call to itself (fixed while out of sight)
+
+To ripple this device's own face while nobody else is in the call, `RtcMedia._openMeter` makes two connections on
+the device, one sending the microphone to the other (Matt, 2026-11-16: "even when we're in the call alone we see the
+voice activity of ourselves"; a sender that never connects is never started, and gave no level). That is the
+microphone captured and cleaned, Opus encoded, sent, received, decoded and played at no volume, with both
+connections' statistics read 6.7 times a second and the far end's volume set to nothing again at each reading: 7% of
+a core for as long as someone sits in an empty space, behind a wake lock (CallService), screen on or off.
+
+**Fixed** for the app out of sight (`lib/app_seen.dart`, `RtcMedia._seenChanged`): put away, the meter is closed and
+nothing is read; brought back, it opens again at the first reading. A phone left alone in a space with its screen
+off now runs no sound at all (0.03%). **Left:** on the screen it is as it was. The Mac's native half can say how
+loud the microphone is without a connection (`VoiceFx.level`, used by the microphone test); the phone's could now
+too, but starting the microphone without a connection on Android (`prewarmRecording`) and handing over to a real
+call when someone joins was not something an emulator with no sound could prove.
+
+### 2. How loud each voice is was read from WebRTC's whole statistics, 6.7 times a second for each person (fixed on the phone)
+
+`RtcMedia._readLevelsOnce` asked every connection for `getStats()` every 150 ms and read one number from it. Each
+asking has WebRTC gather the whole report on its signalling, worker and network threads, the plugin turn it into
+maps, and Dart read them: the signalling thread 0.6 to 0.8% of a core, Android's garbage collector 0.3 to 1.0%, the
+main thread about 0.5% and Dart 1.1%, for each person in the call, and the same with the app put away.
+
+**Fixed:** on the phone the native half measures the voices itself (android `VoiceFx.kt`: the microphone's loudest
+sample in the capture hook, everyone else's from a tap on their decoded track, as the call recorder taps them), and
+one small `levels` answer holds them all. A connection's statistics are read every three seconds, for its round
+trip alone (`RtcMedia.linkEvery`). Where a voice can't be tapped it is read from the statistics as before, and so is
+everything on the Mac, Windows, Linux, an iPhone and in a browser. With the app out of sight nothing is read and
+the taps are taken off. After: the signalling thread and the garbage collector at next to nothing, the main thread
+0.6 to 0.8% on the screen and 0.03 to 0.07% put away. A tap is not free (0.1 to 0.3% on the playout thread for each
+voice, while the app is seen).
+
+### 3. A space's ids were derived afresh at every asking (fixed)
+
+`VoiceChannel.room`, `token`, `key`, `chatRoom` and `chatToken` were each a hash in pure Dart every time they were
+read, and a list of spaces reads `room` for every row and a call for every message it sends: walking an open space
+spent a twentieth of its Dart deriving the same room. `Roster.ownerId` hashed the owner's key for every row a
+space's page drew, a tenth of that page's build. Each is now worked out once and kept.
+
+### 4. A paired computer asked for everything every eight seconds (fixed; not measured)
+
+Read from the code, not measured: no computer was paired with the emulators. A computer's app asks the phone for
+its spaces and circles every 8 seconds (`Voice.syncNow`) and its friends every 20 (`Buddies.refresh`), and was
+answered with all of them each time: every circle whole, up to 60 KB each with its picture. The phone made the
+answer, sealed it and sent it, on the local network or through the relay, for as long as the computer's app was
+open. `lib/desk_stamp.dart`: the computer now says the mark of the answer it has, and the phone answers `same`
+while nothing changed; the spaces are still taken whole every two minutes, which is what hands the phone a space the
+computer made while it was away. The asking itself still comes every 8 and 20 seconds, and the link's ping every 20:
+each wakes the phone's radio. Telling the computer when something changes, in place of being asked, is what would
+stop that.
+
+## What a call still costs, and what would lower it
+
+After the fixes a quiet call with one other person is all WebRTC's own work: the microphone captured and cleaned
+(2.7%, about a third of it RNNoise), Opus encoded (1.1%), the network (1.4%, most of it the emulator's own cost for
+a packet), the other voice decoded and played (1.3%), 0.5% beside. Each further person adds an encoder, a decoder
+and a connection. None of it was changed. Asked of Matt, not done:
+
+- **Muted, the microphone is still captured, cleaned, encoded and sent** as silence. Letting go of the microphone
+  while muted would take off about half of what a muted person in a space costs, and the phone's microphone light
+  with it; unmuting would take a moment to start it again.
+- **Opus's discontinuous transmission** (`usedtx=1`) sends next to nothing while nobody speaks, for both ends.
+- **The meter while alone and on the screen** (finding 1).
+
+## Looked at, not changed
+
+- Everything the app remembers is one Android SharedPreferences file ("ui"), written whole at each change. A
+  space's messages are kept there, at most 300 a space, written again for each message. Small on a new account
+  (21 KB); how large it is on a phone in many circles was not seen.
+- A call's page builds itself again every second for its clock (`_SpaceCallPageState`): cheap once finding 3 was
+  fixed, and not at all with the app put away.
+- `_silenceSink` sets the meter's far end to no volume at every reading while alone: gone with the meter.
+- Direct (the node on the direct network) starts no thread until there is someone to reach.
+- Cosmetics that move (`lib/ui/cosmetics_ui.dart`) repeat for as long as they are on the screen. Not measured: the
+  test accounts had none.
+
+## Setting it up again
+
+```sh
+# A relay of this branch, and a stand-in for the call relay (below).
+(cd relay && GHOST_TURN_SECRET=x GHOST_TURN_URLS=stun:10.0.2.2:34780 dart run bin/relay.dart --port 8787 --data <a new folder>)
+# Two emulators; on each: the build, the relay's port, and the relay's address as the app's own choice.
+flutter build apk --profile --target-platform android-arm64
+adb -s <emulator> install -r build/app/outputs/flutter-apk/app-profile.apk
+adb -s <emulator> reverse tcp:8787 tcp:8787
+#   net_hub = ws://127.0.0.1:8787/hub in shared_prefs/ui.xml (adb root), or Settings › Routes › Relay server
+python3 tool/perf/threads.py 30 <emulator>
+dart run tool/perf/cpu_profile.dart ws://127.0.0.1:<port>/<token>=/ws 30   # the address is in logcat; adb forward it
+```
+
+Two emulators on one Mac can't reach each other for a call: each is behind its own network, and the app's STUN
+servers tell each the Mac's address on the internet. `python3 tool/perf/emulator_stun.py` answers STUN on the Mac
+(127.0.0.1:34780) with `10.0.2.2` and the port a packet came from, which gives each emulator an address the other can
+reach; the relay hands it out as the call relay (`GHOST_TURN_URLS`). The app's second try at a connection is
+through the call relay alone, which this stand-in is not, so a call there can take two or three tries (half a
+minute) to connect. `adb shell setprop log.tag.GhostPerf VERBOSE` before the app starts has it count its frames.

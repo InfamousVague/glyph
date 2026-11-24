@@ -193,7 +193,10 @@ class Roster {
   factory Roster.first(String owner, {SpaceKind kind = SpaceKind.voice}) => Roster(owner: owner, roles: Role.defaultsFor(kind));
 
   /// The owner's id on the hub, from their key; empty where there is no owner.
-  String get ownerId => owner.isEmpty ? '' : NetCrypto.idOf(NetCrypto.unhex(owner));
+  /// Worked out once for a key and kept: every row of a space asks whose it is as it is drawn, and a hash in pure
+  /// Dart for each was a tenth of what a space's page cost to build (docs/performance-audit.md, "Calls").
+  String get ownerId => owner.isEmpty ? '' : (_ownerIds[owner] ??= NetCrypto.idOf(NetCrypto.unhex(owner)));
+  static final Map<String, String> _ownerIds = {};
 
   bool get hasOwner => owner.isNotEmpty;
 

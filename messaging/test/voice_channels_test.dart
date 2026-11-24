@@ -527,6 +527,27 @@ void main() {
     expect(v.own.map((c) => c.seed), [mine.seed]);
   });
 
+  // Matt, 2026-11-24: "please see what you can do about the high CPU usage on the app". A paired computer asks for
+  // this every eight seconds, and was sent every space and circle whole each time (lib/desk_stamp.dart).
+  test('a computer that asks again is answered in a word while nothing has changed, and in full once something has', () async {
+    final v = Voice.instance;
+    final mine = VoiceChannel.make('Friday hang');
+    v.own = [mine];
+    addTearDown(() => v.own = []);
+    final first = await v.answerDesk({'op': 'list'}) as Map;
+    final stamp = first['stamp'] as String;
+    expect(first['channels'], isNotEmpty);
+    expect(await v.answerDesk({'op': 'list', 'have': stamp}), {'same': 1, 'stamp': stamp});
+    // A space made on the phone since: the whole list, and a new mark.
+    final more = VoiceChannel.make('Movie night');
+    v.own = [mine, more];
+    final after = await v.answerDesk({'op': 'list', 'have': stamp}) as Map;
+    expect([for (final c in after['channels'] as List) (c as Map)['s']], [mine.seed, more.seed]);
+    expect(after['stamp'], isNot(stamp));
+    // A computer from before says no mark, and is answered in full as it always was.
+    expect((await v.answerDesk({'op': 'list'}) as Map)['channels'], hasLength(2));
+  });
+
   // Matt, 2026-11-15: "Removing a hangout channel doesn't remove it for all devices".
   test('a channel removed on the phone stays removed: its computer is told, and cannot hand it back', () async {
     final v = Voice.instance;
