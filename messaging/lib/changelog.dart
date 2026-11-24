@@ -25,6 +25,14 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.26', '2026-11-24', [
+    'Calls are easier on a phone\'s battery: the ripple on a face is measured in a lighter way, nothing is measured while the app is out of sight, and a phone left alone in a space with its screen off no longer keeps its microphone and sound running.',
+    'A paired computer no longer has the phone send every space, circle and friend again every few seconds: the phone says nothing changed until something has.',
+    'On a computer, a call over its chat has a Chat button beside Leave: press it to hide the chat and give the call the whole pane, and again to bring it back.',
+    'Who is in a voice space\'s call is listed under the space in its circle, each with their picture and name, and a green ring on whoever is talking while you\'re in the call too.',
+    'Unread conversations are at the top of the list, the newest first, then everything you\'ve read. Pinned ones stay above both.',
+    'Performance, a new plugin in the Marketplace: a small bar under the title bar with how much of the processor and memory the app is using, a count of spikes, and a log you can copy.',
+  ]),
   ReleaseNotes('0.12.25', '2026-11-23', [
     'Mark as read for a whole circle: open the circle\'s menu (its name, a long press or a right click) and choose Mark as read, and every space in it is read at once.',
   ]),
