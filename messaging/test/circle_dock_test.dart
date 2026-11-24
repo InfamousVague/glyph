@@ -164,6 +164,37 @@ void main() {
     expect(find.text('Lounge'), findsNothing);
   });
 
+  // Matt, 2026-11-23: "add a \"mark as read\" to the context menu for circles".
+  testWidgets('a circle\'s menu has Mark as read: every space in it is read, and its unread count is gone', (tester) async {
+    Circles.instance.join(_circle);
+    final mine = NetKeys.generate();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final v = Voice.instance;
+    v.clearRead();
+    for (final (i, c) in _circle.channels.indexed) {
+      final store = MemoryHangoutStore()
+        ..keepRoster(c.chatRoom, Roster.first(c.owner, kind: SpaceKind.text))
+        ..keepMessages(c.chatRoom, [HangoutMessage(id: 'm$i', from: 'a', name: 'Maya Chen', text: 'Anyone up?', at: now - 60000 + i)]);
+      v.putHangout(HangoutRoom(channel: c, route: _NoRoute(mine.id), name: 'Me', signer: KeysSigner(mine), store: store));
+    }
+    addTearDown(() {
+      v.clearHangouts();
+      v.clearRead();
+    });
+    expect(Circles.instance.unread(_circle), 2, reason: 'one in each of its two spaces');
+    final sheet = await loadSheet(tester);
+    await pumpScreen(tester, sheet, const AppShell(), AppState(), size: const Size(900, 832));
+    showCircleMenu(tester.element(find.byType(AppShell)), _circle);
+    await settle(tester);
+    await tester.tap(find.text('Mark as read'));
+    await settle(tester);
+    expect(Circles.instance.unread(_circle), 0);
+    for (final c in _circle.channels) {
+      expect(v.unreadIn(c), 0);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Members is a drawer, and Add people at its top switches it to the invite drawer', (tester) async {
     Circles.instance.join(_circle);
     final sheet = await loadSheet(tester);

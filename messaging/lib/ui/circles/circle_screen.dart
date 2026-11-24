@@ -164,12 +164,14 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
   );
 }
 
-/// A circle's menu: invite, new space, arranging, settings, leave.
+/// A circle's menu: mark as read, invite, new space, arranging, settings, leave.
 void showCircleMenu(BuildContext context, Circle c) {
   final circles = Circles.instance;
   final canEdit = circles.can(c, CirclePerm.spaces);
   showChoices(context, title: c.name, choices: [
     // Its members here too, where the dock is the same on every page and has no Members of its own (NavStyle.unified).
+    // Every space in it read at once, its unread mark gone from the list and the rail.
+    Choice('Mark as read', Lucide.checkCheck, () => circles.markRead(c)),
     Choice('Members', Lucide.users, () => showCircleMembers(context, c)),
     if (circles.can(c, CirclePerm.invite)) Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
     if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),

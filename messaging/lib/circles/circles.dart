@@ -245,6 +245,14 @@ class Circles extends ChangeNotifier {
   /// How many messages from others in [c]'s spaces came after this device last read each.
   int unread(Circle c) => c.channels.fold(0, (n, s) => n + Voice.instance.unreadIn(s));
 
+  /// Every space of [c] is read to its newest message (Matt, 2026-11-23: "add a \"mark as read\" to the context menu for
+  /// circles").
+  void markRead(Circle c) {
+    for (final s in c.channels) {
+      Voice.instance.markRead(s);
+    }
+  }
+
   /// How many of those mention this device (Voice.mentionsIn).
   int mentions(Circle c) => c.channels.fold(0, (n, s) => n + Voice.instance.mentionsIn(s));
 
