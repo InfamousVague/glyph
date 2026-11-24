@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.25', '2026-11-23', [
+    'Mark as read for a whole circle: open the circle\'s menu (its name, a long press or a right click) and choose Mark as read, and every space in it is read at once.',
+  ]),
   ReleaseNotes('0.12.24', '2026-11-23', [
     'Voice spaces on a computer: in a call, the space shows the call in the top two thirds and its chat with the message box under it, and the circle\'s list beside it stays as it was, so you can move between spaces without leaving the call. Drag the line between them to make either bigger.',
     'Open spaces: the circle\'s list stays beside the floor, and the call\'s buttons are there once, at the floor\'s left foot. The box for the chat is at the right and looks like every other message box; New group is at the top right. The walls take the colour you chose for the app (purple where you chose none), shaded so they stand up, with a fainter glow on the floor.',
