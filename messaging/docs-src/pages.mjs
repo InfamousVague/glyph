@@ -17,7 +17,7 @@ export const sections = [
     title: 'Circles, spaces and calls',
     pages: [
       { slug: 'circles', icon: 'users', title: 'Make a circle and invite people', summary: 'A circle is a group of people with a sidebar of spaces. Make one, invite people, and join one.' },
-      { slug: 'spaces', icon: 'message-circle', title: 'Spaces', summary: 'The four kinds of space, polls, mentions, and spaces of your own.' },
+      { slug: 'spaces', icon: 'message-circle', title: 'Spaces', summary: 'The five kinds of space, polls, mentions, and spaces of your own.' },
       { slug: 'roles', icon: 'shield-check', title: 'Roles and permissions', summary: 'Who can do what in a circle, and changing it space by space.' },
       { slug: 'open-spaces', icon: 'compass', title: 'Open spaces', summary: 'A call you walk around in: hear who is near you, and gather in groups.' },
       { slug: 'sms-spaces', icon: 'smartphone', title: 'SMS spaces', summary: 'A space that people without the app are in by text.' },
@@ -37,6 +37,7 @@ export const sections = [
       { slug: 'soundboard', icon: 'megaphone', title: 'Soundboard', summary: 'Pads in a call that play a sound for everyone in it.' },
       { slug: 'auto-leveler', icon: 'audio-lines', title: 'Auto leveler', summary: 'Everyone in a call at about the same loudness.' },
       { slug: 'voice-changer', icon: 'audio-lines', title: 'Voice changer', summary: 'Send voice messages in another voice, said the way you said them.' },
+      { slug: 'performance', icon: 'gauge', title: 'Performance', summary: 'See what the app is using, in a row at the top, and copy a log of it.' },
       { slug: 'translate', icon: 'languages', title: 'Translate', summary: 'Read texts in other languages, translated on your phone.' },
       { slug: 'codes', icon: 'key-round', title: 'Codes', summary: 'Sign-in codes in a tab of their own, a tap to copy.' },
       { slug: 'spam', icon: 'ban', title: 'Spam filter', summary: 'Texts that look like spam, kept out of your way.' },
@@ -111,7 +112,7 @@ export const developer = [
     pages: [
       { slug: 'developer', icon: 'braces', title: 'Developer docs', summary: 'For people reading, building or scripting Ghost Messaging: how it is built, and both of its APIs.' },
       { slug: 'developer/architecture', icon: 'network', title: 'How the app is built', summary: 'The major parts of Ghost Messaging, where each lives in the source, and what it talks to.' },
-      { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Things followed from the tap to the wire: a text, a message to a friend, a call, pairing a computer, adding a plugin, and more.' },
+      { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Things followed from the tap to the wire: a text, a message to a friend, a call, an open space\'s floor, pairing a computer, adding a plugin, and more.' },
       { slug: 'developer/build', icon: 'terminal', title: 'Build, test and run it', summary: 'Running the app and the relay from source, the tests, the scripts, and how the code is commented.' },
     ],
   },

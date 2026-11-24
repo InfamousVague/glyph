@@ -35,11 +35,11 @@ import 'common.dart';
 import 'new_group.dart';
 import '../art/lucide_more.dart';
 import 'voice_screen.dart';
-import 'hangout_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
 import '../voice/channels.dart';
 import '../voice/friend_calls.dart';
+import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart' show VoiceChannel;
 import 'compose.dart';
 import 'dialup/dialup.dart';
@@ -308,6 +308,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
 
   /// The hangout whose call this device is in, as last drawn: the list's place and the pill's change with it.
   String? _inHangout;
+
+  /// The pane shows the space whose call this device is in (a circle's space opened beside its list).
+  bool get _paneShowsCall {
+    final s = Voice.instance.session;
+    return s != null && s.channel.hangout && _showing == 'circle' && openCircleSpaceSeed.value == s.channel.seed;
+  }
 
   /// Draws the frame again when this device comes into or leaves a hangout's call, and for nothing else of a call's.
   void _voiceChanged() {
@@ -1375,11 +1381,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             ),
                           ),
                         ),
-                        // In a hangout's call beside the pane: who is in it, in the list's place (the chat is the
-                        // pane's: HangoutStage).
-                        // Not with one of the developer designs chosen: its call is a page of its own (space_design.dart).
-                        if (wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout)
-                          Positioned.fill(child: HangoutPeople(key: ValueKey('people-${Voice.instance.session!.channel.room}'), session: Voice.instance.session!)),
+                        // In a space's call beside the pane the list stays as it is: the call is the top of the space's
+                        // page in the pane, its chat under it (SpaceSplit; Matt, 2026-11-23: "leaving the sidebar
+                        // unchanged so you can still quickly navigate the circle").
                         // The way round floats over the list's end, clear of the bar at the foot of a phone's
                         // screen; the list leaves it room (AppShell.pillRoom). Not on a wide phone, where it
                         // stands at the window's right.
@@ -1395,17 +1399,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                                 opacity: !wide && (settingsOpen || marketOpen) && !style.unified ? 0 : 1,
                                 duration: const Duration(milliseconds: 160),
                                 // Held to its corner as it shrinks: the foot's middle, or the corner it stands in.
-                                // In a hangout's call beside the pane the call's buttons stand where the pill was
-                                // (Matt, 2026-11-15: "hide the default navbar when in a hangout and show the call
-                                // controls where it was").
-                                child: wide && !spaceDesignChosen(context) && Voice.instance.session != null && Voice.instance.session!.channel.hangout
-                                    ? Padding(
-                                        key: const ValueKey('call-dock-in-pill'),
-                                        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), NavPill.inset(t)),
-                                        child: Center(child: CallDock(session: Voice.instance.session!)),
-                                      )
-                                    // The rail is the navigation: nothing at the list's foot.
-                                    : railed
+                                // The rail is the navigation: nothing at the list's foot.
+                                child: railed
                                         ? const SizedBox.shrink()
                                     : dialup
                                         ? ColoredBox(
@@ -1454,14 +1449,21 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         // The call you're in: a banner just above the dock (Matt, 2026-11-15: "switch the active
                         // call to be a banner again in the sidebar just above the navigation bar"); not while the call
                         // itself is open, nor under a page on a phone. Beside a dock stood up, it keeps clear of it.
-                        if (_showing != 'voice' && !(!wide && (settingsOpen || marketOpen || _open != null)) && !(wide && _inHangout != null && !spaceDesignChosen(context)))
+                        // Beside the call's own space in the pane (SpaceSplit) the call is there to see: the banner is for
+                        // looking at another space.
+                        if (_showing != 'voice' && !(!wide && (settingsOpen || marketOpen || _open != null)) && !(wide && (_paneShowsCall || OpenSpaces.isCall(Voice.instance.session))))
                           Positioned(
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
                             bottom: edges.bottom + (railed ? t.space(3) : dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
                             child: CallBanner(onOpen: () {
-                              // A developer design draws the call as a page of its own; else the Voice page.
-                              if (!openSpaceCall(context)) go('voice');
+                              // A developer design draws the call as a page of its own on a phone; beside the list a
+                              // circle's space opens in its circle, the call over its chat (SpaceSplit); else the Voice
+                              // page.
+                              if (!wide && openSpaceCall(context)) return;
+                              final s = Voice.instance.session;
+                              if (wide && s != null && s.channel.hangout && Circles.instance.circleOf(s.channel) != null) return openSpace(s.channel);
+                              go('voice');
                             }),
                           ),
                       ])))),

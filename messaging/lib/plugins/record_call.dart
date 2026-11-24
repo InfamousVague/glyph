@@ -17,12 +17,20 @@
 /// folder are the circle's choice (Circle settings › Plugins › Record call, kept with the plugin in the manifest:
 /// `space`, `folder`); until it chooses, the first Files space and a folder named Recordings. With no Files space, or
 /// no right to add files there, it stays on the device and says why.
+///
+/// **With video** (GMFB-42: "capture the webcams and screenshares in the call, not just the audio tracks"; Matt,
+/// 2026-11-23: "One composed video"): on a Mac the recording can have the call's cameras and shared screens in it as
+/// one track of video (lib/voice/recording_video.dart). Whether it does is chosen as it starts ([startChoices]): with
+/// video where the device can, or the voices alone. Everyone is asked once, about both.
 library;
+
+import 'dart:io';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../circles/circles.dart';
 import '../files/files_store.dart';
+import '../net/file_seal.dart';
 import '../ui/recording_ui.dart';
 import '../voice/recorder.dart';
 import '../voice/voice.dart';
@@ -56,8 +64,39 @@ class RecordCallPlugin extends GhostPlugin {
     if (to == null) return 'Kept on this device: ${circle.name} has no Files space to save it in.';
     final files = FilesStore.instance;
     if (!files.canUpload(to.channel)) return 'Kept on this device: you can\'t add files to ${to.space.name}.';
+    final why = tooBigFor(files.of(to.channel).info, File(r.path).existsSync() ? File(r.path).lengthSync() : 0, to.space.name);
+    if (why != null) return why;
     files.upload(to.channel, [r.path], folder: to.folder);
     return 'Saving to ${to.space.name} › ${to.folder}';
+  }
+
+  /// Why a recording of [size] bytes can't go into the Files space named [space], as far as is known of it ([info]:
+  /// the most one file may be, and the room left); null where it can, or nothing is known yet. A recording with video
+  /// is big, about half a gigabyte for half an hour (GMFB-42): said as the recording stops, in the same words that say
+  /// where it went, rather than left as an upload that failed in a list nobody is looking at.
+  static String? tooBigFor(FilesInfo? info, int size, String space) {
+    if (info == null || size <= 0) return null;
+    final sealed = FileSeal.sealedSize(size);
+    if (info.maxFile > 0 && sealed > info.maxFile) return 'Kept on this device: at ${fileSize(size)} it is too big for $space, where a file can be up to ${fileSize(info.maxFile)}.';
+    if (info.quota > 0 && info.used + sealed > info.quota) return 'Kept on this device: $space has no room left for its ${fileSize(size)}.';
+    return null;
+  }
+
+  /// The ways to start a recording, the one a plain press gives first (GMFB-42; Matt, 2026-11-23): where the device
+  /// can take video ([video]: CallRecorder.videoSupported, a Mac), with it, or the voices alone; elsewhere the one
+  /// way there has always been.
+  static List<({String label, LucideIcon icon, bool video})> startChoices({required bool video}) => video
+      ? const [(label: 'Record voice and video', icon: Lucide.circleDot, video: true), (label: 'Record voice only', icon: Lucide.mic, video: false)]
+      : const [(label: 'Record this call', icon: Lucide.circleDot, video: false)];
+
+  /// Starts a recording, with video where [video], and says how it went: why not, or what everyone is being asked.
+  static Future<String> _start(bool video) async {
+    final rec = CallRecorder.instance;
+    final why = await rec.start(video: video);
+    if (why != null) return why;
+    if (rec.recordingVideo) return 'Recording voice and video. Everyone is asked whether they may be in it.';
+    if (video) return 'Recording voices only: the video couldn\'t be started. Everyone is asked whether their voice may be in it.';
+    return 'Recording. Everyone is asked whether their voice may be in it.';
   }
 
   /// Its notes in a space's chat as cards (Matt, 2026-11-19: "use icons for starting and stopping recording and allow
@@ -71,8 +110,10 @@ class RecordCallPlugin extends GhostPlugin {
         return PluginChatCard(
           icon: Lucide.circleDot,
           alert: true,
-          title: '$by started recording',
-          detail: 'Everyone in the call is asked first. Only voices whose owners say yes are in it.',
+          title: note.details['video'] == '1' ? '$by started recording, with video' : '$by started recording',
+          detail: note.details['video'] == '1'
+              ? 'Everyone in the call is asked first. Only people who say yes are heard or seen in it.'
+              : 'Everyone in the call is asked first. Only voices whose owners say yes are in it.',
         );
       case 'stopped':
         final seconds = int.tryParse(note.details['seconds'] ?? '');
@@ -85,7 +126,7 @@ class RecordCallPlugin extends GhostPlugin {
           facts: [
             if (seconds != null) (Lucide.clock, recordingLength(seconds)),
             if (voices != null && voices > 0) (Lucide.users, voices == 1 ? '1 voice' : '$voices voices'),
-            (Lucide.audioLines, 'MP4, a track each'),
+            if (note.details['video'] == '1') (Lucide.video, 'MP4, video and a track each') else (Lucide.audioLines, 'MP4, a track each'),
           ],
         );
     }
@@ -130,6 +171,7 @@ class RecordCallPlugin extends GhostPlugin {
   @override
   List<String> get adds => const [
         'Record and Stop in the space\'s header while you\'re in its call',
+        'On a Mac, the call\'s cameras and shared screens too, as one video',
         'In a circle, saved into a folder of one of its Files spaces',
         'A red line over the call for everyone while it records',
         'Each person asked first; only those who say yes are in it',
@@ -153,8 +195,9 @@ class RecordCallPlugin extends GhostPlugin {
           final rec = CallRecorder.instance;
           if (rec.finishing) return const [];
           return [
+            // One button: the first way of starting, with video where the device can. The call's menu has the other.
             if (rec.recording == null)
-              PluginAction(label: 'Record this call', icon: Lucide.circleDot, run: (host) async => host.say(await rec.start() ?? 'Recording. Everyone is asked whether their voice may be in it.'))
+              for (final c in startChoices(video: CallRecorder.videoSupported).take(1)) PluginAction(label: c.label, icon: c.icon, run: (host) async => host.say(await _start(c.video)))
             else
               PluginAction(label: 'Stop recording', icon: Lucide.circleStop, danger: true, run: (host) async => host.say(_stopped(await rec.stop()))),
           ];
@@ -164,14 +207,7 @@ class RecordCallPlugin extends GhostPlugin {
           final rec = CallRecorder.instance;
           return [
             if (rec.recording == null && !rec.finishing)
-              PluginAction(
-                label: 'Record this call',
-                icon: Lucide.circleDot,
-                run: (host) async {
-                  final why = await rec.start();
-                  host.say(why ?? 'Recording. Everyone is asked whether their voice may be in it.');
-                },
-              )
+              for (final c in startChoices(video: CallRecorder.videoSupported)) PluginAction(label: c.label, icon: c.icon, run: (host) async => host.say(await _start(c.video)))
             else if (rec.recording != null)
               PluginAction(
                 label: 'Stop recording',

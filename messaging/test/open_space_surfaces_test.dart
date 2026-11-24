@@ -98,14 +98,20 @@ void main() {
         await settle(tester);
         expect(find.byType(SpaceCallPage), findsNothing, reason: 'no design is drawn for it');
         expect(find.byType(OpenSpaceView), findsOneWidget, reason: 'the space\'s own page is its floor');
-        expect(find.byType(CallDock), findsWidgets, reason: 'with the call\'s buttons');
+        expect(find.byType(CallDock), wide ? findsOneWidget : findsWidgets, reason: 'with the call\'s buttons, once');
 
         // The call's own page (the Voice page, as Join on a computer and the call's banner open it).
         shell.go('voice');
         await settle(tester);
         expect(find.byType(SpaceCallPage), findsNothing);
         expect(find.byType(OpenSpaceView), findsOneWidget, reason: 'the call\'s page is its floor');
-        if (wide) expect(find.byType(HangoutPeople), findsOneWidget, reason: 'who is in it beside the floor, with its dock where the pill was');
+        // The list beside it stays the circle's own: no people list in its place, and the call's buttons once, on the
+        // floor (Matt, 2026-11-23: "the call controls are still duplicated in open spaces don't take over the sidebar").
+        if (wide) {
+          expect(find.byType(HangoutPeople), findsNothing, reason: 'the sidebar is left as it was');
+          expect(find.byKey(const ValueKey('call-dock-in-pill')), findsNothing);
+          expect(find.byType(CallDock), findsOneWidget, reason: 'one set of the call\'s buttons');
+        }
 
         // Put away, and opened again from the call's banner over the circle.
         if (!wide) {

@@ -56,7 +56,8 @@ class _DiscordCallState extends State<DiscordCall> {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       final wide = box.maxWidth >= 760;
-      final chatOpen = _chat ?? wide;
+      // Never where the chat is under the call already (SpaceSplit).
+      final chatOpen = !call.chatBelow && (_chat ?? wide);
       void toggleChat() => setState(() => _chat = !chatOpen);
       final pad = MediaQuery.paddingOf(context);
       final stage = ColoredBox(
@@ -127,8 +128,9 @@ class _Header extends StatelessWidget {
         // On a phone Invite and Settings keep only their icons (their words are still read), so the name has room.
         _HeaderButton(icon: Lucide.userPlus, label: SpaceWords.invite, compact: !wide, onPressed: invite == null ? null : () => invite(context)),
         _HeaderButton(icon: LucideMore.settings, label: SpaceWords.settings, compact: !wide, onPressed: settings == null ? null : () => settings(context)),
-        _HeaderButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat),
-        if (wide) _HeaderButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: minimize),
+        // Under the split, the chat is the one below the call: this shows and hides that one.
+        if (call.hasChatButton) _HeaderButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: call.chatBelow ? call.chatShown : chatOpen, onPressed: call.chatBelow ? call.onChatBelow! : onChat),
+        if (wide && !(call.chatBelow && minimize == null)) _HeaderButton(icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: minimize),
       ]),
     );
   }

@@ -101,15 +101,26 @@ class VoiceChannel {
 
   // The call's room on the hub, the token that lets one join or look at it, and the key what is said there is sealed
   // with: each derived from the seed under its own label, so none gives away another.
+  //
+  // Each is worked out once for a seed and kept ([_derived]): they were derived afresh at every asking, a hash in pure
+  // Dart each time, and a list of spaces asks for `room` for every row it draws and a call for every message it
+  // sends (walking an open space spent a twentieth of its time deriving the same room: docs/performance-audit.md,
+  // "Calls").
   Uint8List get _seed => NetCrypto.unhex(seed);
-  String get room => NetCrypto.hex(NetCrypto.derive(_seed, 'voice room').sublist(0, 16));
-  String get token => NetCrypto.hex(NetCrypto.derive(_seed, 'voice token'));
-  Uint8List get key => NetCrypto.derive(_seed, 'voice key');
+  static final Map<String, Uint8List> _derived = {};
+  static final Map<String, String> _derivedHex = {};
+  Uint8List _derive(String label) => _derived['$label|$seed'] ??= NetCrypto.derive(_seed, label);
+  String _hexOf(String label, {int? first}) => _derivedHex['$label|$seed'] ??= NetCrypto.hex(first == null ? _derive(label) : _derive(label).sublist(0, first));
+  String get room => _hexOf('voice room', first: 16);
+  String get token => _hexOf('voice token');
+
+  /// A copy each time: whoever asks may keep or change theirs.
+  Uint8List get key => Uint8List.fromList(_derive('voice key'));
 
   /// The hangout's chat room: a room of its own beside the call's, which anyone looking at the hangout is in, so the
   /// chat and the roles reach people who are not in the call (lib/voice/hangout.dart).
-  String get chatRoom => NetCrypto.hex(NetCrypto.derive(_seed, 'hangout room').sublist(0, 16));
-  String get chatToken => NetCrypto.hex(NetCrypto.derive(_seed, 'hangout token'));
+  String get chatRoom => _hexOf('hangout room', first: 16);
+  String get chatToken => _hexOf('hangout token');
 
   /// A group's channel, from the group's id.
   factory VoiceChannel.ofGroup(String groupId, String name) =>
@@ -420,6 +431,22 @@ typedef VoiceSound = ({String track, int link});
 abstract class SoundMedia {
   /// Each other member's sound by their id, while there is a connection that has brought one.
   ValueListenable<Map<String, VoiceSound>> get sounds;
+}
+
+/// Media that can say which track each picture in the call is on, for a recording that takes video to draw
+/// (lib/voice/recording_video.dart; GMFB-42). lib/voice/rtc.dart's is one; a test's may be.
+abstract class PictureMedia {
+  /// Each other member's picture by their id, their camera or their screen: the received track and its connection's
+  /// mark, as [SoundMedia.sounds] says their sound. There from when their connection brings one, whether or not they
+  /// are sending anything on it.
+  Map<String, VoiceSound> get pictures;
+
+  /// What this device sends as its picture now: its screen while it shares, else its camera while video is on; null
+  /// while it sends none.
+  ({String track, bool screen})? get ownPicture;
+
+  /// Tells when [pictures] or [ownPicture] may have changed.
+  Listenable get pictureChanges;
 }
 
 /// How long a call waits before it mends a connection ([VoiceSession]'s `mend`): short in a test.

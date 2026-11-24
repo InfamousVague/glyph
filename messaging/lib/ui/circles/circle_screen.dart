@@ -140,6 +140,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           lastMessage: last == null ? null : '${who(last)}: ${last.summary}',
           lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
+          people: [for (final id in ids) CircleVoicePerson(id: id, name: id == 'me' ? 'You' : voice.nameOf(id))],
           here: here,
           files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
         );
@@ -164,12 +165,14 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
   );
 }
 
-/// A circle's menu: invite, new space, arranging, settings, leave.
+/// A circle's menu: mark as read, invite, new space, arranging, settings, leave.
 void showCircleMenu(BuildContext context, Circle c) {
   final circles = Circles.instance;
   final canEdit = circles.can(c, CirclePerm.spaces);
   showChoices(context, title: c.name, choices: [
     // Its members here too, where the dock is the same on every page and has no Members of its own (NavStyle.unified).
+    // Every space in it read at once, its unread mark gone from the list and the rail.
+    Choice('Mark as read', Lucide.checkCheck, () => circles.markRead(c)),
     Choice('Members', Lucide.users, () => showCircleMembers(context, c)),
     if (circles.can(c, CirclePerm.invite)) Choice('Invite people', Lucide.userPlus, () => showCircleInvite(context, c)),
     if (canEdit) Choice('New space', Lucide.plus, () => openCircleNewSpace(context, c)),
@@ -238,7 +241,7 @@ class CircleRow extends StatelessWidget {
     String line;
     if (inVoice.isNotEmpty) {
       final names = inVoice.take(3).map(voice.nameOf).join(', ');
-      line = '$count · ${inVoice.length == 1 ? '$names is talking' : '$names talking'}';
+      line = '$count · ${inVoice.length == 1 ? talkingAlone(names) : '$names talking'}';
     } else if (newest != null) {
       final me = voice.hangoutFor(where!)?.me;
       final who = newest.from == me ? 'You' : (newest.name.isNotEmpty ? newest.name : voice.nameOf(newest.from));

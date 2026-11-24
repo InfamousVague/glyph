@@ -30,6 +30,7 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../backgrounds.dart' show strongFill;
 import '../../files/browser_files.dart';
+import '../../files/drive.dart';
 import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
 import '../../plugins/watch_together.dart';
@@ -50,11 +51,18 @@ import '../hangout_screen.dart' show HangoutChat, RolesScreen;
 import '../space_invite.dart';
 import 'file_badge.dart';
 import 'file_preview.dart';
+import 'send_to_chat.dart';
 
 /// The page of the Files space [channel]. It holds the space's room open while it shows, for its chat.
+///
+/// An account's own drive (My files; lib/files/drive.dart, GMFB-37) is shown by this same page: it has no room, so no
+/// chat, invite or roles, and its words say whose it is.
 class FilesSpaceScreen extends StatefulWidget {
-  const FilesSpaceScreen({super.key, required this.channel, this.store});
+  const FilesSpaceScreen({super.key, required this.channel, this.store, this.above});
   final VoiceChannel channel;
+
+  /// Shown over the files, under the folders' row: My files' "Sync a folder" on a computer (GMFB-38).
+  final Widget? above;
 
   /// The files store to show, the app's where null (a test gives its own).
   final FilesStore? store;
@@ -66,6 +74,9 @@ class FilesSpaceScreen extends StatefulWidget {
 class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
   FilesStore get _store => widget.store ?? FilesStore.instance;
   VoiceChannel get _c => widget.channel;
+
+  /// An account's own drive: no room is held or made for it.
+  bool get _mine => Drive.isDrive(_c);
 
   HangoutRoom? _room;
   bool _chat = false;
@@ -92,9 +103,11 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
   void initState() {
     super.initState();
     unawaited(_store.open(_c));
-    unawaited(Voice.instance.hold(_c).then((r) {
-      if (mounted) setState(() => _room = r);
-    }));
+    if (!_mine) {
+      unawaited(Voice.instance.hold(_c).then((r) {
+        if (mounted) setState(() => _room = r);
+      }));
+    }
     if (_inBrowser && FilePlatform.canDrop) {
       BrowserFiles.dropTarget(true);
       _pageDrops = BrowserFiles.dropped.listen(_addSources);
@@ -107,7 +120,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
   @override
   void dispose() {
     _store.close(_c);
-    unawaited(Voice.instance.release(_c));
+    if (!_mine) unawaited(Voice.instance.release(_c));
     if (_inBrowser && FilePlatform.canDrop) {
       BrowserFiles.dropTarget(false);
     } else if (FilePlatform.canDrop) {
@@ -292,7 +305,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
         if (mayAll) Choice('Delete the folder, keep what\'s in it', Lucide.folderInput, () => remove(), hint: 'It all moves up to $up'),
         if (mayAll)
           Choice('Delete it and everything in it', Lucide.trash2, () {
-            showChoices(context, title: 'Delete $name and ${inside.length} ${inside.length == 1 ? 'file' : 'files'} in it? They go for everyone in the space.', choices: [
+            showChoices(context, title: 'Delete $name and ${inside.length} ${inside.length == 1 ? 'file' : 'files'} in it? ${_mine ? 'They go from every device of your account.' : 'They go for everyone in the space.'}', choices: [
               Choice('Delete everything', Lucide.trash2, () => remove(deleteFiles: true), danger: true),
             ]);
           }, danger: true),
@@ -307,11 +320,11 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     return ListenableBuilder(
       listenable: Listenable.merge([_store, Voice.instance, ?_room, if (FilePlatform.canDrop) _over]),
       builder: (context, _) {
-        final room = _room ?? Voice.instance.hangoutFor(_c);
+        final room = _mine ? null : (_room ?? Voice.instance.hangoutFor(_c));
         final space = _store.of(_c);
         final count = space.files.length;
         final line = count == 0 ? 'No files yet' : '$count ${count == 1 ? 'file' : 'files'} · ${fileSize(space.bytes)}';
-        final actions = [
+        final actions = _mine ? const <Widget>[] : [
           IconTap(key: const ValueKey('files-chat'), icon: _chat ? Lucide.folder : LucideMore.messageCircle, label: _chat ? 'Show the files' : 'Chat', onPressed: () => setState(() => _chat = !_chat)),
           if (room == null || room.can(Perm.invite)) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, _c)),
           if (room != null) IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => push(context, (_) => RolesScreen(room: room, settings: true))),
@@ -480,7 +493,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     if (!space.ready && space.loading) {
       content = const Center(child: GhostSpinner());
     } else if (empty) {
-      content = _Empty(canUpload: canUpload, onUpload: _pick, drop: FilePlatform.canDrop);
+      content = _Empty(canUpload: canUpload, onUpload: _pick, drop: FilePlatform.canDrop, mine: _mine);
     } else if (shown.isEmpty && subs.isEmpty && going.isEmpty && parts.isEmpty) {
       content = Center(
         child: Padding(
@@ -505,6 +518,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (!empty) d == null ? toolbar : ColoredBox(color: d.chrome, child: toolbar),
       if (chips != null) d == null ? chips : ColoredBox(color: d.chrome, child: Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: chips)),
+      ?widget.above,
       if (err != null)
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
@@ -1171,10 +1185,13 @@ class _UploadButton extends StatelessWidget {
 
 /// A space with no files yet: what goes here, and how.
 class _Empty extends StatelessWidget {
-  const _Empty({required this.canUpload, required this.onUpload, required this.drop});
+  const _Empty({required this.canUpload, required this.onUpload, required this.drop, this.mine = false});
   final bool canUpload;
   final VoidCallback onUpload;
   final bool drop;
+
+  /// An account's own drive (GMFB-37): it says whose devices see what is put here.
+  final bool mine;
 
   @override
   Widget build(BuildContext context) {
@@ -1205,7 +1222,9 @@ class _Empty extends StatelessWidget {
           Text('No files yet', style: pageText(t, t.fontSize('lg'), weight: 'semibold', color: t.color('app-ink'))),
           SizedBox(height: t.space(1)),
           Text(
-            canUpload
+            mine
+                ? (drop ? 'Upload files, or drop them anywhere here. They show up on every device signed in to your account, and no one else can open them.' : 'Upload files to keep them on every device signed in to your account. No one else can open them.')
+                : canUpload
                 ? (drop ? 'Upload files, or drop them anywhere here. Everyone in the space can see and open them, and no one else can.' : 'Upload files for everyone in the space. Everyone in it can see and open them, and no one else can.')
                 : 'Files added here show up for everyone in the space.',
             textAlign: TextAlign.center,
@@ -1285,8 +1304,12 @@ class _QuotaLine extends StatelessWidget {
 /// shows (where Move's new folder is made).
 void showFileMenu(BuildContext context, VoiceChannel c, SpaceFile f, {required FilesStore store, VoidCallback? onOpen, String? here}) {
   final may = store.canChange(c, f);
+  final mine = Drive.isDrive(c);
   showChoices(context, title: '${f.name}\n${fileSize(f.size)} · ${fileWho(f)} · ${listWhen(f.when)}', choices: [
     if (onOpen != null) Choice('Open', Lucide.eye, onOpen),
+    // From an account's own drive into a chat (GMFB-37): the file is sent there as any file picked on this device is.
+    // Not in a browser, where a file that came down is held in the tab and is no path to send from.
+    if (mine && !store.browser) Choice('Send to a chat', Lucide.send, () => sendFileToChat(context, c, f, store: store)),
     // In a call with Watch together on: the file played on everyone's device, in step (lib/plugins/watch_together.dart).
     if ((f.kind == FileKind.video || f.kind == FileKind.audio) && WatchTogetherPlugin.onInCall())
       Choice('Watch together in the call', Lucide.film, () {
@@ -1299,7 +1322,7 @@ void showFileMenu(BuildContext context, VoiceChannel c, SpaceFile f, {required F
     if (may) Choice('Move to folder', Lucide.folderInput, () => _moveTo(context, c, f, store, here: here)),
     if (may)
       Choice('Delete', Lucide.trash2, () {
-        showChoices(context, title: 'Delete ${f.name}? It goes for everyone in the space.', choices: [
+        showChoices(context, title: mine ? 'Delete ${f.name}? It goes from every device of your account.' : 'Delete ${f.name}? It goes for everyone in the space.', choices: [
           Choice('Delete', Lucide.trash2, () async {
             final ok = await store.delete(c, f);
             if (!ok && context.mounted) toast(context, 'Couldn\'t delete it.', tone: GlacierToastTone.danger);

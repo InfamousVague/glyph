@@ -1132,6 +1132,13 @@ class Me extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
+  /// This person's souls as the relay just answered with, on sending some to a friend (lib/souls/souls_send.dart;
+  /// GMFB-39): shown at once, before the relay's own word of it comes down the hub.
+  void soulsNow(int n) => _takeSouls({'n': n});
+
+  /// Asks the relay how many souls this person has now: a friend's card says some came.
+  void askSouls() => _hub?.sayHandles({'dir': 'souls?'});
+
   /// For a test: what the relay says of this person's souls.
   @visibleForTesting
   void seedSouls(int n, [List<String> special = const []]) => _takeSouls({'n': n, 'special': special});

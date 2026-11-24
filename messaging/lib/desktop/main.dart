@@ -24,6 +24,7 @@ import '../sms.dart';
 import '../ui/app_lock_ui.dart' show AppLockGate;
 import '../ui/call_moved_note.dart';
 import '../ui/files_space/share_in.dart';
+import '../ui/performance_row.dart';
 import '../ui/window_chrome.dart';
 import 'ui/desk_title_bar.dart';
 import 'ui/launch_splash.dart';
@@ -45,6 +46,7 @@ import '../inbox/inbox.dart';
 import '../ui/inbox_ui.dart';
 import '../circles/circles.dart';
 import '../files/files_store.dart';
+import '../files/folder_sync.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
@@ -189,6 +191,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
   // "Finish the missing pieces that went unfinished").
   unawaited(FilesStore.instance.start());
+  // The folder this computer keeps in step with My files, looked at every few minutes (lib/files/folder_sync.dart;
+  // GMFB-38). Nothing where none is chosen.
+  FolderSync.instance.start();
   FilesShareIn.attach();
   SpaceGroups.instance.start(state);
   DiscordServers.instance.start(state);
@@ -391,7 +396,11 @@ class _DesktopAppState extends State<DesktopApp> {
                 child: AppLockGate(
                   dragStrip: true,
                   child: GlacierToastProvider(
-                    child: MacChrome.stripEnabled ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: _recorded(child!))]) : _recorded(child!),
+                    // Under the title bar (the app's own strip on a Mac, the system's elsewhere), the Performance
+                    // plugin's row while it is on (lib/ui/performance_row.dart).
+                    child: MacChrome.stripEnabled
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: PerformanceUnder(navigator: _navigator, child: _recorded(child!)))])
+                        : PerformanceUnder(navigator: _navigator, child: _recorded(child!)),
                   ),
                 ),
               ),

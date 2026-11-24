@@ -16,11 +16,35 @@ JNIEXPORT void JNICALL FN(nativeConfigure)(JNIEnv *env, jobject self, jlong fx, 
   voicefx_configure((VoiceFx *)(intptr_t)fx, mode, gain);
 }
 
-JNIEXPORT void JNICALL FN(nativeProcess)(JNIEnv *env, jobject self, jlong fx, jobject buffer, jint frames, jint rate) {
+/* Runs voicefx over one block and answers its loudest sample as it is sent, 0 to 1: how loud the microphone is, for
+ * the ripple on this device's own face (VoiceFx.kt `levels`), read here where the samples already are. */
+JNIEXPORT jfloat JNICALL FN(nativeProcess)(JNIEnv *env, jobject self, jlong fx, jobject buffer, jint frames, jint rate) {
   float *samples = (float *)(*env)->GetDirectBufferAddress(env, buffer);
   jlong bytes = (*env)->GetDirectBufferCapacity(env, buffer);
-  if (!samples || bytes < (jlong)frames * (jlong)sizeof(float)) return;
+  if (!samples || bytes < (jlong)frames * (jlong)sizeof(float)) return 0;
   voicefx_process((VoiceFx *)(intptr_t)fx, samples, frames, rate);
+  float loudest = 0;
+  for (jint i = 0; i < frames; i++) {
+    float a = samples[i] < 0 ? -samples[i] : samples[i];
+    if (a > loudest) loudest = a;
+  }
+  loudest /= 32768.0f;
+  return loudest > 1 ? 1 : loudest;
+}
+
+/* The loudest of the 16-bit samples in a direct buffer, 0 to 1, looking at every [step]th: someone's decoded voice,
+ * handed to a tap 100 times a second (VoiceFx.kt hear). */
+JNIEXPORT jfloat JNICALL FN(nativePeak16)(JNIEnv *env, jobject self, jobject buffer, jint samples, jint step) {
+  const int16_t *s = (const int16_t *)(*env)->GetDirectBufferAddress(env, buffer);
+  jlong bytes = (*env)->GetDirectBufferCapacity(env, buffer);
+  if (!s || step < 1 || samples < 1) return 0;
+  if ((jlong)samples * 2 > bytes) samples = (jint)(bytes / 2);
+  int loudest = 0;
+  for (jint i = 0; i < samples; i += step) {
+    int a = s[i] < 0 ? -(int)s[i] : s[i];
+    if (a > loudest) loudest = a;
+  }
+  return (float)loudest / 32768.0f;
 }
 
 /* The voice effect by its name (voicefx_effect_id); none for null or a name that is no effect's. */

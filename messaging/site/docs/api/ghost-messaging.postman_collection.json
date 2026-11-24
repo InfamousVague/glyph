@@ -3590,6 +3590,112 @@
           ]
         },
         {
+          "name": "Sending souls",
+          "description": "Souls moved from one person to another, signed by the sender.",
+          "item": [
+            {
+              "name": "POST /souls/send",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "",
+                    "description": "The sender's hub key: base64 of its 33 bytes. Its id is whose souls are sent.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "",
+                    "description": "Milliseconds since 1970, within 5 minutes of the relay's clock.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "",
+                    "description": "Base64 of the 64-byte signature over the five lines: ghost-souls v1, POST, /souls/send, the time, the body's SHA-256 in hex.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"to\": \"0f1e2d3c4b5a69780f1e2d3c4b5a6978\",\n  \"souls\": 20,\n  \"id\": \"6b1f0c2d3e4a59687a8b9c0d1e2f3a4b\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{relay}}/souls/send",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "souls",
+                    "send"
+                  ]
+                },
+                "description": "Moves souls from the signer to another person on this relay and answers a receipt. Nothing is made or lost: what leaves one count arrives in the other. Asked again with the same id, it answers the first receipt and moves nothing. At most 100 souls at a time, 300 souls and 10 sendings in 24 hours; the body is at most 1024 bytes.\n\nWho: Signed: the sender\n\nBody:\n- `to` (needed): Who gets them: a Ghost id, 32 lowercase hex digits, that holds a username on this relay.\n- `souls` (needed): A whole number from 1 to 100.\n- `id` (needed): The sender's own name for this sending: 32 lowercase hex digits, made up afresh each time. Souls move once for each id.\n\nAnswers: `200 {\"ok\": true, \"receipt\": {\"id\": \"6b1f…\", \"at\": 1764000000000, \"from\": \"a4bb…\", \"to\": \"0f1e…\", \"souls\": 20}, \"n\": 80}  n is the sender's total after; \"again\": true for a repeat of the same id`\n\nRefusals:\n- `405 {\"ok\": false, \"error\": \"method\"}`\n- `413 {\"ok\": false, \"error\": \"too_large\"}`\n- `401 {\"ok\": false, \"error\": \"bad_signature\"}  not signed, too old, or the same signed request again`\n- `429 {\"ok\": false, \"error\": \"rate_limited\"}  20 askings an hour by one key, 600 an hour from one address`\n- `400 {\"ok\": false, \"error\": \"bad_request\"}  a body that can't be read, or a to or id that isn't 32 hex digits`\n- `400 {\"ok\": false, \"error\": \"amount\"}  not a whole number from 1 to 100`\n- `400 {\"ok\": false, \"error\": \"yourself\"}`\n- `409 {\"ok\": false, \"error\": \"no_account\"}  the sender holds no username here`\n- `409 {\"ok\": false, \"error\": \"no_receiver\"}  nobody with a username here has that id`\n- `409 {\"ok\": false, \"error\": \"id_used\"}  that id was another sending's`\n- `409 {\"ok\": false, \"error\": \"not_enough\"}`\n- `429 {\"ok\": false, \"error\": \"daily_limit\"}  300 souls or 10 sendings in 24 hours`"
+              }
+            },
+            {
+              "name": "POST /souls/receipt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-ghost-key",
+                    "value": "",
+                    "description": "The asker's hub key: base64 of its 33 bytes.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-time",
+                    "value": "",
+                    "description": "Milliseconds since 1970, within 5 minutes of the relay's clock.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "x-ghost-sig",
+                    "value": "",
+                    "description": "Base64 of the 64-byte signature over the five lines: ghost-souls v1, POST, /souls/receipt, the time, the body's SHA-256 in hex.",
+                    "disabled": false
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": \"6b1f0c2d3e4a59687a8b9c0d1e2f3a4b\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{relay}}/souls/receipt",
+                  "host": [
+                    "{{relay}}"
+                  ],
+                  "path": [
+                    "souls",
+                    "receipt"
+                  ]
+                },
+                "description": "Reads the receipt of one sending, for one of the two people in it. The app asks before a card in a chat may say souls were sent. Signed as /souls/send is, over its own path.\n\nWho: Signed: the sender or the receiver\n\nBody:\n- `id` (needed): The sending's id, as its sender made it: 32 lowercase hex digits.\n\nAnswers: `200 {\"ok\": true, \"receipt\": {\"id\": \"6b1f…\", \"at\": 1764000000000, \"from\": \"a4bb…\", \"to\": \"0f1e…\", \"souls\": 20}}  \"receipt\": null where there is none, or the asker is neither person`\n\nRefusals:\n- `401 {\"ok\": false, \"error\": \"bad_signature\"}`\n- `429 {\"ok\": false, \"error\": \"rate_limited\"}  300 askings an hour by one key`\n- `400 {\"ok\": false, \"error\": \"bad_request\"}`"
+              }
+            }
+          ]
+        },
+        {
           "name": "The app in a browser",
           "description": "The app built for a browser, served as plain files under /app/ by a relay given the folder.",
           "item": [

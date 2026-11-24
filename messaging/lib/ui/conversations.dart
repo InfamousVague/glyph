@@ -50,6 +50,10 @@ import '../inbox/inbox.dart';
 import '../friends/groups.dart';
 import 'thread.dart';
 import 'feedback_screen.dart' show FeedbackButton;
+import 'files_space/my_files.dart' show openMyFiles;
+import '../account/account.dart' show Account;
+import '../files/drive.dart' show Drive;
+import '../souls/souls_send.dart' show SoulsCard;
 import 'souls.dart' show SoulsChip;
 import 'window_chrome.dart' show MacChrome;
 import '../kit/semantic_colors.dart';
@@ -113,6 +117,20 @@ abstract class ConversationList {
   /// Every unread conversation in the tab shown marked read.
   Future<void> markShownRead();
 }
+
+/// Whether [row] of the list (a conversation, a network's chat or a space) holds something not read yet that its
+/// person has not asked to hear nothing of: a muted one is not brought up the list for what is said in it.
+bool isUnreadRow(Object row) => switch (row) {
+      Conversation c => c.unread && !c.muted,
+      InboxChat c => c.unread > 0 && !c.muted,
+      VoiceChannel v => Voice.instance.unreadIn(v) > 0,
+      _ => false,
+    };
+
+/// [rows] of the list with the unread ones first (Matt, 2026-11-24: "sort unread messages at the top in the app, new
+/// messages should come first (before unreads)"). Each part keeps the order it came in, which is the newest first:
+/// so what was written last is at the very top, older unread ones under it, and everything read after those.
+List<Object> unreadRowsFirst(List<Object> rows) => [for (final r in rows) if (isUnreadRow(r)) r, for (final r in rows) if (!isUnreadRow(r)) r];
 
 class _ConversationsScreenState extends State<ConversationsScreen> implements ConversationList {
   @override
@@ -413,9 +431,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       for (final v in Voice.instance.channels)
         if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.summary.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
-    if (chats.isEmpty && spaces.isEmpty) return shown;
+    if (chats.isEmpty && spaces.isEmpty) {
+      // [_shown] has the pinned ones first where this is the main list: unread first among them, and among the rest.
+      if (_section != null) return unreadRowsFirst(shown);
+      return [...unreadRowsFirst([for (final c in shown) if (c.pinned) c]), ...unreadRowsFirst([for (final c in shown) if (!c.pinned) c])];
+    }
     if (_section != null) {
-      return ([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList();
+      return unreadRowsFirst(([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList());
     }
     bool pinnedChat(InboxChat c) => Inbox.instance.named(c.network)?.isPinned(c) ?? false;
     final pinned = <(DateTime, Object)>[for (final c in shown) if (c.pinned) (c.date, c), for (final c in chats) if (pinnedChat(c)) (c.date, c)]..sort((a, b) => b.$1.compareTo(a.$1));
@@ -428,7 +450,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       for (final v in spaces) if (oldest == null || !v.$1.isBefore(oldest)) v,
     ]
       ..sort((a, b) => b.$1.compareTo(a.$1));
-    return [for (final m in pinned) m.$2, for (final m in merged) m.$2];
+    return [...unreadRowsFirst([for (final m in pinned) m.$2]), ...unreadRowsFirst([for (final m in merged) m.$2])];
   }
 
   /// Snoozed conversations out of the list until their time, and those back from a snooze at its top until opened
@@ -722,6 +744,14 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
             count: unread,
             onPress: unread > 0 ? () => _markAllRead(_section) : null,
           ),
+          // My files: the account's own drive (GMFB-37, @matt: "A private file drive for each account, not tied to any
+          // space"). Here, under the search, where a phone's list and a computer's sidebar both have it. Only with an
+          // account signed in to (the drive is made from its key), and not in a browser whose build has no Files.
+          if (!widget.archived && Sms.filesHere)
+            ListenableBuilder(
+              listenable: Account.instance,
+              builder: (context, _) => Account.instance.signedIn ? QuickRow(key: const ValueKey('my-files'), icon: Lucide.hardDrive, label: Drive.name, onPress: () => openMyFiles(context)) : const SizedBox.shrink(),
+            ),
           // In a browser too, words alone (it can't choose a picture yet), sent by the page's own fetch.
           if (!MacChrome.stripEnabled)
             QuickRow(key: const ValueKey('share-feedback'), icon: LucideMore.messageSquareWarning, label: 'Share feedback', onPress: () => FeedbackButton.open(context)),
@@ -1854,7 +1884,7 @@ class ConversationRow extends StatelessWidget {
                                         ),
                                         TextSpan(text: summary),
                                       ])
-                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(c.snippet)).replaceAll('\n', ' ')),
+                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(SoulsCard.preview(c.snippet))).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),
@@ -1905,7 +1935,7 @@ class ConversationRow extends StatelessWidget {
                   ? TextSpan(text: '» $summary', style: const TextStyle(fontStyle: FontStyle.italic))
                   : c.error
                       ? TextSpan(text: 'Not sent', style: TextStyle(color: selected ? d.onHighlight : t.danger))
-                      : TextSpan(text: (reactionSnippet(c.snippet) ?? MessageFormat.plain(c.snippet)).replaceAll('\n', ' '));
+                      : TextSpan(text: (reactionSnippet(c.snippet) ?? MessageFormat.plain(SoulsCard.preview(c.snippet))).replaceAll('\n', ' '));
           return DecoratedBox(
             decoration: BoxDecoration(
               color: selected ? d.highlight : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),

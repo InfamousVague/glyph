@@ -36,7 +36,9 @@ bool namedAsRecording(String name) => RegExp(r'^rec[0-9a-f]+\.mp4$', caseSensiti
 /// opened from a Files space or a chat went to the video player, as any MP4 does).
 ///
 /// A recording is known by what the recorder wrote in it (lib/voice/mp4_names.dart): sound in every track, the first
-/// named Everyone, then a track for each voice. One with a picture in it is left to the player, which shows it.
+/// named Everyone, then a track for each voice. One with a picture in it is left to the player, which shows it: a
+/// recording made with video (GMFB-42) opened from a Files space or a chat plays there with its picture. From the list
+/// of recordings it still opens in the mixer, which reads the voices and never the video (it is the last track).
 /// Where the file is one this device made and still keeps, that one is given, with its marks and its space. Else one
 /// is made up for it under [id], with [space] as the word for where it is from; it is in no list, and the voices
 /// decoded for it are deleted when it is closed ([RecordingPlayback.passing]).

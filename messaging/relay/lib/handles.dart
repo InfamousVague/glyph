@@ -244,6 +244,77 @@ class Handles {
   }
   List<String> specialOf(String id) => List.unmodifiable(_special[id] ?? const <String>[]);
 
+  // --- souls sent from one person to another (GMFB-39, "Payments between friends"; Matt, 2026-11-23: "Tip souls in a
+  // chat"). Souls only move here: what leaves one count arrives in the other in the same step, with a receipt, and all
+  // three are written to handles.json in one file (save, a file beside renamed over), so a stop between them can't
+  // make or lose a soul. The route that asks is souls_send.dart, signed by the sender's own key. ------------------------
+
+  /// A receipt for each sending, oldest first: {id (the sender's own name for it, 32 hex), at (ms), from, to, souls}.
+  /// One is kept for a day at least, since the day's limits are counted from them, and the newest [sentKept] after that.
+  final List<Map<String, Object?>> _sent = [];
+  final Map<String, Map<String, Object?>> _sentById = {};
+
+  /// The most souls one sending moves, the most one person sends in any 24 hours and in how many sendings, and how
+  /// many receipts are kept past their first day. (A bounty is 50 or 75 souls, 500 at most: a person can pass a
+  /// bounty or two on in a day, and no more.)
+  static const sendAtOnce = 100;
+  static const sendADay = 300;
+  static const sendsADay = 10;
+  static const sentKept = 5000;
+
+  /// Moves [n] souls from [from] to [to] under the sender's name for it, [id], once: asked again with the same [id],
+  /// people and number it answers the receipt it made the first time (`again`), and moves nothing. Refused, with why
+  /// in `error`, and nothing moved: `amount` (not 1 to [sendAtOnce]), `yourself`, `no_account` (the sender holds no
+  /// username here), `no_receiver` (nobody with a username here has that id, so souls can't be sent into nowhere),
+  /// `id_used` (that [id] was another sending's), `daily_limit`, `not_enough`.
+  ///
+  /// Nothing in it waits: two askings at once are taken one after the other, and the second sees what the first left.
+  /// It is written to disk before this returns, so a receipt answered is a receipt kept.
+  ({String? error, Map<String, Object?>? receipt, bool again}) sendSouls(String from, String to, int n, String id) {
+    final before = _sentById[id];
+    if (before != null) {
+      if (before['from'] == from && before['to'] == to && before['souls'] == n) return (error: null, receipt: before, again: true);
+      return (error: 'id_used', receipt: null, again: false);
+    }
+    if (n < 1 || n > sendAtOnce) return (error: 'amount', receipt: null, again: false);
+    if (from == to) return (error: 'yourself', receipt: null, again: false);
+    if (!holdsAName(from)) return (error: 'no_account', receipt: null, again: false);
+    if (!holdsAName(to)) return (error: 'no_receiver', receipt: null, again: false);
+    final now = _now().millisecondsSinceEpoch;
+    var sendings = 0, souls = 0;
+    for (final r in _sent.reversed) {
+      if (now - (r['at'] as int) > Duration.millisecondsPerDay) break;
+      if (r['from'] != from) continue;
+      sendings++;
+      souls += r['souls'] as int;
+    }
+    if (sendings >= sendsADay || souls + n > sendADay) return (error: 'daily_limit', receipt: null, again: false);
+    if (soulsOf(from) < n) return (error: 'not_enough', receipt: null, again: false);
+    final receipt = <String, Object?>{'id': id, 'at': now, 'from': from, 'to': to, 'souls': n};
+    _souls[from] = soulsOf(from) - n;
+    _souls[to] = soulsOf(to) + n;
+    _sent.add(receipt);
+    _sentById[id] = receipt;
+    while (_sent.length > sentKept && now - (_sent.first['at'] as int) > Duration.millisecondsPerDay) {
+      _sentById.remove(_sent.removeAt(0)['id']);
+    }
+    save();
+    // Each is told their new count where they are connected; the one who got them, how many and from whom, as a
+    // gift is said (an app from before this says "You got 20 souls: From maya").
+    _here[from]?.call(_soulsMessage(from));
+    final name = usernameOf(from);
+    _here[to]?.call(_soulsMessage(to, got: n, why: name == null ? 'From a friend' : 'From $name'));
+    _say('${from.substring(0, 6)} sent $n souls to ${to.substring(0, 6)}');
+    return (error: null, receipt: receipt, again: false);
+  }
+
+  /// The receipt of the sending [id], for one of the two people in it ([asker]); null for anyone else, and where there
+  /// is none.
+  Map<String, Object?>? soulsReceipt(String id, String asker) {
+    final r = _sentById[id];
+    return r != null && (r['from'] == asker || r['to'] == asker) ? r : null;
+  }
+
   /// Whether [user] and [pass] are the admin's, as [HandlesConfig.adminHash] keeps the password: `salt:hash`, the
   /// hash SHA-256 taken [adminRounds] times over the salt and the password.
   bool adminPassword(String user, String pass) {
@@ -520,6 +591,13 @@ class Handles {
         (all['showcase'] as Map? ?? const {}).forEach((id, b) => _showcase[id as String] = b as String);
         _grants.addAll([for (final g in (all['grants'] as List? ?? const [])) (g as Map).cast<String, Object?>()]);
         (all['unseen'] as Map? ?? const {}).forEach((id, list) => _unseen[id as String] = [for (final g in list as List) (g as Map).cast<String, Object?>()]);
+        for (final r in (all['sent'] as List? ?? const [])) {
+          if (r is Map && r['id'] is String && r['at'] is int && r['from'] is String && r['to'] is String && r['souls'] is int) {
+            final receipt = r.cast<String, Object?>();
+            _sent.add(receipt);
+            _sentById[r['id'] as String] = receipt;
+          }
+        }
       }
     } catch (_) {
       // A file that cannot be read is started again from nothing rather than stopping the relay.
@@ -567,6 +645,7 @@ class Handles {
         'showcase': _showcase,
         'grants': _grants,
         'unseen': _unseen,
+        'sent': _sent,
       }));
       tmp.renameSync(file.path);
     } catch (_) {}

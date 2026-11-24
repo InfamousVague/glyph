@@ -17,6 +17,7 @@ import '../app_state.dart';
 import '../account/account_crypto.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../art/lucide_more.dart';
 import '../desktop/own_calls.dart' show DeskOwnCalls;
 import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
@@ -28,6 +29,7 @@ import '../relay_host/words.dart' show signOutHostWords;
 import '../sms.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
+import 'handover_screens.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -115,6 +117,17 @@ Widget _accountSection(BuildContext context) {
           hint: Account.keepsWords ? null : const Text('After your password'),
           onPress: () => push(context, (_) => const DevicesScreen()),
         ),
+        // Signing in a new device by scanning the code on its sign-in screen (GMFB-45). On Android only for now: the
+        // app has a camera for codes there and nowhere else yet. Not on a computer paired with a phone, nor where no
+        // words are kept to hand over.
+        if (PlatformInfo.isAndroid && Account.keepsWords && !Sms.paired)
+          SettingRow(
+            key: const ValueKey('account-new-device'),
+            icon: _icon(LucideMore.qrCode),
+            label: 'Sign in a new device',
+            hint: const Text('Scan the code on its sign-in screen'),
+            onPress: () => push(context, (_) => const HandoverApproveScreen()),
+          ),
         // A browser keeps no words and no password key, so its backup is brought up to date only when asked, with the
         // password (Account.refreshWith); every other device does it by itself once a day.
         if (!Account.keepsWords)
@@ -560,7 +573,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 /// Signing in on this device: username and password (and the code texted to the account's number, where it has a
 /// verified one), or the recovery words. What is found replaces this install's identity and the app starts again.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key, this.words = false, this.needsCode = false, this.needsPassword = false, this.username = ''});
+  const SignInScreen({super.key, this.words = false, this.phone = false, this.needsCode = false, this.needsPassword = false, this.username = ''});
+
+  /// Starting on the tab that shows a code for a phone to scan (GMFB-45).
+  final bool phone;
 
   /// The username typed in to start with: the phone's account's, on a computer paired with it.
   final String username;
@@ -576,6 +592,8 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   late bool _words = widget.words;
+  // The tab with a code for a phone signed in to the account to scan (GMFB-45; HandoverCodePanel).
+  late bool _phone = widget.phone;
   late final _username = TextEditingController(text: widget.username);
   final _password = TextEditingController();
   final _number = TextEditingController();
@@ -635,8 +653,10 @@ class _SignInScreenState extends State<SignInScreen> {
 
   /// The recovery words: each checked against the word list before anything is asked of the server. An account with
   /// no backup kept goes on to choosing a password, so one is kept again.
-  Future<void> _withWords() => _run(() async {
-        final words = AccountCrypto.tidyWords(_typedWords.text);
+  /// [handed]: the words a phone handed over after scanning this device's code (GMFB-45), in the typed ones' place.
+  /// They are used here and kept nowhere but where signing in keeps them.
+  Future<void> _withWords([List<String>? handed]) => _run(() async {
+        final words = handed ?? AccountCrypto.tidyWords(_typedWords.text);
         final strange = words.where((w) => !AccountCrypto.isWord(w)).toList();
         if (strange.isNotEmpty) throw AccountError('"${strange.first}" isn\'t one of the recovery words. Check its spelling.');
         if (words.length != 12 && words.length != 24) throw AccountError('That is ${words.length} words. There are 12.');
@@ -685,15 +705,17 @@ class _SignInScreenState extends State<SignInScreen> {
       padding: EdgeInsets.only(bottom: context.tokens.space(4)),
       child: GlacierSegmentedControl(
         fullWidth: true,
-        value: _words ? 'words' : 'password',
+        value: _phone ? 'phone' : _words ? 'words' : 'password',
         ariaLabel: 'How to sign in',
         onValueChange: (v) => setState(() {
           _words = v == 'words';
+          _phone = v == 'phone';
           _problem = null;
         }),
         options: const [
           GlacierSegmentedOption(value: 'password', label: Text('Username')),
           GlacierSegmentedOption(value: 'words', label: Text('Recovery words')),
+          GlacierSegmentedOption(value: 'phone', label: Text('Phone')),
         ],
       ),
     );
@@ -715,6 +737,16 @@ class _SignInScreenState extends State<SignInScreen> {
         ),
         _gap(context, 8),
         PairButton(label: busy ? 'Signing in…' : 'Sign in', icon: Lucide.arrowRight, onPressed: busy ? null : _withNewPassword),
+      ]);
+    }
+    if (_phone) {
+      // Leaving this tab, or the screen, takes the panel down, and its code with it. While the account is opened the
+      // tabs are off, so the panel is not taken down half way.
+      return _AccountPage(title: 'Sign in', children: [
+        IgnorePointer(ignoring: busy, child: tabs),
+        HandoverCodePanel(busy: busy, problem: _problem, onWords: (words) => _withWords(words), onFresh: () => setState(() => _problem = null)),
+        _gap(context),
+        warning,
       ]);
     }
     if (_words) {

@@ -16,6 +16,7 @@ import '../kit/settings_type.dart';
 import '../voice/call_sound.dart';
 import '../voice/channels.dart';
 import '../voice/leveler.dart';
+import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
@@ -51,12 +52,12 @@ class VoiceScreen extends StatelessWidget {
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
-        // Beside the list on a wide screen the people are in the list's place (HangoutScreen there) and this side is
-        // the hangout's chat, with its videos above it once anyone turns one on (HangoutStage).
         // On a narrow phone with a design chosen, the design is the call page (space_design.dart).
         final design = inlineSpaceCall(context, s);
         if (design != null) return design;
-        if (s != null && s.channel.hangout && AppShell.wideOf(context)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
+        // A space's call beside the list is the space's own page: the call over its chat (HangoutScreen's SpaceSplit). An
+        // open space's floor is still drawn over its chat here (HangoutStage).
+        if (s != null && s.channel.hangout && AppShell.wideOf(context) && OpenSpaces.isCall(s)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
         if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
         // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
         final seen = v.viewing;
@@ -308,8 +309,14 @@ class CallVideos extends StatelessWidget {
 
 /// The call's buttons: the microphone, the sound, the camera and leaving, in a dock like the app's pill.
 class CallDock extends StatelessWidget {
-  const CallDock({super.key, required this.session});
+  const CallDock({super.key, required this.session, this.chatShown = true, this.onChat});
   final VoiceSession session;
+
+  /// Where the call has its space's chat under it (SpaceSplit): whether that chat is shown, and what puts it away and
+  /// brings it back, as a button beside Leave (Matt, 2026-11-24: "add a button next to the leave button for hiding
+  /// and showing the chat"). Null: no such button.
+  final bool chatShown;
+  final VoidCallback? onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -369,6 +376,7 @@ class CallDock extends StatelessWidget {
               // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
               if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
+              if (onChat != null) button(LucideMore.messageCircle, chatShown ? 'Hide chat' : 'Show chat', onChat!, on: chatShown),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),

@@ -290,6 +290,7 @@
   <tr><td><code>{"dir": "souls-seen", "ids": ["&lt;g&gt;"]}</code></td><td>You</td><td>Those were shown. They are not sent again. Not answered.</td></tr>
 </table>
 <p>Souls given through <a href="/docs/developer/relay-api/#bounty"><code>POST /bounty</code></a> come as a <code>souls</code> message with <code>got</code> and <code>why</code>, to an install that is connected.</p>
+<p>Souls a person sends another through <a href="/docs/developer/relay-api/#souls"><code>POST /souls/send</code></a> come the same way: the receiver hears a <code>souls</code> message with <code>got</code> and a <code>why</code> of <code>From &lt;username&gt;</code>, the sender one with their new count.</p>
 <p>The admin messages are for whoever runs the server. They work only on a connection that signed in with <code>admin-login</code>, from an install the server is set to allow; the sign-in lasts 8 hours and ends with the connection. Anyone else is answered <code>{"dir": "&lt;the dir&gt;", "ok": false, "err": "Sign in to the admin page first."}</code>.</p>
 <table>
   <tr><th>Message</th><th>Takes</th><th>Answer</th></tr>

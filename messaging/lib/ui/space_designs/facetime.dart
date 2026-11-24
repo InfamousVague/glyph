@@ -107,6 +107,9 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
     final pad = MediaQuery.paddingOf(context);
     return LayoutBuilder(builder: (context, box) {
       final wide = box.maxWidth >= _wide;
+      // Under the split, the chat is the one below the call: Chat shows and hides that one, not a panel of this page's.
+      final belowChat = call.chatBelow ? call.chatShown : null;
+      final belowToggle = call.chatBelow ? call.onChatBelow : null;
       // The chat's panel on a computer, and how far the stage narrows for it: the same width, so nothing sits under it.
       final panelWidth = wide ? math.min(380.0, box.maxWidth * 0.32) : 0.0;
       final panel = _chat ? panelWidth : 0.0;
@@ -148,11 +151,14 @@ class _FaceTimeCallState extends State<FaceTimeCall> {
                 left: 0,
                 right: 0,
                 bottom: pad.bottom + 12,
-                child: Center(child: wide ? FittedBox(fit: BoxFit.scaleDown, child: _Capsule(call: call, chat: _chat, onChat: _toggleChat)) : _PhoneControls(call: call, chat: _chat, onChat: _toggleChat)),
+                child: Center(child: wide ? FittedBox(fit: BoxFit.scaleDown, child: _Capsule(call: call, chat: belowChat ?? _chat, onChat: belowToggle ?? _toggleChat)) : _PhoneControls(call: call, chat: belowChat ?? _chat, onChat: belowToggle ?? _toggleChat)),
               ),
             ]),
           ),
-          if (wide)
+          // No chat panel where the chat is under the call already (SpaceSplit).
+          if (call.chatBelow)
+            const SizedBox.shrink()
+          else if (wide)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
@@ -655,9 +661,10 @@ class _Capsule extends StatelessWidget {
       radius: 36,
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final w in [b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
+        // No Chat where the chat is under the call already (SpaceSplit).
+        for (final w in [if (call.hasChatButton) b.chat, b.mute, b.video, ?b.flip, ?b.screen, b.deafen, b.invite]) slot(w),
         Container(width: 1, height: 40, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: _white.withValues(alpha: 0.18)),
-        for (final w in [b.devices, b.settings, b.minimize]) slot(w),
+        for (final w in [b.devices, b.settings, if (call.onMinimize != null) b.minimize]) slot(w),
         const SizedBox(width: 8),
         slot(b.end),
       ]),
@@ -682,7 +689,7 @@ class _PhoneControls extends StatelessWidget {
           radius: 30,
           padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (final w in [b.chat, b.mute, b.video, b.deafen, b.invite, b.end]) Expanded(child: w),
+            for (final w in [if (call.hasChatButton) b.chat, b.mute, b.video, b.deafen, b.invite, b.end]) Expanded(child: w),
           ]),
         ),
         const SizedBox(height: 10),

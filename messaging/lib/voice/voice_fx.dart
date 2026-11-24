@@ -29,6 +29,7 @@ class VoiceFx {
       liveSupported = said.contains('live');
       effectsSupported = said.contains('effects');
       levelSupported = said.contains('level');
+      levelsSupported = said.contains('levels');
     } on MissingPluginException {
       available = const {};
     } on PlatformException {
@@ -40,11 +41,12 @@ class VoiceFx {
 
   /// For a test: what the device can run set to [to], as if asked; with none, asked afresh next time.
   @visibleForTesting
-  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false, bool level = false]) {
+  static void reset([Set<NoiseMode> to = const {}, bool live = false, bool effects = false, bool level = false, bool levels = false]) {
     available = to;
     liveSupported = live;
     effectsSupported = effects;
     levelSupported = level;
+    levelsSupported = levels;
     _asked = to.isNotEmpty || live;
   }
 
@@ -66,6 +68,41 @@ class VoiceFx {
       return (await _channel.invokeMethod<double>('level') ?? 0).clamp(0.0, 1.0);
     } catch (_) {
       return 0;
+    }
+  }
+
+  // --- how loud each voice in a call is (lib/voice/rtc.dart, RtcMedia._readLevelsOnce) -----------------------------
+
+  /// The native half can say how loud the microphone and each tapped voice are ([levels]): the phone's (android
+  /// VoiceFx.kt). Where it can't, a call reads each from its connection's statistics, as it always did.
+  static bool levelsSupported = false;
+
+  /// Taps [trackId], someone's decoded voice, under [key], so that [levels] says how loud it is. False where the
+  /// native half holds no such voice now: that person's level is then read from their connection's statistics.
+  static Future<bool> hear(String key, String trackId) async {
+    try {
+      return await _channel.invokeMethod<bool>('hear', {'key': key, 'track': trackId}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Takes the tap off [key]'s voice.
+  static Future<void> unhear(String key) async {
+    try {
+      await _channel.invokeMethod<void>('unhear', {'key': key});
+    } catch (_) {}
+  }
+
+  /// How loud the microphone (`me`) and each tapped voice (by its key) have been since last asked, 0 to 1. `me` is
+  /// left out where the native half was handed none of the microphone since then. Null where it could not be asked.
+  static Future<Map<String, double>?> levels() async {
+    try {
+      final said = await _channel.invokeMapMethod<String, Object?>('levels');
+      if (said == null) return null;
+      return {for (final e in said.entries) if (e.value is num) e.key: (e.value as num).toDouble().clamp(0.0, 1.0)};
+    } catch (_) {
+      return null;
     }
   }
 

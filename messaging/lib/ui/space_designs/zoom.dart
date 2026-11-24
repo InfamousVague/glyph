@@ -263,7 +263,7 @@ class _TopBar extends StatelessWidget {
               ]),
             ),
             if (!alone) ...[_ViewSwitch(gallery: gallery, onView: onView, iconsOnly: compact), const SizedBox(width: 10)],
-            _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize, iconOnly: compact),
+            if (call.onMinimize != null) _BarButton(icon: _minimize, label: SpaceWords.minimize, onPressed: call.onMinimize, iconOnly: compact),
           ]),
         );
       });
@@ -690,7 +690,10 @@ class _Toolbar extends StatelessWidget {
           onChevron: chevron ? devices : null,
         );
     final people = _ToolButton(icon: Lucide.users, label: _W.participants, count: call.people.length, on: panel == _Panel.people, onPressed: () => onPanel(_Panel.people));
-    final chat = _ToolButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: panel == _Panel.chat, onPressed: () => onPanel(_Panel.chat));
+    // Under the split, the chat is the one below the call: Chat shows and hides that one.
+    final chat = call.chatBelow
+        ? _ToolButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: call.chatShown, onPressed: call.onChatBelow)
+        : _ToolButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: panel == _Panel.chat, onPressed: () => onPanel(_Panel.chat));
     final more = _ToolButton(icon: Lucide.ellipsis, label: _W.more, on: panel == _Panel.more, onPressed: () => onPanel(_Panel.more));
     if (!wide) {
       // On a phone the devices are under More.
@@ -701,7 +704,7 @@ class _Toolbar extends StatelessWidget {
           Expanded(child: Center(child: mute())),
           Expanded(child: Center(child: video())),
           Expanded(child: Center(child: people)),
-          Expanded(child: Center(child: chat)),
+          if (call.hasChatButton) Expanded(child: Center(child: chat)),
           Expanded(child: Center(child: more)),
         ]),
       );
@@ -726,7 +729,8 @@ class _Toolbar extends StatelessWidget {
           ]), Alignment.centerLeft)),
           Row(mainAxisSize: MainAxisSize.min, spacing: 4, children: [
             people,
-            chat,
+            // Where the chat is under the call (SpaceSplit), it shows and hides that one.
+            if (call.hasChatButton) chat,
             if (full) ...[
               _ToolButton(icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
               _ToolButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), alert: call.deafened, onPressed: call.onDeafen),
@@ -870,7 +874,7 @@ class _SidePanel extends StatelessWidget {
                 decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(9)),
                 child: Row(children: [
                   tab(false, Lucide.users, '${_W.participants} (${call.people.length})'),
-                  tab(true, LucideMore.messageCircle, SpaceWords.chat),
+                  if (!call.chatBelow) tab(true, LucideMore.messageCircle, SpaceWords.chat),
                 ]),
               ),
             ),

@@ -189,6 +189,9 @@ class SpaceCall {
     this.chatBuilder,
     this.bridged = false,
     this.extras = const [],
+    this.chatBelow = false,
+    this.chatShown = true,
+    this.onChatBelow,
   });
 
   /// A stage's items in the call's menu (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak,
@@ -221,7 +224,7 @@ class SpaceCall {
   static bool mayInvite(VoiceChannel channel, HangoutRoom? room) => channel.group == null && (room == null || room.can(Perm.invite));
 
   /// The call [Voice] is in, as it stands now; null when there is none. [minimize] puts the page away.
-  static SpaceCall? live({VoidCallback? minimize}) {
+  static SpaceCall? live({VoidCallback? minimize, bool chatBelow = false, bool chatShown = true, VoidCallback? onChatBelow}) {
     final v = Voice.instance;
     final s = v.session;
     if (s == null) return null;
@@ -272,6 +275,9 @@ class SpaceCall {
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
       changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, CallRecorder.instance]),
       bridged: s.channel.discord != null,
+      chatBelow: chatBelow,
+      chatShown: chatShown,
+      onChatBelow: onChatBelow,
       room: room,
       muted: s.muted,
       deafened: s.deafened,
@@ -365,6 +371,20 @@ class SpaceCall {
 
   /// What the plugins that are on in this call offer in its menu (Slots.callControls): Record, for one.
   final List<SpaceExtra> extras;
+
+  /// The space's chat is shown under the call by the page round it (SpaceSplit, a computer's pane): the design leaves
+  /// out its own Chat button and its chat panel (Matt, 2026-11-23: "the chat and compose bar at the bottom").
+  final bool chatBelow;
+
+  /// Under the call ([chatBelow]): whether that chat is shown now, and what puts it away and brings it back (Matt,
+  /// 2026-11-24: "add a button next to the leave button for hiding and showing the chat"). A design's own Chat button
+  /// does that there, in place of opening a panel of its own. Null: nothing to put away, and no button.
+  final bool chatShown;
+  final VoidCallback? onChatBelow;
+
+  /// Whether a design draws its Chat button: always on its own page, and under the split where the chat there can be
+  /// put away.
+  bool get hasChatButton => !chatBelow || onChatBelow != null;
 
   /// The level at which someone counts as talking (RippleAvatar.talking).
   static const talking = RippleAvatar.talking;
@@ -543,8 +563,16 @@ abstract final class SpaceWords {
 /// A space's call as the chosen [design] draws it, over the whole window: built again from the call as it changes,
 /// and closed when the call ends.
 class SpaceCallPage extends StatefulWidget {
-  const SpaceCallPage({super.key, required this.design, this.inline = false});
+  const SpaceCallPage({super.key, required this.design, this.inline = false, this.chatBelow = false, this.chatShown = true, this.onChatBelow});
   final SpaceDesign design;
+
+  /// With [chatBelow]: whether the chat under the call is shown, and what shows and hides it ([SpaceCall.onChatBelow]).
+  final bool chatShown;
+  final VoidCallback? onChatBelow;
+
+  /// Drawn as the top of a computer's pane with the space's chat under it (SpaceSplit): no Chat button or chat panel
+  /// of its own, and nothing to put away to (the pane is the space's own page). Always [inline] too.
+  final bool chatBelow;
 
   /// Drawn as the call page itself (a narrow phone's), not pushed over everything: when the call ends the page under
   /// it shows what is there then, and nothing is popped.
@@ -580,7 +608,7 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   void _changed() {
     if (!mounted) return;
     if (Voice.instance.session == null) {
-      if (!widget.inline) _close();
+      if (!widget.inline && !widget.chatBelow) _close();
       return;
     }
     setState(() {});
@@ -608,12 +636,13 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
 
   @override
   Widget build(BuildContext context) {
-    final call = SpaceCall.live(minimize: _close);
+    final minimize = widget.chatBelow ? null : _close;
+    final call = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow);
     if (call == null) return const SizedBox.shrink();
     return ListenableBuilder(
       listenable: call.changes,
       builder: (context, _) {
-        final now = SpaceCall.live(minimize: _close) ?? call;
+        final now = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow) ?? call;
         final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
         // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;
@@ -629,7 +658,9 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
         ];
         final stage = staged ? Positioned.fill(child: ScreenStage(name: sharer.name, stream: sharer.stream, onBack: () => setState(() => _putAway = sharer.id))) : null;
         if (banners.isEmpty && stage == null) return page;
-        return Stack(children: [page, ?stage, if (banners.isNotEmpty) CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
+        // Clipped to its own box in a pane, so the banners dragged about stay over the call, not over the chat below.
+        final stack = Stack(children: [page, ?stage, if (banners.isNotEmpty) CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);
+        return widget.chatBelow ? ClipRect(child: stack) : stack;
       },
     );
   }
@@ -641,8 +672,11 @@ bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
   final d = design ?? SpaceDesign.of(AppState.of(context));
   final s = Voice.instance.session;
   if (d == SpaceDesign.standard || s == null || !s.channel.hangout || OpenSpaces.isCall(s)) return false;
-  // On a narrow phone the call page itself is the design (inlineSpaceCall), so there is nothing to push over it.
-  if (AppShell.maybeOf(context) != null && !AppShell.wideOf(context)) return false;
+  // On a narrow phone the call page itself is the design (inlineSpaceCall), so there is nothing to push over it; in a
+  // wide window the design is the top of the space's own page in the pane, its chat under it, the list beside it left
+  // as it is (SpaceSplit; Matt, 2026-11-23: "leaving the sidebar unchanged so you can still quickly navigate the
+  // circle").
+  if (AppShell.maybeOf(context) != null) return false;
   Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     settings: const RouteSettings(name: 'space-call'),
     transitionDuration: const Duration(milliseconds: 280),

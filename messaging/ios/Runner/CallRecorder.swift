@@ -17,6 +17,8 @@ import Flutter
 ///   muted.
 /// - Someone else's: WebRTC's renderer on their decoded track (`RTCAudioTrack.addRenderer`), before this device's
 ///   volume for them.
+/// - The call's picture, on the Mac alone (GMFB-42): CallVideo.swift makes a file of video while the call runs, and
+///   [mux] copies its track in after the voices. Its `video.` calls come through this channel.
 final class CallRecorder: NSObject {
   static let shared = CallRecorder()
   static let rate = 48000
@@ -153,13 +155,25 @@ final class CallRecorder: NSObject {
       case "mux":
         let out = args["out"] as? String ?? ""
         let inputs = args["inputs"] as? [String] ?? []
+        // A file of video to put in after the voices (GMFB-42); the answer then says whether it went in.
+        let video = args["video"] as? String
         DispatchQueue.global(qos: .userInitiated).async {
-          let error = CallRecorder.mux(inputs: inputs, out: out)
+          let made = CallRecorder.mux(inputs: inputs, out: out, video: video)
           DispatchQueue.main.async {
-            if let error { result(FlutterError(code: "mux", message: error, details: nil)) } else { result(out) }
+            if let error = made.error {
+              result(FlutterError(code: "mux", message: error, details: nil))
+            } else if video != nil {
+              result(["out": out, "video": made.video])
+            } else {
+              result(out)
+            }
           }
         }
       default:
+        #if os(macOS)
+        // The recording's picture (CallVideo.swift): video.start, video.layout, video.stop.
+        if CallVideo.shared.handle(call, result: result) { return }
+        #endif
         result(FlutterMethodNotImplemented)
       }
     }
@@ -224,29 +238,72 @@ final class CallRecorder: NSObject {
 
   /// Encodes each of [inputs] (48 kHz mono 16-bit) as AAC into one MP4 at [out], a track each in their order; the
   /// reason in words where it couldn't.
-  static func mux(inputs: [String], out: String) -> String? {
+  ///
+  /// [video] is a file whose video track is copied in as the last track, as it is, with its own times (GMFB-42: the
+  /// call's picture, encoded while the call ran; frames can't wait as raw files the way the voices do, and this writer
+  /// is not open until the stop). Last, so every voice keeps its place among the tracks. Where it can't be read the
+  /// recording is made of the voices alone, and `video` in the answer is false.
+  static func mux(inputs: [String], out: String, video: String? = nil) -> (error: String?, video: Bool) {
+    let made = muxed(inputs: inputs, out: out, video: video)
+    return (made.error, made.error == nil && made.video)
+  }
+
+  private static func muxed(inputs: [String], out: String, video: String?) -> (error: String?, video: Bool) {
+    func no(_ why: String) -> (error: String?, video: Bool) { (why, false) }
     let url = URL(fileURLWithPath: out)
     try? FileManager.default.removeItem(at: url)
-    guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return "no writer" }
+    guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return no("no writer") }
     let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: rate, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 128_000]
     var asbd = AudioStreamBasicDescription(mSampleRate: Double(rate), mFormatID: kAudioFormatLinearPCM, mFormatFlags: kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked, mBytesPerPacket: 2, mFramesPerPacket: 1, mBytesPerFrame: 2, mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
     var format: CMAudioFormatDescription?
     CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &asbd, layoutSize: 0, layout: nil, magicCookieSize: 0, magicCookie: nil, extensions: nil, formatDescriptionOut: &format)
-    guard let format else { return "no format" }
+    guard let format else { return no("no format") }
     var feeds: [(input: AVAssetWriterInput, file: FileHandle, at: Int64, done: Bool)] = []
     for path in inputs {
-      guard let h = FileHandle(forReadingAtPath: path) else { return "can't read \(path)" }
+      guard let h = FileHandle(forReadingAtPath: path) else { return no("can't read \(path)") }
       let input = AVAssetWriterInput(mediaType: .audio, outputSettings: settings)
       input.expectsMediaDataInRealTime = false
-      guard writer.canAdd(input) else { return "too many tracks" }
+      guard writer.canAdd(input) else { return no("too many tracks") }
       writer.add(input)
       feeds.append((input, h, 0, false))
     }
-    guard writer.startWriting() else { return writer.error?.localizedDescription ?? "couldn't start writing" }
+    // The picture: read as it was encoded and handed on untouched.
+    var picture: (reader: AVAssetReader, output: AVAssetReaderTrackOutput, input: AVAssetWriterInput)?
+    if let video, FileManager.default.fileExists(atPath: video) {
+      let asset = AVURLAsset(url: URL(fileURLWithPath: video))
+      if let track = asset.tracks(withMediaType: .video).first, let first = track.formatDescriptions.first, let reader = try? AVAssetReader(asset: asset) {
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: (first as! CMFormatDescription))
+        input.expectsMediaDataInRealTime = false
+        if reader.canAdd(output) {
+          reader.add(output)
+          if reader.startReading(), writer.canAdd(input) {
+            writer.add(input)
+            picture = (reader, output, input)
+          }
+        }
+      }
+    }
+    var pictureDone = picture == nil
+    guard writer.startWriting() else { return no(writer.error?.localizedDescription ?? "couldn't start writing") }
     writer.startSession(atSourceTime: .zero)
     // A second of each track in turn, so the file is interleaved and no input waits on another.
-    while feeds.contains(where: { !$0.done }) {
+    while feeds.contains(where: { !$0.done }) || !pictureDone {
       var moved = false
+      // About two seconds of the picture a turn.
+      if let p = picture, !pictureDone {
+        var n = 0
+        while n < 30, p.input.isReadyForMoreMediaData {
+          guard let sample = p.output.copyNextSampleBuffer() else {
+            p.input.markAsFinished()
+            pictureDone = true
+            break
+          }
+          guard p.input.append(sample) else { return no(writer.error?.localizedDescription ?? "couldn't add the picture") }
+          n += 1
+          moved = true
+        }
+      }
       for i in feeds.indices where !feeds[i].done && feeds[i].input.isReadyForMoreMediaData {
         let data = feeds[i].file.readData(ofLength: rate * 2)
         if data.isEmpty {
@@ -257,21 +314,21 @@ final class CallRecorder: NSObject {
         let n = data.count / 2
         var block: CMBlockBuffer?
         CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: data.count, blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0, dataLength: data.count, flags: 0, blockBufferOut: &block)
-        guard let block else { return "no memory" }
+        guard let block else { return no("no memory") }
         data.withUnsafeBytes { _ = CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block, offsetIntoDestination: 0, dataLength: data.count) }
         var sample: CMSampleBuffer?
         CMAudioSampleBufferCreateReadyWithPacketDescriptions(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: format, sampleCount: n, presentationTimeStamp: CMTime(value: feeds[i].at, timescale: CMTimeScale(rate)), packetDescriptions: nil, sampleBufferOut: &sample)
-        guard let sample, feeds[i].input.append(sample) else { return writer.error?.localizedDescription ?? "couldn't add sound" }
+        guard let sample, feeds[i].input.append(sample) else { return no(writer.error?.localizedDescription ?? "couldn't add sound") }
         feeds[i].at += Int64(n)
         moved = true
       }
       if !moved { usleep(5000) }
-      if writer.status == .failed { return writer.error?.localizedDescription ?? "the writer failed" }
+      if writer.status == .failed { return no(writer.error?.localizedDescription ?? "the writer failed") }
     }
     for f in feeds { try? f.file.close() }
     let done = DispatchSemaphore(value: 0)
     writer.finishWriting { done.signal() }
     done.wait()
-    return writer.status == .completed ? nil : (writer.error?.localizedDescription ?? "couldn't finish the file")
+    return writer.status == .completed ? (nil, picture != nil) : no(writer.error?.localizedDescription ?? "couldn't finish the file")
   }
 }

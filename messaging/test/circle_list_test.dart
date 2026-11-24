@@ -19,6 +19,7 @@ import 'package:ghost_messaging/main.dart' show InkOverrides, ghostTypography;
 import 'package:ghost_messaging/ui/circles/circle_face.dart';
 import 'package:ghost_messaging/ui/circles/circle_list.dart';
 import 'package:ghost_messaging/ui/circles/circle_view.dart';
+import 'package:ghost_messaging/ui/common.dart' show Avatar;
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:glacier/glacier.dart';
 
@@ -238,6 +239,79 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // [view] with other spaces in it, and what a press on one does.
+  CircleView withSpaces(CircleView view, List<CircleSpaceView> spaces, {void Function(CircleSpaceView space)? onOpen}) => CircleView(
+        circle: view.circle,
+        spaces: spaces,
+        onOpen: onOpen ?? view.onOpen,
+        onNewSpace: view.onNewSpace,
+        onSettings: view.onSettings,
+        onInvite: view.onInvite,
+        onBack: view.onBack,
+        onMenu: view.onMenu,
+        wide: view.wide,
+        canEdit: view.canEdit,
+        online: view.online,
+      );
+
+  // Matt, 2026-11-24: "also show a list of connected users in the sidebar under the voice space with profile pictures
+  // and names like discord does".
+  testWidgets('who is in a voice space\'s call is listed under it, a face and a name each, and a press opens the space', (tester) async {
+    final sample = sampleCircleView();
+    CircleSpaceView? opened;
+    CircleSpaceView withPeople(CircleSpaceView s) => s.name != 'Lounge'
+        ? s
+        : CircleSpaceView(
+            space: s.space,
+            channel: s.channel,
+            inVoice: const ['You', 'Maya Chen', 'Sam'],
+            people: const [CircleVoicePerson(id: 'me', name: 'You'), CircleVoicePerson(id: 'aa11', name: 'Maya Chen'), CircleVoicePerson(id: 'bb22', name: 'Sam')],
+            here: false,
+          );
+    final view = withSpaces(sample, [for (final s in sample.spaces) withPeople(s)], onOpen: (s) => opened = s);
+    await draw(tester, CircleList(view: view), size: const Size(412, 1400));
+    final lounge = view.spaces.firstWhere((s) => s.name == 'Lounge');
+    final tile = tester.getRect(find.byKey(ValueKey('circle-space-${lounge.seed}')));
+    // One row each, in the call's order, under the space and inside its name's column.
+    final rows = [for (final id in ['me', 'aa11', 'bb22']) tester.getRect(find.byKey(ValueKey('circle-voice-${lounge.seed}-$id')))];
+    expect(rows.first.top, greaterThanOrEqualTo(tile.bottom - 1), reason: 'under the space');
+    for (var i = 1; i < rows.length; i++) {
+      expect(rows[i].top, greaterThanOrEqualTo(rows[i - 1].bottom - 1), reason: 'one under the other');
+    }
+    final name = tester.getRect(find.descendant(of: find.byKey(ValueKey('circle-space-${lounge.seed}')), matching: find.text('Lounge')));
+    final people = find.byType(CircleVoicePeople);
+    expect(people, findsOneWidget, reason: 'only the space with someone in it');
+    for (final who in ['You', 'Maya Chen', 'Sam']) {
+      final at = tester.getRect(find.descendant(of: people, matching: find.text(who)));
+      expect(at.left, greaterThan(name.left), reason: '$who set in under the space\'s name');
+    }
+    expect(find.descendant(of: people, matching: find.byType(Avatar)), findsNWidgets(3), reason: 'a face each');
+    // The space's own line counts them and leaves their names to the rows.
+    expect(circleSpaceLine(lounge), '3 talking');
+    expect(find.text('3 talking'), findsOneWidget);
+    expect(find.textContaining('3 talking ·'), findsNothing);
+    // A press on someone opens the space they are in.
+    await tester.tap(find.descendant(of: people, matching: find.text('Maya Chen')));
+    await tester.pump();
+    expect(opened?.name, 'Lounge');
+    expect(tester.takeException(), isNull);
+    await keep(tester, 'voice-people');
+  });
+
+  testWidgets('a crowded call lists a dozen and counts the rest', (tester) async {
+    final sample = sampleCircleView();
+    final crowd = [for (var i = 0; i < 15; i++) CircleVoicePerson(id: 'p$i', name: 'Person $i')];
+    final view = withSpaces(sample, [
+      for (final s in sample.spaces)
+        s.name != 'Lounge' ? s : CircleSpaceView(space: s.space, channel: s.channel, inVoice: [for (final p in crowd) p.name], people: crowd),
+    ]);
+    await draw(tester, CircleList(view: view), size: const Size(412, 1800));
+    expect(find.text('Person 11'), findsOneWidget);
+    expect(find.text('Person 12'), findsNothing);
+    expect(find.text('and 3 more'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('a space\'s line: talking, then files, then the newest message', () {
     final v = sampleCircleView();
     String? line(String name) => circleSpaceLine(v.spaces.firstWhere((s) => s.name == name));
@@ -245,6 +319,11 @@ void main() {
     expect(line('Photos'), '48 files');
     expect(line('Drop box'), 'Sam: Added flashcards.zip');
     expect(line('Study room'), isNull);
+  });
+
+  test('one person talking reads as a sentence, "You\'re talking" when it is you', () {
+    expect(talkingAlone('Maya'), 'Maya is talking');
+    expect(talkingAlone('You'), 'You\'re talking');
   });
 }
 

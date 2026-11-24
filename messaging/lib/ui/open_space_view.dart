@@ -16,6 +16,7 @@ import '../voice/channels.dart';
 import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'composer_box.dart';
 import 'hangout_screen.dart' show SpaceFace;
 import 'open_space_chat.dart';
 import 'ripple_avatar.dart';
@@ -33,16 +34,19 @@ Widget avatarFigure(BuildContext context, OpenFigure who, Widget face) => Ripple
 /// (OpenSpaces.follow in Voice.join); should a frame come before it, the room's ground is drawn with a word that it
 /// is coming in, rather than anything that looks like another kind of call.
 class OpenSpaceFloor extends StatelessWidget {
-  const OpenSpaceFloor({super.key, required this.session, this.bottomInset = 0});
+  const OpenSpaceFloor({super.key, required this.session, this.bottomInset = 0, this.sayBeside});
   final VoiceSession session;
   final double bottomInset;
+
+  /// See [OpenSpaceView.sayBeside].
+  final double? sayBeside;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: OpenSpaces.instance,
         builder: (context, _) {
           final floor = OpenSpaces.instance.of(session);
-          if (floor != null) return OpenSpaceView(key: ValueKey('open-floor-${session.channel.room}'), session: session, floor: floor, bottomInset: bottomInset);
+          if (floor != null) return OpenSpaceView(key: ValueKey('open-floor-${session.channel.room}'), session: session, floor: floor, bottomInset: bottomInset, sayBeside: sayBeside);
           final t = context.tokens;
           return ColoredBox(
             key: const ValueKey('open-floor-coming'),
@@ -63,13 +67,18 @@ class OpenSpaceFloor extends StatelessWidget {
 /// what can be done with it. Everyone else is drawn where they said they stand, eased between their words, and fainter
 /// the less of them is heard from here.
 class OpenSpaceView extends StatefulWidget {
-  const OpenSpaceView({super.key, required this.session, required this.floor, this.figure = avatarFigure, this.bottomInset = 0});
+  const OpenSpaceView({super.key, required this.session, required this.floor, this.figure = avatarFigure, this.bottomInset = 0, this.sayBeside});
   final VoiceSession session;
   final OpenSpace floor;
   final OpenFigureBuilder figure;
 
   /// Room left at the foot for what is drawn over it (the call's dock).
   final double bottomInset;
+
+  /// Where the call's dock stands at the floor's left foot and leaves the right free (a wide window): how far above
+  /// the foot the chat's box stands, on the dock's own line. Null where the dock is across the foot (a phone): the box
+  /// stands above it, [bottomInset] up.
+  final double? sayBeside;
 
   /// How many of the screen's units one of the floor's is, for a view [size] big: a little smaller on a phone, so
   /// about as much floor is seen.
@@ -112,6 +121,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
 
   /// What is being written to the space's chat from the floor.
   final TextEditingController _saying = TextEditingController();
+  final FocusNode _sayFocus = FocusNode(debugLabel: 'open space chat box');
 
   /// This device has walked since the floor opened: the words saying how are no longer needed and fade away (Matt,
   /// 2026-11-23: "when we move with wasd or click fade away the tooltip").
@@ -160,6 +170,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
     _ticker.dispose();
     _bubbles.dispose();
     _saying.dispose();
+    _sayFocus.dispose();
     widget.floor.removeListener(_wake);
     _focus.removeListener(_focusChanged);
     _focus.dispose();
@@ -299,6 +310,12 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
         final face = (56 * scale).clamp(40.0, 60.0);
         final groups = floor.groups;
         final people = floor.people;
+        final beside = widget.sayBeside;
+        // The walls: the colour chosen for the app (its accent, lib/accent.dart). Nothing chosen leaves the accent the
+        // page's own ink, white on a dark page, which is no colour for a wall (Matt, 2026-11-23: "the walls should be
+        // the primary color selected for the users theme but it's solid white"): the open space's own purple then.
+        final accent = t.color('app-accent');
+        final wall = _plain(accent) ? t.hueSwatch('purple') : accent;
         return Focus(
           focusNode: _focus,
           autofocus: true,
@@ -331,8 +348,10 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       ink: t.color('app-ink-3'),
                       // One colour, the app's own (Matt, 2026-11-23: "make the walls a solid color like the primary
                       // color (still keep different opaqueness and lines)").
-                      wallA: t.color('app-accent'),
-                      wallB: t.color('app-accent'),
+                      // Two shades of it across the room, so the walls have some depth to them ("make the primary color
+                      // have some gradients to it so that there is some detail to the walls").
+                      wallA: Color.lerp(wall, const Color(0xFFFFFFFF), 0.22)!,
+                      wallB: Color.lerp(wall, const Color(0xFF000000), 0.28)!,
                       groups: [for (final g in groups) (at: Offset(g.at.x, g.at.y), radius: _radius[g.id] ?? floor.radiusOf(g.id), color: t.hueSwatch(g.hue), mine: floor.groupOf(OpenSpace.meId) == g.id)],
                     ),
                   ),
@@ -395,7 +414,7 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                 Positioned(
                   left: t.space(3),
                   top: t.space(3),
-                  right: t.space(3),
+                  right: t.space(3) + 150,
                   child: Align(
                     alignment: Alignment.topLeft,
                     // Gone once this device has walked; the word that the call is coming stays until it has.
@@ -432,33 +451,48 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                 if (_bubbles.side.isNotEmpty)
                   Positioned(
                     key: const ValueKey('open-bubbles-side'),
-                    left: t.space(3),
+                    // Over the chat's box, on whichever side it stands.
+                    left: beside == null ? t.space(3) : null,
+                    right: beside == null ? null : t.space(3),
                     width: math.min(320, size.width * 0.62),
-                    bottom: t.space(3) + widget.bottomInset + 52,
-                    child: IgnorePointer(child: _BubbleStack(bubbles: _bubbles.side, opacityOf: _bubbles.opacityOf, align: CrossAxisAlignment.start)),
+                    bottom: (beside ?? t.space(3) + widget.bottomInset) + 60,
+                    child: IgnorePointer(child: _BubbleStack(bubbles: _bubbles.side, opacityOf: _bubbles.opacityOf, align: beside == null ? CrossAxisAlignment.start : CrossAxisAlignment.end)),
                   ),
                 // A box to write to the space's chat from the floor; what is written comes up as a bubble like any other.
+                // The app's own composer (lib/ui/composer_box.dart), as every conversation's (Matt, 2026-11-23: "make the
+                // compose input look like the one on the rest of the app"); at the right foot beside the dock in a wide
+                // window ("right justify the compose input").
                 if (room != null && room.mayWrite)
                   Positioned(
-                    left: t.space(3),
-                    bottom: t.space(3) + widget.bottomInset,
-                    width: math.min(260, size.width * 0.5),
-                    child: GlacierInput(
-                      key: const ValueKey('open-say'),
-                      controller: _saying,
-                      placeholder: 'Say something',
-                      ariaLabel: 'Say something in the chat',
-                      size: GlacierFieldSize.sm,
-                      onSubmitted: (_) {
-                        final words = _saying.text.trim();
-                        if (words.isEmpty) return;
-                        if (room.sendWith(text: words)) _saying.clear();
+                    left: beside == null ? t.space(3) : null,
+                    right: beside == null ? null : t.space(3),
+                    bottom: beside ?? t.space(3) + widget.bottomInset,
+                    width: beside == null ? math.min(300, size.width * 0.62) : math.min(380, size.width * 0.42),
+                    child: ListenableBuilder(
+                      listenable: _saying,
+                      builder: (context, _) {
+                        void say() {
+                          final words = _saying.text.trim();
+                          if (words.isEmpty) return;
+                          if (room.sendWith(text: words)) _saying.clear();
+                        }
+
+                        final has = _saying.text.trim().isNotEmpty;
+                        final buttons = composerButtons(t, hasSomething: has, onAttach: null, onSticker: null, onRecord: null, onSend: has ? say : null);
+                        return ComposerBox(
+                          key: const ValueKey('open-say'),
+                          flush: true,
+                          typing: has,
+                          ends: has ? buttons.ends : const [],
+                          field: ComposerField(controller: _saying, focusNode: _sayFocus, hint: 'Say something', onSubmitted: say, enterSends: true),
+                        );
                       },
                     ),
                   ),
+                // At the top right, clear of the dock and the chat's box (Matt, 2026-11-23: "move the new group to the top right").
                 Positioned(
                   right: t.space(3),
-                  bottom: t.space(3) + widget.bottomInset,
+                  top: t.space(3),
                   child: GestureDetector(
                     key: const ValueKey('open-new-group'),
                     behavior: HitTestBehavior.opaque,
@@ -479,6 +513,12 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
       }),
     );
   }
+}
+
+/// Whether [c] is all but a grey: white, black or between, with no colour of its own to speak of.
+bool _plain(Color c) {
+  final hi = math.max(c.r, math.max(c.g, c.b)), lo = math.min(c.r, math.min(c.g, c.b));
+  return hi - lo < 0.08;
 }
 
 /// A stack of the chat's bubbles, oldest at the top: each its writer's name and words, as strongly drawn as
@@ -662,12 +702,20 @@ class _FloorPainter extends CustomPainter {
       ..strokeWidth = width
       ..shader = across(alpha);
     // The far wall's colour on the floor at its foot, fading out.
-    final glow = box(0, 0, w, 70);
-    canvas.drawRect(glow, Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0.16), Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0)]).createShader(glow));
+    // Faint and short (Matt, 2026-11-23: "make the glow from the walls more subtle").
+    final glow = box(0, 0, w, 44);
+    canvas.drawRect(glow, Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0.07), Color.lerp(wallA, wallB, 0.5)!.withValues(alpha: 0)]).createShader(glow));
     // The faces, see-through: the far wall's, and the near wall's outer one, fainter.
     final far = box(0, -up, w, 0), near = box(-t, h + t, w + t, h + t + up);
-    canvas.drawRect(far, wash(0.24));
-    canvas.drawRect(near, wash(0.14));
+    canvas.drawRect(far, wash(0.26));
+    canvas.drawRect(near, wash(0.16));
+    // Shaded as standing things are, so they don't read as flat bands ("so that it dosn't look too 2d"): the far
+    // face darker under its top and lit towards the floor, the near face falling into shade towards its foot.
+    Paint shade(Rect r, double top, double foot, Color c) => Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [c.withValues(alpha: top), c.withValues(alpha: foot)]).createShader(r);
+    const dark = Color(0xFF000000), light = Color(0xFFFFFFFF);
+    canvas.drawRect(far, shade(far, 0.30, 0, dark));
+    canvas.drawRect(far, shade(far, 0, 0.10, light));
+    canvas.drawRect(near, shade(near, 0, 0.34, dark));
     // Their panels: a thin hard line every [wallPanel], and one along the far wall a little above the floor.
     for (var x = wallPanel; x < w; x += wallPanel) {
       canvas.drawLine(_at(Offset(x, -up)), _at(Offset(x, 0)), line(1, 0.55));
@@ -677,8 +725,15 @@ class _FloorPainter extends CustomPainter {
     // The tops, a stronger wash: the far one from corner to corner, the sides down from it, the near one between.
     final tops = [box(-t, -up - t, w + t, -up), box(-t, -up, 0, h + t), box(w, -up, w + t, h + t), box(0, h, w, h + t)];
     for (final r in tops) {
-      canvas.drawRect(r, wash(0.4));
+      canvas.drawRect(r, wash(0.42));
     }
+    // Light along the tops' inner edges, where it would catch them.
+    final shine = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = light.withValues(alpha: 0.28);
+    canvas.drawLine(_at(const Offset(0, -up)), _at(const Offset(w, -up)), shine);
+    canvas.drawLine(_at(const Offset(0, h)), _at(const Offset(w, h)), shine);
     // The hard lines: round the outside of the tops, round the floor and up the far wall's face, and round the near face.
     canvas.drawRect(box(-t, -up - t, w + t, h + t), line(2));
     canvas.drawRect(box(0, -up, w, h), line(2));

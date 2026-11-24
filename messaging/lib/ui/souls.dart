@@ -254,7 +254,8 @@ class SoulsSheet extends StatelessWidget {
                     style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
                   ),
                   SizedBox(height: t.space(2)),
-                  Text('They can\'t be spent on anything yet. Keep them: they will be.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
+                  // Since GMFB-39 some can be sent to a friend (lib/ui/souls_send.dart).
+                  Text('Send some to a friend to say thanks: press + in a chat with them. There\'s nothing else to use them on yet.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
                   if (badges.isNotEmpty) ...[
                     SizedBox(height: t.space(4)),
                     Text('YOUR BADGES', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),

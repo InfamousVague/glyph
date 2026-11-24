@@ -33,11 +33,30 @@
 <h2 id="sign-in">Sign in on another device</h2>
 <p>On the new device: <ui>Settings › Me › Account › Sign in to your Ghost account</ui>. Sign in with your username and password, or with your 12 recovery words alone.</p>
 <m-screen title="Sign in to your Ghost account" back caption="If your account has a verified number, a code is texted to it as well.">
-  <m-tabs items="Username|Recovery words" active="Username"/>
+  <m-tabs items="Username|Recovery words|Phone" active="Username"/>
   <m-field label="Username" value="alex"/>
   <m-field label="Password" value="••••••••••••"/>
   <m-btn kind="primary" tap>Sign in</m-btn>
 </m-screen>
+<h3 id="scan">Or scan a code with your phone</h3>
+<p>If your Android phone is already signed in, it can sign the new device in for you, with nothing to type.</p>
+<steps>
+<step title="Show the code on the new device">
+<p>On its sign-in screen, choose <b>Phone</b>. It shows a QR code. The code holds nothing of your account, and a new one takes its place every two minutes.</p>
+</step>
+<step title="Scan it with your phone">
+<p>On the phone: <ui>Settings › Me › Account › Sign in a new device</ui>, and point the camera at the code. The scanner in <ui>Settings › Computers</ui> reads it too.</p>
+</step>
+<step title="Compare the six digits">
+<p>Both show six digits. If they are the same, tap <b>They match, sign it in</b> on the phone. If they differ, tap <b>They don't match</b>: nothing is sent.</p>
+</step>
+<step title="Unlock">
+<p>The phone asks for its lock first: your Ghost Messaging PIN or fingerprint if you lock the app (<ui>Settings › Lock the app</ui>), otherwise the phone's fingerprint or face. A phone with neither asks for your account's password. Then the new device signs in. No texted code is asked.</p>
+</step>
+</steps>
+<note kind="warn" title="Only for a device in front of you"><p>Saying yes signs that device in as you, with everything of your account. Never do it for a code someone else shows you or sends you, whoever they say they are. A device signed in this way is listed under <b>Signed in on these devices</b>, where you can remove it.</p></note>
+<p>Both devices need to be on the same relay. Scanning works from an Android phone for now.</p>
+
 <note kind="warn" title="Signing in replaces what's on the device"><p>Signing in makes the device your account. Anything on it from before, as someone else, is replaced, and the app starts again. Your texts are not touched.</p></note>
 
 <h2 id="manage">Devices, password and signing out</h2>

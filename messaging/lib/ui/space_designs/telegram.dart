@@ -52,6 +52,9 @@ class _TelegramCallState extends State<TelegramCall> {
       child: ColoredBox(
         color: t.color('glacier-bg'),
         child: LayoutBuilder(builder: (context, box) {
+          // The top of a computer's pane, its chat under it (SpaceSplit): the computer's panel, without a chat of its own,
+          // however short the part it is given.
+          if (call.chatBelow) return _computer(context, call, box, media, false, () {});
           final wide = box.maxWidth >= 760 && box.maxHeight >= 480;
           final chat = _chat ?? wide;
           void toggleChat() => setState(() => _chat = !chat);
@@ -217,10 +220,12 @@ class _Header extends StatelessWidget {
       child: SizedBox(
       height: 58,
       child: Row(children: [
-        SizedBox(width: (MacChrome.enabled ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
+        // In a pane (SpaceSplit) it is not at the window's left, so the lights are not beside it.
+        SizedBox(width: (MacChrome.enabled && !call.chatBelow ? MacChrome.lightsRoom - t.space(3) : 0) + t.space(3)),
         // A back arrow, as every page's way back is (Matt, 2026-11-17: "make the down chevron a back arrow as well"): it still
-        // puts the call away to its banner.
-        _IconButton(icon: Lucide.arrowLeft, label: 'Back', onPressed: call.onMinimize),
+        // puts the call away to its banner. In a pane the call is the space's own page, with nothing to put it away to:
+        // the room is kept, so the name stays in the middle.
+        if (call.onMinimize == null && call.chatBelow) const SizedBox(width: 38) else _IconButton(icon: Lucide.arrowLeft, label: 'Back', onPressed: call.onMinimize),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
@@ -409,23 +414,47 @@ class _People extends StatelessWidget {
               ],
             ]),
           ),
-          if (alone) ...[
+          if (alone) ...(call.chatBelow ? _waitingFit(t, room) : [
             SizedBox(height: t.space(10)),
             Column(children: [
               // You, large, your voice moving the ripples round you while you wait.
               SpaceFace(key: const ValueKey('tg-alone-me'), call: call, person: call.me, size: 88),
               SizedBox(height: t.space(10)),
-              Text('Waiting for others to join', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+              Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
               SizedBox(height: t.space(1)),
               Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             ]),
-          ],
+          ]),
         ],
       );
     });
     return roomy ? people : narrow(people);
   }
+
+  /// Waiting alone, in the split's top part (SpaceSplit): as much of the waiting block as fits in [room], the height
+  /// the list leaves above the buttons, so that nothing is cut and nothing scrolls. In turn: the large face with both
+  /// lines; a smaller face; the line alone without the face; without the line under it; nothing.
+  List<Widget> _waitingFit(Tokens t, double room) {
+    final title = Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')));
+    final sub = Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')));
+    // The lines' heights as drawn (a line is about 1.5 times its size), with a little to spare.
+    final titleH = t.fontSize('md') * 1.6, subH = t.fontSize('sm') * 1.6;
+    final lines = titleH + t.space(1) + subH;
+    // The ripples reach 1.85 times the face's radius: the gaps round a face leave them room.
+    for (final (face, gap) in [(88.0, t.space(10)), (56.0, t.space(6)), (40.0, t.space(5))]) {
+      if (room >= gap * 2 + face + lines) {
+        return [
+          SizedBox(height: gap),
+          Column(children: [SpaceFace(key: const ValueKey('tg-alone-me'), call: call, person: call.me, size: face), SizedBox(height: gap), title, SizedBox(height: t.space(1)), sub]),
+        ];
+      }
+    }
+    if (room >= t.space(4) + lines) return [SizedBox(height: t.space(4)), Column(children: [title, SizedBox(height: t.space(1)), sub])];
+    if (room >= t.space(3) + titleH) return [SizedBox(height: t.space(3)), title];
+    return const [];
+  }
 }
+
 
 /// The first row of the list of people, in the accent colour: "Invite to space".
 class _InviteRow extends StatelessWidget {
@@ -693,6 +722,25 @@ class _Controls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget side(Widget child) => Expanded(child: Center(child: child));
+    final leave = _RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave);
+    // Under the call with the chat below it (SpaceSplit) the buttons are a group in the middle, each in a slot of the
+    // same width, so the gaps between them are even. Chat, beside Leave, puts the chat under the call away and brings
+    // it back (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the chat").
+    if (call.chatBelow) {
+      Widget slot(String key, Widget child) => SizedBox(key: ValueKey('tg-slot-$key'), width: _slot, child: Center(child: child));
+      return Container(
+        key: const ValueKey('tg-controls'),
+        padding: EdgeInsets.fromLTRB(8, 8, 8, bottom + 14),
+        // In a pane too narrow for the group, it shrinks rather than spill.
+        child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          slot('video', _RoundButton(icon: SpaceWords.videoIcon(call), label: SpaceWords.video(call), on: call.video, onPressed: call.videoLocked ? null : call.onVideo)),
+          slot('deafen', _RoundButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen)),
+          slot('mic', _MicButton(call: call)),
+          if (call.onChatBelow != null) slot('chat', _RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: call.chatShown, onPressed: call.onChatBelow)),
+          slot('leave', leave),
+        ]))),
+      );
+    }
     // No rule above the controls: it stopped short of the page's edges (Matt, 2026-11-17: "the border at the bottom for the
     // controls should span the full width of the page or remove the border completely").
     return Container(
@@ -707,11 +755,14 @@ class _Controls extends StatelessWidget {
         side(_RoundButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen)),
         SizedBox(width: 104, child: _MicButton(call: call)),
         side(_RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: chatOpen, onPressed: onChat)),
-        side(_RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave)),
+        side(leave),
       ]),
     );
   }
 }
+
+/// The width of each button's slot in the split's group (SpaceSplit): the microphone's box and a little room.
+const double _slot = 112;
 
 /// One of the four round buttons round the microphone: a flat circle, its words under it. On, it is filled with the
 /// ink; Leave is the app's red.

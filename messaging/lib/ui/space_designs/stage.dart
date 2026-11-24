@@ -71,7 +71,8 @@ class _StageCallState extends State<StageCall> {
       color: look.ground,
       child: LayoutBuilder(builder: (context, box) {
         final wide = box.maxWidth >= _wide;
-        final comments = _comments ?? wide;
+        // Never where the chat is under the call already (SpaceSplit).
+        final comments = !call.chatBelow && (_comments ?? wide);
         void toggle() => setState(() => _comments = !comments);
         final bar = _Bar(call: call, look: look, camera: wide, comments: comments, onComments: toggle, bottom: wide ? t.space(3) : pad.bottom + t.space(2));
         final header = _Header(call: call, look: look, camera: !wide, side: wide ? t.space(4) : t.space(3), top: wide ? t.space(3) : pad.top + t.space(1));
@@ -162,7 +163,7 @@ class _Header extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(side, top, side, t.space(2)),
       child: Row(children: [
         // Minimise takes what the round buttons leave, sitting on the left at its own width.
-        Expanded(child: Align(alignment: Alignment.centerLeft, child: _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
+        Expanded(child: Align(alignment: Alignment.centerLeft, child: call.onMinimize == null ? const SizedBox.shrink() : _Pill(look: look, icon: Lucide.chevronDown, label: SpaceWords.minimize, onPressed: call.onMinimize))),
         SizedBox(width: t.space(2)),
         if (camera) ...[_Camera(call: call, look: look, size: 38), SizedBox(width: t.space(1))],
         // Sharing the screen to the stage, where this device can (GMFB-27).
@@ -661,7 +662,8 @@ class _Bar extends StatelessWidget {
           ),
         ),
         SizedBox(width: t.space(2)),
-        _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: comments, onPressed: onComments),
+        // Under the split, the chat is the one below the call: this shows and hides that one.
+        if (call.hasChatButton) _Round(look: look, icon: Lucide.messageSquare, label: _Words.comments, on: call.chatBelow ? call.chatShown : comments, onPressed: call.chatBelow ? call.onChatBelow! : onComments),
         _Round(look: look, icon: Lucide.userPlus, label: SpaceWords.invite, onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
         if (camera) _Camera(call: call, look: look),
         SizedBox(width: t.space(1)),

@@ -18,6 +18,7 @@ import '../keys.dart';
 import '../sounds.dart';
 import '../circles/circles.dart';
 import '../circles/sms_space.dart';
+import '../desk_stamp.dart';
 import 'captions.dart';
 import 'friend_calls.dart';
 import 'hangout.dart';
@@ -340,7 +341,8 @@ class Voice extends ChangeNotifier {
         return Circles.instance.answerDesk(what);
       default:
         final me = Me.instance;
-        return {
+        // In a word where the computer has all of this already ([stampedFor]): it asks every eight seconds.
+        return stampedFor(what['have'], {
           // A circle's spaces go with their circle ('circles'), not one by one.
           'channels': [
             for (final c in channels)
@@ -351,15 +353,30 @@ class Voice extends ChangeNotifier {
           'gone': _gone,
           'name': me.shownName,
           if (me.username != null) 'u': me.username,
-        };
+        });
     }
   }
+
+  /// On a computer: the mark the phone gave its list last ([stampedFor]), said back so that an unchanged list comes as
+  /// a word; and when the whole list was last had. Null: from a phone that gives no marks, asked in full each time.
+  String? _phoneStamp;
+  DateTime? _phoneFullAt;
+
+  /// The whole list is asked for at least this often whatever the mark says: taking it in is also what hands the
+  /// phone a channel made here that it never heard of, and tells it again of one removed here while it was away.
+  static const deskFullEvery = Duration(minutes: 2);
 
   /// On a computer: asks the phone for its channels now, and every few seconds while the app is open.
   Future<void> syncNow() async {
     if (!Sms.paired) return;
     try {
-      final got = await Sms.instance.voiceSync({'op': 'list'});
+      final now = DateTime.now();
+      final full = _phoneStamp == null || _phoneFullAt == null || now.difference(_phoneFullAt!) >= deskFullEvery;
+      final got = await Sms.instance.voiceSync({'op': 'list', if (!full) 'have': _phoneStamp});
+      // Nothing has changed on the phone since the list this computer has.
+      if (got['same'] == 1) return;
+      _phoneStamp = got['stamp'] is String ? got['stamp'] as String : null;
+      _phoneFullAt = now;
       // Removed on the phone: removed here too, and never handed back to it.
       final phoneGone = (got['gone'] as List? ?? const []).whereType<String>().toSet();
       var dropped = false;

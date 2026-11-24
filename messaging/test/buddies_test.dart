@@ -95,6 +95,29 @@ class _Port implements BuddiesPort {
 Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 5));
 
 void main() {
+  // Matt, 2026-11-24: "please see what you can do about the high CPU usage on the app". A paired computer asks for
+  // the friends every twenty seconds, and was sent them all each time (lib/desk_stamp.dart).
+  test('a computer that asks for the friends again is answered in a word while nothing has changed', () async {
+    final world = _World();
+    final maya = _Port(world, 'maya', display: 'Maya Chen');
+    final sam = _Port(world, 'sam', display: 'Sam');
+    final a = Buddies(maya), b = Buddies(sam);
+    await a.start();
+    await b.start();
+    final first = await a.forComputer({'op': 'list'}) as Map;
+    expect(first['list'], isEmpty);
+    final stamp = first['stamp'] as String;
+    expect(await a.forComputer({'op': 'list', 'have': stamp}), {'same': 1, 'stamp': stamp});
+    await a.add('@Sam');
+    await _settle();
+    final after = await a.forComputer({'op': 'list', 'have': stamp}) as Map;
+    expect(after['list'], hasLength(1));
+    expect(after['stamp'], isNot(stamp));
+    // A computer from before says no mark, and anything else it asks is answered with the list, as ever.
+    expect((await a.forComputer({'op': 'list'}) as Map)['list'], hasLength(1));
+    expect((await a.forComputer({'op': 'share', 'have': after['stamp']}) as Map)['list'], hasLength(1));
+  });
+
   test('ask by username, the other says yes, and both are friends with each other\'s name', () async {
     final world = _World();
     final maya = _Port(world, 'maya', display: 'Maya Chen', line: 'climbing most days');

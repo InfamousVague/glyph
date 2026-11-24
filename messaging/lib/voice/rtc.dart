@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import '../app_seen.dart';
 import '../platform_info.dart';
 
 import 'package:flutter/foundation.dart';
@@ -17,7 +18,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia, PictureMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -79,6 +80,24 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// (GMFB-52). [remote] holds pictures only, so a recording that looked there for a voice found nobody's.
   @override
   final ValueNotifier<Map<String, VoiceSound>> sounds = ValueNotifier(const {});
+
+  /// Each other member's picture, for a recording that takes video to draw (GMFB-42): the video track their tile
+  /// draws from [remote], with their connection's mark.
+  @override
+  Map<String, VoiceSound> get pictures => {
+        for (final e in _peers.entries)
+          if (e.value._view?.getVideoTracks().firstOrNull?.id case final String track) e.key: (track: track, link: identityHashCode(e.value)),
+      };
+
+  /// What this device sends as its picture: the screen while it shares, else the camera while video is on.
+  @override
+  ({String track, bool screen})? get ownPicture {
+    final id = _picture?.id;
+    return id == null ? null : (track: id, screen: sharing);
+  }
+
+  @override
+  late final Listenable pictureChanges = Listenable.merge([remote, localVideo, localScreen]);
   final Map<String, _RtcPeer> _peers = {};
   bool _deaf = false;
 
@@ -157,6 +176,73 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   }
   Timer? _levelTimer;
 
+  /// How often the levels are read while a face can be seen rippling.
+  static const levelEvery = Duration(milliseconds: 150);
+
+  /// How often each connection's round trip is read for [links], where the levels themselves need no statistics.
+  static const linkEvery = Duration(seconds: 3);
+  DateTime? _linksReadAt;
+
+  /// Whether the call is on: between [start] and [stop].
+  bool _on = false;
+
+  /// The app was put away or brought back ([AppSeen]): how loud each voice is is read only while a face can be seen
+  /// rippling. Put away, the readings stop, every face rests, and the meter that measures this device's own voice
+  /// while it is alone in the call is closed, so a phone left alone in a space with its screen off runs no sound at
+  /// all (it ran a whole call to itself: docs/performance-audit.md, "Calls"). Brought back, they begin again at once.
+  void _seenChanged() {
+    if (!_on) return;
+    if (AppSeen.now.value) {
+      _levelTimer ??= Timer.periodic(levelEvery, (_) => _readLevels());
+      unawaited(_readLevels());
+    } else {
+      _levelTimer?.cancel();
+      _levelTimer = null;
+      levels.value = const {};
+      unawaited(_closeMeter());
+    }
+    // The native half's taps on each voice go with the readings, and come back with them.
+    unawaited(_syncTaps());
+  }
+
+  /// The voices the native half is tapping for their level ([VoiceFx.hear]), by whose they are, as [sounds] named
+  /// them; and those it could not tap, which are read from their connection's statistics until their sound changes.
+  final Map<String, VoiceSound> _taps = {};
+  final Map<String, VoiceSound> _untapped = {};
+  bool _tapping = false;
+
+  /// Has the native half tap each voice [sounds] names, and let go of those gone, where it measures levels itself
+  /// ([VoiceFx.levelsSupported]: the phone). One pass at a time, again while what is wanted changed meanwhile.
+  Future<void> _syncTaps() async {
+    if (!VoiceFx.levelsSupported || _tapping) return;
+    _tapping = true;
+    try {
+      while (true) {
+        // Only while a face can be seen rippling ([_seenChanged]): a tap is WebRTC handing over every block of a voice,
+        // which is work on its sound thread that nobody is looking at the result of.
+        final want = _on && AppSeen.now.value ? sounds.value : const <String, VoiceSound>{};
+        _untapped.removeWhere((id, s) => want[id] != s);
+        final gone = [for (final id in _taps.keys) if (!want.containsKey(id)) id];
+        final fresh = [for (final e in want.entries) if (_taps[e.key] != e.value && _untapped[e.key] != e.value) e];
+        if (gone.isEmpty && fresh.isEmpty) break;
+        for (final id in gone) {
+          _taps.remove(id);
+          await VoiceFx.unhear(id);
+        }
+        for (final e in fresh) {
+          if (await VoiceFx.hear(e.key, e.value.track)) {
+            _taps[e.key] = e.value;
+          } else {
+            _taps.remove(e.key);
+            _untapped[e.key] = e.value;
+          }
+        }
+      }
+    } finally {
+      _tapping = false;
+    }
+  }
+
   /// A connection that holds the microphone and never connects: what this device's own level is read from, alone in a
   /// call or with others (Matt, 2026-11-15: "on desktop it doesn't seem like when i'm talking i see the wobbles coming
   /// from my voice chat"). It was read from the connections to the others alone, so alone in a call, and wherever
@@ -210,6 +296,23 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// One reading: this device's own level, then each connection's, into [levels].
   Future<void> _readLevelsOnce() async {
     final next = <String, double>{};
+    // Where the native half measures the voices itself (the phone, android VoiceFx.kt), one small answer holds them
+    // all and no connection is asked for its statistics for them. Believed only with the microphone's own in it:
+    // without (the hook not yet in WebRTC's path), everything is read as it always was.
+    final tapped = <String>{};
+    if (VoiceFx.levelsSupported && _peers.isNotEmpty) {
+      final said = await VoiceFx.levels();
+      if (said != null && said.containsKey('me')) {
+        next['me'] = said['me']!;
+        for (final id in _taps.keys) {
+          final l = said[id];
+          if (l != null && _peers.containsKey(id)) {
+            next[id] = l;
+            tapped.add(id);
+          }
+        }
+      }
+    }
     final meter = _meter;
     if (meter != null) {
       try {
@@ -224,7 +327,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     // A light test with nothing to be heard: the native half says how loud the microphone is ([light]).
     if (_local && meter == null) next['me'] = await VoiceFx.level();
     // The meter while alone, not with others (_openMeter, _closeMeter); a light test has one only to be heard.
-    if (_peers.isEmpty && _meter == null && !_opening && (!_local || hearMyself)) {
+    if (_peers.isEmpty && _meter == null && !_opening && (!_local || hearMyself) && AppSeen.now.value) {
       unawaited(_openMeter());
     } else if (_peers.isNotEmpty && _meter != null) {
       unawaited(_closeMeter());
@@ -244,9 +347,16 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     }
     // Muted, this device is not talking, whatever the microphone still hears.
     if (_mic?.getAudioTracks().any((t) => t.enabled) == false) next['me'] = 0;
+    // A connection's statistics: for the level of a voice the native half does not measure, at every reading; and for
+    // everyone's round trip, every [linkEvery].
+    final now = DateTime.now();
+    final linksDue = _linksReadAt == null || now.difference(_linksReadAt!) >= linkEvery;
+    if (linksDue) _linksReadAt = now;
     for (final e in _peers.entries.toList()) {
       final made = e.value._pc;
       if (made == null) continue;
+      final byStats = !tapped.contains(e.key);
+      if (!byStats && !linksDue) continue;
       try {
         final pc = await made;
         double? rtt;
@@ -256,13 +366,15 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
           if (r.type == 'candidate-pair' && (v['nominated'] == true || v['state'] == 'succeeded') && v['currentRoundTripTime'] is num) {
             rtt = math.max(rtt ?? 0, (v['currentRoundTripTime'] as num).toDouble());
           }
-          if (r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next[e.key] = (v['audioLevel'] as num).toDouble();
+          if (byStats && r.type == 'inbound-rtp' && v['kind'] == 'audio' && v['audioLevel'] is num) next[e.key] = (v['audioLevel'] as num).toDouble();
           if (r.type == 'media-source' && v['kind'] == 'audio' && v['audioLevel'] is num && !next.containsKey('me')) next['me'] = (v['audioLevel'] as num).toDouble();
         }
         final link = links.value[e.key];
         if (rtt != null && (link == PeerLink.connected || link == PeerLink.poor)) _link(e.key, linkFor(rtt));
       } catch (_) {}
     }
+    // Put away while this was being read: every face is at rest, and stays so ([_seenChanged]).
+    if (!AppSeen.now.value || !_on) return;
     final was = levels.value;
     final eased = {for (final k in {...was.keys, ...next.keys}) k: _ease(was[k] ?? 0, next[k] ?? 0)};
     // Told only when a face would move: a new map each reading had every listener rebuild seven times a second while
@@ -332,6 +444,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       _meter = meter;
     } catch (_) {}
     _opening = false;
+    // Put away, or the call ended, while it was being opened: nothing is left measuring.
+    if (!AppSeen.now.value || !_on) await _closeMeter();
   }
 
   /// Closes the meter once someone else is in the call: their connections measure the microphone from then on, and
@@ -582,13 +696,29 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
         _local = false;
       }
     }
+    // How loud each voice is is read only while a face can be seen rippling ([_seenChanged]), and by the native half
+    // where it taps each voice itself ([_syncTaps]).
+    if (!_on) {
+      _on = true;
+      AppSeen.follow();
+      AppSeen.now.addListener(_seenChanged);
+      sounds.addListener(_syncTaps);
+    }
+    unawaited(_syncTaps());
+    if (!AppSeen.now.value) return;
     // Alone, the microphone is measured through the meter (_openMeter); with others, through their connections.
     if (_peers.isEmpty && !_local) await _openMeter();
-    _levelTimer ??= Timer.periodic(const Duration(milliseconds: 150), (_) => _readLevels());
+    _levelTimer ??= Timer.periodic(levelEvery, (_) => _readLevels());
   }
 
   @override
   Future<void> stop() async {
+    if (_on) {
+      _on = false;
+      AppSeen.now.removeListener(_seenChanged);
+      sounds.removeListener(_syncTaps);
+    }
+    _linksReadAt = null;
     _levelTimer?.cancel();
     _levelTimer = null;
     if (_local) {
@@ -609,6 +739,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     _out.stopAll();
     remote.value = const {};
     sounds.value = const {};
+    // The native half lets go of every voice it was tapping.
+    unawaited(_syncTaps());
     for (final s in [_mic, _cam, _screen]) {
       for (final t in s?.getTracks() ?? const <MediaStreamTrack>[]) {
         await t.stop();
