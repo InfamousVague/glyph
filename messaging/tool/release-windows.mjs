@@ -20,6 +20,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { requireNotes } from './lib/notes.mjs';
+import { refLacksRelease } from './lib/built_ref.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The site's address since 2026-11-15 (tool/deploy-site.mjs); /opt/ghost-sms-* keep their names on the box.
@@ -75,7 +76,12 @@ if (!run) {
   say(`> Building Ghost Messaging for Windows ${versionName} (${versionCode}) on GitHub`);
   // --no-p2p: the runner leaves the direct network's core out (the workflow's own `p2p` input; the app then has no
   // direct route). Not said at all otherwise, so a workflow from before the core is asked nothing it doesn't know.
-  out('gh', ['workflow', 'run', WORKFLOW, '--ref', flag('ref') ?? 'main', '-f', `version=${versionName}`, '-f', `build=${versionCode}`, ...(has('no-p2p') ? ['-f', 'p2p=no'] : [])]);
+  // The runner builds what GitHub has at the branch, never what is here: refused unless that is this release
+  // (tool/lib/built_ref.mjs: 0.12.24 and 0.12.25 were 0.12.23's code under their numbers).
+  const ref = flag('ref') ?? 'main';
+  const lacks = refLacksRelease(ROOT, ref);
+  if (lacks) fail(`${lacks} Nothing was built.`);
+  out('gh', ['workflow', 'run', WORKFLOW, '--ref', ref, '-f', `version=${versionName}`, '-f', `build=${versionCode}`, ...(has('no-p2p') ? ['-f', 'p2p=no'] : [])]);
   for (let i = 0; i < 30 && !run; i++) {
     await sleep(4000);
     const fresh = JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '5', '--json', 'databaseId'])).find((r) => !before.has(r.databaseId));
