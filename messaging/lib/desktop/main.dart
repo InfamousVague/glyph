@@ -45,6 +45,7 @@ import '../inbox/inbox.dart';
 import '../ui/inbox_ui.dart';
 import '../circles/circles.dart';
 import '../files/files_store.dart';
+import '../files/folder_sync.dart';
 import 'gm_web.dart';
 import 'updates.dart';
 import '../people.dart';
@@ -189,6 +190,9 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
   // "Finish the missing pieces that went unfinished").
   unawaited(FilesStore.instance.start());
+  // The folder this computer keeps in step with My files, looked at every few minutes (lib/files/folder_sync.dart;
+  // GMFB-38). Nothing where none is chosen.
+  FolderSync.instance.start();
   FilesShareIn.attach();
   SpaceGroups.instance.start(state);
   DiscordServers.instance.start(state);

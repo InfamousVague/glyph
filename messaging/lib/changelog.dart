@@ -27,6 +27,12 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.24', '2026-11-23', [
     'Voice spaces on a computer: in a call, the space shows the call in the top two thirds and its chat with the message box under it, and the circle\'s list beside it stays as it was, so you can move between spaces without leaving the call. Drag the line between them to make either bigger.',
+    'Open spaces: the circle\'s list stays beside the floor, and the call\'s buttons are there once, at the floor\'s left foot. The box for the chat is at the right and looks like every other message box; New group is at the top right. The walls take the colour you chose for the app (purple where you chose none), shaded so they stand up, with a fainter glow on the floor.',
+    'My files: a private drive for your Ghost account, under the search. Every device signed in to your account shows the same files, sealed so the server can\'t open them. Press and hold a file to send it into a space\'s chat.',
+    'Sign in on a new computer or browser by scanning a code with your Android phone: choose Phone on the sign-in screen, then Settings › Me › Sign in a new device on the phone. Check the six digits match and unlock your phone, and the new device signs in with nothing to type.',
+    'On a computer, My files can keep a folder of yours in step: new and changed files go both ways while the app is open. Syncing never removes anything, so a file you delete on one side comes back for now.',
+    'Send souls to a friend: press + in a chat with a friend by username and choose Send souls. A card in the chat shows what was sent once the relay confirms it.',
+    'Recording a call on a Mac can include video: everyone\'s cameras in a grid, or a shared screen shown large with cameras beside it. Everyone is asked once about voice and video, and anyone who agreed to voice only is shown by name, never on camera. New tonight and not yet tried in a long call: Record voice only is in the call\'s menu.',
   ]),
   ReleaseNotes('0.12.23', '2026-11-23', [
     'Open spaces show the chat on the floor: what people write comes up as bubbles for a few seconds, over the group its writer stands in or at the side, fainter the further away they are. A box at the foot of the floor writes to the chat.',

@@ -10,12 +10,14 @@ import 'package:glacier/glacier.dart';
 
 import '../../files/drive.dart';
 import '../../files/files_store.dart';
+import '../../files/folder_sync.dart';
 import '../../kit/settings_kit.dart';
 import '../../sms.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../shell.dart';
 import 'files_screen.dart';
+import 'folder_sync_entry.dart';
 
 /// Opens My files where a space opens: in the shell's pane (beside the list in a wide window), else as a page.
 void openMyFiles(BuildContext context) {
@@ -28,7 +30,12 @@ void openMyFiles(BuildContext context) {
 
 /// The account's drive, once it is made from the account's key; else why there is none here.
 class MyFilesScreen extends StatefulWidget {
-  const MyFilesScreen({super.key, this.drive, this.store});
+  const MyFilesScreen({super.key, this.drive, this.store, this.sync, this.pickFolder});
+
+  /// The folder kept in step with the drive on a computer (GMFB-38): the app's where null and the store is the app's
+  /// (a test gives its own, with what chooses its folder; a test's store alone shows none).
+  final FolderSync? sync;
+  final Future<String?> Function()? pickFolder;
 
   /// What makes the drive, the account's own where null (a test gives its own).
   final Future<VoiceChannel?> Function()? drive;
@@ -65,7 +72,9 @@ class _MyFilesScreenState extends State<MyFilesScreen> {
         if (c == null) {
           return _says(context, 'My files is kept for your Ghost account, so every device signed in to it shows the same files. Sign in to your account on this device in Settings to use it here.');
         }
-        return FilesSpaceScreen(key: ValueKey('files-space-${c.seed}'), channel: c, store: widget.store);
+        // On a computer: a folder of its own kept in step with the drive (GMFB-38).
+        final sync = widget.sync ?? (widget.store == null && FolderSync.here ? FolderSync.instance : null);
+        return FilesSpaceScreen(key: ValueKey('files-space-${c.seed}'), channel: c, store: widget.store, above: sync == null ? null : FolderSyncEntry(sync: sync, pick: widget.pickFolder));
       },
     );
   }

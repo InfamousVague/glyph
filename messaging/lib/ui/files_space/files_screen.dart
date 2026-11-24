@@ -58,8 +58,11 @@ import 'send_to_chat.dart';
 /// An account's own drive (My files; lib/files/drive.dart, GMFB-37) is shown by this same page: it has no room, so no
 /// chat, invite or roles, and its words say whose it is.
 class FilesSpaceScreen extends StatefulWidget {
-  const FilesSpaceScreen({super.key, required this.channel, this.store});
+  const FilesSpaceScreen({super.key, required this.channel, this.store, this.above});
   final VoiceChannel channel;
+
+  /// Shown over the files, under the folders' row: My files' "Sync a folder" on a computer (GMFB-38).
+  final Widget? above;
 
   /// The files store to show, the app's where null (a test gives its own).
   final FilesStore? store;
@@ -515,6 +518,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (!empty) d == null ? toolbar : ColoredBox(color: d.chrome, child: toolbar),
       if (chips != null) d == null ? chips : ColoredBox(color: d.chrome, child: Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: chips)),
+      ?widget.above,
       if (err != null)
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
