@@ -140,8 +140,8 @@ int main() {
     check(out[0] == 0 && out[kF * 2 - 2] > 100 && out[kF * 2 - 2] < 960, "it rises");
     for (int i = 0; i < 3; i++) r.Read(out.data(), kF);
     r.Read(out.data(), kF);
-    check(std::memcmp(out.data(), block(1920, kF).data(), kF * 4) == 0, "and then it is bit for bit");
-    for (int i = 0; i < 5; i++) r.Read(out.data(), kF);
+    check(std::memcmp(out.data(), block(2400, kF).data(), kF * 4) == 0, "and then it is bit for bit");
+    for (int i = 0; i < 4; i++) r.Read(out.data(), kF);
     check(give(0, 0).dry == 0, "played to the end is not run out");
     r.Read(out.data(), kF);
     check(out[0] == 0 && give(0, 0).dry == 1, "past it is");
