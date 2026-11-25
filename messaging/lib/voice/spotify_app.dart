@@ -24,9 +24,11 @@ import 'voice.dart' show highestOpus;
 import 'voice_fx.dart';
 import 'voice_settings.dart';
 
-/// How the music is sent: Opus in stereo at this, with no silence left out.
-const musicKbps = 160;
-String musicOpus(String sdp) => highestOpus(sdp, kbps: musicKbps);
+/// How the music is sent: Opus in stereo at the most it has, with no silence left out and none of its bits spent on
+/// saying things twice in case they are lost, which takes them from the music (Matt, 2026-11-25: "the audio doesn't sound
+/// high quality for the other user they said it sounds compressed").
+const musicKbps = 510;
+String musicOpus(String sdp) => highestOpus(sdp, kbps: musicKbps, fec: false);
 
 /// Why Spotify did not do as it was asked: one of [MusicTrouble]'s words.
 class SpotifyRefused implements Exception {

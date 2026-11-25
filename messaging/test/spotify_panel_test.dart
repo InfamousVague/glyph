@@ -363,9 +363,10 @@ void main() {
       ..onCandidate = ((id, c) => ways.add('$id ${c['candidate']}'));
     final sdp = await source.offer('sam', servers: const [{'urls': 'turn:x'}], relayOnly: true);
     expect(made.single.configuration['iceTransportPolicy'], 'relay');
-    expect(made.single.log, ['RTCRtpMediaTypeAudio the-music SendOnly 160000']);
+    expect(made.single.log, ['RTCRtpMediaTypeAudio the-music SendOnly 510000']);
     expect(sdp, contains('stereo=1'));
-    expect(sdp, contains('maxaveragebitrate=160000'));
+    expect(sdp, contains('maxaveragebitrate=510000'));
+    expect(sdp, contains('useinbandfec=0'));
     expect(sdp, contains('usedtx=0'));
     made.single.onIceCandidate!(rtc.RTCIceCandidate('way', '0', 0));
     made.single.onConnectionState!(rtc.RTCPeerConnectionState.RTCPeerConnectionStateFailed);

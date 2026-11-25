@@ -27,6 +27,7 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.32', '2026-11-25', [
     'Spotify is listed under its voice space in the circle, with the song and its cover, and ripples with the music there and in the call.',
+    'Spotify\'s sound in a call is sent at three times the quality it was.',
     'On a Mac, a call no longer turns Spotify and other apps down as far as it did. Lower other sounds in calls, in Settings › Voice and video, brings that back.',
     'Whoever is talking has the same ripples everywhere: in the circle\'s list under a voice space, round a video in a call, and in a space\'s members.',
   ]),

@@ -260,9 +260,9 @@ final class MusicDevice: NSObject, RTCAudioDevice {
   }
 }
 
-/// How the music is sent: Opus in stereo at [kbps], always on (no silence left out), as the call's own sound is asked for.
+/// How the music is sent: Opus in stereo at [kbps], its most, always on (no silence left out), as the call's own sound is asked for.
 enum MusicSdp {
-  static let kbps = 160
+  static let kbps = 510
 
   /// [sdp] with Opus asked for in stereo at [kbps] and nothing left out of silence.
   static func tuned(_ sdp: String) -> String {
@@ -273,7 +273,7 @@ enum MusicSdp {
       break
     }
     guard let payload else { return sdp }
-    let want = "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=\(kbps * 1000);maxplaybackrate=48000;usedtx=0"
+    let want = "minptime=10;useinbandfec=0;stereo=1;sprop-stereo=1;maxaveragebitrate=\(kbps * 1000);maxplaybackrate=48000;cbr=1;usedtx=0"
     let head = "a=fmtp:\(payload) "
     if let i = lines.firstIndex(where: { $0.hasPrefix(head) }) {
       lines[i] = head + want
