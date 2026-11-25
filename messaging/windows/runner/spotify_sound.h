@@ -10,8 +10,10 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "music_feed.h"
+#include "music_tee.h"
 
 // Spotify's own process: the Spotify.exe of this Windows session whose parent is not a Spotify.exe (its helpers are
 // under it), the desktop app's or the Microsoft Store's. An open handle to it, so that its number can't come to be
@@ -21,8 +23,9 @@ HANDLE OpenSpotify(DWORD* pid);
 // Takes Spotify's sound and gives it to a track. Made, begun and ended on the app's own thread.
 class SpotifySound {
  public:
-  // [quit] is told, on the capturing thread, when a Spotify that was being heard has gone.
-  explicit SpotifySound(std::function<void()> quit);
+  // [quit] is told, on the capturing thread, when a Spotify that was being heard has gone; [chunk] each chunk of the music
+  // without loss, on the same thread, while [Pack] has it made.
+  SpotifySound(std::function<void()> quit, std::function<void(std::vector<uint8_t>)> chunk);
   ~SpotifySound();
 
   // Makes the track and begins: the track's id, or empty where it can't be (Windows before 10 version 2004, or no
@@ -35,6 +38,9 @@ class SpotifySound {
 
   // The loudest it has been since last asked, 0 to 1.
   float Level();
+
+  // Whether chunks of it are made too, for those who have it without loss (music_tee.h).
+  void Pack(bool on) { tee_.Set(on); }
 
  private:
   struct Track;
@@ -49,11 +55,16 @@ class SpotifySound {
   std::function<void()> quit_;
   std::unique_ptr<Track> track_;
   std::shared_ptr<MusicFeed> feed_ = std::make_shared<MusicFeed>();
+  MusicTee tee_;
   std::thread capture_, feeder_;
   // Set to end both threads (a manual-reset event).
   HANDLE stop_ = nullptr;
   std::atomic<float> peak_{0.0f};
 };
+
+// The rate this PC's own sound runs at, frames a second; 0 where it can't be told. Below 44,100 (a Bluetooth headset whose
+// microphone is in use) what Spotify plays may be taken at no more. Waits on the device: not for the app's thread.
+double SpeakerRate();
 
 // Whether this Windows can hear one program by itself: Windows 10 version 2004 (build 19041).
 bool CanHearOneProgram();

@@ -95,6 +95,8 @@ const KNOWN = {
   // to 10 MiB by the relay, Caddy's request_body in tool/deploy-site.mjs.
   GHOST_FILES_MAX_FILE: /^[0-9]{1,13}$/,
   GHOST_FILES_SPACE_QUOTA: /^[0-9]{1,13}$/,
+  GHOST_FILES_ROOMY_QUOTA: /^[0-9]{1,13}$/,
+  GHOST_FILES_ROOMY_SPACES: /^[0-9a-f]{32}(,[0-9a-f]{32})*$/,
   GHOST_FILES_TOTAL: /^[0-9]{1,14}$/,
   GHOST_FILES_SPACES_PER_ID: /^[0-9]{1,5}$/,
   GHOST_FILES_IDLE_DAYS: /^[0-9]{1,4}$/,

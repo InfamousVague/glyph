@@ -20,3 +20,7 @@ Where it runs:
 `rnnoise/src/os_support.h` is ours: RNNoise 0.2's release leaves it out though vec_neon.h includes it.
 
 Test on this computer: `native/voicefx/test/run.sh` (noise down, gain, the limiter, odd block sizes).
+
+**music_pack** (`music_pack.c`) is not of the microphone: it packs a circle's music without loss, as FLAC frames, where it
+is played from (macos/Runner/MusicLink.swift, windows/runner/spotify_sound.cpp), and lib/voice/flac.dart reads it. Test:
+`native/voicefx/test/run_pack.sh` (bit for bit, and by the Mac's own FLAC decoder).

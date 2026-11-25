@@ -220,6 +220,20 @@ bool CanHearOneProgram() {
   return ask(&v) == 0 && (v.dwMajorVersion > 10 || (v.dwMajorVersion == 10 && v.dwBuildNumber >= 19041));
 }
 
+double SpeakerRate() {
+  Com<IMMDeviceEnumerator> all;
+  Com<IMMDevice> device;
+  Com<IAudioClient> client;
+  WAVEFORMATEX* format = nullptr;
+  if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(all.out())))) return 0;
+  if (FAILED(all->GetDefaultAudioEndpoint(eRender, eConsole, device.out()))) return 0;
+  if (FAILED(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(client.out())))) return 0;
+  if (FAILED(client->GetMixFormat(&format)) || !format) return 0;
+  const double rate = format->nSamplesPerSec;
+  CoTaskMemFree(format);
+  return rate;
+}
+
 HANDLE OpenSpotify(DWORD* pid) {
   struct One {
     DWORD id, parent;
@@ -261,7 +275,7 @@ struct SpotifySound::Track {
   std::string id;
 };
 
-SpotifySound::SpotifySound(std::function<void()> quit) : quit_(std::move(quit)) {}
+SpotifySound::SpotifySound(std::function<void()> quit, std::function<void(std::vector<uint8_t>)> chunk) : quit_(std::move(quit)), tee_(std::move(chunk)) {}
 
 SpotifySound::~SpotifySound() { End(); }
 
@@ -385,6 +399,7 @@ bool SpotifySound::Hear(DWORD pid, HANDLE process) {
       }
       const auto* samples = (how & AUDCLNT_BUFFERFLAGS_SILENT) ? nullptr : reinterpret_cast<const int16_t*>(data);
       feed_->Write(samples, frames);
+      tee_.Write(samples, frames);
       if (samples) {
         int loudest = 0;
         for (size_t i = 0; i < static_cast<size_t>(frames) * MusicFeed::kChannels; i++) loudest = (std::max)(loudest, std::abs(static_cast<int>(samples[i])));

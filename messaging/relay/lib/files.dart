@@ -527,7 +527,7 @@ class Files {
         }
         if (size < 16) return _refuse(r, HttpStatus.badRequest, 'Too small.');
         if (size > config.maxFile) return _refuse(r, HttpStatus.requestEntityTooLarge, 'A file may be at most ${config.maxFile} bytes.');
-        if (s.used + size > config.spaceQuota) return _refuse(r, HttpStatus.insufficientStorage, 'This space is full.');
+        if (s.used + size > _quotaOf(s)) return _refuse(r, HttpStatus.insufficientStorage, 'This space is full.');
         if (_used + size > config.total) return _refuse(r, HttpStatus.insufficientStorage, 'The files server is full.');
         if (s.blobs.length >= config.maxBlobs) return _refuse(r, HttpStatus.insufficientStorage, 'This space holds as many files as it can.');
         // Room promised and not yet written, per address: a room asked for and never filled holds the store's room
@@ -609,7 +609,7 @@ class Files {
     final line = utf8.encode('${jsonEncode({'s': seq, 'by': who.id, 'at': _now().millisecondsSinceEpoch, if (s.rosterV > 0) 'rv': s.rosterV, 'c': 1, 'o': base64Encode(body)})}\n');
     // The list takes room as its files do: in the space's, in the whole store's, and under a cap of its own.
     if (s.logBytes + line.length > config.maxLogBytes) return (HttpStatus.insufficientStorage, <String, Object?>{'err': 'This space\'s list is full.'});
-    if (s.used + line.length > config.spaceQuota) return (HttpStatus.insufficientStorage, <String, Object?>{'err': 'This space is full.'});
+    if (s.used + line.length > _quotaOf(s)) return (HttpStatus.insufficientStorage, <String, Object?>{'err': 'This space is full.'});
     if (_used + line.length > config.total) return (HttpStatus.insufficientStorage, <String, Object?>{'err': 'The files server is full.'});
     final log = File('${_dirOf(s.id).path}/log.jsonl');
     final at = s.logBytes;
@@ -627,10 +627,21 @@ class Files {
 
   /// What a space says of itself to anyone with its token: how long its list is, how full it is, its limits, its owner
   /// and the newest roster version believed.
+  /// What [s] may hold: [FilesConfig.spaceQuota], or for one of [FilesConfig.roomy] what the others of them leave of
+  /// [FilesConfig.roomyQuota].
+  int _quotaOf(_Space s) {
+    if (!config.roomy.contains(s.id)) return config.spaceQuota;
+    var others = 0;
+    for (final id in config.roomy) {
+      if (id != s.id) others += _spaces[id]?.used ?? 0;
+    }
+    return config.roomyQuota - others;
+  }
+
   Map<String, Object?> _info(_Space s) => {
         'seq': s.seq,
         'used': s.used,
-        'quota': config.spaceQuota,
+        'quota': _quotaOf(s),
         'maxFile': config.maxFile,
         'files': s.blobs.values.where((b) => b.done).length,
         'owner': s.owner,
@@ -912,8 +923,14 @@ class FilesConfig {
     // (Matt, 2026-11-17: "Bump the upload limit to 50GB"); a space holds two of them, the store about half the box's
     // free disk (640 GB that day).
     this.maxFile = 50000000000 + (4 << 20),
-    this.spaceQuota = 100000000000,
-    this.total = 300000000000,
+    // A space holds 50 GB while this is an alpha, the Alpha testers' too; OnlyGhosts' spaces ([roomy]: its Files and its
+    // Recordings) hold 256 GB between them, and every space together 400 GB, which leaves the box over 150 GB of its own
+    // (Matt, 2026-11-25: "Let's stick with 256gb for the onlyGhosts server and leave the rest of them including alpha to
+    // 50gb"; 514 GB free that day, 52 GB of it Files').
+    this.spaceQuota = 50000000000,
+    this.roomyQuota = 256000000000,
+    this.roomy = const {'ecf77f9db9ba82ef2d2ea508e657f36c', '78d09c1c0d49291a6f4b716b1a2ee200'},
+    this.total = 400000000000,
     this.spacesPerId = 20,
     this.idleDays = 90,
     this.writesPerMinute = 600,
@@ -934,6 +951,10 @@ class FilesConfig {
 
   /// What one space may hold, in bytes.
   final int spaceQuota;
+
+  /// What the spaces in [roomy] (by their ids) may hold between them, in place of [spaceQuota] each.
+  final int roomyQuota;
+  final Set<String> roomy;
 
   /// What every space together may hold, in bytes: the box's disk is shared with everything else on it.
   final int total;
@@ -985,6 +1006,8 @@ class FilesConfig {
     return FilesConfig(
       maxFile: read('GHOST_FILES_MAX_FILE', d.maxFile),
       spaceQuota: read('GHOST_FILES_SPACE_QUOTA', d.spaceQuota),
+      roomyQuota: read('GHOST_FILES_ROOMY_QUOTA', d.roomyQuota),
+      roomy: {...d.roomy, for (final id in (env['GHOST_FILES_ROOMY_SPACES'] ?? '').split(',')) if (RegExp(r'^[0-9a-f]{32}$').hasMatch(id.trim())) id.trim()},
       total: read('GHOST_FILES_TOTAL', d.total),
       spacesPerId: read('GHOST_FILES_SPACES_PER_ID', d.spacesPerId),
       idleDays: read('GHOST_FILES_IDLE_DAYS', d.idleDays),

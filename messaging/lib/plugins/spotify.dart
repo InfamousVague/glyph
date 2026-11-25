@@ -49,6 +49,7 @@ class SpotifyPlugin extends GhostPlugin {
         'Spotify in a call\'s menu and in the space\'s header',
         'A queue everyone who may speak can add to, skip and pause',
         'The music in the call in stereo, at a loudness of its own for each person',
+        'Lossless to whoever wears headphones and is connected directly',
         'Started by someone on a Mac or a PC with the Spotify app',
       ];
 

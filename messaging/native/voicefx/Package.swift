@@ -1,6 +1,6 @@
 // swift-tools-version: 5.9
 // voicefx as a Swift package, for the Mac and iPhone apps (macos/Runner/VoiceFx.swift, ios/Runner/VoiceFx.swift): RNNoise and the microphone's gain, in C,
-// and DeepFilterNet where deepfilter/build.sh has built it (tool/release-mac.mjs does): without it, RNNoise alone.
+// the packing of a circle's music (music_pack.c), and DeepFilterNet where deepfilter/build.sh has built it (tool/release-mac.mjs does): without it, RNNoise alone.
 import Foundation
 import PackageDescription
 
@@ -13,7 +13,7 @@ var targets: [Target] = [
         dependencies: deepFilter ? ["VoiceFxDeepFilter"] : [],
         path: ".",
         exclude: ["test", "README.md", "rnnoise/COPYING", "deepfilter", "signalsmith/LICENSE-stretch.txt", "signalsmith/LICENSE-linear.txt", "signalsmith/README.md"],
-        sources: ["voicefx.c", "stretch.cpp", "rnnoise/src"],
+        sources: ["voicefx.c", "music_pack.c", "stretch.cpp", "rnnoise/src"],
         publicHeadersPath: "include",
         cSettings: [
             .headerSearchPath("rnnoise/include"),

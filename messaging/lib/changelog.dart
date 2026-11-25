@@ -25,6 +25,12 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.35', '2026-11-25', [
+    'Lossless music from Spotify in a call, to try: with headphones on a Mac, an iPhone, a PC or an Android phone with a wired headset, the DJ\'s music plays with nothing taken out of it. Everyone else has it at high quality. The queue\'s page says which you have and why.',
+    'Pop out a video call: leave a call with video or a shared screen for another chat and the picture stays over the app, in a corner you can drag it to. On Android, going home keeps it in picture-in-picture.',
+    'Profiles wear a banner and a name effect; the avatar decoration, picture border and profile effect are gone, and your badge is chosen on the profile page.',
+    'A video at full screen on a Mac no longer has the app\'s title strip over it.',
+  ]),
   ReleaseNotes('0.12.34', '2026-11-25', [
     'Formatting shows as you type a message: bold, italic, strikethrough and code look the way they will when sent, with the symbols still there but faint.',
     'Two underscores around words now make them bold, in the message box and in sent messages: __like this__.',

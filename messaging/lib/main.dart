@@ -62,6 +62,7 @@ import 'ui/account_screens.dart' show RestartScreen;
 import 'ui/add_me.dart' show askToAdd;
 import 'ui/app_lock_ui.dart' show AppLockGate;
 import 'ui/call_moved_note.dart';
+import 'ui/call_pip.dart' show CallPip, CallPipFrame;
 import 'relay_host/hosting.dart' show hostAwayIn;
 import 'ui/relay_host_section.dart' show askToUseRelay;
 import 'ui/computers.dart';
@@ -179,6 +180,9 @@ Future<void> main() async {
   Api.instance.registerAll(appMethods(state));
   unawaited(ApiServer.instance.apply(state));
   unawaited(ApiRemote.instance.apply(state));
+  // Android's picture in picture for a call with a picture (GMFB-64, lib/ui/call_pip.dart): what there is to show is
+  // told to MainActivity as it changes.
+  if (PlatformInfo.isAndroid) CallPip.instance.follow();
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
@@ -274,9 +278,10 @@ class GhostMessagingApp extends StatelessWidget {
               // A call being recorded shows in its banner over the call, whose Mixer opens the tracks full screen
               // (lib/ui/recording_float.dart); nothing floats over the pages but the note that a call moved to
               // another of the person's devices (lib/ui/call_moved_note.dart, GMFB-50). Over all of it, toasts too, the
-              // lock screen while the app is locked (lib/ui/app_lock_ui.dart, GMFB-46).
+              // lock screen while the app is locked (lib/ui/app_lock_ui.dart, GMFB-46). In Android's picture in picture, the
+              // call's picture alone (lib/ui/call_pip.dart, GMFB-64).
               // Under the status bar, the Performance plugin's row while it is on (lib/ui/performance_row.dart).
-              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: child!)))))),
+              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: CallPipFrame(child: child!))))))),
             ),
           ),
           home: home ?? const _Home(),

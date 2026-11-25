@@ -11,6 +11,7 @@
 		4D5E6F7A8B9C0D1E2F300004 /* DeskSound.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F300003 /* DeskSound.swift */; };
 		4D5E6F7A8B9C0D1E2F300006 /* DeskVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F300005 /* DeskVideo.swift */; };
 		4D5E6F7A8B9C0D1E2F300008 /* VoiceFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F300007 /* VoiceFx.swift */; };
+		5907F1C02F2A0B0C000000B4 /* MusicSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000B3 /* MusicSink.swift */; };
 		4D5E6F7A8B9C0D1E2F30CA9B /* LiveCaptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */; };
 		4D5E6F7A8B9C0D1E2F305C1B /* Scribe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */; };
 		4D5E6F7A8B9C0D1E2F30C0DE /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */; };
@@ -54,6 +55,7 @@
 		4D5E6F7A8B9C0D1E2F300003 /* DeskSound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeskSound.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F300005 /* DeskVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeskVideo.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F300007 /* VoiceFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFx.swift; sourceTree = "<group>"; };
+		5907F1C02F2A0B0C000000B3 /* MusicSink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSink.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCaptions.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scribe.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 				4D5E6F7A8B9C0D1E2F300003 /* DeskSound.swift */,
 				4D5E6F7A8B9C0D1E2F300005 /* DeskVideo.swift */,
 				4D5E6F7A8B9C0D1E2F300007 /* VoiceFx.swift */,
+				5907F1C02F2A0B0C000000B3 /* MusicSink.swift */,
 				4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */,
 				4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */,
 				4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */,
@@ -311,6 +314,7 @@
 				4D5E6F7A8B9C0D1E2F300004 /* DeskSound.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F300006 /* DeskVideo.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F300008 /* VoiceFx.swift in Sources */,
+				5907F1C02F2A0B0C000000B4 /* MusicSink.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F30CA9B /* LiveCaptions.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F305C1B /* Scribe.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F30C0DE /* CallRecorder.swift in Sources */,

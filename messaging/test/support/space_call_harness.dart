@@ -187,11 +187,11 @@ class SpaceHarness {
   }
 
   /// The picture again, as it stands now (after a tap), under the same name with [suffix].
-  Future<void> again(WidgetTester tester, String name, {bool dark = false}) async {
+  Future<void> again(WidgetTester tester, String name, {bool dark = false, String dir = 'shots'}) async {
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('shots/$name-${dark ? 'dark' : 'light'}.png'));
+    if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('$dir/$name-${dark ? 'dark' : 'light'}.png'));
   }
 }
 

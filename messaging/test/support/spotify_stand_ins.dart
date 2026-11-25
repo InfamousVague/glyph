@@ -5,6 +5,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/spotify_app.dart';
 import 'package:ghost_messaging/voice/spotify_deck.dart';
 import 'package:ghost_messaging/voice/spotify_link.dart';
+import 'package:ghost_messaging/voice/spotify_lossless.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
 /// A hub, media, Spotify and music connections stood in for, for the tests of Spotify in a call.
@@ -190,11 +191,29 @@ class FakeSource implements MusicSource {
   Future<double> level() async => loud;
 
   @override
-  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly}) async {
-    log.add('offer $id${relayOnly ? ' by the relay' : ''}');
+  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly, required bool lossless}) async {
+    log.add('offer $id${relayOnly ? ' by the relay' : ''}${lossless ? ' with a channel' : ''}');
     links.add(id);
-    return 'offer for $id';
+    ways.remove(id);
+    if (lossless) ways[id] = (open: false, bytes: 0, dropped: 0, relay: null);
+    return 'offer for $id${lossless ? ' m=application' : ''}';
   }
+
+  /// Who has the music without loss, and how it goes for them.
+  final Map<String, LosslessState> ways = {};
+  double hz = 48000;
+
+  @override
+  Future<void> lossless(String id, {required bool on}) async {
+    log.add('lossless $id ${on ? 'on' : 'off'}');
+    on ? ways[id] = (open: false, bytes: 0, dropped: 0, relay: null) : ways.remove(id);
+  }
+
+  @override
+  Future<Map<String, LosslessState>> losslessState() async => {...ways};
+
+  @override
+  Future<double> rate() async => hz;
 
   @override
   Future<bool> answer(String id, String sdp) async {
@@ -207,6 +226,7 @@ class FakeSource implements MusicSource {
   @override
   Future<void> close(String id) async {
     links.remove(id);
+    ways.remove(id);
     log.add('close $id');
   }
 
@@ -218,12 +238,15 @@ class FakeSource implements MusicSource {
 
 /// A listener's connection: what it was given, and how loud it is.
 class FakeEar implements MusicEar {
-  FakeEar(this.servers, this.relayOnly, this.onCandidate, this.onState);
+  FakeEar(this.servers, this.relayOnly, this.onCandidate, this.onState, this.onLossless);
   final List<Map<String, Object>> servers;
   final bool relayOnly;
   final void Function(Map<String, dynamic>) onCandidate;
   final void Function(bool up) onState;
+  final void Function(bool heard, LosslessWhy? why) onLossless;
   final List<String> log = [];
+  bool take = false, plays = false;
+  String speaker = '?';
   double volume = -1;
   bool silent = false, closed = false;
 
@@ -250,7 +273,11 @@ class FakeEar implements MusicEar {
   }
 
   @override
-  Future<void> output(String deviceId) async {}
+  Future<void> output(String deviceId) async => speaker = deviceId;
+  @override
+  void lossless(bool take) => this.take = take;
+  @override
+  void playing(bool on) => plays = on;
   @override
   Future<void> close() async => closed = true;
 }
