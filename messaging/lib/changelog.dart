@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.28', '2026-11-25', [
+    'The list of chats shows grey rows at its foot while another network (Telegram and the like) is still starting, and where older ones are being read, so it no longer looks finished before it is.',
+    'A chat on another network, and a space\'s chat, are drawn in grey until they have answered: each said "No messages yet" straight away, before anything was known.',
+    'Earlier messages being read, a photo being fetched and the words of a file are grey shapes too, where a small arc turned.',
+  ]),
   ReleaseNotes('0.12.27', '2026-11-24', [
     'A call is on the screen the moment you join, and says what it is still waiting for in a line above its people: Connecting… with the step it is on (the server, your microphone, each person), then Connected. The people already in it are drawn in grey until each is there, and leaving shows at once.',
     'Lists and chats draw their shape in grey while they load, a light passing over it, where a small arc turned on an empty page: your conversations, a chat\'s messages, the people you can write to, a folder of files.',
