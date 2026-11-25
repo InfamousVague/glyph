@@ -50,6 +50,7 @@ import 'nav_bar.dart';
 import 'open_space_view.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
+import 'window_title.dart';
 import 'skeleton.dart';
 import 'space_designs/space_design.dart';
 import 'split_handle.dart';
@@ -225,7 +226,9 @@ class _HangoutScreenState extends State<HangoutScreen> {
     final t = context.tokens;
     final v = Voice.instance;
     final room = _room ?? v.hangoutFor(widget.channel);
-    return ListenableBuilder(
+    // The window is named for the space while it is open, where no circle of its names it first
+    // (lib/ui/window_title.dart).
+    return WindowTitle(name: widget.channel.name, child: ListenableBuilder(
       // The recorder too: Record call's icon in the header goes to Stop as it starts.
       listenable: Listenable.merge([v, ?room, CallRecorder.instance, OpenSpaces.instance]),
       builder: (context, _) {
@@ -383,7 +386,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
           ]),
         );
       },
-    );
+    ));
   }
 }
 

@@ -18,6 +18,7 @@ import '../../voice/hangout.dart' show HangoutMessage;
 import '../../voice/voice.dart';
 import '../../kit/settings_kit.dart' show SettingsCallout;
 import '../common.dart';
+import '../window_title.dart';
 import '../conversations.dart' show ConversationRow;
 import '../dialup/bevel.dart';
 import '../dialup/parts.dart' show DialupFace;
@@ -111,7 +112,8 @@ class CircleScreen extends StatelessWidget {
           // Left meanwhile (here, or on the phone or computer).
           return GhostPage(title: 'Circle', onBack: back, body: const Center(child: Text('You left this circle.')));
         }
-        return CircleList(view: circleView(context, c, onBack: back));
+        // The window is named for the circle while its list is open (lib/ui/window_title.dart).
+        return WindowTitle(name: c.name, circle: true, child: CircleList(view: circleView(context, c, onBack: back)));
       },
     );
   }

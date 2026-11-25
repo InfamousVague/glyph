@@ -82,6 +82,11 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
         // smaller"): a small window of its own, as Discord's sign-in is; false gives the window its own size back.
         if (call.arguments as? Bool) == true { self.enterCompact() } else { self.leaveSplash() }
         result(nil)
+      case "title":
+        // What the app's title strip names (lib/ui/window_title.dart: the circle or conversation that is open): the
+        // window's own title too, which is not drawn but is what the Window menu and Mission Control call it.
+        self.title = (call.arguments as? String) ?? "Ghost Messaging"
+        result(nil)
       case "drag":
         // The press that began on a top bar moves the window, as a title bar does.
         if let e = NSApp.currentEvent ?? self.currentEvent { self.performDrag(with: e) }

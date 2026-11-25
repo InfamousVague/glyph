@@ -41,6 +41,7 @@ import 'composer_box.dart';
 import 'reaction_stickers.dart';
 import 'poof.dart';
 import 'shell.dart';
+import 'window_title.dart';
 import 'skeleton.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
@@ -1078,7 +1079,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // phone at the other end does for one is offered (Sms.can); calling is the phone's alone.
     final remote = Sms.remote;
     // What a plugin's widget in the conversation may do: write into the composer.
-    return PluginThread(write: _writeIn, child: GhostPage(
+    // The window is named for the conversation while it is open (lib/ui/window_title.dart).
+    return WindowTitle(name: title, child: PluginThread(write: _writeIn, child: GhostPage(
       title: title,
       back: true,
       titleWidget: GlacierPressable(
@@ -1169,7 +1171,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...above, _composer(t)]);
               },
             ),
-    ));
+    )));
   }
 
   Widget _list(Tokens t, ChatBackground background) {

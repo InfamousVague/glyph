@@ -6,11 +6,13 @@ import '../../kit/settings_type.dart';
 import '../../ui/dialup/bevel.dart' show DialupColors, isBevelChrome;
 import '../../ui/feedback_screen.dart';
 import '../../ui/window_chrome.dart';
+import '../../ui/window_title.dart';
 
 /// The Mac window's title strip (Matt, 2026-11-19: "I want the top bar where we drag like the window titlebar to house
 /// these buttons we can roll a custom titlebar if we need to that's a bit thicker to fit the content"): across the
 /// whole window above every page, in the look's colours, the three window buttons centred at its left
-/// (macos/Runner/MainFlutterWindow.swift places them by the height said here), the app's name in the middle, and the
+/// (macos/Runner/MainFlutterWindow.swift places them by the height said here), in the middle the name of what is open
+/// (the circle, the conversation, or the app's own with neither: lib/ui/window_title.dart), and the
 /// app's own buttons at its right: Share feedback, and whatever else is put in [extras]. Pressed and dragged anywhere
 /// else it moves the window; a double click zooms it, as a title bar does ([WindowDragArea]).
 class DeskTitleBar extends StatelessWidget {
@@ -41,7 +43,17 @@ class DeskTitleBar extends StatelessWidget {
         child: Row(children: [
           Expanded(
             child: Center(
-              child: Text('Ghost Messaging', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-3'))),
+              // The circle or conversation that is open, where one is, and the app's name otherwise (Matt,
+              // 2026-11-24: "show the active circle or conversation name in the titlebar where the "ghost messaging"
+              // title is"; lib/ui/window_title.dart). The window is told too, for the Window menu and Mission Control.
+              child: ValueListenableBuilder<String?>(
+                valueListenable: WindowTitle.now,
+                builder: (context, open, _) {
+                  final name = open ?? WindowTitle.app;
+                  MacChrome.sayTitle(name);
+                  return Text(name, key: const ValueKey('desk-title'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color(open == null ? 'app-ink-3' : 'app-ink-2')));
+                },
+              ),
             ),
           ),
           for (final make in extras) Padding(padding: EdgeInsets.only(left: room), child: make(context, navigator)),

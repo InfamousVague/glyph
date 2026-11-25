@@ -37,6 +37,7 @@ import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
+import 'window_title.dart';
 import 'picture_overlay.dart';
 import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
@@ -468,7 +469,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
         }
         final newAt = (chat?.group ?? false) ? _firstNewId : null;
         final (mineBg, mineInk) = myBubble(t, app);
-        return GhostPage(
+        // The window is named for the chat while it is open (lib/ui/window_title.dart).
+        return WindowTitle(name: chat?.title ?? _n.name, child: GhostPage(
           title: chat?.title ?? _n.name,
           // Laid out as a conversation of texts' header is (lib/ui/thread.dart): the face, the name, a line under it;
           // the network's logo on the face's corner is the one difference (Matt, 2026-11-15: "Use the same header
@@ -694,7 +696,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   },
                 ),
                 ),
-        );
+        ));
       },
     );
   }
