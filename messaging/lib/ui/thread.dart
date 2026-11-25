@@ -32,6 +32,7 @@ import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_rail.dart';
 import 'chat_settings.dart';
+import 'text_attachment.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
@@ -1396,7 +1397,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           else if (a.isAudio)
             VoiceBubble(part: a.id, ground: c.chrome, ink: c.onChrome, radius: BorderRadius.zero, rim: Border.all(color: c.shadow), playable: true)
           else
-            _Pill(text: a.name ?? a.type, ground: c.chrome, ink: c.onChrome),
+            TextAttachmentPill(attachment: a, ground: c.chrome, ink: c.onChrome),
         if (m.state == 'downloading' || m.state == 'pending_download')
           _Undelivered(
             downloading: m.state == 'downloading',
@@ -2066,7 +2067,8 @@ class _Bubble extends StatelessWidget {
             ),
           )
         else
-          _Pill(text: a.name ?? a.type, ground: ground, ink: ink),
+          // Any other file (a contact's card, a PDF): a press opens, saves or shares it (lib/ui/text_attachment.dart).
+          TextAttachmentPill(attachment: a, ground: ground, ink: ink),
       // A picture message the carrier announced that is not here: coming down now, or it could not be, with a way to
       // ask for it again (Matt, 2026-11-13: "show the failed image with a retry if needed").
       if (m.state == 'downloading' || m.state == 'pending_download') _Undelivered(downloading: m.state == 'downloading', ground: ground, ink: ink, onRetry: onRetryDownload),
