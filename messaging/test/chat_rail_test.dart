@@ -320,6 +320,95 @@ void main() {
       expect(newest.bottom, lessThanOrEqualTo(list.bottom));
     });
 
+    // Matt, 2026-11-25: "using the chat map is still pretty laggy and i can't scroll up and down in the popup menu to
+    // scroll up and down either".
+    testWidgets('a wheel turned over the list of stretches, or over the map, scrolls the chat', (tester) async {
+      final c = await open(tester, _week());
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await settle(tester);
+      final list = find.byKey(const ValueKey('chat-rail-list'));
+      expect(list, findsOneWidget);
+      expect(c.offset, 0);
+      // Up the page, toward what is older: the chat is drawn bottom up, so its scroll grows.
+      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(list), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, -300)));
+      await settle(tester);
+      expect(c.offset, closeTo(300, 1));
+      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(rail), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, -200)));
+      await settle(tester);
+      expect(c.offset, closeTo(500, 1));
+      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(list), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, 500)));
+      await settle(tester);
+      expect(c.offset, closeTo(0, 1));
+      expect(list, findsOneWidget, reason: 'still open under the mouse');
+    });
+
+    testWidgets('two fingers on a trackpad over the list scroll the chat too', (tester) async {
+      final c = await open(tester, _week());
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await settle(tester);
+      final at = tester.getCenter(find.byKey(const ValueKey('chat-rail-list')));
+      final pad = await tester.createGesture(kind: PointerDeviceKind.trackpad);
+      await pad.panZoomStart(at);
+      await pad.panZoomUpdate(at, pan: const Offset(0, 60));
+      await pad.panZoomUpdate(at, pan: const Offset(0, 260));
+      await pad.panZoomEnd();
+      await settle(tester);
+      expect(c.offset, greaterThan(150));
+    });
+
+    testWidgets('scrolling the chat builds the list of stretches again only when another stretch comes onto the screen', (tester) async {
+      var faces = 0;
+      final marks = _week();
+      final sheet = await loadSheet(tester);
+      final c = ScrollController();
+      addTearDown(c.dispose);
+      await pumpScreen(
+        tester,
+        sheet,
+        ChatRail(
+          controller: c,
+          marks: marks,
+          chat: 'builds',
+          face: (who, name, mine, size) {
+            faces++;
+            return SizedBox.square(dimension: size);
+          },
+          child: ListView.builder(controller: c, reverse: true, itemCount: marks.length, itemBuilder: (context, i) => SizedBox(height: 48, child: Text(marks[i].text))),
+        ),
+        AppState(),
+        size: const Size(700, 600),
+        platform: 'desktop',
+      );
+      await tester.pump();
+      await tester.pump();
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await settle(tester);
+      final before = faces;
+      expect(before, greaterThan(0));
+      // A little way, inside the newest stretch: nothing of the list is built again.
+      for (var i = 1; i <= 10; i++) {
+        c.jumpTo(i * 4.0);
+        await tester.pump();
+      }
+      expect(faces, before);
+      // To the oldest end: another stretch is the one on the screen, and the list says so.
+      c.jumpTo(c.position.maxScrollExtent);
+      await settle(tester);
+      expect(faces, greaterThan(before));
+    });
+
     testWidgets('with a model to ask, each stretch is its summary, asked for once', (tester) async {
       final asked = <String>[];
       Future<String?> sum(String lines) async {
