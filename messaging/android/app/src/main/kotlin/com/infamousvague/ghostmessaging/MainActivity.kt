@@ -171,6 +171,10 @@ open class MainActivity : FlutterActivity() {
         VoiceFx.register(messenger)
         // Recording a call (CallRecorder.kt, lib/voice/recorder.dart).
         CallRecorder.register(messenger)
+        // A call's picture in picture (CallPip.kt, lib/ui/call_pip.dart; GMFB-64), with what Dart last said set again
+        // on this screen.
+        CallPip.register(this, messenger)
+        CallPip.apply(this)
         // Words from a recorded call, by the phone's own speech recognition (Scribe.kt, lib/voice/scribe.dart).
         Scribe.register(applicationContext, messenger)
         // A call's captions: this phone's own voice written out as it is said (LiveCaptions.kt, lib/voice/captions.dart).
@@ -789,6 +793,18 @@ open class MainActivity : FlutterActivity() {
     private fun startVoice(result: MethodChannel.Result) {
         try { result.success(mapOf("ok" to true, "seconds" to Voice.start(applicationContext, Sender.voiceBudget(applicationContext)))) }
         catch (e: Exception) { result.error("failed", e.message ?: "The microphone could not be started", null) }
+    }
+
+    /** Leaving the app during a call with a picture: into picture in picture, below Android 12 (CallPip.kt). */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!bubble) CallPip.leaving(this)
+    }
+
+    /** In and out of picture in picture: Dart draws the call's picture alone while in (lib/ui/call_pip.dart). */
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (!bubble) CallPip.changed(isInPictureInPictureMode)
     }
 
     override fun onNewIntent(intent: Intent) {

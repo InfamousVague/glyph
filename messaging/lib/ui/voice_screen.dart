@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -20,6 +21,7 @@ import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'call_float.dart';
 import 'connecting_banner.dart';
 import 'skeleton.dart';
 import '../voice/rtc.dart';
@@ -45,56 +47,61 @@ class VoiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     final v = Voice.instance;
     return ListenableBuilder(
       listenable: v,
       builder: (context, _) {
         final s = v.session;
-        // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
-        // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
-        // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
-        // On a narrow phone a space's call is its own page (space_design.dart).
-        final design = inlineSpaceCall(context, s);
-        if (design != null) return design;
-        // A space's call beside the list is the space's own page: the call over its chat (HangoutScreen's SpaceSplit). An
-        // open space's floor is still drawn over its chat here (HangoutStage).
-        if (s != null && s.channel.hangout && AppShell.wideOf(context) && OpenSpaces.isCall(s)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
-        if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
-        // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
-        final seen = v.viewing;
-        if (s == null && seen != null && v.channels.any((c) => c.seed == seen.seed)) return HangoutScreen(key: ValueKey('hangout-${seen.room}'), channel: seen);
-        if (s != null) {
-          return GhostPage(
-            title: s.channel.name,
-            actions: [
-              // A hangout's, not a group's: a group's channel is its members' alone.
-              if (s.channel.group == null) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, s.channel)),
-            ],
-            body: Stack(children: [
-              ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
-                children: [CallPanel(session: s)],
-              ),
-              Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
-            ]),
-          );
-        }
-        return GhostPage(
-          title: 'Spaces',
-          actions: [IconTap(icon: Lucide.plus, label: 'New space', onPressed: () => push(context, (_) => const NewChannelScreen()))],
-          body: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
-            children: [
-              if (v.channels.isEmpty)
-                SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
-              else
-                // A circle's spaces are listed in their circle, not here.
-                PaneSection(title: 'Spaces', children: [for (final c in v.channels) if (c.circle == null) _ChannelRow(channel: c)]),
-            ],
-          ),
-        );
+        // In a call this page is the call's: nothing floats over it while it is on the screen (GMFB-64).
+        return CallPageMark(on: s != null, child: _page(context, v, s));
       },
+    );
+  }
+
+  Widget _page(BuildContext context, Voice v, VoiceSession? s) {
+    final t = context.tokens;
+    // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
+    // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
+    // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
+    // On a narrow phone a space's call is its own page (space_design.dart).
+    final design = inlineSpaceCall(context, s);
+    if (design != null) return design;
+    // A space's call beside the list is the space's own page: the call over its chat (HangoutScreen's SpaceSplit). An
+    // open space's floor is still drawn over its chat here (HangoutStage).
+    if (s != null && s.channel.hangout && AppShell.wideOf(context) && OpenSpaces.isCall(s)) return HangoutStage(key: ValueKey('stage-${s.channel.room}'), channel: s.channel);
+    if (s != null && s.channel.hangout) return HangoutScreen(key: ValueKey('hangout-${s.channel.room}'), channel: s.channel);
+    // A hangout pressed in the list: its chat where a conversation would be, who is in it and Join at its top.
+    final seen = v.viewing;
+    if (s == null && seen != null && v.channels.any((c) => c.seed == seen.seed)) return HangoutScreen(key: ValueKey('hangout-${seen.room}'), channel: seen);
+    if (s != null) {
+      return GhostPage(
+        title: s.channel.name,
+        actions: [
+          // A hangout's, not a group's: a group's channel is its members' alone.
+          if (s.channel.group == null) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, s.channel)),
+        ],
+        body: Stack(children: [
+          ListView(
+            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
+            children: [CallPanel(session: s)],
+          ),
+          Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
+        ]),
+      );
+    }
+    return GhostPage(
+      title: 'Spaces',
+      actions: [IconTap(icon: Lucide.plus, label: 'New space', onPressed: () => push(context, (_) => const NewChannelScreen()))],
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        children: [
+          if (v.channels.isEmpty)
+            SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
+          else
+            // A circle's spaces are listed in their circle, not here.
+            PaneSection(title: 'Spaces', children: [for (final c in v.channels) if (c.circle == null) _ChannelRow(channel: c)]),
+        ],
+      ),
     );
   }
 }
@@ -362,8 +369,10 @@ class CallDock extends StatelessWidget {
             child: AppIcon(icon, size: mark, wash: false, color: danger ? const Color(0xFFFFFFFF) : (on ? t.color('app-paper') : t.color('app-ink'))),
           ),
         );
+    final media = Voice.instance.media;
     final dock = ListenableBuilder(
-      listenable: session,
+      // The pictures too: Pop out comes with the first and goes with the last.
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
       builder: (context, _) => ClipRRect(
         borderRadius: radius,
         child: BackdropFilter(
@@ -398,6 +407,8 @@ class CallDock extends StatelessWidget {
               // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
               if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
+              // Away from the call with its picture floating over the app (GMFB-64), where there is a picture to float.
+              if (CallPictures.anyIn(session)) button(LucideMore.pictureInPicture, FloatWords.popOut, () => popOutCall(context)),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),
@@ -536,55 +547,224 @@ class _TileToolsState extends State<TileTools> {
   }
 }
 
+/// Who may draw each stream now, and how many renderers hold it (GMFB-64): a picture taken somewhere else ([StreamView]
+/// with `claim`: the floating call and Android's picture in picture, lib/ui/call_float.dart) is drawn there alone. The
+/// call's page under it, kept by its route while covered, lets go of its renderer for that stream and takes one again
+/// when the picture comes back; the one taking it waits until every other has let go, so one stream is never on two
+/// renderers at once, and a renderer only ever shows the one stream it was made for (GMFB-5).
+abstract final class StreamClaims {
+  /// Who has taken each stream, by its id: the last to take it is the one that draws it.
+  static final Map<String, List<Object>> _takers = {};
+
+  /// How many renderers hold each stream, and how many of those are still letting go of it.
+  static final Map<String, int> _held = {}, _letting = {};
+
+  /// Told when who may draw a stream changes: after the frame, so no picture is built again while one is.
+  static final changes = _Told();
+  static bool _saying = false;
+
+  /// Who may draw [id]: null where nobody has taken it (every view of it may).
+  static Object? takerOf(String id) => _takers[id]?.last;
+
+  /// How many renderers hold [id] now, for a test.
+  @visibleForTesting
+  static int heldOf(String id) => _held[id] ?? 0;
+
+  /// For a test: as the app starts, nothing taken or held (a test's last renderers are never let go of).
+  @visibleForTesting
+  static void reset() {
+    _takers.clear();
+    _held.clear();
+    _letting.clear();
+    _waiting.clear();
+  }
+
+  static void take(String id, Object who) {
+    (_takers[id] ??= []).add(who);
+    _say();
+  }
+
+  static void give(String id, Object who) {
+    final l = _takers[id];
+    if (l == null || !l.remove(who)) return;
+    if (l.isEmpty) _takers.remove(id);
+    _say();
+  }
+
+  static void _say() {
+    if (_saying) return;
+    _saying = true;
+    final b = SchedulerBinding.instance;
+    b.addPostFrameCallback((_) {
+      _saying = false;
+      changes.tell();
+    });
+    b.ensureVisualUpdate();
+  }
+
+  static final List<({String id, bool all, Completer<void> done})> _waiting = [];
+
+  /// Done once [id] is free to take: no renderer still letting go of it, and, for [all] (a view that takes the
+  /// picture), none holding it at all.
+  static Future<void> free(String id, {bool all = false}) {
+    if (_freeFor(id, all)) return Future.value();
+    final w = (id: id, all: all, done: Completer<void>());
+    _waiting.add(w);
+    return w.done.future;
+  }
+
+  static bool _freeFor(String id, bool all) => (all ? _held[id] ?? 0 : _letting[id] ?? 0) == 0;
+
+  static void _counted() {
+    for (final w in [..._waiting]) {
+      if (_freeFor(w.id, w.all)) {
+        _waiting.remove(w);
+        w.done.complete();
+      }
+    }
+  }
+
+  static void _hold(String id) => _held[id] = (_held[id] ?? 0) + 1;
+
+  /// A renderer of [id] lets go of it, done when [done] is.
+  static void _let(String id, Future<void> done) {
+    _letting[id] = (_letting[id] ?? 0) + 1;
+    unawaited(done.catchError((Object _) {}).whenComplete(() {
+      _letting[id] = (_letting[id] ?? 1) - 1;
+      _held[id] = (_held[id] ?? 1) - 1;
+      if (_letting[id]! <= 0) _letting.remove(id);
+      if (_held[id]! <= 0) _held.remove(id);
+      _counted();
+    }));
+  }
+}
+
+/// [StreamClaims.changes]: a notifier that can be told from outside.
+class _Told extends ChangeNotifier {
+  void tell() => notifyListeners();
+}
+
 /// A picture from a call.
 class StreamView extends StatefulWidget {
-  const StreamView({super.key, required this.stream, this.mirror = false, this.contain = false});
+  const StreamView({super.key, required this.stream, this.mirror = false, this.contain = false, this.claim = false});
   final MediaStream stream;
   final bool mirror;
 
   /// Drawn whole inside its space rather than filling it: a shared screen (GMFB-27), whose edges matter.
   final bool contain;
 
+  /// Takes the picture from wherever else it is drawn, for as long as this is shown ([StreamClaims]): the floating
+  /// call and Android's picture in picture (GMFB-64), over a call's page that is still kept under them.
+  final bool claim;
+
   @override
   State<StreamView> createState() => _StreamViewState();
 }
 
 class _StreamViewState extends State<StreamView> {
-  final _renderer = RTCVideoRenderer();
-  bool _ready = false;
+  RTCVideoRenderer? _renderer;
+  bool _ready = false, _taking = false;
+  late String _id = widget.stream.id;
+
+  /// Whether this one may draw the stream now: nobody took it, or this did.
+  bool get _mine {
+    final who = StreamClaims.takerOf(_id);
+    return who == null ? !widget.claim : identical(who, this);
+  }
 
   @override
   void initState() {
     super.initState();
-    _renderer.addListener(_shape);
-    _renderer.initialize().then((_) {
-      if (!mounted) return;
-      _renderer.srcObject = widget.stream;
+    if (widget.claim) StreamClaims.take(_id, this);
+    StreamClaims.changes.addListener(_claimsChanged);
+    unawaited(_take());
+  }
+
+  void _claimsChanged() {
+    if (!mounted) return;
+    if (_mine) {
+      unawaited(_take());
+    } else if (_renderer != null) {
+      setState(_drop);
+    }
+  }
+
+  /// A renderer for the stream, once nothing stands in the way: none still letting go of it, and, taking it from
+  /// elsewhere, none holding it.
+  Future<void> _take() async {
+    if (_renderer != null || _taking) return;
+    _taking = true;
+    try {
+      await StreamClaims.free(_id, all: widget.claim);
+      if (!mounted || !_mine || _renderer != null) return;
+      final r = RTCVideoRenderer();
+      StreamClaims._hold(_id);
+      _renderer = r;
+      r.addListener(_shape);
+      try {
+        await r.initialize();
+      } catch (_) {
+        // No renderer to be had (a platform without one): nothing is drawn.
+        if (identical(_renderer, r)) _drop();
+        return;
+      }
+      if (!identical(_renderer, r)) return;
+      if (!mounted || !_mine) {
+        _drop();
+        return;
+      }
+      r.srcObject = widget.stream;
       setState(() => _ready = true);
-    });
+    } finally {
+      _taking = false;
+    }
+  }
+
+  /// Lets go of the renderer, if there is one.
+  void _drop() {
+    final r = _renderer;
+    if (r == null) return;
+    _renderer = null;
+    _ready = false;
+    r.removeListener(_shape);
+    StreamClaims._let(_id, r.dispose());
   }
 
   /// The picture's own shape, said as its frames give it (GMFB-71): a phone's tile is drawn that shape.
   void _shape() {
-    final v = _renderer.value;
-    if (v.width > 0 && v.height > 0) VideoShapes.say(widget.stream.id, v.aspectRatio);
+    final v = _renderer?.value;
+    if (v != null && v.width > 0 && v.height > 0) VideoShapes.say(widget.stream.id, v.aspectRatio);
   }
 
   @override
   void didUpdateWidget(StreamView old) {
     super.didUpdateWidget(old);
-    if (_ready && !identical(old.stream, widget.stream)) _renderer.srcObject = widget.stream;
+    if (identical(old.stream, widget.stream)) return;
+    if (old.stream.id != widget.stream.id) {
+      // Another stream altogether: the renderer is let go of, and one taken for this.
+      if (old.claim) StreamClaims.give(_id, this);
+      _drop();
+      _id = widget.stream.id;
+      if (widget.claim) StreamClaims.take(_id, this);
+      unawaited(_take());
+      return;
+    }
+    if (_ready) _renderer?.srcObject = widget.stream;
   }
 
   @override
   void dispose() {
-    _renderer.removeListener(_shape);
-    _renderer.dispose();
+    StreamClaims.changes.removeListener(_claimsChanged);
+    _drop();
+    if (widget.claim) StreamClaims.give(_id, this);
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => _ready ? RTCVideoView(_renderer, mirror: widget.mirror, objectFit: widget.contain ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
+  Widget build(BuildContext context) {
+    final r = _renderer;
+    return _ready && r != null ? RTCVideoView(r, mirror: widget.mirror, objectFit: widget.contain ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) : const SizedBox.shrink();
+  }
 }
 
 /// A new channel: its name, and the friends it is shared with.
@@ -909,10 +1089,11 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
     final t = context.tokens;
     final v = Voice.instance;
     return ListenableBuilder(
-      listenable: v,
+      // The call's floating picture stands in for the bar while it is up (GMFB-64, lib/ui/call_float.dart).
+      listenable: Listenable.merge([v, CallFloat.instance]),
       builder: (context, _) {
         final s = v.session;
-        if (s == null) return const SizedBox.shrink();
+        if (s == null || CallFloat.instance.shown) return const SizedBox.shrink();
         final levels = v.media?.levels ?? s.media.levels;
         final red = t.danger;
         return ListenableBuilder(
@@ -969,6 +1150,11 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                       for (final (id, name) in talking.take(3))
                         Padding(padding: EdgeInsets.only(left: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
                       SizedBox(width: t.space(2)),
+                      // The picture closed for this call: brought back over the app from here (GMFB-64).
+                      if (CallFloat.instance.canPopOut) ...[
+                        IconTap(key: const ValueKey('call-banner-pop-out'), icon: LucideMore.pictureInPicture, label: FloatWords.popOut, size: 18, onPressed: CallFloat.instance.reopen),
+                        SizedBox(width: t.space(1)),
+                      ],
                       IconTap(icon: s.muted ? LucideMore.micOff : Lucide.mic, label: s.muted ? 'Unmute' : 'Mute', size: 18, color: s.muted ? red : null, onPressed: () => s.locked ? sayMicLocked(context, s) : s.setMuted(!s.muted)),
                       SizedBox(width: t.space(1)),
                       GlacierPressable(

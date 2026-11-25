@@ -34,6 +34,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'new_group.dart';
 import '../art/lucide_more.dart';
+import 'call_float.dart' show CallFloatLayer;
 import 'voice_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
@@ -998,6 +999,16 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   /// Opens the address book: a press on someone in it opens the conversation with them.
   void contacts() => show(const ContactsScreen(key: ValueKey('contacts')), showing: 'contacts');
 
+  /// Opens the call this device is in: its bar's press, and Back to the call on its floating picture (GMFB-64). A
+  /// developer design draws the call as a page of its own on a phone; beside the list a circle's space opens in its
+  /// circle, the call over its chat (SpaceSplit); else the Voice page.
+  void openCall() {
+    if (!_wide && openSpaceCall(context)) return;
+    final s = Voice.instance.session;
+    if (_wide && s != null && s.channel.hangout && Circles.instance.circleOf(s.channel) != null) return openSpace(s.channel);
+    go('voice');
+  }
+
   /// One of the pill's rings is pressed. A new chat and the contacts open in the pane; Settings takes the list's
   /// place with its page in the pane; Messages and Archive are the list itself, and put away whatever was open.
   void go(String id, {bool selectAll = false}) {
@@ -1464,15 +1475,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                             left: t.space(3),
                             right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
                             bottom: edges.bottom + (railed ? t.space(3) : dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
-                            child: CallBanner(onOpen: () {
-                              // A developer design draws the call as a page of its own on a phone; beside the list a
-                              // circle's space opens in its circle, the call over its chat (SpaceSplit); else the Voice
-                              // page.
-                              if (!wide && openSpaceCall(context)) return;
-                              final s = Voice.instance.session;
-                              if (wide && s != null && s.channel.hangout && Circles.instance.circleOf(s.channel) != null) return openSpace(s.channel);
-                              go('voice');
-                            }),
+                            child: CallBanner(onOpen: openCall),
                           ),
                       ])))),
                     )),
@@ -1528,6 +1531,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                     },
                   ),
                 ),
+              // The call's picture while its page is not on the screen (GMFB-64, lib/ui/call_float.dart): over the list
+              // and the pane, under a call ringing.
+              Positioned.fill(child: CallFloatLayer(onOpen: openCall)),
               // A group calling (lib/voice): over everything, until joined or put away.
               const Positioned(left: 0, right: 0, top: 0, child: RingCard()),
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
