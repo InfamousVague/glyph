@@ -25,6 +25,13 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.30', '2026-11-25', [
+    'Your devices catch up with each other: a computer or phone that was closed now asks your other devices, each time it starts, for the messages with friends it missed.',
+    'A friend made on one of your devices, and a circle joined on one, now reach your other devices within the hour, without signing in again.',
+    'Your picture at the foot of the side rail, with how you are shown (online, away, busy), opens a card of quick profile settings.',
+    'In a call over its chat on a computer, Share screen stands beside Leave where Chat was, and the chat is always shown.',
+    'The Conversations widget on Android has no title, and each chat in it is drawn larger.',
+  ]),
   ReleaseNotes('0.12.29', '2026-11-25', [
     'Notion for circles, a plugin: give a circle a Notion token in its settings, and links to Notion pages and boards open out under the message for everyone in it. Read the note in its settings about who can then see what.',
     'Send photos and files to a friend: the + in a chat with a friend offers Photos and Files, up to five at a time, sealed as your messages are.',
