@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -265,6 +264,23 @@ void main() {
     expect(maya.source.begun, isFalse);
     expect(sam.music.dj, isNull);
     expect(await maya.music.start(), isFalse);
+  });
+
+  test('a DJ who may no longer speak, their microphone off already, stops at the next look; and a listener lets go of theirs', () async {
+    final (maya, sam) = await playing();
+    maya.session.setMuted(true);
+    await settle();
+    expect(maya.music.mine, isTrue, reason: 'muting their own microphone is nothing to the music');
+    sam.mayNot.add('maya');
+    maya.now = maya.now.add(const Duration(seconds: 5));
+    maya.spotify.to(50);
+    await maya.look();
+    expect(sam.music.dj, isNull);
+    expect(sam.ears.last.closed, isTrue);
+    maya.mayNot.add('maya');
+    await maya.look();
+    expect(maya.music.mine, isFalse);
+    expect(maya.source.begun, isFalse);
   });
 
   test('off in the circle, nothing is said, taken or sent, on either side', () async {

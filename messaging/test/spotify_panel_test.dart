@@ -14,7 +14,6 @@ import 'package:ghost_messaging/voice/channels.dart';
 import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/spotify.dart';
 import 'package:ghost_messaging/voice/spotify_app.dart';
-import 'package:ghost_messaging/voice/spotify_deck.dart';
 import 'package:ghost_messaging/voice/spotify_link.dart';
 import 'package:ghost_messaging/voice/spotify_queue.dart';
 import 'package:ghost_messaging/voice/voice.dart';

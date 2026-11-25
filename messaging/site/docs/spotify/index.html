@@ -30,55 +30,127 @@
     <div class="crumb">Plugins</div>
     <h1>Spotify</h1>
     <p class="lede">A queue of songs for a circle's call, played from one person's Spotify.</p>
-    <p>Spotify plays music to a circle's call. One person's own Spotify app plays, and everyone in the call hears it in stereo and can add songs to one queue.</p>
-<p><b>Turn it on:</b> for a whole circle, in <span class="ui-path">Circle settings › Plugins › Spotify</span>. It does nothing outside a circle's spaces.</p>
+    <p>Spotify plays music to a circle's call. One person's own Spotify app plays, everyone in the call hears it in stereo, and everyone who may speak can add songs to one queue.</p>
+<p><b>Turn it on:</b> for a whole circle, in <span class="ui-path">Circle settings › Plugins</span>. It does nothing outside a circle's spaces.</p>
 
-<h2 id="start">Start the music</h2>
-<p>Someone in the call on a Mac or a PC with Spotify can start it. On a phone, in a browser or on Linux you can listen and queue songs.</p>
+<h2 id="turn-on">Turn it on for a circle</h2>
+<p>Whoever may change the circle turns it on once, for everyone in it. Nobody else adds or sets up anything.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Plugins</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">For everyone in the circle</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="amber"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#megaphone"/></svg></span><span class="m-txt"><b>Soundboard</b></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row tap"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#audio-lines"/></svg></span><span class="m-txt"><b>Spotify</b></span><span class="m-end"><span class="m-switch"></span></span></div>
+  </div></div>
+</div></div><figcaption>Circle settings › Plugins.</figcaption></figure>
+
+<h2 id="start">Play music to the call</h2>
+<p>Someone on a Mac or a PC with the Spotify app plays it; here they are called the DJ. Their own Spotify account plays, and Ghost Messaging never asks for its password.</p>
 <ol class="steps">
-<li class="step"><div class="step-body"><h3>Open Spotify</h3>
-<p>Open the Spotify app on your Mac or PC and sign in. Choosing which song plays needs Spotify Premium.</p>
+<li class="step"><div class="step-body"><h3>Open Spotify on your computer</h3>
+<p>Open the Spotify app and sign in. Choosing which song plays needs Spotify Premium. Put on headphones.</p>
 </div></li>
-<li class="step"><div class="step-body"><h3>Join the call and press Start</h3>
-<p>Tap the note in the space's header, or <b>Spotify</b> in the call's menu, then <b>Start</b>. What you were already playing is what the call hears first.</p>
-<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Spotify</span></div><div class="m-body">
-  <div class="m-section"><div class="m-card"><div class="m-row tap"><span class="m-ico" data-hue="mint"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg></span><span class="m-txt"><b>Start</b></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div></div></div>
+<li class="step"><div class="step-body"><h3>Join the call, and open Spotify in it</h3>
+<p>Press the note in the space's header, or <b>Spotify</b> in the call's menu.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Lounge</span></div><div class="m-body">
+  <div class="m-menu"><div class="m-menu-title">Call</div><div class="m-item tap"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#audio-lines"/></svg><span>Spotify</span><small>A plugin</small></div><div class="m-item"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#user-plus"/></svg><span>Invite</span></div></div>
 </div></div></figure>
 </div></li>
-<li class="step"><div class="step-body"><h3>On a Mac, say yes twice</h3>
-<p>The first time, macOS asks whether Ghost Messaging may control Spotify, and whether it may record Spotify's sound. If you said no, turn it on in <span class="ui-path">System Settings › Privacy &amp; Security</span>, under <b>Automation</b> and <b>Screen &amp; System Audio Recording</b>. Windows asks nothing.</p>
+<li class="step"><div class="step-body"><h3>Press Start</h3>
+<p>What your Spotify was already playing is what the call hears first. Otherwise it waits for a song.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Spotify</span></div><div class="m-body">
+  <div class="m-section"><div class="m-card"><div class="m-row tap"><span class="m-ico" data-hue="mint"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg></span><span class="m-txt"><b>Start</b><small>Play your Spotify to the call</small></span><span class="m-end"><svg class="i m-chev" aria-hidden="true"><use href="/docs/icons.svg#chevron-right"/></svg></span></div></div></div>
+</div></div></figure>
 </div></li>
 </ol>
-<p>One person plays at a time: the first, until they press <b>Stop</b> or leave. Then someone else can start. Stopping pauses a song from the queue, and leaves one you chose in Spotify playing for you.</p>
+<p>One person plays at a time: whoever started first, until they press <b>Stop</b> or leave the call. Then someone else can start. Stopping pauses a song that came from the queue, and leaves one you chose in Spotify yourself playing for you.</p>
+<p>On a stage, or anywhere your role can't speak, you can't play music or choose songs. If a moderator mutes the DJ for everyone, their music stops too.</p>
 
-<h2 id="queue">Queue songs</h2>
-<p>In Spotify, press <span class="ui-path">Share › Copy Song Link</span>, and paste it under <b>Add a song</b>. Anyone whose role may speak in the space can add songs, move them, pause and skip.</p>
+<h3 id="mac">On a Mac</h3>
+<p>macOS 14.4 or later. The first time, macOS asks you two things, and the music needs both:</p>
 <ul>
-  <li>Links to albums, playlists and podcasts aren't songs: paste a song's link.</li>
-  <li>You can take away a song you added. Whoever plays the music can take away any.</li>
-  <li>The queue holds 100 songs, 20 from each person. It is kept on the computer that plays, and goes when the music stops.</li>
-  <li>If whoever plays picks a song in Spotify themselves, that plays, and the queue goes on after it. When the queue runs out, the music pauses.</li>
+  <li><b>May Ghost Messaging control Spotify?</b> This is what presses Spotify's play, pause and skip. If you said no, turn it on in <span class="ui-path">System Settings › Privacy &amp; Security › Automation</span>.</li>
+  <li><b>May it record system audio?</b> This is what takes Spotify's sound. Ghost Messaging takes the sound of the Spotify app only. If you said no, the music is silent for everyone: turn it on in <span class="ui-path">System Settings › Privacy &amp; Security › Screen &amp; System Audio Recording</span>.</li>
+</ul>
+
+<h3 id="pc">On a Windows PC</h3>
+<p>Windows 10 version 2004 or later, with Spotify from spotify.com or from the Microsoft Store. Windows asks you nothing.</p>
+<p>Windows plays a song by opening it in Spotify, so Spotify may come to the front, and sometimes it shows the song without starting it. Ghost Messaging then asks Spotify to play. If that doesn't do it, you are told <b>Spotify opened but didn't start the song. Press play on it there.</b> Press play in Spotify and the queue goes on.</p>
+
+<h2 id="queue">Add songs</h2>
+<p>In Spotify, on any device, press <span class="ui-path">Share › Copy Song Link</span>. Paste it under <b>Add a song</b>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Spotify</span></div><div class="m-body">
+  <div class="m-row m-raw"><span class="m-avatar" data-hue="purple">♪</span><span class="m-txt"><b>Cut To The Feeling</b><small>Carly Rae Jepsen · From Maya's Spotify</small></span></div>
+  <div class="m-row m-raw"><span class="m-btn primary"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#play"/></svg><span>Pause</span></span><span class="m-btn secondary"><span>Skip</span></span></div>
+  <div class="m-section"><div class="m-section-title">Add a song</div><div class="m-card">
+    <label class="m-field"><span>A song's link</span><span class="m-input">https://open.spotify.com/track/…</span></label>
+    <div class="m-row tap"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#plus"/></svg></span><span class="m-txt"><b>Add it to the queue</b></span></div>
+  </div></div>
+  <div class="m-section"><div class="m-section-title">Up next · 2</div><div class="m-card">
+    <div class="m-row"><span class="m-txt"><b>Never Gonna Give You Up</b><small>Added by you</small></span></div>
+    <div class="m-row"><span class="m-txt"><b>Dancing Queen</b><small>Added by Jo</small></span></div>
+  </div></div>
+</div></div><figcaption>The queue, as someone listening sees it.</figcaption></figure>
+<ul>
+  <li>Anyone whose role may speak in the space can add songs, move them up and down, pause, play and skip.</li>
+  <li>You can take away a song you added. The DJ can take away any.</li>
+  <li>The queue holds 100 songs, at most 20 from each person.</li>
+  <li>Albums, playlists and podcasts can't be added: paste a song's link.</li>
+  <li>The queue is kept on the DJ's computer, and goes when they stop.</li>
+  <li>If the DJ picks another song in Spotify itself, that plays, and the queue goes on after it. When the queue runs out, Spotify is paused.</li>
 </ul>
 <p>While music plays, <b>Spotify</b> is listed among the people in the call, and a line over the call has the song, pause, skip and <b>Queue</b>.</p>
+<figure class="mock"><div class="m-screen"><div class="m-body">
+  <div class="m-banner"><b>Cut To The Feeling</b> Carly Rae Jepsen</div>
+</div></div></figure>
 
-<h2 id="hear">What you hear</h2>
-<p>The music has a loudness of its own on your device, under <b>On this device</b>; at 0% it isn't sent to you at all. Deafened, you hear none of it. It is never in a recording of the call, its captions or Scribe. Whoever plays it hears it from Spotify itself.</p>
-<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>Wear headphones if you play it</b><p>On speakers, your microphone hears the music and sends it a second time.</p></div></aside>
+<h2 id="hear">How loud it is for you</h2>
+<p>Under <b>On this device</b> the music has a loudness of its own, only for you. At 0% it isn't sent to you at all. Deafened, you hear none of it; muting your microphone changes nothing. The DJ hears it from Spotify itself, so they have no slider there.</p>
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Spotify</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">On this device</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="indigo"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#volume-2"/></svg></span><span class="m-txt"><b>Loudness</b></span><span class="m-end"><span class="m-value">60%</span></span></div>
+  </div></div>
+</div></div></figure>
+<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>The DJ should wear headphones</b><p>On speakers, their microphone hears the music and sends it a second time.</p></div></aside>
 
-<h2 id="pc">On a PC</h2>
-<p>Windows opens each song in Spotify, and Spotify sometimes shows a song without starting it. Ghost Messaging asks it to play; if it still doesn't, you are told to press play there. It needs Windows 10 version 2004 or later. A Mac needs macOS 14.4 or later.</p>
-
-<h2 id="terms">What it uses</h2>
+<h2 id="recorded">What is and isn't recorded</h2>
 <ul>
-  <li><b>The DJ's own Spotify, live.</b> Ghost Messaging presses Spotify's own buttons and sends the sound of the Spotify app, and of no other app, from that computer to each person in the call, encrypted as the call is. It is never stored, there is no Spotify password or key, and nothing is kept on the relay.</li>
-  <li><b>Spotify's terms.</b> They are for personal use and don't allow rebroadcasting, so this is for a small private call, and the account of whoever plays carries that risk.</li>
-  <li><b>Titles and covers.</b> The device that adds a song asks Spotify what it is called, and each device in the call loads its cover from Spotify.</li>
+  <li>The music is never in a <a href="/docs/record-call/">recording</a> of the call, its <a href="/docs/live-captions/">captions</a> or <a href="/docs/scribe/">Scribe</a>. (If the DJ has no headphones on, what their microphone picks up is their voice's recording.)</li>
+  <li>Nothing of the music is stored anywhere. It goes live from the DJ's computer to each person in the call, encrypted as the call is, and it is Spotify's sound and no other app's.</li>
+  <li>What is said of the queue (songs, who added them) goes in the call, sealed as the call is. The relay can't read it.</li>
+  <li>The device that adds a song asks Spotify what it is called, and each device in the call loads the covers from Spotify.</li>
 </ul>
+
+<h2 id="devices">What each device can do</h2>
+<table>
+  <tr><th>On</th><th>Play music to the call</th><th>Listen and queue songs</th></tr>
+  <tr><td>Mac</td><td>Yes, macOS 14.4 or later</td><td>Yes</td></tr>
+  <tr><td>Windows</td><td>Yes, Windows 10 version 2004 or later</td><td>Yes</td></tr>
+  <tr><td>Linux</td><td>No</td><td>Yes</td></tr>
+  <tr><td>Android and iPhone</td><td>No</td><td>Yes</td></tr>
+  <tr><td>Browser</td><td>No</td><td>Yes, without covers</td></tr>
+</table>
+<p>Someone on a version from before this, or a guest who joined from a space's link in a browser, is in the call as ever and hears no music.</p>
+
+<h2 id="terms">Spotify's terms</h2>
+<aside class="note warn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#triangle-alert"/></svg><div><b>For a small private call</b><p>Spotify's terms are for personal use and don't allow rebroadcasting. This is for a few friends in a private call, and the account of whoever plays carries that risk.</p></div></aside>
+
+<h2 id="trouble">If something is wrong</h2>
+<table>
+  <tr><th>What you see</th><th>What to do</th></tr>
+  <tr><td>There is no Spotify in the call</td><td>The circle hasn't turned it on, or the space isn't a circle's.</td></tr>
+  <tr><td>Someone on a Mac or a PC with Spotify can start it</td><td>This device can't play to a call. It can listen and add songs once someone starts.</td></tr>
+  <tr><td>Spotify isn't open</td><td>Open the Spotify app on the same computer, sign in, and press <b>Start</b>. Spotify's web player doesn't work for this.</td></tr>
+  <tr><td>macOS isn't letting Ghost Messaging press Spotify's buttons</td><td>Turn Spotify on for Ghost Messaging in <span class="ui-path">System Settings › Privacy &amp; Security › Automation</span>.</td></tr>
+  <tr><td>No sound is coming from Spotify</td><td>On a Mac, see <a href="#mac">the second permission</a>. On a PC, check Spotify in the Windows volume mixer. On either, check that Spotify plays on this computer and not on a speaker or phone.</td></tr>
+  <tr><td>Spotify opened but didn't start the song</td><td>On a PC: press play on it in Spotify.</td></tr>
+  <tr><td>That song couldn't be played</td><td>Spotify didn't play it: it may not be there in the DJ's country, or their account can't choose songs. The next one plays; after three in a row the music waits.</td></tr>
+  <tr><td>You hear nothing, and others do</td><td>Check <b>Loudness</b> under <b>On this device</b>, and that you aren't deafened. A connection that drops is made again by itself.</td></tr>
+  <tr><td>Everyone hears the music twice</td><td>The DJ's microphone is hearing their speakers: headphones.</td></tr>
+</table>
 
     <nav class="prevnext"><a class="prev" href="/docs/notion/"><small>Previous</small>Notion</a><a class="next" href="/docs/auto-leveler/"><small>Next</small>Auto leveler</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#start">Start the music</a><a href="#queue">Queue songs</a><a href="#hear">What you hear</a><a href="#pc">On a PC</a><a href="#terms">What it uses</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#turn-on">Turn it on for a circle</a><a href="#start">Play music to the call</a><a href="#queue">Add songs</a><a href="#hear">How loud it is for you</a><a href="#recorded">What is and isn't recorded</a><a href="#devices">What each device can do</a><a href="#terms">Spotify's terms</a><a href="#trouble">If something is wrong</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

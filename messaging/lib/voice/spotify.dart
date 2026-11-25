@@ -236,7 +236,14 @@ class SpotifyMusic extends ChangeNotifier {
 
   void _heardState(String from, Map<String, dynamic> m) {
     final s = _session!;
-    if (!maySpeak(from)) return;
+    if (!maySpeak(from)) {
+      // Who may no longer speak is no longer heard, and neither is their music.
+      if (from == _dj && !mine) {
+        _forgetDj();
+        notifyListeners();
+      }
+      return;
+    }
     final now = clock();
     if (mine) {
       // Someone else started too: within a moment of each other the lower id stays; later, the one who was first.
@@ -437,6 +444,8 @@ class SpotifyMusic extends ChangeNotifier {
   Future<void> look() async {
     final deck = _deck, spotify = _spotify, source = _source;
     if (deck == null || spotify == null || source == null || _polling) return;
+    // The role changed while this device's microphone was off already, or the circle turned the plugin off.
+    if (!isOn() || !maySpeak(me!)) return stop();
     _polling = true;
     try {
       final presses = _presses;
