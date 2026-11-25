@@ -181,7 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ])
                     SettingRow(
                       key: ValueKey('presence-mode-$mode'),
-                      icon: _ModeMark(mode: mode),
+                      icon: ModeMark(mode: mode),
                       label: label,
                       hint: Text(hint),
                       control: me.presenceMode == mode ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
@@ -384,16 +384,16 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
 
 
 /// The mark a mode shows on a face (PresenceDot), and Invisible's own: a hollow grey ring.
-class _ModeMark extends StatelessWidget {
-  const _ModeMark({required this.mode});
+class ModeMark extends StatelessWidget {
+  const ModeMark({super.key, required this.mode, this.size = 16});
   final String mode;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    const size = 16.0;
     if (mode == 'invisible') {
-      return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.color('app-ink-3'), width: 3.5)));
+      return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.color('app-ink-3'), width: size * 0.22)));
     }
     return PresenceDot(presence: InboxPresence(network: 'Ghost Messaging', online: mode == 'online', away: mode == 'away', busy: mode == 'busy'), size: size);
   }
