@@ -46,8 +46,10 @@ bool spaceMayAttach(HangoutRoom room, {Circles? circles}) => spaceMayWrite(room,
 /// A picture no bigger than this comes down by itself as it is drawn; a bigger one waits for a tap.
 const autoFetchMost = 12 << 20;
 
-/// Whether [f] is a picture the app draws itself (not an SVG, not a HEIC, which Flutter can't read on every system).
-bool drawsPicture(SpaceFile f) => f.kind == FileKind.image && !f.name.toLowerCase().endsWith('.svg') && !f.name.toLowerCase().endsWith('.heic') && !f.name.toLowerCase().endsWith('.heif');
+/// Whether [f] is a picture the app draws itself: not an SVG, and a HEIC only where this device reads one (an Android
+/// phone, an iPhone, a Mac: [FileKind.drawsAsPicture]). It was never a HEIC, so one was a file's chip in every chat and
+/// "Open with" on its page, on the phones that took it (GMFB-60).
+bool drawsPicture(SpaceFile f) => FileKind.drawsAsPicture(f.name, f.mime);
 
 /// A message's files in its bubble's place: its pictures and videos as pictures (two across where there are several),
 /// then a chip for each other file.

@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/files/files_api.dart' show FilesError;
+import 'package:ghost_messaging/files/file_kinds.dart';
 import 'package:ghost_messaging/files/files_model.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
@@ -99,6 +100,25 @@ void main() {
     expect(fresh.messages.last.files.single.name, 'plan.pdf');
     expect(fresh.messages.last.text, 'Here');
   });
+
+  // GMFB-60 (Matt, Android, 0.12.25): ".heic files don't render an image preview". A HEIC was a file's chip on every
+  // device; it is a picture where the device reads one (an Android phone, an iPhone, a Mac) and still a chip elsewhere.
+  for (final reads in [true, false]) {
+    testWidgets('a HEIC in a chat is ${reads ? 'a picture where the device reads one' : 'a file\'s chip where it reads none'}', (tester) async {
+      final had = readsHeic;
+      readsHeic = () => reads;
+      addTearDown(() => readsHeic = had);
+      final sheet = await loadSheet(tester);
+      final room = _room();
+      room.store.keepMessages(room.channel.chatRoom, [
+        HangoutMessage(id: 'h', from: 'maya', name: 'Maya', text: '', at: DateTime(2026, 11, 25).millisecondsSinceEpoch, files: [_file('IMG_0042.HEIC', 9000000)]),
+      ]);
+      final fresh = HangoutRoom(channel: room.channel, route: room.route, name: 'Me', signer: room.signer, store: room.store);
+      await pumpScreen(tester, sheet, HangoutChat(room: fresh, uploads: _Uploads()), AppState());
+      expect(find.bySemanticsLabel(RegExp(r'^Picture IMG_0042\.HEIC')), reads ? findsOneWidget : findsNothing);
+      expect(find.text('IMG_0042.HEIC'), reads ? findsNothing : findsOneWidget, reason: 'the chip names the file');
+    });
+  }
 }
 
 SpaceFile _file(String name, int size) => SpaceFile(id: NetCrypto.hex(NetCrypto.randomBytes(16)), name: name, size: size, mime: '', sha: '', key: NetCrypto.randomBytes(32), prefix: NetCrypto.randomBytes(8), by: 'maya', byName: 'Maya', at: 0);

@@ -1507,7 +1507,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             // At most 96px in a transcript (the design), on the page with nothing round it.
             _Sticker(id: a.id, side: math.min(96, mediaWidth))
           else if (a.isImage)
-            _Picture(id: a.id, radius: BorderRadius.zero, maxWidth: mediaWidth, onTap: failed && _canRetry(m) ? () => _retry(m) : null)
+            _Picture(id: a.id, radius: BorderRadius.zero, maxWidth: mediaWidth, onTap: failed && _canRetry(m) ? () => _retry(m) : null, otherwise: TextAttachmentPill(attachment: a, ground: c.chrome, ink: c.onChrome))
           else if (a.isVideo)
             VideoBubble(video: a, radius: BorderRadius.zero, maxWidth: mediaWidth, ground: c.chrome, ink: c.onChrome, received: !m.outgoing, title: nameOf(m))
           else if (a.isAudio)
@@ -2171,7 +2171,8 @@ class _Bubble extends StatelessWidget {
             padding: EdgeInsets.only(bottom: body.isEmpty ? 0 : t.space(1)),
             // A picture that did not go: a tap sends it again, where it would have opened the picture. Its own tap
             // used to win, so "Tap to try again" did nothing on a message that was a picture and no words.
-            child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth, onTap: failed ? onTapFailed : null),
+            // One this device can't read (a HEIC on Windows or Linux, an SVG) is its file's row, to open elsewhere.
+            child: _Picture(id: a.id, radius: radius, maxWidth: maxWidth, onTap: failed ? onTapFailed : null, otherwise: TextAttachmentPill(attachment: a, ground: ground, ink: ink)),
           )
         else if (a.isVideo)
           // A video: a picture of where it starts, and a button that plays it (it was drawn as its file's name).
@@ -2447,10 +2448,14 @@ class _Pill extends StatelessWidget {
 
 /// A message's picture, read from the phone by its part's [id]; a tap opens it over the whole screen ([_Viewer]).
 class _Picture extends StatelessWidget {
-  const _Picture({required this.id, required this.radius, required this.maxWidth, this.onTap});
+  const _Picture({required this.id, required this.radius, required this.maxWidth, this.onTap, this.otherwise});
   final int id;
   final BorderRadius radius;
   final double maxWidth;
+
+  /// What stands for a picture whose bytes are here and can't be read as one: its file's row (GMFB-60: a HEIC where
+  /// the system reads none was a grey square that opened to a black page).
+  final Widget? otherwise;
 
   /// What a tap does in place of opening the picture: sending a message that failed again.
   final VoidCallback? onTap;
@@ -2477,10 +2482,11 @@ class _Picture extends StatelessWidget {
             borderRadius: radius,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxWidth * 1.3),
-              // One that cannot be drawn keeps its place as the grey of one coming: it drew as nothing at all, and
-              // a picture message showed only its "Delivered".
+              // One that cannot be drawn is its file's row, which opens, saves and shares it ([otherwise]; its own
+              // press wins over this one's); with none given it keeps its place as the grey of one coming: it drew as
+              // nothing at all, and a picture message showed only its "Delivered".
               child: Image.memory(bytes, fit: BoxFit.cover, cacheWidth: (maxWidth * MediaQuery.devicePixelRatioOf(context)).round(), gaplessPlayback: true,
-                  errorBuilder: (context, _, _) => Container(width: maxWidth * 0.7, height: maxWidth * 0.7, decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: radius))),
+                  errorBuilder: (context, _, _) => otherwise ?? Container(width: maxWidth * 0.7, height: maxWidth * 0.7, decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: radius))),
             ),
           ),
         );

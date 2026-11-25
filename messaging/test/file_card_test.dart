@@ -1,9 +1,17 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/files/files_model.dart';
+import 'package:ghost_messaging/files/files_store.dart';
 import 'package:ghost_messaging/friends/file_card.dart';
+import 'package:ghost_messaging/net/crypto.dart';
+import 'package:ghost_messaging/net/hub_carrier.dart' show KeysSigner;
 import 'package:ghost_messaging/souls/souls_send.dart';
+import 'package:ghost_messaging/voice/hangout.dart' show OutgoingFile;
+import 'package:ghost_relay/files.dart';
+import 'package:ghost_relay/relay.dart';
+
+import 'files_space_test.dart' show FakeHub, FakeRoute, until, bytesOf;
 
 // Matt, 2026-11-25: "also allow sending pictures and attachements to ghost users". lib/friends/file_card.dart.
 
@@ -72,5 +80,67 @@ void main() {
     expect(FileCard.seedOf(key), FileCard.seedOf(key));
     expect(FileCard.seedOf(key), isNot(FileCard.seedOf(List.generate(32, (i) => i + 1))));
     expect(FileCard.channelOf(seed).owner, '', reason: 'no owner: a key made from the seed would be everyone\'s who was sent a card');
+  });
+
+  // GMFB-59 (@kevin, Android, 0.12.25): "I cannot send files such as images from the android app to another ghost
+  // user, only souls". The whole way between two accounts, against the relay as it is: Maya's file goes up sealed to
+  // her own "sent to friends" space, the card's words are all Sam is given, and from them alone his device brings the
+  // file down and opens it. Someone with the words but another file's id, or a changed key, gets nothing.
+  group('two accounts and the relay', () {
+    late Directory dir;
+    late Relay relay;
+    late Uri base;
+    final stores = <FilesStore>[];
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('ghost-file-card');
+      relay = Relay(files: Files(dir: Directory('${dir.path}/relay'), config: const FilesConfig()));
+      base = Uri.parse('http://127.0.0.1:${await relay.start(port: 0)}/files');
+    });
+
+    tearDown(() async {
+      for (final s in stores) {
+        await s.clear();
+      }
+      stores.clear();
+      await relay.stop();
+    });
+
+    test('a picture sent to a friend comes down whole on the friend\'s device, from the card\'s words alone', () async {
+      final hub = FakeHub();
+      final maya = KeysSigner(NetKeys.generate()), sam = KeysSigner(NetKeys.generate());
+      FilesStore device(KeysSigner who, String name) {
+        final s = FilesStore.forTest(base: base, signer: who, data: Directory('${dir.path}/$name'), route: FakeRoute(hub, who.id), name: name, piece: 2);
+        stores.add(s);
+        return s;
+      }
+
+      final a = device(maya, 'Maya'), b = device(sam, 'Sam');
+      await a.start();
+      final data = bytesOf(300 * 1000, 5);
+      final picked = File('${dir.path}/in/IMG_0042.jpg')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(data);
+      final mine = FileCard.seedOf(List.generate(32, (i) => i));
+      final up = await a.uploadForChat(FileCard.channelOf(mine), OutgoingFile(path: picked.path, name: 'IMG_0042.jpg', size: data.length, mime: 'image/jpeg'), byName: 'maya', thumbMost: FileCard.thumbMost(1), moved: () {});
+      await until(() => a.transfers.isEmpty);
+      final words = FileCard(seed: mine, files: [up]).words;
+      expect(words.split('\n').first, '📎 IMG_0042.jpg (300 KB)');
+
+      // Sam's device: the words, and nothing else of Maya's.
+      final card = FileCard.of(words, by: '@maya', at: 7)!;
+      final got = card.files.single;
+      expect(got.name, 'IMG_0042.jpg');
+      expect(b.cached(got), isNull, reason: 'not here until asked for');
+      expect(await File(await b.fetch(FileCard.channelOf(card.seed), got)).readAsBytes(), data);
+
+      // The words with the file's key changed open nothing, and another id finds nothing.
+      final key = Uint8List.fromList(got.key)..[0] ^= 1;
+      final wrong = SpaceFile(id: got.id, name: 'other.jpg', size: got.size, mime: got.mime, sha: got.sha, key: key, prefix: got.prefix, by: got.by, byName: got.byName, at: got.at);
+      final c = device(KeysSigner(NetKeys.generate()), 'Theo');
+      await expectLater(c.fetch(FileCard.channelOf(card.seed), wrong), throwsA(isA<FilesError>()));
+      final none = SpaceFile(id: 'f' * 32, name: 'none.jpg', size: got.size, mime: got.mime, sha: got.sha, key: got.key, prefix: got.prefix, by: got.by, byName: got.byName, at: got.at);
+      await expectLater(c.fetch(FileCard.channelOf(card.seed), none), throwsA(isA<FilesError>()));
+    });
   });
 }

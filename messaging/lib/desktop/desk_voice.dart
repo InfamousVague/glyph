@@ -109,3 +109,45 @@ int m4aMillis(Uint8List bytes) {
   }
   return 0;
 }
+
+/// Whether [bytes] are an Ogg file (.ogg, .oga, .opus), by the four letters every one starts with.
+bool isOgg(Uint8List bytes) => bytes.length >= 4 && bytes[0] == 0x4f && bytes[1] == 0x67 && bytes[2] == 0x67 && bytes[3] == 0x53;
+
+/// How long the sound in an Ogg file runs, in milliseconds; 0 where it can't be told (not Ogg, neither Vorbis nor
+/// Opus, cut short). Its last page says how many samples there are in all, and its first what a second holds: Opus
+/// counts 48000 to the second whatever it was recorded at, less the samples it says to skip at the start; Vorbis says
+/// its own rate (GMFB-60: an .ogg in a conversation said no length until it was played).
+int oggMillis(Uint8List bytes) {
+  if (!isOgg(bytes) || bytes.length < 58) return 0;
+  final data = ByteData.sublistView(bytes);
+  // The first page: 27 bytes, then as many lengths as byte 26 says, then the codec's first packet.
+  final first = 27 + bytes[26];
+  if (first + 30 > bytes.length) return 0;
+  bool named(String word) {
+    for (var i = 0; i < word.length; i++) {
+      if (bytes[first + i] != word.codeUnitAt(i)) return false;
+    }
+    return true;
+  }
+
+  int rate, skip = 0;
+  if (named('OpusHead')) {
+    rate = 48000;
+    skip = data.getUint16(first + 10, Endian.little);
+  } else if (named('\x01vorbis')) {
+    rate = data.getUint32(first + 12, Endian.little);
+  } else {
+    return 0;
+  }
+  if (rate == 0) return 0;
+  // The last page's count of samples: looked for from the end, a page being 65307 bytes at most.
+  for (var i = bytes.length - 27; i >= 0 && i >= bytes.length - 65307 - 27; i--) {
+    if (bytes[i] != 0x4f || bytes[i + 1] != 0x67 || bytes[i + 2] != 0x67 || bytes[i + 3] != 0x53) continue;
+    final low = data.getUint32(i + 6, Endian.little), high = data.getUint32(i + 10, Endian.little);
+    // All ones is a page that ends no packet, with no count: the one before it has it.
+    if (low == 0xffffffff && high == 0xffffffff) continue;
+    final samples = high * 0x100000000 + low - skip;
+    return samples <= 0 ? 0 : samples * 1000 ~/ rate;
+  }
+  return 0;
+}

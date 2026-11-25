@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 
 import 'desk_player.dart';
-import 'desk_voice.dart' show m4aMillis;
+import 'desk_voice.dart' show m4aMillis, isOgg, oggMillis;
 import 'link/link.dart';
 import '../sms.dart' show Sms;
 
@@ -154,9 +154,26 @@ class MacPlatform {
   /// natively (DeskSound.swift).
   static bool get _dartPlayer => PlatformInfo.isWindows || PlatformInfo.isLinux;
 
+  /// The part a Mac is playing in Dart, -1 for none: an Ogg sound (.ogg, .oga, .opus: Vorbis or Opus), which the Mac's
+  /// own player refuses ("this Mac can't play this kind of sound") and libmpv, which the Mac's app carries for video,
+  /// plays (GMFB-60). An iPhone carries no libmpv and has only its own player.
+  static int _oggPart = -1;
+
   /// Plays a message's sound ([bytes] the first time; null goes on with the one paused). Null, or why it cannot.
   static Future<String?> voicePlay(int part, Uint8List? bytes) async {
     if (_dartPlayer) return DeskPlayer.play(part, bytes);
+    if (PlatformInfo.isMacOS && (bytes == null ? _oggPart == part : isOgg(bytes))) {
+      // The Mac's own player let go first, so two never sound at once.
+      if (_oggPart == -1) await _nativeHalt();
+      _oggPart = part;
+      final why = await DeskPlayer.play(part, bytes);
+      if (why != null) _oggPart = -1;
+      return why;
+    }
+    if (_oggPart != -1) {
+      _oggPart = -1;
+      await DeskPlayer.halt();
+    }
     try {
       return await _system.invokeMethod<String>('voicePlay', {'part': part, 'bytes': bytes});
     } on MissingPluginException {
@@ -164,10 +181,16 @@ class MacPlatform {
     }
   }
 
+  static Future<void> _nativeHalt() async {
+    try {
+      await _system.invokeMethod('voiceHalt');
+    } catch (_) {}
+  }
+
   /// Pauses the sound playing, to go on from there; [voiceHalt] stops it for good. [voiceLength] is how long a
   /// sound runs, in milliseconds as the phone gives it, or 0 where that cannot be told.
   static Future<void> voicePause() async {
-    if (_dartPlayer) return DeskPlayer.pause();
+    if (_dartPlayer || _oggPart != -1) return DeskPlayer.pause();
     try {
       await _system.invokeMethod('voicePause');
     } catch (_) {}
@@ -175,12 +198,16 @@ class MacPlatform {
 
   static Future<void> voiceHalt() async {
     if (_dartPlayer) return DeskPlayer.halt();
-    try {
-      await _system.invokeMethod('voiceHalt');
-    } catch (_) {}
+    if (_oggPart != -1) {
+      _oggPart = -1;
+      await DeskPlayer.halt();
+    }
+    await _nativeHalt();
   }
 
   static Future<int> voiceLength(Uint8List bytes) async {
+    // An Ogg sound says how long it runs in its last page, read here on every computer (no native player reads one).
+    if (isOgg(bytes)) return oggMillis(bytes);
     // Read from the file itself where no native player is asked: an .m4a says how long it runs.
     if (_dartPlayer) return m4aMillis(bytes);
     try {
