@@ -683,7 +683,14 @@ class _VideoTile extends StatelessWidget {
         builder: (context, now, _) {
           final talking = call.isTalking(p, now);
           final s = _status(t, call, p, now);
-          return Container(
+          // Rings round the whole tile, where there is a picture in it and so no face to ring.
+          return VoiceRipples(
+            level: p.video && p.stream != null ? now[p.id] ?? 0 : 0,
+            muted: p.muted,
+            color: _green(t),
+            reach: 14,
+            corner: t.radius('xl'),
+            builder: (context, _) => Container(
             decoration: BoxDecoration(
               color: t.color('app-paper-2'),
               borderRadius: BorderRadius.circular(t.radius('xl')),
@@ -731,7 +738,7 @@ class _VideoTile extends StatelessWidget {
                 ),
               ]),
             ),
-          );
+          ));
         },
       ),
     );

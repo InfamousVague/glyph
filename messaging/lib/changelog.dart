@@ -25,6 +25,12 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.32', '2026-11-25', [
+    'Spotify is listed under its voice space in the circle, with the song and its cover, and ripples with the music there and in the call.',
+    'Spotify\'s sound in a call is sent at three times the quality it was.',
+    'On a Mac, a call no longer turns Spotify and other apps down as far as it did. Lower other sounds in calls, in Settings › Voice and video, brings that back.',
+    'Whoever is talking has the same ripples everywhere: in the circle\'s list under a voice space, round a video in a call, and in a space\'s members.',
+  ]),
   ReleaseNotes('0.12.31', '2026-11-25', [
     'Spotify for circles, a new plugin to try: in a voice space\'s call, someone on a Mac or a Windows PC with Spotify starts it, anyone who may speak adds songs by their link, and everyone hears them in the call, each at their own loudness. Turn it on in the circle\'s settings, under Plugins.',
     'Your own picture is sharp, and you crop it as you choose it. The earlier ones are kept to go back to, and the profile card at the rail\'s foot changes your banner and your badge.',

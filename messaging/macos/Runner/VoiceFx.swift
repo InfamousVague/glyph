@@ -15,6 +15,7 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
   private let fx = voicefx_create()
   private var attached = false
   private var channel: FlutterMethodChannel?
+  private var ducking: FlutterMethodChannel?
   /// The loudest sample since "level" was last asked, on the 0 to 1 scale, and what guards it (WebRTC's audio thread
   /// writes it, the main thread reads it).
   private var peak: Float = 0
@@ -108,6 +109,23 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
       }
     }
     self.channel = channel
+
+    // Whether other apps are turned down in a call (lib/voice/ducking.dart; Matt, 2026-11-25: "when i'm playing the audio
+    // on spotify while in a call it makes spotify quieter"). Apple's voice processing does it, as WebRTC's sound device
+    // asks: left to itself it lowers everything else, and again whenever someone speaks. Told aside: the sound device
+    // answers on its own thread, and the window is not kept waiting for it. Nothing to tell before the first call.
+    let ducking = FlutterMethodChannel(name: "ghost/ducking", binaryMessenger: messenger)
+    ducking.setMethodCallHandler { call, result in
+      guard call.method == "set" else { return result(FlutterMethodNotImplemented) }
+      let leave = (call.arguments as? [String: Any])?["leaveOthers"] as? Bool ?? true
+      guard let sound = FlutterWebRTCPlugin.sharedSingleton()?.peerConnectionFactory?.audioDeviceModule else { return result(0) }
+      DispatchQueue.global(qos: .userInitiated).async {
+        sound.isAdvancedDuckingEnabled = false
+        sound.duckingLevel = leave ? .min : .default
+        DispatchQueue.main.async { result(1) }
+      }
+    }
+    self.ducking = ducking
   }
 
   /// Into flutter_webrtc's capture hook, once.

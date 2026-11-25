@@ -19,9 +19,11 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../app_seen.dart';
 import '../app_state.dart';
 import '../circles/circles.dart';
 import '../net/crypto.dart';
@@ -76,6 +78,55 @@ class SpotifyMusic extends ChangeNotifier {
   static ({List<Map<String, Object>> servers, bool relay}) _callWays() {
     final m = Voice.instance.media;
     return m == null ? (servers: RtcMedia.defaultIce, relay: false) : (servers: m.iceServers, relay: m.hasRelay);
+  }
+
+  // --- how loud it is --------------------------------------------------------------------------------------------------
+
+  /// How loud the music is, under [levelId], for its rings as a voice's (Matt, 2026-11-25: "also show the voice activity
+  /// for the spotify user with the ripples"). Read while it plays and the app is on the screen, and only while something
+  /// shows it.
+  static const levelId = 'music', levelEvery = Duration(milliseconds: 200);
+  late final ValueNotifier<Map<String, double>> levels = _Watched(_tuneLevels);
+  Timer? _levelTimer;
+  bool _readingLevel = false;
+
+  /// The DJ's loudest reading since the last look at Spotify ([_poll]'s, for silence): asking takes it from the platform.
+  double _loudest = 0;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    _tuneLevels();
+  }
+
+  void _tuneLevels() {
+    final watched = (levels as _Watched).watched;
+    // Told as the app is put away and brought back, while anything shows the music's rings.
+    AppSeen.now.removeListener(_tuneLevels);
+    if (watched) AppSeen.now.addListener(_tuneLevels);
+    final want = watched && AppSeen.now.value && state?.playing == true && (mine || _ear != null);
+    if (want) {
+      _levelTimer ??= Timer.periodic(levelEvery, (_) => unawaited(_readLevel()));
+      return;
+    }
+    _levelTimer?.cancel();
+    _levelTimer = null;
+    if (levels.value.isNotEmpty) levels.value = const {};
+  }
+
+  Future<void> _readLevel() async {
+    if (_readingLevel) return;
+    if (!AppSeen.now.value) return _tuneLevels();
+    _readingLevel = true;
+    try {
+      final from = _source;
+      final l = mine ? (from == null ? 0.0 : await from.level().catchError((_) => 0.0)) : await (_ear?.level() ?? Future.value(0.0));
+      if (mine) _loudest = math.max(_loudest, l);
+      // Music is loud all the way through: brought down so the rings move with it and not stand at their widest.
+      if (_levelTimer != null) levels.value = {levelId: l < 0.01 ? 0 : math.min(1, l * 0.5)};
+    } finally {
+      _readingLevel = false;
+    }
   }
 
   // --- how often things are said and done --------------------------------------------------------------------------------
@@ -461,7 +512,9 @@ class SpotifyMusic extends ChangeNotifier {
       if (presses != _presses) return;
       if (_trouble == MusicTrouble.closed || _trouble == MusicTrouble.denied || _trouble == MusicTrouble.failed) _trouble = '';
       final d = deck.heard(now, clock());
-      final level = await source.level().catchError((_) => 1.0);
+      // The loudest since the last look: the rings' own readings take it too (_readLevel), so theirs are counted.
+      final level = math.max(_loudest, await source.level().catchError((_) => 1.0));
+      _loudest = 0;
       if (!identical(deck, _deck)) return;
       // Nothing at all from it for a while, though it says it plays.
       _silent = deck.playing && now.playing && level < 0.0005 ? _silent + 1 : 0;
@@ -758,5 +811,25 @@ class SpotifyMusic extends ChangeNotifier {
     _earMark = null;
     _through = false;
     await ear?.close();
+  }
+}
+
+/// A notifier that says when it gains its first listener or loses its last.
+class _Watched extends ValueNotifier<Map<String, double>> {
+  _Watched(this.changed) : super(const {});
+  final VoidCallback changed;
+  int _count = 0;
+  bool get watched => _count > 0;
+
+  @override
+  void addListener(VoidCallback listener) {
+    super.addListener(listener);
+    if (++_count == 1) changed();
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (_count > 0 && --_count == 0) changed();
   }
 }

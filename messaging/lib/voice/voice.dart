@@ -1320,12 +1320,12 @@ class VoiceSession extends ChangeNotifier {
 
 /// [sdp] with Opus asked for at its highest: full band at 48 kHz, stereo both ways, 510 kb/s, constant bit rate,
 /// no discontinuous transmission, with forward error correction kept for lost packets.
-String highestOpus(String sdp, {int kbps = 510, bool stereo = true}) {
+String highestOpus(String sdp, {int kbps = 510, bool stereo = true, bool fec = true}) {
   final lines = sdp.split('\r\n');
   final opus = RegExp(r'^a=rtpmap:(\d+) opus/48000', caseSensitive: false);
   final payloads = {for (final l in lines) if (opus.hasMatch(l)) opus.firstMatch(l)!.group(1)!};
   if (payloads.isEmpty) return sdp;
-  final want = {'minptime': '10', 'useinbandfec': '1', 'stereo': stereo ? '1' : '0', 'sprop-stereo': stereo ? '1' : '0', 'maxaveragebitrate': '${kbps * 1000}', 'maxplaybackrate': '48000', 'cbr': '1', 'usedtx': '0'};
+  final want = {'minptime': '10', 'useinbandfec': fec ? '1' : '0', 'stereo': stereo ? '1' : '0', 'sprop-stereo': stereo ? '1' : '0', 'maxaveragebitrate': '${kbps * 1000}', 'maxplaybackrate': '48000', 'cbr': '1', 'usedtx': '0'};
   final out = <String>[];
   final fmtpDone = <String>{};
   // Each Opus payload's fmtp line is rewritten with these on top of what it had; a payload with no fmtp line gets one

@@ -1705,7 +1705,13 @@ class _DialupPeople extends StatelessWidget {
                       child: Row(children: [
                         SizedBox(
                           width: 18,
-                          child: p.voice ? CustomPaint(size: const Size(16, 14), painter: _Speaker(color: c.ink, talking: (loud[p.me ? 'me' : p.id] ?? 0) > 0.08)) : null,
+                          child: p.voice
+                              ? VoiceRipples(
+                                  level: loud[p.me ? 'me' : p.id] ?? 0,
+                                  reach: 8,
+                                  builder: (context, _) => CustomPaint(size: const Size(16, 14), painter: _Speaker(color: c.ink, talking: (loud[p.me ? 'me' : p.id] ?? 0) > RippleAvatar.talking)),
+                                )
+                              : null,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -1732,6 +1738,26 @@ class _DialupPeople extends StatelessWidget {
       ),
       Expanded(child: list),
     ]);
+  }
+}
+
+/// A face in a list of a space's people who is in its call: rippling as they talk where this device is in that call too,
+/// with the ring that says they are in it.
+class _LiveFace extends StatelessWidget {
+  const _LiveFace({required this.channel, required this.id, required this.name, required this.size});
+  final VoiceChannel channel;
+  final String id;
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Voice.instance.session;
+    if (s == null || s.channel.room != channel.room) return RippleAvatar(name: name, level: 0, size: size, ringed: true);
+    return ValueListenableBuilder<Map<String, double>>(
+      valueListenable: callLevels(s),
+      builder: (context, loud, _) => RippleAvatar(name: name, level: loud[id] ?? 0, muted: id == 'me' ? s.muted : (s.members[id]?.muted ?? false), size: size, ringed: true),
+    );
   }
 }
 
@@ -2176,7 +2202,7 @@ class SpaceMembers extends StatelessWidget {
                         opacity: order(id) == 2 ? 0.5 : 1,
                         // Their picture where they have one; in the call, the ring that says so round their initials.
                         child: inVoice.contains(id)
-                            ? RippleAvatar(name: id == room.me ? youFaceName() : _nameOf(room, id), level: 0, size: 30, ringed: true)
+                            ? _LiveFace(channel: room.channel, id: id == room.me ? 'me' : id, name: id == room.me ? youFaceName() : _nameOf(room, id), size: 30)
                             : SpaceFace(room: room, id: id, name: id == room.me ? youFaceName() : _nameOf(room, id), size: 30),
                       ),
                       label: id == room.me ? 'You' : _nameOf(room, id),

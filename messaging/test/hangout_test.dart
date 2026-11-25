@@ -198,6 +198,21 @@ void main() {
       await _settle();
       expect(o.present[ann.id]?.name, 'Ann');
       expect(a.present[owner.id]?.name, 'Matt');
+      // The song someone plays to the call is in their greeting, while they are in the call; said to the space, sealed.
+      o.sayMusic('Bones');
+      await _settle();
+      expect(a.musicInCall, isNull, reason: 'not in the call');
+      o.sayMe(inVoice: true);
+      await _settle();
+      expect(a.musicInCall, 'Bones');
+      o.sayMusic('x' * 500);
+      await _settle();
+      expect(a.musicInCall!.length, HangoutPerson.musicMost);
+      o.sayMusic('');
+      await _settle();
+      expect(a.musicInCall, isNull);
+      o.sayMe(inVoice: false);
+      await _settle();
 
       expect(o.send('Who is around?'), isTrue);
       // The answer is written a moment later, as a person's would be: two messages in the same millisecond have no

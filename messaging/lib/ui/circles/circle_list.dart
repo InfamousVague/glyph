@@ -23,11 +23,14 @@ import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
 import '../../sms.dart' show Person, Sms;
 import '../../voice/channels.dart' show Voice;
+import '../../voice/spotify.dart' show SpotifyMusic;
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
 import '../hangout_screen.dart' show SpaceFace;
 import '../ripple_avatar.dart';
+import '../space_designs/space_design.dart' show callLevels;
+import '../spotify_panel.dart' show SongCover;
 import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
@@ -290,7 +293,7 @@ class CircleSpaceList extends StatelessWidget {
           for (final s in g.spaces) ...[
             CircleSpaceTile(space: s, selected: s.seed == view.selected, onPress: () => view.onOpen(s), onLongPress: view.onSpaceMenu == null ? null : () => view.onSpaceMenu!(s)),
             // Who is in its call, each a row under it.
-            if (s.people.isNotEmpty) CircleVoicePeople(space: s, onPress: () => view.onOpen(s)),
+            if (s.people.isNotEmpty || s.music != null) CircleVoicePeople(space: s, onPress: () => view.onOpen(s)),
           ],
         ],
         if (view.spaces.isEmpty)
@@ -393,8 +396,8 @@ String? circleSpaceLine(CircleSpaceView s) {
 /// Who is in a space's call, listed under the space in the circle's list: a face and a name each, as Discord lists who
 /// is in a voice channel (Matt, 2026-11-24: "show a list of connected users in the sidebar under the voice space with
 /// profile pictures and names like discord does"). The face is their profile picture where this device has it
-/// ([SpaceFace]), else their initials. While this device is in the call itself, whoever is talking has a green ring
-/// and their name in the ink. A press opens the space, as a press on the space does.
+/// ([SpaceFace]), else their initials. While this device is in the call itself, whoever is talking has rings going
+/// out from their face and their name in the ink. A press opens the space, as a press on the space does.
 class CircleVoicePeople extends StatelessWidget {
   const CircleVoicePeople({super.key, required this.space, required this.onPress});
   final CircleSpaceView space;
@@ -420,26 +423,24 @@ class CircleVoicePeople extends StatelessWidget {
     final shown = space.people.take(most).toList();
     final rest = space.people.length - shown.length;
     const face = 22.0;
+    // Rings out from a face while they talk, as everywhere else in the app (Matt, 2026-11-25: "make sure everywhere voice
+    // activity is logged uses the ripple animation like the sidebar"), in Dial-Up from its square.
+    Widget rippled(double level, Widget picture) => Padding(
+          padding: const EdgeInsets.all(ring),
+          child: VoiceRipples(level: level, reach: 9, corner: bevel ? 0 : null, builder: (context, _) => picture),
+        );
     Widget rows(Map<String, double> levels) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           for (final p in shown)
             () {
               final talking = (levels[p.id] ?? 0) > RippleAvatar.talking;
-              final picture = room != null
-                  ? SpaceFace(room: room, id: p.me ? room.me : p.id, name: p.name, size: face)
-                  : Avatar(people: [Person(address: 'space:${p.id}', name: p.name)], size: face);
+              final id = p.id, picture = room != null
+                  ? SpaceFace(room: room, id: p.me ? room.me : id, name: p.name, size: face)
+                  : Avatar(people: [Person(address: 'space:$id', name: p.name)], size: face);
               return Padding(
                 key: ValueKey('circle-voice-${space.seed}-${p.id}'),
                 padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
                 child: Row(children: [
-                  // The ring is always there, clear while they are quiet, so a face does not jump as they speak.
-                  Container(
-                    padding: const EdgeInsets.all(ring / 2),
-                    decoration: BoxDecoration(
-                      shape: bevel ? BoxShape.rectangle : BoxShape.circle,
-                      border: Border.all(color: talking ? t.online : const Color(0x00000000), width: ring / 2),
-                    ),
-                    child: picture,
-                  ),
+                  rippled(levels[id] ?? 0, picture),
                   SizedBox(width: t.space(2)),
                   Expanded(
                     child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: talking ? 'medium' : 'regular', color: t.color(talking ? 'app-ink' : 'app-ink-2'))),
@@ -447,6 +448,25 @@ class CircleVoicePeople extends StatelessWidget {
                 ]),
               );
             }(),
+          // The music played to the call, last, as one of those in it (Matt, 2026-11-25: "Spotify doesn't show up in
+          // the sidebar for the lounge").
+          if (space.music case final music?)
+            Padding(
+              key: ValueKey('circle-voice-${space.seed}-music'),
+              padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+              child: Row(children: [
+                rippled(levels[SpotifyMusic.levelId] ?? 0, SongCover(url: music.cover, size: face, corner: bevel ? 0 : face / 2)),
+                SizedBox(width: t.space(2)),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: [const TextSpan(text: 'Spotify'), TextSpan(text: ' · ${music.song}', style: TextStyle(color: t.color('app-ink-3')))]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),
+                  ),
+                ),
+              ]),
+            ),
           if (rest > 0)
             Padding(
               padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
@@ -456,11 +476,11 @@ class CircleVoicePeople extends StatelessWidget {
         ]);
     // How loud each is, where this device is in the call and so hears them; from outside it nobody is ringed.
     final session = space.here ? voice.session : null;
-    final levels = session == null ? null : (voice.media?.levels ?? session.media.levels);
+    final levels = session == null ? null : callLevels(session);
     return GlacierPressable(
       key: ValueKey('circle-voice-${space.seed}'),
       onPressed: onPress,
-      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}',
+      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}${space.music == null ? '' : ', and Spotify playing ${space.music!.song}'}',
       builder: (context, _) => levels == null ? rows(const {}) : ValueListenableBuilder<Map<String, double>>(valueListenable: levels, builder: (context, l, _) => rows(l)),
     );
   }

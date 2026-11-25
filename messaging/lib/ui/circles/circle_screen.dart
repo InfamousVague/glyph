@@ -12,6 +12,8 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
 import '../../files/files_store.dart';
+import '../../plugins/spotify.dart' show SpotifyPlugin;
+import '../../voice/spotify.dart' show SpotifyMusic;
 import '../../voice/channels.dart';
 import '../../sms.dart' show Conversation, Person, Sms;
 import '../../voice/hangout.dart' show HangoutMessage;
@@ -104,7 +106,7 @@ class CircleScreen extends StatelessWidget {
     final circles = Circles.instance;
     final voice = Voice.instance;
     return ListenableBuilder(
-      listenable: Listenable.merge([circles, voice, openCircleSpaceSeed, FilesStore.instance]),
+      listenable: Listenable.merge([circles, voice, openCircleSpaceSeed, FilesStore.instance, _musicShown]),
       builder: (context, _) {
         final c = circles.bySeed(seed);
         final back = onBack ?? () => Navigator.of(context).maybePop();
@@ -117,6 +119,33 @@ class CircleScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// What plays in the call this device is in, changing only as the song does: the music itself says where it is every
+/// few seconds, and the list is not drawn again for that.
+final _musicShown = _MusicShown();
+
+class _MusicShown extends ChangeNotifier {
+  _MusicShown() {
+    SpotifyMusic.instance.addListener(_look);
+  }
+  ({String song, String? cover})? now;
+  void _look() {
+    final song = SpotifyMusic.instance.state?.now?.song;
+    final next = song == null ? null : (song: song.shown, cover: song.coverUrl);
+    if (next == now) return;
+    now = next;
+    notifyListeners();
+  }
+}
+
+/// The music in [channel]'s call: as the call says it where this device is in it ([here]), else as its DJ greeted the
+/// space. None where the circle has Spotify off.
+({String song, String? cover})? _musicIn(VoiceChannel channel, {required bool here}) {
+  if (Circles.instance.pluginOnIn(channel, SpotifyPlugin.pluginId) != true) return null;
+  if (here) return _musicShown.now;
+  final song = Voice.instance.heldHangout(channel)?.musicInCall;
+  return song == null ? null : (song: song, cover: null);
 }
 
 /// [c] as its list draws it, as it stands now.
@@ -144,6 +173,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
           people: [for (final id in ids) CircleVoicePerson(id: id, name: id == 'me' ? 'You' : voice.nameOf(id))],
           here: here,
+          music: ids.isEmpty ? null : _musicIn(channel, here: here),
           files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
         );
       }(),

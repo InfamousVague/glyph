@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/app_seen.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/voice/spotify.dart';
@@ -410,6 +411,43 @@ void main() {
     maya.source.onState!('sam', 'failed');
     await settle();
     expect(maya.source.links, isEmpty);
+  });
+
+  test('how loud it is: the DJ\'s from its source, a listener\'s from its connection, read only while shown, seen and playing', () async {
+    final (maya, sam) = await playing();
+    sam.ear.loud = 0.8;
+    maya.source.loud = 0.6;
+    Future<void> beat() async {
+      await Future<void>.delayed(SpotifyMusic.levelEvery * 2);
+      await settle();
+    }
+
+    await beat();
+    expect(sam.ear.levelsAsked, 0, reason: 'nothing shows it');
+    void shown() {}
+    sam.music.levels.addListener(shown);
+    maya.music.levels.addListener(shown);
+    addTearDown(() {
+      sam.music.levels.removeListener(shown);
+      maya.music.levels.removeListener(shown);
+      AppSeen.set(true);
+    });
+    await beat();
+    expect(sam.music.levels.value[SpotifyMusic.levelId], closeTo(0.4, 0.001));
+    expect(maya.music.levels.value[SpotifyMusic.levelId], closeTo(0.3, 0.001));
+    AppSeen.set(false);
+    final asked = sam.ear.levelsAsked;
+    await beat();
+    expect(sam.music.levels.value, isEmpty);
+    expect(sam.ear.levelsAsked, lessThanOrEqualTo(asked + 1), reason: 'not read while the app is put away');
+    AppSeen.set(true);
+    await beat();
+    expect(sam.music.levels.value[SpotifyMusic.levelId], greaterThan(0));
+    sam.music.levels.removeListener(shown);
+    expect(sam.music.levels.value, isEmpty);
+    await maya.music.stop();
+    await settle();
+    expect(maya.music.levels.value, isEmpty, reason: 'stopped');
   });
 
   test('its own loudness, kept here; at nothing it is not asked for; deafened it is silent', () async {
