@@ -15,6 +15,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart' show settingsHue;
 import 'circles/circle_face.dart';
 import 'nav_bar.dart';
+import 'profile_bubble.dart';
 
 /// The rail's column itself; what a press on any of it does is the shell's, handed in.
 class NavRail extends StatelessWidget {
@@ -30,6 +31,7 @@ class NavRail extends StatelessWidget {
     required this.onCircleMenu,
     required this.onAddCircle,
     this.onFeedback,
+    this.onProfile,
   });
 
   /// The circles, in the order the list has them.
@@ -54,6 +56,10 @@ class NavRail extends StatelessWidget {
   /// Share feedback, as a ring just above Settings (Matt, 2026-11-20: "on mobile move the share feedback button just
   /// above the settings cog in the navigation rail"); none where it is somewhere else (the Mac's title strip).
   final VoidCallback? onFeedback;
+
+  /// Opens the whole profile, from the card of the profile bubble just above Settings (lib/ui/profile_bubble.dart; Matt,
+  /// 2026-11-25); no bubble where there is no profile to show (a computer that only follows its phone).
+  final VoidCallback? onProfile;
 
   /// How wide it is: a ring and room round it.
   static double width(Tokens t) => t.len('app-rail-ring') + t.space(3) * 2;
@@ -107,6 +113,7 @@ class NavRail extends StatelessWidget {
                     shown: false,
                     onPressed: onFeedback!,
                   ),
+                if (item.id == 'settings' && onProfile != null) ProfileBubble(key: const ValueKey('rail-profile'), onOpenProfile: onProfile!, shown: active == 'profile'),
                 NavRing(key: ValueKey('rail-${item.id}'), item: item, shown: item.id == active, onPressed: () => onSelect(item.id)),
               ],
             ]),
