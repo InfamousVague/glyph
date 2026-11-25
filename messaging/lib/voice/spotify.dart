@@ -540,8 +540,9 @@ class SpotifyMusic extends ChangeNotifier {
         _trouble = '';
       }
       if (d != null) await _do(d);
-      await _lookLossless(source, deck);
-      if (identical(deck, _deck)) _said();
+      _said();
+      // Never waited for: WebRTC slow to say how its connections stand is nothing to the queue.
+      unawaited(_lookLossless(source, deck));
     } finally {
       _polling = false;
     }
@@ -563,13 +564,21 @@ class SpotifyMusic extends ChangeNotifier {
   /// microphone in use brings a Mac's output down to a call's, and then that is all there is to send.
   bool get capturedLow => mine && _captured > 0 && _captured < 44100;
 
+  bool _lookingLossless = false;
+  static const _answerWithin = Duration(seconds: 4);
+
   Future<void> _lookLossless(MusicSource source, SpotifyDeck deck) async {
+    if (_lookingLossless) return;
+    _lookingLossless = true;
     try {
-      final hz = await source.rate();
+      final hz = await source.rate().timeout(_answerWithin);
       if (!identical(deck, _deck)) return;
+      final low = capturedLow;
       _captured = hz;
+      if (low != capturedLow) notifyListeners();
       if (_desk.isEmpty) return;
-      final now = await source.losslessState();
+      final had = sentLossless;
+      final now = await source.losslessState().timeout(_answerWithin);
       if (!identical(deck, _deck)) return;
       for (final d in _desk.look(now)) {
         switch (d) {
@@ -585,8 +594,11 @@ class SpotifyMusic extends ChangeNotifier {
         }
         if (!identical(deck, _deck)) return;
       }
+      if (had != sentLossless) notifyListeners();
     } catch (e) {
       debugPrint('spotify: lossless not looked at: $e');
+    } finally {
+      _lookingLossless = false;
     }
   }
 
