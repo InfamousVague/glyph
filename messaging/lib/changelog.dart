@@ -25,6 +25,15 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.29', '2026-11-25', [
+    'Notion for circles, a plugin: give a circle a Notion token in its settings, and links to Notion pages and boards open out under the message for everyone in it. Read the note in its settings about who can then see what.',
+    'Send photos and files to a friend: the + in a chat with a friend offers Photos and Files, up to five at a time, sealed as your messages are.',
+    'A map down the right edge of every chat: a line for each message, coloured by who sent it and longer where the talk was fast. Press it to go there, or hover over it (tap, on a phone) for the chat in stretches, each with faces and a line about it.',
+    'Home screen widgets on Android: Unread, Conversations and People, each in several sizes.',
+    'A file that comes with a text, such as a contact card or a PDF, can be opened, saved and shared.',
+    'Messenger chats you have read should stay read after the app is closed and opened again.',
+    'Going from one circle to another shows its list at once, and the people in a voice space\'s call line up with its name.',
+  ]),
   ReleaseNotes('0.12.28', '2026-11-25', [
     'The list of chats shows grey rows at its foot while another network (Telegram and the like) is still starting, and where older ones are being read, so it no longer looks finished before it is.',
     'A chat on another network, and a space\'s chat, are drawn in grey until they have answered: each said "No messages yet" straight away, before anything was known.',
