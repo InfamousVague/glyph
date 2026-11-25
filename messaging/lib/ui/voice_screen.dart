@@ -54,7 +54,7 @@ class VoiceScreen extends StatelessWidget {
         // In a call, the page is the call and nothing else: who is in it, and its buttons in the dock (Matt,
         // 2026-11-15: "I want the call screen to be super simple too just a list of chatters and the call controls").
         // A hangout's call is its page: the people or the chat, its roles (lib/ui/hangout_screen.dart).
-        // On a narrow phone with a design chosen, the design is the call page (space_design.dart).
+        // On a narrow phone a space's call is its own page (space_design.dart).
         final design = inlineSpaceCall(context, s);
         if (design != null) return design;
         // A space's call beside the list is the space's own page: the call over its chat (HangoutScreen's SpaceSplit). An
@@ -326,14 +326,8 @@ class CallVideos extends StatelessWidget {
 
 /// The call's buttons: the microphone, the sound, the camera and leaving, in a dock like the app's pill.
 class CallDock extends StatelessWidget {
-  const CallDock({super.key, required this.session, this.chatShown = true, this.onChat});
+  const CallDock({super.key, required this.session});
   final VoiceSession session;
-
-  /// Where the call has its space's chat under it (SpaceSplit): whether that chat is shown, and what puts it away and
-  /// brings it back, as a button beside Leave (Matt, 2026-11-24: "add a button next to the leave button for hiding
-  /// and showing the chat"). Null: no such button.
-  final bool chatShown;
-  final VoidCallback? onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +387,6 @@ class CallDock extends StatelessWidget {
               // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
               if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
-              if (onChat != null) button(LucideMore.messageCircle, chatShown ? 'Hide chat' : 'Show chat', onChat!, on: chatShown),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),
@@ -896,7 +889,7 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
 
 /// The mark on someone who isn't heard (GMFB-49), so anyone can tell which mute it is: a lock where a moderator muted
 /// them for everyone ([all]), a crossed speaker where only this device stopped hearing them ([mine]), the crossed
-/// microphone where they muted themselves. The space designs' is the same (SpaceWords.mutedIcon).
+/// microphone where they muted themselves. A space's call page has the same (SpaceWords.mutedIcon).
 LucideIcon mutedMark({required bool all, required bool mine}) => all ? Lucide.lock : (mine ? LucideMore.volumeX : LucideMore.micOff);
 
 /// Why this device can't unmute, said when its mute button is pressed while locked (GMFB-49): until now the button

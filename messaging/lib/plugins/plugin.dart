@@ -643,7 +643,7 @@ abstract final class Slots {
   /// Rows in the plugin's own card on Settings › Plugins, after its [GhostPlugin.settings].
   static const settings = WidgetSlot<SettingsPlace>('settings.plugin');
 
-  /// Buttons in a call's menu, beside Invite and Devices: drawn by every call design (lib/ui/space_designs).
+  /// Buttons in a call's menu, beside Invite and Devices: drawn by the call's page (lib/ui/space_designs).
   static const callControls = ActionSlot<CallPlace>('call.controls');
 
   /// Over a call's page, under its header, whatever its design: a line everyone must see (Recording).

@@ -53,7 +53,6 @@ import 'settings.dart';
 import 'settings_shortcuts.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
-import 'space_designs/space_design.dart';
 import '../summaries.dart';
 
 /// A row's icon at the size every settings row uses.
@@ -1339,7 +1338,6 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
   final t = context.tokens;
   // The settings' own state: a search builds this page with no app around it.
   final app = m.app;
-  final design = SpaceDesign.of(app);
   // The newest first: what just happened is what is being looked for.
   final lines = m.devLines.reversed.toList();
   return [
@@ -1374,23 +1372,6 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
             hint: Text(n.description),
             value: n == NavStyle.of(app) ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
             onPress: () => app.set(NavStyle.pref, n.name),
-          ),
-      ],
-    ),
-    // Six other ways a space's call can look (Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and
-    // video screens for spaces ... release all 6 versions under a developer setting flag so I can toggle them on and
-    // off"). Chosen here; the next call in a space opens in it, or press the call banner in one already.
-    PaneSection(
-      title: 'Space call design',
-      description: const Text('How a space\'s call looks, modelled on today\'s call apps. Voice chat is the default; Standard is the earlier layout. A call already open changes when you open it again from its banner.'),
-      children: [
-        for (final d in SpaceDesign.values)
-          SettingRow(
-            icon: _icon(d.icon),
-            label: '${d.label}${d == SpaceDesign.standard ? ' · the earlier layout' : ' · like ${d.after}'}${d == SpaceDesign.fallback ? ' (default)' : ''}',
-            hint: Text(d.description),
-            value: d == design ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
-            onPress: () => app.set(SpaceDesign.pref, d.name),
           ),
       ],
     ),

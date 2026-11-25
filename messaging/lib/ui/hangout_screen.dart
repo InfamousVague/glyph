@@ -157,7 +157,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
     if (!mounted) return;
     // Left while it was connecting (Leave is there from the first moment): there is no call to show.
     if (Voice.instance.session?.channel.room != widget.channel.room) return;
-    // One of the developer designs: the call opens as its page (lib/ui/space_designs).
+    // Where no shell draws the call: it opens as its page (lib/ui/space_designs).
     if (openSpaceCall(context)) return;
     // An open space stays where it was opened, its floor in this page with the call's controls over its foot: the
     // list beside it (a circle's spaces) is left as it is (Matt, 2026-11-23: "don't transform the server sidebar when
@@ -230,12 +230,12 @@ class _HangoutScreenState extends State<HangoutScreen> {
       listenable: Listenable.merge([v, ?room, CallRecorder.instance, OpenSpaces.instance]),
       builder: (context, _) {
         final s = v.session?.channel.room == widget.channel.room ? v.session : null;
-        // In the call on a narrow phone: the chosen design is the page (space_design.dart).
-        // An open space is its own page, the floor (lib/ui/open_space_view.dart): no design is drawn in its place
-        // (inlineSpaceCall asks OpenSpaces.isCall).
+        // In the call on a narrow phone: the call's page is the page (space_design.dart).
+        // An open space is its own page, the floor (lib/ui/open_space_view.dart): the call's page is not drawn in its
+        // place (inlineSpaceCall asks OpenSpaces.isCall).
         final open = OpenSpaces.isCall(s);
-        final design = inlineSpaceCall(context, s);
-        if (design != null) return design;
+        final callPage = inlineSpaceCall(context, s);
+        if (callPage != null) return callPage;
         final pad = MediaQuery.paddingOf(context).bottom;
         final wide = AppShell.wideOf(context);
         // Under the pill in the list's place: what stands at the foot (the composer, the dock) stands above it.
@@ -341,37 +341,18 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // In the call beside the list (a computer, a wide phone): this page, in the pane, is the call on top and the
         // space's chat under it, the list beside it left as it is (Matt, 2026-11-23: "a 66% top view with the third
         // screenshot content at the top and the chat and compose bar at the bottom leaving the sidebar unchanged so
-        // you can still quickly navigate the circle"). The chosen design draws the call (its own header, its people
-        // and buttons, no Chat of its own); Standard draws the app's people and dock under the space's header.
+        // you can still quickly navigate the circle"). The call's page draws the call: its own header, its people and
+        // its buttons, with no Chat panel of its own.
         if (wide && !open) {
           final app = AppState.of(context);
-          final design = SpaceDesign.of(app);
-          final below = chatOver(pill);
           // The chat under the call can be put away, by a button beside Leave (Matt, 2026-11-24: "add a button next to
           // the leave button for hiding and showing the chat"): kept with the device's choices ([SpaceSplit.chatPref]).
           final chatShown = SpaceSplit.chatShown(app);
-          void toggleChat() => SpaceSplit.setChatShown(app, !chatShown);
-          if (design != SpaceDesign.standard) {
-            return ColoredBox(
-              color: t.color('glacier-bg'),
-              child: SpaceSplit(
-                call: SpaceCallPage(key: ValueKey('split-${design.name}-${s.channel.room}'), design: design, inline: true, chatBelow: true, chatShown: chatShown, onChatBelow: toggleChat),
-                chat: below,
-              ),
-            );
-          }
-          return _page(
-            room,
-            actions: actions,
-            body: SpaceSplit(
-              call: Stack(children: [
-                ListView(
-                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), NavPill.clearance(t) + t.space(4)),
-                  children: [CallPanel(session: s)],
-                ),
-                Positioned(left: 0, right: 0, bottom: t.space(3), child: Center(child: CallDock(session: s, chatShown: chatShown, onChat: toggleChat))),
-              ]),
-              chat: below,
+          return ColoredBox(
+            color: t.color('glacier-bg'),
+            child: SpaceSplit(
+              call: SpaceCallPage(key: ValueKey('split-call-${s.channel.room}'), inline: true, chatBelow: true, chatShown: chatShown, onChatBelow: () => SpaceSplit.setChatShown(app, !chatShown)),
+              chat: chatOver(pill),
             ),
           );
         }
@@ -388,24 +369,15 @@ class _HangoutScreenState extends State<HangoutScreen> {
             ]),
           );
         }
-        // In the call: the people or the chat, and the dock.
+        // In an open space's call on a phone (any other space's is the call's page, above): its floor or its chat, and
+        // the dock over the floor's foot.
         return _page(
           room,
           actions: actions,
           body: Stack(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               _callOrChat(t),
-              Expanded(
-                child: _tab == 'chat'
-                    ? chat
-                    // An open space: the floor in the people's place, the dock over its foot.
-                    : open
-                        ? OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))
-                        : ListView(
-                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), dockAt + NavPill.clearance(t) + t.space(4)),
-                            children: [CallPanel(session: s)],
-                          ),
-              ),
+              Expanded(child: _tab == 'chat' ? chat : OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))),
             ]),
             if (_tab != 'chat') Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
           ]),
@@ -2788,32 +2760,6 @@ class _HangoutSettingsScreenState extends State<HangoutSettingsScreen> {
       return GhostPage(title: widget.channel.name, body: Padding(padding: EdgeInsets.all(context.tokens.space(4)), child: SettingsCallout(child: const Text('The relay server isn\'t connected, so this space\'s settings can\'t be reached right now.'))));
     }
     return RolesScreen(room: room, settings: true);
-  }
-}
-
-/// Who is in the hangout's call, in the list's place beside the pane while in it on a wide screen: the call's dock
-/// stands where the pill was (lib/ui/shell.dart; Matt, 2026-11-15: "hide the default navbar when in a hangout and show
-/// the call controls where it was").
-class HangoutPeople extends StatelessWidget {
-  const HangoutPeople({super.key, required this.session});
-  final VoiceSession session;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final c = session.channel;
-    final room = Voice.instance.hangoutFor(c);
-    return GhostPage(
-      title: c.name,
-      back: false,
-      actions: [
-        IconTap(icon: Lucide.shieldCheck, label: 'Space settings', onPressed: () => room == null ? null : push(context, (_) => RolesScreen(room: room, settings: true))),
-      ],
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom),
-        children: [CallPanel(session: session, videos: false)],
-      ),
-    );
   }
 }
 

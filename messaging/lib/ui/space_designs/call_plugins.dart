@@ -1,6 +1,6 @@
 /// The plugins' places in a call (Matt, 2026-11-19: "what are some plugins we could add to integrate with circles? I'd
 /// like to have a "record call" plugin"): what a call's menu offers of theirs (Slots.callControls) and what they put
-/// over the call's page (Slots.callBanner), in every call design.
+/// over the call's page (Slots.callBanner).
 ///
 /// In a circle's space a plugin a circle may hold is on as the circle says (CircleManifest.pluginOn), not as this
 /// device's switch (Matt, 2026-11-19: "Some plugins should be serverside / cirlce side as well").
@@ -18,7 +18,7 @@ import '../../voice/channels.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 
-/// One thing a plugin offers in a call's menu, as a design draws it.
+/// One thing a plugin offers in a call's menu, as the call's page draws it.
 @immutable
 class SpaceExtra {
   const SpaceExtra({required this.label, required this.icon, required this.run, this.danger = false, this.builtIn = false});
@@ -27,7 +27,7 @@ class SpaceExtra {
   final void Function(BuildContext context) run;
   final bool danger;
 
-  /// The app's own (Share screen), not a plugin's: a design that marks plugins doesn't mark it.
+  /// The app's own (Share screen), not a plugin's: where plugins' rows are marked, it is not.
   final bool builtIn;
 }
 

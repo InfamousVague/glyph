@@ -1127,7 +1127,10 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   pieces: the space's name with "N in voice" as its title, "talking", "Mic on" / "Muted", "Invite to space", the app's
   RoleTag, no Telegram drag handle. Built, reviewed adversarially, fixed and checked again in two passes.
 - **Six other designs for a space's call, behind a developer switch; your own voice activity alone** (0.7.49, not
-  released; Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
+  released; the switch and all but one of the designs **removed 2026-11-24**, Matt: "remove the other video call
+  layouts from the codebase we only use the default one now": Voice chat, the default since 2026-11-16, is how a
+  space's call is drawn, and `lib/ui/space_designs/` holds it, the call's model and the plugins' places alone; Matt,
+  2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces,
   Additionally make it so that even when we're in the call alone we see the voice activity of ourselves release all 6
   versions under a developer setting flag so I can toggle them on and off. Use iconography and good labeling and base
   the designs off popular voice and video chat apps that exist today").

@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/ui/space_designs/space_design.dart';
+import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 
 import 'support/space_call_harness.dart';
 
-/// In a short window with cameras on, every design's people and its Leave button can be reached: a name under the call's
+/// In a short window with cameras on, the call's people and its Leave button can be reached: a name under the call's
 /// buttons is scrolled into view and then takes the press itself (not a button drawn over it). The coordinator,
 /// 2026-11-23: the web e2e's tap on Maya's row landed on Mute after the tiles went 4:3; the row was below the list's
 /// fold (reachable by scrolling), and the e2e pressed where it lay without scrolling to it.
@@ -16,8 +16,8 @@ void main() {
     return hits.path.any((h) => identical(h.target, box));
   }
 
-  for (final d in SpaceDesign.values.where((d) => d != SpaceDesign.standard)) {
-    testWidgets('${d.name}: in short windows with cameras on, everyone and Leave can be reached', (tester) async {
+  {
+    testWidgets('in short windows with cameras on, everyone and Leave can be reached', (tester) async {
       final semantics = tester.ensureSemantics();
       final h = await SpaceHarness.load(tester);
       addTearDown(tester.view.reset);
@@ -25,7 +25,7 @@ void main() {
       // A computer's usual short windows, and the web e2e's (tool/web/e2e.mjs).
       for (final size in const [Size(1280, 720), Size(1024, 640), Size(1180, 780)]) {
         for (final others in [1, 3, 8]) {
-          await h.shoot(tester, d.page(h.call(people: others, video: const {'a', 'c'}, myVideo: true)), 'probe', size: size, dir: '../build/call-short');
+          await h.shoot(tester, TelegramCall(call: h.call(people: others, video: const {'a', 'c'}, myVideo: true)), 'probe', size: size, dir: '../build/call-short');
           final where = '${size.width.round()}x${size.height.round()} with ${others + 1}';
           for (final name in ['Maya Chen', 'Sam Ortiz', 'Riley', 'Hana Sato'].take(others)) {
             final f = find.textContaining(name);

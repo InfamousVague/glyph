@@ -18,7 +18,7 @@ import '../skeleton.dart';
 import '../tile_grid.dart';
 import 'space_design.dart';
 
-/// A space's call laid out as Telegram's group voice chat (SpaceDesign.telegram, the app's default call screen):
+/// A space's call, laid out as Telegram's group voice chat (the one way a space's call is drawn: space_design.dart):
 /// headed by the space's name and how many are in voice, video tiles two across above a list of people, and at the foot
 /// one big microphone button with two round buttons either side of it. Drawn in Ghost Messaging's own look, light or dark as the app is (Matt,
 /// 2026-11-16: "Change the telegram one to be our colors without the gradients and our voice effects make the chat

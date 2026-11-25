@@ -356,7 +356,7 @@ void main() {
     // page's own words follow, so nothing on it says the call is connected or that nobody else is here.
     testWidgets('is over a space\'s call page, whose own words wait with it', (tester) async {
       coming(step: JoinStep.microphone, seen: const ['a']);
-      await draw(tester, const SpaceCallPage(design: SpaceDesign.fallback, inline: true), size: const Size(412, 892));
+      await draw(tester, const SpaceCallPage(inline: true), size: const Size(412, 892));
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('call-connecting')), findsOneWidget);
       expect(find.descendant(of: find.byType(ConnectingPill), matching: find.textContaining('Starting the microphone', findRichText: true)), findsOneWidget);
@@ -395,7 +395,7 @@ void main() {
           builder: (context) => ColoredBox(
             color: context.tokens.color('glacier-bg'),
             child: SpaceSplit(
-              call: const SpaceCallPage(design: SpaceDesign.fallback, inline: true, chatBelow: true),
+              call: const SpaceCallPage(inline: true, chatBelow: true),
               chat: const Stack(children: [
                 Positioned.fill(child: SkeletonChat(label: 'Connecting to Lounge', faces: true)),
                 Positioned(left: 16, right: 16, top: 12, child: Center(heightFactor: 1, child: ConnectingPill(title: 'Connecting to Lounge…', detail: 'Reaching the relay server'))),

@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:glacier/glacier.dart';
 
-import '../../app_state.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
@@ -32,68 +31,22 @@ import '../screen_share.dart';
 import '../space_invite.dart';
 import '../voice_screen.dart';
 import 'call_plugins.dart';
-import 'discord.dart';
-import 'facetime.dart';
-import 'meet.dart';
-import 'stage.dart';
 import 'telegram.dart';
-import 'zoom.dart';
 
-/// Six other ways a space's call can look, behind a switch in Settings › Developer (Matt, 2026-11-16: "give me 6
-/// alternate designs for the calling chat and video screens for spaces ... release all 6 versions under a developer
-/// setting flag so I can toggle them on and off. Use iconography and good labeling and base the designs off popular
-/// voice and video chat apps that exist today").
+/// A space's call: one page ([SpaceCallPage], drawn by lib/ui/space_designs/telegram.dart) from one account of the
+/// call ([SpaceCall]): who is in it and how loud each is, their video, the chat, and the call's buttons. On a narrow
+/// phone the page is the call ([inlineSpaceCall]); beside a list it is the top of the space's own page, its chat under
+/// it (HangoutScreen's SpaceSplit); pushed over a page that has no shell under it ([openSpaceCall]), Minimise puts it
+/// away to the call banner.
 ///
-/// With one chosen, a space's call opens as a page of its own over the whole window (as Zoom's, FaceTime's and Meet's
-/// calls do), drawn by that design from a [SpaceCall]: who is in it and how loud each is, their video, the chat, and
-/// the call's buttons. Minimise puts it away to the call banner; pressing the banner brings it back. Standard is the
-/// app's own layout (lib/ui/hangout_screen.dart), as before.
-enum SpaceDesign {
-  standard('Standard', 'Ghost Messaging', 'The app\'s own: people beside the list, the chat in the pane.', LucideMore.headphones),
-  discord('Voice channel', 'Discord', 'Dark tiles that light green round whoever talks, the chat beside them, a control bar at the foot.', Lucide.users),
-  zoom('Meeting', 'Zoom', 'Speaker and gallery views, a labelled toolbar along the foot, People and Chat as side panels.', Lucide.video),
-  facetime('Full screen', 'FaceTime', 'Whoever talks fills the screen, you float in a corner, glass controls on top.', Lucide.smartphone),
-  meet('Rounded tiles', 'Google Meet', 'Soft tiles with a pill toolbar, the people and the chat in a side panel.', Lucide.layoutGrid),
-  stage('Audio stage', 'Clubhouse and X Spaces', 'Voice first: big rippling faces on a stage, the chat as comments below.', LucideMore.audioLines),
-  telegram('Voice chat', 'Telegram', 'A list of people in the app\'s own colours, ripples round whoever talks, one big microphone button and the chat at a third of the window.', Lucide.mic);
+/// It was one of seven ways a space's call could look, chosen in Settings › Developer (Matt, 2026-11-16: "give me 6
+/// alternate designs for the calling chat and video screens for spaces", and of this one "deploy this as the default
+/// version"). The others are gone (Matt, 2026-11-24: "remove the other video call layouts from the codebase we only
+/// use the default one now"): five modelled on other call apps, and the app's earlier layout for a space's call. What
+/// that earlier layout drew is still what draws the calls that are not a space's (a group's, a friend's:
+/// lib/ui/voice_screen.dart) and the buttons on an open space's floor.
 
-  const SpaceDesign(this.label, this.after, this.description, this.icon);
-
-  /// Its name, the app it is modelled on, and a line on what it looks like.
-  final String label;
-  final String after;
-  final String description;
-  final LucideIcon icon;
-
-  static const pref = 'dev_space_design';
-
-  /// The design a call opens in: Telegram's, made the app's default (Matt, 2026-11-16: "Change the telegram one to be
-  /// our colors without the gradients and our voice effects ... then deploy this as the default version"), until
-  /// another is chosen in Settings › Developer ("standard" is the app's earlier layout).
-  static const fallback = SpaceDesign.telegram;
-
-  static SpaceDesign of(AppState app) => named(app.choice(pref, '')) ?? fallback;
-
-  static SpaceDesign? named(String name) {
-    for (final d in values) {
-      if (d.name == name) return d;
-    }
-    return null;
-  }
-
-  /// The design's own page for [call].
-  Widget page(SpaceCall call) => switch (this) {
-        SpaceDesign.standard => const SizedBox.shrink(),
-        SpaceDesign.discord => DiscordCall(call: call),
-        SpaceDesign.zoom => ZoomCall(call: call),
-        SpaceDesign.facetime => FaceTimeCall(call: call),
-        SpaceDesign.meet => MeetCall(call: call),
-        SpaceDesign.stage => StageCall(call: call),
-        SpaceDesign.telegram => TelegramCall(call: call),
-      };
-}
-
-/// Someone in the call as a design draws them.
+/// Someone in the call as its page draws them.
 @immutable
 class SpacePerson {
   const SpacePerson({
@@ -159,7 +112,7 @@ class SpacePerson {
   }
 }
 
-/// Everything a design needs to draw a space's call, and do what its buttons say. Made from the call there is
+/// Everything the page needs to draw a space's call, and do what its buttons say. Made from the call there is
 /// ([SpaceCall.live]); a test makes one of its own ([SpaceCall.new]) with no WebRTC underneath.
 class SpaceCall {
   SpaceCall({
@@ -256,7 +209,7 @@ class SpaceCall {
         if (m.id != s.bridgeId)
         SpacePerson(
           id: m.id,
-          // A hand raised to speak on a stage, before the name, so every design shows it (GMFB-29).
+          // A hand raised to speak on a stage, before the name, wherever the name is drawn (GMFB-29).
           name: m.hand ? '✋ ${v.nameOf(m.id)}' : v.nameOf(m.id),
           muted: m.muted || (room != null && !room.heard(m.id)) || v.silenced(m.id),
           mutedForAll: room?.mutedForAll(m.id) ?? false,
@@ -310,7 +263,7 @@ class SpaceCall {
       onInvite: mayInvite(s.channel, room) ? (context) => showSpaceInvite(context, s.channel) : null,
       onDevices: (context) => push(context, (_) => const SettingsSectionScreen('voice')),
       chatBuilder: room == null ? null : ({double bottom = 0}) => HangoutChat(room: room, bottom: bottom),
-      // Sharing the screen, first in every design's menu (GMFB-27), where this device can.
+      // Sharing the screen, first in the call's menu (GMFB-27), where this device can.
       extras: [
         if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
         ...stageExtras(s, room),
@@ -352,7 +305,7 @@ class SpaceCall {
   final void Function(BuildContext context)? onScreen;
 
   /// Changes between the front and the back camera (GMFB-57, Kevin: "Add a button to flip camera on mobile
-  /// versions"). Null where there is nothing to flip, and a design then draws no button: a computer, video off, or
+  /// versions"). Null where there is nothing to flip, and no button is drawn then: a computer, video off, or
   /// the screen shared in the camera's place.
   final VoidCallback? onFlip;
 
@@ -373,7 +326,7 @@ class SpaceCall {
   final CallWait? wait;
 
   /// How many are in the call, as the relay server says, and not here yet while it is being come into
-  /// (CallWaitBuilder.coming): a design that lists the people draws them as bones.
+  /// (CallWaitBuilder.coming): the list of people draws them as bones.
   final int coming;
 
   final VoidCallback? onMute, onDeafen, onVideo, onLeave, onMinimize;
@@ -382,23 +335,23 @@ class SpaceCall {
   final Widget Function({double bottom})? chatBuilder;
 
   /// The space is bridged to a Discord voice channel: its sound and chat go through the bridge, so it is not
-  /// end-to-end encrypted. A design says so.
+  /// end-to-end encrypted. The page says so.
   final bool bridged;
 
   /// What the plugins that are on in this call offer in its menu (Slots.callControls): Record, for one.
   final List<SpaceExtra> extras;
 
-  /// The space's chat is shown under the call by the page round it (SpaceSplit, a computer's pane): the design leaves
+  /// The space's chat is shown under the call by the page round it (SpaceSplit, a computer's pane): the call leaves
   /// out its own Chat button and its chat panel (Matt, 2026-11-23: "the chat and compose bar at the bottom").
   final bool chatBelow;
 
   /// Under the call ([chatBelow]): whether that chat is shown now, and what puts it away and brings it back (Matt,
-  /// 2026-11-24: "add a button next to the leave button for hiding and showing the chat"). A design's own Chat button
+  /// 2026-11-24: "add a button next to the leave button for hiding and showing the chat"). The call's own Chat button
   /// does that there, in place of opening a panel of its own. Null: nothing to put away, and no button.
   final bool chatShown;
   final VoidCallback? onChatBelow;
 
-  /// Whether a design draws its Chat button: always on its own page, and under the split where the chat there can be
+  /// Whether the call draws its Chat button: always on its own page, and under the split where the chat there can be
   /// put away.
   bool get hasChatButton => !chatBelow || onChatBelow != null;
 
@@ -494,82 +447,12 @@ class SpaceVideo extends StatelessWidget {
   }
 }
 
-/// A call button as most of these apps draw theirs: a round or rounded icon, its words under it. [on] fills it (a
-/// toggle that is on); [danger] makes it red (leave).
-class SpaceButton extends StatelessWidget {
-  const SpaceButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    this.onPressed,
-    this.on = false,
-    this.danger = false,
-    this.size = 52,
-    this.showLabel = true,
-    this.dark = false,
-    this.square = false,
-  });
-  final LucideIcon icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool on;
-  final bool danger;
-  final double size;
-  final bool showLabel;
-
-  /// Drawn for a dark ground whatever the theme (FaceTime's glass, Telegram's sheet).
-  final bool dark;
-
-  /// A rounded square, not a circle (Zoom, Meet).
-  final bool square;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final red = t.colorOf('#dd3a30');
-    final ink = dark ? const Color(0xFFFFFFFF) : t.color('app-ink');
-    final paper = dark ? const Color(0xFF000000) : t.color('app-paper');
-    final ground = danger ? red : (on ? ink : (dark ? const Color(0x33FFFFFF) : t.color('app-paper-2')));
-    final mark = danger ? const Color(0xFFFFFFFF) : (on ? paper : ink);
-    final off = onPressed == null;
-    return Opacity(
-      opacity: off ? 0.45 : 1,
-      child: GlacierPressable(
-        onPressed: onPressed,
-        semanticLabel: label,
-        builder: (context, state) => Column(mainAxisSize: MainAxisSize.min, children: [
-          AnimatedScale(
-            scale: state.pressed ? 0.94 : 1,
-            duration: const Duration(milliseconds: 100),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: ground,
-                shape: square ? BoxShape.rectangle : BoxShape.circle,
-                borderRadius: square ? BorderRadius.circular(size * 0.28) : null,
-              ),
-              alignment: Alignment.center,
-              child: AppIcon(icon, size: size * 0.4, wash: false, color: mark),
-            ),
-          ),
-          if (showLabel) ...[
-            SizedBox(height: t.space(1)),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: dark ? const Color(0xFFE6E6E8) : t.color('app-ink-2'))),
-          ],
-        ]),
-      ),
-    );
-  }
-}
-
-/// The words a design's buttons say, the same in all six: so "Mute" is "Mute" everywhere.
+/// The words the call's buttons say, wherever they are drawn: so "Mute" is "Mute" everywhere.
 abstract final class SpaceWords {
   static String mute(SpaceCall c) => c.muted ? 'Unmute' : 'Mute';
   static String video(SpaceCall c) => c.video ? 'Stop video' : 'Video';
   static String deafen(SpaceCall c) => c.deafened ? 'Undeafen' : 'Deafen';
-  static const leave = 'Leave', chat = 'Chat', people = 'People', invite = 'Invite', settings = 'Settings', minimize = 'Minimise', devices = 'Devices', flip = 'Flip camera';
-  static LucideIcon muteIcon(SpaceCall c) => c.muted ? LucideMore.micOff : Lucide.mic;
+  static const leave = 'Leave', chat = 'Chat', invite = 'Invite', settings = 'Settings', devices = 'Devices', flip = 'Flip camera';
 
   /// The mark on someone who isn't heard, and its words (GMFB-49), so anyone can tell which mute it is: a lock where a
   /// moderator muted them for everyone, a crossed speaker where only this device stopped hearing them, the crossed
@@ -581,11 +464,9 @@ abstract final class SpaceWords {
   static LucideIcon deafenIcon(SpaceCall c) => c.deafened ? LucideMore.headphoneOff : LucideMore.headphones;
 }
 
-/// A space's call as the chosen [design] draws it, over the whole window: built again from the call as it changes,
-/// and closed when the call ends.
+/// A space's call as a page: built again from the call as it changes, and closed when the call ends.
 class SpaceCallPage extends StatefulWidget {
-  const SpaceCallPage({super.key, required this.design, this.inline = false, this.chatBelow = false, this.chatShown = true, this.onChatBelow});
-  final SpaceDesign design;
+  const SpaceCallPage({super.key, this.inline = false, this.chatBelow = false, this.chatShown = true, this.onChatBelow});
 
   /// With [chatBelow]: whether the chat under the call is shown, and what shows and hides it ([SpaceCall.onChatBelow]).
   final bool chatShown;
@@ -664,8 +545,8 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
       listenable: call.changes,
       builder: (context, _) {
         final now = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow) ?? call;
-        final page = KeyedSubtree(key: ValueKey('space-design-${widget.design.name}'), child: widget.design.page(now));
-        // What the plugins put over the call, whatever its design (Slots.callBanner): a line everyone must see.
+        final page = KeyedSubtree(key: const ValueKey('space-call'), child: TelegramCall(call: now));
+        // What the plugins put over the call (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;
         // Someone else's shared screen, large over the call until put away (GMFB-27).
         final sharer = session == null ? null : sharerIn(session);
@@ -687,22 +568,20 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   }
 }
 
-/// Opens the space call's page as [design] draws it, over everything. False where the standard layout is to be used
-/// (Standard chosen, not in a space's call, or in an open space's, whose floor is its page: OpenSpaces.isCall).
-bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
-  final d = design ?? SpaceDesign.of(AppState.of(context));
+/// Opens the space call's page over everything. False where there is nothing to open: not in a space's call, in an
+/// open space's (its floor is its page: OpenSpaces.isCall), or where the app's shell draws the call itself.
+bool openSpaceCall(BuildContext context) {
   final s = Voice.instance.session;
-  if (d == SpaceDesign.standard || s == null || !s.channel.hangout || OpenSpaces.isCall(s)) return false;
-  // On a narrow phone the call page itself is the design (inlineSpaceCall), so there is nothing to push over it; in a
-  // wide window the design is the top of the space's own page in the pane, its chat under it, the list beside it left
-  // as it is (SpaceSplit; Matt, 2026-11-23: "leaving the sidebar unchanged so you can still quickly navigate the
-  // circle").
+  if (s == null || !s.channel.hangout || OpenSpaces.isCall(s)) return false;
+  // On a narrow phone the call's page is the page itself (inlineSpaceCall), so there is nothing to push over it; in a
+  // wide window it is the top of the space's own page in the pane, its chat under it, the list beside it left as it
+  // is (SpaceSplit; Matt, 2026-11-23: "leaving the sidebar unchanged so you can still quickly navigate the circle").
   if (AppShell.maybeOf(context) != null) return false;
   Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
     settings: const RouteSettings(name: 'space-call'),
     transitionDuration: const Duration(milliseconds: 280),
     reverseTransitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (context, _, _) => SpaceCallPage(design: d),
+    pageBuilder: (context, _, _) => const SpaceCallPage(),
     transitionsBuilder: (context, a, _, child) => FadeTransition(
       opacity: a,
       child: SlideTransition(position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)), child: child),
@@ -711,43 +590,14 @@ bool openSpaceCall(BuildContext context, {SpaceDesign? design}) {
   return true;
 }
 
-/// Whether the call there is is drawn by a design other than Standard: the app's own layout then stays out of the way
-/// (lib/ui/shell.dart). Never an open space's, which is drawn as its floor whatever design is chosen.
-bool spaceDesignChosen(BuildContext context) => SpaceDesign.of(AppState.of(context)) != SpaceDesign.standard && !OpenSpaces.isCall(Voice.instance.session);
-
-/// What a design not yet drawn shows: its name and the people, so the switch can be tried before it is done.
-class SpaceDesignStub extends StatelessWidget {
-  const SpaceDesignStub({super.key, required this.call, required this.name});
-  final SpaceCall call;
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return ColoredBox(
-      color: t.color('glacier-bg'),
-      child: SafeArea(
-        child: Column(children: [
-          Text(name, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
-          for (final p in call.people) Row(children: [SpaceFace(call: call, person: p, size: 40), Text(p.shown)]),
-          SpaceButton(icon: SpaceWords.muteIcon(call), label: SpaceWords.mute(call), onPressed: call.onMute),
-          SpaceButton(icon: Lucide.phone, label: SpaceWords.leave, onPressed: call.onLeave, danger: true),
-        ]),
-      ),
-    );
-  }
-}
-
-/// The chosen design drawn as the call page itself, where the call is a space's and the window is narrow (a phone, a
-/// folded Fold): wherever the call page is reached from — joining, the call banner, the Spaces tab — it is the design
-/// (Matt, 2026-11-16: "I don't see the new telegram like UI as the default in ghost calls ... i only see it when I open
-/// the phone to fullscreen not when it's closed and skinny"). Null where the app's own layout is to be drawn, an open
-/// space's floor among them.
+/// A space's call drawn as the call page itself, where the window is narrow (a phone, a folded Fold): wherever the
+/// call page is reached from (joining, the call banner, the Spaces tab) it is this (Matt, 2026-11-16: "I don't see the
+/// new telegram like UI as the default in ghost calls ... i only see it when I open the phone to fullscreen not when
+/// it's closed and skinny"). Null where something else draws the call: a call that is not a space's, an open space's
+/// floor, and beside a list, where the space's own page holds it over its chat.
 Widget? inlineSpaceCall(BuildContext context, VoiceSession? s) {
   if (s == null || !s.channel.hangout || OpenSpaces.isCall(s) || AppShell.wideOf(context)) return null;
-  final d = SpaceDesign.of(AppState.of(context));
-  if (d == SpaceDesign.standard) return null;
-  return SpaceCallPage(key: ValueKey('inline-${d.name}-${s.channel.room}'), design: d, inline: true);
+  return SpaceCallPage(key: ValueKey('inline-call-${s.channel.room}'), inline: true);
 }
 
 /// Two sets of levels read as one: the call's own and the Discord people's (keys don't overlap).

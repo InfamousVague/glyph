@@ -666,7 +666,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       await _open(held ?? Conversation(id: group.thread, date: DateTime.now(), people: [for (final m in group.others) m.person], snippet: '', unread: false, error: false, archived: false));
       return;
     }
-    // In its call already, with a developer design chosen: its page (lib/ui/space_designs).
+    // In its call already, where no shell draws it: its page (lib/ui/space_designs).
     if (Voice.instance.session?.channel.room == c.room && openSpaceCall(context)) return;
     // A hangout opens its page: its chat, who is in it, and a way into voice (lib/ui/hangout_screen.dart).
     // In the conversation's place (Matt, 2026-11-15: "clicking on a voice chat should show me the chat in the normal

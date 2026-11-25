@@ -74,13 +74,11 @@ void main() {
   });
 
   for (final (name, size, wide) in [('a phone', const Size(412, 892), false), ('a wide window', const Size(1100, 832), true)]) {
-    // The default (Telegram's), another design chosen in Settings › Developer, and the app's own layout.
-    for (final design in [null, SpaceDesign.discord, SpaceDesign.standard]) {
-      testWidgets('on $name with ${design?.label ?? 'the default design'}, an open space\'s call is its floor on every way in', (tester) async {
+    {
+      testWidgets('on $name, an open space\'s call is its floor on every way in', (tester) async {
         Circles.instance.join(_circle);
         final sheet = await loadSheet(tester);
         final app = AppState();
-        if (design != null) app.set(SpaceDesign.pref, design.name);
         await pumpScreen(tester, sheet, const AppShell(), app, size: size, platform: wide ? 'desktop' : 'mobile');
         final shell = AppShellState.live!;
         shell.openCircle(_circle);
@@ -94,9 +92,9 @@ void main() {
         // The circle's space, joined.
         await _begin(tester, _plaza);
         await settle(tester);
-        expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isFalse, reason: 'no design is pushed over it');
+        expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isFalse, reason: 'no call page is pushed over it');
         await settle(tester);
-        expect(find.byType(SpaceCallPage), findsNothing, reason: 'no design is drawn for it');
+        expect(find.byType(SpaceCallPage), findsNothing, reason: 'a call\'s page is not drawn for it');
         expect(find.byType(OpenSpaceView), findsOneWidget, reason: 'the space\'s own page is its floor');
         expect(find.byType(CallDock), wide ? findsOneWidget : findsWidgets, reason: 'with the call\'s buttons, once');
 
@@ -108,7 +106,6 @@ void main() {
         // The list beside it stays the circle's own: no people list in its place, and the call's buttons once, on the
         // floor (Matt, 2026-11-23: "the call controls are still duplicated in open spaces don't take over the sidebar").
         if (wide) {
-          expect(find.byType(HangoutPeople), findsNothing, reason: 'the sidebar is left as it was');
           expect(find.byKey(const ValueKey('call-dock-in-pill')), findsNothing);
           expect(find.byType(CallDock), findsOneWidget, reason: 'one set of the call\'s buttons');
         }

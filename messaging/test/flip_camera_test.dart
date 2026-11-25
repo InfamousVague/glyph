@@ -3,13 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent;
-import 'package:ghost_messaging/ui/space_designs/discord.dart';
-import 'package:ghost_messaging/ui/space_designs/facetime.dart';
-import 'package:ghost_messaging/ui/space_designs/meet.dart';
 import 'package:ghost_messaging/ui/space_designs/space_design.dart';
-import 'package:ghost_messaging/ui/space_designs/stage.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
-import 'package:ghost_messaging/ui/space_designs/zoom.dart';
 import 'package:ghost_messaging/ui/voice_screen.dart';
 import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/voice.dart';
@@ -109,22 +104,14 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('each design has a flip button while there is a camera to flip, and none otherwise', (tester) async {
+  testWidgets('a space\'s call has a flip button while there is a camera to flip, and none otherwise', (tester) async {
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
     final semantics = tester.ensureSemantics();
-    final designs = <String, Widget Function(SpaceCall)>{
-      'discord': (c) => DiscordCall(call: c),
-      'facetime': (c) => FaceTimeCall(call: c),
-      'meet': (c) => MeetCall(call: c),
-      'stage': (c) => StageCall(call: c),
-      'telegram': (c) => TelegramCall(call: c),
-      'zoom': (c) => ZoomCall(call: c),
-    };
-    // Where the button is behind the design's own menu (no room beside the camera): what opens it.
-    const menus = {'meet-phone': 'More options', 'zoom-phone': 'More', 'telegram-phone': _telegramMenu, 'telegram-computer': _telegramMenu};
-    // FaceTime's buttons say their words twice to a screen reader (its label and its text), as its others do.
-    final flip = find.bySemanticsLabel(RegExp(r'^Flip( camera)?(\nFlip( camera)?)?$'));
+    final designs = <String, Widget Function(SpaceCall)>{'telegram': (c) => TelegramCall(call: c)};
+    // The button is in the call's own menu (no room beside the camera): what opens it.
+    const menus = {'telegram-phone': _telegramMenu, 'telegram-computer': _telegramMenu};
+    final flip = find.bySemanticsLabel(RegExp(r'^Flip( camera)?$'));
     for (final MapEntry(key: name, value: build) in designs.entries) {
       for (final (size, where) in [(SpaceHarness.phone, 'phone'), (SpaceHarness.computer, 'computer')]) {
         final log = <String>[];
