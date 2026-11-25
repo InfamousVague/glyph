@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.34', '2026-11-25', [
+    'Lossless music from Spotify in a call, to try: with headphones on a Mac, an iPhone, a PC or an Android phone with a wired headset, the DJ\'s music plays with nothing taken out of it. Everyone else has it at high quality. The queue\'s page says which you have and why.',
+  ]),
   ReleaseNotes('0.12.33', '2026-11-25', [
     'On a computer, clicking a voice space in a circle\'s list joins its call straight away. The space\'s menu, Open, reads its chat without joining.',
     'A small camera or screen mark shows beside anyone in a voice space who has their camera on or is sharing their screen.',
