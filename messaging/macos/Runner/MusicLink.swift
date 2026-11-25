@@ -1,4 +1,5 @@
 import Foundation
+import VoiceFxC
 import WebRTC
 import os
 
@@ -48,9 +49,13 @@ final class MusicFeed {
     lock.deallocate()
   }
 
+  /// The same music whole, for those it is sent to without loss ([LosslessSend]).
+  let tee = MusicTee()
+
   /// Takes [frames] frames of interleaved stereo. Short, and it allocates nothing: it is called on a sound thread.
   func write(_ from: UnsafePointer<Int16>, frames: Int) {
     guard frames > 0 else { return }
+    tee.write(from, frames: frames)
     os_unfair_lock_lock(lock)
     defer { os_unfair_lock_unlock(lock) }
     // More than there is room for: its newest part.
@@ -98,6 +103,185 @@ final class MusicFeed {
     count = 0
     primed = false
     os_unfair_lock_unlock(lock)
+  }
+}
+
+/// Every frame the feed was given, as it came and numbered, for a second to come: what is sent without loss is taken from
+/// here, where nothing is left out or put in to keep time, as [MusicFeed.read] does for Opus.
+final class MusicTee {
+  private let capacity = MusicSound.rate
+  private let ring: UnsafeMutablePointer<Int16>
+  private let lock: os_unfair_lock_t = {
+    let l = os_unfair_lock_t.allocate(capacity: 1)
+    l.initialize(to: os_unfair_lock())
+    return l
+  }()
+  /// The number of the next frame written, and of the next one taken.
+  private var written: UInt64 = 0, taken: UInt64 = 0
+  private var on = false
+
+  init() {
+    ring = .allocate(capacity: MusicSound.rate * MusicSound.channels)
+    ring.initialize(repeating: 0, count: MusicSound.rate * MusicSound.channels)
+  }
+
+  deinit {
+    ring.deallocate()
+    lock.deinitialize(count: 1)
+    lock.deallocate()
+  }
+
+  /// Whether what is written is kept; from now, where it was not.
+  func set(_ keep: Bool) {
+    os_unfair_lock_lock(lock)
+    if keep && !on { taken = written }
+    on = keep
+    os_unfair_lock_unlock(lock)
+  }
+
+  func write(_ from: UnsafePointer<Int16>, frames: Int) {
+    os_unfair_lock_lock(lock)
+    defer { os_unfair_lock_unlock(lock) }
+    let all = written
+    written += UInt64(frames)
+    guard on else { return }
+    // More than there is room for: its newest part.
+    let n = min(frames, capacity), skip = frames - n
+    var at = Int((all + UInt64(skip)) % UInt64(capacity)), from = from + skip * MusicSound.channels, left = n
+    while left > 0 {
+      let run = min(left, capacity - at)
+      (ring + at * MusicSound.channels).update(from: from, count: run * MusicSound.channels)
+      from += run * MusicSound.channels
+      left -= run
+      at = at + run == capacity ? 0 : at + run
+    }
+    if written - taken > UInt64(capacity) { taken = written - UInt64(capacity) }
+  }
+
+  /// The next [frames] frames in order, and the number of the first; nil where fewer are waiting.
+  func take(into out: UnsafeMutablePointer<Int16>, frames: Int) -> UInt64? {
+    os_unfair_lock_lock(lock)
+    defer { os_unfair_lock_unlock(lock) }
+    guard on, written - taken >= UInt64(frames) else { return nil }
+    let first = taken
+    let at = Int(first % UInt64(capacity)), run = min(frames, capacity - at)
+    out.update(from: ring + at * MusicSound.channels, count: run * MusicSound.channels)
+    if run < frames { (out + run * MusicSound.channels).update(from: ring, count: (frames - run) * MusicSound.channels) }
+    taken += UInt64(frames)
+    return first
+  }
+}
+
+/// What carries the chunks to one listener: WebRTC's data channel, or the check's stand-in.
+protocol LosslessPipe: AnyObject {
+  var isOpen: Bool { get }
+  /// Bytes given to it and not yet sent.
+  var waiting: Int { get }
+  func send(_ chunk: Data) -> Bool
+  func shut()
+}
+
+final class ChannelPipe: LosslessPipe {
+  private let channel: RTCDataChannel
+  init(_ channel: RTCDataChannel) { self.channel = channel }
+  var isOpen: Bool { channel.readyState == .open }
+  var waiting: Int { Int(min(channel.bufferedAmount, UInt64(Int32.max))) }
+  func send(_ chunk: Data) -> Bool { channel.sendData(RTCDataBuffer(data: chunk, isBinary: true)) }
+  func shut() { channel.close() }
+}
+
+/// The music on its way to one listener without loss. What can't be sent in time is dropped here, whole chunks and the
+/// oldest first, rather than queued: a listener hears a gap filled by Opus and not music that falls behind.
+final class LosslessWay {
+  /// The most chunks held here, and the most bytes WebRTC may hold, before anything is dropped: together under the 600 ms
+  /// a listener has waiting.
+  static let mostChunks = 5, mostWaiting = 48 * 1024
+
+  let pipe: LosslessPipe
+  private var held: [Data] = []
+  private(set) var sent = 0, bytes = 0, dropped = 0
+
+  init(_ pipe: LosslessPipe) { self.pipe = pipe }
+
+  func push(_ chunk: Data) {
+    guard pipe.isOpen else { return }
+    held.append(chunk)
+    drain()
+    while held.count > Self.mostChunks {
+      held.removeFirst()
+      dropped += 1
+    }
+  }
+
+  func drain() {
+    while let chunk = held.first, pipe.isOpen, pipe.waiting + chunk.count <= Self.mostWaiting, pipe.send(chunk) {
+      held.removeFirst()
+      sent += 1
+      bytes += chunk.count
+    }
+  }
+}
+
+/// The music packed once and given to everyone who has it without loss. On [MusicLink.queue] alone.
+final class LosslessSend {
+  /// The label of the channel it goes on.
+  static let label = "music"
+
+  private let tee: MusicTee, queue: DispatchQueue
+  private var ways: [String: LosslessWay] = [:]
+  private var timer: DispatchSourceTimer?
+  private let block = UnsafeMutablePointer<Int16>.allocate(capacity: Int(MUSIC_PACK_FRAMES) * 2)
+  private let packed = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(MUSIC_PACK_MOST) * 4 + 128)
+
+  init(tee: MusicTee, queue: DispatchQueue) {
+    self.tee = tee
+    self.queue = queue
+  }
+
+  deinit {
+    timer?.cancel()
+    block.deallocate()
+    packed.deallocate()
+  }
+
+  func way(_ id: String) -> LosslessWay? { ways[id] }
+
+  func open(_ id: String, _ pipe: LosslessPipe) {
+    close(id)
+    ways[id] = LosslessWay(pipe)
+    settle()
+  }
+
+  func close(_ id: String) {
+    ways.removeValue(forKey: id)?.pipe.shut()
+    settle()
+  }
+
+  /// The clock that looks for the next chunk, only while anyone is to have one.
+  private func settle() {
+    if ways.isEmpty {
+      timer?.cancel()
+      timer = nil
+      tee.set(false)
+      return
+    }
+    guard timer == nil else { return }
+    tee.set(true)
+    let t = DispatchSource.makeTimerSource(queue: queue)
+    t.schedule(deadline: .now(), repeating: .milliseconds(20), leeway: .milliseconds(5))
+    t.setEventHandler { [weak self] in self?.look() }
+    timer = t
+    t.resume()
+  }
+
+  private func look() {
+    while let at = tee.take(into: block, frames: Int(MUSIC_PACK_FRAMES)) {
+      let n = music_chunk(block, Int32(MUSIC_PACK_FRAMES), at, packed)
+      if n <= 0 { continue }
+      let chunk = Data(bytes: packed, count: Int(n))
+      for w in ways.values { w.push(chunk) }
+    }
+    for w in ways.values { w.drain() }
   }
 }
 
@@ -293,6 +477,7 @@ final class MusicLink {
   private let device: MusicDevice
   private let track: RTCAudioTrack
   private var links: [String: Link] = [:]
+  private let lossless: LosslessSend
 
   /// Told each way to connect found for [id], and how each connection stands; on any thread.
   var onCandidate: ((String, RTCIceCandidate) -> Void)?
@@ -306,6 +491,7 @@ final class MusicLink {
     let source = factory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: raw, optionalConstraints: nil))
     track = factory.audioTrack(with: source, trackId: "ghost-music")
     _ = track.setAudioProcessingOptions(RTCAudioProcessingOptions.raw())
+    lossless = LosslessSend(tee: feed.tee, queue: queue)
   }
 
   /// One listener's connection and what it finds, told on.
@@ -334,8 +520,9 @@ final class MusicLink {
   var listeners: [String] { queue.sync { Array(links.keys) } }
 
   /// A connection to [id], made anew (one there already was is closed), and its offer. [servers] as the call has them;
-  /// [relayOnly] for a second try. Answers nil where it could not be made.
-  func offer(to id: String, servers: [RTCIceServer], relayOnly: Bool, done: @escaping (String?) -> Void) {
+  /// [relayOnly] for a second try; [lossless] with a channel beside the Opus for the music without loss. Answers nil where
+  /// it could not be made.
+  func offer(to id: String, servers: [RTCIceServer], relayOnly: Bool, lossless: Bool = false, done: @escaping (String?) -> Void) {
     queue.async { [self] in
       closeNow(id)
       let config = RTCConfiguration()
@@ -358,6 +545,7 @@ final class MusicLink {
         closeNow(id)
         return done(nil)
       }
+      if lossless { _ = openChannel(id, pc) }
       pc.offer(for: none) { [weak self] sdp, _ in
         guard let self, let sdp else { return done(nil) }
         let mine = RTCSessionDescription(type: .offer, sdp: MusicSdp.tuned(sdp.sdp))
@@ -398,7 +586,63 @@ final class MusicLink {
     }
   }
 
+  // --- without loss ----------------------------------------------------------------------------------------------------
+
+  private func openChannel(_ id: String, _ pc: RTCPeerConnection) -> Bool {
+    let how = RTCDataChannelConfiguration()
+    how.isOrdered = true
+    guard let channel = pc.dataChannel(forLabel: LosslessSend.label, configuration: how) else { return false }
+    lossless.open(id, ChannelPipe(channel))
+    return true
+  }
+
+  /// Sends [id] the music without loss too, on the connection there is: only one that was offered with a channel, and
+  /// answered with one, has room for another.
+  func openLossless(_ id: String, done: @escaping (Bool) -> Void) {
+    queue.async { [self] in
+      guard let pc = links[id]?.pc, pc.remoteDescription?.sdp.contains("m=application") == true else { return done(false) }
+      done(openChannel(id, pc))
+    }
+  }
+
+  /// Ends it for [id], whose Opus goes on.
+  func closeLossless(_ id: String) {
+    queue.async { [self] in lossless.close(id) }
+  }
+
+  /// How it goes for each who has it: whether the channel is open, the bytes sent, the chunks dropped, and whether the
+  /// connection goes through a relay (nil: not known yet).
+  func losslessState(done: @escaping ([String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)]) -> Void) {
+    queue.async { [self] in
+      var out: [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] = [:]
+      let group = DispatchGroup()
+      for (id, link) in links {
+        guard let way = lossless.way(id), let pc = link.pc else { continue }
+        out[id] = (way.pipe.isOpen, way.bytes, way.dropped, nil)
+        group.enter()
+        pc.statistics { [self] report in
+          let relay = Self.relayed(report)
+          queue.async {
+            out[id]?.relay = relay
+            group.leave()
+          }
+        }
+      }
+      group.notify(queue: queue) { done(out) }
+    }
+  }
+
+  /// Whether either end of the way the connection goes now is a relay's.
+  static func relayed(_ report: RTCStatisticsReport) -> Bool? {
+    let all = report.statistics
+    guard let way = all.values.first(where: { $0.type == "transport" && $0.values["selectedCandidatePairId"] != nil })?.values["selectedCandidatePairId"] as? String, let pair = all[way] else { return nil }
+    let ends = ["localCandidateId", "remoteCandidateId"].map { (pair.values[$0] as? String).flatMap { all[$0]?.values["candidateType"] as? String } }
+    if ends.contains("relay") { return true }
+    return ends.contains(nil) ? nil : false
+  }
+
   private func closeNow(_ id: String) {
+    lossless.close(id)
     guard let link = links.removeValue(forKey: id) else { return }
     link.pc?.delegate = nil
     link.pc?.close()
