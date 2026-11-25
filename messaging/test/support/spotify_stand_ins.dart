@@ -235,6 +235,14 @@ class FakeEar implements MusicEar {
 
   @override
   Future<void> candidate(Map<String, dynamic> c) async => log.add('ice ${c['candidate']}');
+  double loud = 0;
+  int levelsAsked = 0;
+  @override
+  Future<double> level() async {
+    levelsAsked++;
+    return loud;
+  }
+
   @override
   void set({required double volume, required bool silent}) {
     this.volume = volume;

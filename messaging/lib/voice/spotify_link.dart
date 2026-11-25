@@ -21,6 +21,9 @@ abstract class MusicEar {
   /// How loud, 0 to 1, and whether it is heard at all (deafened, it is not).
   void set({required double volume, required bool silent});
 
+  /// How loud the music is now, 0 to 1, as it comes in (before the loudness of this device).
+  Future<double> level();
+
   /// The speaker chosen, where the page plays the sound itself (a browser).
   Future<void> output(String deviceId);
   Future<void> close();
@@ -138,6 +141,18 @@ class RtcMusicEar implements MusicEar {
       t.enabled = !_silent;
       unawaited(Helper.setVolume(_volume, t).catchError((_) {}));
     }
+  }
+
+  @override
+  Future<double> level() async {
+    final made = _pc;
+    if (made == null || _closed || _tracks.isEmpty) return 0;
+    try {
+      for (final r in await (await made).getStats()) {
+        if ((r.type == 'inbound-rtp' || r.type == 'track') && r.values['audioLevel'] is num) return (r.values['audioLevel'] as num).toDouble().clamp(0.0, 1.0);
+      }
+    } catch (_) {}
+    return 0;
   }
 
   @override

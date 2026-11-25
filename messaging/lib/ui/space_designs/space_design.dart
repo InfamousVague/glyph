@@ -247,7 +247,7 @@ class SpaceCall {
     return SpaceCall(
       channel: s.channel,
       people: people,
-      levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
+      levels: callLevels(s),
       // The ways through and the microphone too: what the call is waiting for follows them ([wait]).
       changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance]),
       bridged: s.channel.discord != null,
@@ -391,7 +391,8 @@ class SpaceCall {
     var most = talking;
     for (final p in people) {
       final l = now[p.id] ?? 0;
-      if (!p.muted && l > most) {
+      // The music is loud all the time and is nobody speaking.
+      if (!p.music && !p.muted && l > most) {
         best = p;
         most = l;
       }
@@ -442,7 +443,7 @@ class SpaceFace extends StatelessWidget {
         valueListenable: call.levels,
         // With how this device's connection to them stands, where it isn't simply through (GMFB-4).
         builder: (context, now, _) => person.music
-            ? ClipOval(child: SongCover(url: person.cover, size: size))
+            ? RippleAvatar(name: person.name, level: now[person.id] ?? 0, size: size, ringed: ringed, child: SongCover(url: person.cover, size: size))
             : LinkBadge(
           id: person.id,
           size: size,
@@ -625,10 +626,23 @@ Widget? inlineSpaceCall(BuildContext context, VoiceSession? s) {
   return SpaceCallPage(key: ValueKey('inline-call-${s.channel.room}'), inline: true);
 }
 
+/// How loud everyone in [s] is: the people in it, those in the Discord channel it is bridged to, and the music played to it.
+ValueListenable<Map<String, double>> callLevels(VoiceSession s) {
+  ValueListenable<Map<String, double>> all = Voice.instance.media?.levels ?? s.media.levels;
+  if (s.discordPeople.isNotEmpty) all = MergedLevels(all, s.discordLevels);
+  if (SpotifyMusic.instance.state?.now != null) all = MergedLevels(all, SpotifyMusic.instance.levels);
+  return all;
+}
+
 /// Two sets of levels read as one: the call's own and the Discord people's (keys don't overlap).
 class MergedLevels implements ValueListenable<Map<String, double>> {
   MergedLevels(this.a, this.b);
   final ValueListenable<Map<String, double>> a, b;
+
+  @override
+  bool operator ==(Object other) => other is MergedLevels && other.a == a && other.b == b;
+  @override
+  int get hashCode => Object.hash(a, b);
 
   @override
   Map<String, double> get value => {...a.value, ...b.value};

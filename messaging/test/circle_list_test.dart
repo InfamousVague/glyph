@@ -20,6 +20,7 @@ import 'package:ghost_messaging/ui/circles/circle_face.dart';
 import 'package:ghost_messaging/ui/circles/circle_list.dart';
 import 'package:ghost_messaging/ui/circles/circle_view.dart';
 import 'package:ghost_messaging/ui/common.dart' show Avatar;
+import 'package:ghost_messaging/ui/ripple_avatar.dart';
 import 'package:ghost_messaging/ui/settings.dart';
 import 'package:glacier/glacier.dart';
 
@@ -316,6 +317,7 @@ void main() {
     final me = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-me'))), music = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-music')));
     expect(music.top, greaterThanOrEqualTo(me.bottom - 1));
     expect(music.height, moreOrLessEquals(me.height, epsilon: 1), reason: 'one line, as a person\'s');
+    expect(find.byType(VoiceRipples), findsNWidgets(2), reason: 'a face and the music, each with rings');
     expect(circleSpaceLine(view.spaces.firstWhere((s) => s.name == 'Lounge')), 'You\'re talking', reason: 'music is nobody talking');
     expect(tester.takeException(), isNull);
     await keep(tester, 'voice-music');
