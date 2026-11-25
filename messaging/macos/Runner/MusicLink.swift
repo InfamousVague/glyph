@@ -201,10 +201,15 @@ final class LosslessWay {
   private var held: [Data] = []
   private(set) var sent = 0, bytes = 0, dropped = 0
 
+  /// Nothing is sent until the connection is known to go through no relay ([MusicLink.losslessState]), or once it does.
+  var allowed = false {
+    didSet { if !allowed { held.removeAll() } }
+  }
+
   init(_ pipe: LosslessPipe) { self.pipe = pipe }
 
   func push(_ chunk: Data) {
-    guard pipe.isOpen else { return }
+    guard allowed, pipe.isOpen else { return }
     held.append(chunk)
     drain()
     while held.count > Self.mostChunks {
@@ -214,7 +219,7 @@ final class LosslessWay {
   }
 
   func drain() {
-    while let chunk = held.first, pipe.isOpen, pipe.waiting + chunk.count <= Self.mostWaiting, pipe.send(chunk) {
+    while let chunk = held.first, allowed, pipe.isOpen, pipe.waiting + chunk.count <= Self.mostWaiting, pipe.send(chunk) {
       held.removeFirst()
       sent += 1
       bytes += chunk.count
@@ -611,7 +616,7 @@ final class MusicLink {
   }
 
   /// How it goes for each who has it: whether the channel is open, the bytes sent, the chunks dropped, and whether the
-  /// connection goes through a relay (nil: not known yet).
+  /// connection goes through a relay (nil: not known yet). Asking is what lets it be sent, or stops it.
   func losslessState(done: @escaping ([String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)]) -> Void) {
     queue.async { [self] in
       var out: [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] = [:]
@@ -624,6 +629,7 @@ final class MusicLink {
           let relay = Self.relayed(report)
           queue.async {
             out[id]?.relay = relay
+            if let relay { way.allowed = !relay }
             group.leave()
           }
         }

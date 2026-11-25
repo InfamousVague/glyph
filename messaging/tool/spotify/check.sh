@@ -1,6 +1,7 @@
 #!/bin/sh
 # Checks the music link without a sound (tool/spotify/check.swift says how), and the music sent without loss
-# (lossless.swift; check.sh lossless for that alone). Needs the WebRTC framework a macOS build
+# (lossless.swift; check.sh lossless for that alone), and
+# the Mac's player of it (sink.swift; check.sh sink). Needs the WebRTC framework a macOS build
 # has fetched: WEBRTC=<folder holding WebRTC.framework>, or it is looked for under build/macos.
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)
@@ -20,6 +21,12 @@ build() {
   cp "$here/tool/spotify/$1.swift" "$out/check/main.swift"
   swiftc -swift-version 5 -O -target arm64-apple-macos12.0 -I "$out/check/VoiceFxC" -I "$out/check/MusicUnpack" -F "$fw" -framework WebRTC -Xlinker -rpath -Xlinker "$fw" "$here/macos/Runner/MusicLink.swift" "$out/check/main.swift" "$out/check/music_pack.o" -o "$out/$2"
 }
+# The player needs no WebRTC, and renders into memory.
+cp "$here/tool/spotify/sink.swift" "$out/check/main.swift"
+swiftc -swift-version 5 -O -target arm64-apple-macos12.0 "$here/macos/Runner/MusicSink.swift" "$out/check/main.swift" -o "$out/sink-check"
+echo "--- the player (must pass)"; "$out/sink-check"
+cmp "$here/macos/Runner/MusicSink.swift" "$here/ios/Runner/MusicSink.swift"
+if [ "$1" = sink ]; then exit 0; fi
 if [ "$1" = lossless ]; then
   build lossless lossless-check
   if [ -n "$2" ]; then exec "$out/lossless-check" "$2"; fi

@@ -99,12 +99,21 @@ final class Stuck: LosslessPipe {
 }
 do {
   let pipe = Stuck(), way = LosslessWay(pipe)
+  way.push(Data(count: 10))
+  guard pipe.took.isEmpty else { fail("sent before it was known to go through no relay") }
+  way.allowed = true
   for i in 0..<100 { way.push(Data(repeating: UInt8(i), count: 6000)) }
   guard pipe.took.map({ $0[0] }) == Array(0..<8) else { fail("more was given to a channel that is stuck than it may hold: \(pipe.took.count)") }
   guard way.dropped == 100 - 8 - LosslessWay.mostChunks, way.sent == 8, way.bytes == 48000 else { fail("drops counted wrong: \(way.dropped)") }
   pipe.waiting = 0
   way.drain()
   guard pipe.took.suffix(5).map({ $0[0] }) == Array(95..<100) else { fail("the oldest were not the ones dropped") }
+  way.allowed = false
+  way.push(Data(count: 10))
+  way.drain()
+  way.allowed = true
+  way.drain()
+  guard pipe.took.count == 13 else { fail("sent, or kept, while it goes through a relay") }
   pipe.shut()
   way.push(Data(count: 10))
   guard pipe.took.count == 13 else { fail("sent on a channel that is shut") }
@@ -142,6 +151,17 @@ let feeder = Thread {
 feeder.qualityOfService = .userInteractive
 feeder.start()
 
+func state() -> [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] {
+  var got: [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] = [:]
+  let done = DispatchSemaphore(value: 0)
+  link.losslessState {
+    got = $0
+    done.signal()
+  }
+  if done.wait(timeout: .now() + 5) != .success { fail("no state in 5 s") }
+  return got
+}
+
 func connect(_ id: String) -> Listener {
   let l = Listener()
   book.lock()
@@ -175,8 +195,12 @@ func connect(_ id: String) -> Listener {
   }
   if described.wait(timeout: .now() + 10) != .success { fail("no description in 10 s") }
   if let wrong { fail(wrong) }
+  // The app asks each second how it goes, which is what lets it be sent.
   let until = Date() + 10
-  while l.now.chunks.isEmpty && Date() < until { Thread.sleep(forTimeInterval: 0.02) }
+  while l.now.chunks.isEmpty && Date() < until {
+    _ = state()
+    Thread.sleep(forTimeInterval: 0.02)
+  }
   if l.now.chunks.isEmpty { fail("\(id): nothing came in 10 s") }
   return l
 }
@@ -189,17 +213,6 @@ func judge(_ id: String, _ l: Listener) -> Double {
   let frames = n.chunks.reduce(0) { $0 + $1.frames }
   print(String(format: "%@: %d frames from %d, bit for bit; %d bytes, %.0f kbit/s of %.0f", id, frames, n.chunks[0].at, n.bytes, Double(n.bytes) * 8 / (Double(frames) / 48000) / 1000, 1536.0))
   return Double(frames) / 48000
-}
-
-func state() -> [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] {
-  var got: [String: (open: Bool, bytes: Int, dropped: Int, relay: Bool?)] = [:]
-  let done = DispatchSemaphore(value: 0)
-  link.losslessState {
-    got = $0
-    done.signal()
-  }
-  if done.wait(timeout: .now() + 5) != .success { fail("no state in 5 s") }
-  return got
 }
 
 let first = connect("first"), second = connect("second")
@@ -229,6 +242,12 @@ link.openLossless("second") { ok in
   reopened.signal()
 }
 _ = reopened.wait(timeout: .now() + 5)
+Thread.sleep(forTimeInterval: 0.3)
+if second.now.chunks.count != stopped { fail("sent before it was asked how it goes") }
+for _ in 0..<5 {
+  _ = state()
+  Thread.sleep(forTimeInterval: 0.1)
+}
 Thread.sleep(forTimeInterval: 1.5)
 if second.now.chunks.count < stopped + 20 { fail("nothing came on the channel begun again") }
 if let w = second.now.wrong.first { fail("second: \(w)") }
