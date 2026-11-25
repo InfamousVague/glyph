@@ -66,7 +66,7 @@ set_source_files_properties("spotify.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++20
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")
 file(GLOB VOICEFX_RNNOISE "${VOICEFX}/rnnoise/src/*.c")
-add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
+add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/music_pack.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
 target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}" "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
 # Signalsmith Stretch (stretch.cpp) is C++.
 set_source_files_properties("${VOICEFX}/stretch.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++17;/EHsc")
