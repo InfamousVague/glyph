@@ -16,6 +16,7 @@ import 'package:glacier/glacier.dart';
 
 import '../backgrounds.dart' show lookCorner, lookRim;
 import 'dialup/bevel.dart' show isBevelChrome;
+import 'flat_line.dart' show FlatLine;
 
 /// The shapes under it share one light, which crosses the whole window at once and not each shape by itself. What is
 /// being waited for ([label]) is read aloud in their place. Still under "Remove animations".
@@ -334,12 +335,17 @@ class SkeletonCards extends StatelessWidget {
   }
 }
 
-/// A chat's messages in bones: bubbles from both sides, the newest at the foot as a chat has them. [bottom] is the
+/// A chat's messages in bones: bubbles from both sides (or a channel's lines, [flat]), the newest at the foot as a chat has
+/// them. [bottom] is the
 /// room kept clear under them (the composer's).
 class SkeletonChat extends StatelessWidget {
-  const SkeletonChat({super.key, this.label = 'Loading messages', this.bottom = 0, this.faces = false, this.most = 16, this.shrink = false});
+  const SkeletonChat({super.key, this.label = 'Loading messages', this.bottom = 0, this.faces = false, this.flat = false, this.most = 16, this.shrink = false});
   final String label;
   final double bottom;
+
+  /// A channel's lines rather than bubbles (lib/ui/flat_line.dart): everyone on the left, a face, a name and a time over
+  /// each run.
+  final bool flat;
 
   /// As tall as its bubbles, over the oldest message of a chat while earlier ones are read; otherwise it fills the
   /// room there is.
@@ -372,7 +378,28 @@ class SkeletonChat extends StatelessWidget {
       );
     }
 
-    final bubbles = [for (var i = 0; i < most; i++) bubble(i)];
+    // A run's lines of words under its face, name and time, where they stand in a channel ([FlatLine]).
+    Widget run(int i) => Padding(
+          padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 2),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Bone.face(FlatLine.faceSize(t)),
+            SizedBox(width: t.space(3)),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(height: t.space(1)),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Flexible(child: Bone(width: 70 + 80 * _share(i, salt: 1), height: 13)),
+                  SizedBox(width: t.space(2)),
+                  const Bone(width: 40, height: 10),
+                ]),
+                for (var row = 0; row < tall[i % tall.length]; row++)
+                  Padding(padding: EdgeInsets.only(top: t.space(2)), child: _Line(_share(i + row, salt: 2) + 0.15, height: 12, most: 540)),
+              ]),
+            ),
+          ]),
+        );
+
+    final bubbles = [for (var i = 0; i < most; i++) flat ? run(i) : bubble(i)];
     return Skeleton(
       label: label,
       child: shrink

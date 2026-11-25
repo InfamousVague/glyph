@@ -37,14 +37,14 @@ import '../backgrounds.dart';
 import '../sms.dart' show Person;
 import 'circles/circle_face.dart' show SpaceKindBadge, TitleBarMark, spaceKindIcon;
 import '../reactions.dart' show reactionChoices;
-import 'reaction_stickers.dart' show ReactionChips, ReactionPickRow, ReactionStickers;
+import 'reaction_stickers.dart' show ReactionPickRow, ReactionStickers;
 import 'circles/circle_welcome.dart' show CircleSystemLine, CircleWelcomeCard, ReadOnlyAdminLine, ReadOnlyFoot;
 import 'circles/new_circle.dart' show circleHueInk;
 import 'circles/members_drawer.dart' show showMembersDrawer;
 import 'drawer_head.dart';
 import 'composer_box.dart';
 import 'dialup/bevel.dart';
-import 'dialup/parts.dart' show DialupFace, DialupPanel;
+import 'dialup/parts.dart' show DialupPanel;
 import 'dialup/retro_button.dart';
 import 'message_line.dart';
 import 'translated_card.dart';
@@ -65,6 +65,7 @@ import '../voice/recorder.dart' show CallRecorder;
 import 'space_invite.dart';
 import 'space_thread.dart';
 import 'export_ui.dart';
+import 'flat_line.dart';
 import 'voice_screen.dart';
 import 'jump_to_latest.dart';
 import 'space_chat_files.dart';
@@ -83,7 +84,6 @@ import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
-import '../kit/picture_decode.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -1113,7 +1113,7 @@ class _HangoutChatState extends State<HangoutChat> {
     final flat = room.channel.circle != null;
     return Padding(
       key: ValueKey('going-${o.id}'),
-      padding: EdgeInsets.only(top: t.space(2), left: flat ? t.lenOf('2.25rem') + t.space(4) : 0),
+      padding: EdgeInsets.only(top: t.space(2), left: flat ? FlatLine.wordsLeft(t) : 0),
       child: Align(
         alignment: flat ? Alignment.centerLeft : Alignment.centerRight,
         child: SpaceOutgoing(
@@ -1359,10 +1359,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         final line = CircleSystemLine(note: row);
                         if (!newDay) return line;
                         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          Padding(
-                            padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
-                            child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
-                          ),
+                          DayTurn(dayHeading(at)),
                           line,
                         ]);
                       }
@@ -1381,9 +1378,9 @@ class _HangoutChatState extends State<HangoutChat> {
                       final prev = i == rows.length - 1 ? null : rows[i + 1];
                       final newDay = prev == null || prev is HangoutMessage ? !sameDay(before) : !_sameDay(_atOf(prev), m.at);
                       // In a circle's channel a pause of five minutes starts a new run, its name and time shown again,
-                      // as Slack and Discord do.
+                      // as Slack and Discord do (lib/ui/flat_line.dart).
                       final flat = room.channel.circle != null;
-                      bool apart(HangoutMessage a, HangoutMessage b) => flat && (a.at - b.at).abs() > 5 * 60 * 1000;
+                      bool apart(HangoutMessage a, HangoutMessage b) => flat && FlatLine.apart(DateTime.fromMillisecondsSinceEpoch(a.at), DateTime.fromMillisecondsSinceEpoch(b.at));
                       // A system line beside it (lib/circles/welcome.dart) ends the run as a day's turn does.
                       final first = newDay || before == null || before.from != m.from || apart(m, before);
                       final last = after == null || !sameDay(after) || after.from != m.from || apart(after, m);
@@ -1407,10 +1404,7 @@ class _HangoutChatState extends State<HangoutChat> {
                             ]);
                       if (!newDay) return shown;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                        Padding(
-                          padding: EdgeInsets.only(top: t.space(4), bottom: t.space(1)),
-                          child: Text(dayHeading(at), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
-                        ),
+                        DayTurn(dayHeading(at)),
                         shown,
                       ]);
                     },
@@ -1573,22 +1567,8 @@ class SpaceQuote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     final who = reply.from == me ? 'You' : (reply.name.isEmpty ? Voice.instance.nameOf(reply.from) : reply.name);
-    return Container(
-      key: ValueKey('space-quote-${reply.id}'),
-      padding: EdgeInsets.fromLTRB(t.space(2), 2, t.space(2), 2),
-      decoration: BoxDecoration(
-        color: ink.withValues(alpha: 0.07),
-        border: Border(left: BorderSide(color: t.color('app-accent'), width: 3)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(who, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-        // Record call's line with its icon, not its emoji (GMFB-43).
-        if (reply.text.isNotEmpty) NoteWords(reply.text, maxLines: 2, style: pageText(t, t.fontSize('sm'), color: ink.withValues(alpha: 0.75))),
-      ]),
-    );
+    return FlatQuote(key: ValueKey('space-quote-${reply.id}'), who: who, text: reply.text, ink: ink);
   }
 }
 
@@ -2013,8 +1993,7 @@ extension on _Message {
         before: [if (mark != null) noteIconSpan(t, mark, style)],
         // Changed by its writer since (Matt, 2026-11-20: "I'd like to be able to edit messages sent in circles").
         after: [
-          if (message.edited != null)
-            TextSpan(text: '  (edited)', style: style.copyWith(fontSize: (style.fontSize ?? 14) * 0.78, color: ink.withValues(alpha: 0.55), fontWeight: FontWeight.w400)),
+          if (message.edited != null) editedMark(style, ink),
         ],
         mentions: shown == null ? message.mentions : const [],
         mentionStyle: mentionStyle(t, on: message.from == room.me && !flat ? ink : null),
@@ -2023,86 +2002,53 @@ extension on _Message {
   }
 
   /// The message as a channel's line ([flat]): the face in a gutter by a run's first message, the name in its role's
-  /// colour and the time beside it, and the words, files or sticker under them on the page.
+  /// colour and the time beside it, and the words, files or sticker under them on the page (lib/ui/flat_line.dart).
   Widget _flat(BuildContext context, ShownView? shown, VoidCallback menu, List<ReactionTally> reacted, ValueChanged<String> react) {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
     final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
-    final faceSize = t.lenOf('2.25rem');
-    final gutter = faceSize + t.space(3);
-    final width = MediaQuery.sizeOf(context).width - gutter - t.space(6);
-    final maxWidth = math.min(width, t.lenOf('34rem'));
-    final ink = t.color('app-ink');
-    final words = _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink);
-    final Widget body;
-    final plugin = pluginCardOf(m, mine: mine);
-    if (plugin != null) {
-      body = PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: math.min(maxWidth, t.lenOf('26rem')));
-    } else if (m.poll != null) {
-      body = PollCard(room: room, message: m, maxWidth: maxWidth);
-    } else if (m.sticker != null) {
-      body = SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
-    } else {
-      body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (m.reply != null) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: SpaceQuote(reply: m.reply!, me: room.me, ink: ink)),
-        if (m.files.isNotEmpty) ...[
-          SpaceChatFiles(channel: room.channel, message: m, mine: false, maxWidth: maxWidth, ground: theirBubble(t, onBackground: false), ink: ink, rim: theirRim(t)),
-          if (m.text.isNotEmpty) SizedBox(height: t.space(1)),
-        ],
-        if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
-        if (m.text.isNotEmpty) words,
-        // Notion links, opened out where the circle has Notion (lib/ui/notion_card.dart).
-        ...notionCardsUnder(context, room.channel, m.text, maxWidth: math.min(maxWidth, t.lenOf('30rem'))),
-        // Every other link's card, and a GIF's or a picture's link as the picture (lib/ui/link_cards.dart).
-        ...linkCardsUnder(context, m.text, skip: (url) => NotionLink.of(url) != null),
-      ]);
-    }
-    final at = DateTime.fromMillisecondsSinceEpoch(m.at);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onLongPress: menu,
-      onSecondaryTap: menu,
-      child: Container(
-        // A message that mentions you on a wash of the accent with a bar of it at its edge, as Slack and Discord mark one.
-        decoration: mentionsMe ? BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.10), border: Border(left: BorderSide(color: t.color('app-accent'), width: 3))) : null,
-        // The gap above a run's first message is outside the wash, so a mention's is as tight above as below (Matt,
-        // 2026-11-19: "the mention highlight has too much padding on the top").
-        margin: EdgeInsets.only(top: first && mentionsMe ? t.space(2) : 0),
-        padding: mentionsMe
-            ? EdgeInsets.fromLTRB(t.space(1), first ? t.space(1) : 2, t.space(1), first ? t.space(1) : 2)
-            : EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(
-            width: gutter,
-            child: first ? Align(alignment: Alignment.topLeft, child: _toPerson(SpaceFace(room: room, id: m.from, name: mine ? (room.name.isEmpty ? 'You' : room.name) : name, size: faceSize))) : null,
-          ),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              if (first)
-                Padding(
-                  padding: EdgeInsets.only(bottom: 2),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                    Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: spaceNameInk(t, room, m.from) ?? ink)))),
-                    Baseline(baseline: 18, baselineType: TextBaseline.alphabetic, child: VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 15)),
-                    SizedBox(width: t.space(2)),
-                    Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
-                  ]),
-                ),
-              Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: body)),
-              // Its reactions as pills under it, as Discord and Slack show them: pressed, yours goes on or off.
-              if (reacted.isNotEmpty)
-                ReactionChips(
-                  key: ValueKey('reactions-${m.id}'),
-                  kinds: [for (final r in reacted) (emoji: r.emoji, count: r.count, mine: r.mine)],
-                  onToggle: room.mayReact ? react : null,
-                  onAdd: room.mayReact ? menu : null,
-                ),
-            ]),
-          ),
-        ]),
-      ),
+    return FlatLine(
+      name: name,
+      at: DateTime.fromMillisecondsSinceEpoch(m.at),
+      first: first,
+      face: (size) => SpaceFace(room: room, id: m.from, name: mine ? (room.name.isEmpty ? 'You' : room.name) : name, size: size),
+      nameInk: spaceNameInk(t, room, m.from),
+      badge: (size) => VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: size),
+      mentionsMe: mentionsMe,
+      onMenu: menu,
+      onPerson: onPerson == null ? null : () => onPerson!(m.from),
+      reactions: [for (final r in reacted) (emoji: r.emoji, count: r.count, mine: r.mine)],
+      reactionsKey: ValueKey('reactions-${m.id}'),
+      onReact: room.mayReact ? react : null,
+      onAddReaction: room.mayReact ? menu : null,
+      body: (context, maxWidth) => _flatBody(context, shown, maxWidth),
     );
+  }
+
+  /// What a channel's line says: a plugin's card, a poll, a sticker, or the message it answers, its files, its words and
+  /// the cards of their links.
+  Widget _flatBody(BuildContext context, ShownView? shown, double maxWidth) {
+    final t = context.tokens;
+    final m = message;
+    final ink = t.color('app-ink');
+    final plugin = pluginCardOf(m, mine: m.from == room.me);
+    if (plugin != null) return PluginChatCardView(card: plugin.card, plugin: plugin.plugin, maxWidth: math.min(maxWidth, t.lenOf('26rem')));
+    if (m.poll != null) return PollCard(room: room, message: m, maxWidth: maxWidth);
+    if (m.sticker != null) return SpaceSticker(name: m.sticker!, side: math.min(t.lenOf('8rem'), maxWidth));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (m.reply != null) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: SpaceQuote(reply: m.reply!, me: room.me, ink: ink)),
+      if (m.files.isNotEmpty) ...[
+        SpaceChatFiles(channel: room.channel, message: m, mine: false, maxWidth: maxWidth, ground: theirBubble(t, onBackground: false), ink: ink, rim: theirRim(t)),
+        if (m.text.isNotEmpty) SizedBox(height: t.space(1)),
+      ],
+      if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
+      if (m.text.isNotEmpty) _words(t, shown, pageText(t, t.fontSize('md'), color: ink, height: 1.4), ink),
+      // Notion links, opened out where the circle has Notion (lib/ui/notion_card.dart).
+      ...notionCardsUnder(context, room.channel, m.text, maxWidth: math.min(maxWidth, t.lenOf('30rem'))),
+      // Every other link's card, and a GIF's or a picture's link as the picture (lib/ui/link_cards.dart).
+      ...linkCardsUnder(context, m.text, skip: (url) => NotionLink.of(url) != null),
+    ]);
   }
 }
 
@@ -2878,19 +2824,8 @@ class _SpaceFaceState extends State<SpaceFace> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
     final size = widget.size;
-    final p = _picture();
-    Widget? image;
-    if (p != null && p.isNotEmpty) {
-      // The same bytes each build, unpacked at the face's size (lib/kit/picture_decode.dart): one a message row.
-      final bytes = pictureBytes(p);
-      if (bytes != null) image = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
-    }
-    if (image == null) return Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
-    // Dial-Up's faces are square in a sunken ring, as Avatar draws them there.
-    if (isBevelChrome(t)) return DialupFace(size: size, child: image);
-    return ClipOval(child: SizedBox(width: size, height: size, child: image));
+    return faceOfPicture(context, _picture(), size) ?? Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
   }
 }
 

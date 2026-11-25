@@ -745,6 +745,9 @@ class AccountHelper extends InboxNetwork {
     return out;
   }
 
+  @override
+  String? faceOf(String user) => _avatars[user];
+
   /// A message as one line of the chat list: its words, or what kind of thing its first attachment is.
   static String _snippet(Map<String, Object?> m) {
     final text = '${m['text'] ?? ''}'.trim();

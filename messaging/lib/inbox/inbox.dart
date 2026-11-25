@@ -758,6 +758,17 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// group as it then is (null once you have left). Throws with the network's reason where it refuses.
   Future<GroupDetails?> changeGroup(String chatId, GroupChange change) => Future.error(UnsupportedError('$name groups can\'t be changed from here'));
 
+  /// The picture of the person the network calls [user], as [InboxContact.avatar] is, where it is held on this device; null
+  /// for none. Asked by every line of a group's chat as it is drawn (lib/ui/flat_line.dart; Matt, 2026-11-25: "For channels
+  /// on slack and other groups please use the same chat UI without the bubbles we use with text channels on circles"), so
+  /// nothing is worked out here and no one is asked who they are: at most a small picture the network already named is
+  /// brought down.
+  String? faceOf(String user) => null;
+
+  /// Whether [profileOf] says anything of its people and [chatWith] opens a chat with them, so a face or a name in a
+  /// group is pressed for a profile card.
+  bool get hasProfiles => false;
+
   /// What the network says of someone, by its own id for them ([user]) or their username ([username], without '@'),
   /// for the profile card a tapped @mention opens; null where it says nothing or knows no one by that.
   Future<InboxProfile?> profileOf({String user = '', String username = ''}) async => null;
