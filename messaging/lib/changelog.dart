@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.34', '2026-11-25', [
+    'Formatting shows as you type a message: bold, italic, strikethrough and code look the way they will when sent, with the symbols still there but faint.',
+    'Two underscores around words now make them bold, in the message box and in sent messages: __like this__.',
+    'In a circle\'s chat your own messages are under your name, not "You", and names are drawn in the name effect each person wears.',
+  ]),
   ReleaseNotes('0.12.33', '2026-11-25', [
     'On a computer, clicking a voice space in a circle\'s list joins its call straight away. The space\'s menu, Open, reads its chat without joining.',
     'A small camera or screen mark shows beside anyone in a voice space who has their camera on or is sharing their screen.',
