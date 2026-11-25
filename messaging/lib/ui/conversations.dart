@@ -1,4 +1,5 @@
 import 'blocking.dart';
+import '../friends/file_card.dart';
 import '../snooze.dart';
 import 'dart:async';
 
@@ -1894,7 +1895,7 @@ class ConversationRow extends StatelessWidget {
                                         ),
                                         TextSpan(text: summary),
                                       ])
-                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(SoulsCard.preview(c.snippet))).replaceAll('\n', ' ')),
+                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(FileCard.preview(SoulsCard.preview(c.snippet)))).replaceAll('\n', ' ')),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),
@@ -1945,7 +1946,7 @@ class ConversationRow extends StatelessWidget {
                   ? TextSpan(text: '» $summary', style: const TextStyle(fontStyle: FontStyle.italic))
                   : c.error
                       ? TextSpan(text: 'Not sent', style: TextStyle(color: selected ? d.onHighlight : t.danger))
-                      : TextSpan(text: (reactionSnippet(c.snippet) ?? MessageFormat.plain(SoulsCard.preview(c.snippet))).replaceAll('\n', ' '));
+                      : TextSpan(text: (reactionSnippet(c.snippet) ?? MessageFormat.plain(FileCard.preview(SoulsCard.preview(c.snippet)))).replaceAll('\n', ' '));
           return DecoratedBox(
             decoration: BoxDecoration(
               color: selected ? d.highlight : (state.pressed ? t.color('app-paper-3') : const Color(0x00000000)),

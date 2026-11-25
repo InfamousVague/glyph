@@ -32,6 +32,13 @@ import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_rail.dart';
 import 'chat_settings.dart';
+import 'dart:io' show File;
+import '../platform_info.dart';
+import '../voice/hangout.dart' show HangoutMessage, OutgoingFile;
+import '../friends/file_card.dart';
+import '../files/file_platform.dart';
+import '../files/files_store.dart';
+import 'space_chat_files.dart';
 import 'text_attachment.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
@@ -517,7 +524,10 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     for (final (i, uri) in files.indexed) {
       final id = -(now.microsecondsSinceEpoch % 1000000000) * 10 - i;
       Sms.instance.holdPart(id, Sms.instance.photo(uri));
-      held.add(Attachment(id: id, type: 'image/jpeg', name: uri.split('/').last));
+      // A file that is not a picture (to a friend: lib/friends/file_card.dart) is drawn as its name while it goes.
+      final named = uri.split('/').last;
+      final kind = uri.startsWith('content:') ? 'image/jpeg' : FileKind.mimeOf(named);
+      held.add(Attachment(id: id, type: kind.startsWith('image/') || kind == 'application/octet-stream' ? 'image/jpeg' : kind, name: named));
     }
     final m = Message(id: -now.microsecondsSinceEpoch, kind: 'pending', address: '', body: body, date: now, outgoing: true, state: 'sending', attachments: held);
     setState(() {
@@ -562,15 +572,22 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // phone a computer is paired with), which would write the words, unsealed, into the phone's own store of texts
         // (or open Google Messages beside it) for an "@name" no carrier can deliver (found in review, 2026-11-23). It
         // fails here with the reason, and what was written is put back.
-        if (!byRoute && to.any(UsernameChats.isUsername)) {
+        // Pictures and files to a friend by username: put up sealed, and a card sent that says where they are
+        // (lib/friends/file_card.dart). Then the words, as a message of their own.
+        final asCard = files.isNotEmpty && to.length == 1 && own && UsernameChats.isUsername(to.first);
+        if (asCard) {
+          await _sendFilesToFriend(to.first, files);
+          if (body.isNotEmpty && !await Friends.instance.sendText(to.first, body)) throw _NotSent('the files went, the words did not: ${Friends.instance.lastRefusal ?? 'no connection'}');
+          if (pending != null && mounted) _dropPending(pending);
+        } else if (!byRoute && to.any(UsernameChats.isUsername)) {
           throw _NotSent(files.isNotEmpty
-              ? 'pictures and files can\'t be sent to a friend by username yet'
+              ? 'pictures and files go to a friend by username from the phone itself, or from a computer with an account of its own'
               : own
                   // A relay that refused them says why (their relay can't be reached from yours, or won't take them).
                   ? Friends.instance.lastRefusal ?? 'no connection. A friend by username is reached over the internet, through the relay'
                   : 'a friend by username is written to from the phone itself, or from a computer with an account of its own');
         }
-        if (!byRoute) await Sms.instance.send(to, body, attachments: files);
+        if (!byRoute && !asCard) await Sms.instance.send(to, body, attachments: files);
       }
       // No sound for one's own message going: only one coming in is heard (Matt, 2026-11-18: "remove the sound for
       // sending a message we only need to hear when were sent a message not when we send one").
@@ -961,11 +978,83 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     return Buddies.instance.shownFriends.where((b) => b.state == 'yes' && b.username.toLowerCase() == name).firstOrNull;
   }
 
-  /// The composer's + in a chat with a friend by username, where pictures can't go yet: what can be added instead.
+  /// The composer's + in a chat with a friend by username: pictures, files where this device can choose any, and souls.
   void _plusForFriend() {
+    final room = _attachments.length < FileCard.mostFiles;
     showChoices(context, choices: [
+      if (room && Sms.can('sendPictures')) Choice('Photos', Lucide.image, _attach),
+      if (room && FilePlatform.canPick) Choice('Files', Lucide.file, _attachFiles, hint: 'Sealed, as your messages are'),
       Choice('Send souls', Lucide.flame, _sendSouls, hint: 'A thank-you from your souls to theirs'),
     ]);
+  }
+
+  /// Any files, for a friend by username (the hangout's own picker: lib/files/file_platform.dart).
+  Future<void> _attachFiles() async {
+    try {
+      final picked = await FilePlatform.pick();
+      if (!mounted || picked.isEmpty) return;
+      final room = FileCard.mostFiles - _attachments.length;
+      setState(() => _attachments.addAll(picked.take(room).map((p) => p.path)));
+      if (picked.length > room) toast(context, 'Up to ${FileCard.mostFiles} files go with one message.');
+    } catch (e) {
+      if (mounted) toast(context, 'Couldn\'t add that: $e', tone: GlacierToastTone.danger);
+    }
+  }
+
+  /// Puts [picks] (paths, or a phone's content addresses) up sealed and sends [address] the card that says where they
+  /// are (lib/friends/file_card.dart; Matt, 2026-11-25: "also allow sending pictures and attachements to ghost
+  /// users"). Throws with the reason where they did not go.
+  Future<void> _sendFilesToFriend(String address, List<String> picks) async {
+    // The files are kept on this device's relay, and a friend who lives on another asks their own for them.
+    final friend = _soulsFriend;
+    if (friend != null && Buddies.instance.elsewhere(friend)) throw _NotSent('${friend.shown} is on another relay. Pictures and files can only be sent to friends on yours for now');
+    final mineKey = await Me.instance.mineKey();
+    if (mineKey == null) throw _NotSent('pictures and files to a friend need a Ghost account on this device');
+    final seed = FileCard.seedOf(mineKey);
+    final channel = FileCard.channelOf(seed);
+    final out = <OutgoingFile>[];
+    for (final pick in picks.take(FileCard.mostFiles)) {
+      if (pick.startsWith('content:')) {
+        final kept = await Sms.instance.keepFile(pick);
+        out.add(OutgoingFile(path: kept.path, name: kept.name, size: kept.size, mime: FileKind.mimeOf(kept.name), owned: true));
+      } else {
+        final cleaned = SpaceFile.cleanName(pick.split(PlatformInfo.pathSeparator).last.split('/').last);
+        final name = cleaned.isEmpty ? 'File' : cleaned;
+        out.add(OutgoingFile(path: pick, name: name, size: await File(pick).length(), mime: FileKind.mimeOf(name)));
+      }
+    }
+    if (out.isEmpty) throw _NotSent('there was nothing to send');
+    final files = <SpaceFile>[];
+    for (final f in out) {
+      files.add(await FilesStore.instance.uploadForChat(channel, f, byName: Me.instance.username ?? '', thumbMost: FileCard.thumbMost(out.length), moved: () {}));
+    }
+    final card = FileCard(seed: seed, files: files);
+    if (!await Friends.instance.sendText(address, card.words)) {
+      throw _NotSent(Friends.instance.lastRefusal ?? 'no connection. A friend by username is reached over the internet, through the relay');
+    }
+  }
+
+  /// [m] as a card of files a friend sent, or you sent them ([FileCard]); null for every other message.
+  FileCard? _fileCardOf(Message m) {
+    if (!_byName || m.notice != null || m.attachments.isNotEmpty || !m.body.trimLeft().startsWith('📎 ')) return null;
+    return FileCard.of(m.body, by: m.outgoing ? 'me' : m.address, at: m.date.millisecondsSinceEpoch);
+  }
+
+  /// A card's files as a space's chat draws a message's (lib/ui/space_chat_files.dart): pictures as pictures, a chip
+  /// for each other file, fetched and opened from the space the card names.
+  Widget _fileCard(Tokens t, FileCard card, Message m, {required double maxWidth, required Color ground, required Color ink}) {
+    return GestureDetector(
+      key: ValueKey('file-card-${m.key}'),
+      onLongPress: () => _messageMenu(m),
+      child: SpaceChatFiles(
+        channel: FileCard.channelOf(card.seed),
+        message: HangoutMessage(id: m.key, from: m.outgoing ? 'me' : m.address, name: '', text: '', at: m.date.millisecondsSinceEpoch, files: card.files),
+        maxWidth: maxWidth,
+        ground: ground,
+        ink: ink,
+        mine: m.outgoing,
+      ),
+    );
   }
 
   /// Opens the page souls are sent from (lib/ui/souls_send.dart). The card goes into this conversation as a message
@@ -1223,7 +1312,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 who: m.outgoing ? 'me' : m.address,
                 mine: m.outgoing,
                 name: m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : m.address)),
-                text: _isLine(m) ? '' : m.body,
+                text: _isLine(m) ? '' : FileCard.preview(m.body),
                 quiet: _isLine(m),
               ),
           ],
@@ -1256,6 +1345,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
       bool joins(Message? a, Message b) => a != null && !_isLine(a) && a.outgoing == b.outgoing && a.address == b.address && a.date.difference(b.date).inMinutes.abs() < 3;
+      // Pictures and files a friend sent, or you sent them (lib/friends/file_card.dart).
+      final filed = _fileCardOf(m);
+      if (filed != null) {
+        final (mineBg, mineInk) = myBubble(t, AppState.of(context), widget.thread);
+        items.add(Padding(
+          padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+          child: Align(
+            alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft,
+            child: _fileCard(t, filed, m, maxWidth: MediaQuery.sizeOf(context).width * (AppShell.wideOf(context) ? 0.45 : 0.72), ground: m.outgoing ? mineBg : theirBubble(t, onBackground: !background.isNone), ink: m.outgoing ? mineInk : t.color('app-ink')),
+          ),
+        ));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
+        return items;
+      }
       // Souls a friend sent, or you sent them: the card, on the side of whoever sent (lib/ui/souls_send.dart; GMFB-39).
       final souls = _soulsCardOf(m);
       if (souls != null) {
@@ -1363,6 +1466,19 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final m = msgs[i];
       final newer = i > 0 ? msgs[i - 1] : null;
       final older = i < msgs.length - 1 ? msgs[i + 1] : null;
+      // Pictures and files to or from a friend (lib/friends/file_card.dart), under the name of whoever sent them.
+      final filed = _fileCardOf(m);
+      if (filed != null) {
+        items.add(Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('${nameOf(m)}:', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: m.outgoing ? c.nameMine : c.nameTheirs)),
+            _fileCard(t, filed, m, maxWidth: 280, ground: c.chrome, ink: c.onChrome),
+          ]),
+        ));
+        if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
+        continue;
+      }
       // Souls sent, as the room's speaker says it (lib/ui/souls_send.dart; GMFB-39).
       final souls = _soulsCardOf(m);
       if (souls != null) {
@@ -1623,7 +1739,17 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           child: FutureBuilder<Uint8List?>(
                             future: Sms.instance.photo(a),
                             builder: (context, s) => s.data == null
-                                ? Container(width: 72, height: 72, color: t.color('app-paper-2'))
+                                // Not a picture (a file for a friend), or not read yet: its name on the same square.
+                                ? Container(
+                                    width: 72,
+                                    height: 72,
+                                    color: t.color('app-paper-2'),
+                                    padding: const EdgeInsets.all(6),
+                                    alignment: Alignment.bottomLeft,
+                                    child: a.startsWith('content:') || FileKind.mimeOf(a).startsWith('image/')
+                                        ? null
+                                        : Text(a.split(PlatformInfo.pathSeparator).last.split('/').last, maxLines: 3, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-2'))),
+                                  )
                                 : Image.memory(s.data!, width: 72, height: 72, fit: BoxFit.cover, cacheWidth: 216),
                           ),
                         ),

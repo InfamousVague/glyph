@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../friends/file_card.dart';
 import '../friends/buddies.dart';
 import '../sms.dart';
 import 'chats.dart';
@@ -131,7 +132,7 @@ abstract class UsernameOverlay implements SmsCalls {
         final t = chats.threadWith(address);
         if (!t.muted) {
           final name = chats.person(address)['name'] as String? ?? address;
-          unawaited(inner.invokeMethod('notifyChat', {'thread': t.id, 'who': name, 'body': body}).catchError((_) => null));
+          unawaited(inner.invokeMethod('notifyChat', {'thread': t.id, 'who': name, 'body': FileCard.preview(body)}).catchError((_) => null));
         }
         return null;
       case 'netTextState' when row != null && chats.ownsRow(row):
