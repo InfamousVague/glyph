@@ -21,6 +21,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -91,7 +92,11 @@ class RailStretch {
 }
 
 class ChatRail extends StatefulWidget {
-  const ChatRail({super.key, required this.controller, required this.marks, required this.child, this.chat = '', this.face, this.summarize});
+  const ChatRail({super.key, required this.controller, required this.marks, required this.child, this.chat = '', this.face, this.summarize, this.lead = 0});
+
+  /// How many rows the list has before the first of [marks] (messages still going up, at a space's foot): a mark's
+  /// row in the list is its place in [marks] and these.
+  final int lead;
 
   /// The list's own controller, on a list drawn bottom up.
   final ScrollController controller;
@@ -305,27 +310,120 @@ class _ChatRailState extends State<ChatRail> {
 
   List<RailStretch> get _all => _stretches ??= ChatRail.stretchesOf(widget.marks);
 
-  /// What share of the chat, from its newest end, is on the screen: (from, to), each 0 to 1.
+  /// The list's own rows as they are laid out now: for each one built, where it starts (from the newest end) and how
+  /// tall it is. Only the rows near the screen are built, and only these are known exactly.
+  Map<int, ({double at, double tall})> _laid() {
+    final out = <int, ({double at, double tall})>{};
+    if (!_c.hasClients) return out;
+    RenderSliverMultiBoxAdaptor? list;
+    void find(RenderObject o) {
+      if (list != null) return;
+      if (o is RenderSliverMultiBoxAdaptor) {
+        list = o;
+        return;
+      }
+      o.visitChildren(find);
+    }
+
+    _c.position.context.storageContext.findRenderObject()?.visitChildren(find);
+    final l = list;
+    if (l == null) return out;
+    // What is before the list in the scroll (its padding), where that can be told.
+    if (l.constraints.scrollOffset > 0) _before = _c.position.pixels - l.constraints.scrollOffset;
+    for (var child = l.firstChild; child != null; child = l.childAfter(child)) {
+      final d = child.parentData;
+      if (d is! SliverMultiBoxAdaptorParentData || d.index == null || d.layoutOffset == null || !child.hasSize) continue;
+      out[d.index!] = (at: d.layoutOffset! + _before, tall: child.size.height);
+    }
+    return out;
+  }
+
+  double _before = 0;
+
+  /// Which of the messages are on the screen: (from, to) as shares of them all from the newest end, each 0 to 1.
+  /// Exactly, from the rows on the screen; by the scroll's share of its whole length until the list is laid out.
   (double, double) _view() {
     if (!_c.hasClients || !_c.position.hasContentDimensions) return (0, 1);
     final p = _c.position;
+    final n = widget.marks.length;
+    if (n > 0) {
+      int? first, last;
+      _laid().forEach((index, row) {
+        if (row.at + row.tall <= p.pixels || row.at >= p.pixels + p.viewportDimension) return;
+        final mark = index - widget.lead;
+        if (mark < 0 || mark >= n) return;
+        if (first == null || mark < first!) first = mark;
+        if (last == null || mark > last!) last = mark;
+      });
+      if (first != null) return (first! / n, (last! + 1) / n);
+    }
     final whole = p.maxScrollExtent + p.viewportDimension;
     if (whole <= 0) return (0, 1);
     final at = p.pixels.clamp(0.0, p.maxScrollExtent);
     return (at / whole, (at + p.viewportDimension) / whole);
   }
 
-  /// Brings the point [share] of the way from the newest end to the middle of the screen.
-  void _go(double share, {bool run = false}) {
-    if (!_c.hasClients || !_c.position.hasContentDimensions) return;
-    final p = _c.position;
-    final whole = p.maxScrollExtent + p.viewportDimension;
-    final to = (share.clamp(0.0, 1.0) * whole - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
-    if (run && !context.tokens.reducedMotion) {
-      _c.animateTo(to, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic);
-    } else {
+  /// Counts the goings, so a newer one stops an older one still finding its row.
+  int _going = 0;
+
+  /// Brings the message at [mark] onto the screen: its top to the screen's top where [top] (the start of a stretch,
+  /// to read on from), else to the middle. The list builds only the rows near the screen, so where a far row is is
+  /// not known: it goes to where the row should be by the rows it knows, looks again once those are laid out, and so
+  /// on until the row itself is there to be gone to exactly (Matt, 2026-11-25: "if i click on a section in the chat
+  /// map it doesn't always go right to where i clicked").
+  Future<void> _goTo(int mark, {bool top = false, bool run = false}) async {
+    final n = widget.marks.length;
+    if (n == 0 || !_c.hasClients) return;
+    final item = mark.clamp(0, n - 1) + widget.lead;
+    final mine = ++_going;
+    for (var tries = 0; tries < 14; tries++) {
+      if (!mounted || mine != _going || !_c.hasClients || !_c.position.hasContentDimensions) return;
+      final p = _c.position;
+      final laid = _laid();
+      final row = laid[item];
+      if (row != null) {
+        final to = (top ? row.at + row.tall - p.viewportDimension + 12 : row.at + row.tall / 2 - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
+        if ((to - p.pixels).abs() < 1) return;
+        if (run && tries == 0 && !context.tokens.reducedMotion) {
+          await _c.animateTo(to, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+        } else {
+          _c.jumpTo(to);
+        }
+        return;
+      }
+      final double guess;
+      if (laid.isEmpty) {
+        guess = (item + 0.5) / (n + widget.lead) * (p.maxScrollExtent + p.viewportDimension);
+      } else {
+        // From the nearest row that is known, by how tall the known rows are on the whole.
+        final near = laid.keys.reduce((a, b) => (a - item).abs() <= (b - item).abs() ? a : b);
+        final tall = laid.values.fold<double>(0, (sum, r) => sum + r.tall) / laid.length;
+        guess = laid[near]!.at + (item - near) * tall;
+      }
+      final to = (guess - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
+      // As far as the list goes and the row is still not there: it is not in the list (older ones still to come).
+      if ((to - p.pixels).abs() < 1) return;
       _c.jumpTo(to);
+      await WidgetsBinding.instance.endOfFrame;
     }
+  }
+
+  /// The message a point of the map stands for: [share] of the way up it from the newest.
+  int _markAt(double share) => (share.clamp(0.0, 1.0) * widget.marks.length).floor().clamp(0, math.max(0, widget.marks.length - 1));
+
+  /// The row of the list of stretches that is the one on the screen, kept in the middle of the list as the chat is
+  /// scrolled (Matt, 2026-11-25: "when scrolling up and down the chat map the popover doesn't center what we're on").
+  final GlobalKey _here = GlobalKey();
+  int? _hereWas;
+
+  void _follow(int oldest) {
+    if (_hereWas == oldest) return;
+    _hereWas = oldest;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final at = _here.currentContext;
+      if (!mounted || at == null) return;
+      Scrollable.ensureVisible(at, alignment: 0.5, duration: context.tokens.reducedMotion ? Duration.zero : const Duration(milliseconds: 160), curve: Curves.easeOut);
+    });
   }
 
   String _key(RailStretch s) => '${widget.chat}\t${widget.marks[s.oldest].at}\t${widget.marks[s.newest].at}\t${s.count}';
@@ -374,6 +472,12 @@ class _ChatRailState extends State<ChatRail> {
       },
       child: Stack(children: [
         widget.child,
+        // Opened by a press (a phone): a press anywhere else puts the list away (Matt, 2026-11-25: "you can't tap
+        // outside of the map popup to close the map").
+        if (_live && _open && !isBevelChrome(t))
+          Positioned.fill(
+            child: GestureDetector(key: const ValueKey('chat-rail-away'), behavior: HitTestBehavior.opaque, onTap: () => _show(open: false)),
+          ),
         if (_live && !isBevelChrome(t))
           Positioned(
             top: 0,
@@ -395,8 +499,8 @@ class _ChatRailState extends State<ChatRail> {
                   behavior: HitTestBehavior.opaque,
                   // A press goes there with a mouse over it; on a phone it opens the list of stretches, and again
                   // puts it away.
-                  onTapUp: (d) => d.kind == PointerDeviceKind.mouse || d.kind == PointerDeviceKind.trackpad ? _go(shareAt(d.localPosition), run: true) : _show(open: !_open),
-                  onVerticalDragUpdate: _hover ? (d) => _go(shareAt(d.localPosition)) : null,
+                  onTapUp: (d) => d.kind == PointerDeviceKind.mouse || d.kind == PointerDeviceKind.trackpad ? _goTo(_markAt(shareAt(d.localPosition)), run: true) : _show(open: !_open),
+                  onVerticalDragUpdate: _hover ? (d) => _goTo(_markAt(shareAt(d.localPosition))) : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
                     child: SizedBox(
@@ -441,6 +545,8 @@ class _ChatRailState extends State<ChatRail> {
     final (from, to) = _view();
     final middle = ((from + to) / 2 * n).floor().clamp(0, n - 1);
     final list = _all.reversed.toList();
+    final here = list.where((s) => middle >= s.newest && middle <= s.oldest).firstOrNull;
+    if (here != null) _follow(here.oldest);
     return Container(
       key: const ValueKey('chat-rail-list'),
       width: 300,
@@ -455,14 +561,14 @@ class _ChatRailState extends State<ChatRail> {
       ),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final s in list) _row(t, s, here: middle >= s.newest && middle <= s.oldest),
+          for (final s in list)
+            if (identical(s, here)) KeyedSubtree(key: _here, child: _row(t, s, here: true)) else _row(t, s, here: false),
         ]),
       ),
     );
   }
 
   Widget _row(Tokens t, RailStretch s, {required bool here}) {
-    final n = widget.marks.length;
     final summary = s.lines.isEmpty ? null : ChatRail._made[_key(s)];
     final when = DateTime.fromMillisecondsSinceEpoch(widget.marks[s.oldest].at);
     final faces = s.people.take(3).toList();
@@ -472,7 +578,8 @@ class _ChatRailState extends State<ChatRail> {
     return GlacierPressable(
       key: ValueKey('chat-rail-stretch-${s.oldest}'),
       onPressed: () {
-        _go((s.newest + s.oldest + 1) / 2 / n, run: true);
+        // To where the stretch begins, its first message at the top, to be read on from.
+        _goTo(s.oldest, top: true, run: true);
         if (_open) _show(open: false);
       },
       semanticLabel: '${dayHeading(when)}, ${s.count} ${s.count == 1 ? 'message' : 'messages'}. ${summary ?? s.opening}',

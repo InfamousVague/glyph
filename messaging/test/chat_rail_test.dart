@@ -222,6 +222,104 @@ void main() {
       expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
     });
 
+    testWidgets('a press on a stretch goes to where it begins, exactly, however far and however tall the rows between', (tester) async {
+      // Rows of very different heights, so a guess by the scroll's share of its length lands somewhere else.
+      final marks = _chat();
+      final sheet = await loadSheet(tester);
+      final c = ScrollController();
+      addTearDown(c.dispose);
+      await pumpScreen(
+        tester,
+        sheet,
+        ChatRail(
+          controller: c,
+          marks: marks,
+          chat: 'tall-rows',
+          child: ListView.builder(controller: c, reverse: true, itemCount: marks.length, itemBuilder: (context, i) => SizedBox(key: ValueKey('row-$i'), height: i < 20 ? 30 : (i < 40 ? 140 : 60), child: Text(marks[i].text))),
+        ),
+        AppState(),
+        size: const Size(700, 600),
+        platform: 'desktop',
+      );
+      await tester.pump();
+      await tester.pump();
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await tester.pump();
+      await tester.pump();
+      // The middle stretch: messages 20 to 39, the oldest of them 39.
+      final middle = find.byKey(const ValueKey('chat-rail-stretch-39'));
+      await mouse.moveTo(tester.getCenter(middle));
+      await mouse.down(tester.getCenter(middle));
+      await mouse.up();
+      await settle(tester);
+      expect(find.byKey(const ValueKey('row-39')), findsOneWidget, reason: 'the stretch\'s first message is on the screen');
+      expect(tester.getRect(find.byKey(const ValueKey('row-39'))).top, closeTo(12, 1), reason: 'at the top, to read on from');
+      // And the oldest, at the very top of the chat.
+      final oldest = find.byKey(const ValueKey('chat-rail-stretch-59'));
+      await mouse.moveTo(tester.getCenter(oldest));
+      await mouse.down(tester.getCenter(oldest));
+      await mouse.up();
+      await settle(tester);
+      expect(c.offset, c.position.maxScrollExtent);
+      expect(tester.getRect(find.byKey(const ValueKey('row-59'))).top, closeTo(0, 1));
+      // A press on the map itself: the message under it, in the middle of the screen.
+      await mouse.moveTo(tester.getRect(rail).bottomCenter - const Offset(0, 2));
+      await mouse.down(tester.getRect(rail).bottomCenter - const Offset(0, 2));
+      await mouse.up();
+      await settle(tester);
+      expect(c.offset, 0, reason: 'the newest');
+    });
+
+    testWidgets('on a phone a press opens the list, a press on its first row goes there, and a press outside puts it away', (tester) async {
+      final c = await open(tester, _chat());
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      await tester.tap(rail);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsOneWidget);
+      // Outside: away, and the chat does not take the press.
+      await tester.tapAt(const Offset(80, 300));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
+      expect(c.offset, 0);
+      // Again, and the first row: the oldest stretch.
+      await tester.tap(rail);
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('chat-rail-stretch-59')));
+      await settle(tester);
+      expect(c.offset, c.position.maxScrollExtent, reason: 'at the oldest');
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing, reason: 'put away once somewhere is chosen');
+    });
+
+    testWidgets('the list keeps the stretch on the screen in its middle as the chat is scrolled', (tester) async {
+      // Many stretches, more than the list shows at once.
+      final marks = [
+        for (var s = 0; s < 12; s++)
+          for (var i = 0; i < 6; i++) RailMark(at: _now - s * 5 * 60 * _minute - i * _minute, who: 'maya', mine: false, name: 'Maya', text: 'stretch $s line $i'),
+      ];
+      final c = await open(tester, marks);
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await settle(tester);
+      final list = tester.getRect(find.byKey(const ValueKey('chat-rail-list')));
+      c.jumpTo(c.position.maxScrollExtent);
+      await settle(tester);
+      final oldest = tester.getRect(find.byKey(const ValueKey('chat-rail-stretch-71')));
+      expect(oldest.top, greaterThanOrEqualTo(list.top), reason: 'the oldest stretch, now on the screen, is in the list\'s view');
+      expect(oldest.bottom, lessThanOrEqualTo(list.bottom));
+      c.jumpTo(0);
+      await settle(tester);
+      final newest = tester.getRect(find.byKey(const ValueKey('chat-rail-stretch-5')));
+      expect(newest.top, greaterThanOrEqualTo(list.top));
+      expect(newest.bottom, lessThanOrEqualTo(list.bottom));
+    });
+
     testWidgets('with a model to ask, each stretch is its summary, asked for once', (tester) async {
       final asked = <String>[];
       Future<String?> sum(String lines) async {

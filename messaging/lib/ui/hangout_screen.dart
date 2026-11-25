@@ -1337,6 +1337,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           RailMark(at: row.at, who: '', mine: false, quiet: true),
                     ],
                     face: (who, name, mine, size) => SpaceFace(room: room, id: mine ? room.me : who, name: name, size: size),
+                    lead: going.length,
                     child: ListView.builder(
                     controller: _scroll,
                     reverse: true,
