@@ -1,7 +1,6 @@
 import 'dart:async';
 import '../platform_info.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaDeviceInfo;
 import 'package:glacier/glacier.dart';
@@ -183,11 +182,11 @@ class _VoicePaneState extends State<VoicePane> {
           SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
           SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
           SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
-          if (!kIsWeb && PlatformInfo.isWindows)
+          if (Ducking.here)
             SettingRow(
               icon: icon(LucideMore.volumeX),
               label: 'Lower other sounds in calls',
-              hint: const Text('Windows turns everything else on the computer down while you talk. Off keeps music, games and videos as loud as they were.'),
+              hint: Text(PlatformInfo.isMacOS ? 'Your Mac turns other apps down while you\'re in a call. Off keeps music, games and videos close to as loud as they were.' : 'Windows turns everything else on the computer down while you talk. Off keeps music, games and videos as loud as they were.'),
               control: GlacierSwitch(
                 checked: v.duckOthers,
                 onCheckedChange: (on) {
