@@ -285,7 +285,7 @@ class _ProfileCardState extends State<_ProfileCard> {
         _network = await who.network!.profileOf(user: who.id, username: who.username).timeout(const Duration(seconds: 10));
       } else if (g != null) {
         if (g.me) {
-          _picture = Me.instance.pictureSharp;
+          _picture = Me.instance.pictureOwn;
           try {
             _myDid = Did.ofKey((await Sms.instance.netIdentity()).key);
           } catch (_) {}

@@ -24,8 +24,10 @@ void main() {
     state = AppState();
   });
 
-  Future<void> frame(WidgetTester tester, {Size size = _wide}) async {
-    await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'matt')..set('me_display', 'Matt'), ValueNotifier(0), () => null));
+  Future<void> frame(WidgetTester tester, {Size size = _wide, Map<String, String> more = const {}}) async {
+    final store = MemoryMeStore()..set('me_username', 'matt')..set('me_display', 'Matt');
+    more.forEach(store.set);
+    await tester.runAsync(() => Me.instance.start(store, ValueNotifier(0), () => null));
     addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
     state.set(NavStyle.pref, NavStyle.rail.name);
     final sheet = await loadSheet(tester);
@@ -92,6 +94,57 @@ void main() {
     await tester.tap(_key('rail-home'));
     await settle(tester);
     expect(find.byType(ProfileScreen), findsNothing);
+  });
+
+  // Matt, 2026-11-25: "I need a setting to change my banner"; "add the ability to pick your badge (show it next to your
+  // name) and show a popover when picking the badge".
+  testWidgets('the banner is changed from the card: the pencil on it opens the banners, a press wears one', (tester) async {
+    await frame(tester);
+    await tester.tap(_key('rail-profile'));
+    await settle(tester);
+    expect(_key('profile-peek-banners'), findsNothing);
+    await tester.tap(_key('profile-peek-banner-change'));
+    await settle(tester);
+    expect(_key('profile-peek-banner-none'), findsOneWidget);
+    await tester.tap(_key('profile-peek-banner-midnight-fog'));
+    await settle(tester);
+    expect(Me.instance.cosmetics.banner, 'midnight-fog');
+    expect(_key('profile-peek-name'), findsOneWidget, reason: 'the card stays');
+    await tester.tap(_key('profile-peek-banner-none'));
+    await settle(tester);
+    expect(Me.instance.cosmetics.banner, isEmpty);
+    // The pencil again puts them away.
+    await tester.tap(_key('profile-peek-banner-change'));
+    await settle(tester);
+    expect(_key('profile-peek-banners'), findsNothing);
+  });
+
+  testWidgets('the badge beside your name is chosen from a list hung from it, and the card stays open', (tester) async {
+    await frame(tester, more: {'me_special': 'founder,alpha'});
+    await tester.tap(_key('rail-profile'));
+    await settle(tester);
+    expect(_key('profile-peek-badge'), findsOneWidget);
+    expect(_key('profile-peek-badge-alpha'), findsNothing);
+    await tester.tap(_key('profile-peek-badge'));
+    await settle(tester);
+    expect(find.text('Founder'), findsOneWidget);
+    expect(find.text('Tried it before anyone else'), findsOneWidget);
+    await tester.tap(_key('profile-peek-badge-alpha'));
+    await settle(tester);
+    expect(Me.instance.showcase, 'alpha');
+    expect(_key('profile-peek-badge-alpha'), findsNothing, reason: 'the list is put away');
+    expect(_key('profile-peek-name'), findsOneWidget, reason: 'the card is not');
+    // A press outside both now puts the card away.
+    await tester.tapAt(const Offset(700, 100));
+    await settle(tester);
+    expect(_key('profile-peek-name'), findsNothing);
+  });
+
+  testWidgets('no badge to choose where you have none', (tester) async {
+    await frame(tester);
+    await tester.tap(_key('rail-profile'));
+    await settle(tester);
+    expect(_key('profile-peek-badge'), findsNothing);
   });
 
   testWidgets('on a phone the card fits beside the rail', (tester) async {

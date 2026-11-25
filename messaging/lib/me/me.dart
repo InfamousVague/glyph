@@ -749,12 +749,47 @@ class Me extends ChangeNotifier {
     return sharp.isNotEmpty && picture.isNotEmpty ? sharp : picture;
   }
 
-  /// Sets this person's picture (lib/me/picture_make.dart), or takes it away (null).
+  /// The picture as this person's own screens draw it: the larger one kept on this device alone where there is one
+  /// ([ProfilePicture.full]; never sent), else [pictureSharp].
+  String get pictureOwn {
+    final full = _app?.choice('me_picture_full', '') ?? '';
+    return full.isNotEmpty && picture.isNotEmpty ? full : pictureSharp;
+  }
+
+  /// Sets this person's picture (lib/me/picture_make.dart), or takes it away (null). The one it takes the place of is
+  /// kept among [picturesPast], to go back to.
   void setPicture(ProfilePicture? p) {
+    final was = pictureOwn;
     final sharp = p == null || p.sharp.length > ProfilePictures.most ? '' : p.sharp;
     final small = p == null ? '' : (p.small.isNotEmpty && p.small.length <= ProfilePictures.oldMost ? p.small : (sharp.length <= ProfilePictures.oldMost ? sharp : ''));
     _app?.set('me_picture', sharp.isEmpty ? '' : small);
     _app?.set('me_picture_sharp', small.isEmpty ? '' : sharp);
+    _app?.set('me_picture_full', small.isEmpty || p == null || p.full.length > ProfilePictures.fullMost ? '' : p.full);
+    final now = pictureOwn;
+    _keepPast([if (was.isNotEmpty && was != now) was, ...picturesPast.where((x) => x != was && x != now)]);
+    notifyListeners();
+  }
+
+  /// The pictures this person had before, the newest first, [pastMost] at most (Matt, 2026-11-25: "store previous
+  /// profile pictures so you can roll back easily"): each as it was kept for their own screens, square base64. Kept on
+  /// this device alone. One is gone back to by making it a picture again ([profilePictureOf]) and [setPicture].
+  List<String> get picturesPast {
+    final kept = _app?.choice('me_picture_past', '') ?? '';
+    if (kept.isEmpty) return const [];
+    try {
+      return [for (final x in jsonDecode(kept) as List) if (x is String && x.isNotEmpty) x];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static const pastMost = 6;
+
+  void _keepPast(List<String> past) => _app?.set('me_picture_past', past.isEmpty ? '' : jsonEncode(past.take(pastMost).toList()));
+
+  /// Forgets one of [picturesPast].
+  void forgetPast(String picture) {
+    _keepPast([for (final x in picturesPast) if (x != picture) x]);
     notifyListeners();
   }
 
@@ -814,6 +849,7 @@ class Me extends ChangeNotifier {
     if (picture != null) {
       _app?.set('me_picture', picture.length <= ProfilePictures.oldMost ? picture : '');
       _app?.set('me_picture_sharp', '');
+      _app?.set('me_picture_full', '');
     }
     if (status != null) {
       final s = status.trim().replaceAll(RegExp(r'\s+'), ' ');

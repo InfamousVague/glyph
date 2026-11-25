@@ -29,7 +29,7 @@ class CosmeticsSection extends StatelessWidget {
           title: 'Look',
           description: const Text('Dress your profile. Friends and people in your spaces see it on your profile card.'),
           children: [
-            SettingRowBox(child: _Preview(cosmetics: c, name: me.shownName, picture: me.pictureSharp)),
+            SettingRowBox(child: _Preview(cosmetics: c, name: me.shownName, picture: me.pictureOwn)),
             for (final kind in CosmeticKind.values)
               SettingRow(
                 key: ValueKey('look-${kind.name}'),

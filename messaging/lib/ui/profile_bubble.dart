@@ -22,7 +22,10 @@ import '../me/me.dart';
 import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'common.dart';
+import '../me/cosmetics.dart';
+import 'cosmetics_picker.dart' show wear;
 import 'cosmetics_ui.dart';
+import 'special_badges.dart';
 import 'nav_bar.dart' show HoverTip;
 import 'nav_rail.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
@@ -50,8 +53,19 @@ class ProfileBubble extends StatefulWidget {
 class _ProfileBubbleState extends State<ProfileBubble> {
   bool _open = false;
 
+  /// Something of the card's own is open over it (the badges to choose from): a press there is not a press outside
+  /// the card.
+  final _held = ValueNotifier(false);
+
   void _set(bool open) {
+    if (!open && _held.value) return;
     if (mounted && open != _open) setState(() => _open = open);
+  }
+
+  @override
+  void dispose() {
+    _held.dispose();
+    super.dispose();
   }
 
   @override
@@ -101,7 +115,7 @@ class _ProfileBubbleState extends State<ProfileBubble> {
                             shape: BoxShape.circle,
                             border: Border.all(color: t.color(lit ? 'app-ink' : 'glacier-border-strong'), width: lit ? 2 : t.len('app-line')),
                           ),
-                          child: ProfileFace(key: const ValueKey('profile-bubble-face'), name: me.shownName, picture: me.pictureSharp, size: ring),
+                          child: ProfileFace(key: const ValueKey('profile-bubble-face'), name: me.shownName, picture: me.pictureOwn, size: ring),
                         ),
                       ),
                     ),
@@ -119,6 +133,7 @@ class _ProfileBubbleState extends State<ProfileBubble> {
                     child: SingleChildScrollView(
                       child: _Peek(
                         host: context,
+                        held: _held,
                         close: () => _set(false),
                         openProfile: () {
                           _set(false);
@@ -138,7 +153,10 @@ class _ProfileBubbleState extends State<ProfileBubble> {
 /// The card hung beside the bubble. [host] is the bubble's own place in the app, for what opens from here (a page, a
 /// sheet, a toast): the card itself is drawn over everything and goes when it closes.
 class _Peek extends StatefulWidget {
-  const _Peek({required this.host, required this.close, required this.openProfile});
+  const _Peek({required this.host, required this.held, required this.close, required this.openProfile});
+
+  /// True while the badges are open over the card ([_ProfileBubbleState._held]).
+  final ValueNotifier<bool> held;
   final BuildContext host;
   final VoidCallback close;
   final VoidCallback openProfile;
@@ -152,6 +170,19 @@ class _PeekState extends State<_Peek> {
 
   /// The four ways of being shown, opened out under the one chosen.
   bool _modes = false;
+
+  /// The banners to choose from, opened out under the card's head (Matt, 2026-11-25: "I need a setting to change my
+  /// banner").
+  bool _banners = false;
+
+  /// The badges to choose the one shown beside your name from, hung from the one shown (Matt, 2026-11-25: "add the
+  /// ability to pick your badge (show it next to your name) and show a popover when picking the badge").
+  bool _badges = false;
+
+  void _setBadges(bool open) {
+    widget.held.value = open;
+    if (mounted && open != _badges) setState(() => _badges = open);
+  }
 
   /// Keeps the status written, and tells friends; nothing where it is as it was. Asked at Enter and as the card goes.
   void _saveStatus() {
@@ -198,7 +229,7 @@ class _PeekState extends State<_Peek> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return ListenableBuilder(
-      listenable: Me.instance,
+      listenable: Listenable.merge([Me.instance, SpecialBadges.instance]),
       builder: (context, _) {
         final me = Me.instance;
         final mode = me.presenceMode;
@@ -234,13 +265,29 @@ class _PeekState extends State<_Peek> {
                 ),
               ),
               Positioned(
+                right: t.space(2),
+                top: t.space(2),
+                child: GlacierPressable(
+                  key: const ValueKey('profile-peek-banner-change'),
+                  onPressed: () => setState(() => _banners = !_banners),
+                  semanticLabel: 'Change your banner',
+                  builder: (context, state) => Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: const Color(0xFF000000).withValues(alpha: state.hovered || state.pressed || _banners ? 0.62 : 0.4), shape: BoxShape.circle),
+                    child: AppIcon(_banners ? Lucide.x : Lucide.pencil, size: 14, color: const Color(0xFFFFFFFF), wash: false),
+                  ),
+                ),
+              ),
+              Positioned(
                 left: t.space(4) - ringW,
                 top: bannerH - face / 2 - ringW,
                 child: Stack(clipBehavior: Clip.none, children: [
                   Container(
                     padding: EdgeInsets.all(ringW),
                     decoration: BoxDecoration(color: ground, shape: BoxShape.circle),
-                    child: DressedFace(size: face, cosmetics: dress, face: ProfileFace(name: name, picture: me.pictureSharp, size: face)),
+                    child: DressedFace(size: face, cosmetics: dress, face: ProfileFace(name: name, picture: me.pictureOwn, size: face)),
                   ),
                   Positioned(right: ringW - 2, bottom: ringW - 2, child: ModeMark(key: ValueKey('profile-peek-mark-$mode'), mode: mode, size: 22)),
                 ]),
@@ -255,6 +302,7 @@ class _PeekState extends State<_Peek> {
                   child: NameEffectText(name.isEmpty ? 'You' : name, key: const ValueKey('profile-peek-name'), id: dress.name, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
                 ),
                 if (me.username != null) VerifiedBadge(id: '', username: me.username!, me: true, size: 20, special: false),
+                if (specialBadgesOf(me.special).isNotEmpty) _badgePick(t),
               ]),
               Text(
                 me.username == null ? 'No username yet' : '@${me.username}',
@@ -263,6 +311,7 @@ class _PeekState extends State<_Peek> {
                 overflow: TextOverflow.ellipsis,
                 style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
               ),
+              if (_banners) _bannerPick(t),
               SizedBox(height: t.space(3)),
               // The status, written where it is read: kept at Enter, and as the card goes.
               GlacierInput(
@@ -350,6 +399,107 @@ class _PeekState extends State<_Peek> {
         if (dress.effect.isEmpty) return body;
         return Stack(children: [body, Positioned.fill(child: ProfileEffectLayer(id: dress.effect))]);
       },
+    );
+  }
+}
+
+extension on _PeekState {
+  /// The banners there are, None first, each as it would look: a press wears it, and the one worn is ringed.
+  Widget _bannerPick(Tokens t) {
+    final me = Me.instance;
+    final worn = me.cosmetics.banner;
+    final hues = PluginHues.of(t, hueFor(me.username ?? (me.shownName.isEmpty ? 'me' : me.shownName)));
+    return Padding(
+      key: const ValueKey('profile-peek-banners'),
+      padding: EdgeInsets.only(top: t.space(3)),
+      child: LayoutBuilder(builder: (context, box) {
+        final gap = t.space(2);
+        final w = (box.maxWidth - gap * 2) / 3;
+        return Wrap(spacing: gap, runSpacing: gap, children: [
+          for (final id in ['', for (final b in CosmeticCatalog.of(CosmeticKind.banner)) b.id])
+            GlacierPressable(
+              key: ValueKey('profile-peek-banner-${id.isEmpty ? 'none' : id}'),
+              onPressed: () => wear(me.cosmetics.withKind(CosmeticKind.banner, id)),
+              semanticLabel: id.isEmpty ? 'No banner' : '${CosmeticCatalog.find(CosmeticKind.banner, id)?.label ?? id} banner',
+              selected: worn == id,
+              builder: (context, state) => Container(
+                width: w.floorToDouble(),
+                height: 34,
+                clipBehavior: Clip.antiAlias,
+                foregroundDecoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(t.radius('md')),
+                  border: Border.all(color: t.color(worn == id ? 'app-ink' : 'app-rule'), width: worn == id ? 2 : 1),
+                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('md'))),
+                child: CosmeticBanner(
+                  id: id,
+                  // None: the band in your own colour, as the card draws it then.
+                  fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+                ),
+              ),
+            ),
+        ]);
+      }),
+    );
+  }
+
+  /// The badge shown beside your name, and under a press the ones you have to choose it from.
+  Widget _badgePick(Tokens t) {
+    final me = Me.instance;
+    final mine = specialBadgesOf(me.special);
+    final shown = SpecialBadges.instance.shownOf('', me: true) ?? mine.first;
+    return GlacierPopover(
+      open: _badges,
+      onOpenChange: _setBadges,
+      placement: Placement.bottomStart,
+      ariaLabel: 'The badge beside your name',
+      minWidth: t.lenOf('15rem'),
+      maxWidth: t.lenOf('17rem'),
+      padding: EdgeInsets.all(t.space(1)),
+      trigger: (context, trigger) => Padding(
+        padding: EdgeInsets.only(left: t.space(1)),
+        child: GlacierPressable(
+          key: const ValueKey('profile-peek-badge'),
+          onPressed: trigger.toggle,
+          semanticLabel: '${shown.name}, the badge beside your name. Change it',
+          builder: (context, state) => Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: state.hovered || state.pressed || _badges ? t.color('app-ink').withValues(alpha: 0.08) : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+            child: AppIcon(shown.icon, size: 20, color: PluginHues.of(t, shown.hue).accent),
+          ),
+        ),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(1)),
+          child: Text('SHOWN BESIDE YOUR NAME', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'), tracking: 0.4)),
+        ),
+        for (final b in mine)
+          GlacierPressable(
+            key: ValueKey('profile-peek-badge-${b.id}'),
+            onPressed: () {
+              if (b.id != shown.id) unawaited(me.setShowcase(b.id).catchError((_) {}));
+              _setBadges(false);
+            },
+            semanticLabel: '${b.name}. ${b.about}',
+            selected: b.id == shown.id,
+            builder: (context, state) => Container(
+              padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(2)),
+              decoration: BoxDecoration(color: state.hovered || state.pressed || state.focused ? t.color('app-ink').withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+              child: Row(children: [
+                AppIcon(b.icon, size: 20, color: PluginHues.of(t, b.hue).accent),
+                SizedBox(width: t.space(3)),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(b.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'))),
+                    Text(b.about, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                  ]),
+                ),
+                if (b.id == shown.id) AppIcon(Lucide.check, size: 16, color: t.color('app-ink')),
+              ]),
+            ),
+          ),
+      ]),
     );
   }
 }
