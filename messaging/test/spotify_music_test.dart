@@ -44,8 +44,8 @@ class Device {
     maySpeak: (who) => !mayNot.contains(who),
     app: () => computer ? spotify : null,
     source: () => computer ? source : null,
-    makeEar: ({required servers, required relayOnly, required onCandidate, required onState}) {
-      final e = FakeEar(servers, relayOnly, onCandidate, onState);
+    makeEar: ({required servers, required relayOnly, required onCandidate, required onState, required onLossless}) {
+      final e = FakeEar(servers, relayOnly, onCandidate, onState, onLossless);
       ears.add(e);
       return e;
     },
@@ -672,7 +672,7 @@ void main() {
       expect(await m.level(), 0.4);
       await m.end();
       expect(calls.last, 'end');
-      expect(await m.offer('sam', servers: const [], relayOnly: false), isNull, reason: 'ended');
+      expect(await m.offer('sam', servers: const [], relayOnly: false, lossless: false), isNull, reason: 'ended');
       refuse = 'sound';
       await expectLater(m.begin(), throwsA(isA<SpotifyRefused>().having((e) => e.word, 'word', 'sound')));
     });

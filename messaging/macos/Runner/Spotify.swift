@@ -64,7 +64,7 @@ final class Spotify: NSObject {
     case "offer":
       guard let link, let id = args["id"] as? String else { return result(nil) }
       let servers = (args["servers"] as? [[String: Any]] ?? []).compactMap(Self.server)
-      link.offer(to: id, servers: servers, relayOnly: args["relay"] as? Bool ?? false) { sdp in DispatchQueue.main.async { result(sdp) } }
+      link.offer(to: id, servers: servers, relayOnly: args["relay"] as? Bool ?? false, lossless: args["lossless"] as? Bool ?? false) { sdp in DispatchQueue.main.async { result(sdp) } }
     case "answer":
       guard let link, let id = args["id"] as? String, let sdp = args["sdp"] as? String else { return result(false) }
       link.answer(from: id, sdp: sdp) { ok in DispatchQueue.main.async { result(ok) } }
@@ -73,6 +73,28 @@ final class Spotify: NSObject {
         link.candidate(from: id, RTCIceCandidate(sdp: c, sdpMLineIndex: Int32(args["sdpMLineIndex"] as? Int ?? 0), sdpMid: args["sdpMid"] as? String))
       }
       result(nil)
+    // Without loss, beside the Opus on the same connection.
+    case "lossless":
+      guard let link, let id = args["id"] as? String else { return result(false) }
+      if args["on"] as? Bool ?? false {
+        link.openLossless(id) { ok in DispatchQueue.main.async { result(ok) } }
+      } else {
+        link.closeLossless(id)
+        result(true)
+      }
+    case "losslessState":
+      guard let link else { return result([:] as [String: Any]) }
+      link.losslessState { all in
+        let said = all.mapValues { s in
+          var m: [String: Any] = ["open": s.open, "bytes": s.bytes, "dropped": s.dropped]
+          if let relay = s.relay { m["relay"] = relay }
+          return m
+        }
+        DispatchQueue.main.async { result(said) }
+      }
+    // The rate Spotify's sound is taken at, 0 where it isn't yet: below 44,100 it is not the music whole.
+    case "rate":
+      if #available(macOS 14.4, *), let s = sound as? SpotifySound { s.rate { hz in DispatchQueue.main.async { result(hz) } } } else { result(0.0) }
     case "close":
       if let id = args["id"] as? String { link?.close(id) }
       result(nil)

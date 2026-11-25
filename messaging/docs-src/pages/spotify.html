@@ -79,6 +79,25 @@
 </m-screen>
 <note kind="warn" title="The DJ should wear headphones"><p>On speakers, their microphone hears the music and sends it a second time.</p></note>
 
+<h2 id="lossless">Lossless</h2>
+<p>Everyone hears the music in high quality: stereo, at the highest rate a call's sound has. It can also come without loss, as it was taken from the DJ's Spotify, 48 kHz and 16 bits with nothing left out. You hear high quality first; lossless takes over once it has played cleanly for a second, and high quality is back at once if it stops. Where they cross, you hear a moment of the song again, as lossless is about half a second behind.</p>
+<m-screen title="Spotify" back caption="What you hear, and the switch.">
+  <m-section title="On this device">
+    <m-row icon="audio-lines" label="You hear" hint="The music as it was captured, 48 kHz, 16 bits, with nothing left out." value="Lossless"/>
+    <m-row icon="music" label="Lossless music" switch="on"/>
+  </m-section>
+</m-screen>
+<p>It plays where all of this is so. Where it isn't, <b>You hear</b> says why, in a line.</p>
+<ul>
+  <li><b>You wear headphones.</b> On speakers, your microphone would send the music back to the call: a call takes its own sound out of your microphone, and lossless is played beside it. Where your device can't tell, <b>I'm wearing headphones</b> is there for you to say so, for what you hear it on now.</li>
+  <li><b>Your headset isn't in a call.</b> A Bluetooth headset whose microphone is in use plays everything at a call's quality. Choose another microphone, or wired headphones.</li>
+  <li><b>You and the DJ are connected directly.</b> It is never sent through the relay. To find a direct way, the music's connection tries every path first where you can have lossless, so the DJ's device and yours learn each other's internet address, as in a call that isn't relayed.</li>
+  <li><b>The connection keeps up.</b> It takes about 1 Mbit/s, and at most 1.5. If it stutters you have high quality for a while, and it is tried again by itself.</li>
+  <li><b>The DJ can send it.</b> Up to six people at once have it from one DJ, fewer if their upload can't take it. The DJ sees how many, and what it takes.</li>
+</ul>
+<p>The switch <b>Lossless music</b> is yours, kept on this device. On a Mac, macOS plays it a little quieter in a call than it plays the call itself.</p>
+<note kind="tip" title="If you are the DJ"><p>Nobody can hear more than your Spotify plays. Set <ui>Audio quality</ui> to <b>Lossless</b> in Spotify's own settings, which needs Premium, and turn off anything there that changes the sound. If your Bluetooth headset's microphone is in use, your computer plays everything at a call's quality, Spotify too, and that is all there is to send: you are told, and another microphone or wired headphones put it right.</p></note>
+
 <h2 id="recorded">What is and isn't recorded</h2>
 <ul>
   <li>The music is never in a <a href="/docs/record-call/">recording</a> of the call, its <a href="/docs/live-captions/">captions</a> or <a href="/docs/scribe/">Scribe</a>. Without headphones, though, the DJ's microphone can pick it up, and then it is heard under their voice.</li>
@@ -89,12 +108,13 @@
 
 <h2 id="devices">What each device can do</h2>
 <table>
-  <tr><th>On</th><th>Play music to the call</th><th>Listen and queue songs</th></tr>
-  <tr><td>Mac</td><td>Yes, macOS 14.4 or later</td><td>Yes</td></tr>
-  <tr><td>Windows</td><td>Yes, Windows 10 version 2004 or later</td><td>Yes</td></tr>
-  <tr><td>Linux</td><td>No</td><td>Yes</td></tr>
-  <tr><td>Android and iPhone</td><td>No</td><td>Yes</td></tr>
-  <tr><td>Browser</td><td>No</td><td>Yes, without covers</td></tr>
+  <tr><th>On</th><th>Play music to the call</th><th>Listen and queue songs</th><th>Hear it lossless</th></tr>
+  <tr><td>Mac</td><td>Yes, macOS 14.4 or later</td><td>Yes</td><td>With headphones</td></tr>
+  <tr><td>Windows</td><td>Yes, Windows 10 version 2004 or later</td><td>Yes</td><td>With headphones</td></tr>
+  <tr><td>Linux</td><td>No</td><td>Yes</td><td>No</td></tr>
+  <tr><td>Android</td><td>No</td><td>Yes</td><td>With a wired or USB headset the call plays to</td></tr>
+  <tr><td>iPhone</td><td>No</td><td>Yes</td><td>With headphones</td></tr>
+  <tr><td>Browser</td><td>No</td><td>Yes, without covers</td><td>No</td></tr>
 </table>
 <p>Someone on a version from before this, or a guest who joined from a space's link in a browser, is in the call as ever and hears no music.</p>
 
@@ -112,5 +132,6 @@
   <tr><td>Spotify opened but didn't start the song</td><td>On a PC: press play on it in Spotify.</td></tr>
   <tr><td>That song couldn't be played</td><td>Spotify didn't play it: it may not be there in the DJ's country, or their account can't choose songs. The next one plays; after three in a row the music waits.</td></tr>
   <tr><td>You hear nothing, and others do</td><td>Check <b>Loudness</b> under <b>On this device</b>, and that you aren't deafened. A connection that drops is made again by itself.</td></tr>
+  <tr><td>You hear says High quality, and you want lossless</td><td>The line under it says why. See <a href="#lossless">Lossless</a>.</td></tr>
   <tr><td>Everyone hears the music twice</td><td>The DJ's microphone is hearing their speakers: headphones.</td></tr>
 </table>

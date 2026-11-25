@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
+import 'package:glacier/glacier.dart' show GlacierSwitch;
+import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/spotify.dart';
@@ -11,6 +13,7 @@ import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 import 'package:ghost_messaging/ui/spotify_panel.dart';
 import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/music_sink.dart';
 import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/spotify.dart';
 import 'package:ghost_messaging/voice/spotify_app.dart';
@@ -19,6 +22,7 @@ import 'package:ghost_messaging/voice/spotify_queue.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/voice_settings.dart';
 
+import 'support/lossless_stand_ins.dart';
 import 'support/space_call_harness.dart';
 import 'support/spotify_stand_ins.dart';
 
@@ -51,7 +55,7 @@ class Call {
 }
 
 /// This device in a call with one other, and what that other says of the music heard by the app's own instance.
-Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = true}) async {
+Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = true, FakeSink? sink}) async {
   final m = SpotifyMusic.instance;
   final hub = FakeHub();
   final channel = VoiceChannel.make('Friday');
@@ -67,8 +71,11 @@ Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = tr
     ..clock = (() => DateTime(2026, 11, 25, 20))
     ..lookUp = ((id) async => songs.firstWhere((s) => s.track == id, orElse: () => Song(track: id)))
     ..ways = (() => (servers: const [], relay: false))
-    ..makeEar = ({required servers, required relayOnly, required onCandidate, required onState}) {
-      final e = FakeEar(servers, relayOnly, onCandidate, onState);
+    ..player = (() => sink)
+    ..store = AppState()
+    ..speaker = (() => null)
+    ..makeEar = ({required servers, required relayOnly, required onCandidate, required onState, required onLossless}) {
+      final e = FakeEar(servers, relayOnly, onCandidate, onState, onLossless);
       ears.add(e);
       return e;
     };
@@ -84,6 +91,7 @@ Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = tr
   addTearDown(() async {
     Voice.instance.session = null;
     m.followSession(null);
+    m.store = null;
     SongCover.image = (url) => NetworkImage(url);
   });
   return Call(me, other, spotify, source, ears);
@@ -249,6 +257,98 @@ void main() {
     });
   }
 
+  for (final (name, size, dark) in const [('phone', SpaceHarness.phone, false), ('phone', SpaceHarness.phone, true), ('desktop', SpaceHarness.computer, false), ('desktop', SpaceHarness.computer, true), ('narrow', Size(320, 640), false)]) {
+    testWidgets('what a listener hears of it, why it isn\'t without loss, and the switch, $name${dark ? ' dark' : ''}', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      addTearDown(tester.view.reset);
+      final sink = FakeSink()..where = const MusicWay(MusicTo.unknown, 48000, 'usb box');
+      final call = await _call(tester, sink: sink);
+      final said = <Map<String, dynamic>>[];
+      call.other.onMusic = (from, m) => said.add(m);
+      final m = SpotifyMusic.instance;
+      m.setLossless(true);
+      m.setHeadphones(false);
+      await tester.runAsync(settle);
+      await _says(tester, call, _state(songsOf: 1));
+      await tester.runAsync(settle);
+      expect(said.where((m) => m['k'] == 'ask').last['ll'], 0);
+      await tester.runAsync(() async {
+        call.other.sayMusic({'k': 'offer', 'to': 'me-id', 'l': 'mark', 'sdp': 'm=application'});
+        await settle();
+      });
+      call.ears.last.onState(true);
+      Future<void> at(String key) async {
+        await tester.scrollUntilVisible(find.byKey(ValueKey(key)), 120, scrollable: find.byType(Scrollable).first);
+        await tester.pump();
+      }
+
+      await h.shoot(tester, const SpotifyScreen(), 'lossless-ask-$name', size: size, dark: dark, dir: '../build/spotify');
+      await at('spotify-headphones');
+      await h.again(tester, 'lossless-speakers-$name', dark: dark, dir: '../build/spotify');
+      expect(tester.takeException(), isNull);
+      expect(find.text('High quality'), findsOneWidget);
+      expect(find.textContaining('can\'t tell whether you wear'), findsOneWidget);
+      // They say they wear them: it is taken, and heard.
+      await tester.ensureVisible(find.byKey(const ValueKey('spotify-headphones')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('spotify-headphones')), matching: find.byType(GlacierSwitch)));
+      await tester.runAsync(settle);
+      await tester.pump();
+      expect(call.ears.last.take, isTrue);
+      expect(said.last, {'t': 'mu', 'k': 'll', 'to': 'maya', 'l': 'mark', 'w': 1});
+      expect(find.text('Lossless begins once it has played cleanly for a second.'), findsOneWidget);
+      call.ears.last.onLossless(true, null);
+      await tester.pump(const Duration(milliseconds: 400));
+      await at('spotify-quality');
+      expect(find.text('Lossless'), findsOneWidget);
+      await h.again(tester, 'lossless-$name', dark: dark, dir: '../build/spotify');
+      // Off: kept, and the Opus.
+      m.setLossless(false);
+      await tester.runAsync(settle);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Lossless music is off on this device.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('spotify-headphones')), findsNothing);
+      expect(call.ears.last.take, isFalse);
+      m.setLossless(true);
+      m.setHeadphones(false);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the DJ sees how many have it without loss, what it takes, and that the headset brings it down, $name${dark ? ' dark' : ''}', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      addTearDown(tester.view.reset);
+      final call = await _call(tester, computer: true);
+      final m = SpotifyMusic.instance;
+      var now = DateTime(2026, 11, 25, 20);
+      m.clock = () => now;
+      await tester.runAsync(() async {
+        await m.start();
+        await m.add('spotify:track:$a');
+        call.other.sayMusic({'k': 'ask', 'to': 'me-id', 'n': 0, 'll': 1});
+        await settle();
+        for (final bytes in [0, 118000]) {
+          call.source.ways['maya'] = (open: true, bytes: bytes, dropped: 0, relay: false);
+          now = now.add(const Duration(seconds: 1));
+          call.spotify.to(20);
+          await m.look();
+        }
+        call.source.hz = 24000;
+        await m.look();
+        await settle();
+      });
+      await h.shoot(tester, const SpotifyScreen(), 'dj-$name', size: size, dark: dark, dir: '../build/spotify');
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('spotify-low')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('spotify-listeners')), 120, scrollable: find.byType(Scrollable).first);
+      await tester.pump();
+      expect(find.text('1, 1 lossless'), findsOneWidget);
+      expect(find.byKey(const ValueKey('spotify-quality')), findsNothing);
+      await h.again(tester, 'dj-lossless-$name', dark: dark, dir: '../build/spotify');
+      await tester.runAsync(m.stop);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   testWidgets('the buttons ask the DJ, and one who may not speak has none', (tester) async {
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
@@ -361,7 +461,7 @@ void main() {
     source
       ..onState = ((id, s) => states.add('$id $s'))
       ..onCandidate = ((id, c) => ways.add('$id ${c['candidate']}'));
-    final sdp = await source.offer('sam', servers: const [{'urls': 'turn:x'}], relayOnly: true);
+    final sdp = await source.offer('sam', servers: const [{'urls': 'turn:x'}], relayOnly: true, lossless: false);
     expect(made.single.configuration['iceTransportPolicy'], 'relay');
     expect(made.single.log, ['RTCRtpMediaTypeAudio the-music SendOnly 510000']);
     expect(sdp, contains('stereo=1'));
@@ -376,7 +476,7 @@ void main() {
     expect(made.single.remote!.sdp, contains('stereo=1'), reason: 'the rate and stereo it sends are what the answer asks for');
     expect(await source.answer('nobody', _Pc.sdp), isFalse);
     // Asked again: the one before goes first, and says nothing more.
-    await source.offer('sam', servers: const [], relayOnly: false);
+    await source.offer('sam', servers: const [], relayOnly: false, lossless: false);
     expect(made.first.log, containsAll(['close', 'dispose']));
     made.first.onConnectionState!(rtc.RTCPeerConnectionState.RTCPeerConnectionStateClosed);
     expect(states, hasLength(1));
@@ -386,7 +486,7 @@ void main() {
     // The listener's.
     made.clear();
     final ups = <bool>[];
-    final ear = RtcMusicEar(servers: const [], relayOnly: false, onCandidate: (_) {}, onState: ups.add);
+    final ear = RtcMusicEar(servers: const [], relayOnly: false, onCandidate: (_) {}, onState: ups.add, onLossless: (_, _) {});
     await ear.candidate({'candidate': 'early', 'sdpMid': '0', 'sdpMLineIndex': 0});
     expect(made, isEmpty, reason: 'held until the offer is taken');
     final answer = await ear.takeOffer(sdp!);

@@ -44,9 +44,10 @@ class Cosmetics {
         effect: kind == CosmeticKind.effect ? id : effect,
       );
 
-  /// As sent and kept: the ids worn, by kind's short name. Empty ones are left out.
+  /// As sent and kept: the ids worn, by kind's short name. Empty ones are left out, and so are the kinds no longer
+  /// worn ([CosmeticKind.worn]).
   Map<String, String> toJson() => {
-        for (final k in CosmeticKind.values)
+        for (final k in CosmeticKind.worn)
           if (of(k).isNotEmpty) k.wire: of(k),
       };
 
@@ -55,6 +56,8 @@ class Cosmetics {
   static Cosmetics? fromJson(Object? j) {
     if (j is! Map) return null;
     String id(CosmeticKind k) {
+      // A kind no longer worn is not read: an older build's ring or effect is drawn nowhere.
+      if (!CosmeticKind.worn.contains(k)) return '';
       final v = j[k.wire];
       return v is String && _idShape.hasMatch(v) ? v : '';
     }
@@ -87,6 +90,12 @@ enum CosmeticKind {
   effect('pe', 'effects', 'Profile effect');
 
   const CosmeticKind(this.wire, this.folder, this.label);
+
+  /// The kinds a profile wears now: a banner and a name effect. The decoration around the picture, the border on it
+  /// and the effect over the card were taken away (Matt, 2026-11-25: "remove the profile decoration, the profile
+  /// border and the profile effect"): not offered, not sent, and not read from anyone, so none is drawn anywhere.
+  /// Their names stay for the builds that still send them.
+  static const worn = [banner, name];
 
   /// Its key in `cx`.
   final String wire;

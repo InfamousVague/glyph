@@ -21,6 +21,7 @@ import '../../voice/recorder.dart';
 import '../../voice/roles.dart';
 import '../../voice/spotify.dart';
 import '../../voice/voice.dart';
+import '../call_float.dart' show CallPageMark, CallPictures, FloatWords, popOutCall;
 import '../common.dart';
 import '../connecting_banner.dart';
 import '../hangout_screen.dart';
@@ -297,6 +298,8 @@ class SpaceCall {
       // Sharing the screen, first in the call's menu (GMFB-27), where this device can.
       extras: [
         if (s.canShareScreen) SpaceExtra(label: screenShareLabel(s), icon: LucideMore.screenShare, builtIn: true, run: (context) => unawaited(toggleScreenShare(context, s))),
+        // Away from the call with its picture floating over the app (GMFB-64), where there is a picture to float.
+        if (CallPictures.anyIn(s)) SpaceExtra(label: FloatWords.popOut, icon: LucideMore.pictureInPicture, builtIn: true, hint: 'Keep the picture over the app', run: popOutCall),
         ...stageExtras(s, room),
         ...CallPlugins.extras(),
         // In a browser, what its call leaves out, said where the call's choices are.
@@ -582,7 +585,10 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => CallPageMark(child: _build(context));
+
+  /// The page, which is the call's: nothing floats over it while it is on the screen (GMFB-64).
+  Widget _build(BuildContext context) {
     final minimize = widget.chatBelow ? null : _close;
     final call = SpaceCall.live(minimize: minimize, chatBelow: widget.chatBelow, chatShown: widget.chatShown, onChatBelow: widget.onChatBelow);
     if (call == null) return const SizedBox.shrink();

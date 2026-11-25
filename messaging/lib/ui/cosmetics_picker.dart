@@ -30,7 +30,7 @@ class CosmeticsSection extends StatelessWidget {
           description: const Text('Dress your profile. Friends and people in your spaces see it on your profile card.'),
           children: [
             SettingRowBox(child: _Preview(cosmetics: c, name: me.shownName, picture: me.pictureOwn)),
-            for (final kind in CosmeticKind.values)
+            for (final kind in CosmeticKind.worn)
               SettingRow(
                 key: ValueKey('look-${kind.name}'),
                 icon: AppIcon(_iconOf(kind), size: 18),

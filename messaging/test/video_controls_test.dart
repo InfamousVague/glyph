@@ -16,6 +16,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/ui/files_space/file_preview.dart';
 import 'package:ghost_messaging/ui/video_engine.dart';
 import 'package:ghost_messaging/ui/video_screen.dart';
+import 'package:ghost_messaging/ui/window_chrome.dart' show MacChrome;
 import 'package:ghost_messaging/voice/mp4_names.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
 import 'package:ghost_messaging/voice/recording_playback.dart';
@@ -182,6 +183,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(fullscreen, ['Utils.EnterNativeFullscreen']);
+    // The title strip, which stands above the pages and is not under the player, is told to go.
+    expect(MacChrome.covered.value, isTrue);
     // 16:9 in a window of 1100 by 700: the whole width, from the window's left edge.
     expect(picture().left, 0);
     expect(picture().width, 1100);
@@ -196,6 +199,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(fullscreen, ['Utils.EnterNativeFullscreen', 'Utils.ExitNativeFullscreen']);
     expect(picture().left, greaterThanOrEqualTo(320));
+    expect(MacChrome.covered.value, isFalse);
     expect(find.text('The list').hitTestable(), findsOneWidget);
     // And the button does the same both ways.
     await tester.tap(find.bySemanticsLabel('Full screen'));

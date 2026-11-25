@@ -13,6 +13,11 @@ import 'package:flutter/widgets.dart';
 /// after them ([TopBarLights]), and every header moves the window when dragged and zooms it on a double click
 /// ([WindowDragArea]).
 class MacChrome {
+  /// Something is drawn over the whole window (a video at full screen, lib/ui/video_screen.dart): the title strip,
+  /// which stands above the app's pages and so above anything they draw over themselves, is not drawn meanwhile
+  /// (Matt, 2026-11-25: "fullscreen videos still incorrectly show the titlebar of the app").
+  static final ValueNotifier<bool> covered = ValueNotifier<bool>(false);
+
   MacChrome._();
 
   static const _channel = MethodChannel('ghost_desktop/window');

@@ -23,6 +23,7 @@ import 'common.dart';
 import 'cosmetics_picker.dart';
 import 'profile_card.dart' show ProfileFace;
 import 'sign_up_from.dart';
+import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest, requestLine;
 import '../kit/semantic_colors.dart';
 
@@ -199,8 +200,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               SizedBox(height: t.space(6)),
-              // What the profile wears (GMFB-34): decoration, border, banner, name effect, profile effect.
+              // What the profile wears (GMFB-34): a banner and a name effect.
               const CosmeticsSection(),
+              SizedBox(height: t.space(6)),
+              const BadgeSection(),
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'What friends see',
@@ -394,6 +397,44 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
 
 /// The pictures this person had before (Me.picturesPast), as faces in a row: a press makes one the picture again, and
 /// the one it takes the place of joins them. A long press, or a press with the other button, forgets one.
+/// The badge shown beside your name, chosen on the profile page (Matt, 2026-11-25: "We're also missing the section in
+/// the profile to be able to set the badge"): the badges you have, each with what it is for, the one shown ticked. It
+/// was on the Souls page and the profile bubble's card only.
+class BadgeSection extends StatelessWidget {
+  const BadgeSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ListenableBuilder(
+      listenable: Listenable.merge([Me.instance, SpecialBadges.instance]),
+      builder: (context, _) {
+        final badges = SpecialBadges.instance.of('', me: true);
+        final shown = SpecialBadges.instance.shownOf('', me: true);
+        return PaneSection(
+          title: 'Badge',
+          description: Text(badges.isEmpty
+              ? 'You have no badges yet. One you are given shows beside your name.'
+              : badges.length == 1
+                  ? 'Shown beside your name, everywhere.'
+                  : 'Choose the one shown beside your name, everywhere.'),
+          children: [
+            for (final b in badges)
+              SettingRow(
+                key: ValueKey('profile-badge-${b.id}'),
+                icon: AppIcon(b.icon, size: 18),
+                label: b.name,
+                hint: Text(b.about),
+                control: shown?.id == b.id ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null,
+                onPress: shown?.id == b.id ? null : () => unawaited(Me.instance.setShowcase(b.id).catchError((_) {})),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class PastPictures extends StatelessWidget {
   const PastPictures({super.key});
 

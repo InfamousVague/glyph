@@ -36,6 +36,8 @@ import UIKit
     desk = DeskChannels(messenger: messenger)
     // The microphone's processing in calls (VoiceFx.swift).
     VoiceFx.shared.register(messenger: messenger)
+    // A circle's music played here without loss (MusicSink.swift).
+    MusicSink.shared.register(messenger: messenger)
     // Recording a call (CallRecorder.swift, lib/voice/recorder.dart).
     CallRecorder.shared.register(messenger: messenger)
     // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).

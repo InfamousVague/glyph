@@ -168,4 +168,40 @@ void main() {
     expect(head.status, HttpStatus.ok);
     expect(head.headers.contentLength, 100);
   });
+
+  // Matt, 2026-11-25: "Let's stick with 256gb for the onlyGhosts server and leave the rest of them including alpha to 50gb".
+  test('OnlyGhosts\' spaces hold 256 GB between them, every other 50 GB', () {
+    const d = FilesConfig();
+    expect(d.spaceQuota, 50000000000);
+    expect(d.roomyQuota, 256000000000);
+    expect(d.roomy, {'ecf77f9db9ba82ef2d2ea508e657f36c', '78d09c1c0d49291a6f4b716b1a2ee200'});
+    expect(d.total, greaterThanOrEqualTo(d.roomyQuota + d.spaceQuota));
+    final c = FilesConfig.fromEnvironment({'GHOST_FILES_ROOMY_SPACES': '${'ab' * 16},not-an-id'});
+    expect(c.roomy, hasLength(3), reason: 'the ones in the code stay, and what is not an id is left out');
+  });
+
+  test('two roomy spaces share their room; another keeps its own', () async {
+    final a = '1' * 32, b = '2' * 32, other = '3' * 32;
+    await relay.stop();
+    await boot(config: FilesConfig(spaceQuota: 2500, roomyQuota: 6000, roomy: {a, b}));
+    Future<int> fill(String id) async {
+      await call('PUT', '/files/$id', as: maya, body: json({}));
+      var sent = 0;
+      for (var i = 0; i < 30; i++) {
+        if ((await call('POST', '/files/$id/log', as: maya, body: List.filled(500, i))).status != HttpStatus.ok) break;
+        sent++;
+      }
+      return sent;
+    }
+    final first = await fill(a);
+    expect(first, greaterThan(6), reason: 'more than an ordinary space holds');
+    await fill(b);
+    Future<int> used(String id) async => (await call('GET', '/files/$id')).json['used'] as int;
+    final both = await used(a) + await used(b);
+    expect(both, lessThanOrEqualTo(6000), reason: 'the two share 6000');
+    expect(both, greaterThan(5000), reason: 'and between them fill it');
+    expect((await call('GET', '/files/$b')).json['quota'], 6000 - await used(a));
+    await fill(other);
+    expect(await used(other), inInclusiveRange(1500, 2500), reason: 'any other space its own 2500');
+  });
 }

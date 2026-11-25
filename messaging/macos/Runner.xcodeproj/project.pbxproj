@@ -37,6 +37,7 @@
 		5907F1C02F2A0B0C000000A2 /* MusicLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000A1 /* MusicLink.swift */; };
 		5907F1C02F2A0B0C000000A4 /* Spotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000A3 /* Spotify.swift */; };
 		5907F1C02F2A0B0C000000A6 /* SpotifySound.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000A5 /* SpotifySound.swift */; };
+		5907F1C02F2A0B0C000000B2 /* MusicSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000B1 /* MusicSink.swift */; };
 		47D364DC2F0A0B0C0000CA9B /* LiveCaptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C0000CA9F /* LiveCaptions.swift */; };
 		47D364DC2F0A0B0C00005C1B /* Scribe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C00005C1F /* Scribe.swift */; };
 		47D364DC2F0A0B0C0000C0DE /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */; };
@@ -104,6 +105,7 @@
 		5907F1C02F2A0B0C000000A1 /* MusicLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLink.swift; sourceTree = "<group>"; };
 		5907F1C02F2A0B0C000000A3 /* Spotify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spotify.swift; sourceTree = "<group>"; };
 		5907F1C02F2A0B0C000000A5 /* SpotifySound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifySound.swift; sourceTree = "<group>"; };
+		5907F1C02F2A0B0C000000B1 /* MusicSink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSink.swift; sourceTree = "<group>"; };
 		47D364DC2F0A0B0C0000CA9F /* LiveCaptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCaptions.swift; sourceTree = "<group>"; };
 		47D364DC2F0A0B0C00005C1F /* Scribe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scribe.swift; sourceTree = "<group>"; };
 		47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 				5907F1C02F2A0B0C000000A1 /* MusicLink.swift */,
 				5907F1C02F2A0B0C000000A3 /* Spotify.swift */,
 				5907F1C02F2A0B0C000000A5 /* SpotifySound.swift */,
+				5907F1C02F2A0B0C000000B1 /* MusicSink.swift */,
 				47D364DC2F0A0B0C0000CA9F /* LiveCaptions.swift */,
 				47D364DC2F0A0B0C00005C1F /* Scribe.swift */,
 				47D364DC2F0A0B0C0000C0DF /* CallRecorder.swift */,
@@ -499,6 +502,7 @@
 				5907F1C02F2A0B0C000000A2 /* MusicLink.swift in Sources */,
 				5907F1C02F2A0B0C000000A4 /* Spotify.swift in Sources */,
 				5907F1C02F2A0B0C000000A6 /* SpotifySound.swift in Sources */,
+				5907F1C02F2A0B0C000000B2 /* MusicSink.swift in Sources */,
 				47D364DC2F0A0B0C0000CA9B /* LiveCaptions.swift in Sources */,
 				47D364DC2F0A0B0C00005C1B /* Scribe.swift in Sources */,
 				47D364DC2F0A0B0C0000C0DE /* CallRecorder.swift in Sources */,

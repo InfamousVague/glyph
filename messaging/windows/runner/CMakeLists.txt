@@ -23,6 +23,7 @@ add_executable(${BINARY_NAME} WIN32
   "splash.cpp"
   "spotify.cpp"
   "spotify_sound.cpp"
+  "music_sink.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -55,6 +56,7 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(${BINARY_NAME} PRIVATE "mfplat.lib" "mfreadwrite.lib" "mfuuid.lib" "sapi.lib" "shlwapi.lib" "ole32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_webrtc/third_party/libwebrtc/lib/libwebrtc.dll.lib")
 
+# A circle's music played here without loss (music_sink.cpp) needs no more of Windows than its sound below does.
 # Spotify in a circle's calls: Windows' media controls (spotify.cpp, C++/WinRT from the Windows SDK), and the sound of the
 # Spotify app alone (spotify_sound.cpp), as a track of flutter_webrtc's, whose headers are read as flutter_webrtc itself
 # reads them (RTC_DESKTOP_DEVICE: the file says why).
@@ -66,7 +68,7 @@ set_source_files_properties("spotify.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++20
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")
 file(GLOB VOICEFX_RNNOISE "${VOICEFX}/rnnoise/src/*.c")
-add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
+add_library(voicefx STATIC "${VOICEFX}/voicefx.c" "${VOICEFX}/music_pack.c" "${VOICEFX}/stretch.cpp" ${VOICEFX_RNNOISE})
 target_include_directories(voicefx PUBLIC "${VOICEFX}/include" PRIVATE "${VOICEFX}" "${VOICEFX}/rnnoise/include" "${VOICEFX}/rnnoise/src")
 # Signalsmith Stretch (stretch.cpp) is C++.
 set_source_files_properties("${VOICEFX}/stretch.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++17;/EHsc")

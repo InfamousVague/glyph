@@ -25,6 +25,7 @@ import '../voice/roles.dart';
 import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import '../voice/voice_changer.dart';
+import 'call_float.dart' show CallPageMark;
 import 'common.dart';
 import 'connecting_banner.dart';
 import 'emoji_picker.dart';
@@ -232,7 +233,11 @@ class _HangoutScreenState extends State<HangoutScreen> {
     final room = _room ?? v.hangoutFor(widget.channel);
     // The window is named for the space while it is open, where no circle of its names it first
     // (lib/ui/window_title.dart).
+    // In this space's call the page is the call's: nothing floats over it while it is on the screen (GMFB-64).
     return WindowTitle(name: widget.channel.name, child: ListenableBuilder(
+      listenable: v,
+      builder: (context, page) => CallPageMark(on: v.session?.channel.room == widget.channel.room && !widget.inSidebar, child: page!),
+      child: ListenableBuilder(
       // The recorder too: Record call's icon in the header goes to Stop as it starts.
       listenable: Listenable.merge([v, ?room, CallRecorder.instance, OpenSpaces.instance]),
       builder: (context, _) {
@@ -386,7 +391,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
           ]),
         );
       },
-    ));
+    )));
   }
 }
 

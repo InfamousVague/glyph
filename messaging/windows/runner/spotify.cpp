@@ -36,6 +36,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace {
 
@@ -50,6 +51,9 @@ std::unique_ptr<SpotifySound> g_sound;
 
 // The app's thread alone: false once the window closes, and nothing is answered after.
 bool g_open = false;
+
+// Chunks of the music without loss on their way to the app's thread.
+std::atomic<int> g_chunks{0};
 
 // What a thread of its own came to, answered on the app's thread.
 void Answer(Result result, std::function<void(flutter::MethodResult<EncodableValue>&)> say) {
@@ -317,6 +321,15 @@ void Handle(const flutter::MethodCall<EncodableValue>& call, std::unique_ptr<flu
         RunOnMain([] {
           if (g_open && g_channel) g_channel->InvokeMethod("quit", nullptr);
         });
+      }, [](std::vector<uint8_t> chunk) {
+        // A second of them waiting on an app that does not look is as many as are kept: the rest are let go of, and their
+        // numbers say so.
+        if (g_chunks >= 25) return;
+        g_chunks++;
+        RunOnMain([chunk = std::move(chunk)] {
+          g_chunks--;
+          if (g_open && g_channel) g_channel->InvokeMethod("chunk", std::make_unique<EncodableValue>(chunk));
+        });
       });
     }
     const std::string id = g_sound->Begin(Flag(args, "echo"), Flag(args, "noise"), Flag(args, "gain"));
@@ -329,6 +342,11 @@ void Handle(const flutter::MethodCall<EncodableValue>& call, std::unique_ptr<flu
   } else if (method == "end") {
     g_sound = nullptr;
     result->Success();
+  } else if (method == "pack") {
+    if (g_sound) g_sound->Pack(Flag(args, "on"));
+    result->Success();
+  } else if (method == "rate") {
+    g_shell->Do([result] { Succeed(result, EncodableValue(SpeakerRate())); });
   } else if (method == "level") {
     result->Success(EncodableValue(static_cast<double>(g_sound ? g_sound->Level() : 0.0f)));
   } else {

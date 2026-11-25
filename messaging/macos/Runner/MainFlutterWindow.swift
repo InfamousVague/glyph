@@ -140,6 +140,8 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     VoiceFx.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // Spotify played to a circle's call (Spotify.swift).
     Spotify.shared.register(messenger: flutterViewController.engine.binaryMessenger)
+    // And its music played here without loss (MusicSink.swift).
+    MusicSink.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // Recording a call (CallRecorder.swift, lib/voice/recorder.dart).
     CallRecorder.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).

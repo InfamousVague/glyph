@@ -21,8 +21,11 @@ import '../common.dart';
 /// One thing a plugin offers in a call's menu, as the call's page draws it.
 @immutable
 class SpaceExtra {
-  const SpaceExtra({required this.label, required this.icon, required this.run, this.danger = false, this.builtIn = false});
+  const SpaceExtra({required this.label, required this.icon, required this.run, this.danger = false, this.builtIn = false, this.hint});
   final String label;
+
+  /// The line under it in the call's menu, where it is not the screen's or a plugin's.
+  final String? hint;
   final LucideIcon icon;
   final void Function(BuildContext context) run;
   final bool danger;
