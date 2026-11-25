@@ -1,9 +1,15 @@
-// Checks the PC's music feed (windows/runner/music_feed.h) on any computer, without a sound: c++ -std=c++17
-// tool/spotify/feed_check.cpp -o build/spotify/feed-check && build/spotify/feed-check
+// Checks the PC's music feed (windows/runner/music_feed.h), what makes chunks of it without loss (music_tee.h) and what
+// waits to be played of those (music_ring.h) on any computer, without a sound: cc -c native/voicefx/music_pack.c
+// -Inative/voicefx/include -o build/spotify/music_pack.o && c++ -std=c++17 -Inative/voicefx/include -Inative/voicefx/test
+// tool/spotify/feed_check.cpp build/spotify/music_pack.o -o build/spotify/feed-check && build/spotify/feed-check
 #include "../../windows/runner/music_feed.h"
+#include "../../windows/runner/music_ring.h"
+#include "../../windows/runner/music_tee.h"
 
 #include <cstdio>
 #include <thread>
+
+#include "music_unpack.h"
 
 static int wrong = 0;
 static void check(bool ok, const char* what) {
@@ -85,6 +91,69 @@ int main() {
     }
     w.join();
     check(whole && !on, "two threads at once");
+  }
+  {
+    // Without loss: blocks of odd sizes in, chunks of 40 ms out, numbered on and bit for bit; nothing made while off, and
+    // the numbers go on over it.
+    std::vector<std::vector<uint8_t>> made;
+    MusicTee tee([&](std::vector<uint8_t> c) { made.push_back(std::move(c)); });
+    int at = 0;
+    auto put = [&](size_t n, bool silent = false) {
+      tee.Write(silent ? nullptr : block(at, n).data(), n);
+      at += static_cast<int>(n);
+    };
+    put(5000);
+    check(made.empty(), "nothing is made until it is wanted");
+    tee.Set(true);
+    const int from = at;
+    for (int i = 0; i < 400; i++) put(static_cast<size_t>(i * 37 % 1000 + 1));
+    check(static_cast<int>(made.size()) == (at - from) / MUSIC_PACK_FRAMES, "a chunk as each is full");
+    std::vector<int16_t> back(MUSIC_PACK_MOST * 2);
+    for (size_t i = 0; i < made.size(); i++) {
+      const auto& c = made[i];
+      const int want = from + static_cast<int>(i) * MUSIC_PACK_FRAMES;
+      const int said = c[4] | c[5] << 8 | c[6] << 16 | c[7] << 24;
+      check(c[0] == 1 && c[1] == 1 && (c[2] | c[3] << 8) == MUSIC_PACK_FRAMES && said == want && static_cast<size_t>((c[10] | c[11] << 8) + 12) == c.size(), "its head");
+      check(music_unpack(c.data() + 12, static_cast<int>(c.size()) - 12, back.data(), MUSIC_PACK_MOST) == MUSIC_PACK_FRAMES, "it is read");
+      check(std::memcmp(back.data(), block(want, MUSIC_PACK_FRAMES).data(), MUSIC_PACK_FRAMES * 4) == 0, "bit for bit");
+    }
+    tee.Set(false);
+    put(777);
+    tee.Set(true);
+    const size_t had = made.size();
+    const int again = at;
+    put(MUSIC_PACK_FRAMES, true);
+    check(made.size() == had + 1 && (made.back()[4] | made.back()[5] << 8 | made.back()[6] << 16) == again && made.back().size() < 40, "silence, numbered on from where it was left off");
+  }
+  {
+    // What waits to be played.
+    MusicRing r;
+    auto give = [&](int from, size_t n) {
+      const auto b = block(from, n);
+      return r.Write(reinterpret_cast<const uint8_t*>(b.data()), n * 4);
+    };
+    check(give(0, 4800).waiting == 4800, "counted");
+    r.Read(out.data(), kF);
+    check(out[0] == 0 && out[kF * 2 - 1] == 0, "silent until it is heard");
+    r.Set(1);
+    r.Read(out.data(), kF);
+    check(out[0] == 0 && out[kF * 2 - 2] > 100 && out[kF * 2 - 2] < 960, "it rises");
+    for (int i = 0; i < 3; i++) r.Read(out.data(), kF);
+    r.Read(out.data(), kF);
+    check(std::memcmp(out.data(), block(1920, kF).data(), kF * 4) == 0, "and then it is bit for bit");
+    for (int i = 0; i < 5; i++) r.Read(out.data(), kF);
+    check(give(0, 0).dry == 0, "played to the end is not run out");
+    r.Read(out.data(), kF);
+    check(out[0] == 0 && give(0, 0).dry == 1, "past it is");
+    r.Read(out.data(), kF);
+    check(give(9, kF).dry == 1, "once");
+    r.Read(out.data(), kF);
+    check(out[0] == 10, "and begins again as loud as it was");
+    for (int i = 0; i < 4; i++) give(0, 48000);
+    check(give(0, 1).waiting == MusicRing::kCapacity, "no more than three seconds");
+    r.Clear();
+    const uint8_t part[3] = {1, 2, 3};
+    check(r.Write(part, 3).waiting == 0 && r.Write(part, 0).dry == 1, "forgotten, which is not running out");
   }
   std::printf(wrong ? "%d wrong\n" : "PASS\n", wrong);
   return wrong ? 1 : 0;

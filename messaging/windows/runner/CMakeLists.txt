@@ -23,6 +23,7 @@ add_executable(${BINARY_NAME} WIN32
   "splash.cpp"
   "spotify.cpp"
   "spotify_sound.cpp"
+  "music_sink.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -55,6 +56,7 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(${BINARY_NAME} PRIVATE "mfplat.lib" "mfreadwrite.lib" "mfuuid.lib" "sapi.lib" "shlwapi.lib" "ole32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_webrtc/third_party/libwebrtc/lib/libwebrtc.dll.lib")
 
+# A circle's music played here without loss (music_sink.cpp) needs no more of Windows than its sound below does.
 # Spotify in a circle's calls: Windows' media controls (spotify.cpp, C++/WinRT from the Windows SDK), and the sound of the
 # Spotify app alone (spotify_sound.cpp), as a track of flutter_webrtc's, whose headers are read as flutter_webrtc itself
 # reads them (RTC_DESKTOP_DEVICE: the file says why).

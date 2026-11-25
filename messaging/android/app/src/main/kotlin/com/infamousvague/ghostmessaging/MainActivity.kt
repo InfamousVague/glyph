@@ -169,6 +169,8 @@ open class MainActivity : FlutterActivity() {
 
         // The microphone's processing in calls (VoiceFx.kt).
         VoiceFx.register(messenger)
+        // A circle's music played here without loss (MusicSink.kt).
+        MusicSink.register(applicationContext, messenger)
         // Recording a call (CallRecorder.kt, lib/voice/recorder.dart).
         CallRecorder.register(messenger)
         // Words from a recorded call, by the phone's own speech recognition (Scribe.kt, lib/voice/scribe.dart).

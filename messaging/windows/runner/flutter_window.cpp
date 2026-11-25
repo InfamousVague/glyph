@@ -10,6 +10,7 @@
 #include "ducking.h"
 #include "links.h"
 #include "splash.h"
+#include "music_sink.h"
 #include "spotify.h"
 
 #include <optional>
@@ -42,6 +43,8 @@ bool FlutterWindow::OnCreate() {
   RegisterVoiceFx(flutter_controller_->engine()->messenger());
   // Spotify played to a circle's call (spotify.cpp).
   RegisterSpotify(flutter_controller_->engine()->messenger());
+  // And its music played here without loss (music_sink.cpp).
+  RegisterMusicSink(flutter_controller_->engine()->messenger());
   // Recording a call (call_recorder.cpp), and live captions and Scribe (speech.cpp).
   RegisterCallRecorder(flutter_controller_->engine()->messenger());
   RegisterSpeech(flutter_controller_->engine()->messenger());
@@ -72,6 +75,7 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::OnDestroy() {
   // Its threads and its track go before the engine does.
   ShutdownSpotify();
+  ShutdownMusicSink();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
