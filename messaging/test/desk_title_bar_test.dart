@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/ui/window_chrome.dart' show MacChrome;
 import 'package:ghost_messaging/desktop/ui/desk_title_bar.dart';
 import 'package:ghost_messaging/ui/feedback_screen.dart';
 
@@ -35,6 +36,17 @@ void main() {
     expect(button.right, greaterThan(1100 - 40), reason: 'at its right end');
     expect(tester.getRect(find.byKey(const ValueKey('strip-extra'))).right, lessThan(button.left), reason: 'more buttons before it');
     expect(find.text('Ghost Messaging'), findsOneWidget);
+
+    // Under a video at full screen there is none of it (Matt, 2026-11-25: "fullscreen videos still incorrectly show
+    // the titlebar of the app"), and the page under it has the whole window; after, it is back.
+    MacChrome.covered.value = true;
+    addTearDown(() => MacChrome.covered.value = false);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('desk-title-bar')), findsNothing);
+    expect(tester.getRect(find.byKey(nav)).top, 0);
+    MacChrome.covered.value = false;
+    await tester.pump();
+    expect(tester.getRect(find.byKey(const ValueKey('desk-title-bar'))).height, DeskTitleBar.height);
 
     if (Platform.environment['KEEP_SHOT'] == '1') {
       await tester.runAsync(() async {

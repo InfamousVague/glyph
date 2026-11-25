@@ -28,7 +28,13 @@ class DeskTitleBar extends StatelessWidget {
   static final List<Widget Function(BuildContext context, GlobalKey<NavigatorState> navigator)> extras = [];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: MacChrome.covered,
+        // Nothing of it under a video at full screen, which is drawn over the pages below this strip alone.
+        builder: (context, covered, _) => covered ? const SizedBox.shrink() : _strip(context),
+      );
+
+  Widget _strip(BuildContext context) {
     final t = context.tokens;
     final dialup = isBevelChrome(t);
     final ground = dialup ? DialupColors.of(t).chrome : t.color('glacier-bg');
