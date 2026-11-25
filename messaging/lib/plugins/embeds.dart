@@ -76,12 +76,28 @@ final List<EmbedService> embedServices = [
   const EmbedService('twitch', 'Twitch', 0xFF9146FF, hosts: ['twitch.tv'], video: true),
   const EmbedService('bandcamp', 'Bandcamp', 0xFF408294, hosts: ['bandcamp.com'], square: true),
   const EmbedService('pinterest', 'Pinterest', 0xFFBD081C, hosts: ['pinterest.com', 'pin.it']),
+  // Where GIFs are kept (Matt, 2026-11-25: "klippy links to gifs are not expanding into gif previews"): a link to one
+  // of their pictures is drawn as the picture, moving ([Embed.picture]).
+  const EmbedService('klipy', 'KLIPY', 0xFF6E56F8, hosts: ['klipy.com']),
+  const EmbedService('tenor', 'Tenor', 0xFF5B6EF5, hosts: ['tenor.com']),
+  const EmbedService('giphy', 'GIPHY', 0xFF111111, hosts: ['giphy.com']),
 ];
+
+/// Whether [url] is itself a picture a chat can draw, by how its address ends: a GIF, a WebP, a PNG or a JPEG.
+bool linksAPicture(String url) {
+  final u = Uri.tryParse(url);
+  if (u == null || u.scheme != 'https' || u.host.isEmpty) return false;
+  return RegExp(r'\.(?:gif|webp|png|jpe?g)$', caseSensitive: false).hasMatch(u.path);
+}
 
 /// What a link is, as its service or its page says.
 @immutable
 class Embed {
-  const Embed({required this.url, this.service, this.site, this.title, this.author, this.image});
+  const Embed({required this.url, this.service, this.site, this.title, this.author, this.image, this.picture = false});
+
+  /// The link is to a picture itself, or to a GIF's page: drawn as the picture alone, whole and moving, where a card
+  /// would crop it under a title that says nothing.
+  final bool picture;
   final String url;
   final EmbedService? service;
 
@@ -121,6 +137,8 @@ abstract final class Embeds {
 
   /// The service's oEmbed answer where it has one and it says enough; else the page itself, read for what it says.
   static Future<Embed?> _find(String url, EmbedService? service) async {
+    // A link to a picture is the picture: nothing is asked of its page, which it has none of.
+    if (linksAPicture(url)) return Embed(url: url, service: service, image: url, picture: true);
     final oembed = service?.oembed;
     if (oembed != null) {
       final got = await fetch(oembed(url));
@@ -141,8 +159,12 @@ abstract final class Embeds {
     final page = await fetch(Uri.parse(url));
     if (page.status != 200) return null;
     final e = fromPage(url, page.body, service: service);
+    // A GIF's page (KLIPY's, Tenor's, GIPHY's) names the GIF as its picture: that is what the link is for.
+    if (_gifs.contains(service?.id) && e.image != null && linksAPicture(e.image!)) return Embed(url: url, service: service, image: e.image, picture: true);
     return e.worthShowing ? e : null;
   }
+
+  static const _gifs = {'klipy', 'tenor', 'giphy'};
 
   /// What a page says of itself: its Open Graph (or Twitter card) title, picture and site, else its `<title>`.
   static Embed fromPage(String url, String html, {EmbedService? service}) {
@@ -162,6 +184,11 @@ abstract final class Embeds {
 
     final titleTag = RegExp(r'<title[^>]*>([^<]*)</title>', caseSensitive: false).firstMatch(head)?.group(1);
     var image = meta(['og:image', 'og:image:url', 'twitter:image', 'twitter:image:src']);
+    // A GIF's page names its still first and the GIF after: the GIF is the one wanted.
+    if (_gifs.contains(service?.id)) {
+      final moving = RegExp(r'''<meta\b[^>]*property\s*=\s*["']og:image["'][^>]*content\s*=\s*["']([^"']+\.gif)["']''', caseSensitive: false).firstMatch(head)?.group(1);
+      if (moving != null) image = _unescape(moving);
+    }
     if (image != null && !image.startsWith('http')) image = Uri.parse(url).resolve(image).toString();
     return Embed(
       url: url,
@@ -326,6 +353,37 @@ class EmbedView extends StatelessWidget {
     final s = e.service;
     final width = (MediaQuery.sizeOf(context).width * 0.72).clamp(220.0, 320.0);
     final radius = BorderRadius.circular(t.radius('lg'));
+    // A picture or a GIF: itself, whole and moving, no wider or taller than a card's picture is wide. A press opens it.
+    if (e.picture && (e.image ?? '').isNotEmpty) {
+      return Semantics(
+        link: true,
+        image: true,
+        label: '${s?.name ?? 'Picture'}: ${e.url}',
+        child: GlacierPressable(
+          onPressed: () => Sms.instance.openLink(e.url),
+          builder: (context, state) => AnimatedOpacity(
+            duration: const Duration(milliseconds: 90),
+            opacity: state.pressed ? 0.8 : 1,
+            child: ConstrainedBox(
+              key: const ValueKey('embed-picture'),
+              constraints: BoxConstraints(maxWidth: width, maxHeight: width),
+              child: ClipRRect(
+                borderRadius: radius,
+                child: Image.network(
+                  e.image!,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  cacheWidth: (width * MediaQuery.devicePixelRatioOf(context)).round(),
+                  // Its place while it comes, and nothing at all where it does not.
+                  loadingBuilder: (context, child, progress) => progress == null ? child : Container(width: width * 0.6, height: width * 0.45, color: t.color('app-paper-2')),
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final mark = s == null ? null : embedMarks[s.id];
     final brand = s == null ? t.color('app-ink-2') : Color(s.color);
     final image = (e.image ?? '').isEmpty
