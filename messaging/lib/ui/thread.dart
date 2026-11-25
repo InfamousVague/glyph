@@ -30,6 +30,7 @@ import '../reactions.dart';
 import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
+import 'chat_rail.dart';
 import 'chat_settings.dart';
 import 'common.dart';
 import 'emoji_picker.dart';
@@ -1210,11 +1211,27 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // Built a row at a time, as each comes near the screen: every message held was made a widget at every build
         // (120 at first, 300 more a page), with what the plugins find in each one's words
         // (docs/performance-audit.md, finding 3).
-        child: ListView.builder(
+        // The chat's map in the gutter at its right (lib/ui/chat_rail.dart).
+        child: ChatRail(
+          controller: _scroll,
+          chat: _spot,
+          marks: [
+            for (final m in msgs)
+              RailMark(
+                at: m.date.millisecondsSinceEpoch,
+                who: m.outgoing ? 'me' : m.address,
+                mine: m.outgoing,
+                name: m.outgoing ? 'You' : (_senders[m.address]?.label ?? (_people.length == 1 ? _people.first.label : m.address)),
+                text: _isLine(m) ? '' : m.body,
+                quiet: _isLine(m),
+              ),
+          ],
+          face: (who, name, mine, size) => Avatar(people: [mine ? const Person(address: '', name: 'You') : (_senders[who] ?? _people.where((p) => p.address == who).firstOrNull ?? (_people.length == 1 ? _people.first : Person(address: who)))], size: size, presence: false),
+          child: ListView.builder(
           controller: _scroll,
           reverse: true,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
           itemCount: msgs.length + tail.length,
           findChildIndexCallback: (key) => key is ValueKey<String> && key.value.startsWith('row-') ? places[key.value.substring(4)] : null,
           itemBuilder: (context, i) {
@@ -1223,6 +1240,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             // Bottom up in the list, so the first part made is the lowest on the page.
             return Column(key: ValueKey('row-${msgs[i].key}'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: parts.reversed.toList());
           },
+        ),
         ),
       ),
     );

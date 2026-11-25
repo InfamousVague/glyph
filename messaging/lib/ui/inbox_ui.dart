@@ -36,6 +36,7 @@ import '../plugins/codes.dart' show signInCode;
 import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
+import 'chat_rail.dart';
 import 'common.dart';
 import 'skeleton.dart';
 import 'window_title.dart';
@@ -664,10 +665,25 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   inset: isDialup(context) ? const EdgeInsets.only(right: 14, bottom: 12) : EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
                   child: isDialup(context)
               ? _transcript(chat, list)
-              : ListView.builder(
+              // The chat's map in the gutter at its right (lib/ui/chat_rail.dart).
+              : ChatRail(
+                  controller: _scroll,
+                  chat: _spot,
+                  marks: [
+                    for (final m in list)
+                      RailMark(
+                        at: m.date.millisecondsSinceEpoch,
+                        who: m.mine ? 'me' : (m.senderId.isNotEmpty ? m.senderId : m.sender),
+                        mine: m.mine,
+                        name: m.mine ? 'You' : (m.sender.isNotEmpty ? m.sender : (chat?.title ?? '')),
+                        text: m.event ? '' : m.text,
+                        quiet: m.event,
+                      ),
+                  ],
+                  child: ListView.builder(
                   controller: _scroll,
                   reverse: true,
-                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
                   itemCount: list.length,
                   itemBuilder: (context, i) {
                     final m = list[i];
@@ -704,6 +720,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       )),
                     ]);
                   },
+                ),
                 ),
                 ),
         ));
