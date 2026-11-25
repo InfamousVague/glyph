@@ -118,12 +118,10 @@ void _expectSplit(WidgetTester tester, {required String how}) {
   final composer = tester.getRect(find.byType(ComposerBox));
   expect(chat.contains(composer.center), isTrue, reason: '$how: the composer in the chat\'s part');
   expect(find.text('on my way'), findsOneWidget, reason: '$how: the chat\'s messages under the call');
-  // The call's own chat panel isn't needed: the chat is there. Its Chat button shows and hides that chat (Matt,
-  // 2026-11-24: "add a button next to the leave button for hiding and showing the chat"), and is beside Leave.
-  expect(find.bySemanticsLabel('Chat'), findsOneWidget, reason: '$how: one Chat button, for the chat under the call');
-  final chatAt = tester.getRect(find.bySemanticsLabel('Chat')), leaveAt = tester.getRect(find.bySemanticsLabel('Leave').last);
-  expect(chatAt.right, lessThanOrEqualTo(leaveAt.left + 1), reason: '$how: Chat before Leave');
-  expect(leaveAt.left - chatAt.right, lessThan(120), reason: '$how: and next to it');
+  // The call's own chat panel isn't needed: the chat is there, and nothing puts it away. Where Chat stood beside Leave
+  // is Share screen, on a device that can share one (Matt, 2026-11-25: "replace the who hide chat button with a share
+  // screen button"); this test's device cannot, so there are four buttons.
+  expect(find.bySemanticsLabel('Chat'), findsNothing, reason: '$how: no Chat button over a chat that is always there');
   expect(find.byKey(const ValueKey('tg-chat-panel')), findsNothing, reason: '$how: no chat panel beside the call');
   expect(find.byType(CallBanner), findsNothing, reason: '$how: no banner for the call on the screen');
 }
@@ -184,42 +182,25 @@ void main() {
     });
   }
 
-  // The call's page draws the top part. Its Chat button puts the chat under the call away and brings it back, and
-  // opens no panel of its own (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the
-  // chat").
-  {
-    testWidgets('the call over its chat, and its Chat button puts that chat away and brings it back', (tester) async {
-      await _open(tester, const Size(1280, 800));
-      _join(_lounge);
-      await settle(tester);
-      expect(find.byType(SpaceSplit), findsOneWidget);
-      expect(find.byType(SpaceCallPage), findsOneWidget);
-      expect(find.byType(CallDock), findsNothing, reason: 'the call\'s buttons are its page\'s, once');
-      expect(find.text('on my way'), findsOneWidget, reason: 'the chat is under the call to begin with');
-      final pane = tester.getRect(find.byType(SpaceSplit));
-      final before = tester.getRect(find.byKey(const ValueKey('space-split-call')));
-      expect(before.height, lessThan(pane.height - SpaceSplit.chatLeast + 1));
-
-      final button = find.bySemanticsLabel('Chat');
-      expect(button, findsOneWidget, reason: 'one button for the chat');
-      await tester.tap(button);
-      await settle(tester);
-      expect(find.byKey(const ValueKey('space-split-chat')), findsNothing, reason: 'the chat put away');
-      expect(find.text('on my way'), findsNothing);
-      expect(find.byKey(const ValueKey('space-split-handle')), findsNothing, reason: 'and no line to drag');
-      expect(tester.getRect(find.byKey(const ValueKey('space-split-call'))).height, closeTo(pane.height, 1), reason: 'the call has the whole pane');
-      expect(Voice.instance.session, isNotNull, reason: 'still in the call');
-      expect(tester.takeException(), isNull);
-
-      final back = find.bySemanticsLabel('Chat');
-      expect(back, findsOneWidget);
-      await tester.tap(back);
-      await settle(tester);
-      expect(find.text('on my way'), findsOneWidget, reason: 'and brought back');
-      expect(tester.getRect(find.byKey(const ValueKey('space-split-call'))).height, closeTo(before.height, 1), reason: 'the call where the line was left');
-      expect(tester.takeException(), isNull);
-    });
-  }
+  // The call's page draws the top part, and the chat is always under it: the button that put it away is Share
+  // screen now (Matt, 2026-11-25), and a device that had the chat put away gets it back.
+  testWidgets('the call over its chat, which nothing puts away, a choice kept from before included', (tester) async {
+    await _open(tester, const Size(1280, 800));
+    _join(_lounge);
+    await settle(tester);
+    expect(find.byType(SpaceSplit), findsOneWidget);
+    expect(find.byType(SpaceCallPage), findsOneWidget);
+    expect(find.byType(CallDock), findsNothing, reason: 'the call\'s buttons are its page\'s, once');
+    expect(find.text('on my way'), findsOneWidget, reason: 'the chat is under the call');
+    expect(find.bySemanticsLabel('Chat'), findsNothing);
+    // Put away with the old button, on this device, before it went.
+    AppState.of(tester.element(find.byType(SpaceSplit))).setFlag(SpaceSplit.chatPref, false);
+    await settle(tester);
+    expect(find.byKey(const ValueKey('space-split-chat')), findsOneWidget, reason: 'shown all the same');
+    expect(find.text('on my way'), findsOneWidget);
+    expect(find.byKey(const ValueKey('space-split-handle')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('the line between the call and the chat is dragged, kept, and held clear of the composer', (tester) async {
     await _open(tester, const Size(1280, 800));
@@ -251,8 +232,7 @@ void main() {
       openSpaceCall(tester.element(find.byType(HangoutScreen)));
       await settle(tester);
       final call = tester.getRect(find.byKey(const ValueKey('space-split-call')));
-      // Chat beside Leave: it puts the chat under the call away (Matt, 2026-11-24).
-      final buttons = [for (final b in ['Video', 'Deafen', 'Mute', 'Chat', 'Leave']) tester.getRect(find.bySemanticsLabel(b).last)];
+      final buttons = [for (final b in ['Video', 'Deafen', 'Mute', 'Leave']) tester.getRect(find.bySemanticsLabel(b).last)];
       final top = buttons.map((r) => r.top).reduce((a, b) => a < b ? a : b);
       for (final b in buttons) {
         expect(call.contains(b.center), isTrue, reason: 'each button in the call\'s part');

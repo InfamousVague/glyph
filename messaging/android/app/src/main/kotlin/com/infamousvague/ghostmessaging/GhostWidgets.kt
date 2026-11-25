@@ -30,7 +30,9 @@ import android.widget.RemoteViewsService
  * - **Unread** ([UnreadWidget]): how many conversations are waiting. A count beside the mark at its smallest; the
  *   count and who from across four cells; the count over a few names at two by two and larger.
  * - **Conversations** ([ChatsWidget]): the newest conversations in a list that scrolls, each with its face, its last
- *   words and when; a press opens that one. As many rows as its height holds.
+ *   words and when; a press opens that one. As many rows as its height holds. Nothing but the rows, and those large
+ *   (Matt, 2026-11-25: "increase the size of the items in the ghost messaging widget and remove the ghost messaging
+ *   title on it").
  * - **People** ([PeopleWidget]): the faces of who was written with last: four in a row, eight in two rows, twelve
  *   where there is the width (a Fold's inner screen).
  *
@@ -209,7 +211,7 @@ class ChatsWidget : AppWidgetProvider() {
                     data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
                 })
                 setEmptyView(R.id.widget_list, R.id.widget_empty)
-                setOnClickPendingIntent(R.id.widget_head, GhostWidgets.openApp(context))
+                setOnClickPendingIntent(R.id.widget_empty, GhostWidgets.openApp(context))
                 // Each row fills in which conversation; the list itself knows only that a press opens the app.
                 setPendingIntentTemplate(R.id.widget_list, PendingIntent.getActivity(context, 9_100_002, Intent(context, MainActivity::class.java).apply {
                     action = Intent.ACTION_VIEW
@@ -240,7 +242,7 @@ class ChatsWidgetService : RemoteViewsService() {
             views.setTextViewText(R.id.widget_name, c.name)
             views.setTextViewText(R.id.widget_snippet, c.snippet)
             views.setTextViewText(R.id.widget_time, GhostWidgets.whenShort(c.date))
-            views.setImageViewBitmap(R.id.widget_face, GhostWidgets.face(applicationContext, c, 114))
+            views.setImageViewBitmap(R.id.widget_face, GhostWidgets.face(applicationContext, c, 150))
             views.setViewVisibility(R.id.widget_unread_dot, if (c.unread) View.VISIBLE else View.INVISIBLE)
             views.setOnClickFillInIntent(R.id.widget_row, Intent().putExtra(Notifier.EXTRA_THREAD, c.thread))
             return views
