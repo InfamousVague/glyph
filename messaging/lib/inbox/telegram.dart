@@ -392,6 +392,15 @@ class Telegram extends InboxNetwork {
   }
 
   @override
+  String? faceOf(String user) {
+    final u = _people[int.tryParse(user)];
+    return u == null ? null : _userPhoto(u);
+  }
+
+  @override
+  bool get hasProfiles => true;
+
+  @override
   Future<String?> chatWith(InboxContact contact) async {
     final user = int.tryParse(contact.id);
     if (user == null || _state != InboxState.ready) return null;
@@ -773,6 +782,8 @@ class Telegram extends InboxNetwork {
     if (m['can_be_deleted_for_all_users'] == true) _forAll.add('${m['chat_id']}/${m['id']}');
     final sender = m['sender_id'] as Map?;
     final user = (sender?['user_id'] as num?)?.toInt();
+    // Posted as a chat, not a person (an admin as the group itself, a channel in its group): by that chat's name.
+    final chat = user == null ? _chatsById[(sender?['chat_id'] as num?)?.toInt()] : null;
     final sending = (m['sending_state'] as Map?)?['@type'];
     final media = _media(m['content'] as Map? ?? const {});
     // The message it answers, where it is one: the words Telegram quoted, else that message's own where it is held.
@@ -800,7 +811,7 @@ class Telegram extends InboxNetwork {
       media: media,
       date: DateTime.fromMillisecondsSinceEpoch(((m['date'] as num?) ?? 0).toInt() * 1000),
       mine: m['is_outgoing'] == true,
-      sender: user == null ? '' : (_users[user] ?? ''),
+      sender: user == null ? '${chat?['title'] ?? ''}' : (_users[user] ?? ''),
       state: sending == 'messageSendingStatePending' ? 'sending' : (sending == 'messageSendingStateFailed' ? 'failed' : 'sent'),
       reactions: telegramReactions(m['interaction_info'] as Map?),
       replyTo: reply == null ? null : '${reply['message_id']}',

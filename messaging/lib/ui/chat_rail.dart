@@ -118,8 +118,9 @@ class ChatRail extends StatefulWidget {
   /// Fewer messages than this have no map: there is nothing to find one's way in.
   static const fewest = 12;
 
-  /// How wide the map's lines are drawn.
-  static const double width = 12;
+  /// How wide the map's lines are drawn: twice what they were, as everything of the map's is (Matt, 2026-11-25: "make the
+  /// chat map twice as big").
+  static const double width = 24;
 
   /// The room either side of the map, so it is not flush against the window's edge or the bubbles (Matt, 2026-11-25:
   /// "add a little padding on the left and right of the chat map so it's not flush against the edge").
@@ -130,13 +131,16 @@ class ChatRail extends StatefulWidget {
   static const double gutter = width + edge * 2;
 
   /// The space from one line to the next: as much as there is room for, between these.
-  static const double tightest = 3, loosest = 6;
+  static const double tightest = 6, loosest = 12;
+
+  /// How thick a line is.
+  static const double thick = 3.2;
 
   /// How much of the chat's height the map may take, and its most.
-  static const double share = 0.62, tallest = 340;
+  static const double share = 0.9, tallest = 680;
 
   /// A line's length, from one message alone to the busiest.
-  static const double shortest = 4, longest = 9;
+  static const double shortest = 8, longest = 18;
 
   /// Messages this near in time count toward how fast the chat was going.
   static const int near = 5 * 60 * 1000;
@@ -758,7 +762,7 @@ class _RailPainter extends CustomPainter {
     if (n == 0) return;
     final (from, to) = view();
     final paint = Paint()
-      ..strokeWidth = 1.6
+      ..strokeWidth = ChatRail.thick
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < n; i++) {
       final k = ticks[i];
@@ -771,9 +775,9 @@ class _RailPainter extends CustomPainter {
       // One's own from the right edge and everyone else's from the left, as their bubbles are, so the two are told
       // apart in a look whose accent is its ink.
       if (k.mine && !k.quiet) {
-        canvas.drawLine(Offset(size.width - 1 - length, y), Offset(size.width - 1, y), paint);
+        canvas.drawLine(Offset(size.width - 2 - length, y), Offset(size.width - 2, y), paint);
       } else {
-        canvas.drawLine(Offset(1, y), Offset(1 + length, y), paint);
+        canvas.drawLine(Offset(2, y), Offset(2 + length, y), paint);
       }
     }
   }

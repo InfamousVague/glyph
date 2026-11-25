@@ -88,6 +88,8 @@ type request struct {
 	Remove   bool            `json:"remove"`
 	Pointer  json.RawMessage `json:"pointer"`
 	Who      string          `json:"who"`
+	// `people`: what is looked for in the workspace's members, by name or handle; empty for all of them.
+	Query string `json:"query"`
 }
 
 // account is one signed-in session: the library's client, its live stream, and who it is.
@@ -588,6 +590,10 @@ func (a *account) do(ctx context.Context, r request) (any, error) {
 		return nil, a.download(ctx, r.Pointer, r.Path)
 	case "who":
 		return a.who(ctx, r.Who)
+	case "people":
+		return a.people(ctx, r.Query)
+	case "open":
+		return a.open(ctx, r.Who)
 	}
 	return nil, fmt.Errorf("the Slack helper does not know %q", r.Op)
 }
@@ -875,6 +881,97 @@ func (a *account) who(ctx context.Context, id string) (any, error) {
 		seen.meet(who)
 	}
 	return map[string]any{"id": who.ID, "name": who.Name, "handle": who.Handle, "avatar": nullable(a.avatar(ctx, who))}, nil
+}
+
+// --- the workspace's members, and a direct message with one (GMFB-61) ------------------------------------------------
+
+// The most members asked for (pages of 200), how many are answered at once, and how long the list is good for.
+const (
+	peoplePages = 5
+	peopleMost  = 50
+	peopleFor   = 10 * time.Minute
+)
+
+// roster is the workspace's members as last listed, for this run: users.list is the whole workspace a page at a
+// time, too much to ask at every letter typed.
+var roster struct {
+	sync.Mutex
+	team string
+	at   time.Time
+	list []person
+}
+
+// members is the workspace's people, listed once every ten minutes: no apps, no one removed, not the person
+// themself. The first thousand in a workspace of more; anyone met in a chat is known besides (seen).
+func (a *account) members(ctx context.Context) ([]person, error) {
+	roster.Lock()
+	defer roster.Unlock()
+	if roster.team == a.s.Team && roster.list != nil && time.Since(roster.at) < peopleFor {
+		return roster.list, nil
+	}
+	list := []person{}
+	p := a.cli.GetUsersPaginated(slack.GetUsersOptionLimit(200), slack.GetUsersOptionTeamID(a.s.Team))
+	for page := 0; page < peoplePages; page++ {
+		var err error
+		if p, err = p.Next(ctx); err != nil {
+			if p.Done(err) {
+				break
+			}
+			if len(list) == 0 {
+				return nil, err
+			}
+			break
+		}
+		for _, u := range p.Users {
+			if u.Deleted || u.IsBot || u.IsAppUser || u.ID == a.s.Me || u.ID == "USLACKBOT" {
+				continue
+			}
+			who := personOfUser(u)
+			seen.meet(who)
+			list = append(list, who)
+		}
+	}
+	sort.SliceStable(list, func(i, j int) bool { return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name) })
+	roster.team, roster.at, roster.list = a.s.Team, time.Now(), list
+	return list, nil
+}
+
+// people answers `people`: the members whose name or handle has [query] in it (all of them for none), by name, fifty
+// at most. No pictures are fetched for a list: `who` gives one person's.
+func (a *account) people(ctx context.Context, query string) (any, error) {
+	list, err := a.members(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(query), "@"))
+	out := []map[string]any{}
+	for _, who := range list {
+		if q != "" && !strings.Contains(strings.ToLower(who.Name), q) && !strings.Contains(strings.ToLower(who.Handle), q) {
+			continue
+		}
+		out = append(out, map[string]any{"id": who.ID, "name": who.Name, "handle": who.Handle, "avatar": nil})
+		if len(out) == peopleMost {
+			break
+		}
+	}
+	return out, nil
+}
+
+// open answers `open`: the direct message with [id], made where there is none yet (conversations.open; nothing is
+// sent, and the other person is told nothing). Its chat id.
+func (a *account) open(ctx context.Context, id string) (any, error) {
+	id = strings.TrimSpace(id)
+	if id == "" || !slackIDPattern.MatchString(id) {
+		return nil, errors.New("no one was named")
+	}
+	ch, _, _, err := a.cli.OpenConversationContext(ctx, &slack.OpenConversationParameters{Users: []string{id}, ReturnIM: true})
+	if err != nil {
+		return nil, err
+	}
+	if ch == nil || ch.ID == "" {
+		return nil, errors.New("Slack did not open a chat with them")
+	}
+	return map[string]any{"id": chatID(a.s.Team, ch.ID)}, nil
 }
 
 // --- chats ----------------------------------------------------------------------------------------------------------

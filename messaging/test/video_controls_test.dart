@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -148,11 +149,63 @@ void main() {
     await tester.pump();
     expect(fullscreen, ['Utils.EnterNativeFullscreen']);
     expect(find.bySemanticsLabel('Leave full screen'), findsOneWidget);
-    // Esc leaves full screen, then goes back.
+    // Esc leaves full screen, and the video stays (GMFB-65).
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     expect(fullscreen, ['Utils.EnterNativeFullscreen', 'Utils.ExitNativeFullscreen']);
     await tester.pump(const Duration(milliseconds: 600));
+    expect(find.bySemanticsLabel('Full screen'), findsOneWidget);
+    await close(tester);
+  });
+
+  // GMFB-65 (Matt, Windows): "When watching a video and hitting fullscreen i expect the video itself to be
+  // fullscreend but the whole app is fullscreened and I still see the sidebar". The player opens in the pane beside
+  // the list; full screen draws it over the whole window, and Esc or the button puts it back in its pane, the same
+  // player still playing.
+  testWidgets('full screen on a computer covers the whole window, the list beside the player too', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await open(
+      tester,
+      Row(children: [
+        const SizedBox(width: 320, child: ColoredBox(color: Color(0xFFEEEEEE), child: Center(child: Text('The list')))),
+        Expanded(
+          child: Navigator(onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (context, _, _) => const VideoScreen(path: '/tmp/clip.mp4', title: 'Holiday', desk: true))),
+        ),
+      ]),
+    );
+    // The picture's own widget (FakeVideoEngine.view): where the player is drawn.
+    Rect picture() => tester.getRect(find.byType(AspectRatio).first);
+    expect(picture().left, greaterThanOrEqualTo(320));
+    expect(tester.getRect(find.bySemanticsLabel('Full screen')).left, greaterThan(320));
+    final made = engine.calls.where((c) => c.startsWith('open')).length;
+    await tester.tap(find.bySemanticsLabel('Full screen'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(fullscreen, ['Utils.EnterNativeFullscreen']);
+    // 16:9 in a window of 1100 by 700: the whole width, from the window's left edge.
+    expect(picture().left, 0);
+    expect(picture().width, 1100);
+    // The list is under it: a press where the list stands reaches the player (the controls come and go), not the list.
+    expect(tester.hitTestOnBinding(const Offset(160, 350)).path.any((e) => e.target is RenderParagraph), isFalse);
+    // The same player, not another opened in its place.
+    expect(engine.calls.where((c) => c.startsWith('open')).length, made);
+    expect(engine.calls.any((c) => c.startsWith('dispose')), isFalse);
+    // The keys are still the player's: Esc leaves full screen and the player is back in its pane.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(fullscreen, ['Utils.EnterNativeFullscreen', 'Utils.ExitNativeFullscreen']);
+    expect(picture().left, greaterThanOrEqualTo(320));
+    expect(find.text('The list').hitTestable(), findsOneWidget);
+    // And the button does the same both ways.
+    await tester.tap(find.bySemanticsLabel('Full screen'));
+    await tester.pump();
+    expect(picture().left, 0);
+    await tester.tap(find.bySemanticsLabel('Leave full screen'));
+    await tester.pump();
+    expect(picture().left, greaterThanOrEqualTo(320));
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
     await close(tester);
   });
 

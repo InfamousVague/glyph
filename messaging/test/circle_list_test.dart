@@ -323,6 +323,34 @@ void main() {
     await keep(tester, 'voice-music');
   });
 
+  // GMFB-66: "It would be nice to show what users are streaming and or sharing video".
+  testWidgets('someone with their camera on or sharing their screen has a mark after their name', (tester) async {
+    final sample = sampleCircleView();
+    final view = withSpaces(sample, [
+      for (final s in sample.spaces)
+        s.name != 'Lounge'
+            ? s
+            : CircleSpaceView(space: s.space, channel: s.channel, inVoice: const ['Maya Chen', 'Sam', 'Kai'], people: const [
+                CircleVoicePerson(id: 'aa11', name: 'Maya Chen', camera: true),
+                CircleVoicePerson(id: 'bb22', name: 'Sam', screen: true),
+                CircleVoicePerson(id: 'cc33', name: 'Kai'),
+              ]),
+    ]);
+    await draw(tester, CircleList(view: view), size: const Size(412, 1400));
+    final seed = view.spaces.firstWhere((s) => s.name == 'Lounge').seed;
+    final camera = find.byKey(ValueKey('circle-voice-$seed-aa11-camera')), screen = find.byKey(ValueKey('circle-voice-$seed-bb22-screen'));
+    expect(camera, findsOneWidget);
+    expect(screen, findsOneWidget);
+    expect(find.byKey(ValueKey('circle-voice-$seed-bb22-camera')), findsNothing, reason: 'a screen, not a camera too');
+    expect(find.byKey(ValueKey('circle-voice-$seed-cc33-camera')), findsNothing);
+    expect(find.byKey(ValueKey('circle-voice-$seed-cc33-screen')), findsNothing);
+    final people = find.byType(CircleVoicePeople);
+    expect(tester.getRect(camera).left, greaterThan(tester.getRect(find.descendant(of: people, matching: find.text('Maya Chen'))).left), reason: 'after the name');
+    expect(tester.getRect(camera).right, lessThanOrEqualTo(412), reason: 'inside the list');
+    expect(tester.takeException(), isNull);
+    await keep(tester, 'voice-camera-screen');
+  });
+
   testWidgets('a crowded call lists a dozen and counts the rest', (tester) async {
     final sample = sampleCircleView();
     final crowd = [for (var i = 0; i < 15; i++) CircleVoicePerson(id: 'p$i', name: 'Person $i')];

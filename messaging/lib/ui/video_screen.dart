@@ -33,7 +33,7 @@ import 'video_tracks.dart';
 /// It plays MP4 and MKV alike on every device (Matt, 2026-11-18: "add support for playing mkv video files and mp4's
 /// within the app in a player themed by glacier UI"): what plays it is a [VideoEngine] (ExoPlayer on Android,
 /// AVFoundation on an iPhone, libmpv on a computer), and these controls drive whichever it is. On a computer they also
-/// answer the keyboard (space, the arrows, F for full screen, Esc to go back), show a volume slider, and come back as
+/// answer the keyboard (space, the arrows, F for full screen, Esc to leave it or go back), show a volume slider, and come back as
 /// the mouse moves. A file that can't be played says so and offers the app the device would open it with.
 class VideoScreen extends StatefulWidget {
   const VideoScreen({super.key, required String this.path, this.title, this.poster, this.desk, this.dropFile = false, this.sync})
@@ -109,6 +109,14 @@ class _VideoScreenState extends State<VideoScreen> {
   double _volume = 1;
   bool _fullscreen = false;
   bool _handedOn = false;
+
+  /// Full screen on a computer (GMFB-65, Matt, Windows: "i expect the video itself to be fullscreend but the whole app
+  /// is fullscreened and I still see the sidebar"): the player opens in the pane beside the list, so making the
+  /// window full screen left the list, the rail and the title bar round it. While full screen the player is drawn
+  /// over the whole window instead ([_over], on the app's outermost overlay), the same player moved there and back
+  /// ([_player]), so the video plays on.
+  final _over = OverlayPortalController(debugLabel: 'video full screen');
+  final _player = GlobalKey(debugLabel: 'video player');
 
   /// The whole of a streamed file coming down for another app to open: how much is here, 0 to 1; null while it isn't.
   double? _getting;
@@ -407,6 +415,11 @@ class _VideoScreenState extends State<VideoScreen> {
   Future<void> _toggleFullscreen() async {
     setState(() => _fullscreen = !_fullscreen);
     if (_desk) {
+      // Over the whole window, and back into its pane (GMFB-65); the keys stay the player's.
+      _fullscreen ? _over.show() : _over.hide();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
       await (_fullscreen ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
       return;
     }
@@ -478,6 +491,9 @@ class _VideoScreenState extends State<VideoScreen> {
     final repeat = e is KeyRepeatEvent;
     if (k == LogicalKeyboardKey.escape && !repeat && _tracksOpen) {
       _toggleTracks();
+    } else if (k == LogicalKeyboardKey.escape && !repeat && _fullscreen) {
+      // Esc leaves full screen, and the video stays (GMFB-65); Esc again goes back.
+      unawaited(_toggleFullscreen());
     } else if (k == LogicalKeyboardKey.escape && !repeat) {
       unawaited(_back());
     } else if (k == LogicalKeyboardKey.space && !repeat) {
@@ -577,7 +593,7 @@ class _VideoScreenState extends State<VideoScreen> {
           ]);
 
     // A phone's back gesture leaves full screen first, as Esc does on a computer.
-    return PopScope(
+    final player = KeyedSubtree(key: _player, child: PopScope(
       canPop: !_fullscreen,
       onPopInvokedWithResult: (popped, _) {
         if (!popped && _fullscreen) unawaited(_toggleFullscreen());
@@ -684,6 +700,16 @@ class _VideoScreenState extends State<VideoScreen> {
         ),
       ),
     ),
+    ));
+    if (!_desk) return player;
+    // On a computer, full screen draws the player over the whole window: the list, the rail and the title bar are
+    // under it (GMFB-65). Black stands in its pane meanwhile.
+    final whole = _fullscreen && _over.isShowing;
+    return OverlayPortal(
+      controller: _over,
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: (_) => Positioned.fill(child: whole ? player : const SizedBox.shrink()),
+      child: whole ? const ColoredBox(color: Color(0xFF000000), child: SizedBox.expand()) : player,
     );
   }
 }

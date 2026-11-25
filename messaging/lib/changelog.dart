@@ -25,6 +25,19 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.33', '2026-11-25', [
+    'On a computer, clicking a voice space in a circle\'s list joins its call straight away. The space\'s menu, Open, reads its chat without joining.',
+    'A small camera or screen mark shows beside anyone in a voice space who has their camera on or is sharing their screen.',
+    'Choose your camera in Settings › Voice and video, and change it during a call from the camera button or your own video.',
+    'Flip camera now sits on your own video and in the menu when you tap a video.',
+    'On phones a video shows the whole camera picture in its own shape instead of a cropped strip.',
+    'Full screen on a video fills the whole screen with just the video; Esc leaves it.',
+    'HEIC photos show as pictures on Android, iPhone and Mac, and Ogg and Opus sound files that arrive in a text get the player.',
+    'Chats on other networks that you have read stay read when you come back to the app, and are marked read on the network too.',
+    'New message finds people on your linked networks as you type, such as Telegram contacts and Slack workspace members.',
+    'Signing in to a network on one device now reaches your other devices, where the network allows it.',
+    'The chat map is twice as big, and a group on another network is drawn as a circle\'s chat is.',
+  ]),
   ReleaseNotes('0.12.32', '2026-11-25', [
     'Spotify is listed under its voice space in the circle, with the song and its cover, and ripples with the music there and in the call.',
     'Spotify\'s sound in a call is sent at three times the quality it was.',

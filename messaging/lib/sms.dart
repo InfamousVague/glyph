@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'files/file_kinds.dart';
 import 'kept_lists.dart';
 import 'package:flutter/services.dart';
 
@@ -131,10 +132,19 @@ class Attachment {
   /// Its MIME type.
   final String type;
   final String? name;
-  bool get isImage => type.startsWith('image/');
 
-  /// Sound: a voice message (android Voice.kt records them), drawn with a player.
-  bool get isAudio => type.startsWith('audio/') || type == 'application/ogg';
+  /// Its type says nothing of what it is (none, or "octet-stream", as a file sent from a folder often is): its name's
+  /// ending is asked instead (GMFB-60: a sound.ogg and a photo.heic that came so were each a file's row).
+  bool get _untyped => type.isEmpty || type.endsWith('/octet-stream');
+
+  /// A picture: drawn as one, or as a file's row where this device can't read it (lib/ui/thread.dart).
+  bool get isImage => type.startsWith('image/') || (_untyped && FileKind.drawsAsPicture(name ?? ''));
+
+  /// Sound: a voice message (android Voice.kt records them) or a sound's file, drawn with a player.
+  bool get isAudio => type.startsWith('audio/') || type == 'application/ogg' || type == 'application/x-ogg' || (_untyped && _sounds.contains(FileKind.endingOf(name ?? '')));
+
+  /// The endings an untyped file is taken as sound by: the common ones, Ogg's among them (.ogg, .oga, .opus).
+  static const _sounds = {'ogg', 'oga', 'opus', 'mp3', 'm4a', 'aac', 'wav', 'flac'};
 
   /// A video: drawn as a picture of where it starts, with a button that plays it (lib/ui/video.dart).
   bool get isVideo => type.startsWith('video/');

@@ -1538,7 +1538,8 @@ void main() {
       // The microphone and the speaker as pills, each with a chevron to its devices (Matt, 2026-11-15: "on the
       // microphone icon and the deafen icon make them pill shaped with a little chevron facing up that opens a popover
       // to select input and output devices respectively").
-      expect(find.byType(DevicePill), findsNWidgets(2));
+      // And the camera a third, on a computer (GMFB-68).
+      expect(find.byType(DevicePill), findsNWidgets(3));
       await tester.tap(find.bySemanticsLabel('Choose a microphone'));
       await _settle(tester);
       await _shootAgain(tester, '19-voice-devices', dark: dark);

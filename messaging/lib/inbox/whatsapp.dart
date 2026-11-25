@@ -570,6 +570,7 @@ class WhatsApp extends InboxNetwork {
             date: DateTime.fromMillisecondsSinceEpoch(m['ts'] as int),
             mine: m['mine'] == true,
             sender: m['mine'] == true ? '' : (_names['${m['from']}'] ?? _numberOf('${m['from']}') ?? ''),
+            senderId: m['mine'] == true ? (_jid ?? '') : '${m['from'] ?? ''}',
             state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
             media: [for (final a in (m['media'] as List? ?? const [])) _media(a as Map)],
             reactions: signalReactions(m['reactions'] as Map?, me: _jid),
@@ -578,6 +579,9 @@ class WhatsApp extends InboxNetwork {
             replySender: _quoteName((m['quote'] as Map?)?['author'] as String?),
           ),
       ];
+
+  @override
+  String? faceOf(String user) => _avatars[user];
 
   /// Who a quoted message was by, to show over the quote: "You", their name, else their number.
   String? _quoteName(String? jid) {

@@ -68,5 +68,9 @@ void main() {
     await desktop.curlKeep(blob).timeout(const Duration(seconds: 5));
     final phone = await device();
     expect(await phone.curlKept(strict: true).timeout(const Duration(seconds: 5)), blob);
+    // Two readings at one moment both have the answer (GMFB-69): the second took the first's place and the first,
+    // the sign-ins' sync, waited out its 25 seconds for nothing.
+    final both = await Future.wait([phone.curlKept(), phone.curlKept(strict: true)]).timeout(const Duration(seconds: 5));
+    expect(both, [blob, blob]);
   });
 }
