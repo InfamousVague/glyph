@@ -280,7 +280,7 @@ class _NowPlaying extends StatelessWidget {
     final song = now?.song;
     final where = s?.where(m.clock()) ?? Duration.zero;
     final length = song?.length ?? Duration.zero;
-    final by = now == null || now.by == m.dj ? '' : 'Added by ${_who(m, now.by)} · ';
+    final by = now == null || now.by == m.dj ? '' : 'Added by ${now.by == m.me ? 'you' : _who(m, now.by)} · ';
     final dj = m.mine ? 'From your Spotify' : 'From ${_who(m, m.dj!)}\'s Spotify';
     return Container(
       key: const ValueKey('spotify-now'),
@@ -302,6 +302,7 @@ class _NowPlaying extends StatelessWidget {
         if (song != null) ...[
           SizedBox(height: t.space(3)),
           Semantics(
+            container: true,
             label: length > Duration.zero ? '${songClock(where)} of ${songClock(length)}' : songClock(where),
             child: ExcludeSemantics(
               child: Row(children: [
