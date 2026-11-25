@@ -232,6 +232,8 @@ void main() {
     await settle();
     expect([for (final c in s.contacts) (c.id, c.name, c.number, c.avatar)], [('aci-jo', 'Jo Park', null, null), ('aci-riley', 'Riley Fox', '+447700900123', '/tmp/riley.jpg')]);
     expect(await s.chatWith(s.contacts.last), 'aci-riley');
+    // Their face by their lines in a group (lib/ui/flat_line.dart).
+    expect((s.faceOf('aci-riley'), s.faceOf('aci-jo')), ('/tmp/riley.jpg', null));
 
     await s.signOut();
     expect(s.contacts, isEmpty);

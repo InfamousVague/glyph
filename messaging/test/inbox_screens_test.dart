@@ -261,8 +261,9 @@ void main() {
     expect(find.text('Pat for Senate'), findsNothing, reason: 'political, which Messages hides as it ships');
   });
 
-  testWidgets('in a group, the sender\'s name and the time under the bubble start at the same left edge', (tester) async {
-    // Matt, 2026-11-16: "Make sure the username and the timestamp are aligned on the same left side of the bubble".
+  testWidgets('in a group, the sender\'s name and their words start at the same left edge, the time after the name', (tester) async {
+    // Matt, 2026-11-25: "For channels on slack and other groups please use the same chat UI without the bubbles we use
+    // with text channels on circles" (lib/ui/flat_line.dart; test/flat_groups_test.dart).
     final sheet = await loadSheet(tester);
     final at = now.subtract(const Duration(minutes: 5));
     final crew = FakeNetwork('telegram', 'Telegram', [
@@ -271,7 +272,8 @@ void main() {
       '20': [InboxMessage(id: '1', text: 'tent is packed', date: at, mine: false, sender: 'Priya')],
     });
     await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '20'), 'x-inbox-group-align', dark: false);
-    expect(tester.getTopLeft(find.text('Priya')).dx, moreOrLessEquals(tester.getTopLeft(find.text(clock(at))).dx, epsilon: 0.5));
+    expect(tester.getTopLeft(find.text('Priya')).dx, moreOrLessEquals(tester.getTopLeft(find.text('tent is packed')).dx, epsilon: 0.5));
+    expect(tester.getTopLeft(find.text(clock(at))).dx, greaterThan(tester.getTopRight(find.text('Priya')).dx));
   });
 
   testWidgets('a sticker, sent or received, is drawn on its own with no bubble behind it; a picture keeps its bubble', (tester) async {
@@ -329,7 +331,7 @@ void main() {
     expect(find.byKey(const ValueKey('new-messages')), findsOneWidget);
     final divider = tester.getRect(find.byKey(const ValueKey('new-messages')));
     expect(divider.bottom, lessThanOrEqualTo(tester.getTopLeft(find.text('tent is packed')).dy), reason: 'above the older of the two unread');
-    expect(divider.top, greaterThanOrEqualTo(tester.getBottomLeft(find.text('I can')).dy));
+    expect(divider.top, greaterThanOrEqualTo(tester.getBottomLeft(find.text('I can')).dy - 0.01));
     await _shoot(tester, sheet, InboxChatScreen(network: crew, chatId: '21'), 'x-inbox-new-messages-one', dark: false);
     expect(find.byKey(const ValueKey('new-messages')), findsNothing);
   });

@@ -214,8 +214,10 @@ void main() {
     await t.load(jo.id);
     final ms = t.messagesOf(jo.id);
     expect(ms.map((m) => m.text), ['are you coming\ntonight?', 'Jo Park joined', 'See you at 7 & bring snacks\n• chips\n• dip'], reason: 'oldest first, the deleted one gone, the event a plain line');
+    expect(ms.map((m) => m.event), [false, true, false], reason: 'something that happened, not something said');
     expect(ms.first.mine, isTrue);
     expect(ms.last.sender, 'Jo Park');
+    expect(ms.last.senderId, isNotEmpty);
     expect(ms.last.reactions.single.emoji, '👍');
     expect(ms.last.reactions.single.mine, isTrue);
     final pic = ms.last.media.single;

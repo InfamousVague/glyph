@@ -212,6 +212,11 @@ void main() {
       expect(n.messagesOf('t1').map((m) => m.text), ['coming tonight?']);
       expect(n.chats.single.unread, 1);
       expect(n.unreadChats, 1);
+      // Their face by their lines in a group (lib/ui/flat_line.dart), as the helper names them.
+      expect(n.faceOf('jo-1'), isNull);
+      helper.event({'ev': 'name', 'id': 'jo-1', 'name': 'Jo Park', 'avatar': '/tmp/jo.png'});
+      await settle();
+      expect(n.faceOf('jo-1'), '/tmp/jo.png');
 
       // Sent from here: shown at once, then said back by the service with its own id. One bubble, not two.
       helper.answer = (r) => r['op'] == 'send' ? {'id': 'm2', 'ts': 2000} : null;

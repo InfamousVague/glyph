@@ -415,7 +415,7 @@ class Teams extends InboxNetwork {
     if (type != 'message') {
       // A member added, the chat renamed, a call: a plain line where Graph says what, else nothing.
       final what = _event(p['eventDetail'] as Map?);
-      return what == null ? null : InboxMessage(id: mid, text: what, date: date, mine: false, sender: '');
+      return what == null ? null : InboxMessage(id: mid, text: what, date: date, mine: false, sender: '', event: true);
     }
     final user = (p['from'] as Map?)?['user'] as Map?;
     final mine = user != null && user['id'] == _me;
@@ -457,6 +457,7 @@ class Teams extends InboxNetwork {
       date: date,
       mine: mine,
       sender: mine ? '' : (user?['displayName'] as String? ?? ''),
+      senderId: '${user?['id'] ?? ''}',
       media: media,
       reactions: _reactions(p['reactions'] as List?),
       replyTo: replyTo,
@@ -560,7 +561,7 @@ class Teams extends InboxNetwork {
   }
 
   static InboxMessage _withFile(InboxMessage m, int fileId, String path) => InboxMessage(
-        id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, reactions: m.reactions,
+        id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, senderId: m.senderId, state: m.state, reactions: m.reactions, event: m.event,
         replyTo: m.replyTo, replyText: m.replyText, replySender: m.replySender, media: [for (final x in m.media) x.withPath(fileId, path)]);
 
   // --- sending --------------------------------------------------------------------------------------------------------
@@ -672,7 +673,7 @@ class Teams extends InboxNetwork {
   }
 
   static InboxMessage _withReactions(InboxMessage m, List<InboxReaction> reactions) => InboxMessage(
-        id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, media: m.media,
+        id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, senderId: m.senderId, state: m.state, media: m.media, event: m.event,
         replyTo: m.replyTo, replyText: m.replyText, replySender: m.replySender, reactions: reactions);
 
   /// Your own messages are deleted in Teams for everyone (Graph's softDelete); anyone else's only left out here.
