@@ -794,10 +794,15 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     }
     _landing = land ? (seed: circle.seed, until: DateTime.now().add(const Duration(minutes: 2))) : null;
     if (_showing != null) close();
+    // From one circle to another, and beside the pane on a computer, its list is there at once (Matt, 2026-11-25:
+    // "show the sidebar immediately as it animates in from the right and briefly shows the main chat sidebar when
+    // switching between spaces"): the circle left slid away as the next slid in, with the conversations seen between
+    // them. A phone coming from its conversations keeps the slide, as its other pages have.
+    final atOnce = _wide || _circle != null;
     side.popUntil((r) => r.isFirst);
     final route = PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 200),
-      reverseTransitionDuration: const Duration(milliseconds: 160),
+      transitionDuration: atOnce ? Duration.zero : const Duration(milliseconds: 200),
+      reverseTransitionDuration: _wide ? Duration.zero : const Duration(milliseconds: 160),
       pageBuilder: (context, _, _) => CircleScreen(key: ValueKey('circle-${circle.seed}'), seed: circle.seed),
       transitionsBuilder: (context, a, _, child) => SlideTransition(
         position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
