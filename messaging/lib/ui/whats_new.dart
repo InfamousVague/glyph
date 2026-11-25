@@ -81,6 +81,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['developer mode'], Lucide.braces),
   (['icons', 'phosphor'], Lucide.shapes),
   (['sign up', 'sign-up'], Lucide.userPlus),
+  (['signing in', 'sign in', 'sign-in'], Lucide.keyRound),
   (['souls', 'flame'], Lucide.flame),
   (['badge'], LucideMore.badgeCheck),
   // The docs at gogho.st/docs (Matt, 2026-11-19: "Spend time creating a /docs/ page on ghost messaging").
