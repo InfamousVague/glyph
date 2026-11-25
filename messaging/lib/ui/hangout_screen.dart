@@ -11,6 +11,8 @@ import '../sms.dart' show Sms;
 import '../art/app_icon.dart';
 import 'chat_rail.dart';
 import 'notion_card.dart';
+import 'link_cards.dart';
+import '../notion/notion.dart' show NotionLink;
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
@@ -1927,7 +1929,8 @@ class _Message extends StatelessWidget {
       ]);
     } else {
       // Notion links, opened out under the bubble where the circle has Notion (lib/ui/notion_card.dart).
-      final notion = notionCardsUnder(context, room.channel, m.text, maxWidth: maxWidth);
+      // And every other link's card, a GIF's or a picture's link as the picture (lib/ui/link_cards.dart).
+      final notion = [...notionCardsUnder(context, room.channel, m.text, maxWidth: maxWidth), ...linkCardsUnder(context, m.text, skip: (url) => NotionLink.of(url) != null)];
       body = notion.isEmpty ? words : Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [words, ...notion]);
     }
     // Stuck on the bubble as stickers, as in a conversation of texts (lib/ui/reaction_stickers.dart).
@@ -2025,6 +2028,8 @@ extension on _Message {
         if (m.text.isNotEmpty) words,
         // Notion links, opened out where the circle has Notion (lib/ui/notion_card.dart).
         ...notionCardsUnder(context, room.channel, m.text, maxWidth: math.min(maxWidth, t.lenOf('30rem'))),
+        // Every other link's card, and a GIF's or a picture's link as the picture (lib/ui/link_cards.dart).
+        ...linkCardsUnder(context, m.text, skip: (url) => NotionLink.of(url) != null),
       ]);
     }
     final at = DateTime.fromMillisecondsSinceEpoch(m.at);

@@ -10,6 +10,7 @@
 #include "ducking.h"
 #include "links.h"
 #include "splash.h"
+#include "spotify.h"
 
 #include <optional>
 #include <utility>
@@ -39,6 +40,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   // The microphone's processing in calls (voice_fx.cpp), after flutter_webrtc is registered.
   RegisterVoiceFx(flutter_controller_->engine()->messenger());
+  // Spotify played to a circle's call (spotify.cpp).
+  RegisterSpotify(flutter_controller_->engine()->messenger());
   // Recording a call (call_recorder.cpp), and live captions and Scribe (speech.cpp).
   RegisterCallRecorder(flutter_controller_->engine()->messenger());
   RegisterSpeech(flutter_controller_->engine()->messenger());
@@ -67,6 +70,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // Its threads and its track go before the engine does.
+  ShutdownSpotify();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

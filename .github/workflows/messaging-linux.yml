@@ -70,7 +70,7 @@ jobs:
       - run: flutter pub get
 
       - name: Build the app
-        run: flutter build linux --release --build-name=$VERSION --build-number=$BUILD --dart-define=GHOST_BUILD=$BUILD --dart-define=GHOST_VERSION=$VERSION
+        run: flutter build linux --release --build-name=$VERSION --build-number=$BUILD --dart-define=GHOST_BUILD=$BUILD --dart-define=GHOST_VERSION=$VERSION --dart-define=KLIPY_APP_KEY=${{ secrets.KLIPY_APP_KEY }}
 
       # The direct network's core (messaging/native/p2p, Rust on iroh; lib/net/p2p/node_ffi.dart), from nothing but
       # what its Cargo.lock names, with the Rust its rust-toolchain.toml names: in the app's lib folder as

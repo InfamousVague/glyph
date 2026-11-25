@@ -27,6 +27,12 @@ class ProfilePictures extends ChangeNotifier {
   // The sharp one's side in pixels, at its largest.
   static const sharpSide = 256;
 
+  /// This person's own picture as it is kept for their own screens alone (never sent): large enough for a profile's
+  /// big face on a sharp screen (Matt, 2026-11-25: "the profile picture itself is still very blurry on the profile
+  /// popup"; the one sent is at most [sharpSide] across and squeezed under [sharpMost]).
+  static const fullSide = 640;
+  static const fullMost = 280000;
+
   // Each person's picture here, by their id, with the mark a greeting would name it by.
   final Map<String, ({String hash, String picture})> _by = {};
 

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -7,7 +10,10 @@ import '../art/lucide.g.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../inbox/inbox.dart' show InboxPresence;
+import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../me/picture_make.dart';
+import '../me/pictures.dart';
 import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'add_me.dart';
@@ -160,11 +166,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
                 children: [
                   SettingRow(
-                    icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.pictureSharp, size: 40),
+                    icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.pictureOwn, size: 40),
                     label: me.picture.isEmpty ? 'Choose a picture' : 'Change your picture',
                     onPress: () => _choosePicture(),
                   ),
                   if (me.picture.isNotEmpty) SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Remove your picture', onPress: _removePicture),
+                  // The pictures you had before, to go back to (Matt, 2026-11-25: "store previous profile pictures so
+                  // you can roll back easily").
+                  if (me.picturesPast.isNotEmpty) const SettingRowBox(child: PastPictures()),
                 ],
               ),
               SizedBox(height: t.space(6)),
@@ -382,6 +391,70 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
   }
 }
 
+
+/// The pictures this person had before (Me.picturesPast), as faces in a row: a press makes one the picture again, and
+/// the one it takes the place of joins them. A long press, or a press with the other button, forgets one.
+class PastPictures extends StatelessWidget {
+  const PastPictures({super.key});
+
+  /// Makes [kept] the picture again, as it was kept.
+  static Future<void> use(BuildContext context, String kept) async {
+    ProfilePicture? made;
+    try {
+      made = await profilePictureOf(base64Decode(kept));
+    } catch (_) {}
+    if (made == null) {
+      if (context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
+      return;
+    }
+    // What friends are sent is made from it again; this person's own screens keep it as it was.
+    Me.instance.setPicture(ProfilePicture(sharp: made.sharp, small: made.small, full: kept.length <= ProfilePictures.fullMost ? kept : made.full));
+    Buddies.instance.shareProfile();
+    if (context.mounted) toast(context, 'Your earlier picture is back. Your friends will see it.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final past = Me.instance.picturesPast;
+    const size = 44.0;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: t.space(2)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text('Earlier pictures', style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink'))),
+        Text('Press one to use it again. Press and hold one to forget it.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+        SizedBox(height: t.space(2)),
+        Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
+          for (final (i, kept) in past.indexed)
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onSecondaryTapUp: (_) => _forget(context, kept),
+              child: GlacierPressable(
+                key: ValueKey('past-picture-$i'),
+                onPressed: () => unawaited(use(context, kept)),
+                onLongPress: () => _forget(context, kept),
+                semanticLabel: 'Earlier picture ${i + 1}. Use it again',
+                builder: (context, state) => GlacierFocusRing(
+                  visible: state.focused,
+                  offset: 2,
+                  child: AnimatedScale(
+                    scale: state.pressed ? 0.94 : (state.hovered ? 1.06 : 1),
+                    duration: t.duration('glacier-duration-fast'),
+                    curve: t.curve('glacier-ease-out'),
+                    child: ProfileFace(name: '', picture: kept, size: size),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  static void _forget(BuildContext context, String kept) => showChoices(context, title: 'Forget this earlier picture?', choices: [
+        Choice('Forget it', Lucide.trash2, () => Me.instance.forgetPast(kept), danger: true),
+      ]);
+}
 
 /// The mark a mode shows on a face (PresenceDot), and Invisible's own: a hollow grey ring.
 class ModeMark extends StatelessWidget {

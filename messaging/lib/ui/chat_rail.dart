@@ -20,7 +20,7 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show Drag, GestureBinding, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
 import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -280,7 +280,9 @@ class _ChatRailState extends State<ChatRail> {
     if (!identical(old.controller, _c)) {
       old.controller.removeListener(_moved);
       _c.addListener(_moved);
+      _list = null;
     }
+    if (old.chat != widget.chat) _list = null;
     if (old.marks.length != widget.marks.length || old.chat != widget.chat || (widget.marks.isNotEmpty && old.marks.isNotEmpty && old.marks.first.at != widget.marks.first.at)) {
       _stretches = null;
       if (_shown) _sum();
@@ -296,9 +298,50 @@ class _ChatRailState extends State<ChatRail> {
 
   bool get _shown => _hover || _open;
 
-  /// While the list is open the row of what is on the screen follows the scroll.
+  /// While the list is open the row of what is on the screen follows the scroll. Built again only when that row
+  /// becomes another: the map's own lines are painted from the scroll without a build (Matt, 2026-11-25: "using the
+  /// chat map is still pretty laggy"; every frame of a scroll built the whole list of stretches and worked the lines
+  /// out again).
   void _moved() {
-    if (mounted && _shown) setState(() {});
+    if (!mounted || !_shown || _looks) return;
+    // Looked at once the list is laid out where it was scrolled to: until then its rows are where they were.
+    _looks = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _looks = false;
+      if (mounted && _shown && _hereNow()?.oldest != _hereShown) setState(() {});
+    });
+  }
+
+  bool _looks = false;
+
+  /// The stretch in the middle of the screen now.
+  RailStretch? _hereNow() {
+    final n = widget.marks.length;
+    if (n == 0) return null;
+    final (from, to) = _view();
+    final middle = ((from + to) / 2 * n).floor().clamp(0, n - 1);
+    for (final s in _all) {
+      if (middle >= s.newest && middle <= s.oldest) return s;
+    }
+    return null;
+  }
+
+  /// The stretch the list was last built with as the one on the screen, by its oldest message.
+  int? _hereShown;
+
+  /// The map's lines and the people's colours, kept until the messages or the room change: a build asks for them
+  /// each time, and they are a pass over every message.
+  (int, int, int, int)? _ticksOf;
+  List<RailTick> _ticks = const [];
+  List<String> _others = const [];
+
+  void _lines(int rows) {
+    final m = widget.marks;
+    final now = (m.length, m.isEmpty ? 0 : m.first.at, m.isEmpty ? 0 : m.last.at, rows);
+    if (_ticksOf == now) return;
+    _ticksOf = now;
+    _ticks = ChatRail.ticksOf(m, rows);
+    _others = {for (final x in m) if (!x.mine && !x.quiet) x.who}.toList()..sort();
   }
 
   /// There is a map where there is a chat to find one's way in: enough messages, and more of them than a screen.
@@ -315,18 +358,22 @@ class _ChatRailState extends State<ChatRail> {
   Map<int, ({double at, double tall})> _laid() {
     final out = <int, ({double at, double tall})>{};
     if (!_c.hasClients) return out;
-    RenderSliverMultiBoxAdaptor? list;
-    void find(RenderObject o) {
-      if (list != null) return;
-      if (o is RenderSliverMultiBoxAdaptor) {
-        list = o;
-        return;
+    // Looked for once and kept while it is on the page: this is asked at every frame of a scroll.
+    var l = _list;
+    if (l == null || !l.attached) {
+      RenderSliverMultiBoxAdaptor? list;
+      void find(RenderObject o) {
+        if (list != null) return;
+        if (o is RenderSliverMultiBoxAdaptor) {
+          list = o;
+          return;
+        }
+        o.visitChildren(find);
       }
-      o.visitChildren(find);
-    }
 
-    _c.position.context.storageContext.findRenderObject()?.visitChildren(find);
-    final l = list;
+      _c.position.context.storageContext.findRenderObject()?.visitChildren(find);
+      l = _list = list;
+    }
     if (l == null) return out;
     // What is before the list in the scroll (its padding), where that can be told.
     if (l.constraints.scrollOffset > 0) _before = _c.position.pixels - l.constraints.scrollOffset;
@@ -339,6 +386,7 @@ class _ChatRailState extends State<ChatRail> {
   }
 
   double _before = 0;
+  RenderSliverMultiBoxAdaptor? _list;
 
   /// Which of the messages are on the screen: (from, to) as shares of them all from the newest end, each 0 to 1.
   /// Exactly, from the rows on the screen; by the scroll's share of its whole length until the list is laid out.
@@ -407,6 +455,59 @@ class _ChatRailState extends State<ChatRail> {
       await WidgetsBinding.instance.endOfFrame;
     }
   }
+
+  /// A drag along the map: the newest place asked for is gone to once a frame, not once for every move of the mouse
+  /// (several come in a frame, and each began a going of its own).
+  int? _dragTo;
+  bool _dragWaits = false;
+
+  void _dragGo(int mark) {
+    _dragTo = mark;
+    if (_dragWaits) return;
+    _dragWaits = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _dragWaits = false;
+      final to = _dragTo;
+      _dragTo = null;
+      if (mounted && to != null) _goTo(to);
+    });
+  }
+
+  /// A wheel turned over the map or its list scrolls the chat, as it would over the chat itself (Matt, 2026-11-25:
+  /// "i can't scroll up and down in the popup menu to scroll up and down either"): the two stand over the chat's list,
+  /// which never heard the wheel there. The list of stretches follows, the one on the screen in its middle.
+  void _wheel(PointerScrollEvent e) {
+    if (!_c.hasClients || e.scrollDelta.dy == 0) return;
+    GestureBinding.instance.pointerSignalResolver.register(e, (e) {
+      // The chat's list is drawn bottom up, so a turn down the page is toward its start.
+      if (_c.hasClients) _c.position.pointerScroll(-(e as PointerScrollEvent).scrollDelta.dy);
+    });
+  }
+
+  /// Two fingers on a trackpad, over the map or its list: the chat's own drag, with its glide after.
+  Drag? _pan;
+
+  Widget _scrollsChat(Widget child) => Listener(
+        onPointerSignal: (e) {
+          if (e is PointerScrollEvent) _wheel(e);
+        },
+        child: RawGestureDetector(
+          gestures: {
+            VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
+              () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad}),
+              (r) => r
+                ..onStart = (d) {
+                  _pan?.cancel();
+                  _pan = _c.hasClients ? _c.position.drag(d, () => _pan = null) : null;
+                }
+                ..onUpdate = ((d) => _pan?.update(d))
+                ..onEnd = ((d) => _pan?.end(d))
+                ..onCancel = (() => _pan?.cancel()),
+            ),
+          },
+          child: child,
+        ),
+      );
 
   /// The message a point of the map stands for: [share] of the way up it from the newest.
   int _markAt(double share) => (share.clamp(0.0, 1.0) * widget.marks.length).floor().clamp(0, math.max(0, widget.marks.length - 1));
@@ -487,9 +588,9 @@ class _ChatRailState extends State<ChatRail> {
               final room = math.min(box.maxHeight * ChatRail.share, ChatRail.tallest);
               final rows = math.max(1, math.min(widget.marks.length, room ~/ ChatRail.tightest));
               final pitch = (room / rows).clamp(ChatRail.tightest, ChatRail.loosest);
-              final ticks = ChatRail.ticksOf(widget.marks, rows);
+              _lines(rows);
+              final ticks = _ticks, others = _others;
               final height = ticks.length * pitch;
-              final others = {for (final m in widget.marks) if (!m.mine && !m.quiet) m.who}.toList()..sort();
               double shareAt(Offset local) => (1 - local.dy / height).clamp(0.0, 1.0);
               final rail = Semantics(
                 label: 'Map of this chat',
@@ -497,10 +598,12 @@ class _ChatRailState extends State<ChatRail> {
                 child: GestureDetector(
                   key: const ValueKey('chat-rail'),
                   behavior: HitTestBehavior.opaque,
+                  // Not a trackpad's two fingers, which scroll the chat (_scrollsChat).
+                  supportedDevices: const {PointerDeviceKind.mouse, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown},
                   // A press goes there with a mouse over it; on a phone it opens the list of stretches, and again
                   // puts it away.
                   onTapUp: (d) => d.kind == PointerDeviceKind.mouse || d.kind == PointerDeviceKind.trackpad ? _goTo(_markAt(shareAt(d.localPosition)), run: true) : _show(open: !_open),
-                  onVerticalDragUpdate: _hover ? (d) => _goTo(_markAt(shareAt(d.localPosition))) : null,
+                  onVerticalDragUpdate: _hover ? (d) => _dragGo(_markAt(shareAt(d.localPosition))) : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
                     child: SizedBox(
@@ -525,10 +628,10 @@ class _ChatRailState extends State<ChatRail> {
               return MouseRegion(
                 onEnter: (_) => _show(hover: true),
                 onExit: (_) => _show(hover: false),
-                child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+                child: _scrollsChat(Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
                   if (_shown) _panel(t, box.maxHeight),
                   rail,
-                ]),
+                ])),
               );
             }),
           ),
@@ -541,11 +644,9 @@ class _ChatRailState extends State<ChatRail> {
 
   /// The list of the chat's stretches, the oldest at the top as the map has them.
   Widget _panel(Tokens t, double room) {
-    final n = widget.marks.length;
-    final (from, to) = _view();
-    final middle = ((from + to) / 2 * n).floor().clamp(0, n - 1);
     final list = _all.reversed.toList();
-    final here = list.where((s) => middle >= s.newest && middle <= s.oldest).firstOrNull;
+    final here = _hereNow();
+    _hereShown = here?.oldest;
     if (here != null) _follow(here.oldest);
     return Container(
       key: const ValueKey('chat-rail-list'),
@@ -560,6 +661,9 @@ class _ChatRailState extends State<ChatRail> {
         boxShadow: t.shadowOf('0 8px 28px rgba(0,0,0,0.22)'),
       ),
       child: SingleChildScrollView(
+        // Under a mouse the list is not scrolled by itself: a wheel over it scrolls the chat, and it follows. Opened by
+        // a press (a phone) it is dragged as any list is.
+        physics: _open ? null : const NeverScrollableScrollPhysics(),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (final s in list)
             if (identical(s, here)) KeyedSubtree(key: _here, child: _row(t, s, here: true)) else _row(t, s, here: false),

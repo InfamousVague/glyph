@@ -17,6 +17,7 @@ import '../../me/picture_make.dart';
 import '../../voice/hangout.dart' show OutgoingFile;
 import '../../sms.dart';
 import '../common.dart';
+import '../picture_crop.dart';
 
 /// Asks for a picture and gives it back as base64 PNG, square and small; null where none was chosen or it couldn't
 /// be read (said in a toast).
@@ -35,14 +36,19 @@ Future<String?> pickCirclePicture(BuildContext context) async {
   }
 }
 
-/// Asks for a picture and gives it back as a profile picture (lib/me/picture_make.dart); null where none was chosen
-/// or it couldn't be read (said in a toast).
+/// Asks for a picture and which part of it, and gives it back as a profile picture (lib/me/picture_make.dart); null
+/// where none was chosen or it couldn't be read (said in a toast).
 Future<ProfilePicture?> pickProfilePicture(BuildContext context) async {
   try {
     final picked = await Sms.instance.pickImages();
     if (picked.isEmpty) return null;
     final path = await Sms.instance.cacheCopy(picked.first);
-    final made = await profilePictureOf(await File(path).readAsBytes());
+    final bytes = await File(path).readAsBytes();
+    if (!context.mounted) return null;
+    // Which part of it (lib/ui/picture_crop.dart); nothing is changed where the person thinks better of it.
+    final crop = await showPictureCrop(context, bytes);
+    if (crop == null) return null;
+    final made = await profilePictureOf(bytes, crop: crop);
     if (made == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
     return made;
   } catch (e) {

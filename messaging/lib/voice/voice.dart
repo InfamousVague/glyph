@@ -674,6 +674,12 @@ class VoiceSession extends ChangeNotifier {
   /// Says to the call that this device played the soundboard's sound [sound], for each device to play its own copy.
   void saySound(String sound) => _say({'t': 'sb', 's': sound});
 
+  /// Told what someone said of the music played to the call ('mu', lib/voice/spotify.dart).
+  void Function(String from, Map<String, dynamic> what)? onMusic;
+
+  /// Says [what] of the music: to the call, or to the one person it names (`to`).
+  void sayMusic(Map<String, Object?> what) => _say({'t': 'mu', ...what});
+
   /// Told what someone said of an open space's floor ('os': where they stand; 'osg': its groups;
   /// lib/voice/open_space.dart).
   void Function(String from, Map<String, dynamic> what)? onPlace;
@@ -1204,6 +1210,8 @@ class VoiceSession extends ChangeNotifier {
         onWatch?.call(from, m);
       case 'sb':
         if (m['s'] is String) onSound?.call(from, m['s'] as String);
+      case 'mu':
+        onMusic?.call(from, m);
       case 'os' || 'osg':
         onPlace?.call(from, m);
       case 'cap':

@@ -19,6 +19,7 @@ import '../../voice/hangout.dart';
 import '../../voice/open_space.dart';
 import '../../voice/recorder.dart';
 import '../../voice/roles.dart';
+import '../../voice/spotify.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../connecting_banner.dart';
@@ -29,6 +30,7 @@ import '../settings.dart';
 import '../shell.dart';
 import '../screen_share.dart';
 import '../space_invite.dart';
+import '../spotify_panel.dart';
 import '../voice_screen.dart';
 import 'call_plugins.dart';
 import 'telegram.dart';
@@ -65,6 +67,8 @@ class SpacePerson {
     this.owner = false,
     this.username,
     this.tag,
+    this.cover,
+    this.doing,
   });
 
   /// `me` for this device, else their id on the hub (the key [SpaceCall.levels] uses).
@@ -100,6 +104,11 @@ class SpacePerson {
   /// Where they are from when not from Ghost Messaging: 'Discord' for someone in the Discord voice channel a space is
   /// bridged to. Shown beside their name; they can't be acted on from here.
   final String? tag;
+
+  /// Not a person but the music played to the call (lib/voice/spotify.dart), listed among them as the Discord bridge's
+  /// people are: what it is doing ("Playing Cut To The Feeling"), and its song's cover where it has one.
+  final String? cover, doing;
+  bool get music => doing != null;
 
   /// What to call them on a tile: "You" for this device.
   String get shown => me ? 'You' : name;
@@ -180,6 +189,14 @@ class SpaceCall {
   /// [room]), and in a space with roles only where this device's role may invite.
   static bool mayInvite(VoiceChannel channel, HangoutRoom? room) => channel.group == null && (room == null || room.can(Perm.invite));
 
+  /// The music played to the call, as one of those in it; null while nothing plays.
+  static SpacePerson? musicPerson() {
+    final m = SpotifyMusic.instance;
+    final now = m.state?.now;
+    if (now == null) return null;
+    return SpacePerson(id: 'music', name: 'Spotify', tag: 'Music', cover: now.song.coverUrl, doing: m.state!.playing ? 'playing ${now.song.shown}' : 'paused');
+  }
+
   /// The call [Voice] is in, as it stands now; null when there is none. [minimize] puts the page away.
   static SpaceCall? live({VoidCallback? minimize, bool chatBelow = false, bool chatShown = true, VoidCallback? onChatBelow}) {
     final v = Voice.instance;
@@ -225,13 +242,14 @@ class SpaceCall {
       // Everyone in the Discord voice channel the space is bridged to (VoiceSession.discordPeople).
       for (final d in s.discordPeople)
         if (!d.bot) SpacePerson(id: 'dc:${d.id}', name: d.name, muted: d.muted || d.deafened, tag: 'Discord'),
+      ?musicPerson(),
     ];
     return SpaceCall(
       channel: s.channel,
       people: people,
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
       // The ways through and the microphone too: what the call is waiting for follows them ([wait]).
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance]),
       bridged: s.channel.discord != null,
       chatBelow: chatBelow,
       chatShown: chatShown,
@@ -255,8 +273,10 @@ class SpaceCall {
       onVideo: () => unawaited(s.setVideo(!s.video)),
       onLeave: () => unawaited(v.leave()),
       onMinimize: minimize,
-      // Someone in Discord can't be muted or given a role from here: their press does nothing yet.
+      // Someone in Discord can't be muted or given a role from here: their press does nothing yet. The music's opens its
+      // queue.
       onPerson: (context, p) {
+        if (p.music) unawaited(push<void>(context, (_) => const SpotifyScreen()));
         if (p.tag == null) showPerson(context, s, p.id, p.name);
       },
       onSettings: room == null ? null : (context) => push(context, (_) => RolesScreen(room: room, settings: true)),
@@ -359,8 +379,11 @@ class SpaceCall {
   static const talking = RippleAvatar.talking;
 
   SpacePerson get me => people.first;
-  List<SpacePerson> get others => people.skip(1).toList();
+  List<SpacePerson> get others => [for (final p in people.skip(1)) if (!p.music) p];
   List<SpacePerson> get withVideo => [for (final p in people) if (p.video) p];
+
+  /// How many people are in it: the music is not one.
+  int get count => people.where((p) => !p.music).length;
 
   /// Who is loudest now, if anyone is talking (not muted): the "active speaker".
   SpacePerson? loudest(Map<String, double> now) {
@@ -418,7 +441,9 @@ class SpaceFace extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<Map<String, double>>(
         valueListenable: call.levels,
         // With how this device's connection to them stands, where it isn't simply through (GMFB-4).
-        builder: (context, now, _) => LinkBadge(
+        builder: (context, now, _) => person.music
+            ? ClipOval(child: SongCover(url: person.cover, size: size))
+            : LinkBadge(
           id: person.id,
           size: size,
           child: RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),

@@ -21,6 +21,8 @@ add_executable(${BINARY_NAME} WIN32
   "ducking.cpp"
   "links.cpp"
   "splash.cpp"
+  "spotify.cpp"
+  "spotify_sound.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -52,6 +54,14 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 # Live captions and Scribe (speech.cpp): SAPI's recogniser, Media Foundation to read a recording's track.
 target_link_libraries(${BINARY_NAME} PRIVATE "mfplat.lib" "mfreadwrite.lib" "mfuuid.lib" "sapi.lib" "shlwapi.lib" "ole32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_webrtc/third_party/libwebrtc/lib/libwebrtc.dll.lib")
+
+# Spotify in a circle's calls: Windows' media controls (spotify.cpp, C++/WinRT from the Windows SDK), and the sound of the
+# Spotify app alone (spotify_sound.cpp), as a track of flutter_webrtc's, whose headers are read as flutter_webrtc itself
+# reads them (RTC_DESKTOP_DEVICE: the file says why).
+target_link_libraries(${BINARY_NAME} PRIVATE "runtimeobject.lib" "oleaut32.lib" "mmdevapi.lib" "avrt.lib" "shell32.lib")
+set_source_files_properties("spotify_sound.cpp" PROPERTIES COMPILE_DEFINITIONS "RTC_DESKTOP_DEVICE")
+# C++/WinRT's headers take C++20's coroutines, or in C++17 the experimental ones Visual Studio refuses from 2026 on.
+set_source_files_properties("spotify.cpp" PROPERTIES COMPILE_OPTIONS "/std:c++20")
 
 # voicefx (native/voicefx): RNNoise and the microphone's gain, for calls (voice_fx.cpp), built as C into the app.
 set(VOICEFX "${CMAKE_SOURCE_DIR}/../native/voicefx")

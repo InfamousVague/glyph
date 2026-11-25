@@ -27,6 +27,7 @@ import 'roles.dart';
 import 'leveler.dart';
 import 'live_changer.dart';
 import 'soundboard.dart';
+import 'spotify.dart';
 import 'watch_together.dart';
 import 'rtc.dart';
 import 'open_space.dart';
@@ -1071,6 +1072,8 @@ class Voice extends ChangeNotifier {
       WatchTogether.instance.follow();
       // And its soundboard (soundboard.dart).
       Soundboard.instance.follow();
+      // And the music played to it (spotify.dart).
+      SpotifyMusic.instance.follow();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
       // And the voice changer, live, where it is on (live_changer.dart).
@@ -1115,6 +1118,7 @@ class Voice extends ChangeNotifier {
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
     Soundboard.instance.follow();
+    SpotifyMusic.instance.follow();
     OpenSpaces.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;

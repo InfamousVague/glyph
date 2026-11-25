@@ -36,6 +36,7 @@ export const sections = [
       { slug: 'watch-together', icon: 'film', title: 'Watch together', summary: 'Play a video or song for everyone in a call, in step.' },
       { slug: 'soundboard', icon: 'megaphone', title: 'Soundboard', summary: 'Pads in a call that play a sound for everyone in it.' },
       { slug: 'notion', icon: 'file-text', title: 'Notion', summary: 'Notion pages and boards opened out in a circle\'s chats.' },
+      { slug: 'spotify', icon: 'audio-lines', title: 'Spotify', summary: 'A queue of songs for a circle\'s call, played from one person\'s Spotify.' },
       { slug: 'auto-leveler', icon: 'audio-lines', title: 'Auto leveler', summary: 'Everyone in a call at about the same loudness.' },
       { slug: 'voice-changer', icon: 'audio-lines', title: 'Voice changer', summary: 'Send voice messages in another voice, said the way you said them.' },
       { slug: 'performance', icon: 'gauge', title: 'Performance', summary: 'See what the app is using, in a row at the top, and copy a log of it.' },

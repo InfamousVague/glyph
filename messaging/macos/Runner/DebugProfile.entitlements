@@ -13,5 +13,9 @@
 	<!-- Voice and video channels (lib/voice): the camera, only while video is on in one. -->
 	<key>com.apple.security.device.camera</key>
 	<true/>
+	<!-- Spotify in a circle's calls (Runner/Spotify.swift): pressing the Spotify app's own buttons, only once this Mac's
+	     person pressed Start there; macOS asks them the first time (Info.plist, NSAppleEventsUsageDescription). -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
 </dict>
 </plist>

@@ -47,6 +47,10 @@
 	<string>Ghost Messaging uses the microphone for a voice message you record, and in a voice channel or call you join. It listens at no other time.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Ghost Messaging uses the camera when you turn video on in a voice channel or call.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Ghost Messaging plays, pauses and skips songs in Spotify when you start the music in a circle's call.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Ghost Messaging takes the sound of the Spotify app, and of no other app, to play it to the people in your call.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between.</string>
 	<key>LSApplicationCategoryType</key>

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'dart:ui' show Rect;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
@@ -47,6 +49,74 @@ void main() {
     expect(made.sharp.length, lessThanOrEqualTo(ProfilePictures.sharpMost));
     expect(made.small.length, lessThanOrEqualTo(ProfilePictures.smallMost));
     debugPrint('all detail: ${_sideOf(made.sharp)} px');
+  });
+
+  // Matt, 2026-11-25: "the profile picture itself is still very blurry on the profile popup"; "show a profile picture
+  // cropping feature and store previous profile pictures so you can roll back easily".
+  testWidgets('a larger one is made for this person\'s own screens, never larger than the photo, and none from a small one', (tester) async {
+    final made = (await tester.runAsync(() => profilePictureOf(_photo(1600, 1200))))!;
+    expect(_sideOf(made.full), ProfilePictures.fullSide);
+    expect(made.full.length, lessThanOrEqualTo(ProfilePictures.fullMost));
+    final middling = (await tester.runAsync(() => profilePictureOf(_photo(520, 700))))!;
+    expect(_sideOf(middling.full), 512, reason: 'the largest size the photo holds');
+    final small = (await tester.runAsync(() => profilePictureOf(_photo(300, 300))))!;
+    expect(small.full, isEmpty);
+    expect(_sideOf(small.sharp), ProfilePictures.sharpSide);
+  });
+
+  testWidgets('the part chosen is the part kept', (tester) async {
+    // Left half red, right half blue.
+    final p = img.Image(width: 800, height: 400);
+    for (var y = 0; y < 400; y++) {
+      for (var x = 0; x < 800; x++) {
+        p.setPixelRgb(x, y, x < 400 ? 220 : 20, 20, x < 400 ? 20 : 220);
+      }
+    }
+    final bytes = img.encodeJpg(p, quality: 92);
+    final left = (await tester.runAsync(() => profilePictureOf(bytes, crop: const Rect.fromLTWH(0, 0, 0.5, 1))))!;
+    final right = (await tester.runAsync(() => profilePictureOf(bytes, crop: const Rect.fromLTWH(0.5, 0, 0.5, 1))))!;
+    final l = img.decodeJpg(base64Decode(left.sharp))!.getPixel(128, 128), r = img.decodeJpg(base64Decode(right.sharp))!.getPixel(128, 128);
+    expect(l.r, greaterThan(180));
+    expect(l.b, lessThan(70));
+    expect(r.b, greaterThan(180));
+    expect(r.r, lessThan(70));
+    // None given: the middle, half of each.
+    final middle = img.decodeJpg(base64Decode((await tester.runAsync(() => profilePictureOf(bytes)))!.sharp))!;
+    expect(middle.getPixel(20, 128).r, greaterThan(180));
+    expect(middle.getPixel(236, 128).b, greaterThan(180));
+  });
+
+  test('Me draws its own screens from the larger one, and keeps the pictures it had before, the newest first', () async {
+    final me = Me.forTest();
+    final store = MemoryMeStore();
+    await me.start(store, ValueNotifier(0), () => null);
+    ProfilePicture pic(String n) => ProfilePicture(sharp: 'sharp$n', small: 'small$n', full: 'full$n');
+    me.setPicture(pic('A'));
+    expect(me.pictureOwn, 'fullA');
+    expect(me.pictureSharp, 'sharpA', reason: 'what friends are sent is not the larger one');
+    expect(me.picturesPast, isEmpty);
+    me.setPicture(pic('B'));
+    expect(me.picturesPast, ['fullA']);
+    // One with no larger copy: its own screens draw the sharp one.
+    me.setPicture(const ProfilePicture(sharp: 'sharpC', small: 'smallC'));
+    expect(me.pictureOwn, 'sharpC');
+    expect(me.picturesPast, ['fullB', 'fullA']);
+    // Back to A as it was kept: it leaves the earlier ones, and C joins them.
+    me.setPicture(const ProfilePicture(sharp: 'sharpA2', small: 'smallA2', full: 'fullA'));
+    expect(me.pictureOwn, 'fullA');
+    expect(me.picturesPast, ['sharpC', 'fullB']);
+    // Taken away: still there to go back to.
+    me.setPicture(null);
+    expect(me.pictureOwn, isEmpty);
+    expect(me.picturesPast, ['fullA', 'sharpC', 'fullB']);
+    me.forgetPast('sharpC');
+    expect(me.picturesPast, ['fullA', 'fullB']);
+    // No more than a few are kept.
+    for (var i = 0; i < 10; i++) {
+      me.setPicture(pic('$i'));
+    }
+    expect(me.picturesPast, hasLength(Me.pastMost));
+    expect(me.picturesPast.first, 'full8');
   });
 
   test('both go to friends in one packet of the hub\'s 60 KB, with room for the rest of a profile', () {
