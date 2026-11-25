@@ -9,6 +9,7 @@ import 'dart:io' show Directory;
 import '../circles/circles.dart';
 import '../files/files_store.dart' show FilesStore;
 import '../friends/buddies.dart';
+import '../friends/friends.dart';
 import '../inbox/account_helper.dart' show AccountHelper;
 import '../inbox/inbox.dart' show Inbox, InboxNetwork;
 import '../me/lookup_budget.dart';
@@ -496,6 +497,53 @@ class Account extends ChangeNotifier {
     return true;
   }
 
+  /// Takes in the friends and circles the account's kept copy has and this device does not (Matt, 2026-11-25:
+  /// "messages are still not kept in sync across all devices, all my devices have different sidebars"). The copy is put
+  /// together from every device's as each seals it again ([_reseal]), but a device read it once, as it signed in:
+  /// whatever another device added afterwards stayed on that device and in the copy. Read with the words kept here
+  /// (no password is needed to read), so not in a browser; at most once in ten minutes unless [force]. True where the
+  /// copy was read.
+  Future<bool> takeIn({bool force = false}) async {
+    final address = this.address;
+    final into = profiles;
+    if (address == null || !keepsWords || into is! AccountTakesIn) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final last = int.tryParse(store.choice('acct_taken', '')) ?? 0;
+    if (!force && now - last < const Duration(minutes: 10).inMilliseconds) return false;
+    final words = await _keptWords();
+    if (words == null) return false;
+    final keys = _keysOf(words);
+    if (keys.address != address) return false;
+    final got = await relay.ask(_signed('acct-seed', 'seed', keys, const {}));
+    final blob = got['blob'];
+    final kept = blob is String ? AccountCrypto.openWithSeed(blob, keys.seed, keys.address) : null;
+    if (kept == null) return false;
+    store.set('acct_taken', '$now');
+    await (into as AccountTakesIn).takeIn(kept);
+    return true;
+  }
+
+  /// While the app runs: the account's kept copy read again every half hour ([takeIn]), and sealed again soon after
+  /// this device's own friends or circles change ([refresh]), so another device's reading finds them. It was sealed at
+  /// most once a day, as the app started.
+  Timer? _keeping;
+  String _sealedFor = '';
+  void _keepInStep() {
+    _keeping ??= Timer.periodic(const Duration(minutes: 30), (_) => unawaited(inStep()));
+  }
+
+  /// One turn of keeping in step: read, and seal again where what this device has differs from what it last sealed.
+  Future<void> inStep() async {
+    if (address == null) return;
+    try {
+      await takeIn();
+      final mine = profiles.fill(AccountBackup(words: const [], identity: ""));
+      final now = '${[for (final f in mine.friends) if (f is Map) f['i']].join(',')}|${[for (final c in mine.circles) if (c is Map) c['s']].join(',')}';
+      if (now != _sealedFor && await refresh(force: _sealedFor.isNotEmpty)) _sealedFor = now;
+      if (_sealedFor.isEmpty) _sealedFor = now;
+    } catch (_) {}
+  }
+
   /// [mine], then each of [theirs] whose [key] none of [mine] has: this device's own copy of anything both have.
   static List<Object?> _union(List<Object?> mine, List<Object?> theirs, String key) {
     final have = {for (final x in mine) if (x is Map && x[key] is String) x[key]};
@@ -659,7 +707,11 @@ class Account extends ChangeNotifier {
           unknownHere = false;
           notifyListeners();
         }
+        // The account's friends and circles as its other devices have made them since ([takeIn]), then this device's
+        // sealed with them, and both again as the app goes on ([_keepInStep]).
+        await takeIn();
         await refresh();
+        _keepInStep();
       }
     } catch (_) {
     } finally {
@@ -999,8 +1051,14 @@ abstract class AccountProfiles {
   Future<void> wipe();
 }
 
+/// A profile that can take in what the account's kept copy has and this device does not ([Account.takeIn]): the
+/// app's own. Apart from [AccountProfiles], so a stand-in for that need not have it.
+abstract class AccountTakesIn {
+  Future<void> takeIn(AccountBackup kept);
+}
+
 /// The app's own: the profile in Settings › Me, the friends list and the circles.
-class AppAccountProfiles implements AccountProfiles {
+class AppAccountProfiles implements AccountProfiles, AccountTakesIn {
   /// The app's own, but for a test's [home] (in place of [appFolder]), [files] and [networks]: a test must never delete
   /// what the computer running it keeps.
   AppAccountProfiles({String? home, FilesStore? files, List<InboxNetwork>? networks}) : _home = home, _files = files, _networks = networks;
@@ -1055,6 +1113,17 @@ class AppAccountProfiles implements AccountProfiles {
     store.set('circles', jsonEncode(b.circles));
     store.set('circles_gone', '[]');
     await Sms.instance.buddiesKeep(jsonEncode(b.friends));
+  }
+
+  /// Friends first: a circle's people are named by them. Neither takes anything away ([Buddies.takeFromAccount],
+  /// [Circles.fromAccount]).
+  @override
+  Future<void> takeIn(AccountBackup kept) async {
+    if (_store == null) return;
+    final friends = await Buddies.instance.takeFromAccount(kept.friends);
+    Circles.instance.fromAccount(kept.circles);
+    // What a friend new here said was passed over until now: asked for again, from the start.
+    if (friends > 0) Friends.instance.catchUpAgain();
   }
 
   /// What this install keeps of its circles besides the list itself, much of it by each circle's seed (its key), and
