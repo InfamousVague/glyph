@@ -692,6 +692,9 @@ class Me extends ChangeNotifier {
     await _ask({'dir': 'curl-keep', 'blob': base64Encode(NetCrypto.seal(key, utf8.encode(jsonEncode(what))))}, 'curl-keep');
   }
 
+  /// The reading of what the account keeps that is under way, shared by whoever asks meanwhile.
+  Future<Map<String, dynamic>>? _curlReading;
+
   /// The synced cURL entries the account keeps on the relay, opened; null where none or it can't be opened.
   ///
   /// [strict] throws (a MeError) where a blob is kept but can't be opened, rather than answering null: a reader that
@@ -703,7 +706,11 @@ class Me extends ChangeNotifier {
       if (strict) throw MeError('No Ghost account on this device.');
       return null;
     }
-    final m = await _ask({'dir': 'curl-kept'}, 'curl-kept');
+    // Two readers at one moment share one asking (GMFB-69): the sign-ins' sync and the plugins' sync both read this
+    // at the relay's hello, on timers started a line apart and on coming back, and the second asking took the first's
+    // place in the waiting slot, so the sign-ins' reading never had its answer and nothing synced was ever applied.
+    final reading = _curlReading ??= _ask({'dir': 'curl-kept'}, 'curl-kept').whenComplete(() => _curlReading = null);
+    final m = await reading;
     final blob = m['blob'];
     if (blob is! String || blob.isEmpty) return null;
     Map<String, Object?>? opened;
