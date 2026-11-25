@@ -613,6 +613,12 @@ class Signal extends InboxNetwork {
     }
   }
 
+  @override
+  String? faceOf(String user) => _avatars[user];
+
+  @override
+  bool get hasProfiles => true;
+
   /// Profiles asked for, each kept five minutes, so a card opened again asks the helper nothing.
   final Map<String, (DateTime, InboxProfile?)> _profiles = {};
 

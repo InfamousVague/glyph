@@ -30,6 +30,8 @@ import '../inbox/telegram.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' as me;
+import '../me/me.dart' show Me;
+import '../mentions.dart' show Mention;
 import '../sms.dart';
 import '../links.dart' show MessageLink;
 import '../plugins/codes.dart' show signInCode;
@@ -53,6 +55,7 @@ import 'video_screen.dart';
 import 'voice.dart' show VoiceRecorder, micRefusedWords, voiceProblem;
 import 'conversations.dart' show ConversationRow;
 import 'group_drawer.dart' show showGroupDrawer;
+import 'flat_line.dart';
 import 'thread.dart' show LinkedText;
 import 'me.dart' show NetworkMark;
 import '../inbox/account_helper.dart';
@@ -154,8 +157,10 @@ void openInboxChat(BuildContext context, InboxNetwork network, InboxChat chat) {
   }
 }
 
-/// A chat on another network: its messages as bubbles, and a line to answer in. Sent from here, a message goes as
-/// the network's own app would send it.
+/// A chat on another network: its messages, and a line to answer in. Sent from here, a message goes as the network's own
+/// app would send it. With one person its messages are bubbles; a group's (a Slack channel, a Telegram group) are lines
+/// on the page as a circle's are (lib/ui/flat_line.dart; Matt, 2026-11-25: "For channels on slack and other groups please
+/// use the same chat UI without the bubbles we use with text channels on circles").
 class InboxChatScreen extends StatefulWidget {
   const InboxChatScreen({super.key, required this.network, required this.chatId, this.fallback});
   final InboxNetwork network;
@@ -474,7 +479,10 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           _newFound = true;
           _firstNewId = _findFirstNew(list);
         }
-        final newAt = (chat?.group ?? false) ? _firstNewId : null;
+        final group = chat?.group ?? false;
+        final newAt = group ? _firstNewId : null;
+        // Which person here is oneself, as the network knows them: the face by one's own lines, and who a mention means.
+        final myId = group ? list.where((m) => m.mine && m.senderId.isNotEmpty).firstOrNull?.senderId ?? '' : '';
         final (mineBg, mineInk) = myBubble(t, app);
         // The window is named for the chat while it is open (lib/ui/window_title.dart).
         return WindowTitle(name: chat?.title ?? _n.name, child: GhostPage(
@@ -652,7 +660,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
           body: list.isEmpty && !_asked && _n.state == InboxState.ready
               // Its messages in bones until the network has answered once: "No messages yet" was said at once, of
               // every chat, before anything had been asked (lib/ui/skeleton.dart).
-              ? SkeletonChat(label: 'Loading messages…', faces: chat?.group ?? false)
+              ? SkeletonChat(label: 'Loading messages…', flat: group)
               : list.isEmpty
               ? Center(child: Text(_n.state == InboxState.ready ? 'No messages yet' : 'Not signed in to ${_n.name}', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
               // Dial-Up writes the chat as a chat room's transcript (lib/ui/message_line.dart), as it does texts.
@@ -680,6 +688,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                         quiet: m.event,
                       ),
                   ],
+                  // In a group everyone's own face, as by their lines.
+                  face: group ? (who, name, mine, size) => InboxFace(network: _n, id: mine ? myId : (list.any((m) => m.senderId == who) ? who : ''), name: name, mine: mine, size: size) : null,
                   child: ListView.builder(
                   controller: _scroll,
                   reverse: true,
@@ -693,8 +703,13 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     final firstOfRun = older == null || older.event || older.mine != m.mine || older.sender != m.sender || m.date.difference(older.date).inMinutes > 10;
                     final lastOfRun = newer == null || newer.event || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
                     final newDay = older == null || older.date.day != m.date.day || older.date.month != m.date.month || older.date.year != m.date.year;
+                    // A group's runs are a circle's: someone else, another day, something that happened, a pause of five
+                    // minutes or the New messages line, and the face, name and time are shown again.
+                    final newRun = newDay || older.event || _whoOf(older) != _whoOf(m) || FlatLine.apart(older.date, m.date) || m.id == newAt;
                     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      if (newDay)
+                      if (newDay && group)
+                        DayTurn(dayHeading(m.date))
+                      else if (newDay)
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: t.space(3)),
                           child: Text(dayHeading(m.date), textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
@@ -712,11 +727,13 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                       Poof(
                         key: ValueKey('poof-${m.id}'),
                         gone: _poofing.containsKey(m.id),
-                        side: m.mine ? AxisDirection.right : AxisDirection.left,
+                        side: m.mine && !group ? AxisDirection.right : AxisDirection.left,
                         onDone: () => _n.deleteMessage(widget.chatId, m.id, forEveryone: _poofing.remove(m.id) ?? false),
-                        child: GestureDetector(
+                        child: group
+                            ? _InboxLine(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, first: newRun, myId: myId, onMenu: () => _messageMenu(m), onReact: (emoji) => _react(m, emoji), onEditedTap: () => _showOriginal(m))
+                            : GestureDetector(
                         onLongPress: () => _messageMenu(m),
-                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, group: chat?.group ?? false, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m), onEditedTap: () => _showOriginal(m)),
+                        child: _InboxBubble(key: ValueKey(m.id), network: _n, chatId: widget.chatId, message: m, first: firstOfRun, last: lastOfRun, mineBg: mineBg, mineInk: mineInk, onReactionsTap: () => _messageMenu(m), onEditedTap: () => _showOriginal(m)),
                       )),
                     ]);
                   },
@@ -749,7 +766,7 @@ extension on _InboxChatScreenState {
           final lastOfRun = newer == null || newer.mine != m.mine || newer.sender != m.sender || newer.date.difference(m.date).inMinutes > 10;
           final newDay = older == null || older.date.day != m.date.day || older.date.month != m.date.month || older.date.year != m.date.year;
           final failed = m.state == 'failed';
-          final who = m.mine ? 'You' : (group ? (m.sender.isEmpty ? 'Someone' : m.sender) : (chat?.title ?? _n.name));
+          final who = m.mine ? 'You' : (group ? _nameIn(m) : (chat?.title ?? _n.name));
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (older == null && !more) ...[
               HostLine('*** You are in "${chat?.title ?? _n.name}". ***'),
@@ -771,6 +788,13 @@ extension on _InboxChatScreenState {
                 nameColor: m.mine ? c.nameMine : (group ? c.nameFor(m.sender) : c.nameTheirs),
                 mine: m.mine,
                 body: shown?.bubble ?? m.text,
+                // A group's lines as a circle's are: a mention or a name pressed for its profile card, and an edit said.
+                mentions: group ? _mentionsIn(m, shown?.bubble ?? m.text) : const [],
+                mentionStyle: mentionStyle(context.tokens, on: c.ink),
+                onMention: group ? (x) => showProfile(context, subjectOfMention(x.id, words: (shown?.bubble ?? m.text).substring(x.start, x.end), network: _n)) : null,
+                onNameTap: !group || m.mine || m.senderId.isEmpty || !_n.hasProfiles ? null : () => showProfile(context, ProfileSubject.on(_n, id: m.senderId, name: m.sender)),
+                edited: group && m.edited ? 'Edited' : null,
+                onEditedTap: () => _showOriginal(m),
                 original: shown == null ? null : OriginalLine(view: shown),
                 media: [for (final x in m.media) InboxMediaView(network: _n, media: x, ink: c.ink)],
                 under: _linkCards(context, m.text),
@@ -809,9 +833,171 @@ MessageFacts? inboxFacts(InboxNetwork network, String chatId, InboxMessage m) {
   return MessageFacts(thread: -1, senders: [m.sender], text: m.text, contact: false, outgoing: false, date: m.date, id: '${network.id}:$chatId:${m.id}', network: network.id);
 }
 
-/// One message of a network's chat as a bubble: its words, what came with it, its reactions and how its sending went.
+/// Who wrote [m], by anything that tells one writer from another.
+String _whoOf(InboxMessage m) => m.mine ? 'me' : (m.senderId.isNotEmpty ? m.senderId : m.sender);
+
+/// Who wrote [m] in a group, as its line says it: "You" for yourself, as in a circle.
+String _nameIn(InboxMessage m) => m.mine ? 'You' : (m.sender.isEmpty ? 'Someone' : m.sender);
+
+/// Someone's face in a group on another network: the picture the network has of them, else their initials on their
+/// colour. Your own is the network's picture of you where it is held, else your profile's, as in a circle.
+class InboxFace extends StatelessWidget {
+  const InboxFace({super.key, required this.network, required this.id, required this.name, required this.mine, required this.size});
+  final InboxNetwork network;
+
+  /// The network's own id for them; '' where not known.
+  final String id;
+  final String name;
+  final bool mine;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = id.isEmpty ? null : network.faceOf(id);
+    Widget face(String? name) => Avatar(people: [Person(address: '${network.id}:${id.isEmpty ? name : id}', name: name, photo: photo)], size: size, presence: !mine);
+    if (!mine) return face(name);
+    return ListenableBuilder(
+      listenable: Me.instance,
+      builder: (context, _) {
+        final own = Me.instance.shownName.isNotEmpty ? Me.instance.shownName : (network.account ?? '').replaceFirst('@', '');
+        return (photo == null ? faceOfPicture(context, Me.instance.pictureSharp, size) : null) ?? face(own.isEmpty ? 'You' : own);
+      },
+    );
+  }
+}
+
+/// [m]'s words, with their links and mentions pressable, in a bubble or on the page.
+class _InboxWords extends StatelessWidget {
+  const _InboxWords({required this.network, required this.message, required this.text, required this.ink, required this.style, this.mentionOn, this.after = const []});
+  final InboxNetwork network;
+  final InboxMessage message;
+
+  /// The words shown: the message's own, or a plugin's in their place.
+  final String text;
+  final Color ink;
+  final TextStyle style;
+
+  /// The ink a mention is drawn in on a bubble of one's own colour.
+  final Color? mentionOn;
+  final List<InlineSpan> after;
+
+  @override
+  Widget build(BuildContext context) => LinkedText(
+        text,
+        ink: ink,
+        style: style,
+        after: after,
+        // Who an "@" means, as the network said (or the "@username" written, where it said nothing or the words shown are a
+        // translation), pressed for their profile (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal
+        // and telegram chats show this profile popup").
+        mentions: _mentionsIn(message, text),
+        mentionStyle: mentionStyle(context.tokens, on: mentionOn),
+        onMention: (x) => showProfile(context, subjectOfMention(x.id, words: text.substring(x.start, x.end), network: network)),
+      );
+}
+
+List<Mention> _mentionsIn(InboxMessage m, String text) => text == m.text && m.mentions.isNotEmpty ? inboxMentions(m) : handleMentions(text);
+
+/// One message of a group on another network, as a channel's line: the same line a circle's chat is drawn with
+/// (lib/ui/flat_line.dart), with what a network's message has in it.
+class _InboxLine extends StatelessWidget {
+  const _InboxLine({super.key, required this.network, required this.chatId, required this.message, required this.first, required this.myId, required this.onMenu, required this.onReact, required this.onEditedTap});
+  final InboxNetwork network;
+  final String chatId;
+  final InboxMessage message;
+
+  /// The first of a run from one person.
+  final bool first;
+
+  /// Oneself, as the network knows them; '' where not known.
+  final String myId;
+
+  /// Pressed and held, or with a mouse's other button; the plus after its reactions.
+  final VoidCallback onMenu;
+
+  /// One of its reactions pressed: yours goes on, or off.
+  final ValueChanged<String> onReact;
+
+  /// A press on "(edited)": what it said before.
+  final VoidCallback onEditedTap;
+
+  /// Someone else's message that mentions you: by your id on the network, or the username the account here goes by.
+  bool get _mentionsMe {
+    if (message.mine) return false;
+    final account = (network.account ?? '').toLowerCase();
+    bool me(String id) => id.startsWith('n:') ? myId.isNotEmpty && id == 'n:$myId' : account.startsWith('@') && id == 'u:${account.substring(1)}';
+    return _mentionsIn(message, message.text).any((x) => me(x.id.startsWith('u:') ? x.id.toLowerCase() : x.id));
+  }
+
+  @override
+  Widget build(BuildContext context) => ShownWords(facts: inboxFacts(network, chatId, message), builder: _build);
+
+  Widget _build(BuildContext context, ShownView? shown) {
+    final t = context.tokens;
+    final m = message;
+    final going = m.state == 'sending', failed = m.state == 'failed';
+    final react = network.canReact && !going && !failed;
+    final name = _nameIn(m);
+    // A card where the network says something of its people (InboxNetwork.hasProfiles); elsewhere a press does nothing.
+    final who = m.mine || m.senderId.isEmpty || !network.hasProfiles ? null : ProfileSubject.on(network, id: m.senderId, name: m.sender);
+    return FlatLine(
+      name: name,
+      at: m.date,
+      first: first,
+      face: (size) => InboxFace(network: network, id: m.mine ? myId : m.senderId, name: name, mine: m.mine, size: size),
+      mentionsMe: _mentionsMe,
+      onMenu: onMenu,
+      onPerson: who == null ? null : () => showProfile(context, who),
+      reactions: [for (final r in m.reactions) (emoji: r.emoji, count: r.count, mine: r.mine)],
+      reactionsKey: ValueKey('reactions-${m.id}'),
+      onReact: react ? onReact : null,
+      onAddReaction: react ? onMenu : null,
+      body: (context, maxWidth) => Opacity(opacity: going ? 0.6 : 1, child: _body(context, shown, maxWidth)),
+      foot: !going && !failed
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(failed ? 'Not sent' : 'Sending…', style: pageText(t, t.fontSize('xs'), color: failed ? t.danger : t.color('app-ink-3'))),
+            ),
+    );
+  }
+
+  /// What it says: the message it answers, what came with it, its words, and the cards of their links.
+  Widget _body(BuildContext context, ShownView? shown, double maxWidth) {
+    final t = context.tokens;
+    final m = message;
+    final ink = t.color('app-ink');
+    final text = shown?.bubble ?? m.text;
+    final style = pageText(t, t.fontSize('md'), color: ink, height: 1.4);
+    final edited = m.edited ? editedMark(style, ink, key: ValueKey('edited-${m.id}'), onTap: onEditedTap) : null;
+    final quoted = (m.replyText ?? '').trim();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (m.replyTo != null)
+        Padding(
+          padding: EdgeInsets.only(bottom: t.space(1)),
+          child: FlatQuote(key: ValueKey('inbox-quote-${m.id}'), who: m.replySender ?? '', text: quoted.isEmpty ? 'A message' : quoted, ink: ink),
+        ),
+      for (final (i, x) in m.media.indexed)
+        Padding(
+          padding: EdgeInsets.only(bottom: i + 1 < m.media.length || text.isNotEmpty ? t.space(1) : 0),
+          child: InboxMediaView(network: network, media: x, ink: ink, card: true),
+        ),
+      // The words as they came, dimmed, over a translation.
+      if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
+      if (text.isNotEmpty)
+        _InboxWords(network: network, message: m, text: text, ink: ink, style: style, after: [?edited])
+      else if (edited != null)
+        Text.rich(TextSpan(children: [edited]), style: style),
+      // A card for each link, while Link previews is on.
+      ..._linkCards(context, m.text),
+    ]);
+  }
+}
+
+/// One message of a chat with one person as a bubble: its words, what came with it, its reactions and how its sending
+/// went.
 class _InboxBubble extends StatelessWidget {
-  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.group, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap, this.onEditedTap});
+  const _InboxBubble({super.key, required this.network, required this.chatId, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onReactionsTap, this.onEditedTap});
 
   /// A press on "Edited": what it said before.
   final VoidCallback? onEditedTap;
@@ -821,7 +1007,7 @@ class _InboxBubble extends StatelessWidget {
   final InboxNetwork network;
   final String chatId;
   final InboxMessage message;
-  final bool group, first, last;
+  final bool first, last;
   final Color mineBg, mineInk;
 
   @override
@@ -839,13 +1025,6 @@ class _InboxBubble extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(top: first ? t.space(2) : 2),
       child: Column(crossAxisAlignment: m.mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
-        if (group && !m.mine && first && m.sender.isNotEmpty)
-          Padding(
-            // On the same left edge as the time under the bubble (Matt, 2026-11-16).
-            padding: EdgeInsets.only(left: t.space(2), bottom: 2),
-            // In the app's primary colour, as over a group of texts' bubbles (lib/ui/thread.dart).
-            child: Text(m.sender, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent'))),
-          ),
         // The words as they came, dimmed, over a translated bubble.
         if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth, mine: m.mine),
         // Its reactions over the bubble's lower edge, as under a text (lib/ui/thread.dart).
@@ -876,16 +1055,13 @@ class _InboxBubble extends StatelessWidget {
                 // Links underlined and opened by a press, as in a conversation of texts (Matt, 2026-11-16: "links are
                 // not expanding or clickable on telegram and signal chats").
                 if (text.isNotEmpty)
-                  LinkedText(
-                    text,
+                  _InboxWords(
+                    network: network,
+                    message: m,
+                    text: text,
                     ink: m.mine ? mineInk : t.color('app-ink'),
                     style: pageText(t, t.fontSize('md'), color: m.mine ? mineInk : t.color('app-ink'), height: 1.3),
-                    // Who an "@" means, as the network said (or the "@username" written, where it said nothing or the
-                    // words shown are a translation), pressed for their profile (Matt, 2026-11-19: "when clicking on a
-                    // @mention anywhere including signal and telegram chats show this profile popup").
-                    mentions: text == m.text && m.mentions.isNotEmpty ? inboxMentions(m) : handleMentions(text),
-                    mentionStyle: mentionStyle(t, on: m.mine ? mineInk : null),
-                    onMention: (x) => showProfile(context, subjectOfMention(x.id, words: text.substring(x.start, x.end), network: network)),
+                    mentionOn: m.mine ? mineInk : null,
                   ),
               ]),
             ),
@@ -1600,7 +1776,11 @@ class _FilesStrip extends StatelessWidget {
 /// picture with Play, a sound or file as its name; a tap opens it full screen, in Ghost's player, or in the app that
 /// reads it.
 class InboxMediaView extends StatelessWidget {
-  const InboxMediaView({super.key, required this.network, required this.media, required this.ink});
+  const InboxMediaView({super.key, required this.network, required this.media, required this.ink, this.card = false});
+
+  /// A sound or a file on a card of its own, as a circle's are (lib/ui/space_chat_files.dart): on the page, with no
+  /// bubble round it.
+  final bool card;
   final InboxNetwork network;
   final InboxMedia media;
   final Color ink;
@@ -1638,6 +1818,17 @@ class InboxMediaView extends StatelessWidget {
       );
     }
 
+    Widget file() => Row(mainAxisSize: MainAxisSize.min, children: [
+        AppIcon(media.kind == 'audio' ? Lucide.play : Lucide.file, size: 20, color: ink),
+        SizedBox(width: t.space(2)),
+        Flexible(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(media.name ?? (media.kind == 'audio' ? 'Sound' : 'File'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
+            Text([if (media.duration > 0) _clock(media.duration), if (media.size > 0) _bytes(media.size)].join(' · '), style: pageText(t, t.fontSize('xs'), color: ink.withValues(alpha: 0.7))),
+          ]),
+        ),
+      ]);
+
     final Widget body = switch (media.kind) {
       'photo' => ClipRRect(borderRadius: BorderRadius.circular(t.radius('md')), child: picture(media.path, media.fileId)),
       // A sticker as it is: its own size, its see-through parts showing the chat behind it, nothing round it.
@@ -1655,16 +1846,13 @@ class InboxMediaView extends StatelessWidget {
               Positioned(right: t.space(2), bottom: t.space(2), child: Text(_clock(media.duration), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
           ]),
         ),
-      _ => Row(mainAxisSize: MainAxisSize.min, children: [
-          AppIcon(media.kind == 'audio' ? Lucide.play : Lucide.file, size: 20, color: ink),
-          SizedBox(width: t.space(2)),
-          Flexible(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(media.name ?? (media.kind == 'audio' ? 'Sound' : 'File'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: ink)),
-              Text([if (media.duration > 0) _clock(media.duration), if (media.size > 0) _bytes(media.size)].join(' · '), style: pageText(t, t.fontSize('xs'), color: ink.withValues(alpha: 0.7))),
-            ]),
-          ),
-        ]),
+      _ => card
+          ? Container(
+              padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+              decoration: BoxDecoration(color: theirBubble(t, onBackground: false), border: theirRim(t), borderRadius: BorderRadius.circular(lookCorner(t, '1rem', most: 1))),
+              child: file(),
+            )
+          : file(),
     };
     return GlacierPressable(onPressed: () => _open(context), semanticLabel: 'Open ${media.name ?? media.kind}', builder: (context, _) => body);
   }
