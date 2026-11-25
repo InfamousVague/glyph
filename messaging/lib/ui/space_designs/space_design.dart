@@ -14,6 +14,7 @@ import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../sms.dart';
 import '../../voice/call_sound.dart';
+import '../../voice/call_wait.dart';
 import '../../voice/channels.dart';
 import '../../voice/hangout.dart';
 import '../../voice/open_space.dart';
@@ -21,6 +22,7 @@ import '../../voice/recorder.dart';
 import '../../voice/roles.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
+import '../connecting_banner.dart';
 import '../hangout_screen.dart';
 import '../recording_ui.dart';
 import '../ripple_avatar.dart';
@@ -177,6 +179,8 @@ class SpaceCall {
     this.onScreen,
     this.onFlip,
     this.since,
+    this.wait,
+    this.coming = 0,
     this.onMute,
     this.onDeafen,
     this.onVideo,
@@ -273,7 +277,8 @@ class SpaceCall {
       channel: s.channel,
       people: people,
       levels: s.discordPeople.isEmpty ? (media?.levels ?? s.media.levels) : MergedLevels(media?.levels ?? s.media.levels, s.discordLevels),
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, CallRecorder.instance]),
+      // The ways through and the microphone too: what the call is waiting for follows them ([wait]).
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance]),
       bridged: s.channel.discord != null,
       chatBelow: chatBelow,
       chatShown: chatShown,
@@ -290,6 +295,8 @@ class SpaceCall {
       onScreen: s.canShareScreen ? (context) => unawaited(toggleScreenShare(context, s)) : null,
       onFlip: s.canFlipCamera ? () => unawaited(s.flipCamera()) : null,
       since: s.since,
+      wait: CallWaitBuilder.now(v),
+      coming: CallWaitBuilder.coming(v),
       onMute: () => s.setMuted(!s.muted),
       onDeafen: () => s.setDeafened(!s.deafened),
       onVideo: () => unawaited(s.setVideo(!s.video)),
@@ -360,6 +367,15 @@ class SpaceCall {
   /// When this device came into the call.
   final DateTime? since;
 
+  /// What the call is still waiting for (lib/voice/call_wait.dart): "Connecting…" and what exactly; null once it is
+  /// through. The page says it where it would say who is here, and holds back that nobody else is ([onceThrough]),
+  /// so its own words never contradict the line above its people (ConnectingBanner), which has an arc turning.
+  final CallWait? wait;
+
+  /// How many are in the call, as the relay server says, and not here yet while it is being come into
+  /// (CallWaitBuilder.coming): a design that lists the people draws them as bones.
+  final int coming;
+
   final VoidCallback? onMute, onDeafen, onVideo, onLeave, onMinimize;
   final void Function(BuildContext context, SpacePerson person)? onPerson;
   final void Function(BuildContext context)? onSettings, onInvite, onDevices;
@@ -420,6 +436,11 @@ class SpaceCall {
     return m >= 60 ? '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}' : '$m:${s.toString().padLeft(2, '0')}';
   }
 }
+
+/// [child], which says that nobody else is in the call ("Waiting for others to join"), only once the call is through:
+/// while it is still connecting ([SpaceCall.wait]) nobody knows who is in it, and the line over the page is the one
+/// thing said. Its room is kept, so nothing moves when it comes.
+Widget onceThrough(SpaceCall call, Widget child) => Visibility(visible: call.wait == null, maintainSize: true, maintainAnimation: true, maintainState: true, child: child);
 
 /// What stands where the chat would in a group's channel, which has no chat of its own.
 class _NoChat extends StatelessWidget {

@@ -963,6 +963,27 @@ class Voice extends ChangeNotifier {
     // In a circle, as its roles say (lib/circles: CirclePerm.voice).
     if (!Circles.instance.allows(c, CirclePerm.voice)) throw StateError('Your role in this circle can\'t talk in voice spaces.');
     if (session?.channel.room == c.room) return;
+    // Pressed again while it is being come into: the one coming in is enough.
+    if (joining?.room == c.room) return;
+    // Said at once, before anything is waited for: leaving another call, opening the chat's room and starting the
+    // microphone each take a moment (seconds on a Mac), and the press showed nothing until they were done.
+    joining = c;
+    notifyListeners();
+    try {
+      await _join(c, route, video: video);
+    } finally {
+      if (identical(joining, c)) {
+        joining = null;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// The call being come into, from the press until it is joined or has failed ([join]): what the screens say
+  /// "Connecting…" for (lib/voice/call_wait.dart).
+  VoiceChannel? joining;
+
+  Future<void> _join(VoiceChannel c, VoiceRoute route, {required bool video}) async {
     await leave();
     // In a call here again, this one or another: the note that one moved away has had its answer (GMFB-50).
     movedAway.dismiss();
@@ -1003,8 +1024,14 @@ class Voice extends ChangeNotifier {
     // on the screen at once, saying it is connecting, and not the normal call until the relay answers (Matt,
     // 2026-11-23: "the open space is just showing up as a normal call for me and it took a really long time to load").
     OpenSpaces.instance.follow();
+    // And the call itself is on the screen at once, saying what it is waiting for, where it used to show only once
+    // the chat's room had been opened (which waits for the relay server).
+    notifyListeners();
     // A hangout's chat and roles while in its call: whoever is banned is not answered, and the roster is done.
     final room = await hold(c);
+    // Left while its room was being opened (Leave pressed on "Connecting…"): nothing more of it is started. Leaving
+    // has let go of the room already.
+    if (!identical(session, s)) return;
     if (room != null) {
       if (room.putOut != null) {
         session = null;
@@ -1030,7 +1057,11 @@ class Voice extends ChangeNotifier {
       // awake until the call ends (android CallService.kt; Matt, 2026-11-15: "voice chat stops working when the phone
       // is locked").
       await Sms.instance.callStarted(c.name, video: withVideo);
+      // Left meanwhile: the call's service was told it ended after it was told it began, so it has stopped.
+      if (!identical(session, s)) return;
       await s.join(withVideo: withVideo);
+      // Left while it was coming in: the call has undone what it had started (VoiceSession.join).
+      if (!identical(session, s)) return;
       // Push to talk (lib/keys.dart): in with the microphone off, on only while its key is held.
       if (Keys.instance.pushToTalk) s.setMuted(true, quiet: true);
       _enforce();
@@ -1045,7 +1076,8 @@ class Voice extends ChangeNotifier {
       // And the voice changer, live, where it is on (live_changer.dart).
       unawaited(LiveChanger.instance.follow());
     } catch (e) {
-      await leave();
+      // Its own failing, not that of a call left meanwhile (and another perhaps come into since, which stays).
+      if (identical(session, s)) await leave();
       rethrow;
     }
   }
@@ -1091,18 +1123,41 @@ class Voice extends ChangeNotifier {
     if (s != null) unawaited(Sms.instance.callEnded());
     // A call to a friend not answered yet is called off (GMFB-28).
     if (s != null) FriendCalls.instance.left(s.channel);
-    if (s != null) {
-      s.removeListener(notifyListeners);
-      s.removeListener(_enforce);
+    if (s == null) {
+      // Nothing to leave here; a call still being closed ([_leaving]) is waited for, so that the next is not come into
+      // while the last still holds the microphone.
+      try {
+        await _leaving;
+      } catch (_) {}
+      notifyListeners();
+      return;
+    }
+    s.removeListener(notifyListeners);
+    s.removeListener(_enforce);
+    // Out of the call on the screen at once. Closing its connections and letting go of the microphone takes seconds
+    // on a Mac (Apple's audio engine), and until that was done the call stood there as if Leave had not been pressed
+    // (Matt, 2026-11-24: "on the macbook air it lagged on the call end").
+    final room = _hangouts[s.channel.seed];
+    room?.sayMe(inVoice: false);
+    notifyListeners();
+    final before = _leaving;
+    final closing = _leaving = () async {
+      try {
+        await before;
+      } catch (_) {}
       await s.leave();
-      final room = _hangouts[s.channel.seed];
-      if (room != null) {
-        room.sayMe(inVoice: false);
-        await release(s.channel);
-      }
+      if (room != null) await release(s.channel);
+    }();
+    try {
+      await closing;
+    } finally {
+      if (identical(_leaving, closing)) _leaving = null;
     }
     notifyListeners();
   }
+
+  /// The last call left, while it is still being closed ([leave]).
+  Future<void>? _leaving;
 }
 
 /// A call this device was in until another of the person's devices came into it, and when it went (GMFB-50).

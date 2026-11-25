@@ -20,6 +20,8 @@ import '../voice/open_space.dart' show OpenSpaces;
 import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'connecting_banner.dart';
+import 'skeleton.dart';
 import '../voice/rtc.dart';
 import 'shell.dart';
 import 'nav_bar.dart';
@@ -192,7 +194,13 @@ class CallPanel extends StatelessWidget {
             (id: m.id, name: v.nameOf(m.id), guest: m.guest, muted: m.muted || v.silenced(m.id) || (room != null && !room.heard(m.id)), all: room?.mutedForAll(m.id) ?? false, mine: v.silenced(m.id), video: m.video ? media?.remote.value[m.id] : null, me: false, screen: m.screen),
         ];
         final withVideo = [for (final p in people) if (p.video != null) p];
+        // Coming into the call: those the relay server says are in it, as bones under one's own row until each is
+        // really there (CallWaitBuilder.coming).
+        final coming = identical(v.session, session) ? CallWaitBuilder.coming(v) : 0;
+        final face = Sms.computer ? 52.0 : 40.0;
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // What the call is still waiting for (lib/ui/connecting_banner.dart); nothing once it is through.
+          ConnectingBanner(wide: true, padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(1), t.space(2))),
           if (videos && withVideo.isNotEmpty) ...[
             LayoutBuilder(builder: (context, box) {
               final size = videoTile(width: box.maxWidth, count: withVideo.length, gap: t.space(2), screenHeight: MediaQuery.sizeOf(context).height);
@@ -251,6 +259,15 @@ class CallPanel extends StatelessWidget {
                       if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(mutedMark(all: p.all, mine: p.mine), size: 16, wash: false, color: t.danger)),
                     ]),
                   )),
+                if (coming > 0)
+                  Skeleton(
+                    key: const ValueKey('call-coming'),
+                    label: coming == 1 ? '1 person in the call' : '$coming people in the call',
+                    child: Padding(
+                      padding: EdgeInsets.only(left: t.space(4), right: t.space(2)),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < coming; i++) SkeletonPeople.row(t, i, face: face, second: false)]),
+                    ),
+                  ),
               ])),
         ]);
       },
@@ -797,10 +814,9 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
         final s = v.session;
         if (s == null) return const SizedBox.shrink();
         final levels = v.media?.levels ?? s.media.levels;
-        final green = t.online;
         final red = t.danger;
         return ListenableBuilder(
-          listenable: Listenable.merge([s, levels]),
+          listenable: Listenable.merge([s, levels, ?v.media?.links, ?v.media?.micLive]),
           builder: (context, _) {
             final loud = levels.value;
             final talking = [
@@ -810,9 +826,12 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
             ];
             final people = s.members.length + 1;
             final radius = BorderRadius.circular(t.radius('full'));
+            // Still connecting (lib/voice/call_wait.dart): amber, and what it is waiting for where the clock goes.
+            final wait = CallWaitBuilder.now();
+            final green = wait == null ? t.online : ConnectingBanner.amber(t);
             return GlacierPressable(
               onPressed: widget.onOpen,
-              semanticLabel: 'In ${s.channel.name}, $people connected${s.muted ? ', muted' : ''}. Open the call.',
+              semanticLabel: wait != null ? '${s.channel.name}. ${wait.line}. Open the call.' : 'In ${s.channel.name}, $people connected${s.muted ? ', muted' : ''}. Open the call.',
               builder: (context, state) => ClipRRect(
                 borderRadius: radius,
                 child: BackdropFilter(
@@ -837,10 +856,13 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                           Text(s.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'bold', color: t.color('app-ink'))),
                           Text(
-                            '${_clock(DateTime.now().difference(s.since ?? DateTime.now()))} · ${talking.isEmpty ? (people == 1 ? 'just you' : '$people here') : '${talking.map((x) => x.$2).join(', ')} talking'}',
+                            wait != null
+                                ? wait.line
+                                : '${_clock(DateTime.now().difference(s.since ?? DateTime.now()))} · ${talking.isEmpty ? (people == 1 ? 'just you' : '$people here') : '${talking.map((x) => x.$2).join(', ')} talking'}',
+                            key: wait != null ? const ValueKey('call-banner-connecting') : null,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: pageText(t, t.fontSize('xs'), color: talking.isEmpty ? t.color('app-ink-3') : green),
+                            style: pageText(t, t.fontSize('xs'), color: wait != null ? green : (talking.isEmpty ? t.color('app-ink-3') : green)),
                           ),
                         ]),
                       ),

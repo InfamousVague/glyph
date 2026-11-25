@@ -22,6 +22,7 @@ import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import '../voice/voice_changer.dart';
 import 'common.dart';
+import 'connecting_banner.dart';
 import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
 import 'plugin_note_card.dart';
@@ -49,6 +50,7 @@ import 'nav_bar.dart';
 import 'open_space_view.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
+import 'skeleton.dart';
 import 'space_designs/space_design.dart';
 import 'split_handle.dart';
 import 'sms_space_ui.dart';
@@ -100,24 +102,29 @@ class HangoutScreen extends StatefulWidget {
   State<HangoutScreen> createState() => _HangoutScreenState();
 }
 
-/// A space's chat before its room can be opened (the relay server not reached yet): what it will show, and why not.
+/// A space's chat before its room can be opened (the relay server not reached yet): its messages in bones, and a line
+/// over them saying what is being reached, an arc turning beside it (Matt, 2026-11-24: "show better loading states
+/// with skeletal loaders and a connecting banner so it doesn't just seem like the app is frozen"). It was a title and
+/// a sentence in the middle of an empty page, which looked the same whether the app was at work or stuck.
 class _NoRoomYet extends StatelessWidget {
-  const _NoRoomYet({required this.name});
+  const _NoRoomYet({required this.name, this.bottom = 0});
   final String name;
+
+  /// The room kept clear at the foot (the composer's, the pill's).
+  final double bottom;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(t.space(6)),
-        child: SettingsEmpty(
-          icon: AppIcon(LucideMore.messageCircle, size: 28, color: t.color('app-ink-3')),
-          title: 'Connecting to $name',
-          body: const Text('Its messages show here as soon as the relay server is reached.'),
-        ),
+    return Stack(children: [
+      Positioned.fill(child: SkeletonChat(label: 'Connecting to $name', faces: true, bottom: bottom)),
+      Positioned(
+        left: t.space(4),
+        right: t.space(4),
+        top: t.space(3),
+        child: Center(heightFactor: 1, child: ConnectingPill(key: const ValueKey('space-connecting'), title: 'Connecting to $name…', detail: 'Reaching the relay server')),
       ),
-    );
+    ]);
   }
 }
 
@@ -148,6 +155,8 @@ class _HangoutScreenState extends State<HangoutScreen> {
       return;
     }
     if (!mounted) return;
+    // Left while it was connecting (Leave is there from the first moment): there is no call to show.
+    if (Voice.instance.session?.channel.room != widget.channel.room) return;
     // One of the developer designs: the call opens as its page (lib/ui/space_designs).
     if (openSpaceCall(context)) return;
     // An open space stays where it was opened, its floor in this page with the call's controls over its foot: the
@@ -261,7 +270,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
         final bottom = pill + (s != null && (wide || _tab != 'chat') ? NavPill.clearance(t) : 0);
         // Before the relay is reached there is no room yet: say so, rather than a bare title over nothing.
         Widget chatOver(double bottom) => room == null
-            ? _NoRoomYet(name: widget.channel.name)
+            ? _NoRoomYet(name: widget.channel.name, bottom: bottom)
             : room.waitingForKey
                 // The circle's key changed and this device hasn't got the new one yet (GMFB-26): what is written waits.
                 ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -300,7 +309,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                 ),
               ),
               SizedBox(width: t.space(2)),
-              _JoinButton(onPressed: () => _join()),
+              _JoinButton(onPressed: () => _join(), busy: v.joining?.room == widget.channel.room),
             ]),
           );
           // On a phone, with people talking in it: the call first, who is in it and Join, and the chat a tap away
@@ -315,7 +324,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                 Expanded(
                   child: _tab == 'chat'
                       ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [row, Expanded(child: chat)])
-                      : _WhoIsTalking(ids: inVoice, nameOf: (id) => (room?.present[id]?.name ?? '').isNotEmpty ? room!.present[id]!.name : v.nameOf(id), onJoin: () => _join()),
+                      : _WhoIsTalking(ids: inVoice, nameOf: (id) => (room?.present[id]?.name ?? '').isNotEmpty ? room!.present[id]!.name : v.nameOf(id), onJoin: () => _join(), busy: v.joining?.room == widget.channel.room),
                 ),
               ]),
             );
@@ -583,20 +592,23 @@ class _SpaceSplitState extends State<SpaceSplit> {
 /// 2026-11-17: "remove the join voice and video chat button ... just make tapping on the list of people join the call
 /// automatically").
 class _WhoIsTalking extends StatelessWidget {
-  const _WhoIsTalking({required this.ids, required this.nameOf, required this.onJoin});
+  const _WhoIsTalking({required this.ids, required this.nameOf, required this.onJoin, this.busy = false});
   final List<String> ids;
 
   /// What each goes by: the name they gave the space's room, or the call's.
   final String Function(String id) nameOf;
   final VoidCallback onJoin;
 
+  /// The call is being come into (Voice.joining): it says so, and takes no second press.
+  final bool busy;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final face = t.lenOf('3rem');
     return GlacierPressable(
-      onPressed: onJoin,
-      semanticLabel: 'Join the call with ${ids.length} in it',
+      onPressed: busy ? null : onJoin,
+      semanticLabel: busy ? 'Joining the call' : 'Join the call with ${ids.length} in it',
       builder: (context, state) => ListView(
       padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + NavPill.clearance(t) + t.space(4)),
       children: [
@@ -616,7 +628,14 @@ class _WhoIsTalking extends StatelessWidget {
             ]),
           ),
         SizedBox(height: t.space(1)),
-        Text('Tap to join', style: pageText(t, t.fontSize('sm'), color: t.color(state.pressed ? 'app-ink-2' : 'app-ink-3'))),
+        if (busy)
+          Row(children: [
+            const SizedBox.square(dimension: 16, child: GhostSpinner(size: 14)),
+            SizedBox(width: t.space(2)),
+            Text('Joining…', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-2'))),
+          ])
+        else
+          Text('Tap to join', style: pageText(t, t.fontSize('sm'), color: t.color(state.pressed ? 'app-ink-2' : 'app-ink-3'))),
       ],
       ),
     );
@@ -625,25 +644,30 @@ class _WhoIsTalking extends StatelessWidget {
 
 /// Join voice: a pill filled with ink, the headphones and the words.
 class _JoinButton extends StatelessWidget {
-  const _JoinButton({required this.onPressed});
+  const _JoinButton({required this.onPressed, this.busy = false});
   final VoidCallback onPressed;
+
+  /// The call is being come into (Voice.joining): the button says so and takes no second press. It shows where the
+  /// call itself is not on the screen yet, while another call is being left first.
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final label = busy ? 'Joining…' : 'Join voice';
     // Dial-Up's is a raised silver button like the rest of its window's (lib/ui/dialup/retro_button.dart).
-    if (isDialup(context)) return RetroButton(onPressed: onPressed, icon: LucideMore.headphones, label: 'Join voice');
+    if (isDialup(context)) return RetroButton(onPressed: busy ? () {} : onPressed, icon: LucideMore.headphones, label: label);
     final (fill, words) = strongFill(t);
     return GlacierPressable(
-      onPressed: onPressed,
-      semanticLabel: 'Join voice',
+      onPressed: busy ? null : onPressed,
+      semanticLabel: label,
       builder: (context, state) => Container(
         padding: EdgeInsets.symmetric(horizontal: t.space(4), vertical: t.space(2)),
-        decoration: BoxDecoration(color: fill.withValues(alpha: state.pressed ? 0.85 : 1), borderRadius: BorderRadius.circular(t.radius('full'))),
+        decoration: BoxDecoration(color: fill.withValues(alpha: state.pressed || busy ? 0.85 : 1), borderRadius: BorderRadius.circular(t.radius('full'))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          AppIcon(LucideMore.headphones, size: 16, wash: false, color: words),
+          if (busy) const SizedBox.square(dimension: 16, child: GhostSpinner(size: 14)) else AppIcon(LucideMore.headphones, size: 16, wash: false, color: words),
           SizedBox(width: t.space(2)),
-          Text('Join voice', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: words)),
+          Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: words)),
         ]),
       ),
     );

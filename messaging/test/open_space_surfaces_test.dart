@@ -220,12 +220,19 @@ void main() {
 
   test('Voice.join follows the floor as soon as the call is made, before anything it waits on', () {
     final src = File('lib/voice/channels.dart').readAsStringSync();
-    final join = src.substring(src.indexOf('Future<void> join(VoiceChannel c'));
+    // The work of coming in is Voice._join; Voice.join round it says at once that a call is being come into
+    // (Voice.joining, for the screens' "Connecting…").
+    final join = src.substring(src.indexOf('Future<void> _join(VoiceChannel c'));
     final body = join.substring(0, join.indexOf('\n  }\n'));
     final follow = body.indexOf('OpenSpaces.instance.follow();');
     expect(follow, greaterThan(body.indexOf('final s = session = VoiceSession(')), reason: 'after the call is made');
     for (final wait in ['await hold(c)', 'await Sms.instance.callStarted', 'await s.join(']) {
       expect(follow, lessThan(body.indexOf(wait)), reason: 'before $wait');
     }
+    // And every screen is told then too, so the call is drawn (saying what it waits for) before the chat's room has
+    // been opened, which waits for the relay server.
+    final told = body.indexOf('notifyListeners();', follow);
+    expect(told, greaterThan(follow));
+    expect(told, lessThan(body.indexOf('await hold(c)')), reason: 'the call is on the screen before anything is waited for');
   });
 }

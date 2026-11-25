@@ -315,6 +315,16 @@ which ask the same threads; and the three seconds themselves, which are Apple's 
 (`bypassVoiceProcessing`) the engine starts in a few hundredths of a second, and echo cancelling would be WebRTC's
 own: a change for ears to judge.
 
+**What the screens say meanwhile** (Matt, 2026-11-24: "show better loading states with skeletal loaders and a
+connecting banner so it doesn't just seem like the app is frozen"). The three seconds are still three seconds, so the
+call says what it is waiting for: it is drawn as soon as Join is pressed (`Voice.joining`, and the screens told before
+the chat's room is opened), with a line at its top, an arc turning in it, that reads "Connecting… Starting the
+microphone", then "Joining the call", then "Reaching Maya" until someone can be heard (`lib/voice/call_wait.dart`,
+`lib/ui/connecting_banner.dart`; `RtcMedia.micLive` is the microphone having been heard at all). Leaving is said to
+the screens at once and the closing goes on behind (`Voice.leave`, `_leaving`): the call stood there for the 2.6
+seconds as if Leave had not been pressed. An arc that turns is also the plainest test of the fix: if the main thread
+is held again, it stops.
+
 Also in those samples, from 0.12.25 and so without names: bringing the window back from the Dock was followed by
 about eight seconds of Dart on the main thread, a second and more of it handing something large to another isolate
 (`SendPort.send`). Not found yet; a sample of 0.12.26 doing the same would name it.

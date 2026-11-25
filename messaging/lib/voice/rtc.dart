@@ -168,6 +168,12 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// How this device's connection to each person stands, by their id ([PeerLink]): drawn on their face and row.
   final ValueNotifier<Map<String, PeerLink>> links = ValueNotifier(const {});
 
+  /// Whether the microphone has been heard at all since the call began: false from [start] until a reading has its
+  /// level. On a Mac the system's sound takes about three seconds to start (Apple's audio engine and its voice
+  /// processing: docs/performance-audit.md) and nothing connects meanwhile, so the screens say that the microphone
+  /// is starting (lib/voice/call_wait.dart) and not nothing.
+  final ValueNotifier<bool> micLive = ValueNotifier(false);
+
   /// Sets how the connection to [id] stands; null takes them out of [links].
   void _link(String id, PeerLink? to) {
     final now = links.value;
@@ -377,6 +383,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
         if (rtt != null && (link == PeerLink.connected || link == PeerLink.poor)) _link(e.key, linkFor(rtt));
       } catch (_) {}
     }
+    // The microphone has been heard, or is known to be off: it has started ([micLive]).
+    if (_on && next.containsKey('me')) micLive.value = true;
     // Put away while this was being read: every face is at rest, and stays so ([_seenChanged]).
     if (!AppSeen.now.value || !_on) return;
     final was = levels.value;
@@ -776,6 +784,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     // where it taps each voice itself ([_syncTaps]).
     if (!_on) {
       _on = true;
+      micLive.value = false;
       AppSeen.follow();
       AppSeen.now.addListener(_seenChanged);
       sounds.addListener(_syncTaps);

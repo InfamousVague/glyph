@@ -44,6 +44,7 @@ import '../../voice/roles.dart';
 import '../../voice/voice.dart';
 import '../circles/circle_face.dart' show TitleBarMark;
 import '../common.dart';
+import '../skeleton.dart';
 import '../dialup/bevel.dart';
 import '../dialup/parts.dart' show DialupWell;
 import '../dialup/retro_button.dart';
@@ -491,7 +492,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     final bottom = MediaQuery.paddingOf(context).bottom + t.space(2);
     Widget content;
     if (!space.ready && space.loading) {
-      content = const Center(child: GhostSpinner());
+      content = const SkeletonFiles(label: 'Loading files…');
     } else if (empty) {
       content = _Empty(canUpload: canUpload, onUpload: _pick, drop: FilePlatform.canDrop, mine: _mine);
     } else if (shown.isEmpty && subs.isEmpty && going.isEmpty && parts.isEmpty) {

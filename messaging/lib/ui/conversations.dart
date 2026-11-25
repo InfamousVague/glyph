@@ -44,6 +44,7 @@ import 'compose.dart';
 import 'dialup/dialup.dart';
 import 'settings.dart';
 import 'shell.dart';
+import 'skeleton.dart';
 import 'swipe_actions.dart';
 import 'inbox_ui.dart';
 import '../inbox/inbox.dart';
@@ -694,6 +695,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       return;
     }
     if (!mounted) return;
+    // Left while it was connecting (the call's banner has Leave from the first moment): there is no call to show.
+    if (Voice.instance.session?.channel.room != c.room) return;
     final shell = AppShell.maybeOf(context);
     if (shell != null) {
       shell.go('voice');
@@ -1240,9 +1243,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
 
     Widget body;
     if (_all == null) {
-      body = lead == null
-          ? const Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…'))
-          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [lead, const Expanded(child: Center(child: GhostSpinner(size: 28, label: 'Loading your conversations…')))]);
+      // The list in bones while it is read (lib/ui/skeleton.dart), where an arc turned in the middle of an empty page.
+      const bones = SkeletonCards(label: 'Loading your conversations…');
+      body = lead == null ? bones : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [lead, const Expanded(child: bones)]);
     } else if (_error != null && rows.isEmpty) {
       body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [
         SettingsEmpty(
