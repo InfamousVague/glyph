@@ -416,7 +416,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.26';
+const appVersion = '0.12.27';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
