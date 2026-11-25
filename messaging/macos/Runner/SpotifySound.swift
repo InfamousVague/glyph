@@ -23,6 +23,9 @@ final class SpotifySound {
   private var device = AudioObjectID(kAudioObjectUnknown)
   private var proc: AudioDeviceIOProcID?
   private var tapped: Set<AudioObjectID> = []
+  /// What the tap gives, in frames a second; 0 while there is none. It is the output device's: a Bluetooth headset whose
+  /// microphone is in use runs at a call's, and then so does everything taken from it.
+  private var hz: Double = 0
   private var listening: AudioObjectPropertyListenerBlock?
   private var rateListening: AudioObjectPropertyListenerBlock?
 
@@ -53,6 +56,11 @@ final class SpotifySound {
       feed.clear()
       done?()
     }
+  }
+
+  /// The rate it is taken at now, 0 where it isn't.
+  func rate(_ done: @escaping (Double) -> Void) {
+    queue.async { [self] in done(hz) }
   }
 
   /// The loudest it has been since last asked, 0 to 1.
@@ -147,6 +155,7 @@ final class SpotifySound {
       return false
     }
     tapped = now
+    hz = format.mSampleRate
     // Its rate changed (the speaker became another): made again.
     let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
       guard let self, self.on else { return }
@@ -177,6 +186,7 @@ final class SpotifySound {
     if tap != kAudioObjectUnknown { AudioHardwareDestroyProcessTap(tap) }
     tap = AudioObjectID(kAudioObjectUnknown)
     tapped = []
+    hz = 0
   }
 
   /// Spotify's processes as they come and go: one that begins to make sound is tapped too, and one gone (Spotify quit or

@@ -19,6 +19,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../platform_info.dart';
 import 'rtc.dart';
 import 'spotify_deck.dart';
+import 'spotify_lossless.dart';
 import 'spotify_queue.dart';
 import 'voice.dart' show highestOpus;
 import 'voice_fx.dart';
@@ -77,11 +78,22 @@ abstract class MusicSource {
   /// How loud it has been since last asked, 0 to 1: nothing at all for long is a refusal, or the wrong device.
   Future<double> level();
 
-  /// A connection to [id], made anew, and its offer; null where it could not be made.
-  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly});
+  /// A connection to [id], made anew, and its offer; null where it could not be made. [lossless]: with a channel for the
+  /// music without loss, which is sent on it once the connection is known to go through no relay ([losslessState]).
+  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly, required bool lossless});
   Future<bool> answer(String id, String sdp);
   Future<void> candidate(String id, Map<String, dynamic> c);
   Future<void> close(String id);
+
+  /// Begins to send [id] the music without loss again on the connection there is, or ends it; the Opus goes on.
+  Future<void> lossless(String id, {required bool on});
+
+  /// How that goes for each who has it. Asking is also what lets it be sent, or stops it: only where the connection goes
+  /// through no relay.
+  Future<Map<String, LosslessState>> losslessState();
+
+  /// The rate the sound is taken at, 0 where it isn't known. Below 44,100 it is not the music whole, however it is sent.
+  Future<double> rate();
 
   void Function(String id, Map<String, dynamic> candidate)? onCandidate;
 
@@ -179,7 +191,23 @@ class MacSpotify implements SpotifyApp, MusicSource {
   Future<double> level() async => await SpotifyChannel.ask<double>('level') ?? 0;
 
   @override
-  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly}) => SpotifyChannel.ask<String>('offer', {'id': id, 'servers': servers, 'relay': relayOnly});
+  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly, required bool lossless}) =>
+      SpotifyChannel.ask<String>('offer', {'id': id, 'servers': servers, 'relay': relayOnly, 'lossless': lossless});
+
+  @override
+  Future<void> lossless(String id, {required bool on}) => SpotifyChannel.ask<void>('lossless', {'id': id, 'on': on});
+
+  @override
+  Future<Map<String, LosslessState>> losslessState() async {
+    final all = await SpotifyChannel.ask<Map<Object?, Object?>>('losslessState') ?? const {};
+    return {
+      for (final MapEntry(:key, :value) in all.entries)
+        if (key is String && value is Map) key: (open: value['open'] == true, bytes: (value['bytes'] as num?)?.toInt() ?? 0, dropped: (value['dropped'] as num?)?.toInt() ?? 0, relay: value['relay'] as bool?),
+    };
+  }
+
+  @override
+  Future<double> rate() async => await SpotifyChannel.ask<double>('rate') ?? 0;
 
   @override
   Future<bool> answer(String id, String sdp) async => await SpotifyChannel.ask<bool>('answer', {'id': id, 'sdp': sdp}) ?? false;
@@ -269,10 +297,19 @@ class WindowsMusic implements MusicSource {
   String? _track;
   final Map<String, RTCPeerConnection> _links = {};
 
+  /// Those sent it without loss, with the channel each is sent on; whether the native half makes chunks for them.
+  final Map<String, ({RTCDataChannel channel, LosslessWay way})> _ways = {};
+  bool _packing = false;
+
   @override
   Future<void> begin() async {
     SpotifyChannel.channel.setMethodCallHandler((call) async {
       if (call.method == 'quit') WindowsSpotify.instance.onQuit?.call();
+      if (call.method == 'chunk' && call.arguments is Uint8List) {
+        for (final w in _ways.values) {
+          w.way.push(call.arguments as Uint8List);
+        }
+      }
     });
     final id = await SpotifyChannel.ask<String>('begin', {'echo': settings.useEcho, 'noise': settings.noiseOn(VoiceFx.available) == NoiseMode.webrtc, 'gain': settings.useGain});
     if (id == null || id.isEmpty) throw const SpotifyRefused(MusicTrouble.sound);
@@ -294,7 +331,7 @@ class WindowsMusic implements MusicSource {
   Future<double> level() async => await SpotifyChannel.ask<double>('level') ?? 0;
 
   @override
-  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly}) async {
+  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly, required bool lossless}) async {
     final track = _track;
     if (track == null) return null;
     await close(id);
@@ -324,6 +361,7 @@ class WindowsMusic implements MusicSource {
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly, streams: const [], sendEncodings: [RTCRtpEncoding(maxBitrate: musicKbps * 1000)]),
       );
       RtcMedia.note(pc, way.sender);
+      if (lossless) await _openWay(id, pc);
       final made = await pc.createOffer();
       final sdp = musicOpus(made.sdp ?? '');
       await pc.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
@@ -355,8 +393,77 @@ class WindowsMusic implements MusicSource {
     } catch (_) {}
   }
 
+  Future<void> _openWay(String id, RTCPeerConnection pc) async {
+    // No number of its own choosing (-1): WebRTC gives the next one free, as the one before may still be closing.
+    final channel = await pc.createDataChannel(losslessLabel, RTCDataChannelInit()
+      ..ordered = true
+      ..id = -1);
+    if (!identical(_links[id], pc)) return;
+    final way = LosslessWay(send: (c) => channel.send(RTCDataChannelMessage.fromBinary(c)), buffered: channel.getBufferedAmount);
+    _ways[id] = (channel: channel, way: way);
+    channel.onDataChannelState = (s) => way.isOpen = s == RTCDataChannelState.RTCDataChannelOpen;
+    await _pack();
+  }
+
+  Future<void> _closeWay(String id) async {
+    final w = _ways.remove(id);
+    if (w == null) return;
+    w.way.isOpen = false;
+    await w.channel.close().catchError((_) {});
+    await _pack();
+  }
+
+  /// The native half makes chunks only while someone is to have them.
+  Future<void> _pack() async {
+    final on = _ways.isNotEmpty;
+    if (on == _packing) return;
+    _packing = on;
+    try {
+      await SpotifyChannel.ask<void>('pack', {'on': on});
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> lossless(String id, {required bool on}) async {
+    await _closeWay(id);
+    final pc = _links[id];
+    if (on && pc != null) await _openWay(id, pc);
+  }
+
+  @override
+  Future<Map<String, LosslessState>> losslessState() async {
+    final out = <String, LosslessState>{};
+    for (final MapEntry(key: id, value: w) in _ways.entries.toList()) {
+      final pc = _links[id];
+      if (pc == null) continue;
+      bool? relay;
+      try {
+        relay = relayed(await pc.getStats());
+      } catch (_) {}
+      if (relay != null) w.way.allowed = !relay;
+      out[id] = (open: w.way.isOpen, bytes: w.way.bytes, dropped: w.way.dropped, relay: relay);
+    }
+    return out;
+  }
+
+  /// Whether either end of the way a connection goes now is a relay's; null where that can't be told.
+  @visibleForTesting
+  static bool? relayed(List<StatsReport> all) {
+    final by = {for (final r in all) r.id: r};
+    final way = [for (final r in all) if (r.type == 'transport') r.values['selectedCandidatePairId']].whereType<String>().firstOrNull;
+    final pair = by[way]?.values;
+    if (pair == null) return null;
+    final ends = [for (final end in const ['localCandidateId', 'remoteCandidateId']) by[pair[end]]?.values['candidateType']];
+    if (ends.contains('relay')) return true;
+    return ends.every((e) => e is String) ? false : null;
+  }
+
+  @override
+  Future<double> rate() async => await SpotifyChannel.ask<double>('rate') ?? 0;
+
   @override
   Future<void> close(String id) async {
+    await _closeWay(id);
     final pc = _links.remove(id);
     if (pc == null) return;
     await RtcMedia.closeConnection(pc).catchError((_) {});

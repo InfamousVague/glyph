@@ -1,5 +1,6 @@
 /// A listener's connection to the music (lib/voice/spotify.dart): an ordinary one that only receives, to the DJ's
-/// device, with a loudness of its own on this one. Beside the call's own connections and never among them: a recording,
+/// device, with a loudness of its own on this one, and the music without loss beside the Opus on it where the DJ sends that
+/// and this device has a player for it (spotify_lossless.dart). Beside the call's own connections and never among them: a recording,
 /// captions and Scribe take the people's sounds (RtcMedia.sounds), and this is in none of them.
 library;
 
@@ -9,8 +10,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'call_sound.dart';
+import 'music_sink.dart';
 import 'rtc.dart';
 import 'spotify_app.dart' show musicOpus;
+import 'spotify_lossless.dart';
 
 /// What the session asks of a listener's connection: WebRTC's ([RtcMusicEar]), or a test's.
 abstract class MusicEar {
@@ -24,24 +27,48 @@ abstract class MusicEar {
   /// How loud the music is now, 0 to 1, as it comes in (before the loudness of this device).
   Future<double> level();
 
-  /// The speaker chosen, where the page plays the sound itself (a browser).
+  /// The speaker chosen, for what WebRTC doesn't play itself (a browser; the music without loss).
   Future<void> output(String deviceId);
+
+  /// Whether the music is to be taken without loss too, where the DJ sends it.
+  void lossless(bool take);
+
+  /// Whether the DJ plays now.
+  void playing(bool on);
   Future<void> close();
 }
 
 /// Makes an ear: [servers] as the call has them, [relayOnly] as the DJ made their side, [onCandidate] told each way to
-/// connect found here, and [onState] whether it is through (true), or lost for good (false).
-typedef MakeEar = MusicEar Function({required List<Map<String, Object>> servers, required bool relayOnly, required void Function(Map<String, dynamic>) onCandidate, required void Function(bool up) onState});
+/// connect found here, [onState] whether it is through (true), or lost for good (false), and [onLossless] whether the music
+/// is heard without loss, and why it won't be where that is so.
+typedef MakeEar = MusicEar Function({
+  required List<Map<String, Object>> servers,
+  required bool relayOnly,
+  required void Function(Map<String, dynamic>) onCandidate,
+  required void Function(bool up) onState,
+  required void Function(bool heard, LosslessWhy? why) onLossless,
+});
 
 class RtcMusicEar implements MusicEar {
-  RtcMusicEar({required this.servers, required this.relayOnly, required this.onCandidate, required this.onState});
+  RtcMusicEar({required this.servers, required this.relayOnly, required this.onCandidate, required this.onState, required this.onLossless});
   final List<Map<String, Object>> servers;
   final bool relayOnly;
   final void Function(Map<String, dynamic>) onCandidate;
   final void Function(bool up) onState;
+  final void Function(bool heard, LosslessWhy? why) onLossless;
 
-  static MusicEar make({required List<Map<String, Object>> servers, required bool relayOnly, required void Function(Map<String, dynamic>) onCandidate, required void Function(bool up) onState}) =>
-      RtcMusicEar(servers: servers, relayOnly: relayOnly, onCandidate: onCandidate, onState: onState);
+  static MusicEar make({
+    required List<Map<String, Object>> servers,
+    required bool relayOnly,
+    required void Function(Map<String, dynamic>) onCandidate,
+    required void Function(bool up) onState,
+    required void Function(bool heard, LosslessWhy? why) onLossless,
+  }) =>
+      RtcMusicEar(servers: servers, relayOnly: relayOnly, onCandidate: onCandidate, onState: onState, onLossless: onLossless);
+
+  /// The player the music without loss goes to; a test's own.
+  @visibleForTesting
+  static MusicSink? Function() makeSink = MusicSink.here;
 
   /// Not through this long after it began, or lost for this long: given up on, and asked for again.
   static const connectWithin = Duration(seconds: 15), lostFor = Duration(seconds: 6);
@@ -70,6 +97,7 @@ class RtcMusicEar implements MusicEar {
       _out.play(_who, e.track);
       _apply();
     };
+    pc.onDataChannel = _opened;
     pc.onConnectionState = (s) {
       if (_closed) return;
       switch (s) {
@@ -137,14 +165,87 @@ class RtcMusicEar implements MusicEar {
       _out.set(_who, volume: _volume, silent: _silent);
       return;
     }
+    final ear = _lossless;
+    ear?.set(volume: _volume, silent: _silent);
     for (final t in _tracks) {
-      t.enabled = !_silent;
+      // The one that is heard is the one without loss, while it is: never both.
+      t.enabled = !_silent && !(ear?.heard ?? false);
       unawaited(Helper.setVolume(_volume, t).catchError((_) {}));
     }
   }
 
+  // --- without loss ----------------------------------------------------------------------------------------------------
+
+  LosslessEar? _lossless;
+  RTCDataChannel? _channel;
+  bool _take = false, _playing = true;
+  String _speaker = '';
+
+  /// The DJ opened a channel on the connection: the music without loss, where it is to be taken. The newest is the one.
+  void _opened(RTCDataChannel channel) {
+    if (_closed || channel.label != losslessLabel || !_take) {
+      unawaited(channel.close().catchError((_) {}));
+      return;
+    }
+    final sink = makeSink();
+    if (sink == null) return;
+    _endLossless();
+    _channel = channel;
+    late final LosslessEar ear;
+    ear = _lossless = LosslessEar(
+      sink: sink,
+      onHeard: (on) {
+        if (!identical(_lossless, ear)) return;
+        _apply();
+        onLossless(on, null);
+      },
+      onGiveUp: (why) {
+        if (!identical(_lossless, ear)) return;
+        _endLossless();
+        onLossless(false, why);
+      },
+    )
+      ..device = _speaker
+      ..playing = _playing
+      ..set(volume: _volume, silent: _silent);
+    channel.onMessage = (m) {
+      if (identical(_channel, channel) && m.isBinary) ear.take(m.binary);
+    };
+    channel.onDataChannelState = (s) {
+      if (s == RTCDataChannelState.RTCDataChannelClosed && identical(_channel, channel)) _endLossless();
+    };
+  }
+
+  /// No more of it: the Opus is heard.
+  void _endLossless() {
+    final ear = _lossless, channel = _channel;
+    _lossless = null;
+    _channel = null;
+    final heard = ear?.heard ?? false;
+    ear?.close();
+    if (channel != null) unawaited(channel.close().catchError((_) {}));
+    if (heard && !_closed) {
+      _apply();
+      onLossless(false, null);
+    }
+  }
+
+  @override
+  void lossless(bool take) {
+    _take = take;
+    if (!take) _endLossless();
+  }
+
+  @override
+  void playing(bool on) {
+    _playing = on;
+    _lossless?.playing = on;
+  }
+
   @override
   Future<double> level() async {
+    final ear = _lossless;
+    if (ear != null && ear.heard) return ear.level();
     final made = _pc;
     if (made == null || _closed || _tracks.isEmpty) return 0;
     try {
@@ -157,6 +258,8 @@ class RtcMusicEar implements MusicEar {
 
   @override
   Future<void> output(String deviceId) async {
+    _speaker = deviceId;
+    _lossless?.output(deviceId);
     if (CallSound.playsItself) await _out.output(deviceId);
   }
 
@@ -165,6 +268,7 @@ class RtcMusicEar implements MusicEar {
     if (_closed) return;
     _closed = true;
     _patience?.cancel();
+    _endLossless();
     _out.stopAll();
     final made = _pc;
     if (made == null) return;

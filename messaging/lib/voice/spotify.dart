@@ -14,6 +14,9 @@
 /// - **The music** goes from the DJ's device to each listener's over a connection of its own (spotify_link.dart), asked
 ///   for by the listener and made by the DJ: stereo Opus, beside the call's and no part of it, so the microphone, mute,
 ///   recordings, captions and Scribe know nothing of it. Deafened, it is silent; it has a loudness of its own here.
+/// - **Without loss** it goes too, on the same connection, to whoever can take it (spotify_lossless.dart): never through
+///   the relay, to as many as the DJ's connection can send it to, and only where what this device plays by itself won't
+///   come back through its microphone.
 ///
 /// Only where the plugin is on in the circle, looked at on both sides for everything said and everything done.
 library;
@@ -29,11 +32,13 @@ import '../circles/circles.dart';
 import '../net/crypto.dart';
 import '../plugins/spotify.dart' show SpotifyPlugin;
 import 'channels.dart';
+import 'music_sink.dart';
 import 'rtc.dart';
 import 'spotify_app.dart';
 import 'spotify_deck.dart';
 import 'spotify_link.dart';
 import 'spotify_lookup.dart';
+import 'spotify_lossless.dart';
 import 'spotify_queue.dart';
 import 'voice.dart';
 
@@ -42,7 +47,9 @@ class SpotifyMusic extends ChangeNotifier {
   static final SpotifyMusic instance = SpotifyMusic._();
 
   @visibleForTesting
-  SpotifyMusic.forTest({required this.isOn, required this.maySpeak, required this.app, required this.source, required this.makeEar, required this.clock, this.lookUp = _noLookup, this.ways = _noWays, this.store});
+  SpotifyMusic.forTest({required this.isOn, required this.maySpeak, required this.app, required this.source, required this.makeEar, required this.clock, this.lookUp = _noLookup, this.ways = _noWays, this.store, this.player = _noPlayer, this.speaker = _noSpeaker});
+  static MusicSink? _noPlayer() => null;
+  static ValueListenable<String>? _noSpeaker() => null;
   static Future<Song> _noLookup(String track) async => Song(track: track);
   static ({List<Map<String, Object>> servers, bool relay}) _noWays() => (servers: const [], relay: false);
 
@@ -61,6 +68,11 @@ class SpotifyMusic extends ChangeNotifier {
 
   /// Where a connection looks for a way through: the call's own servers, and whether the relay is among them.
   ({List<Map<String, Object>> servers, bool relay}) Function() ways = _callWays;
+
+  /// This device's own player, for music without loss; null where it has none. And the speaker the call has.
+  MusicSink? Function() player = MusicSink.here;
+  ValueListenable<String>? Function() speaker = _callSpeaker;
+  static ValueListenable<String>? _callSpeaker() => Voice.instance.media?.speaker;
 
   /// Where the loudness is kept; the app's own choices where none is given.
   @visibleForTesting
@@ -263,13 +275,15 @@ class SpotifyMusic extends ChangeNotifier {
       case 'do':
         if (mine && m['to'] == s.route.me && maySpeak(from) && _may(from)) _doAsked(from, m);
       case 'ask':
-        if (mine && m['to'] == s.route.me) unawaited(_offerTo(from, m['n']));
+        if (mine && m['to'] == s.route.me) unawaited(_offerTo(from, m['n'], m['ll']));
       case 'ans':
         if (mine && m['to'] == s.route.me) unawaited(_answered(from, m));
       case 'offer':
         if (!mine && from == _dj && m['to'] == s.route.me) unawaited(_offered(m));
       case 'ice':
         if (m['to'] == s.route.me) unawaited(_heardIce(from, m));
+      case 'll':
+        if (m['to'] == s.route.me) _heardLossless(from, m);
     }
   }
 
@@ -473,6 +487,8 @@ class SpotifyMusic extends ChangeNotifier {
     _beat?.cancel();
     _poll = _beat = null;
     _links.clear();
+    _desk.clear();
+    _captured = 0;
     _trouble = '';
     spotify?.onQuit = null;
     source?.onCandidate = null;
@@ -524,9 +540,68 @@ class SpotifyMusic extends ChangeNotifier {
         _trouble = '';
       }
       if (d != null) await _do(d);
-      _said();
+      await _lookLossless(source, deck);
+      if (identical(deck, _deck)) _said();
     } finally {
       _polling = false;
+    }
+  }
+
+  // --- without loss, the DJ's side ---------------------------------------------------------------------------------------
+
+  late final LosslessDesk _desk = LosslessDesk(clock: () => clock());
+  double _captured = 0;
+
+  /// How many are sent the music without loss now, and what that takes of this device's upload, in bits a second.
+  int get sentLossless => mine ? _desk.having : 0;
+  double get losslessBits => mine && _desk.having > 0 ? _desk.bitsPerSecond : 0;
+
+  /// Those who have the music from here at all.
+  int get listeners => mine ? _links.length : 0;
+
+  /// What Spotify's sound is taken at on this computer is less than the music is made at: a Bluetooth headset's
+  /// microphone in use brings a Mac's output down to a call's, and then that is all there is to send.
+  bool get capturedLow => mine && _captured > 0 && _captured < 44100;
+
+  Future<void> _lookLossless(MusicSource source, SpotifyDeck deck) async {
+    try {
+      final hz = await source.rate();
+      if (!identical(deck, _deck)) return;
+      _captured = hz;
+      if (_desk.isEmpty) return;
+      final now = await source.losslessState();
+      if (!identical(deck, _deck)) return;
+      for (final d in _desk.look(now)) {
+        switch (d) {
+          case LosslessBegin(:final id):
+            await source.lossless(id, on: true);
+            _tellLossless(id, null);
+          case LosslessEnd(:final id, :final why):
+            await source.lossless(id, on: false);
+            _tellLossless(id, why);
+          case LosslessTell(:final id, :final why):
+            _tellLossless(id, why);
+        }
+        if (!identical(deck, _deck)) return;
+      }
+    } catch (e) {
+      debugPrint('spotify: lossless not looked at: $e');
+    }
+  }
+
+  void _tellLossless(String id, LosslessWhy? why) {
+    final mark = _links[id];
+    if (mark != null) _session?.sayMusic({'k': 'll', 'to': id, 'l': mark, 'w': why?.word ?? ''});
+  }
+
+  /// What [from] says of the music without loss: a listener that they take it or don't, the DJ why they don't get it.
+  void _heardLossless(String from, Map<String, dynamic> m) {
+    if (mine) {
+      if (m['l'] is String && _links[from] == m['l'] && _may(from)) _desk.said(from, wants: m['w'] == 1, slow: m['s'] == 1);
+    } else if (from == _dj && m['l'] == _earMark && m['l'] != null) {
+      _djWhy = LosslessWhy.said(m['w']);
+      if (_djWhy == null) _earWhy = null;
+      notifyListeners();
     }
   }
 
@@ -658,7 +733,7 @@ class SpotifyMusic extends ChangeNotifier {
   final Map<String, String> _links = {};
   final Map<String, DateTime> _linkAt = {};
 
-  Future<void> _offerTo(String id, Object? tries) async {
+  Future<void> _offerTo(String id, Object? tries, [Object? lossless]) async {
     final s = _session, source = _source;
     if (s == null || source == null) return;
     final now = clock();
@@ -668,15 +743,29 @@ class SpotifyMusic extends ChangeNotifier {
     _linkAt[id] = now;
     final mark = _links[id] = NetCrypto.hex(NetCrypto.randomBytes(8));
     final w = ways();
-    // Through the relay alone first where there is one, as the call's own connections are; every path the next time.
-    final relay = w.relay && (tries is! int || tries.isEven);
-    final sdp = await source.offer(id, servers: w.servers, relayOnly: relay).catchError((_) => null);
+    // Through the relay alone first where there is one, as the call's own connections are; every path the next time. The
+    // other way about for who is to have it without loss, which the relay is never sent: every path first (the relay's
+    // among them), the relay alone next.
+    final relay = w.relay && (tries is! int || (lossless == 1 ? tries.isOdd : tries.isEven));
+    // 1: they want it; 0: they might later. A build from before says neither.
+    final can = lossless == 0 || lossless == 1;
+    final channel = can && !relay;
+    if (can) {
+      _desk.asked(id, wants: lossless == 1);
+      _desk.offered(id, channel: false);
+    } else {
+      _desk.gone(id);
+    }
+    final sdp = await source.offer(id, servers: w.servers, relayOnly: relay, lossless: channel).catchError((_) => null);
     if (_links[id] != mark || !identical(source, _source)) return;
     if (sdp == null) {
       _links.remove(id);
+      _desk.gone(id);
       return;
     }
+    if (can) _desk.offered(id, channel: channel);
     s.sayMusic({'k': 'offer', 'to': id, 'l': mark, 'sdp': sdp, if (relay) 'r': 1});
+    if (can && relay) _tellLossless(id, LosslessWhy.relay);
   }
 
   Future<void> _answered(String from, Map<String, dynamic> m) async {
@@ -688,6 +777,7 @@ class SpotifyMusic extends ChangeNotifier {
 
   Future<void> _dropLink(String id) async {
     if (_links.remove(id) == null) return;
+    _desk.gone(id);
     await _source?.close(id).catchError((_) {});
   }
 
@@ -738,7 +828,14 @@ class SpotifyMusic extends ChangeNotifier {
       _askTimer = null;
       if (_ear != null && (mine || _dj == null || volume == 0 || !isOn())) unawaited(_dropEar());
     } else if (_ear == null && _askTimer == null) {
-      _askNow();
+      if (_player == null || _way != null) {
+        _askNow();
+      } else {
+        // Where the sound goes is looked at first: it is said in the asking.
+        unawaited(_lookWay().then((_) {
+          if (_wants && _way != null && _ear == null && _askTimer == null) _askNow();
+        }));
+      }
     }
     _loud();
   }
@@ -747,13 +844,127 @@ class SpotifyMusic extends ChangeNotifier {
     final s = _session;
     final out = Voice.instance.media?.settings.outputVolume ?? 100;
     _ear?.set(volume: volume / 100 * out / 100, silent: s == null || s.deafened);
+    _ear?.playing(state?.playing ?? false);
+  }
+
+  // --- without loss, the listener's side -----------------------------------------------------------------------------------
+
+  static const losslessKey = 'spotify_lossless', headphonesKey = 'spotify_headphones', wayEvery = Duration(seconds: 2);
+
+  /// Whether the music is to come without loss on this device, where it can.
+  bool get lossless => _store?.choice(losslessKey, '1') != '0';
+
+  void setLossless(bool on) {
+    _store?.keep(losslessKey, on ? '1' : '0');
+    unawaited(_lookWay());
+    notifyListeners();
+  }
+
+  /// This device's person says they wear headphones, where the system can't tell.
+  bool get headphones => _store?.choice(headphonesKey, '0') == '1';
+
+  void setHeadphones(bool on) {
+    _store?.keep(headphonesKey, on ? '1' : '0');
+    unawaited(_lookWay());
+    notifyListeners();
+  }
+
+  /// Whether this device has a player for it at all.
+  bool get losslessCan => _player != null;
+  MusicSink? get _player => player();
+
+  /// What stands in its way on this device ([_lookWay]); why the DJ's doesn't send it; why it was given up here.
+  LosslessWhy? _bar = LosslessWhy.device, _djWhy, _earWhy;
+  MusicWay? _way;
+
+  /// The music is heard without loss.
+  bool get hearingLossless => _ear != null && _heardLosslessNow;
+  bool _heardLosslessNow = false;
+
+  /// The connection there is was made with room for it; what was asked for it.
+  bool _room = false;
+  int? _askedLossless;
+  Timer? _wayTimer;
+  ValueListenable<String>? _speakerOf;
+
+  /// Why it isn't, in plain words; null where it is, or is on its way.
+  String? get losslessWords {
+    if (hearingLossless) return null;
+    final why = !losslessCan ? LosslessWhy.device : _bar ?? _earWhy ?? _djWhy ?? (hearing && !_room ? LosslessWhy.old : null);
+    return why?.words;
+  }
+
+  /// Whether the one thing in its way is that the system doesn't say these are headphones.
+  bool get asksHeadphones => lossless && (_bar == LosslessWhy.speakers || (headphones && _way?.to == MusicTo.speakers));
+
+  LosslessWhy? _barFor(MusicWay w) => !lossless
+      ? LosslessWhy.off
+      : switch (w.to) {
+          MusicTo.none => LosslessWhy.sink,
+          MusicTo.callHeadset => LosslessWhy.callHeadset,
+          MusicTo.speakers when !headphones => LosslessWhy.speakers,
+          // Whatever it is, at a call's rate it plays no music whole.
+          _ => w.rate > 0 && w.rate < 44100 ? LosslessWhy.callHeadset : null,
+        };
+
+  bool _lookingWay = false, _lookAgain = false;
+
+  /// Looks at where the sound goes, and whether the music may come without loss.
+  Future<void> _lookWay() async {
+    final p = _player;
+    if (p == null) return;
+    if (_lookingWay) {
+      _lookAgain = true;
+      return;
+    }
+    _lookingWay = true;
+    try {
+      do {
+        _lookAgain = false;
+        final w = await p.way(speaker()?.value ?? '').catchError((_) => const MusicWay(MusicTo.none, 0));
+        _way = w;
+        final bar = _barFor(w);
+        if (bar != _bar) {
+          _bar = bar;
+          if (bar == null) _earWhy = null;
+          _barChanged();
+          notifyListeners();
+        }
+      } while (_lookAgain);
+    } finally {
+      _lookingWay = false;
+    }
+  }
+
+  /// It may come now, or no longer may.
+  void _barChanged() {
+    final ear = _ear, s = _session;
+    if (ear == null || s == null) return;
+    final take = _bar == null;
+    ear.lossless(take);
+    if (take && !_room && _askedLossless == 0) {
+      // The connection was made without room for it, when there was no use for it: made again, with it.
+      _tries = 0;
+      unawaited(_dropEar().then((_) {
+        if (_wants && _ear == null && _askTimer == null) _askNow();
+      }));
+    } else if (_room) {
+      s.sayMusic({'k': 'll', 'to': _dj, 'l': _earMark, 'w': take ? 1 : 0});
+    }
+  }
+
+  void _speakerChanged() {
+    unawaited(_ear?.output(speaker()?.value ?? '').catchError((_) {}));
+    unawaited(_lookWay());
   }
 
   /// Asks the DJ for a connection, and again, further apart each time, until it is through.
   void _askNow() {
     final s = _session;
     if (s == null || !_wants) return;
-    s.sayMusic({'k': 'ask', 'to': _dj, 'n': _tries});
+    _askedLossless = losslessCan ? (_bar == null ? 1 : 0) : null;
+    s.sayMusic({'k': 'ask', 'to': _dj, 'n': _tries, 'll': ?_askedLossless});
+    if (_player != null) unawaited(_lookWay());
     final wait = Duration(seconds: [4, 8, 16, 30][_tries.clamp(0, 3)]);
     _tries++;
     _askTimer = Timer(wait, () {
@@ -792,10 +1003,31 @@ class SpotifyMusic extends ChangeNotifier {
         }
         notifyListeners();
       },
+      onLossless: (heard, why) {
+        if (!identical(_ear, ear)) return;
+        _heardLosslessNow = heard;
+        if (heard) _earWhy = null;
+        if (why != null) {
+          _earWhy = why;
+          // The DJ's device waits a while and begins again, longer each time; or not at all, where this one never could.
+          _session?.sayMusic({'k': 'll', 'to': from, 'l': mark, 'w': 0, if (why == LosslessWhy.slow) 's': 1});
+        }
+        notifyListeners();
+      },
     );
+    _room = sdp.contains('m=application');
+    _djWhy = _earWhy = null;
+    ear.lossless(_bar == null);
+    // It changed since it was asked.
+    if (_askedLossless != null && (_askedLossless == 1) != (_bar == null)) scheduleMicrotask(_barChanged);
     _loud();
-    final out = Voice.instance.media?.settings.output ?? '';
-    unawaited(ear.output(out).catchError((_) {}));
+    final out = speaker();
+    unawaited(ear.output(out?.value ?? '').catchError((_) {}));
+    if (_player != null) {
+      _speakerOf = out;
+      _speakerOf?.addListener(_speakerChanged);
+      _wayTimer = Timer.periodic(wayEvery, (_) => unawaited(_lookWay()));
+    }
     try {
       final answer = await ear.takeOffer(sdp);
       if (identical(_ear, ear)) _session?.sayMusic({'k': 'ans', 'to': from, 'l': mark, 'sdp': answer});
@@ -809,7 +1041,12 @@ class SpotifyMusic extends ChangeNotifier {
     final ear = _ear;
     _ear = null;
     _earMark = null;
-    _through = false;
+    _through = _heardLosslessNow = _room = false;
+    _djWhy = _earWhy = null;
+    _wayTimer?.cancel();
+    _wayTimer = null;
+    _speakerOf?.removeListener(_speakerChanged);
+    _speakerOf = null;
     await ear?.close();
   }
 }

@@ -19,6 +19,7 @@ import 'package:ghost_messaging/voice/spotify_queue.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/voice/voice_settings.dart';
 
+import 'support/lossless_stand_ins.dart';
 import 'support/space_call_harness.dart';
 import 'support/spotify_stand_ins.dart';
 
@@ -51,7 +52,7 @@ class Call {
 }
 
 /// This device in a call with one other, and what that other says of the music heard by the app's own instance.
-Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = true}) async {
+Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = true, FakeSink? sink}) async {
   final m = SpotifyMusic.instance;
   final hub = FakeHub();
   final channel = VoiceChannel.make('Friday');
@@ -67,8 +68,10 @@ Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = tr
     ..clock = (() => DateTime(2026, 11, 25, 20))
     ..lookUp = ((id) async => songs.firstWhere((s) => s.track == id, orElse: () => Song(track: id)))
     ..ways = (() => (servers: const [], relay: false))
-    ..makeEar = ({required servers, required relayOnly, required onCandidate, required onState}) {
-      final e = FakeEar(servers, relayOnly, onCandidate, onState);
+    ..player = (() => sink)
+    ..speaker = (() => null)
+    ..makeEar = ({required servers, required relayOnly, required onCandidate, required onState, required onLossless}) {
+      final e = FakeEar(servers, relayOnly, onCandidate, onState, onLossless);
       ears.add(e);
       return e;
     };
@@ -361,7 +364,7 @@ void main() {
     source
       ..onState = ((id, s) => states.add('$id $s'))
       ..onCandidate = ((id, c) => ways.add('$id ${c['candidate']}'));
-    final sdp = await source.offer('sam', servers: const [{'urls': 'turn:x'}], relayOnly: true);
+    final sdp = await source.offer('sam', servers: const [{'urls': 'turn:x'}], relayOnly: true, lossless: false);
     expect(made.single.configuration['iceTransportPolicy'], 'relay');
     expect(made.single.log, ['RTCRtpMediaTypeAudio the-music SendOnly 510000']);
     expect(sdp, contains('stereo=1'));
@@ -376,7 +379,7 @@ void main() {
     expect(made.single.remote!.sdp, contains('stereo=1'), reason: 'the rate and stereo it sends are what the answer asks for');
     expect(await source.answer('nobody', _Pc.sdp), isFalse);
     // Asked again: the one before goes first, and says nothing more.
-    await source.offer('sam', servers: const [], relayOnly: false);
+    await source.offer('sam', servers: const [], relayOnly: false, lossless: false);
     expect(made.first.log, containsAll(['close', 'dispose']));
     made.first.onConnectionState!(rtc.RTCPeerConnectionState.RTCPeerConnectionStateClosed);
     expect(states, hasLength(1));
@@ -386,7 +389,7 @@ void main() {
     // The listener's.
     made.clear();
     final ups = <bool>[];
-    final ear = RtcMusicEar(servers: const [], relayOnly: false, onCandidate: (_) {}, onState: ups.add);
+    final ear = RtcMusicEar(servers: const [], relayOnly: false, onCandidate: (_) {}, onState: ups.add, onLossless: (_, _) {});
     await ear.candidate({'candidate': 'early', 'sdpMid': '0', 'sdpMLineIndex': 0});
     expect(made, isEmpty, reason: 'held until the offer is taken');
     final answer = await ear.takeOffer(sdp!);

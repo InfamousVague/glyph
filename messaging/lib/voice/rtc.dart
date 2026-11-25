@@ -623,6 +623,10 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// ([_useInput], [_useOutput]): empty for the system's own.
   String _input = '', _output = '';
 
+  /// The speaker the call's sound goes to, for what is played beside WebRTC (lib/voice/music_sink.dart): empty for the
+  /// system's own.
+  final ValueNotifier<String> speaker = ValueNotifier('');
+
   /// Whether the microphone or the speaker chosen is not connected, so the system's own is used in its place.
   bool inputMissing = false, outputMissing = false;
 
@@ -704,6 +708,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     final c = DeviceChoice.resolve(settings.output, settings.outputName, there);
     outputMissing = c.missing;
     _output = c.id;
+    if (!_sourceIds) speaker.value = c.id;
     // A browser plays what arrives through the page's own elements (call_sound.dart), sent to the speaker chosen
     // where it lets a page choose.
     if (CallSound.playsItself) {
@@ -715,6 +720,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       return _output;
     }
     final pick = c.id.isNotEmpty ? c.id : _systemOwn(there);
+    // Windows and Linux open the first listed for the system's own, whichever Windows itself plays to.
+    if (_sourceIds) speaker.value = pick;
     if (pick.isNotEmpty && _os != 'web') {
       try {
         await sound.selectOutput(pick);
