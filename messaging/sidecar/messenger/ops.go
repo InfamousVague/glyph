@@ -275,6 +275,11 @@ func read(ctx context.Context, c *conn, b *book, to, upto string) error {
 			at = ts
 		}
 	}
+	// Never to before the chat's newest activity: something newer than the message named (a reaction, a message this
+	// app does not show) left the chat unread on Messenger, to come back unread when the app next started.
+	if t.Last > at {
+		at = t.Last
+	}
 	_, err = tasks(ctx, c, &socket.ThreadMarkReadTask{ThreadId: k, LastReadWatermarkTs: at, SyncGroup: syncGroup(t)})
 	if err == nil {
 		b.mu.Lock()

@@ -691,6 +691,29 @@ func unsendEncrypted(ctx context.Context, c *conn, b *book, t thread, target str
 // readEncrypted marks an encrypted chat read up to a message: to its sender's devices, and on Messenger's own list
 // where the chat has a row there under another number.
 func readEncrypted(ctx context.Context, c *conn, b *book, t thread, upto string) error {
+	// Messenger's own list first, whatever is known of the chat's messages: the list is what says a chat is unread
+	// when the app next starts, and it was told only where the chat had a row there under another number, and only
+	// once a message of the chat's had been found. Every other encrypted chat came back unread at each start (Matt,
+	// 2026-11-25: "all of my facebook messages are coming through as unread I suspect \"mark as read\" is only
+	// marking them as read locally and restarting the app is clearing that out").
+	now := time.Now()
+	row := t.Key
+	if t.FBKey != 0 {
+		row = t.FBKey
+	}
+	group := t.SyncGroup
+	if group == 0 {
+		group = 95
+	}
+	if _, err := tasks(ctx, c, &socket.ThreadMarkReadTask{ThreadId: row, LastReadWatermarkTs: now.UnixMilli(), SyncGroup: group}); err != nil {
+		log.Err(err).Msg("mark the chat read on Messenger's list")
+	} else {
+		b.mu.Lock()
+		if live := b.threads[t.Key]; live != nil {
+			live.Unread, live.Read = 0, now.UnixMilli()
+		}
+		b.mu.Unlock()
+	}
 	if upto == "" {
 		// The newest message of someone else's that is known.
 		b.mu.Lock()
@@ -707,19 +730,9 @@ func readEncrypted(ctx context.Context, c *conn, b *book, t thread, upto string)
 	}
 	sender, stanza, ok := parseSealedID(upto)
 	if !ok {
-		return errors.New("That is not a message of this encrypted chat")
+		// A message from before the chat was encrypted: the list has been told, and there is no one's device to tell.
+		return nil
 	}
-	now := time.Now()
-	if t.FBKey != 0 {
-		if _, err := tasks(ctx, c, &socket.ThreadMarkReadTask{ThreadId: t.FBKey, LastReadWatermarkTs: now.UnixMilli(), SyncGroup: 95}); err != nil {
-			log.Err(err).Msg("mark the chat read on Messenger's list")
-		}
-	}
-	b.mu.Lock()
-	if live := b.threads[t.Key]; live != nil {
-		live.Unread = 0
-	}
-	b.mu.Unlock()
 	if sender == idString(b.me) {
 		return nil
 	}
