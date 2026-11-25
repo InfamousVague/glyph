@@ -42,7 +42,7 @@ void main() {
       final mine = tester.getRect(find.text('Same here. Five minutes.'));
       final theirs = tester.getRect(find.text('On my way, grabbing coffee first'));
       expect(mine.left, theirs.left, reason: 'one column, no sides');
-      expect(find.text('You'), findsOneWidget);
+      expect(find.text('Me'), findsOneWidget);
       // Maya's two in a row are one run; four hours later she is named again, and twelve minutes after that again.
       expect(find.text('Maya Chen'), findsNWidgets(3));
     }

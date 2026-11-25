@@ -2007,12 +2007,16 @@ extension on _Message {
     final t = context.tokens;
     final m = message;
     final mine = m.from == room.me;
-    final name = mine ? 'You' : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
+    // Your own line is under the name the others read, in the name effect you wear, as theirs are in theirs (Matt,
+    // 2026-11-25: "the "you" should say my username and show my selected text effect"). It said You.
+    final own = room.name.isNotEmpty ? room.name : Me.instance.shownName;
+    final name = mine ? (own.isEmpty ? 'You' : own) : (m.name.isEmpty ? Voice.instance.nameOf(m.from) : m.name);
     return FlatLine(
       name: name,
+      nameEffect: mine ? Me.instance.cosmetics.name : (room.present[m.from]?.cosmetics.name ?? ''),
       at: DateTime.fromMillisecondsSinceEpoch(m.at),
       first: first,
-      face: (size) => SpaceFace(room: room, id: m.from, name: mine ? (room.name.isEmpty ? 'You' : room.name) : name, size: size),
+      face: (size) => SpaceFace(room: room, id: m.from, name: name, size: size),
       nameInk: spaceNameInk(t, room, m.from),
       badge: (size) => VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: size),
       mentionsMe: mentionsMe,
