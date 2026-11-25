@@ -22,6 +22,7 @@ import 'dialup/parts.dart' show DialupTool;
 import 'dialup/retro_button.dart';
 import 'dialup/title_bar.dart';
 import 'video_engine.dart';
+import 'window_chrome.dart' show MacChrome;
 import 'video_tracks.dart';
 
 /// A video, the whole screen, in the app's own look (Matt, 2026-11-15: "id like a video player built with glacier UI
@@ -246,6 +247,10 @@ class _VideoScreenState extends State<VideoScreen> {
     _hide?.cancel();
     _skipShown?.cancel();
     _focus.dispose();
+    if (_fullscreen && _desk) {
+      // Not during this frame's teardown: the strip is built again by it.
+      scheduleMicrotask(() => MacChrome.covered.value = false);
+    }
     if (_fullscreen) unawaited(_desk ? defaultExitNativeFullscreen() : _leavePhoneFullscreen());
     final engine = _engine;
     final drop = widget.dropFile && !_handedOn ? _path : null;
@@ -417,6 +422,7 @@ class _VideoScreenState extends State<VideoScreen> {
     if (_desk) {
       // Over the whole window, and back into its pane (GMFB-65); the keys stay the player's.
       _fullscreen ? _over.show() : _over.hide();
+      MacChrome.covered.value = _fullscreen;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
