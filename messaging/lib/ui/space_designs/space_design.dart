@@ -31,6 +31,8 @@ import '../shell.dart';
 import '../screen_share.dart';
 import '../space_invite.dart';
 import '../spotify_panel.dart';
+import '../tile_grid.dart';
+import '../../voice/rtc.dart' show RtcMedia;
 import '../voice_screen.dart';
 import 'call_plugins.dart';
 import 'telegram.dart';
@@ -62,6 +64,7 @@ class SpacePerson {
     this.video = false,
     this.screen = false,
     this.stream,
+    this.shape,
     this.back = false,
     this.role,
     this.owner = false,
@@ -88,6 +91,10 @@ class SpacePerson {
   /// Video turned on; [stream] is its picture once it arrives (null until then, and always in a test).
   final bool video;
   final MediaStream? stream;
+
+  /// The picture's own shape, width over height, once a frame of it has come (GMFB-71; [VideoShapes]): a phone draws
+  /// the tile that shape, so the whole picture shows. Null until then.
+  final double? shape;
 
   /// What [stream] shows is their shared screen (GMFB-27): drawn whole, never cropped or mirrored.
   final bool screen;
@@ -140,6 +147,7 @@ class SpaceCall {
     this.screen = false,
     this.onScreen,
     this.onFlip,
+    this.onCamera,
     this.since,
     this.wait,
     this.coming = 0,
@@ -217,6 +225,7 @@ class SpaceCall {
         video: s.video || s.screen,
         screen: media?.localScreen.value != null,
         stream: media?.localScreen.value ?? media?.localVideo.value,
+        shape: VideoShapes.of((media?.localScreen.value ?? media?.localVideo.value)?.id),
         back: s.backCamera,
         role: roleOf(meId),
         owner: roster?.isOwner(meId) ?? false,
@@ -235,6 +244,7 @@ class SpaceCall {
           video: m.video,
           screen: m.screen,
           stream: m.video ? media?.remote.value[m.id] : null,
+          shape: m.video ? VideoShapes.of(media?.remote.value[m.id]?.id) : null,
           role: roleOf(m.id),
           owner: roster?.isOwner(m.id) ?? false,
           username: m.username,
@@ -249,7 +259,7 @@ class SpaceCall {
       people: people,
       levels: callLevels(s),
       // The ways through and the microphone too: what the call is waiting for follows them ([wait]).
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance, VideoShapes.changes]),
       bridged: s.channel.discord != null,
       chatBelow: chatBelow,
       chatShown: chatShown,
@@ -265,6 +275,7 @@ class SpaceCall {
       screen: s.screen,
       onScreen: s.canShareScreen ? (context) => unawaited(toggleScreenShare(context, s)) : null,
       onFlip: s.canFlipCamera ? () => unawaited(s.flipCamera()) : null,
+      onCamera: s.video && !s.screen && RtcMedia.choosesCamera ? (context) => unawaited(showCameraChoices(context)) : null,
       since: s.since,
       wait: CallWaitBuilder.now(v),
       coming: CallWaitBuilder.coming(v),
@@ -328,6 +339,11 @@ class SpaceCall {
   /// versions"). Null where there is nothing to flip, and no button is drawn then: a computer, video off, or
   /// the screen shared in the camera's place.
   final VoidCallback? onFlip;
+
+  /// Opens the choice of cameras (GMFB-68, Matt: "There is no way to switch or select a video device in the app or
+  /// actively during a call"). Null where there is none to make: a phone (which has [onFlip]), video off, or the
+  /// screen shared in the camera's place.
+  final void Function(BuildContext context)? onCamera;
 
   /// This device may not unmute (muted for everyone, or its role may not speak), or turn video on.
   final bool micLocked, videoLocked;
@@ -455,7 +471,10 @@ class SpaceFace extends StatelessWidget {
 /// Someone's picture where their video is on and has arrived; else [fallback] (or their face on a dark ground), so a
 /// tile is never empty.
 class SpaceVideo extends StatelessWidget {
-  const SpaceVideo({super.key, required this.call, required this.person, this.fallback, this.faceSize = 64});
+  const SpaceVideo({super.key, required this.call, required this.person, this.fallback, this.faceSize = 64, this.whole = false});
+
+  /// The camera's picture drawn whole, as a shared screen's always is, where the tile has its shape (GMFB-71).
+  final bool whole;
   final SpaceCall call;
   final SpacePerson person;
   final Widget? fallback;
@@ -466,7 +485,7 @@ class SpaceVideo extends StatelessWidget {
     final stream = person.stream;
     // One renderer per stream (GMFB-5; voice_screen.dart's _Tile says why).
     if (stream != null) {
-      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen && !person.back, contain: person.screen);
+      final view = StreamView(key: ObjectKey(stream), stream: stream, mirror: person.me && !person.screen && !person.back, contain: person.screen || whole);
       return person.screen ? ColoredBox(color: const Color(0xFF000000), child: view) : view;
     }
     return fallback ?? ColoredBox(color: const Color(0xFF1C1C1F), child: Center(child: SpaceFace(call: call, person: person, size: faceSize)));

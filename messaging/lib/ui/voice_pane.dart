@@ -34,7 +34,7 @@ class VoicePane extends StatefulWidget {
 }
 
 class _VoicePaneState extends State<VoicePane> {
-  List<MediaDeviceInfo> _inputs = const [], _outputs = const [];
+  List<MediaDeviceInfo> _inputs = const [], _outputs = const [], _cameras = const [];
 
   @override
   void initState() {
@@ -46,11 +46,12 @@ class _VoicePaneState extends State<VoicePane> {
   Future<void> _devices() async {
     await VoiceFx.modes();
     _asked = true;
-    final inputs = await RtcMedia.devices('audioinput'), outputs = await RtcMedia.devices('audiooutput');
+    final inputs = await RtcMedia.devices('audioinput'), outputs = await RtcMedia.devices('audiooutput'), cameras = await RtcMedia.devices('videoinput');
     if (!mounted) return;
     setState(() {
       _inputs = inputs;
       _outputs = outputs;
+      _cameras = cameras;
     });
   }
 
@@ -95,12 +96,12 @@ class _VoicePaneState extends State<VoicePane> {
   /// The choice of a device: the system's own first, then each in [list], the one in use ticked. [use] is handed the
   /// id chosen (empty for the system's own).
   /// The Mac lists the system's own as a device of its own ("default"): offered once, as the first choice.
-  void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id, {String name}) use) {
+  void _pick(String title, List<MediaDeviceInfo> list, String current, Future<void> Function(String id, {String name}) use, {LucideIcon icon = Lucide.mic}) {
     showChoices(context, title: title, choices: [
       Choice(current.isEmpty ? '✓  The system\'s own' : 'The system\'s own', Lucide.laptop, () => use('').then((_) => setState(() {}))),
       for (final d in list)
         if (d.deviceId != 'default')
-          Choice('${d.deviceId == current ? '✓  ' : ''}${d.label.isEmpty ? 'A device' : d.label}', Lucide.mic, () => use(d.deviceId, name: d.label).then((_) => setState(() {}))),
+          Choice('${d.deviceId == current ? '✓  ' : ''}${d.label.isEmpty ? 'A device' : d.label}', icon, () => use(d.deviceId, name: d.label).then((_) => setState(() {}))),
     ]);
   }
 
@@ -131,6 +132,10 @@ class _VoicePaneState extends State<VoicePane> {
           // A browser that can't send a page's sound to a speaker of its choosing (Safari) plays through the computer's.
           if (CallSound.canChooseOutput)
             SettingRow(icon: icon(LucideMore.headphones), label: 'Speaker or headset', value: Text(_name(_outputs, v.output, v.outputName)), onPress: () => _pick('Speaker or headset', _outputs, v.output, _useOutput)),
+          // The camera, beside them (GMFB-68, Matt: "There is no way to switch or select a video device in the app or
+          // actively during a call"). A phone's two are changed between in the call (Flip camera).
+          if (RtcMedia.choosesCamera)
+            SettingRow(icon: icon(Lucide.video), label: 'Camera', value: Text(_name(_cameras, v.camera, v.cameraName)), onPress: () => _pick('Camera', _cameras, v.camera, Voice.instance.useCamera, icon: Lucide.video)),
         ],
       ),
       if (Sms.browser) ...[gap, SettingsCallout(child: const Text(callsInBrowser))],

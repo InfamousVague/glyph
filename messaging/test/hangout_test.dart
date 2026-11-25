@@ -211,8 +211,17 @@ void main() {
       o.sayMusic('');
       await _settle();
       expect(a.musicInCall, isNull);
+      // And what they show the call, their camera or their screen (GMFB-66), in the same greeting.
+      expect(a.present[owner.id]!.camera, isFalse);
+      o.sayPicture(camera: true, screen: false);
+      await _settle();
+      expect((a.present[owner.id]!.camera, a.present[owner.id]!.screen), (true, false));
+      o.sayPicture(camera: true, screen: true);
+      await _settle();
+      expect((a.present[owner.id]!.camera, a.present[owner.id]!.screen), (false, true), reason: 'a screen is sent in the camera\'s place');
       o.sayMe(inVoice: false);
       await _settle();
+      expect((a.present[owner.id]!.camera, a.present[owner.id]!.screen), (false, false), reason: 'out of the call, nothing shown');
 
       expect(o.send('Who is around?'), isTrue);
       // The answer is written a moment later, as a person's would be: two messages in the same millisecond have no

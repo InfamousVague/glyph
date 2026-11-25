@@ -4,6 +4,8 @@
 /// phone, as a conversation is.
 library;
 
+import 'dart:async';
+
 import 'circle_settings.dart' show openCircleSettingsFull;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -11,6 +13,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../circles/sms_space.dart' show smsTexterOf;
 import '../../files/files_store.dart';
 import '../../plugins/spotify.dart' show SpotifyPlugin;
 import '../../voice/spotify.dart' show SpotifyMusic;
@@ -76,6 +79,42 @@ void openCircleSpace(BuildContext context, VoiceChannel c) {
   }
   shell.show(circleSpacePage(c, key: ValueKey('circle-space-page-${c.seed}')), showing: 'circle');
 }
+
+/// A space pressed in the circle's list. Beside the pane (a computer, an unfolded Fold) a voice space's call is come
+/// into at once and shown, where it took a second press on Join voice in its page (GMFB-72: "join a voice chat when
+/// clicking on a space in the sidebar"). On a phone it opens as before: its page there is the chat, or who is talking
+/// with Join under them, and a press on a row of a list is too easy to make by chance to start the microphone.
+///
+/// It comes in as Join voice does, leaving any other call first (Voice.join), and only where Join would: not into a
+/// call this device is in or coming into already, a space its role may not talk in or it was put out of (the page
+/// says so, and its chat is still to read), an SMS space (it is pressed to text) or an open space, whose floor is
+/// walked onto with its own Join. The space's menu still has Open, which opens it without the call.
+void pressCircleSpace(BuildContext context, CircleSpaceView s, {required bool wide}) {
+  final c = s.channel;
+  openCircleSpace(context, c);
+  final voice = Voice.instance;
+  if (!wide || AppShell.maybeOf(context) == null) return;
+  if (c.kind != SpaceKind.voice || !Sms.callsHere || smsTexterOf(s.space) != null) return;
+  if (voice.session?.channel.room == c.room || voice.joining?.room == c.room) return;
+  if (!Circles.instance.allows(c, CirclePerm.voice) || voice.heldHangout(c)?.putOut != null) return;
+  unawaited(() async {
+    try {
+      await joinPressedSpace(c);
+    } catch (e) {
+      // As Join voice says it (HangoutScreen).
+      if (context.mounted) toast(context, 'Couldn\'t join: ${e is StateError ? e.message : e}', tone: GlacierToastTone.danger);
+    }
+  }());
+}
+
+/// How a pressed space's call is come into: Voice.join, or a test's own in its place.
+@visibleForTesting
+Future<void> Function(VoiceChannel c) joinPressedSpace = _joinPressed;
+Future<void> _joinPressed(VoiceChannel c) => Voice.instance.join(c);
+
+/// Puts [joinPressedSpace] back after a test.
+@visibleForTesting
+void resetJoinPressedSpace() => joinPressedSpace = _joinPressed;
 
 /// Opens [c]'s settings over the whole window, with their own sidebar (lib/ui/circles/circle_settings.dart).
 void openCircleSettings(BuildContext context, Circle c) => openCircleSettingsFull(context, c.seed);
@@ -171,7 +210,13 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
           lastMessage: last == null ? null : '${who(last)}: ${last.summary}',
           lastAt: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last.at),
           inVoice: [for (final id in ids) id == 'me' ? 'You' : voice.nameOf(id)],
-          people: [for (final id in ids) CircleVoicePerson(id: id, name: id == 'me' ? 'You' : voice.nameOf(id))],
+          people: [
+            for (final id in ids)
+              () {
+                final shows = voice.pictureOf(channel, id);
+                return CircleVoicePerson(id: id, name: id == 'me' ? 'You' : voice.nameOf(id), camera: shows.camera, screen: shows.screen);
+              }(),
+          ],
           here: here,
           music: ids.isEmpty ? null : _musicIn(channel, here: here),
           files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
@@ -187,7 +232,7 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
     wide: wide,
     canEdit: canEdit,
     online: circles.onlineIn(c),
-    onOpen: (s) => openCircleSpace(context, s.channel),
+    onOpen: (s) => pressCircleSpace(context, s, wide: wide),
     onSpaceMenu: (s) => showCircleSpaceMenu(context, c, s),
     onNewSpace: ({String? section}) => canEdit ? openCircleNewSpace(context, c, section: section) : null,
     onSettings: () => openCircleSettings(context, c),

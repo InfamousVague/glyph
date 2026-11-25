@@ -19,6 +19,7 @@ import '../../art/app_icon.dart';
 import '../../circles/circle.dart';
 import '../../files/files_store.dart';
 import '../../art/lucide.g.dart';
+import '../../art/lucide_more.dart';
 import '../../kit/semantic_colors.dart';
 import '../../kit/settings_type.dart';
 import '../../sms.dart' show Person, Sms;
@@ -445,6 +446,15 @@ class CircleVoicePeople extends StatelessWidget {
                   Expanded(
                     child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: talking ? 'medium' : 'regular', color: t.color(talking ? 'app-ink' : 'app-ink-2'))),
                   ),
+                  // What they show the call, after their name (GMFB-66: "show what users are streaming and or sharing
+                  // video"): a camera, or a screen.
+                  if (p.screen || p.camera) ...[
+                    SizedBox(width: t.space(1)),
+                    Semantics(
+                      label: p.screen ? 'Sharing a screen' : 'Camera on',
+                      child: AppIcon(p.screen ? LucideMore.screenShare : Lucide.video, key: ValueKey('circle-voice-${space.seed}-${p.id}-${p.screen ? 'screen' : 'camera'}'), size: 14, color: t.color('app-ink-3'), wash: false),
+                    ),
+                  ],
                 ]),
               );
             }(),

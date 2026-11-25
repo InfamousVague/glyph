@@ -109,8 +109,9 @@ void main() {
     addTearDown(tester.view.reset);
     final semantics = tester.ensureSemantics();
     final designs = <String, Widget Function(SpaceCall)>{'telegram': (c) => TelegramCall(call: c)};
-    // The button is in the call's own menu (no room beside the camera): what opens it.
-    const menus = {'telegram-phone': _telegramMenu, 'telegram-computer': _telegramMenu};
+    // The button is over one's own video now (GMFB-70; test/video_tile_tools_test.dart), no longer in the call's own
+    // menu: nothing to open first.
+    const menus = <String, String>{};
     final flip = find.bySemanticsLabel(RegExp(r'^Flip( camera)?$'));
     for (final MapEntry(key: name, value: build) in designs.entries) {
       for (final (size, where) in [(SpaceHarness.phone, 'phone'), (SpaceHarness.computer, 'computer')]) {
@@ -141,9 +142,6 @@ void main() {
     semantics.dispose();
   });
 }
-
-/// What Telegram's header menu is called (lib/ui/space_designs/telegram.dart, _menuLabel).
-const _telegramMenu = 'More: invite, devices, settings, leave';
 
 /// [c] on a phone with video on: the same call, with a camera to flip.
 SpaceCall _flipping(SpaceCall c, VoidCallback onFlip) => SpaceCall(

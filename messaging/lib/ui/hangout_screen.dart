@@ -2207,7 +2207,8 @@ class SpaceMembers extends StatelessWidget {
                       ),
                       label: id == room.me ? 'You' : _nameOf(room, id),
                       labelAfter: VerifiedBadge(id: id, username: room.usernames[id], me: id == room.me, size: 14),
-                      hint: Text(inVoice.contains(id) ? 'In voice' : (room.present.containsKey(id) ? 'Here now' : 'Away')),
+                      // In voice, and what they show the call (GMFB-66).
+                      hint: Text(inVoice.contains(id) ? switch (Voice.instance.pictureOf(room.channel, id == room.me ? 'me' : id)) { (camera: _, screen: true) => 'In voice · sharing a screen', (camera: true, screen: _) => 'In voice · camera on', _ => 'In voice' } : (room.present.containsKey(id) ? 'Here now' : 'Away')),
                       labelColor: roleInk(t, role),
                       // Their profile card (Matt, 2026-11-19: "Clicking on a users profile picture or name should open the profile
                       // drawer as well"), with Change role where this device may.
