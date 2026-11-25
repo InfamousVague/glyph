@@ -27,6 +27,7 @@ import '../../voice/recording_playback.dart' show RecordingPlayback, namedAsReco
 import '../../voice/voice.dart';
 import '../circles/circle_face.dart' show TitleBarMark;
 import '../common.dart';
+import '../skeleton.dart';
 import '../dialup/bevel.dart';
 import '../dialup/retro_button.dart';
 import '../recording_float.dart' show showRecordingPlayback;
@@ -438,7 +439,7 @@ class _WordsState extends State<_Words> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final text = _text;
-    if (text == null) return const Center(child: GhostSpinner());
+    if (text == null) return const SkeletonLines(label: 'Opening the file');
     final bevel = isBevelChrome(t);
     final words = Text(text, style: pageText(t, t.fontSize('sm'), mono: widget.code, height: 1.5, color: t.color('app-ink')));
     return ColoredBox(

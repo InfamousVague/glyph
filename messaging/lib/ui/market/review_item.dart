@@ -36,6 +36,7 @@ import '../../plugins/registry.dart' show AppStore;
 import '../admin_page.dart' show AdminSignIn;
 import '../circles/new_circle.dart' show askCircleWords;
 import '../common.dart';
+import '../skeleton.dart';
 import '../dialup/bevel.dart' show isBevelChrome;
 import '../plugins_page/plugin_art.dart';
 import '../settings_panes.dart' show appVersion;
@@ -743,7 +744,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
               else if (error != null)
                 MarketBlock(words: error.message)
               else
-                Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())),
+                const SkeletonPeople(label: 'Loading', most: 4, shrink: true),
             ])
           : SettingsPaneScope(finder: SettingsFinder(), child: _body(context, t, item)),
     );

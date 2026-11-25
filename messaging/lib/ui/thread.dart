@@ -1191,10 +1191,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         ),
       // Older ones are read as the reader nears the oldest held: said at the top while they come.
       if (_older)
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: t.space(4)),
-          child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
-        ),
+        SkeletonChat(label: 'Loading earlier messages…', most: 3, shrink: true, faces: _group),
     ];
     // Each message's place by its key, so a row keeps what it holds (a bubble leaving, words shown) when a newer
     // message moves it down the list.
@@ -1434,10 +1431,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (older == null || !_sameDay(older.date, m.date)) items.add(HostLine.day(m.date));
     }
     if (_older) {
-      items.add(Padding(
-        padding: EdgeInsets.symmetric(vertical: t.space(4)),
-        child: const Center(child: GhostSpinner(size: 18, label: 'Loading earlier messages…')),
-      ));
+      items.add(SkeletonChat(label: 'Loading earlier messages…', most: 3, shrink: true, faces: _group));
     } else {
       // The top of the conversation, where the era's room said who you had walked in on.
       if (_e2e.on) items.add(const HostLine('Messages here are sealed end to end.'));

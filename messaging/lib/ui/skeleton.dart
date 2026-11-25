@@ -281,9 +281,13 @@ class _Line extends StatelessWidget {
 /// A list of conversations in bones (lib/ui/conversations.dart's cards: a face, a name, the last words and a time).
 /// More than fill the room there is, cut off at its foot; nothing to scroll.
 class SkeletonCards extends StatelessWidget {
-  const SkeletonCards({super.key, this.label = 'Loading', this.most = 14});
+  const SkeletonCards({super.key, this.label = 'Loading', this.most = 14, this.shrink = false});
   final String label;
   final int most;
+
+  /// As tall as its cards, as rows of a list that holds real ones (more being read at its foot); otherwise it
+  /// fills the room there is.
+  final bool shrink;
 
   @override
   Widget build(BuildContext context) {
@@ -320,14 +324,12 @@ class SkeletonCards extends StatelessWidget {
       );
     }
 
+    final cards = [for (var i = 0; i < most; i++) card(i)];
     return Skeleton(
       label: label,
-      child: ListView(
-        key: const ValueKey('skeleton-cards'),
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        children: [for (var i = 0; i < most; i++) card(i)],
-      ),
+      child: shrink
+          ? Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: cards)
+          : ListView(key: const ValueKey('skeleton-cards'), physics: const NeverScrollableScrollPhysics(), padding: EdgeInsets.zero, children: cards),
     );
   }
 }
@@ -335,9 +337,13 @@ class SkeletonCards extends StatelessWidget {
 /// A chat's messages in bones: bubbles from both sides, the newest at the foot as a chat has them. [bottom] is the
 /// room kept clear under them (the composer's).
 class SkeletonChat extends StatelessWidget {
-  const SkeletonChat({super.key, this.label = 'Loading messages', this.bottom = 0, this.faces = false, this.most = 16});
+  const SkeletonChat({super.key, this.label = 'Loading messages', this.bottom = 0, this.faces = false, this.most = 16, this.shrink = false});
   final String label;
   final double bottom;
+
+  /// As tall as its bubbles, over the oldest message of a chat while earlier ones are read; otherwise it fills the
+  /// room there is.
+  final bool shrink;
 
   /// A face beside what others wrote, as a group's and a space's chat have.
   final bool faces;
@@ -366,15 +372,19 @@ class SkeletonChat extends StatelessWidget {
       );
     }
 
+    final bubbles = [for (var i = 0; i < most; i++) bubble(i)];
     return Skeleton(
       label: label,
-      child: ListView(
-        key: const ValueKey('skeleton-chat'),
-        reverse: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.only(bottom: bottom + t.space(2), top: t.space(2)),
-        children: [for (var i = 0; i < most; i++) bubble(i)],
-      ),
+      child: shrink
+          // The newest at the foot here too: the list above is drawn the other way up.
+          ? Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: bubbles.reversed.toList())
+          : ListView(
+              key: const ValueKey('skeleton-chat'),
+              reverse: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.only(bottom: bottom + t.space(2), top: t.space(2)),
+              children: bubbles,
+            ),
     );
   }
 }
@@ -456,6 +466,38 @@ class SkeletonFiles extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// A picture's place while the picture is fetched: all of the room it is given, in bone.
+class SkeletonPicture extends StatelessWidget {
+  const SkeletonPicture({super.key, this.label = 'Loading the picture', this.radius = 0});
+  final String label;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => Skeleton(label: label, child: Bone(height: double.infinity, radius: radius));
+}
+
+/// The lines of something written, while it is read: a file's words, a page of a list with one line a row.
+class SkeletonLines extends StatelessWidget {
+  const SkeletonLines({super.key, this.label = 'Loading', this.most = 14, this.padding, this.shrink = false});
+  final String label;
+  final int most;
+  final EdgeInsets? padding;
+  final bool shrink;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final pad = padding ?? EdgeInsets.all(t.space(4));
+    final lines = [for (var i = 0; i < most; i++) Padding(padding: EdgeInsets.symmetric(vertical: t.space(2)), child: _Line(_share(i, salt: 6) + 0.25, height: 11, most: 720))];
+    return Skeleton(
+      label: label,
+      child: shrink
+          ? Padding(padding: pad, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: lines))
+          : ListView(key: const ValueKey('skeleton-lines'), physics: const NeverScrollableScrollPhysics(), padding: pad, children: lines),
     );
   }
 }
