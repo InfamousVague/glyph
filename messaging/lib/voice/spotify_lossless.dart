@@ -177,6 +177,7 @@ class LosslessEar {
       if (v != null && v != MusicChunk.now) return _giveUp(LosslessWhy.version);
       return _bad();
     }
+    if (_playing) _paused = false;
     final next = _next;
     if (next != null && c.at < next) {
       // Come before, or come late: what is played is never gone back on.
@@ -289,9 +290,9 @@ class LosslessEar {
       _trouble(quiet: _paused);
       return;
     }
-    final f = _fill;
-    // Smoothed over some seconds: what comes does not come evenly.
-    _fill = f == null ? (_given >= start ? _waiting.toDouble() : null) : f + (_waiting - f) * 0.02;
+    // Smoothed over some seconds, as what comes does not come evenly; with what was given and not answered for yet.
+    final f = _fill, fill = (_waiting + _flying).toDouble();
+    _fill = f == null ? fill : f + (fill - f) * 0.02;
     _watchLow();
     if (!_heard && _given - _waiting - _flying >= proving) _hear(true);
   }
@@ -643,7 +644,9 @@ class LosslessDesk {
     for (final MapEntry(key: id, value: d) in _all.entries) {
       if (!d.has) continue;
       if (!d.wants || resting(d)) {
-        d.has = false;
+        d
+          ..has = false
+          ..since = at;
         out.add(LosslessEnd(id, d.wants ? LosslessWhy.slow : LosslessWhy.off));
         continue;
       }
@@ -659,7 +662,8 @@ class LosslessDesk {
       final last = has.removeLast();
       last.value
         ..has = false
-        ..full = true;
+        ..full = true
+        ..since = at;
       out.add(LosslessEnd(last.key, LosslessWhy.full));
     }
     // And room: whoever may have it and doesn't, the one waiting longest first.
@@ -689,5 +693,7 @@ class _Desked {
   bool wants = false, room = false, has = false, open = false, full = false, relaySaid = false;
   int bytes = 0, dropped = 0, rested = 0;
   final List<({DateTime at, int n})> drops = [];
+
+  /// When it began, or was last ended: since when it has had it, or waited for it.
   DateTime? since, until, relaySince;
 }

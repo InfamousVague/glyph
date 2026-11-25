@@ -578,7 +578,8 @@ class SpotifyMusic extends ChangeNotifier {
             _tellLossless(id, null);
           case LosslessEnd(:final id, :final why):
             await source.lossless(id, on: false);
-            _tellLossless(id, why);
+            // Not wanted, they know why.
+            if (why != LosslessWhy.off) _tellLossless(id, why);
           case LosslessTell(:final id, :final why):
             _tellLossless(id, why);
         }
@@ -945,6 +946,8 @@ class SpotifyMusic extends ChangeNotifier {
     if (take && !_room && _askedLossless == 0) {
       // The connection was made without room for it, when there was no use for it: made again, with it.
       _tries = 0;
+      _askTimer?.cancel();
+      _askTimer = null;
       unawaited(_dropEar().then((_) {
         if (_wants && _ear == null && _askTimer == null) _askNow();
       }));

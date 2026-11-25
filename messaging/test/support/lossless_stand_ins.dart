@@ -88,8 +88,13 @@ class FakeSink implements MusicSink {
     log.add('output $to');
   }
 
+  /// The speakers it was asked of.
+  final List<String> asked = [];
   @override
-  Future<MusicWay> way(String to) async => where;
+  Future<MusicWay> way(String to) async {
+    asked.add(to);
+    return where;
+  }
 
   @override
   Future<void> close() async {
