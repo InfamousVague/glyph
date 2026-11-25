@@ -35,6 +35,8 @@ import '../../kit/settings_type.dart';
 import '../../plugins/plugin.dart' show PluginScope;
 import '../../plugins/soundboard.dart' show SoundboardPlugin;
 import '../../voice/soundboard.dart' show circleSounds, boardCircleMost;
+import '../../plugins/notion.dart';
+import '../notion_settings.dart';
 import '../soundboard_screen.dart';
 import '../../plugins/registry.dart' show PluginRegistry;
 import '../../plugins/record_call.dart' show RecordCallPlugin;
@@ -462,6 +464,11 @@ class _SectionBody extends StatelessWidget {
       if (list.any((p) => p.id == 'recordcall')) ...[
         SizedBox(height: context.tokens.space(5)),
         _recordingsTo(context, c, edit),
+      ],
+      // Notion's token for the circle (Matt, 2026-11-25: "only requires the circle to have the plugin configured").
+      if (list.any((p) => p.id == NotionPlugin.pluginId)) ...[
+        SizedBox(height: context.tokens.space(5)),
+        NotionCircleSection(circle: c, edit: edit),
       ],
       // Soundboard's own sounds for the circle (Matt, 2026-11-20: "build a soundboards plugin for circles").
       if (list.any((p) => p.id == SoundboardPlugin.pluginId)) ...[

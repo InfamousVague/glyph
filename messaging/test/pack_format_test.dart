@@ -190,7 +190,7 @@ void main() {
       for (final id in [...reservedPackIds, 'myghostpack', 'goghobills']) {
         expectError(check(bills()..['id'] = id), 'id_reserved', 'id');
       }
-      expect(reservedPackIds, hasLength(36));
+      expect(reservedPackIds, hasLength(37));
       expect(check(bills()..['id'] = 'bills').ok, isTrue);
       expectError(check(bills(), submission: true), 'id_example', 'id');
     });

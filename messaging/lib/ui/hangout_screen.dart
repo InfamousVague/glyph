@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 import '../sms.dart' show Sms;
 import '../art/app_icon.dart';
 import 'chat_rail.dart';
+import 'notion_card.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
@@ -1926,7 +1927,9 @@ class _Message extends StatelessWidget {
         if (m.text.isNotEmpty) ...[SizedBox(height: t.space(1)), words],
       ]);
     } else {
-      body = words;
+      // Notion links, opened out under the bubble where the circle has Notion (lib/ui/notion_card.dart).
+      final notion = notionCardsUnder(context, room.channel, m.text, maxWidth: maxWidth);
+      body = notion.isEmpty ? words : Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [words, ...notion]);
     }
     // Stuck on the bubble as stickers, as in a conversation of texts (lib/ui/reaction_stickers.dart).
     final stuck = reacted.isEmpty ? body : ReactionStickers(key: ValueKey('reactions-${m.id}'), bubble: body, seed: m.id, kinds: [for (final r in reacted) (emoji: r.emoji, count: r.count)], onTap: menu);
@@ -2021,6 +2024,8 @@ extension on _Message {
         ],
         if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
         if (m.text.isNotEmpty) words,
+        // Notion links, opened out where the circle has Notion (lib/ui/notion_card.dart).
+        ...notionCardsUnder(context, room.channel, m.text, maxWidth: math.min(maxWidth, t.lenOf('30rem'))),
       ]);
     }
     final at = DateTime.fromMillisecondsSinceEpoch(m.at);
