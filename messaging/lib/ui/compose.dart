@@ -6,14 +6,24 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../inbox/inbox.dart';
+import '../inbox/people.dart' show Reach;
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'dialup/dialup.dart';
+import 'inbox_ui.dart' show inboxMark;
+import 'person_reach.dart' show openReach;
 import 'shell.dart';
 import 'thread.dart';
 
 /// A new message: who it is to (contacts as they are typed, or a number), then the conversation with them.
+///
+/// What is typed also finds people on the networks signed in (GMFB-61, Matt, Android 0.12.25: "I'd like to be able to
+/// lookup contacts from connected platforms to start new chats for example slack or telegram"): each under the
+/// phone's own, named with its network and its mark, and a press opens the chat with them there
+/// ([InboxNetwork.findPeople], [InboxNetwork.chatWith]). Only while nobody is chosen: a text to several people has no
+/// place for someone on another network.
 class ComposeScreen extends StatefulWidget {
   const ComposeScreen({super.key, this.addresses = const [], this.body});
   final List<String> addresses;
@@ -29,7 +39,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
   final _focus = FocusNode();
   // The contacts found for what is typed, as the phone answers them.
   List<Map<String, String?>> _matches = const [];
+  // The people found on the networks signed in, a network after another, and the searches begun: an answer to an
+  // older one is dropped.
+  List<InboxContact> _onNetworks = const [];
+  int _asked = 0;
   Timer? _debounce;
+
+  /// The most people shown from one network: the list is the phone's first.
+  static const _mostEach = 6;
 
   @override
   void initState() {
@@ -49,14 +66,30 @@ class _ComposeScreenState extends State<ComposeScreen> {
     super.dispose();
   }
 
-  /// Looks contacts up for [q], once typing has paused for 120 ms.
+  /// Looks contacts up for [q], once typing has paused for 120 ms: the phone's, and each network's people.
   void _search(String q) {
     _debounce?.cancel();
+    final asked = ++_asked;
     _debounce = Timer(const Duration(milliseconds: 120), () async {
+      unawaited(_searchNetworks(q, asked));
       final found = await Sms.instance.searchContacts(q);
       if (mounted) setState(() => _matches = found);
     });
   }
+
+  /// The people [q] finds on every network signed in, each asked on its own: one that fails or is slow holds up
+  /// nobody else's. Nobody for nothing typed.
+  Future<void> _searchNetworks(String q, int asked) async {
+    final networks = q.trim().isEmpty ? const <InboxNetwork>[] : Inbox.instance.ready;
+    final found = await Future.wait([
+      for (final n in networks)
+        n.findPeople(q).timeout(const Duration(seconds: 8)).then((list) => list.take(_mostEach).toList(), onError: (Object _) => const <InboxContact>[]),
+    ]);
+    if (mounted && asked == _asked) setState(() => _onNetworks = [for (final list in found) ...list]);
+  }
+
+  /// The chat with [c] on its network, made there where there is none yet (lib/ui/person_reach.dart).
+  void _openOn(InboxContact c) => unawaited(openReach(context, c.name, Reach.on(c)));
 
   /// What is typed can be written to as it stands: a phone number (three or more digits and their punctuation) or an
   /// email address.
@@ -159,7 +192,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           )),
         ),
         Expanded(
-          child: _results(dialup, _typedNumber || _matches.isNotEmpty, gutter, ListView(
+          child: _results(dialup, _typedNumber || _matches.isNotEmpty || (_to.isEmpty && _onNetworks.isNotEmpty), gutter, ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(bottom: t.space(4)),
             children: [
@@ -175,6 +208,18 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   line: [c['label'], c['address']].where((s) => s != null && s.isNotEmpty).join(' · '),
                   onPress: () => _add(Person(address: c['address'] ?? '', name: c['name'], photo: c['photo'])),
                 ),
+              // People on the networks signed in (GMFB-61), while nobody is chosen yet.
+              if (_to.isEmpty)
+                for (final c in _onNetworks)
+                  if (Inbox.instance.named(c.network) case final n?)
+                    _ContactRow(
+                      key: ValueKey('on-${c.network}-${c.id}'),
+                      // Named by their id there, so their presence is found (Avatar), as Contacts does.
+                      person: Person(address: '${c.network}:${c.id}', name: c.name, photo: c.avatar),
+                      line: [n.name, c.handle ?? c.number].where((s) => s != null && s.isNotEmpty).join(' · '),
+                      mark: inboxMark(n, size: 18),
+                      onPress: () => _openOn(c),
+                    ),
             ],
           )),
         ),
@@ -195,10 +240,13 @@ Widget _results(bool dialup, bool any, double gutter, Widget list) =>
 
 /// One person found: their face, their name, and [line] under it.
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.person, required this.line, required this.onPress});
+  const _ContactRow({super.key, required this.person, required this.line, required this.onPress, this.mark});
   final Person person;
   final String line;
   final VoidCallback onPress;
+
+  /// The mark of the network they are on, at the row's end, for someone found there.
+  final Widget? mark;
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +267,7 @@ class _ContactRow extends StatelessWidget {
                   Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
               ]),
             ),
+            if (mark != null) ...[SizedBox(width: t.space(2)), mark!],
           ]),
         ),
       ),

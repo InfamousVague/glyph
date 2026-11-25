@@ -634,6 +634,11 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// The chat with [contact], made where there is none yet; its id, or null where it can't be.
   Future<String?> chatWith(InboxContact contact) async => null;
 
+  /// The people here that [query] finds, to start a chat with (GMFB-61, Matt, Android 0.12.25: "I'd like to be able to
+  /// lookup contacts from connected platforms to start new chats for example slack or telegram"): those of
+  /// [contacts] whose name, handle or number has it. A network whose service can be asked for more asks it too.
+  Future<List<InboxContact>> findPeople(String query) async => [for (final c in contacts) if (contactAnswers(c, query)) c];
+
   /// Whether files can be sent here: pictures, videos, voice messages and other files.
   bool get canSendFiles => false;
 
@@ -772,6 +777,19 @@ abstract class InboxNetwork extends ChangeNotifier {
     final held = heldIds;
     return chats.where((c) => c.unread > 0 && !held.contains(c.id)).length;
   }
+}
+
+/// Whether [c] answers [query]: by name, by handle (with its '@' or without), or by three or more digits of a number.
+/// Nobody answers nothing.
+bool contactAnswers(InboxContact c, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return false;
+  if (c.name.toLowerCase().contains(q)) return true;
+  final h = c.handle?.toLowerCase();
+  final bare = q.startsWith('@') ? q.substring(1) : q;
+  if (h != null && bare.isNotEmpty && h.contains(bare)) return true;
+  final digits = q.replaceAll(RegExp(r'\D'), '');
+  return digits.length >= 3 && (c.number ?? '').replaceAll(RegExp(r'\D'), '').contains(digits);
 }
 
 /// The networks, as the app holds them.

@@ -36,6 +36,8 @@ Every request has `id` (a number the app picks) and `op`. No other field of a re
 | `delete` | `to`, `target` | `null`: your own message unsent; an error where not supported |
 | `download` | `pointer` (as a message's `media` gave it), `path` | `null` once written to `path` |
 | `who` | `who` (a person's id) | `{"id", "name", "handle", "avatar"}` (`avatar`: a file in `avatars/`, or null) |
+| `people` | optional `query` (part of a name or handle) | `[{"id", "name", "handle", "avatar"}]`: the service's people it finds, to start a chat with (GMFB-61). Only where the service lists them cheaply: Slack's workspace members. An error elsewhere, and the app then offers only people there is a chat with |
+| `open` | `who` (a person's id) | `{"id": "<chat id>"}`: the chat between the account and them, made where there is none; nothing is sent. Only where `people` is |
 
 ## Events (stdout), one JSON object a line, each with `ev`
 

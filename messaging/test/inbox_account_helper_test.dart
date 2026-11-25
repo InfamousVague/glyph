@@ -370,6 +370,112 @@ void main() {
       n2.dispose();
     });
 
+    // GMFB-62 (Matt, Android 0.12.26): "Every time i tab back into the app Facebook messenger messages are getting
+    // marked as unread". Back in front the helper connects again and the service's list is asked for; its count was
+    // taken over what was read here, though nothing newer had come.
+    test('a chat read here stays read when the service lists it unread again with nothing newer (GMFB-62)', () async {
+      final (n, helper) = await started(linked: true);
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 0, 'last': 1000});
+      helper.event(msg('t1', 'm1', 'hi', ts: 2000));
+      await settle();
+      expect(n.chats.single.unread, 1);
+      await n.markRead('t1');
+      expect(helper.asked.where((r) => r['op'] == 'read').length, 1);
+
+      // The app comes back to the front: connected again, and the service's own list still says one waits.
+      helper.answer = (r) => r['op'] == 'chats' ? [{'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 1, 'last': 2000}] : null;
+      helper.event({'ev': 'connected'});
+      await settle();
+      expect(n.chats.single.unread, 0, reason: 'read here, and nothing newer than what was read');
+      expect(helper.asked.where((r) => r['op'] == 'read').map((r) => (r['to'], r['upto'])), [('t1', 'm1'), ('t1', 'm1')], reason: 'the service is told again');
+      // Listed so again: not told a third time.
+      helper.event({'ev': 'connected'});
+      await settle();
+      expect(n.chats.single.unread, 0);
+      expect(helper.asked.where((r) => r['op'] == 'read').length, 2);
+      // The same message said again by the service is not counted again.
+      helper.event({'ev': 'deleted', 'chat': 't1', 'target': 'm1'});
+      helper.event(msg('t1', 'm1', 'hi', ts: 2000));
+      await settle();
+      expect(n.chats.single.unread, 0, reason: 'older than what was read');
+
+      // Something newer than what was read is unread, as before.
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 1, 'last': 3000});
+      await settle();
+      expect(n.chats.single.unread, 1);
+      n.dispose();
+    });
+
+    test('a message that arrives while its chat is open is told to the service as read (GMFB-62)', () async {
+      final (n, helper) = await started(linked: true);
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 0, 'last': 1000});
+      await settle();
+      n.watching = 't1';
+      helper.event(msg('t1', 'm1', 'are you there?', ts: 2000));
+      await settle();
+      expect(n.chats.single.unread, 0, reason: 'it is on screen');
+      // The open chat marks itself read as each message arrives (lib/ui/inbox_ui.dart).
+      await n.markRead('t1');
+      expect(helper.asked.where((r) => r['op'] == 'read').map((r) => (r['to'], r['upto'])), [('t1', 'm1')]);
+      // And only once for it.
+      await n.markRead('t1');
+      expect(helper.asked.where((r) => r['op'] == 'read').length, 1);
+      // Closed, and listed by the service as unread with nothing newer: still read.
+      n.watching = null;
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'unread': 1, 'last': 2000});
+      await settle();
+      expect(n.chats.single.unread, 0);
+      n.dispose();
+    });
+
+    // GMFB-61 (Matt, Android 0.12.25): "I'd like to be able to lookup contacts from connected platforms to start new
+    // chats for example slack or telegram".
+    test('people to start a chat with: those there is a chat with already, found by name (GMFB-61)', () async {
+      final (n, helper) = await started(linked: true);
+      helper.event({'ev': 'chat', 'id': 't1', 'title': 'Jo Park', 'group': false, 'members': [{'id': 'jo-1', 'name': 'Jo Park'}], 'unread': 0, 'last': 2});
+      helper.event({'ev': 'chat', 'id': 't2', 'title': 'Trip', 'group': true, 'members': [{'id': 'jo-1', 'name': 'Jo Park'}, {'id': 'sam-1', 'name': 'Sam Joyce'}], 'unread': 0, 'last': 1});
+      await settle();
+      expect(await n.findPeople(''), isEmpty, reason: 'nobody for nothing typed');
+      final found = await n.findPeople('jo');
+      expect(found.map((c) => (c.network, c.id, c.name)), [('instagram', 'jo-1', 'Jo Park')], reason: 'Sam is only met in a group: no chat to open');
+      expect(helper.ops, isNot(contains('people')), reason: 'Instagram\'s helper lists no people');
+      expect(await n.chatWith(found.single), 't1');
+      expect(await n.chatWith(const InboxContact(network: 'instagram', id: 'sam-1', name: 'Sam Joyce')), isNull);
+      expect(helper.ops, isNot(contains('open')));
+      expect(n.contacts, isEmpty, reason: 'who is a contact says who is a stranger (the Human check plugin): unchanged');
+      n.dispose();
+    });
+
+    test('Slack: the workspace is asked for people, and a chat is opened with one there is none with (GMFB-61)', () async {
+      final helper = FakeHelper()..linked = true;
+      final n = AccountHelper(slackService, link: () async => helper, folder: dir.path);
+      await n.start(AppState());
+      await settle();
+      helper.event({'ev': 'chat', 'id': 'T1-D1', 'title': 'Ann Lee', 'group': false, 'members': [{'id': 'UANN', 'name': 'Ann Lee'}], 'unread': 0, 'last': 2});
+      await settle();
+      helper.answer = (r) => switch (r['op']) {
+            'people' => [
+                {'id': 'UANN', 'name': 'Ann Lee', 'handle': 'ann', 'avatar': null},
+                {'id': 'UBEN', 'name': 'Ben Okoro', 'handle': 'benno', 'avatar': null},
+              ],
+            'open' => {'id': 'T1-D2'},
+            _ => null,
+          };
+      final found = await n.findPeople('benno');
+      expect(helper.asked.lastWhere((r) => r['op'] == 'people')['query'], 'benno');
+      expect(found.map((c) => (c.id, c.name, c.handle)), [('UBEN', 'Ben Okoro', '@benno')]);
+      expect(await n.chatWith(found.single), 'T1-D2');
+      expect(helper.asked.lastWhere((r) => r['op'] == 'open')['who'], 'UBEN');
+      // Someone there is a chat with already: that chat, and Slack is not asked to open one.
+      final ann = (await n.findPeople('ann')).single;
+      expect(await n.chatWith(ann), 'T1-D1');
+      expect(helper.asked.where((r) => r['op'] == 'open').length, 1);
+      // A helper from before `people` (it answers that it does not know the op): what is known here still answers.
+      helper.answer = (r) => r['op'] == 'people' ? throw StateError('the Slack helper does not know "people"') : null;
+      expect((await n.findPeople('ann')).map((c) => c.name), ['Ann Lee']);
+      n.dispose();
+    });
+
     // Matt, 2026-11-23: "messages are being un marked from read when relaunching the app". The file was written two
     // seconds after the last change, however long changes kept coming: with a busy account (names, messages elsewhere,
     // reactions, each a change) a chat read was never written, and the app opened again with it unread.

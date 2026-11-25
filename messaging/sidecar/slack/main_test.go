@@ -516,6 +516,18 @@ func (s *standIn) serve(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reply(w, map[string]any{"ok": false, "error": "user_not_found"})
 		}
+	case "users.list":
+		list := []map[string]any{}
+		for _, id := range []string{"UME", "UANN", "UBEN"} {
+			list = append(list, testUsers[id])
+		}
+		gone := user("UGONE", "Gone Away", "Gone")
+		gone["deleted"] = true
+		app := user("UAPP", "Deploys", "Deploys")
+		app["is_bot"] = true
+		reply(w, map[string]any{"members": append(list, gone, app), "response_metadata": map[string]any{"next_cursor": ""}})
+	case "conversations.open":
+		reply(w, map[string]any{"channel": map[string]any{"id": "D2", "is_im": true, "user": r.Form.Get("users")}})
 	case "bots.info":
 		reply(w, map[string]any{"bot": map[string]any{"id": r.Form.Get("bot"), "name": "Deploys"}})
 	case "conversations.history":
@@ -819,6 +831,24 @@ func TestProtocolAgainstStandIn(t *testing.T) {
 	}
 	if bot := h.ask("who", map[string]any{"who": "B1"}).(map[string]any); bot["name"] != "Deploys" {
 		t.Fatalf("who, an app: %v", bot)
+	}
+
+	// people (GMFB-61): the workspace's members by name or handle, no apps, no one removed, not the person; and open,
+	// the direct message with one of them.
+	if all := h.ask("people", nil).([]any); len(all) != 2 || all[0].(map[string]any)["id"] != "UANN" || all[1].(map[string]any)["handle"] != "ben" {
+		t.Fatalf("people: %v", all)
+	}
+	if found := h.ask("people", map[string]any{"query": "@BEN"}).([]any); len(found) != 1 || found[0].(map[string]any)["name"] != "Ben Okoro" {
+		t.Fatalf("people, searched: %v", found)
+	}
+	if n := len(s.called("users.list")); n != 1 {
+		t.Fatalf("the members were listed %d times for two askings", n)
+	}
+	if opened := h.ask("open", map[string]any{"who": "UBEN"}).(map[string]any); opened["id"] != "T1-D2" || s.called("conversations.open")[0].Get("users") != "UBEN" {
+		t.Fatalf("open: %v", opened)
+	}
+	if m := h.ask2("open", map[string]any{"who": ""}); m["ok"] != false {
+		t.Fatalf("a chat with no one was opened: %v", m)
 	}
 
 	// download: the message's address has run out here, so a fresh one is asked for.
