@@ -286,6 +286,11 @@ void main() {
       expect(at.left, greaterThan(name.left), reason: '$who set in under the space\'s name');
     }
     expect(find.descendant(of: people, matching: find.byType(Avatar)), findsNWidgets(3), reason: 'a face each');
+    // Each face starts where the space's name does (Matt, 2026-11-25: "left align the users in the list of users
+    // connected a call with the title text"): the ring's room round it is not a margin before it.
+    for (final face in tester.widgetList<Avatar>(find.descendant(of: people, matching: find.byType(Avatar)))) {
+      expect(tester.getRect(find.byWidget(face)).left, moreOrLessEquals(name.left, epsilon: 0.5), reason: 'the face under the name\'s first letter');
+    }
     // The space's own line counts them and leaves their names to the rows.
     expect(circleSpaceLine(lounge), '3 talking');
     expect(find.text('3 talking'), findsOneWidget);
