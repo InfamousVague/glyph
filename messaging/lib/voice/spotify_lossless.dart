@@ -403,6 +403,9 @@ enum LosslessWhy {
   /// The sound comes out of a speaker, and the microphone would send it back ([MusicTo.speakers]).
   speakers(''),
 
+  /// The system doesn't say whether it is worn, and neither has this device's person ([MusicTo.unknown]).
+  unknown(''),
+
   /// A Bluetooth headset in a call.
   callHeadset(''),
 
@@ -432,6 +435,7 @@ enum LosslessWhy {
         old => 'The DJ\'s version of Ghost Messaging doesn\'t send it.',
         device => 'This device can\'t play it without loss: it hears the high quality stream.',
         speakers => 'On speakers your microphone would send the music back to the call. Wear headphones for lossless.',
+        unknown => 'This device can\'t tell whether you wear headphones. On speakers your microphone would send the music back to the call.',
         callHeadset => 'Your Bluetooth headset is in a call, and plays everything at a call\'s quality until its microphone is let go of. Choose another microphone, or wired headphones.',
         relay => 'Your connection to the DJ goes through the relay, which isn\'t sent lossless music.',
         slow => 'The connection to the DJ can\'t keep up with lossless right now. It is tried again by itself.',

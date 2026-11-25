@@ -19,8 +19,11 @@ enum MusicTo {
   /// Headphones, as far as the system says.
   headphones,
 
-  /// A speaker, or something the system does not say is headphones (a USB box, a screen).
+  /// A speaker, as the system says.
   speakers,
+
+  /// Something the system does not say is either (a USB box, a Bluetooth device, a PC's jack): its person is asked.
+  unknown,
 
   /// A Bluetooth headset in a call, whose sound is a call's and not music's while its microphone is in use.
   callHeadset,
@@ -30,16 +33,19 @@ enum MusicTo {
 }
 
 class MusicWay {
-  const MusicWay(this.to, this.rate);
+  const MusicWay(this.to, this.rate, [this.device = '']);
   final MusicTo to;
+
+  /// Which device it is, as the system names it: what its person says of it ("I'm wearing headphones") is of it alone.
+  final String device;
 
   /// What the device runs at, frames a second; 0 where the system does not say.
   final int rate;
 
   @override
-  bool operator ==(Object other) => other is MusicWay && other.to == to && other.rate == rate;
+  bool operator ==(Object other) => other is MusicWay && other.to == to && other.rate == rate && other.device == device;
   @override
-  int get hashCode => Object.hash(to, rate);
+  int get hashCode => Object.hash(to, rate, device);
 }
 
 /// How a player stands: the frames it has not played, and how many times it has run out since it was opened.
@@ -112,9 +118,11 @@ class ChannelSink implements MusicSink {
         'headphones' => MusicTo.headphones,
         'call' => MusicTo.callHeadset,
         'none' || null => MusicTo.none,
+        'unknown' => MusicTo.unknown,
         _ => MusicTo.speakers,
       },
       rate is num ? rate.toInt() : 0,
+      '${m?['id'] ?? ''}',
     );
   }
 

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
+import 'package:glacier/glacier.dart' show GlacierSwitch;
+import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/plugins/plugin.dart';
 import 'package:ghost_messaging/plugins/registry.dart';
 import 'package:ghost_messaging/plugins/spotify.dart';
@@ -11,6 +13,7 @@ import 'package:ghost_messaging/ui/space_designs/space_design.dart';
 import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 import 'package:ghost_messaging/ui/spotify_panel.dart';
 import 'package:ghost_messaging/voice/channels.dart';
+import 'package:ghost_messaging/voice/music_sink.dart';
 import 'package:ghost_messaging/voice/rtc.dart';
 import 'package:ghost_messaging/voice/spotify.dart';
 import 'package:ghost_messaging/voice/spotify_app.dart';
@@ -69,6 +72,7 @@ Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = tr
     ..lookUp = ((id) async => songs.firstWhere((s) => s.track == id, orElse: () => Song(track: id)))
     ..ways = (() => (servers: const [], relay: false))
     ..player = (() => sink)
+    ..store = AppState()
     ..speaker = (() => null)
     ..makeEar = ({required servers, required relayOnly, required onCandidate, required onState, required onLossless}) {
       final e = FakeEar(servers, relayOnly, onCandidate, onState, onLossless);
@@ -87,6 +91,7 @@ Future<Call> _call(WidgetTester tester, {bool computer = false, bool speaks = tr
   addTearDown(() async {
     Voice.instance.session = null;
     m.followSession(null);
+    m.store = null;
     SongCover.image = (url) => NetworkImage(url);
   });
   return Call(me, other, spotify, source, ears);
@@ -248,6 +253,98 @@ void main() {
       expect(find.byKey(const ValueKey('spotify-remove-10')), findsNothing);
       expect(find.byKey(const ValueKey('spotify-stop')), findsNothing);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  for (final (name, size, dark) in const [('phone', SpaceHarness.phone, false), ('phone', SpaceHarness.phone, true), ('desktop', SpaceHarness.computer, false), ('desktop', SpaceHarness.computer, true), ('narrow', Size(320, 640), false)]) {
+    testWidgets('what a listener hears of it, why it isn\'t without loss, and the switch, $name${dark ? ' dark' : ''}', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      addTearDown(tester.view.reset);
+      final sink = FakeSink()..where = const MusicWay(MusicTo.unknown, 48000, 'usb box');
+      final call = await _call(tester, sink: sink);
+      final said = <Map<String, dynamic>>[];
+      call.other.onMusic = (from, m) => said.add(m);
+      final m = SpotifyMusic.instance;
+      m.setLossless(true);
+      m.setHeadphones(false);
+      await tester.runAsync(settle);
+      await _says(tester, call, _state(songsOf: 1));
+      await tester.runAsync(settle);
+      expect(said.where((m) => m['k'] == 'ask').last['ll'], 0);
+      await tester.runAsync(() async {
+        call.other.sayMusic({'k': 'offer', 'to': 'me-id', 'l': 'mark', 'sdp': 'm=application'});
+        await settle();
+      });
+      call.ears.last.onState(true);
+      Future<void> at(String key) async {
+        await tester.scrollUntilVisible(find.byKey(ValueKey(key)), 120, scrollable: find.byType(Scrollable).first);
+        await tester.pump();
+      }
+
+      await h.shoot(tester, const SpotifyScreen(), 'lossless-ask-$name', size: size, dark: dark, dir: '../build/spotify');
+      await at('spotify-headphones');
+      await h.again(tester, 'lossless-speakers-$name', dark: dark, dir: '../build/spotify');
+      expect(tester.takeException(), isNull);
+      expect(find.text('High quality'), findsOneWidget);
+      expect(find.textContaining('can\'t tell whether you wear'), findsOneWidget);
+      // They say they wear them: it is taken, and heard.
+      await tester.ensureVisible(find.byKey(const ValueKey('spotify-headphones')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('spotify-headphones')), matching: find.byType(GlacierSwitch)));
+      await tester.runAsync(settle);
+      await tester.pump();
+      expect(call.ears.last.take, isTrue);
+      expect(said.last, {'t': 'mu', 'k': 'll', 'to': 'maya', 'l': 'mark', 'w': 1});
+      expect(find.text('Lossless begins once it has played cleanly for a second.'), findsOneWidget);
+      call.ears.last.onLossless(true, null);
+      await tester.pump(const Duration(milliseconds: 400));
+      await at('spotify-quality');
+      expect(find.text('Lossless'), findsOneWidget);
+      await h.again(tester, 'lossless-$name', dark: dark, dir: '../build/spotify');
+      // Off: kept, and the Opus.
+      m.setLossless(false);
+      await tester.runAsync(settle);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Lossless music is off on this device.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('spotify-headphones')), findsNothing);
+      expect(call.ears.last.take, isFalse);
+      m.setLossless(true);
+      m.setHeadphones(false);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the DJ sees how many have it without loss, what it takes, and that the headset brings it down, $name${dark ? ' dark' : ''}', (tester) async {
+      final h = await SpaceHarness.load(tester);
+      addTearDown(tester.view.reset);
+      final call = await _call(tester, computer: true);
+      final m = SpotifyMusic.instance;
+      var now = DateTime(2026, 11, 25, 20);
+      m.clock = () => now;
+      await tester.runAsync(() async {
+        await m.start();
+        await m.add('spotify:track:$a');
+        call.other.sayMusic({'k': 'ask', 'to': 'me-id', 'n': 0, 'll': 1});
+        await settle();
+        for (final bytes in [0, 118000]) {
+          call.source.ways['maya'] = (open: true, bytes: bytes, dropped: 0, relay: false);
+          now = now.add(const Duration(seconds: 1));
+          call.spotify.to(20);
+          await m.look();
+        }
+        call.source.hz = 24000;
+        await m.look();
+        await settle();
+      });
+      await h.shoot(tester, const SpotifyScreen(), 'dj-$name', size: size, dark: dark, dir: '../build/spotify');
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('spotify-low')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('spotify-listeners')), 120, scrollable: find.byType(Scrollable).first);
+      await tester.pump();
+      expect(find.text('1, 1 lossless'), findsOneWidget);
+      expect(find.byKey(const ValueKey('spotify-quality')), findsNothing);
+      await h.again(tester, 'dj-lossless-$name', dark: dark, dir: '../build/spotify');
+      await tester.runAsync(m.stop);
       await tester.pumpWidget(const SizedBox());
     });
   }

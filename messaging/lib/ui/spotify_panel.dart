@@ -208,6 +208,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
     return [
       _NowPlaying(music: m),
       if (m.troubleWords != null) _wrong(t, m.troubleWords!, key: const ValueKey('spotify-problem')),
+      if (m.capturedLow) _wrong(t, 'Your Bluetooth headset\'s microphone is in use, which brings everything this computer plays down to a call\'s quality, and the music with it. Choose another microphone, or wired headphones.', key: const ValueKey('spotify-low')),
       SizedBox(height: t.space(5)),
       PaneSection(
         title: 'Add a song',
@@ -259,11 +260,63 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
                 SizedBox(width: t.lenOf('3rem'), child: Text('${m.volume}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
               ]),
             ),
+          if (!m.mine) ..._heard(t, m),
           if (m.mine) SettingRow(key: const ValueKey('spotify-stop'), icon: AppIcon(Lucide.x, size: 18), label: 'Stop', hint: const Text('Stop playing to the call, for everyone'), onPress: m.stop),
+          if (m.mine)
+            SettingRow(
+              key: const ValueKey('spotify-listeners'),
+              icon: AppIcon(LucideMore.headphones, size: 18),
+              label: 'Listening',
+              hint: Text(m.sentLossless == 0
+                  ? 'Lossless goes to whoever wears headphones and whose connection to you is direct. What they can hear is what Spotify plays here: in Spotify, set Audio quality to Lossless, on Premium.'
+                  : 'Lossless takes ${(m.losslessBits / 1e6).toStringAsFixed(1)} Mbit/s of your upload. What they hear is what Spotify plays here: in Spotify, set Audio quality to Lossless, on Premium.'),
+              value: Text('${m.listeners}${m.sentLossless == 0 ? '' : ', ${m.sentLossless} lossless'}'),
+            ),
         ],
       ),
     ];
   }
+}
+
+/// What this device hears of it: without loss or as Opus, why not, and the switch.
+List<Widget> _heard(Tokens t, SpotifyMusic m) {
+  final why = m.losslessWords;
+  final heard = m.volume == 0
+      ? 'Nothing'
+      : m.hearingLossless
+          ? 'Lossless'
+          : m.hearing
+              ? 'High quality'
+              : 'Connecting…';
+  return [
+    SettingRow(
+      key: const ValueKey('spotify-quality'),
+      icon: AppIcon(LucideMore.audioLines, size: 18),
+      label: 'You hear',
+      hint: m.volume == 0
+          ? null
+          : Text(m.hearingLossless
+              ? 'The music as it was captured, 48 kHz, 16 bits, with nothing left out.'
+              : why ?? 'Lossless begins once it has played cleanly for a second.'),
+      value: Text(heard),
+    ),
+    if (m.losslessCan)
+      SettingRow(
+        key: const ValueKey('spotify-lossless'),
+        icon: AppIcon(LucideMore.music, size: 18),
+        label: 'Lossless music',
+        hint: const Text('About 1 Mbit/s, and a second or so later than the DJ hears it. Off, it is Opus at its highest.'),
+        control: GlacierSwitch(checked: m.lossless, onCheckedChange: m.setLossless, ariaLabel: 'Lossless music'),
+      ),
+    if (m.losslessCan && m.asksHeadphones)
+      SettingRow(
+        key: const ValueKey('spotify-headphones'),
+        icon: AppIcon(LucideMore.headphones, size: 18),
+        label: 'I\'m wearing headphones',
+        hint: const Text('Say so for what you hear it on now, and lossless plays to it.'),
+        control: GlacierSwitch(checked: m.headphones, onCheckedChange: m.setHeadphones, ariaLabel: 'I\'m wearing headphones'),
+      ),
+  ];
 }
 
 /// What plays: its cover, title and artist, who plays it, where it is, and the two buttons.

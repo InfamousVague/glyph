@@ -861,11 +861,14 @@ class SpotifyMusic extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// This device's person says they wear headphones, where the system can't tell.
-  bool get headphones => _store?.choice(headphonesKey, '0') == '1';
+  /// This device's person says what they hear it on now is headphones, where the system can't tell.
+  bool get headphones {
+    final w = _way;
+    return w != null && w.device.isNotEmpty && _store?.choice(headphonesKey, '') == w.device;
+  }
 
   void setHeadphones(bool on) {
-    _store?.keep(headphonesKey, on ? '1' : '0');
+    _store?.keep(headphonesKey, on ? _way?.device ?? '' : '');
     unawaited(_lookWay());
     notifyListeners();
   }
@@ -895,15 +898,16 @@ class SpotifyMusic extends ChangeNotifier {
     return why?.words;
   }
 
-  /// Whether the one thing in its way is that the system doesn't say these are headphones.
-  bool get asksHeadphones => lossless && (_bar == LosslessWhy.speakers || (headphones && _way?.to == MusicTo.speakers));
+  /// Whether what it waits for, or has, is this person's word that these are headphones.
+  bool get asksHeadphones => lossless && _way?.to == MusicTo.unknown && _way!.device.isNotEmpty;
 
   LosslessWhy? _barFor(MusicWay w) => !lossless
       ? LosslessWhy.off
       : switch (w.to) {
           MusicTo.none => LosslessWhy.sink,
           MusicTo.callHeadset => LosslessWhy.callHeadset,
-          MusicTo.speakers when !headphones => LosslessWhy.speakers,
+          MusicTo.speakers => LosslessWhy.speakers,
+          MusicTo.unknown when !headphones => LosslessWhy.unknown,
           // Whatever it is, at a call's rate it plays no music whole.
           _ => w.rate > 0 && w.rate < 44100 ? LosslessWhy.callHeadset : null,
         };
@@ -943,6 +947,7 @@ class SpotifyMusic extends ChangeNotifier {
     if (ear == null || s == null) return;
     final take = _bar == null;
     ear.lossless(take);
+    if (!take) _heardLosslessNow = false;
     if (take && !_room && _askedLossless == 0) {
       // The connection was made without room for it, when there was no use for it: made again, with it.
       _tries = 0;

@@ -241,23 +241,27 @@ enum MusicOut {
     let transport = number(d, kAudioDevicePropertyTransportType) ?? 0
     let bluetooth = transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
     if bluetooth && rate > 0 && rate < 44100 { return ["to": "call", "rate": rate] }
+    var u = address(kAudioDevicePropertyDeviceUID), uid: Unmanaged<CFString>?, n = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    let name = AudioObjectGetPropertyData(d, &u, 0, nil, &n, &uid) == noErr ? uid?.takeRetainedValue() as String? ?? "" : ""
     // The jack says so by its source ("hdpn"); others by what their stream ends in, where they say.
     let jack = number(d, kAudioDevicePropertyDataSource, kAudioObjectPropertyScopeOutput) == 0x6864_706e
     let worn = streams(d).contains { number($0, kAudioStreamPropertyTerminalType) == kAudioStreamTerminalTypeHeadphones }
-    return ["to": jack || worn ? "headphones" : "speakers", "rate": rate]
+    // The Mac's own speakers; anything else (a screen, a USB box, a Bluetooth device) may be worn or stand in the room.
+    return ["to": jack || worn ? "headphones" : transport == kAudioDeviceTransportTypeBuiltIn ? "speakers" : "unknown", "rate": rate, "id": name]
   }
   #else
   static func way(_ id: String) -> [String: Any] {
     let session = AVAudioSession.sharedInstance()
-    guard let port = session.currentRoute.outputs.first?.portType else { return ["to": "none", "rate": 0] }
+    guard let port = session.currentRoute.outputs.first else { return ["to": "none", "rate": 0] }
     let to: String
-    switch port {
+    switch port.portType {
     case .headphones: to = "headphones"
     case .bluetoothHFP: to = "call"
+    case .builtInSpeaker, .builtInReceiver: to = "speakers"
     // A Bluetooth or USB device may be worn or stand in the room: not said, so asked.
-    default: to = "speakers"
+    default: to = "unknown"
     }
-    return ["to": to, "rate": session.sampleRate]
+    return ["to": to, "rate": session.sampleRate, "id": port.uid]
   }
   #endif
 }

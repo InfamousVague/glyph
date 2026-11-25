@@ -563,7 +563,7 @@ void main() {
       expect(maya.source.log, contains('offer sam with a channel'), reason: 'room, for later');
       expect(sam.ear.take, isFalse);
       expect(sam.music.losslessWords, contains('headphones'));
-      expect(sam.music.asksHeadphones, isTrue);
+      expect(sam.music.asksHeadphones, isFalse, reason: 'they are speakers');
       await maya.look();
       expect(maya.source.log.last, 'lossless sam off');
       sink.where = const MusicWay(MusicTo.headphones, 48000);
@@ -579,14 +579,31 @@ void main() {
       expect(sam.ear.take, isFalse);
       await maya.look();
       expect(maya.source.log.last, 'lossless sam off');
-      // The system can't tell, and the person says so.
+      // The system can't tell, and the person says so: of what they hear it on now, and of nothing else.
+      sink.where = const MusicWay(MusicTo.unknown, 48000, 'usb box');
+      await sam.lookWay();
+      expect(sam.ear.take, isFalse);
+      expect(sam.music.asksHeadphones, isTrue);
+      expect(sam.music.losslessWords, contains('can\'t tell'));
       sam.music.setHeadphones(true);
       await settle();
       expect(sam.ear.take, isTrue);
       expect(sam.music.asksHeadphones, isTrue, reason: 'to take it back');
+      sink.where = const MusicWay(MusicTo.unknown, 48000, 'the television');
+      await sam.lookWay();
+      expect((sam.ear.take, sam.music.headphones), (false, false));
+      sink.where = const MusicWay(MusicTo.speakers, 48000, 'usb box');
+      await sam.lookWay();
+      expect(sam.ear.take, isFalse, reason: 'what the system knows is believed before it');
+      sink.where = const MusicWay(MusicTo.unknown, 48000, 'usb box');
+      await sam.lookWay();
+      expect(sam.ear.take, isTrue);
       sam.music.setHeadphones(false);
       await settle();
       expect(sam.ear.take, isFalse);
+      sink.where = const MusicWay(MusicTo.unknown, 48000);
+      await sam.lookWay();
+      expect(sam.music.asksHeadphones, isFalse, reason: 'nothing to remember it by');
     });
 
     test('through the relay when there was no use for it, it is connected again once there is', () async {
@@ -840,6 +857,7 @@ void main() {
         ({'to': 'headphones', 'rate': 48000.0}, const MusicWay(MusicTo.headphones, 48000)),
         ({'to': 'call', 'rate': 16000}, const MusicWay(MusicTo.callHeadset, 16000)),
         ({'to': 'none'}, const MusicWay(MusicTo.none, 0)),
+        ({'to': 'unknown', 'rate': 48000, 'id': 'usb'}, const MusicWay(MusicTo.unknown, 48000, 'usb')),
         ({'to': 'something new', 'rate': 44100}, const MusicWay(MusicTo.speakers, 44100)),
         (null, const MusicWay(MusicTo.none, 0)),
       ]) {
