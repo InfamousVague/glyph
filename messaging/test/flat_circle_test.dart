@@ -50,7 +50,7 @@ void main() {
       testWidgets('a circle\'s chat, with one of everything in it: $label, ${dark ? 'dark' : 'light'}', (tester) async {
         final h = await SpaceHarness.load(tester);
         await h.shoot(tester, GhostPage(title: '# general', body: HangoutChat(room: _room())), 'circle-$label', size: size, dark: dark, dir: '../build/flat-groups');
-        expect(find.text('You'), findsWidgets);
+        expect(find.text('Me'), findsWidgets);
       });
     }
   }

@@ -89,7 +89,19 @@ void main() {
       final parts = [for (final s in span.children!) s as TextSpan];
       expect(parts.map((s) => s.text).join(), 'a **b** c');
       expect(parts.where((s) => s.text == '**').every((s) => s.style!.color!.a < 0.5), isTrue);
-      expect(parts.firstWhere((s) => s.text == 'b').style, isNull);
+      expect(parts.firstWhere((s) => s.text == 'b').style!.fontWeight, FontWeight.w700);
+      expect(parts.firstWhere((s) => s.text == 'a ').style, isNull);
+      // Matt's line, 2026-11-25: bold, "__" bold too, and code on its ground in the code's letters.
+      c.text = '**this** is __a__ test `for` _it_';
+      final drawn = [for (final s in c.buildTextSpan(context: ctx, style: const TextStyle(color: _ink), withComposing: false).children!) s as TextSpan];
+      expect(drawn.map((s) => s.text).join(), c.text);
+      expect(drawn.firstWhere((s) => s.text == 'this').style!.fontWeight, FontWeight.w700);
+      expect(drawn.firstWhere((s) => s.text == 'a').style!.fontWeight, FontWeight.w700);
+      expect(drawn.where((s) => s.text == '__').every((s) => s.style!.color!.a < 0.5), isTrue);
+      expect(drawn.firstWhere((s) => s.text == 'for').style!.fontFamily, 'JetBrains Mono Variable');
+      expect(drawn.firstWhere((s) => s.text == 'for').style!.backgroundColor, isNotNull);
+      expect(drawn.firstWhere((s) => s.text == 'it').style!.fontStyle, FontStyle.italic);
+      expect(drawn.firstWhere((s) => s.text == ' test ').style, isNull);
       c.dims = () => false;
       expect(c.buildTextSpan(context: ctx, style: const TextStyle(color: _ink), withComposing: false).children, isNull);
     });

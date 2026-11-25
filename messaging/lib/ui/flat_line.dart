@@ -18,6 +18,7 @@ import 'package:glacier/glacier.dart';
 import '../kit/picture_decode.dart';
 import '../kit/settings_type.dart';
 import 'common.dart' show clock;
+import 'cosmetics_ui.dart' show NameEffectText;
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'dialup/parts.dart' show DialupFace;
 import 'plugin_note_card.dart' show NoteWords;
@@ -34,6 +35,7 @@ class FlatLine extends StatelessWidget {
     required this.face,
     required this.body,
     this.nameInk,
+    this.nameEffect = '',
     this.badge,
     this.mentionsMe = false,
     this.onMenu,
@@ -60,6 +62,9 @@ class FlatLine extends StatelessWidget {
 
   /// The name's colour (a role's in a circle); the page's own ink where null.
   final Color? nameInk;
+
+  /// The name effect its sender wears (lib/me/cosmetics.dart), drawn in the name's letters; none where empty.
+  final String nameEffect;
 
   /// A mark after the name, at a size that stands on the name's line.
   final Widget Function(double size)? badge;
@@ -134,7 +139,7 @@ class FlatLine extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.only(bottom: 2),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                    Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: nameInk ?? t.color('app-ink'))))),
+                    Flexible(child: _toPerson(NameEffectText(name, key: const ValueKey('flat-line-name'), id: nameEffect, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: nameInk ?? t.color('app-ink'))))),
                     if (badge != null) Baseline(baseline: 18, baselineType: TextBaseline.alphabetic, child: badge!(15)),
                     SizedBox(width: t.space(2)),
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
