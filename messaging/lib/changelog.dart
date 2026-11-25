@@ -25,6 +25,12 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.31', '2026-11-25', [
+    'Spotify for circles, a new plugin to try: in a voice space\'s call, someone on a Mac or a Windows PC with Spotify starts it, anyone who may speak adds songs by their link, and everyone hears them in the call, each at their own loudness. Turn it on in the circle\'s settings, under Plugins.',
+    'Your own picture is sharp, and you crop it as you choose it. The earlier ones are kept to go back to, and the profile card at the rail\'s foot changes your banner and your badge.',
+    'A link to a GIF or a picture shows the picture, moving, and links in a space\'s chat get preview cards.',
+    'The chat map is smoother, and a wheel or two fingers over it or its list scroll the chat.',
+  ]),
   ReleaseNotes('0.12.30', '2026-11-25', [
     'Your devices catch up with each other: a computer or phone that was closed now asks your other devices, each time it starts, for the messages with friends it missed.',
     'A friend made on one of your devices, and a circle joined on one, now reach your other devices within the hour, without signing in again.',
