@@ -409,7 +409,11 @@ class CircleVoicePeople extends StatelessWidget {
     final bevel = isBevelChrome(t);
     // Under the space's name: past the row's own margin and padding, its mark, and the gap after the mark.
     final mark = bevel ? 28.0 : t.lenOf('1.875rem');
-    final indent = (bevel ? 0 : t.space(2)) + t.space(3) + mark + t.space(3) + 2;
+    // Less the ring's own room round a face, so the face itself, not its ring, is under the name's first letter (Matt,
+    // 2026-11-25: "left align the users in the list of users connected a call with the title text it has just a touch
+    // of padding to the left of. the avatar that should go away").
+    const ring = 3.0;
+    final indent = (bevel ? 0 : t.space(2)) + t.space(3) + mark + t.space(3) + 2 - ring;
     final voice = Voice.instance;
     // The space's own room knows each person's picture; none where the space is not one this device holds (a test's).
     final room = voice.hangoutFor(space.channel);
@@ -429,10 +433,10 @@ class CircleVoicePeople extends StatelessWidget {
                 child: Row(children: [
                   // The ring is always there, clear while they are quiet, so a face does not jump as they speak.
                   Container(
-                    padding: const EdgeInsets.all(1.5),
+                    padding: const EdgeInsets.all(ring / 2),
                     decoration: BoxDecoration(
                       shape: bevel ? BoxShape.rectangle : BoxShape.circle,
-                      border: Border.all(color: talking ? t.online : const Color(0x00000000), width: 1.5),
+                      border: Border.all(color: talking ? t.online : const Color(0x00000000), width: ring / 2),
                     ),
                     child: picture,
                   ),
@@ -445,7 +449,7 @@ class CircleVoicePeople extends StatelessWidget {
             }(),
           if (rest > 0)
             Padding(
-              padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+              padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
               child: Text('and $rest more', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
           SizedBox(height: t.space(1)),

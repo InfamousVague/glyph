@@ -9,6 +9,8 @@ import 'package:glacier/glacier.dart';
 
 import '../sms.dart' show Sms;
 import '../art/app_icon.dart';
+import 'chat_rail.dart';
+import 'notion_card.dart';
 import '../art/lucide.g.dart';
 import '../art/lucide_more.dart';
 import '../kit/settings_kit.dart';
@@ -1324,10 +1326,23 @@ class _HangoutChatState extends State<HangoutChat> {
                   chat: _spot,
                   incoming: _incoming(room),
                   inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
-                  child: ListView.builder(
+                  // The chat's map in the gutter at its right (lib/ui/chat_rail.dart).
+                  child: ChatRail(
+                    controller: _scroll,
+                    chat: _spot,
+                    marks: [
+                      for (final row in rows)
+                        if (row is HangoutMessage)
+                          RailMark(at: row.at, who: row.from == room.me ? 'me' : row.from, mine: row.from == room.me, name: row.from == room.me ? 'You' : (row.name.isEmpty ? Voice.instance.nameOf(row.from) : row.name), text: row.text)
+                        else if (row is CircleSystemNote)
+                          RailMark(at: row.at, who: '', mine: false, quiet: true),
+                    ],
+                    face: (who, name, mine, size) => SpaceFace(room: room, id: mine ? room.me : who, name: name, size: size),
+                    lead: going.length,
+                    child: ListView.builder(
                     controller: _scroll,
                     reverse: true,
-                    padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+                    padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
                     itemCount: going.length + rows.length,
                     itemBuilder: (context, i) {
                       if (i < going.length) return _outgoing(room, going[i], mineBg, mineInk);
@@ -1398,6 +1413,7 @@ class _HangoutChatState extends State<HangoutChat> {
                         shown,
                       ]);
                     },
+                  ),
                   ),
                 ),
           ),
@@ -1911,7 +1927,9 @@ class _Message extends StatelessWidget {
         if (m.text.isNotEmpty) ...[SizedBox(height: t.space(1)), words],
       ]);
     } else {
-      body = words;
+      // Notion links, opened out under the bubble where the circle has Notion (lib/ui/notion_card.dart).
+      final notion = notionCardsUnder(context, room.channel, m.text, maxWidth: maxWidth);
+      body = notion.isEmpty ? words : Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [words, ...notion]);
     }
     // Stuck on the bubble as stickers, as in a conversation of texts (lib/ui/reaction_stickers.dart).
     final stuck = reacted.isEmpty ? body : ReactionStickers(key: ValueKey('reactions-${m.id}'), bubble: body, seed: m.id, kinds: [for (final r in reacted) (emoji: r.emoji, count: r.count)], onTap: menu);
@@ -2006,6 +2024,8 @@ extension on _Message {
         ],
         if (shown != null) OriginalCard(view: shown, maxWidth: maxWidth),
         if (m.text.isNotEmpty) words,
+        // Notion links, opened out where the circle has Notion (lib/ui/notion_card.dart).
+        ...notionCardsUnder(context, room.channel, m.text, maxWidth: math.min(maxWidth, t.lenOf('30rem'))),
       ]);
     }
     final at = DateTime.fromMillisecondsSinceEpoch(m.at);

@@ -56,7 +56,7 @@ const List<String> reservedDeveloperWords = ['ghost', 'gogho', 'official', 'veri
 
 /// Ids no pack may have: the built-ins' and their sections', and the app's own words. Any id with ghost or gogho in it
 /// is refused too.
-const Set<String> reservedPackIds = {'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', 'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', 'ghost', 'ghostmessaging', 'official', 'admin', 'system', 'market', 'marketplace', 'store', 'plugin', 'plugins', 'settings', 'messages'};
+const Set<String> reservedPackIds = {'notion', 'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', 'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', 'ghost', 'ghostmessaging', 'official', 'admin', 'system', 'market', 'marketplace', 'store', 'plugin', 'plugins', 'settings', 'messages'};
 
 /// The docs' examples (examples/plugins): refused for a submission (id_example), so the first person to send one
 /// unchanged doesn't take the id every later reader of the docs would hit.

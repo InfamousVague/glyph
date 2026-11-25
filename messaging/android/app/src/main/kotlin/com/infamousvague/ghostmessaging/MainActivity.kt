@@ -762,6 +762,8 @@ open class MainActivity : FlutterActivity() {
     private var accentWatch: android.database.ContentObserver? = null
 
     override fun onPause() {
+        // What was read or sent while the app was open shows on the home screen's widgets (GhostWidgets.kt).
+        GhostWidgets.refresh(this)
         super.onPause()
         if (bubble) {
             Bubbles.showing.remove(bubbleThread)

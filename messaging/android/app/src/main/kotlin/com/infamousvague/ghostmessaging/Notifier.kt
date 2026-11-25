@@ -262,6 +262,8 @@ object Notifier {
         }
         builder.addAction(reply).addAction(read)
         val n = builder.build()
+        // The home screen's widgets count it too (GhostWidgets.kt).
+        GhostWidgets.refresh(context)
         return try { manager(context).notify(thread.toInt(), n); true } catch (_: SecurityException) { false }
     }
 
@@ -396,6 +398,7 @@ object Notifier {
     /** Takes down the notification of [thread]'s new messages. */
     fun cancel(context: Context, thread: Long) {
         context.getSystemService(NotificationManager::class.java).cancel(thread.toInt())
+        GhostWidgets.refresh(context)
     }
 
     /**
