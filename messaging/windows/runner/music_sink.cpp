@@ -8,6 +8,7 @@
 
 #include "main_thread.h"
 #include "music_ring.h"
+#include "utils.h"
 
 #include <windows.h>
 
@@ -65,13 +66,6 @@ std::wstring Wide(const std::string& s) {
   return w;
 }
 
-std::string Narrow(const wchar_t* w) {
-  const int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
-  std::string s(n > 1 ? n - 1 : 0, '\0');
-  if (n > 1) WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), n, nullptr, nullptr);
-  return s;
-}
-
 // The device the call's WebRTC calls [id] (Windows' own id of it); the system's own for none, or one that is gone.
 void Device(const std::wstring& id, IMMDevice** device) {
   *device = nullptr;
@@ -98,7 +92,7 @@ EncodableMap Way(const std::wstring& id) {
     to = "unknown";
     LPWSTR name = nullptr;
     if (SUCCEEDED(device->GetId(&name)) && name) {
-      out[EncodableValue("id")] = EncodableValue(Narrow(name));
+      out[EncodableValue("id")] = EncodableValue(Utf8FromUtf16(name));
       CoTaskMemFree(name);
     }
     Com<IPropertyStore> store;
