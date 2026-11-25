@@ -21,6 +21,7 @@ import '../../market/market_state.dart';
 import '../../me/me.dart' show MeError;
 import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
+import '../skeleton.dart';
 import '../plugins_page/plugin_art.dart';
 import 'market_forms.dart';
 import 'people_reports_page.dart';
@@ -119,7 +120,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     } else if (error != null && q == null) {
       children.add(MarketBlock(words: error.message));
     } else if (q == null) {
-      children.add(Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())));
+      children.add(const SkeletonPeople(label: 'Loading', most: 4, shrink: true));
     } else {
       Widget row(ReviewRow r, {bool decided = false}) => SettingRow(
             key: ValueKey('market-review-${r.sid}'),

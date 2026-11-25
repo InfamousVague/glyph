@@ -1201,6 +1201,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
     // Older conversations still arriving: said at the foot of the list, and in place of "Nothing found".
     final more = _more && !widget.archived;
+    // Another network still starting (signed in, its chats not listed yet: Telegram takes seconds as the app opens):
+    // its chats are coming, and the list says so with a few rows in bones at its foot, as it does for older texts.
+    // They used to arrive into a list that looked complete.
+    bool starting(InboxNetwork n) => !n.soon && n.state == InboxState.signingIn && n.step == InboxStep.none;
+    final netsComing = !widget.archived && _query.isEmpty && !_selecting && (inbox != null ? starting(inbox) : (_section == null && Inbox.instance.networks.any(starting)));
+    final coming = more || netsComing;
     final gutter = t.space(4);
     // Texts from people who use RCS may still be going to the app this one replaced: said until it is dismissed.
     final notice = !widget.archived && _query.isEmpty && !_selecting && _section == null && _arriving.rcsLikely && !_beside && app.flag('rcs_notice');
@@ -1255,6 +1261,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
           action: SettingsEmptyAction('Try again', _load),
         ),
       ]);
+    } else if (rows.isEmpty && inbox != null && netsComing) {
+      // The network's own tab while it starts: its chats in bones, not "Not signed in".
+      body = _withLead(lead, EdgeInsets.zero, [SkeletonCards(label: 'Loading ${inbox.name} chats…', most: 8, shrink: true)]);
     } else if (rows.isEmpty && inbox != null) {
       body = _withLead(lead, EdgeInsets.fromLTRB(gutter, t.space(10), gutter, 0), [inboxEmpty(context, inbox)]);
     } else if (rows.isEmpty && _section == circlesTab) {
@@ -1312,7 +1321,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       final foot = hiddenNow > 0;
       body = RefreshableList(
         onRefresh: _load,
-        itemCount: extras + rows.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (more ? 1 : 0) + 1,
+        itemCount: extras + rows.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (coming ? 1 : 0) + 1,
         itemBuilder: (context, i) {
           if (lead != null && i == 0) return lead;
           if (notice && i == (lead != null ? 1 : 0)) {
@@ -1453,11 +1462,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
               ),
             );
           }
-          if (more && at == rows.length + (foot ? 1 : 0) + (tail ? 1 : 0)) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: t.space(4)),
-              child: const Center(child: GhostSpinner(size: 18, label: 'Loading older conversations…')),
-            );
+          if (coming && at == rows.length + (foot ? 1 : 0) + (tail ? 1 : 0)) {
+            // The next few in bones while they are read (lib/ui/skeleton.dart).
+            return SkeletonCards(label: more ? 'Loading older conversations…' : 'Loading chats…', most: 3, shrink: true);
           }
           // Clear of the bar at the foot of the phone's screen, and of the frame's pill floating over the list's end.
           // Dial-Up's well already ends above both.

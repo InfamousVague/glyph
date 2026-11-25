@@ -16,6 +16,7 @@ import '../../market/market_models.dart';
 import '../../market/market_state.dart';
 import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
+import '../skeleton.dart';
 import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import 'market_forms.dart';
 
@@ -117,7 +118,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           else if (reports == null && error != null)
             MarketBlock(words: error.message)
           else if (reports == null)
-            Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())),
+            const SkeletonPeople(label: 'Loading', most: 4, shrink: true),
           if (reports != null) ...[
             PaneSection(title: 'Open', children: [
               if (open.isEmpty) SettingRow(key: const ValueKey('market-reports-none'), icon: const AppIcon(Lucide.circleCheck, size: 18), label: 'No reports to read.'),

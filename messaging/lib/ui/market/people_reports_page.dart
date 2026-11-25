@@ -25,6 +25,7 @@ import '../../safety/abuse_report.dart';
 import '../../sms.dart';
 import '../admin_page.dart' show AdminSignIn;
 import '../common.dart';
+import '../skeleton.dart';
 import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import 'market_forms.dart';
 
@@ -177,7 +178,7 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
           else if (reports == null && error != null)
             MarketBlock(words: error.message)
           else if (reports == null)
-            Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())),
+            const SkeletonPeople(label: 'Loading', most: 4, shrink: true),
           if (reports != null) ...[
             PaneSection(
               title: 'Open',

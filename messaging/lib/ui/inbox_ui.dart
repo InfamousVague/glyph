@@ -37,6 +37,7 @@ import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'common.dart';
+import 'skeleton.dart';
 import 'window_title.dart';
 import 'picture_overlay.dart';
 import 'emoji_picker.dart';
@@ -168,6 +169,9 @@ class InboxChatScreen extends StatefulWidget {
 }
 
 class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingObserver {
+  /// The network has answered for this chat's messages once: until then an empty chat is not known to be empty.
+  bool _asked = false;
+
   final _text = TextEditingController();
   /// The chat's list, starting where the chat was left (lib/ui/jump_to_latest.dart; Matt, 2026-11-17: "remember the
   /// scroll position when switching between chats").
@@ -202,7 +206,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
     InboxAlerts.showing = '${_n.id}:${widget.chatId}';
     // How many were unread as it was opened, before they are marked read: where the New messages divider goes.
     _unreadAtOpen = (_n.chats.where((c) => c.id == widget.chatId).firstOrNull ?? widget.fallback)?.unread ?? 0;
-    _n.load(widget.chatId).then((_) => _n.markRead(widget.chatId));
+    _n.load(widget.chatId).then((_) => _n.markRead(widget.chatId)).whenComplete(() {
+      if (mounted) setState(() => _asked = true);
+    });
     _n.addListener(_changed);
     _scroll.addListener(_nearTop);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
@@ -642,7 +648,11 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
               }),
             ]),
           ),
-          body: list.isEmpty
+          body: list.isEmpty && !_asked && _n.state == InboxState.ready
+              // Its messages in bones until the network has answered once: "No messages yet" was said at once, of
+              // every chat, before anything had been asked (lib/ui/skeleton.dart).
+              ? SkeletonChat(label: 'Loading messages…', faces: chat?.group ?? false)
+              : list.isEmpty
               ? Center(child: Text(_n.state == InboxState.ready ? 'No messages yet' : 'Not signed in to ${_n.name}', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
               // Dial-Up writes the chat as a chat room's transcript (lib/ui/message_line.dart), as it does texts.
               // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow that
@@ -1607,7 +1617,7 @@ class InboxMediaView extends StatelessWidget {
       return SizedBox(
         width: width,
         height: width / ratio,
-        child: path == null ? ColoredBox(color: t.color('app-paper-3'), child: const Center(child: GhostSpinner(size: 20))) : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, width * 2)),
+        child: path == null ? const SkeletonPicture() : Image.file(File(path), fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, width * 2)),
       );
     }
 
@@ -1669,10 +1679,7 @@ class InboxSticker extends StatelessWidget {
       width: w,
       height: h,
       child: path == null
-          ? DecoratedBox(
-              decoration: BoxDecoration(color: t.color('app-paper-3').withValues(alpha: 0.5), borderRadius: BorderRadius.circular(t.radius('lg'))),
-              child: const Center(child: GhostSpinner(size: 20)),
-            )
+          ? SkeletonPicture(radius: t.radius('lg'))
           : Image.file(File(path), fit: BoxFit.contain, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, w * 2)),
     );
   }

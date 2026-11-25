@@ -261,6 +261,7 @@ class HangoutRoom extends ChangeNotifier {
       _dropped = true;
       return;
     }
+    _in = true;
     for (final id in there) {
       present[id] = present[id] ?? HangoutPerson(id);
     }
@@ -275,6 +276,7 @@ class HangoutRoom extends ChangeNotifier {
   Future<void> close() async {
     if (!opened) return;
     opened = false;
+    _in = false;
     route.leave(_inRoom ?? hubRoom);
     _inRoom = null;
     // Taken out first: an open() while these are cancelled starts a list of its own.
@@ -1131,6 +1133,11 @@ class HangoutRoom extends ChangeNotifier {
   /// The relay dropped this device out of the room ([RoomEvent.closed]); it puts it back in on reconnecting.
   bool _dropped = false;
 
+  /// Whether this device is in the room on the relay server now: asked for, answered, and not dropped since. Until it
+  /// is, a chat with nothing in it is not known to be empty (lib/ui/hangout_screen.dart draws it in bones).
+  bool get reached => _in && !_dropped;
+  bool _in = false;
+
   /// What the hub says of the room: this device dropped out of it or back in it, or someone came or went.
   void _event(RoomEvent e) {
     if (e.closed) {
@@ -1140,6 +1147,7 @@ class HangoutRoom extends ChangeNotifier {
       // Back in after the relay dropped and came back, or in at last after an answer that came late: who is here now,
       // and what was said meanwhile.
       _dropped = false;
+      _in = true;
       present.clear();
       for (final id in e.members!) {
         present[id] = HangoutPerson(id);

@@ -27,6 +27,7 @@ import '../../market/market_state.dart';
 import '../../net/net.dart';
 import '../../plugins/pack/pack.dart';
 import '../common.dart';
+import '../skeleton.dart';
 import '../plugins_page/plugin_art.dart';
 import '../settings_panes.dart' show appVersion;
 import '../shell.dart';
@@ -167,7 +168,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
     if (_api.signer == null) {
       children.add(marketWhoBlock(context, key: const ValueKey('market-mine-who'), rowKey: const ValueKey('market-mine-me')));
     } else if (mine == null && _loading) {
-      children.add(Padding(padding: EdgeInsets.all(t.space(6)), child: const Center(child: GhostSpinner())));
+      children.add(const SkeletonPeople(label: 'Loading', most: 4, shrink: true));
     } else if (mine == null && _unreachable) {
       children.add(MarketUnreachable(onRetry: () => unawaited(_read())));
     } else if (mine == null) {

@@ -486,6 +486,28 @@ void main() {
       expect(tester.getSize(find.byType(SkeletonPeople)).height, lessThan(500));
     });
 
+    // Matt, 2026-11-24: "make sure all parts of the app have skeletal loaders where data may be loading includeing
+    // the sidebar chats". The pieces that stand inside a list of real rows, a picture's place, and a file's lines.
+    testWidgets('more rows at a list\'s foot, earlier messages at a chat\'s top, a picture and a file: each as tall as it needs', (tester) async {
+      await draw(
+        tester,
+        ListView(children: const [
+          SkeletonCards(label: 'Loading chats…', most: 3, shrink: true),
+          SkeletonChat(label: 'Loading earlier messages…', most: 3, shrink: true, faces: true),
+          Align(alignment: Alignment.centerLeft, child: SizedBox(width: 200, height: 120, child: SkeletonPicture())),
+          SkeletonLines(label: 'Opening the file', most: 4, shrink: true),
+        ]),
+      );
+      expect(tester.takeException(), isNull);
+      for (final said in ['Loading chats…', 'Loading earlier messages…', 'Loading the picture', 'Opening the file']) {
+        expect(find.bySemanticsLabel(said), findsOneWidget);
+      }
+      expect(tester.getSize(find.byType(SkeletonCards)).height, inInclusiveRange(150, 330), reason: 'three cards, no more');
+      expect(tester.getSize(find.byType(SkeletonChat)).height, lessThan(260));
+      expect(tester.getSize(find.descendant(of: find.byType(SkeletonPicture), matching: find.byType(Bone))), const Size(200, 120), reason: 'the whole of the picture\'s place');
+      await _shot('pieces-phone');
+    });
+
     testWidgets('a line that something is being reached, as a space\'s chat has before the relay server answers', (tester) async {
       await draw(
         tester,

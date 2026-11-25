@@ -1310,6 +1310,10 @@ class _HangoutChatState extends State<HangoutChat> {
             // Dial-Up writes the space as a chat room: its transcript, and who is here beside it or over it.
             child: isDialup(context)
                 ? _chatRoom(room)
+                : rows.isEmpty && going.isEmpty && !room.reached
+                // Not in its room on the relay server yet: its messages in bones, not "No messages yet", which is
+                // not known until the room has answered (lib/ui/skeleton.dart).
+                ? const SkeletonChat(label: 'Loading messages…', faces: true)
                 : rows.isEmpty && going.isEmpty
                 ? Center(child: Text('No messages yet', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                 // The down arrow over the list's foot, back to the newest message (Matt, 2026-11-17: "add a down arrow
