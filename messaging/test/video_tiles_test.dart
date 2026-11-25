@@ -1,14 +1,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/ui/space_designs/space_design.dart';
+import 'package:ghost_messaging/ui/space_designs/space_design.dart' show SpaceVideo;
+import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 import 'package:ghost_messaging/ui/tile_grid.dart';
 
 import 'support/space_call_harness.dart';
 
-/// Every person's video tile is 4:3 on a computer, in every space call design (Matt, 2026-11-23: "please make the video
-/// chats more square right now they're too wide and narrow make them like 4:3"). With --update-goldens each design is
-/// drawn on a computer and a phone with 1, 2, 4 and 9 people, every camera on, into build/video-43/ (not kept in the
-/// repo) to be looked at.
+/// Every person's video tile is 4:3 on a computer, in a space's call (Matt, 2026-11-23: "please make the video chats
+/// more square right now they're too wide and narrow make them like 4:3"). With --update-goldens the call is drawn on
+/// a computer and a phone with 1, 2, 4 and 9 people, every camera on, into build/video-43/ (not kept in the repo) to
+/// be looked at.
 
 /// Everyone in the made-up call with their camera on.
 const _all = {'me', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
@@ -31,29 +32,23 @@ List<Size> _tiles(WidgetTester tester) => [
     ];
 
 void main() {
-  for (final d in SpaceDesign.values.where((d) => d != SpaceDesign.standard)) {
-    testWidgets('${d.name}: every video tile is 4:3 on a computer', (tester) async {
-      final h = await SpaceHarness.load(tester);
-      addTearDown(tester.view.reset);
-      for (final others in [0, 1, 3, 8]) {
-        await h.shoot(tester, d.page(h.call(people: others, video: _all, myVideo: true)), 'vt-measure', size: SpaceHarness.computer, dir: '../build/video-43');
-        expect(tester.takeException(), isNull);
-        final tiles = [
-          for (final s in _tiles(tester))
-            // FaceTime with one other: they fill the window, as FaceTime draws a call of two (not a tile).
-            if (!(d == SpaceDesign.facetime && others == 1 && s.width >= SpaceHarness.computer.width - 1)) s,
-        ];
-        // Alone, Zoom shows a card with your face, not a tile.
-        if (!(d == SpaceDesign.zoom && others == 0)) expect(tiles, isNotEmpty, reason: '${d.name} with ${others + 1}: no tiles found');
-        for (final s in tiles) {
-          expect((s.height - s.width * 3 / 4).abs(), lessThanOrEqualTo(1), reason: '${d.name} with ${others + 1}: a tile of ${s.width.toStringAsFixed(1)} by ${s.height.toStringAsFixed(1)} is not 4:3');
-        }
+  testWidgets('every video tile of a space\'s call is 4:3 on a computer', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    for (final others in [0, 1, 3, 8]) {
+      await h.shoot(tester, TelegramCall(call: h.call(people: others, video: _all, myVideo: true)), 'vt-measure', size: SpaceHarness.computer, dir: '../build/video-43');
+      expect(tester.takeException(), isNull);
+      final tiles = _tiles(tester);
+      expect(tiles, isNotEmpty, reason: 'with ${others + 1}: no tiles found');
+      for (final s in tiles) {
+        expect((s.height - s.width * 3 / 4).abs(), lessThanOrEqualTo(1), reason: 'with ${others + 1}: a tile of ${s.width.toStringAsFixed(1)} by ${s.height.toStringAsFixed(1)} is not 4:3');
       }
-      await tester.pumpWidget(const SizedBox());
-    });
-  }
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
 
-  // The Standard layout's pictures beside a space's chat (CallVideos, lib/ui/voice_screen.dart) are a TileGrid.
+  // The pictures of a call that is not a space's, and of an open space's (CallVideos, lib/ui/voice_screen.dart), are
+  // a TileGrid.
   testWidgets('a TileGrid draws 4:3 tiles as big as fit, touching two sides of its room', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
@@ -77,16 +72,14 @@ void main() {
     }
   });
 
-  testWidgets('pictures of every design with 1, 2, 4 and 9 people (--update-goldens)', (tester) async {
+  testWidgets('pictures of a space\'s call with 1, 2, 4 and 9 people (--update-goldens)', (tester) async {
     if (!autoUpdateGoldenFiles) return;
     final h = await SpaceHarness.load(tester);
     addTearDown(tester.view.reset);
-    for (final d in SpaceDesign.values.where((d) => d != SpaceDesign.standard)) {
-      for (final (size, where) in [(SpaceHarness.computer, 'computer'), (SpaceHarness.phone, 'phone')]) {
-        for (final others in [0, 1, 3, 8]) {
-          await h.shoot(tester, d.page(h.call(people: others, video: _all, myVideo: true)), '${d.name}-$where-${others + 1}', size: size, dark: true, dir: '../build/video-43');
-          expect(tester.takeException(), isNull);
-        }
+    for (final (size, where) in [(SpaceHarness.computer, 'computer'), (SpaceHarness.phone, 'phone')]) {
+      for (final others in [0, 1, 3, 8]) {
+        await h.shoot(tester, TelegramCall(call: h.call(people: others, video: _all, myVideo: true)), 'call-$where-${others + 1}', size: size, dark: true, dir: '../build/video-43');
+        expect(tester.takeException(), isNull);
       }
     }
     await tester.pumpWidget(const SizedBox());

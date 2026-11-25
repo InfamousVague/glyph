@@ -67,6 +67,16 @@ class MacChrome {
 
   /// Asks the window to start being dragged, and to zoom as a double click on a title bar does; nothing where the
   /// window has no such half.
+  /// Names the window as the app's title strip does (lib/ui/window_title.dart): what the Window menu and Mission
+  /// Control call it. Said again only when it changes.
+  static void sayTitle(String title) {
+    if (!stripEnabled || title == _title) return;
+    _title = title;
+    _channel.invokeMethod('title', title).catchError((_) => null);
+  }
+
+  static String? _title;
+
   static void drag() => _channel.invokeMethod('drag').catchError((_) => null);
   static void zoom() => _channel.invokeMethod('zoom').catchError((_) => null);
 }

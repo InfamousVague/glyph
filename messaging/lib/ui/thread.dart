@@ -41,6 +41,8 @@ import 'composer_box.dart';
 import 'reaction_stickers.dart';
 import 'poof.dart';
 import 'shell.dart';
+import 'window_title.dart';
+import 'skeleton.dart';
 import 'voice_screen.dart';
 import '../voice/voice.dart';
 import '../voice/channels.dart';
@@ -930,6 +932,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       return;
     }
     if (!mounted) return;
+    // Left while it was connecting (the call's banner has Leave from the first moment): there is no call to show.
+    if (Voice.instance.session?.channel.room != c.room) return;
     final shell = AppShell.maybeOf(context);
     if (shell != null) {
       shell.go('voice');
@@ -1075,7 +1079,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     // phone at the other end does for one is offered (Sms.can); calling is the phone's alone.
     final remote = Sms.remote;
     // What a plugin's widget in the conversation may do: write into the composer.
-    return PluginThread(write: _writeIn, child: GhostPage(
+    // The window is named for the conversation while it is open (lib/ui/window_title.dart).
+    return WindowTitle(name: title, child: PluginThread(write: _writeIn, child: GhostPage(
       title: title,
       back: true,
       titleWidget: GlacierPressable(
@@ -1135,7 +1140,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         if (!background.isNone) Positioned.fill(child: ChatBackgroundLayer(background: background)),
         // Dial-Up writes the conversation as a chat room's transcript (lib/ui/message_line.dart); every other look draws
         // its bubbles, untouched.
-        Positioned.fill(child: _messages == null ? const Center(child: GhostSpinner(size: 26, label: 'Loading messages…')) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
+        Positioned.fill(child: _messages == null ? SkeletonChat(label: 'Loading messages…', faces: _group) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
         // The group's call while others are in it: who, and Join.
         if (_ghost != null && !_ghost!.gone && Sms.callsHere)
@@ -1166,7 +1171,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...above, _composer(t)]);
               },
             ),
-    ));
+    )));
   }
 
   Widget _list(Tokens t, ChatBackground background) {

@@ -16,6 +16,7 @@ import '../voice/channels.dart';
 import '../voice/open_space.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'connecting_banner.dart';
 import 'composer_box.dart';
 import 'hangout_screen.dart' show SpaceFace;
 import 'open_space_chat.dart';
@@ -426,7 +427,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                         child: _Pill(
                       child: Text(
                         // Before the relay has answered the floor is already here, and says the call is coming.
-                        !session.joined ? 'Connecting…' : Sms.computer ? (_focus.hasFocus ? 'Walk with W A S D or the arrow keys, or press where to go' : 'Press the floor, then walk with W A S D or the arrow keys') : 'Press where to go. The nearer someone is, the louder they are.',
+                        // And what it is waiting for, where it is known (lib/voice/call_wait.dart).
+                        !session.joined ? (CallWaitBuilder.now()?.line ?? 'Connecting…') : Sms.computer ? (_focus.hasFocus ? 'Walk with W A S D or the arrow keys, or press where to go' : 'Press the floor, then walk with W A S D or the arrow keys') : 'Press where to go. The nearer someone is, the louder they are.',
                         style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),
                       ),
                         ),

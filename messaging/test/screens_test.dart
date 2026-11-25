@@ -74,6 +74,7 @@ import 'package:ghost_messaging/ui/network.dart' show inviteText;
 import 'package:ghost_messaging/onboarding/onboarding.dart';
 import 'package:ghost_messaging/standalone/welcome.dart';
 import 'package:ghost_messaging/ui/shell.dart';
+import 'package:ghost_messaging/ui/space_designs/space_design.dart' show SpaceCallPage;
 import 'package:ghost_messaging/ui/sticker_picker.dart';
 import 'package:ghost_messaging/ui/thread.dart';
 import 'package:ghost_messaging/ui/video.dart' show shrunkNote;
@@ -1483,8 +1484,9 @@ void main() {
     final hangout = VoiceChannel.make('Friday space'), study = VoiceChannel.make('Study room');
     final v = Voice.instance;
     v.own = [hangout, study];
-    // Maya is talking, and so, a little, is this phone.
-    final s = VoiceSession(channel: hangout, route: _NoRoute(), media: _NoMedia({'a': 0.45, 'me': 0.12}), name: 'Me')
+    // In a group's call, which the Voice page draws itself: the list of who is in it and the dock (a space's call is
+    // its own page, lib/ui/space_designs). Maya is talking, and so, a little, is this phone.
+    final s = VoiceSession(channel: VoiceChannel.ofGroup('friday', 'Friday space'), route: _NoRoute(), media: _NoMedia({'a': 0.45, 'me': 0.12}), name: 'Me')
       ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
       ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true)
       ..members['c'] = const VoiceMember('c', name: 'Riley', guest: true);
@@ -1502,7 +1504,7 @@ void main() {
       v.own = [];
     });
     for (final dark in [false, true]) {
-      await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark, prefs: const {'dev_space_design': 'standard'});
+      await _shoot(tester, sheet, const VoiceScreen(), '19-voice', dark: dark);
       expect(find.text('Friday space'), findsWidgets);
       // In a call the page is the call alone: who is in it and the dock (Matt, 2026-11-15: "I want the call screen to
       // be super simple too just a list of chatters and the call controls").
@@ -1598,22 +1600,18 @@ void main() {
       // In the call: the people, names in their role's colour and no badges; the owner's crown (Matt, 2026-11-17:
       // "Don't show the badges for owner moderator etc, instead assign role colors like discord does and for the owner
       // just show a singlular crown icon").
-      await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark, prefs: const {'dev_space_design': 'standard'});
-      expect(find.byType(HangoutScreen), findsOneWidget);
+      await _shoot(tester, sheet, const VoiceScreen(), '21-hangout', dark: dark);
+      expect(find.byType(SpaceCallPage), findsOneWidget, reason: 'a space\'s call on a phone is the call\'s own page');
       expect(find.text('Owner'), findsNothing);
-      expect(find.text('Moderator'), findsNothing);
       // No crown: the owner shows by their role's colour alone (Matt, 2026-11-18: "Remove the crown icon").
       expect(find.bySemanticsLabel('Owner'), findsNothing);
-      // The chat: the run of Maya's two under one name, Riley's, this phone's.
+      // The chat, opened from the call's own button: the run of Maya's two, Riley's, this phone's.
       await tester.tap(find.bySemanticsLabel('Chat'));
       await _settle(tester);
       await _shootAgain(tester, '21-hangout-chat', dark: dark);
       expect(find.text('Bring snacks 🍿'), findsOneWidget);
-      expect(find.text('Maya Chen'), findsOneWidget, reason: 'her two messages under her name once');
-      // The same composer as every conversation, and no call controls over the chat (Matt, 2026-11-15: "Use the same
-      // compose input on spaces ... when we switch to chat please don't show the call controls").
+      // The same composer as every conversation (Matt, 2026-11-15: "Use the same compose input on spaces").
       expect(find.byType(ComposerBox), findsOneWidget);
-      expect(find.byType(CallDock), findsNothing);
       // Writing one.
       await tester.enterText(find.byType(EditableText), 'Two minutes');
       await _settle(tester);
@@ -1621,16 +1619,13 @@ void main() {
       await _settle(tester);
       expect(room.messages.map((m) => m.text), contains('Two minutes'));
       expect(find.text('Two minutes'), findsOneWidget);
-      // Back to the people: the call's controls again.
-      await tester.tap(find.bySemanticsLabel('People'));
+      // The chat put away again: the people, and the call's buttons.
+      await tester.tap(find.bySemanticsLabel('Close chat'));
       await _settle(tester);
-      expect(find.byType(CallDock), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel('Chat'));
-      await _settle(tester);
-      // Back to the people; press and hold Sam: as owner, his role, mute for everyone, remove, ban.
-      await tester.tap(find.bySemanticsLabel('People'));
-      await _settle(tester);
-      await tester.longPress(find.text('Sam'));
+      expect(find.byType(ComposerBox), findsNothing);
+      expect(find.bySemanticsLabel('Leave'), findsWidgets);
+      // Press and hold Sam: as owner, his role, mute for everyone, remove, ban.
+      await tester.longPress(find.textContaining('Sam').first);
       await _settle(tester);
       await _shootAgain(tester, '21-hangout-person', dark: dark);
       expect(find.text('Mute for everyone'), findsOneWidget);
@@ -1685,7 +1680,7 @@ void main() {
   // Matt, 2026-11-15: "When opening a hangout the left side should show the chat with some space below reserved for the
   // navbar controls, the voice on desktop should show up on the left side with the right side reserved for chat, when a
   // video starts split the right side 50/50 showing the videos above the chat".
-  testWidgets('a hangout\'s layout: room for the pill under its chat; wide, the people beside the list and the chat in the pane', (tester) async {
+  testWidgets('a hangout\'s layout: room for the pill under its chat; wide, the call over its chat in the pane', (tester) async {
     tester.view.devicePixelRatio = 2.0;
     tester.view.padding = const FakeViewPadding(top: 48, bottom: 32);
     addTearDown(tester.view.reset);
@@ -1722,24 +1717,23 @@ void main() {
       expect(892 - composer.bottom, lessThan(32 + 40), reason: 'no room kept for a pill that isn\'t there');
       v.view(null);
 
-      // Wide, in the call: the list left as it is, and in the pane the call (the people and the dock) on top and the
-      // chat under it (SpaceSplit; Matt, 2026-11-23).
+      // Wide, in the call: the list left as it is, and in the pane the call (its people and its buttons) on top and
+      // the chat under it (SpaceSplit; Matt, 2026-11-23).
       tester.view.physicalSize = const Size(1280 * 2.0, 800 * 2.0);
       v.session = VoiceSession(channel: channel, route: route, media: _NoMedia({'a': 0.4}), name: 'Me')
         ..members['a'] = const VoiceMember('a', name: 'Maya Chen', username: 'maya')
         ..members['b'] = const VoiceMember('b', name: 'Sam', muted: true);
-      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark, prefs: const {'dev_space_design': 'standard'});  // The earlier layout, chosen in Settings › Developer.
+      await _shoot(tester, sheet, const AppShell(), '22-hangout-wide', dark: dark);
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       shell.go('voice');
       await _settle(tester);
       await _shootAgain(tester, '22-hangout-wide', dark: dark);
       expect(find.byType(SpaceSplit), findsOneWidget, reason: 'the pane is the call over the chat');
-      expect(find.byType(HangoutPeople), findsNothing, reason: 'nothing in the list\'s place');
-      final people = tester.getRect(find.byType(CallPanel)), chat = tester.getRect(find.byType(HangoutChat));
-      expect(people.bottom, lessThanOrEqualTo(chat.top + 1), reason: 'the call on top, the chat under it');
+      final call = tester.getRect(find.byType(SpaceCallPage)), chat = tester.getRect(find.byType(HangoutChat));
+      expect(call.bottom, lessThanOrEqualTo(chat.top + 1), reason: 'the call on top, the chat under it');
       expect(find.text('Saving you a seat'), findsOneWidget);
-      expect(find.byType(CallDock), findsOneWidget, reason: 'the call\'s buttons once, over the call');
-      expect(tester.getRect(find.byType(CallDock)).bottom, lessThanOrEqualTo(chat.top + 1));
+      expect(find.bySemanticsLabel('Leave'), findsOneWidget, reason: 'the call\'s buttons once, over the call');
+      expect(tester.getRect(find.bySemanticsLabel('Leave')).bottom, lessThanOrEqualTo(chat.top + 1));
       v.session = null;
       // A hangout's menu (Matt, 2026-11-15: "there also needs to be a context menu to open settings for hangouts and
       // manage permissions and such as well as delete the hangouts on desktop"): its settings, link, sharing, delete.

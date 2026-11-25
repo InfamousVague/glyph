@@ -16,6 +16,7 @@ import 'common.dart';
 import 'dialup/dialup.dart' show DialupColors, RetroButton, isBevelChrome;
 import 'inbox_ui.dart' show inboxMark, openInboxChat;
 import 'shell.dart';
+import 'skeleton.dart';
 import 'thread.dart';
 import 'add_friend_drawer.dart';
 import 'username_friends.dart';
@@ -331,11 +332,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
         // New group is not here: it is under the + of the list (Matt, 2026-11-17: "remove the new group from the
         // contacts page since it's already under the plus button").
         Expanded(
-          child: found == null
+          child: found == null && _error == null
+              // The people in bones while they are read (lib/ui/skeleton.dart).
+              ? const SkeletonPeople(label: 'Reading your contacts…')
+              : found == null
               ? Center(
-                  child: _error == null
-                      ? const GhostSpinner(size: 26, label: 'Reading your contacts…')
-                      : Padding(
+                  child: Padding(
                           padding: EdgeInsets.all(t.space(6)),
                           child: SettingsEmpty(
                             icon: AppIcon(Lucide.contactRound, size: 28, color: t.color('app-ink-3')),

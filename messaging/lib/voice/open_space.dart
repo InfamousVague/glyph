@@ -559,7 +559,7 @@ class OpenSpaces extends ChangeNotifier {
   OpenSpace? get current => _current;
 
   /// Whether [s] is an open space's call. Every surface that draws a call asks this, not whether a floor is followed
-  /// yet ([of]): the floor is drawn in place of the call's people, and no call design (lib/ui/space_designs) or list of
+  /// yet ([of]): the floor is drawn in place of the call's people, and neither the call's page (lib/ui/space_designs) nor a list of
   /// people is drawn in its place (Matt, 2026-11-23: "the open space is just showing up as a normal call for me").
   static bool isCall(VoiceSession? s) => s != null && s.channel.kind == SpaceKind.open;
 

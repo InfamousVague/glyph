@@ -18,12 +18,12 @@ import 'package:ghost_messaging/voice/voice.dart';
 import 'package:ghost_messaging/looks.dart';
 import 'package:glacier/glacier.dart';
 
-/// What the six space call designs (lib/ui/space_designs) are drawn and tried with: a call made up of people, levels
+/// What a space's call page (lib/ui/space_designs) is drawn and tried with: a call made up of people, levels
 /// and a chat, with no relay and no WebRTC, and a way to draw a page and keep its picture (test/shots).
 ///
 ///   final h = await SpaceHarness.load(tester);
 ///   final c = h.call(log: log);                  // five people, Maya talking, Sam muted, Riley a guest with video
-///   await h.shoot(tester, DiscordCall(call: c), 'space-discord', phone: true, dark: false);
+///   await h.shoot(tester, TelegramCall(call: c), 'space-telegram', phone: true, dark: false);
 
 class _NoRoute implements VoiceRoute {
   _NoRoute(this.me);

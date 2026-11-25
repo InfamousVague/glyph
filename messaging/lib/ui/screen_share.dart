@@ -60,7 +60,7 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
 ///
 /// The sheet opens at once and looks for the screens itself (Matt, 2026-11-23: "screen sharing on mac and pc doesn't
 /// show anything to select"). It used to ask [sources] first and open afterwards, and by then the menu the press
-/// came from (the Voice chat and Meeting designs close theirs as they run a row) had gone, its context with it, so
+/// came from (the call page closes its menu as it runs a row) had gone, its context with it, so
 /// nothing opened and nothing was said. [mac] is for the tests: the words for an empty list on a Mac.
 Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Function() sources, {bool? mac}) async {
   String? chosen;

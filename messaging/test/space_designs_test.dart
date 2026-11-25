@@ -1,56 +1,33 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_messaging/ui/space_designs/space_design.dart';
+import 'package:ghost_messaging/ui/space_designs/telegram.dart';
 import 'package:ghost_messaging/ui/screen_share.dart';
 import 'package:ghost_messaging/voice/voice.dart' show ScreenSource;
 
 import 'support/space_call_harness.dart';
 
-/// Every space call design (lib/ui/space_designs) draws without fault on a phone and on a computer, in a full call, in
-/// a call alone (this device's own level still moving its face), and in a group's channel with no chat; and the
-/// switch in Settings › Developer names all seven. Each design's own test (space_design_<name>_test.dart) looks
-/// closer. Matt, 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces".
+/// A space's call page (lib/ui/space_designs) draws without fault on a phone and on a computer, in a full call, in a
+/// call alone (this device's own level still moving its face), and in a group's channel with no chat; and what the
+/// call shares of a screen: the choice of screen or window, and someone's screen drawn large. The page's own test
+/// (space_design_telegram_test.dart) looks closer. It was one of seven ways a space's call could look (Matt,
+/// 2026-11-16: "give me 6 alternate designs for the calling chat and video screens for spaces"); the others are gone
+/// (Matt, 2026-11-24: "remove the other video call layouts from the codebase we only use the default one now").
 void main() {
-  for (final d in SpaceDesign.values.where((d) => d != SpaceDesign.standard)) {
-    testWidgets('${d.name}: draws on a phone and a computer, full, alone, and without a chat', (tester) async {
-      final h = await SpaceHarness.load(tester);
-      addTearDown(tester.view.reset);
-      for (final size in [SpaceHarness.phone, SpaceHarness.computer]) {
-        await h.shoot(tester, d.page(h.call()), 'smoke-${d.name}', size: size);
-        expect(tester.takeException(), isNull);
-        await h.shoot(tester, d.page(h.call(people: 0, video: const {})), 'smoke-${d.name}-alone', size: size);
-        expect(tester.takeException(), isNull);
-        await h.shoot(tester, d.page(h.call(withChat: false)), 'smoke-${d.name}-nochat', size: size);
-        expect(tester.takeException(), isNull);
-      }
-      await tester.pumpWidget(const SizedBox());
-    });
-  }
-
-  // GMFB-27: the designs without a menu for the plugins (Discord, FaceTime, Stage) have a button of their own for
-  // sharing the screen; the others have it first in their menu (SpaceCall.live puts it in the extras).
-  for (final d in [SpaceDesign.discord, SpaceDesign.facetime, SpaceDesign.stage]) {
-    testWidgets('${d.name}: a button shares the screen, and says Stop sharing while it does', (tester) async {
-      final h = await SpaceHarness.load(tester);
-      addTearDown(tester.view.reset);
-      for (final size in [SpaceHarness.phone, SpaceHarness.computer]) {
-        final log = <String>[];
-        await h.shoot(tester, d.page(h.call(canShare: true, log: log)), 'share-${d.name}', size: size);
-        expect(tester.takeException(), isNull);
-        final share = find.bySemanticsLabel(RegExp(r'^(Share screen|Screen)\b'));
-        expect(share, findsOneWidget, reason: '${d.name} at $size');
-        await tester.tap(share);
-        await tester.pump();
-        expect(log, contains('screen'));
-        await h.shoot(tester, d.page(h.call(sharing: true)), 'share-${d.name}-on', size: size);
-        expect(find.bySemanticsLabel(RegExp(r'^Stop sharing')), findsOneWidget);
-        // And none where this device can't share.
-        await h.shoot(tester, d.page(h.call()), 'share-${d.name}-none', size: size);
-        expect(find.bySemanticsLabel(RegExp(r'^(Share screen|Screen|Stop sharing)\b')), findsNothing);
-      }
-      await tester.pumpWidget(const SizedBox());
-    });
-  }
+  testWidgets('a space\'s call draws on a phone and a computer, full, alone, and without a chat', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    for (final size in [SpaceHarness.phone, SpaceHarness.computer]) {
+      await h.shoot(tester, TelegramCall(call: h.call()), 'smoke-call', size: size);
+      expect(tester.takeException(), isNull);
+      await h.shoot(tester, TelegramCall(call: h.call(people: 0, video: const {})), 'smoke-call-alone', size: size);
+      expect(tester.takeException(), isNull);
+      await h.shoot(tester, TelegramCall(call: h.call(withChat: false)), 'smoke-call-nochat', size: size);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('the computer\'s choice of screen or window: screens, then windows, and a press picks one', (tester) async {
     final h = await SpaceHarness.load(tester);
@@ -184,19 +161,21 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  test('each design names the app it is modelled on, says what it looks like, and has a picture', () {
-    expect(SpaceDesign.values.length, 7);
-    for (final d in SpaceDesign.values) {
-      expect(d.label, isNotEmpty);
-      expect(d.after, isNotEmpty);
-      expect(d.description.length, greaterThan(20));
+  // Nothing is left of the other ways a space's call could look, nor of the switch between them.
+  test('there is one way a space\'s call is drawn, and no switch', () {
+    final here = Directory('lib/ui/space_designs').listSync().map((f) => f.uri.pathSegments.last).toList()..sort();
+    expect(here, ['call_plugins.dart', 'space_design.dart', 'telegram.dart']);
+    final all = Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart') && !f.path.endsWith('changelog.dart'));
+    for (final f in all) {
+      final src = f.readAsStringSync();
+      for (final gone in ['SpaceDesign.', 'dev_space_design', 'DiscordCall', 'ZoomCall', 'FaceTimeCall', 'MeetCall', 'StageCall', 'HangoutPeople']) {
+        expect(src.contains(gone), isFalse, reason: '${f.path} still has $gone');
+      }
     }
-    expect(SpaceDesign.named('zoom'), SpaceDesign.zoom);
-    expect(SpaceDesign.named(''), isNull);
   });
 }
 
-/// A menu as the Voice chat and Meeting designs have (telegram.dart's _Menu, zoom.dart's _MoreSheet): pressing its
+/// A menu as the call's page has (telegram.dart's _Menu): pressing its
 /// row closes it, then runs the row with the menu's own context, which is gone a frame later.
 class _ClosingMenu extends StatefulWidget {
   const _ClosingMenu({required this.onShare});

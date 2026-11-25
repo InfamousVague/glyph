@@ -17,6 +17,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart' show pageText;
 import '../sms.dart';
 import 'common.dart';
+import 'skeleton.dart';
 
 /// Opens the drawer of the group [chatId] on [network].
 Future<void> showGroupDrawer(BuildContext context, InboxNetwork network, String chatId) {
@@ -213,10 +214,13 @@ class _GroupDrawerState extends State<GroupDrawer> {
                 SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(4)),
                   child: g == null
-                      ? Padding(
-                          padding: EdgeInsets.all(t.space(6)),
-                          child: Center(child: _problem == null ? const GhostSpinner() : Text(_problem!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
-                        )
+                      ? (_problem == null
+                          // Its people in bones while the group is read (lib/ui/skeleton.dart).
+                          ? const SkeletonPeople(label: 'Loading the group', most: 5, shrink: true)
+                          : Padding(
+                              padding: EdgeInsets.all(t.space(6)),
+                              child: Center(child: Text(_problem!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+                            ))
                       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: _sections(context, g)),
                 ),
                 if (_busy) Positioned(top: t.space(3), right: t.space(3), child: const GhostSpinner()),

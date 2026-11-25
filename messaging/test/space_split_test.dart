@@ -68,13 +68,12 @@ void _join(VoiceChannel c, {bool others = true, bool video = false}) {
 }
 
 /// The circle open beside its list at [size], the Lounge in the pane.
-Future<AppShellState> _open(WidgetTester tester, Size size, {SpaceDesign? design, bool dark = false, String platform = 'desktop'}) async {
+Future<AppShellState> _open(WidgetTester tester, Size size, {bool dark = false, String platform = 'desktop'}) async {
   Circles.instance.join(_circle);
   _room();
   final sheet = await loadSheet(tester);
   final app = AppState();
   if (dark) app.setTheme('dark');
-  if (design != null) app.set(SpaceDesign.pref, design.name);
   await pumpScreen(tester, sheet, const AppShell(), app, size: size, platform: platform);
   final shell = AppShellState.live!;
   shell.openCircle(_circle);
@@ -104,7 +103,6 @@ Rect _pane(WidgetTester tester) {
 void _expectSplit(WidgetTester tester, {required String how}) {
   expect(find.byType(CircleScreen), findsOneWidget, reason: '$how: the circle\'s list is still beside the pane');
   expect(find.text('General'), findsWidgets, reason: '$how: its other spaces still listed');
-  expect(find.byType(HangoutPeople), findsNothing, reason: '$how: nothing put in the list\'s place');
   expect(find.byType(SpaceSplit), findsOneWidget, reason: '$how: the space\'s page is the call over its chat');
   final route = ModalRoute.of(tester.element(find.byType(SpaceSplit)))!;
   expect(route.settings.name, isNot('space-call'), reason: '$how: no page pushed over the window');
@@ -186,25 +184,24 @@ void main() {
     });
   }
 
-  // Every design draws the top part; Standard draws the app's people and dock. Each one's Chat button (Stage's
-  // Comments, the dock's Hide chat) puts the chat under the call away and brings it back, and opens no panel of the
-  // design's own (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the chat").
-  for (final design in SpaceDesign.values) {
-    testWidgets('with ${design.label}, the call over its chat, and its Chat button puts that chat away and brings it back', (tester) async {
-      await _open(tester, const Size(1280, 800), design: design);
+  // The call's page draws the top part. Its Chat button puts the chat under the call away and brings it back, and
+  // opens no panel of its own (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the
+  // chat").
+  {
+    testWidgets('the call over its chat, and its Chat button puts that chat away and brings it back', (tester) async {
+      await _open(tester, const Size(1280, 800));
       _join(_lounge);
       await settle(tester);
       expect(find.byType(SpaceSplit), findsOneWidget);
-      expect(find.byType(SpaceCallPage), design == SpaceDesign.standard ? findsNothing : findsOneWidget);
-      if (design == SpaceDesign.standard) expect(find.byType(CallDock), findsOneWidget, reason: 'the call\'s buttons once');
+      expect(find.byType(SpaceCallPage), findsOneWidget);
+      expect(find.byType(CallDock), findsNothing, reason: 'the call\'s buttons are its page\'s, once');
       expect(find.text('on my way'), findsOneWidget, reason: 'the chat is under the call to begin with');
       final pane = tester.getRect(find.byType(SpaceSplit));
       final before = tester.getRect(find.byKey(const ValueKey('space-split-call')));
       expect(before.height, lessThan(pane.height - SpaceSplit.chatLeast + 1));
 
-      // Full screen's buttons say their word twice (the button's own, and the word under it).
-      final button = find.bySemanticsLabel(RegExp(r'^(Chat|Comments|Hide chat)(\n\1)?$'));
-      expect(button, findsOneWidget, reason: 'one button for the chat, the design\'s own');
+      final button = find.bySemanticsLabel('Chat');
+      expect(button, findsOneWidget, reason: 'one button for the chat');
       await tester.tap(button);
       await settle(tester);
       expect(find.byKey(const ValueKey('space-split-chat')), findsNothing, reason: 'the chat put away');
@@ -214,7 +211,7 @@ void main() {
       expect(Voice.instance.session, isNotNull, reason: 'still in the call');
       expect(tester.takeException(), isNull);
 
-      final back = find.bySemanticsLabel(RegExp(r'^(Chat|Comments|Show chat)(\n\1)?$'));
+      final back = find.bySemanticsLabel('Chat');
       expect(back, findsOneWidget);
       await tester.tap(back);
       await settle(tester);
@@ -305,14 +302,13 @@ void main() {
 
   // The pictures: joined, alone and with others, and with video, at a computer's size, dark.
   testWidgets('shots', (tester) async {
-    for (final (name, others, video, design, size) in [
-      ('alone', false, false, null, const Size(1280, 800)),
-      ('joined', true, false, null, const Size(1280, 800)),
-      ('video', true, true, null, const Size(1280, 800)),
-      ('alone-1024x700', false, false, null, const Size(1024, 700)),
-      for (final d in SpaceDesign.values) ('design-${d.name}', true, false, d, const Size(1280, 800)),
+    for (final (name, others, video, size) in [
+      ('alone', false, false, const Size(1280, 800)),
+      ('joined', true, false, const Size(1280, 800)),
+      ('video', true, true, const Size(1280, 800)),
+      ('alone-1024x700', false, false, const Size(1024, 700)),
     ]) {
-      await _open(tester, size, dark: true, design: design);
+      await _open(tester, size, dark: true);
       _join(_lounge, others: others, video: video);
       await settle(tester);
       // As the pre-split build opened the space's call from its page.

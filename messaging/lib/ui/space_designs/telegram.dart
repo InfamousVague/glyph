@@ -11,12 +11,14 @@ import '../../art/lucide.g.dart';
 import '../../art/lucide_more.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/roles.dart';
+import '../connecting_banner.dart';
 import '../hangout_screen.dart' show roleInk;
 import '../ripple_avatar.dart';
+import '../skeleton.dart';
 import '../tile_grid.dart';
 import 'space_design.dart';
 
-/// A space's call laid out as Telegram's group voice chat (SpaceDesign.telegram, the app's default call screen):
+/// A space's call, laid out as Telegram's group voice chat (the one way a space's call is drawn: space_design.dart):
 /// headed by the space's name and how many are in voice, video tiles two across above a list of people, and at the foot
 /// one big microphone button with two round buttons either side of it. Drawn in Ghost Messaging's own look, light or dark as the app is (Matt,
 /// 2026-11-16: "Change the telegram one to be our colors without the gradients and our voice effects make the chat
@@ -230,7 +232,7 @@ class _Header extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
             const SizedBox(height: 1),
-            Text(n <= 1 ? 'Just you' : '$n in voice', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            Text(call.wait?.title ?? (n <= 1 ? 'Just you' : '$n in voice'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             // Bridged to Discord: its sound and chat pass through the bridge, so say what that costs.
             if (call.bridged) Text('Bridged to Discord · not end-to-end encrypted', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
           ]),
@@ -390,11 +392,19 @@ class _People extends StatelessWidget {
       // call fits under them where the panel is short.
       // The invite row, the rows, and the list's padding and gap under the video (the app's spacing, which grows a
       // little on a wide window).
-      final list = 48 + call.people.length * (_faceSize + rowPad * 2 + 1) + t.space(1) + t.space(3) * 2 + 2;
+      final line = call.wait == null ? 0.0 : ConnectingBanner.height + t.space(2);
+      final list = line + 48 + (call.people.length + call.coming) * (_faceSize + rowPad * 2 + 1) + t.space(1) + t.space(3) * 2 + 2;
       final room = box.maxHeight - list;
       return ListView(
         padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(3)),
         children: [
+          // What the call is still waiting for, above its people: "Connecting… Starting the microphone" with an arc
+          // turning, from the press on Join until someone can be heard, then "Connected" for a moment
+          // (lib/ui/connecting_banner.dart). Nothing, and no room kept, once it is through.
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: roomy ? math.max(0.0, (box.maxWidth - maxWidth!) / 2) : 0),
+            child: ConnectingBanner(wide: true, padding: EdgeInsets.only(bottom: t.space(2))),
+          ),
           if (videos.isNotEmpty) ...[
             // Roomy: four fifths of the panel's height, or all the list leaves where that is more.
             _VideoGrid(call: call, people: videos, room: roomy ? math.max(room, box.maxHeight * 0.8) : room, roomy: roomy),
@@ -412,6 +422,21 @@ class _People extends StatelessWidget {
                 Container(height: 1, margin: const EdgeInsets.only(left: _textStart), color: t.color('app-rule')),
                 _PersonRow(call: call, person: p, role: p.roleLabel(roster), pad: rowPad, last: identical(p, call.people.last)),
               ],
+              // Those in the call who are not here yet, while it is being come into: in bones (SpaceCall.coming).
+              if (call.coming > 0)
+                Skeleton(
+                  key: const ValueKey('tg-coming'),
+                  label: call.coming == 1 ? '1 person in the call' : '${call.coming} people in the call',
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    for (var i = 0; i < call.coming; i++) ...[
+                      Container(height: 1, margin: const EdgeInsets.only(left: _textStart), color: t.color('app-rule')),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(_rowLeft, rowPad - t.space(2), 14, rowPad - t.space(2)),
+                        child: SkeletonPeople.row(t, i, face: _faceSize, second: false),
+                      ),
+                    ],
+                  ]),
+                ),
             ]),
           ),
           if (alone) ...(call.chatBelow ? _waitingFit(t, room) : [
@@ -420,9 +445,9 @@ class _People extends StatelessWidget {
               // You, large, your voice moving the ripples round you while you wait.
               SpaceFace(key: const ValueKey('tg-alone-me'), call: call, person: call.me, size: 88),
               SizedBox(height: t.space(10)),
-              Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+              onceThrough(call, Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
               SizedBox(height: t.space(1)),
-              Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+              onceThrough(call, Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
             ]),
           ]),
         ],
@@ -435,8 +460,8 @@ class _People extends StatelessWidget {
   /// the list leaves above the buttons, so that nothing is cut and nothing scrolls. In turn: the large face with both
   /// lines; a smaller face; the line alone without the face; without the line under it; nothing.
   List<Widget> _waitingFit(Tokens t, double room) {
-    final title = Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')));
-    final sub = Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')));
+    final title = onceThrough(call, Text('Waiting for others to join', key: const ValueKey('tg-waiting'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))));
+    final sub = onceThrough(call, Text('Invite people, and they\'ll show up here as they join.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))));
     // The lines' heights as drawn (a line is about 1.5 times its size), with a little to spare.
     final titleH = t.fontSize('md') * 1.6, subH = t.fontSize('sm') * 1.6;
     final lines = titleH + t.space(1) + subH;

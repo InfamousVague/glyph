@@ -16,6 +16,7 @@ import '../../sms.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../shell.dart';
+import '../skeleton.dart';
 import 'files_screen.dart';
 import 'folder_sync_entry.dart';
 
@@ -65,7 +66,7 @@ class _MyFilesScreenState extends State<MyFilesScreen> {
     return FutureBuilder<VoiceChannel?>(
       future: _drive,
       builder: (context, got) {
-        if (got.connectionState != ConnectionState.done) return const GhostPage(title: Drive.name, body: Center(child: GhostSpinner()));
+        if (got.connectionState != ConnectionState.done) return const GhostPage(title: Drive.name, body: SkeletonFiles(label: 'Opening your files…'));
         final c = got.data;
         // The drive is made from the account's recovery words: a device that keeps none (signed in to no account, or a
         // computer linked to a phone, which is not given them) has nothing to make it from.

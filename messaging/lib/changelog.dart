@@ -25,6 +25,13 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.27', '2026-11-24', [
+    'A call is on the screen the moment you join, and says what it is still waiting for in a line above its people: Connecting… with the step it is on (the server, your microphone, each person), then Connected. The people already in it are drawn in grey until each is there, and leaving shows at once.',
+    'Lists and chats draw their shape in grey while they load, a light passing over it, where a small arc turned on an empty page: your conversations, a chat\'s messages, the people you can write to, a folder of files.',
+    'A fix for the Mac app freezing for a few seconds as a call is joined or left: it no longer waits for the microphone to start and stop.',
+    'On a Mac, the top bar of the window shows the circle or conversation that is open, where it said Ghost Messaging.',
+    'A space\'s call is drawn one way now: the other call layouts, and the switch between them in Settings › Developer, are gone.',
+  ]),
   ReleaseNotes('0.12.26', '2026-11-24', [
     'Calls are easier on a phone\'s battery: the ripple on a face is measured in a lighter way, nothing is measured while the app is out of sight, and a phone left alone in a space with its screen off no longer keeps its microphone and sound running.',
     'A paired computer no longer has the phone send every space, circle and friend again every few seconds: the phone says nothing changed until something has.',

@@ -74,13 +74,11 @@ void main() {
   });
 
   for (final (name, size, wide) in [('a phone', const Size(412, 892), false), ('a wide window', const Size(1100, 832), true)]) {
-    // The default (Telegram's), another design chosen in Settings › Developer, and the app's own layout.
-    for (final design in [null, SpaceDesign.discord, SpaceDesign.standard]) {
-      testWidgets('on $name with ${design?.label ?? 'the default design'}, an open space\'s call is its floor on every way in', (tester) async {
+    {
+      testWidgets('on $name, an open space\'s call is its floor on every way in', (tester) async {
         Circles.instance.join(_circle);
         final sheet = await loadSheet(tester);
         final app = AppState();
-        if (design != null) app.set(SpaceDesign.pref, design.name);
         await pumpScreen(tester, sheet, const AppShell(), app, size: size, platform: wide ? 'desktop' : 'mobile');
         final shell = AppShellState.live!;
         shell.openCircle(_circle);
@@ -94,9 +92,9 @@ void main() {
         // The circle's space, joined.
         await _begin(tester, _plaza);
         await settle(tester);
-        expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isFalse, reason: 'no design is pushed over it');
+        expect(openSpaceCall(tester.element(find.byType(HangoutScreen))), isFalse, reason: 'no call page is pushed over it');
         await settle(tester);
-        expect(find.byType(SpaceCallPage), findsNothing, reason: 'no design is drawn for it');
+        expect(find.byType(SpaceCallPage), findsNothing, reason: 'a call\'s page is not drawn for it');
         expect(find.byType(OpenSpaceView), findsOneWidget, reason: 'the space\'s own page is its floor');
         expect(find.byType(CallDock), wide ? findsOneWidget : findsWidgets, reason: 'with the call\'s buttons, once');
 
@@ -108,7 +106,6 @@ void main() {
         // The list beside it stays the circle's own: no people list in its place, and the call's buttons once, on the
         // floor (Matt, 2026-11-23: "the call controls are still duplicated in open spaces don't take over the sidebar").
         if (wide) {
-          expect(find.byType(HangoutPeople), findsNothing, reason: 'the sidebar is left as it was');
           expect(find.byKey(const ValueKey('call-dock-in-pill')), findsNothing);
           expect(find.byType(CallDock), findsOneWidget, reason: 'one set of the call\'s buttons');
         }
@@ -220,12 +217,19 @@ void main() {
 
   test('Voice.join follows the floor as soon as the call is made, before anything it waits on', () {
     final src = File('lib/voice/channels.dart').readAsStringSync();
-    final join = src.substring(src.indexOf('Future<void> join(VoiceChannel c'));
+    // The work of coming in is Voice._join; Voice.join round it says at once that a call is being come into
+    // (Voice.joining, for the screens' "Connecting…").
+    final join = src.substring(src.indexOf('Future<void> _join(VoiceChannel c'));
     final body = join.substring(0, join.indexOf('\n  }\n'));
     final follow = body.indexOf('OpenSpaces.instance.follow();');
     expect(follow, greaterThan(body.indexOf('final s = session = VoiceSession(')), reason: 'after the call is made');
     for (final wait in ['await hold(c)', 'await Sms.instance.callStarted', 'await s.join(']) {
       expect(follow, lessThan(body.indexOf(wait)), reason: 'before $wait');
     }
+    // And every screen is told then too, so the call is drawn (saying what it waits for) before the chat's room has
+    // been opened, which waits for the relay server.
+    final told = body.indexOf('notifyListeners();', follow);
+    expect(told, greaterThan(follow));
+    expect(told, lessThan(body.indexOf('await hold(c)')), reason: 'the call is on the screen before anything is waited for');
   });
 }

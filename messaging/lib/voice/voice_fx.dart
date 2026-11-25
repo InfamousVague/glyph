@@ -30,6 +30,7 @@ class VoiceFx {
       effectsSupported = said.contains('effects');
       levelSupported = said.contains('level');
       levelsSupported = said.contains('levels');
+      closesAside = said.contains('aside');
     } on MissingPluginException {
       available = const {};
     } on PlatformException {
@@ -47,6 +48,7 @@ class VoiceFx {
     effectsSupported = effects;
     levelSupported = level;
     levelsSupported = levels;
+    closesAside = false;
     _asked = to.isNotEmpty || live;
   }
 
@@ -103,6 +105,22 @@ class VoiceFx {
       return {for (final e in said.entries) if (e.value is num) e.key: (e.value as num).toDouble().clamp(0.0, 1.0)};
     } catch (_) {
       return null;
+    }
+  }
+
+  // --- closing a connection off the main thread (lib/voice/rtc.dart, RtcMedia.closeConnection) ----------------------
+
+  /// The native half can close a WebRTC connection off the main thread ([closeAside]): the Mac's
+  /// (macos/Runner/VoiceFx.swift).
+  static bool closesAside = false;
+
+  /// Closes the connection the platform knows as [id], off the main thread, and comes back once it is closed. False
+  /// where the native half holds no such connection (already closed) or can't.
+  static Future<bool> closeAside(String id) async {
+    try {
+      return await _channel.invokeMethod<bool>('closeConnection', {'id': id}) ?? false;
+    } catch (_) {
+      return false;
     }
   }
 

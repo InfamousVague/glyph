@@ -339,6 +339,10 @@ abstract class VoiceMedia {
   VoicePeer peer(String id, {required void Function(Map<String, dynamic> candidate) onCandidate});
 }
 
+/// How far coming into a call has got ([VoiceSession.join], Voice.join): its chat's room being opened, the microphone
+/// being started, the call's own room being joined on the relay server, and in.
+enum JoinStep { room, microphone, relay, done }
+
 /// Someone in a Discord voice channel a space is bridged to, as the bridge says (voice room message 'dc').
 @immutable
 class DiscordPerson {
@@ -690,18 +694,43 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How far coming into the call has got ([join]): what the screens say is being waited for while it is connecting
+  /// (lib/voice/call_wait.dart).
+  JoinStep step = JoinStep.room;
+
   /// Comes into the call: starts the microphone (and camera), joins the room on the hub, and offers a connection to
   /// everyone already there. Throws where the relay doesn't answer within 15 seconds.
   Future<void> join({bool withVideo = false}) async {
     video = withVideo;
+    _gone = false;
+    _step(JoinStep.microphone);
     await media.start();
+    // Left while the microphone was starting (Leave pressed on "Connecting…", which is on the screen from the first
+    // moment): the call is not come into after all, and the microphone that has just started is let go of. Coming in
+    // went on regardless, and left this device in the call with nothing on the screen saying so.
+    if (_gone) {
+      await media.stop();
+      return;
+    }
     if (withVideo) await media.setVideo(true);
+    _step(JoinStep.relay);
     _subs.add(route.packets.where((p) => p.room == channel.room).listen((p) => _heard(p.from, p.bytes)));
     _subs.add(route.events.where((e) => e.room == channel.room).listen(_event));
     // A call is joined now or said to have failed: a room asked for before the relay server is up waits for it
     // (HubCarrier.join), and a call should not.
     final there = await route.join(channel.room, channel.token).timeout(const Duration(seconds: 15), onTimeout: () => throw StateError('the relay server did not answer'));
+    // Left while the relay server was answering: out of the room it has just been let into, and nothing kept.
+    if (_gone) {
+      route.leave(channel.room);
+      for (final s in _subs) {
+        await s.cancel();
+      }
+      _subs.clear();
+      await media.stop();
+      return;
+    }
     joined = true;
+    step = JoinStep.done;
     since = DateTime.now();
     Sounds.instance.play(UiSound.hangoutJoin);
     // This identity is in the call on this device now ('moved'): another of its devices already in it (a phone and its
@@ -724,9 +753,20 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Left ([leave]): what [join] looks at after each wait, to stop coming into a call that was left meanwhile.
+  bool _gone = false;
+
+  void _step(JoinStep to) {
+    if (step == to) return;
+    step = to;
+    notifyListeners();
+  }
+
   /// Goes out of the call: leaves the room, closes every connection and stops the microphone and camera. Safe to call
   /// when not joined.
   Future<void> leave() async {
+    // Whatever of coming in is still under way stops where it is ([join]).
+    _gone = true;
     if (joined) Sounds.instance.play(UiSound.hangoutLeave);
     if (joined) route.leave(channel.room);
     joined = false;

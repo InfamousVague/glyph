@@ -45,6 +45,7 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         modes.append("live")
         modes.append("effects")
         modes.append("level")
+        modes.append("aside")
         result(modes)
       // A voice effect made here as it is said (lib/voice/live_changer.dart, native/voicefx voicefx_effect).
       case "effect":
@@ -80,6 +81,23 @@ final class VoiceFx: NSObject, ExternalAudioProcessingDelegate {
         self.peak = 0
         os_unfair_lock_unlock(self.peakLock)
         result(Double(min(1, p)))
+      // Closing a connection waits for WebRTC to stop its sound, and the system takes seconds over that (the audio
+      // engine and its voice processing taken down). flutter_webrtc closes on the main thread, so the window froze as a
+      // call ended (Matt, 2026-11-24: "it lagged on the call end"; sampled on his MacBook Air: the main thread 2.6 s
+      // in PeerConnection::Close). Closed here first, on another thread; the plugin's own close, asked for right after
+      // (lib/voice/rtc.dart, RtcMedia.closeConnection), finds it closed and comes straight back.
+      case "closeConnection":
+        let args = call.arguments as? [String: Any] ?? [:]
+        guard let id = args["id"] as? String,
+              let connection = FlutterWebRTCPlugin.sharedSingleton()?.peerConnections?.object(forKey: id) as? RTCPeerConnection
+        else {
+          result(false)
+          return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+          connection.close()
+          DispatchQueue.main.async { result(true) }
+        }
       case "configure":
         let args = call.arguments as? [String: Any] ?? [:]
         let mode: Int32 = switch args["mode"] as? String { case "rnnoise": 1; case "deepfilter": 2; default: 0 }
