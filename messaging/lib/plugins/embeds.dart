@@ -136,9 +136,54 @@ abstract final class Embeds {
   }
 
   /// The service's oEmbed answer where it has one and it says enough; else the page itself, read for what it says.
+  /// KLIPY's app key for this build (`--dart-define=KLIPY_APP_KEY=…`, tool/telegram-defines.mjs reads it from
+  /// ~/.config/ghostmessaging/klipy.env); empty where the build has none, and then a link to one of KLIPY's pages has no
+  /// preview. Set by a test.
+  static String klipyKey = const String.fromEnvironment('KLIPY_APP_KEY');
+
+  /// The name of the GIF, sticker, clip or meme a link to one of KLIPY's pages is for: `klipy.com/gifs/baby-eats-lemon`
+  /// is (gifs, baby-eats-lemon). Null for any other address.
+  static ({String kind, String slug})? klipyItem(String url) {
+    final u = Uri.tryParse(url);
+    if (u == null || u.scheme != 'https' || !(u.host == 'klipy.com' || u.host == 'www.klipy.com')) return null;
+    final parts = u.pathSegments.where((p) => p.isNotEmpty).toList();
+    if (parts.length != 2 || !const {'gifs', 'stickers', 'clips', 'memes'}.contains(parts[0])) return null;
+    return RegExp(r'^[A-Za-z0-9_-]{1,120}$').hasMatch(parts[1]) ? (kind: parts[0], slug: parts[1]) : null;
+  }
+
+  /// A link to one of KLIPY's pages, asked of KLIPY's API by its name (docs.klipy.com: `gifs/items?slugs=`), which is
+  /// how KLIPY has an app ask: its pages refuse anything that is not a browser a person is using (Matt, 2026-11-25:
+  /// "klippy links to gifs are not expanding into gif previews"; asked which, "Page links"). Asked from this device and
+  /// the picture loaded from the address KLIPY gives, as its integration rules say. Null without a key, or where KLIPY
+  /// has no such item.
+  static Future<Embed?> _klipy(String url, EmbedService? service) async {
+    final item = klipyItem(url);
+    if (item == null || klipyKey.isEmpty) return null;
+    final got = await fetch(Uri.parse('https://api.klipy.com/api/v1/$klipyKey/${item.kind}/items').replace(queryParameters: {'slugs': item.slug}));
+    if (got.status != 200) return null;
+    final j = jsonDecode(got.body);
+    final list = j is Map && j['data'] is Map ? (j['data'] as Map)['data'] : null;
+    final first = list is List && list.isNotEmpty ? list.first : null;
+    final file = first is Map ? first['file'] : null;
+    if (file is! Map) return null;
+    // A size a chat draws, moving, in the lightest form there is: WebP before GIF, the middle size before the largest.
+    for (final size in const ['md', 'hd', 'sm', 'xs']) {
+      for (final form in const ['webp', 'gif']) {
+        final f = file[size] is Map ? (file[size] as Map)[form] : null;
+        final address = f is Map ? f['url'] : null;
+        if (address is String && linksAPicture(address)) return Embed(url: url, service: service, title: _clean((first as Map)['title'] as String?), image: address, picture: true);
+      }
+    }
+    return null;
+  }
+
   static Future<Embed?> _find(String url, EmbedService? service) async {
     // A link to a picture is the picture: nothing is asked of its page, which it has none of.
     if (linksAPicture(url)) return Embed(url: url, service: service, image: url, picture: true);
+    if (service?.id == 'klipy' && klipyItem(url) != null) {
+      final e = await _klipy(url, service);
+      if (e != null) return e;
+    }
     final oembed = service?.oembed;
     if (oembed != null) {
       final got = await fetch(oembed(url));
@@ -364,7 +409,8 @@ class EmbedView extends StatelessWidget {
           builder: (context, state) => AnimatedOpacity(
             duration: const Duration(milliseconds: 90),
             opacity: state.pressed ? 0.8 : 1,
-            child: ConstrainedBox(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+             ConstrainedBox(
               key: const ValueKey('embed-picture'),
               constraints: BoxConstraints(maxWidth: width, maxHeight: width),
               child: ClipRRect(
@@ -379,7 +425,14 @@ class EmbedView extends StatelessWidget {
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
               ),
-            ),
+             ),
+             // Whose it is, where a GIF service's own page was the link (KLIPY asks that its name be shown).
+             if (s != null && !linksAPicture(e.url))
+               Padding(
+                 padding: EdgeInsets.only(top: 3, left: 2),
+                 child: Text(s.id == 'klipy' ? 'Powered by KLIPY' : s.name, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+               ),
+            ]),
           ),
         ),
       );

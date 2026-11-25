@@ -126,5 +126,46 @@ void main() {
       expect(e.image, 'https://static2.klipy.com/ii/d7/e3/ae/6HDt3HVy.gif');
       expect(await Embeds.of('https://klipy.com/gifs/refused', others: false), isNull);
     });
+
+    test('a link to one of KLIPY\'s pages is asked of KLIPY\'s API by its name, where this build has a key', () async {
+      addTearDown(() => Embeds.klipyKey = '');
+      expect(Embeds.klipyItem('https://klipy.com/gifs/baby-eats-lemon'), (kind: 'gifs', slug: 'baby-eats-lemon'));
+      expect(Embeds.klipyItem('https://www.klipy.com/stickers/wave-2')?.kind, 'stickers');
+      expect(Embeds.klipyItem('https://klipy.com/gifs'), isNull);
+      expect(Embeds.klipyItem('https://klipy.com/developers/keys'), isNull);
+      expect(Embeds.klipyItem('https://evil.example/gifs/baby-eats-lemon'), isNull);
+      Embeds.fetch = (url) async {
+        asked.add(url);
+        if (url.host == 'api.klipy.com' && url.path == '/api/v1/test-key/gifs/items' && url.queryParameters['slugs'] == 'baby-eats-lemon') {
+          return (status: 200, body: jsonEncode({
+            'result': true,
+            'data': {
+              'data': [
+                {
+                  'slug': 'baby-eats-lemon',
+                  'title': 'Baby Eats Lemon',
+                  'file': {
+                    'hd': {'gif': {'url': 'https://static.klipy.com/ii/a/hd.gif'}, 'webp': {'url': 'https://static.klipy.com/ii/a/hd.webp'}},
+                    'md': {'gif': {'url': 'https://static.klipy.com/ii/a/md.gif'}, 'webp': {'url': 'https://static.klipy.com/ii/a/md.webp'}},
+                  },
+                },
+              ],
+            },
+          }));
+        }
+        return (status: 403, body: 'no');
+      };
+      // No key in this build: the page is asked, refuses, and there is no preview.
+      Embeds.klipyKey = '';
+      expect(await Embeds.of('https://klipy.com/gifs/baby-eats-lemon', others: false), isNull);
+      expect(asked.any((u) => u.host == 'api.klipy.com'), isFalse);
+      Embeds.forget();
+      Embeds.klipyKey = 'test-key';
+      final e = (await Embeds.of('https://klipy.com/gifs/baby-eats-lemon', others: false))!;
+      expect(e.picture, isTrue);
+      expect(e.image, 'https://static.klipy.com/ii/a/md.webp', reason: 'the middle size, as WebP');
+      expect(e.title, 'Baby Eats Lemon');
+      expect(e.url, 'https://klipy.com/gifs/baby-eats-lemon', reason: 'a press still opens the page');
+    });
   });
 }
