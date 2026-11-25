@@ -28,6 +28,7 @@ import '../common.dart';
 import '../dialup/bevel.dart';
 import '../hangout_screen.dart' show SpaceFace;
 import '../ripple_avatar.dart';
+import '../spotify_panel.dart' show SongCover;
 import '../shell.dart';
 import 'circle_face.dart';
 import 'circle_view.dart';
@@ -290,7 +291,7 @@ class CircleSpaceList extends StatelessWidget {
           for (final s in g.spaces) ...[
             CircleSpaceTile(space: s, selected: s.seed == view.selected, onPress: () => view.onOpen(s), onLongPress: view.onSpaceMenu == null ? null : () => view.onSpaceMenu!(s)),
             // Who is in its call, each a row under it.
-            if (s.people.isNotEmpty) CircleVoicePeople(space: s, onPress: () => view.onOpen(s)),
+            if (s.people.isNotEmpty || s.music != null) CircleVoicePeople(space: s, onPress: () => view.onOpen(s)),
           ],
         ],
         if (view.spaces.isEmpty)
@@ -447,6 +448,25 @@ class CircleVoicePeople extends StatelessWidget {
                 ]),
               );
             }(),
+          // The music played to the call, last, as one of those in it (Matt, 2026-11-25: "Spotify doesn't show up in
+          // the sidebar for the lounge").
+          if (space.music case final music?)
+            Padding(
+              key: ValueKey('circle-voice-${space.seed}-music'),
+              padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+              child: Row(children: [
+                Padding(padding: const EdgeInsets.all(ring), child: SongCover(url: music.cover, size: face, corner: bevel ? 0 : face / 2)),
+                SizedBox(width: t.space(2)),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: [const TextSpan(text: 'Spotify'), TextSpan(text: ' · ${music.song}', style: TextStyle(color: t.color('app-ink-3')))]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),
+                  ),
+                ),
+              ]),
+            ),
           if (rest > 0)
             Padding(
               padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
@@ -460,7 +480,7 @@ class CircleVoicePeople extends StatelessWidget {
     return GlacierPressable(
       key: ValueKey('circle-voice-${space.seed}'),
       onPressed: onPress,
-      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}',
+      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}${space.music == null ? '' : ', and Spotify playing ${space.music!.song}'}',
       builder: (context, _) => levels == null ? rows(const {}) : ValueListenableBuilder<Map<String, double>>(valueListenable: levels, builder: (context, l, _) => rows(l)),
     );
   }

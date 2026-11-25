@@ -303,6 +303,24 @@ void main() {
     await keep(tester, 'voice-people');
   });
 
+  testWidgets('the music played to a call is listed last under its space, cover and song', (tester) async {
+    final sample = sampleCircleView();
+    CircleSpaceView with_(CircleSpaceView s, {({String song, String? cover})? music}) => s.name != 'Lounge'
+        ? s
+        : CircleSpaceView(space: s.space, channel: s.channel, inVoice: const ['You'], people: const [CircleVoicePerson(id: 'me', name: 'You')], music: music);
+    await draw(tester, CircleList(view: withSpaces(sample, [for (final s in sample.spaces) with_(s)])), size: const Size(412, 1400));
+    expect(find.textContaining('Spotify', findRichText: true), findsNothing);
+    final view = withSpaces(sample, [for (final s in sample.spaces) with_(s, music: (song: 'A song with a name far too long for the width of a list of spaces', cover: null))]);
+    await draw(tester, CircleList(view: view), size: const Size(412, 1400));
+    final seed = view.spaces.firstWhere((s) => s.name == 'Lounge').seed;
+    final me = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-me'))), music = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-music')));
+    expect(music.top, greaterThanOrEqualTo(me.bottom - 1));
+    expect(music.height, moreOrLessEquals(me.height, epsilon: 1), reason: 'one line, as a person\'s');
+    expect(circleSpaceLine(view.spaces.firstWhere((s) => s.name == 'Lounge')), 'You\'re talking', reason: 'music is nobody talking');
+    expect(tester.takeException(), isNull);
+    await keep(tester, 'voice-music');
+  });
+
   testWidgets('a crowded call lists a dozen and counts the rest', (tester) async {
     final sample = sampleCircleView();
     final crowd = [for (var i = 0; i < 15; i++) CircleVoicePerson(id: 'p$i', name: 'Person $i')];

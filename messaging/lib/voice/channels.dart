@@ -1074,6 +1074,9 @@ class Voice extends ChangeNotifier {
       Soundboard.instance.follow();
       // And the music played to it (spotify.dart).
       SpotifyMusic.instance.follow();
+      SpotifyMusic.instance.removeListener(_sayMusic); // Once, however often a call is come into.
+      SpotifyMusic.instance.addListener(_sayMusic);
+      _sayMusic();
       // And the auto leveler (leveler.dart).
       AutoLeveler.instance.follow();
       // And the voice changer, live, where it is on (live_changer.dart).
@@ -1110,6 +1113,14 @@ class Voice extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Says in the space's room what this device plays to its call as the DJ, or that it plays nothing (spotify.dart): for
+  /// the circle's list of whoever is not in the call.
+  void _sayMusic() {
+    final s = session, m = SpotifyMusic.instance;
+    if (s == null) return;
+    _hangouts[s.channel.seed]?.sayMusic(m.mine ? m.state?.now?.song.shown ?? '' : '');
+  }
+
   /// Leaves the call this device is in, if any: ends the phone's call service, the captions and watching together,
   /// and lets go of the hangout's chat held for the call.
   Future<void> leave() async {
@@ -1118,7 +1129,9 @@ class Voice extends ChangeNotifier {
     CallCaptions.instance.follow();
     WatchTogether.instance.follow();
     Soundboard.instance.follow();
+    SpotifyMusic.instance.removeListener(_sayMusic);
     SpotifyMusic.instance.follow();
+    if (s != null) _hangouts[s.channel.seed]?.sayMusic('');
     OpenSpaces.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);
     media = null;

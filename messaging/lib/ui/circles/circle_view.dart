@@ -27,6 +27,7 @@ class CircleSpaceView {
     this.people = const [],
     this.here = false,
     this.files,
+    this.music,
   });
 
   /// Its entry in the circle's list (name, kind, place, section) and itself as a space (rooms, chat, call).
@@ -56,6 +57,10 @@ class CircleSpaceView {
 
   /// How many files a Files space holds, where its list has been read on this device; null where not (or another kind).
   final int? files;
+
+  /// The song played to its call through Spotify (lib/voice/spotify.dart), and its cover where this device is in the call
+  /// and so knows it: a row of its own under those in the call. Null for none.
+  final ({String song, String? cover})? music;
 
   String get seed => space.seed;
   String get name => space.name;

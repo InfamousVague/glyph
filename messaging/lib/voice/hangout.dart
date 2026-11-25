@@ -298,12 +298,30 @@ class HangoutRoom extends ChangeNotifier {
   /// This device is in the space's call now: said in its 'hi' (`a`).
   bool _inVoice = false;
 
+  /// The song this device plays to the space's call as its DJ (lib/voice/spotify.dart), said in its 'hi' (`mp`) so the
+  /// circle's list shows it to whoever is not in the call; '' for none. Said again only as it changes.
+  String _music = '';
+  void sayMusic(String song) {
+    final cut = String.fromCharCodes(song.runes.take(HangoutPerson.musicMost));
+    if (cut == _music) return;
+    _music = cut;
+    _hi();
+  }
+
+  /// The song someone in the call plays to it, as they last said; null for none.
+  String? get musicInCall {
+    for (final p in present.values) {
+      if (p.inVoice && p.music.isNotEmpty) return p.music;
+    }
+    return null;
+  }
+
   /// Says who this is. [ask]: on coming in, those here answer with theirs. The relay tells the room someone came only
   /// with their first device, so a person's second device (one identity on a phone and its computer) was greeted by
   /// nobody and saw those here without their names until they spoke.
   void _hi({bool ask = false}) {
     final me = Me.instance;
-    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (_inVoice && _music.isNotEmpty) 'mp': _music, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
   }
 
   /// Pictures asked for and not yet answered, by whose: one asking at a time for each person.
@@ -1221,6 +1239,8 @@ class HangoutRoom extends ChangeNotifier {
             username: m['u'] is String ? m['u'] as String : null,
             inVoice: m['a'] == true,
             guest: m['g'] == true,
+            // The song they play to the call as its DJ: a guest is never one.
+            music: m['mp'] is String && m['a'] == true && m['g'] != true ? String.fromCharCodes((m['mp'] as String).runes.take(HangoutPerson.musicMost)) : '',
             status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
             pictureHash: m['ph'] is String ? m['ph'] as String : '',
             // What they are playing, as their greeting says now (lib/games/game_activity.dart): none said, none.
@@ -1335,7 +1355,7 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.music = '', this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String name;
   final String? username;
@@ -1352,6 +1372,10 @@ class HangoutPerson {
   final Cosmetics cosmetics;
   final bool inVoice;
   final bool guest;
+
+  /// The song they play to the space's call (lib/voice/spotify.dart), in words; '' for none.
+  final String music;
+  static const musicMost = 120;
 }
 
 /// One message in a hangout's chat: words, and since 2026-11-18 files, a sticker or a voice message with them (Matt,
