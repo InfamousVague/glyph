@@ -1,5 +1,5 @@
 /// Formatting written into a message's words (GMFB-35, from the Uplink gap review: "Markdown formatting in
-/// messages"): **bold**, *italic* (or _italic_), ~~strike~~, `code`, ```a block of code```, "> " a quote at a line's
+/// messages"): **bold** (or __bold__), *italic* (or _italic_), ~~strike~~, `code`, ```a block of code```, "> " a quote at a line's
 /// start, ||a spoiler|| hidden until pressed, and [words](https://…) for a link under other words.
 ///
 /// The markers stay in the words as they were written and go out so: a build from before this, a text, Telegram and
@@ -334,7 +334,7 @@ class _Reader {
     return j;
   }
 
-  static const _pairs = [('||', Fmt.spoiler), ('~~', Fmt.strike), ('**', Fmt.bold), ('*', Fmt.italic), ('_', Fmt.italic)];
+  static const _pairs = [('||', Fmt.spoiler), ('~~', Fmt.strike), ('**', Fmt.bold), ('__', Fmt.bold), ('*', Fmt.italic), ('_', Fmt.italic)];
 
   /// A **pair** of markers opened at [i]: read, and where the words after its closing one begin; -1 where none.
   int _pair(int i, int b, int base, int sp, int lk) {
@@ -346,8 +346,10 @@ class _Reader {
       if (at >= b || _space(text.codeUnitAt(at))) continue;
       // "**" read as two of "*" only where it is not a "**" of its own.
       if (single && text.startsWith(m, at)) continue;
-      if (single && _wordAt(i - 1)) continue;
-      final j = _closer(m, at + 1, b, single);
+      // "__" is bold as Markdown has it, and like a single one keeps to the edges of words: a__b__c stays as written.
+      final edged = single || m == '__';
+      if (edged && _wordAt(i - 1)) continue;
+      final j = _closer(m, at + 1, b, single, edged);
       if (j < 0) continue;
       for (var k = i; k < at; k++) {
         marker[k] = true;
@@ -363,9 +365,9 @@ class _Reader {
     return -1;
   }
 
-  /// Where [m] closes, searching from [from] up to [b]: after a letter, not a space; for a single one, before no
-  /// letter or digit. Code and kept stretches are passed over whole.
-  int _closer(String m, int from, int b, bool single) {
+  /// Where [m] closes, searching from [from] up to [b]: after a letter, not a space; for a single one and for "__"
+  /// ([edged]), before no letter or digit. Code and kept stretches are passed over whole.
+  int _closer(String m, int from, int b, bool single, bool edged) {
     final len = m.length;
     var j = from;
     while (j + len <= b) {
@@ -396,7 +398,7 @@ class _Reader {
           j = k + len;
           continue;
         }
-        if (single && _wordAt(k + len)) {
+        if (edged && _wordAt(k + len)) {
           j = k + len;
           continue;
         }
