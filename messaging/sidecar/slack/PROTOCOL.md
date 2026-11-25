@@ -51,6 +51,10 @@ All strings:
 - `receipt`: only the person's own (`from` is `me`), read in Slack's own app; `id` is the message read up to.
 - `name`: said for people met in messages and when someone changes their profile.
 - `who`: answers for anyone in the workspace by id, asked of Slack.
+- `people`: the workspace's members whose name or username has `query` in it (all for none), by name, 50 at most; no
+  apps, nobody removed, not the person. Listed by users.list once every ten minutes (the first 1000 members), not at
+  every asking. `avatar` is null: `who` gives one person's. `open`: the DM with `who` (conversations.open), made where
+  there is none; nothing is sent. Neither has been tried against Slack itself.
 - `avatar`: files under `avatars/`, named by a hash of the person and the picture's address; Slack's picture addresses
   need no session.
 

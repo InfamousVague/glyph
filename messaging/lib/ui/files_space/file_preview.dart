@@ -274,7 +274,8 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       );
     }
     switch (f.kind) {
-      case FileKind.image when !f.name.toLowerCase().endsWith('.svg') && !f.name.toLowerCase().endsWith('.heic'):
+      // A HEIC too where this device reads one (GMFB-60); one that doesn't open after all is the file's page, below.
+      case FileKind.image when FileKind.drawsAsPicture(f.name, f.mime):
         return ColoredBox(
           color: isBevelChrome(t) ? DialupColors.of(t).paper : t.color('glacier-bg'),
           child: InteractiveViewer(
@@ -309,7 +310,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
 
   /// Whether this page shows [f] itself (a picture, sound, words); else it offers the ways to open it elsewhere.
   bool shownHere(SpaceFile f) => switch (f.kind) {
-        FileKind.image => !f.name.toLowerCase().endsWith('.svg') && !f.name.toLowerCase().endsWith('.heic'),
+        FileKind.image => FileKind.drawsAsPicture(f.name, f.mime),
         FileKind.audio || FileKind.text || FileKind.code => true,
         _ => false,
       };

@@ -37,7 +37,13 @@ class HelperService {
     required this.copyFrom,
     this.also = '',
     this.passcode = false,
+    this.people = false,
   });
+
+  /// Its helper lists the service's people (`people`) and opens a chat with one where there is none (`open`;
+  /// sidecar/ACCOUNT_HELPERS.md): Slack's, a workspace's members (GMFB-61). Elsewhere the people to start a chat with
+  /// are those there is a chat with already.
+  final bool people;
 
   /// Its sign-in asks for a passcode beside the cookies: X's, which opens the keys of its encrypted chats (X Chat;
   /// sidecar/twitter/README.md). Never kept: the helper keeps the keys it opens.
@@ -151,6 +157,7 @@ const slackService = HelperService(
   optional: [],
   copyFrom: 'any request to your workspace\'s slack.com/api (one with a token in it)',
   also: 'One workspace is signed in at a time, and its admins may sign the session out.',
+  people: true,
 );
 
 /// A network reached by an account helper: Messenger, Instagram or LinkedIn. The helper (sidecar/messenger,
@@ -200,6 +207,9 @@ class AccountHelper extends InboxNetwork {
   /// Names and pictures by the service's id for a person.
   final Map<String, String> _names = {};
   final Map<String, String> _avatars = {};
+
+  /// The service's people the helper has listed ([findPeople]), by their id: name and handle. For this run only.
+  final Map<String, ({String name, String handle})> _listed = {};
 
   /// Chats whose older messages have all come, and those being asked for now.
   final Set<String> _exhausted = {};
@@ -396,6 +406,7 @@ class AccountHelper extends InboxNetwork {
     _names.clear();
     _avatars.clear();
     _exhausted.clear();
+    _listed.clear();
     _account = null;
     _me = null;
   }
@@ -434,7 +445,17 @@ class AccountHelper extends InboxNetwork {
       case 'message':
         if (_take(m)) {
           final chat = '${m['chat']}';
-          if (m['mine'] != true && chat != _watching) _chats[chat]!['unread'] = ((_chats[chat]!['unread'] as int?) ?? 0) + 1;
+          final c = _chats[chat]!;
+          final ts = (m['ts'] as num?)?.toInt();
+          if (m['mine'] == true) {
+            // Nothing to count.
+          } else if (chat == _watching) {
+            // On screen: not counted, and the service is still to be told it was read ([markRead]; GMFB-62).
+            _arrivedOpen.add(chat);
+          } else if (ts == null || ts > ((c['read_at'] as int?) ?? 0)) {
+            // One from before what was read here, said again by the service, is not unread again (GMFB-62).
+            c['unread'] = ((c['unread'] as int?) ?? 0) + 1;
+          }
           _save();
           notifyListeners();
         }
@@ -455,6 +476,7 @@ class AccountHelper extends InboxNetwork {
           final c = _chats[chat];
           if (c != null && (c['unread'] as int? ?? 0) != 0) {
             c['unread'] = 0;
+            _readTo(chat, c);
             _save();
             notifyListeners();
           }
@@ -487,8 +509,27 @@ class AccountHelper extends InboxNetwork {
     if (title.isNotEmpty) c['title'] = title;
     if (m.containsKey('group')) c['group'] = m['group'] == true;
     if (m['avatar'] is String && (m['avatar'] as String).isNotEmpty) c['avatar'] = m['avatar'];
-    if (m['unread'] is num && chat != _watching) c['unread'] = (m['unread'] as num).toInt();
     final last = (m['last'] as num?)?.toInt() ?? 0;
+    // The newest activity the service itself has named, apart from `last`, which a message sent from here moves by
+    // this device's clock.
+    if (last > ((c['listed_at'] as int?) ?? 0)) c['listed_at'] = last;
+    if (m['unread'] is num && chat != _watching) {
+      var unread = (m['unread'] as num).toInt();
+      // Read here, and the service says something waits though nothing in the chat is newer than what was read: it
+      // stays read, and the service is told again, once (GMFB-62, Matt, Android 0.12.26: "Every time i tab back into
+      // the app Facebook messenger messages are getting marked as unread". Back in front the helper connects again
+      // and the service's list is taken; its count stood over what was read here, and Messenger's is partly a guess,
+      // sidecar/messenger's unreadOf).
+      final readAt = (c['read_at'] as int?) ?? 0;
+      if (unread > 0 && last > 0 && last <= readAt) {
+        unread = 0;
+        if (_retold[chat] != readAt) {
+          _retold[chat] = readAt;
+          unawaited(_tellRead(chat));
+        }
+      }
+      c['unread'] = unread;
+    }
     if (last > ((c['last'] as int?) ?? 0)) c['last'] = last;
     final snippet = (m['snippet'] as String?)?.trim() ?? '';
     if (snippet.isNotEmpty) {
@@ -583,6 +624,81 @@ class AccountHelper extends InboxNetwork {
     msg['reactions'] = reactions;
     _save();
     notifyListeners();
+  }
+
+  // --- people to start a chat with (GMFB-61) ----------------------------------------------------------------------
+
+  /// The chat between this account and one other person, by that person's id: the chats that are not groups and
+  /// name one member. Not those deleted or blocked here, nor those held back (the Human check plugin).
+  Map<String, String> get _direct {
+    final gone = {...localList('deleted'), ...localList('blocked'), ...heldIds};
+    final out = <String, String>{};
+    for (final e in _chats.entries) {
+      if (e.value['group'] == true || gone.contains(e.key)) continue;
+      final members = (e.value['members'] as List? ?? const []);
+      if (members.length != 1 || members.first is! Map) continue;
+      final who = '${(members.first as Map)['id'] ?? ''}';
+      if (who.isNotEmpty && who != _me) out.putIfAbsent(who, () => e.key);
+    }
+    return out;
+  }
+
+  /// Everyone there is a chat with, and whoever the helper has listed besides (Slack's members, once looked for).
+  /// Not [contacts]: none of these services has contacts as a phone does, and who is a contact is what says who is a
+  /// stranger (lib/inbox/human_check.dart), which someone is not for having written.
+  List<InboxContact> get _people {
+    if (_state != InboxState.ready) return const [];
+    final out = <InboxContact>[];
+    final direct = _direct;
+    for (final who in direct.keys) {
+      final name = (_names[who] ?? '').isNotEmpty ? _names[who]! : _titleOf(direct[who]!, _chats[direct[who]!]!);
+      final handle = _listed[who]?.handle ?? '';
+      out.add(InboxContact(network: id, id: who, name: name, avatar: _avatars[who] ?? _chats[direct[who]!]!['avatar'] as String?, handle: handle.isEmpty ? null : '@$handle'));
+    }
+    for (final e in _listed.entries) {
+      if (direct.containsKey(e.key) || e.key == _me) continue;
+      out.add(InboxContact(network: id, id: e.key, name: e.value.name, avatar: _avatars[e.key], handle: e.value.handle.isEmpty ? null : '@${e.value.handle}'));
+    }
+    out.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return out;
+  }
+
+  /// Those of [_people] that [query] finds, after the service itself is asked where its helper can ([HelperService.people]):
+  /// what it finds is kept in [_listed] for the run. A helper that cannot say (an older one, the service away) leaves
+  /// what is known here.
+  @override
+  Future<List<InboxContact>> findPeople(String query) async {
+    final q = query.trim();
+    if (q.isEmpty || _state != InboxState.ready) return const [];
+    if (service.people) {
+      try {
+        for (final p in (await _ask('people', {'query': q})) as List? ?? const []) {
+          if (p is! Map) continue;
+          final who = '${p['id'] ?? ''}';
+          final name = (p['name'] as String?)?.trim() ?? '';
+          if (who.isEmpty || name.isEmpty) continue;
+          _listed[who] = (name: name, handle: (p['handle'] as String?)?.trim() ?? '');
+          _names.putIfAbsent(who, () => name);
+        }
+      } catch (_) {}
+    }
+    return [for (final c in _people) if (contactAnswers(c, q)) c];
+  }
+
+  /// The chat with [contact]: the one there is, else one the helper opens on the service where it can (`open`: nothing
+  /// is sent, and nobody is told). Null where neither.
+  @override
+  Future<String?> chatWith(InboxContact contact) async {
+    if (_state != InboxState.ready) return null;
+    final had = _direct[contact.id];
+    if (had != null) return had;
+    if (!service.people) return null;
+    final r = await _ask('open', {'who': contact.id});
+    final chat = r is Map ? '${r['id'] ?? ''}' : '';
+    if (chat.isEmpty) return null;
+    // Named by who it is with until the service lists it (a chat's own title comes with its first `chat` event).
+    if (contact.name.isNotEmpty) _names.putIfAbsent(chat, () => contact.name);
+    return chat;
   }
 
   // --- sending ------------------------------------------------------------------------------------------------------
@@ -745,6 +861,9 @@ class AccountHelper extends InboxNetwork {
     return out;
   }
 
+  @override
+  String? faceOf(String user) => _avatars[user];
+
   /// A message as one line of the chat list: its words, or what kind of thing its first attachment is.
   static String _snippet(Map<String, Object?> m) {
     final text = '${m['text'] ?? ''}'.trim();
@@ -893,10 +1012,44 @@ class AccountHelper extends InboxNetwork {
   @override
   Future<void> markRead(String chatId) async {
     final c = _chats[chatId];
-    if (c == null || (c['unread'] as int? ?? 0) == 0) return;
+    if (c == null) return;
+    // What came while the chat was on screen was never counted, so nothing said it was still to be read on the
+    // service: it stayed unread there, and came back unread here with the service's next list (GMFB-62).
+    final cameOpen = _arrivedOpen.remove(chatId);
+    if ((c['unread'] as int? ?? 0) == 0 && !cameOpen) return;
     c['unread'] = 0;
+    _readTo(chatId, c);
     _save();
     notifyListeners();
+    await _tellRead(chatId);
+  }
+
+  /// Chats a message came in while they were on screen, not yet said to the service as read.
+  final Set<String> _arrivedOpen = {};
+
+  /// What each chat was read up to when the service was last told again from [_takeChat]: once for each reading.
+  final Map<String, int> _retold = {};
+
+  /// Notes how far [chatId] is read here (`read_at`, kept with the chat): the time of its newest activity known, in
+  /// the service's own time. The service's count is not taken over it until something newer comes ([_takeChat]).
+  /// Only times the service gave: its own for the chat, and those of messages it named. This device's clock (a
+  /// message still being sent) may run ahead of the service's, and what came in between would never be unread.
+  void _readTo(String chatId, Map<String, Object?> c) {
+    var at = (c['read_at'] as int?) ?? 0;
+    final listed = (c['listed_at'] as int?) ?? 0;
+    if (listed > at) at = listed;
+    for (final m in (_messages[chatId] ?? const <Map<String, Object?>>[]).reversed) {
+      final id = '${m['id']}';
+      if (id.startsWith('local-') || id.startsWith('in-')) continue;
+      final ts = (m['ts'] as int?) ?? 0;
+      if (ts > at) at = ts;
+      break;
+    }
+    c['read_at'] = at;
+  }
+
+  /// Tells the service [chatId] is read, up to the newest message of someone else's kept here.
+  Future<void> _tellRead(String chatId) async {
     final newest = (_messages[chatId] ?? const <Map<String, Object?>>[]).where((m) => m['mine'] != true).lastOrNull;
     try {
       await _ask('read', {'to': chatId, 'upto': ?newest?['id']});

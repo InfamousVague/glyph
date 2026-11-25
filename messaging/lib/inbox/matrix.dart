@@ -480,6 +480,7 @@ class Matrix extends InboxNetwork {
           date: DateTime.fromMillisecondsSinceEpoch((m['ts'] as num?)?.toInt() ?? 0),
           mine: m['mine'] == true,
           sender: m['mine'] == true ? '' : _nameOf(m),
+          senderId: '${m['from'] ?? ''}',
           state: switch (m['state']) { 'sending' => 'sending', 'failed' => 'failed', _ => 'sent' },
           media: [for (final a in (m['media'] as List? ?? const [])) _mediaOf(a as Map, sticker: m['kind'] == 'm.sticker' || a['sticker'] == true)],
           reactions: matrixReactions(m['reactions'] as Map?, me: _me),

@@ -198,6 +198,7 @@ void main() {
     await g.load('spaces/G');
     final ms = g.messagesOf('spaces/G');
     expect(ms.map((m) => (m.text, m.sender, m.mine)), [('meeting today?', '', true), ('yes, at 3', 'Jo Park', false), ('second thing', 'Sam Lee', false)], reason: 'oldest first');
+    expect(g.faceOf(ms[1].senderId), 'https://photos.example/jo.png', reason: 'their face by their lines in a group (lib/ui/flat_line.dart)');
     expect((ms[1].replyTo, ms[1].replyText, ms[1].replySender), ('spaces/G/messages/g1', 'meeting today?', 'You'), reason: 'a reply in a thread shows inline');
     expect(ms[2].replyTo, isNull);
     expect(g.canReply, isTrue);

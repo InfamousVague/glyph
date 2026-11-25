@@ -1049,6 +1049,8 @@ class Voice extends ChangeNotifier {
     _saw(c.room);
     s.addListener(notifyListeners);
     s.addListener(_enforce);
+    // Its camera or its screen shown to the call is said in the space's room too (GMFB-66).
+    s.addListener(_sayPicture);
     // A friend this device is calling came in: it stops ringing out (GMFB-28).
     if (FriendCalls.isCall(c)) s.addListener(() => s.members.isNotEmpty ? FriendCalls.instance.joined(c) : null);
     notifyListeners();
@@ -1113,12 +1115,46 @@ class Voice extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The camera, kept and switched to as the microphone is (GMFB-68). One that will not open leaves the call as it was.
+  Future<void> useCamera(String deviceId, {String name = ''}) async {
+    _app?.set('voice_camera', deviceId);
+    _app?.set('voice_camera_name', deviceId.isEmpty ? '' : name);
+    try {
+      await media?.setCamera(deviceId, name: name);
+    } catch (e) {
+      debugPrint('voice: camera $deviceId not opened: $e');
+    }
+    notifyListeners();
+  }
+
   /// Says in the space's room what this device plays to its call as the DJ, or that it plays nothing (spotify.dart): for
   /// the circle's list of whoever is not in the call.
   void _sayMusic() {
     final s = session, m = SpotifyMusic.instance;
     if (s == null) return;
     _hangouts[s.channel.seed]?.sayMusic(m.mine ? m.state?.now?.song.shown ?? '' : '');
+  }
+
+  /// Says in the space's room that this device has its camera on in the call, or shares its screen there, as that
+  /// changes: for the mark beside it in the circle's list of whoever is not in the call (GMFB-66).
+  void _sayPicture() {
+    final s = session;
+    if (s == null) return;
+    _hangouts[s.channel.seed]?.sayPicture(camera: s.video && !s.screen, screen: s.screen);
+  }
+
+  /// What [id] ('me' for this device) shows [c]'s call: their camera, or their screen (GMFB-66: "show what users are
+  /// streaming and or sharing video"). As the call itself says where this device is in it; from outside it, as their
+  /// greeting in the space's room says (HangoutPerson.camera), which a build from before never does.
+  ({bool camera, bool screen}) pictureOf(VoiceChannel c, String id) {
+    final s = session;
+    if (s != null && s.channel.room == c.room) {
+      if (id == 'me') return (camera: s.video && !s.screen, screen: s.screen);
+      final m = s.members[id];
+      return (camera: m != null && m.video && !m.screen, screen: m?.screen ?? false);
+    }
+    final p = _hangouts[c.seed]?.present[id];
+    return (camera: p?.camera ?? false, screen: p?.screen ?? false);
   }
 
   /// Leaves the call this device is in, if any: ends the phone's call service, the captions and watching together,
@@ -1151,10 +1187,12 @@ class Voice extends ChangeNotifier {
     }
     s.removeListener(notifyListeners);
     s.removeListener(_enforce);
+    s.removeListener(_sayPicture);
     // Out of the call on the screen at once. Closing its connections and letting go of the microphone takes seconds
     // on a Mac (Apple's audio engine), and until that was done the call stood there as if Leave had not been pressed
     // (Matt, 2026-11-24: "on the macbook air it lagged on the call end").
     final room = _hangouts[s.channel.seed];
+    room?.sayPicture(camera: false, screen: false);
     room?.sayMe(inVoice: false);
     notifyListeners();
     final before = _leaving;

@@ -1,3 +1,12 @@
+import '../platform_info.dart';
+
+/// Whether this device's own picture reader opens a HEIC or HEIF (GMFB-60: ".heic files don't render an image
+/// preview"). Flutter reads JPEG, PNG, GIF, WebP and BMP itself and hands anything else to the system's reader
+/// (dart:ui's note on image formats): Android's ImageDecoder, which reads HEIF on every Android the app runs on (9 and
+/// later), and Apple's ImageIO on an iPhone and a Mac. Windows reads one only with an extension from its store, and
+/// Linux and most browsers not at all: there it stays a file to open elsewhere. A test puts its own answer here.
+bool Function() readsHeic = () => PlatformInfo.isAndroid || PlatformInfo.isIOS || PlatformInfo.isMacOS;
+
 /// What kind of file something is, by its type or its name's ending: what a Files space draws it as (its icon and
 /// colour, lib/ui/files_space/file_badge.dart), how it is previewed, and how the list is filtered and sorted by type.
 enum FileKind {
@@ -46,9 +55,9 @@ enum FileKind {
 
   /// The type (MIME) of the common endings, for [mimeOf]; fewer than [_byEnding] knows a kind for.
   static const _types = <String, String>{
-    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'svg': 'image/svg+xml', 'bmp': 'image/bmp',
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp', 'heic': 'image/heic', 'heif': 'image/heif', 'svg': 'image/svg+xml', 'bmp': 'image/bmp',
     'mp4': 'video/mp4', 'mov': 'video/quicktime', 'm4v': 'video/x-m4v', 'webm': 'video/webm', 'mkv': 'video/x-matroska',
-    'mp3': 'audio/mpeg', 'm4a': 'audio/mp4', 'aac': 'audio/aac', 'wav': 'audio/wav', 'flac': 'audio/flac', 'ogg': 'audio/ogg', 'opus': 'audio/opus',
+    'mp3': 'audio/mpeg', 'm4a': 'audio/mp4', 'aac': 'audio/aac', 'wav': 'audio/wav', 'flac': 'audio/flac', 'ogg': 'audio/ogg', 'oga': 'audio/ogg', 'opus': 'audio/opus',
     'pdf': 'application/pdf', 'zip': 'application/zip', 'json': 'application/json', 'txt': 'text/plain', 'md': 'text/markdown', 'csv': 'text/csv', 'html': 'text/html',
     'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -63,6 +72,17 @@ enum FileKind {
 
   /// A file's type from its name, where it is a common one.
   static String mimeOf(String name) => _types[endingOf(name)] ?? 'application/octet-stream';
+
+  /// Whether the app draws a file named [name] with type [mime] as a picture itself, in a chat and in its preview: a
+  /// picture that is not an SVG (never drawn here), and a HEIC or HEIF only where this device reads one ([readsHeic]).
+  /// Every place that draws one still falls back where the picture turns out not to open. GMFB-60.
+  static bool drawsAsPicture(String name, [String mime = '']) {
+    if (of(name, mime) != image) return false;
+    final ending = endingOf(name), m = mime.toLowerCase();
+    if (ending == 'svg' || (ending.isEmpty && m.startsWith('image/svg'))) return false;
+    if (ending == 'heic' || ending == 'heif' || (ending.isEmpty && (m.startsWith('image/heic') || m.startsWith('image/heif')))) return readsHeic();
+    return true;
+  }
 
   /// The kind of a file named [name] with type [mime]: by the name's ending where it is known, else by the type, else
   /// [other].

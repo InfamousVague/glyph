@@ -27,6 +27,9 @@ import 'common.dart';
       'application/pdf' => (label: 'PDF', ending: 'pdf'),
       'text/plain' => (label: 'Text file', ending: 'txt'),
       'application/zip' => (label: 'Zip file', ending: 'zip'),
+      // A picture this device can't draw, shown as its file (GMFB-60): kept under an ending another app knows it by.
+      'image/heic' || 'image/heif' => (label: 'Picture', ending: 'heic'),
+      'image/svg+xml' => (label: 'Picture', ending: 'svg'),
       'application/msword' => (label: 'Word document', ending: 'doc'),
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => (label: 'Word document', ending: 'docx'),
       'application/vnd.ms-excel' => (label: 'Spreadsheet', ending: 'xls'),

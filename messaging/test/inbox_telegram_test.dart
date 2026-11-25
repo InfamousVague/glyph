@@ -270,6 +270,11 @@ void main() {
       'A kind of message Ghost can\'t show yet: open Telegram to see it': false,
     });
     expect(tg.messagesOf('10').map((m) => m.text), isNot(contains('Message')));
+    // Posted as a chat, not a person (an admin as the group itself): by that chat's name.
+    td.say({'@type': 'updateNewMessage', 'message': {'id': n++, 'chat_id': 10, 'is_outgoing': false, 'date': 1763200201, 'sender_id': {'@type': 'messageSenderChat', 'chat_id': 10}, 'content': {'@type': 'messageText', 'text': {'text': 'from the group'}}}});
+    await settle();
+    final posted = tg.messagesOf('10').last;
+    expect((posted.text, posted.sender, posted.senderId), ('from the group', tg.chats.firstWhere((c) => c.id == '10').title, ''));
     tg.dispose();
   });
 

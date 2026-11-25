@@ -591,13 +591,16 @@ class GoogleChat extends InboxNetwork {
       for (final m in sorted)
         if (_threadOf[m.id] case final t? when roots[t] != null && roots[t]!.id != m.id)
           InboxMessage(
-            id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, reactions: m.reactions,
+            id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, senderId: m.senderId, state: m.state, reactions: m.reactions,
             replyTo: roots[t]!.id, replyText: roots[t]!.text, replySender: roots[t]!.mine ? 'You' : roots[t]!.sender,
           )
         else
           m,
     ];
   }
+
+  @override
+  String? faceOf(String user) => _photos[user];
 
   /// A message as the Chat API gives it. Notes its thread on the way, for a reply to go into.
   InboxMessage _message(Map p) {
@@ -619,6 +622,7 @@ class GoogleChat extends InboxNetwork {
       date: DateTime.tryParse(p['createTime'] as String? ?? '')?.toLocal() ?? DateTime.now(),
       mine: mine,
       sender: mine ? '' : (_names[user] ?? (sender?['displayName'] as String?) ?? 'Someone'),
+      senderId: user,
       reactions: [
         for (final r in ((p['emojiReactionSummaries'] as List?) ?? const []).cast<Map>())
           if ((r['emoji'] as Map?)?['unicode'] is String) InboxReaction(emoji: (r['emoji'] as Map)['unicode'] as String, count: (r['reactionCount'] as num?)?.toInt() ?? 1),
@@ -716,7 +720,7 @@ class GoogleChat extends InboxNetwork {
     } else {
       i >= 0 ? rs[i] = InboxReaction(emoji: emoji, count: rs[i].count + 1, mine: true) : rs.add(InboxReaction(emoji: emoji, mine: true));
     }
-    return InboxMessage(id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, state: m.state, reactions: rs,
+    return InboxMessage(id: m.id, text: m.text, date: m.date, mine: m.mine, sender: m.sender, senderId: m.senderId, state: m.state, reactions: rs,
         replyTo: m.replyTo, replyText: m.replyText, replySender: m.replySender);
   }
 

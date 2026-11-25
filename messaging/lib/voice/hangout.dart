@@ -308,6 +308,17 @@ class HangoutRoom extends ChangeNotifier {
     _hi();
   }
 
+  /// What this device shows the space's call, said in its 'hi' (`pv`: 'c' its camera, 's' its screen) while it is in
+  /// the call, so the circle's list marks it for whoever is not in the call (GMFB-66: "show what users are streaming
+  /// and or sharing video"); '' for neither. Said again only as it changes. A build from before reads no `pv`.
+  String _picture = '';
+  void sayPicture({required bool camera, required bool screen}) {
+    final now = screen ? 's' : (camera ? 'c' : '');
+    if (now == _picture) return;
+    _picture = now;
+    _hi();
+  }
+
   /// The song someone in the call plays to it, as they last said; null for none.
   String? get musicInCall {
     for (final p in present.values) {
@@ -321,7 +332,7 @@ class HangoutRoom extends ChangeNotifier {
   /// nobody and saw those here without their names until they spoke.
   void _hi({bool ask = false}) {
     final me = Me.instance;
-    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (_inVoice && _music.isNotEmpty) 'mp': _music, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
+    _say({'t': 'hi', 'n': name, if (username != null) 'u': username, 'a': _inVoice, if (_inVoice && _music.isNotEmpty) 'mp': _music, if (_inVoice && _picture.isNotEmpty) 'pv': _picture, if (ask) 'q': true, if (me.status.isNotEmpty) 'st': me.status, if (me.picture.isNotEmpty) 'ph': ProfilePictures.hashOf(me.picture), if (GamePresence.instance.forSpaces != null) 'ga': GamePresence.instance.forSpaces!.toJson(), if (!me.cosmetics.isEmpty) 'cx': me.cosmetics.toJson()});
   }
 
   /// Pictures asked for and not yet answered, by whose: one asking at a time for each person.
@@ -1241,6 +1252,9 @@ class HangoutRoom extends ChangeNotifier {
             guest: m['g'] == true,
             // The song they play to the call as its DJ: a guest is never one.
             music: m['mp'] is String && m['a'] == true && m['g'] != true ? String.fromCharCodes((m['mp'] as String).runes.take(HangoutPerson.musicMost)) : '',
+            // What they show the call (GMFB-66): only while they are in it.
+            camera: m['a'] == true && m['pv'] == 'c',
+            screen: m['a'] == true && m['pv'] == 's',
             status: m['st'] is String ? String.fromCharCodes((m['st'] as String).runes.take(Me.statusMost)) : '',
             pictureHash: m['ph'] is String ? m['ph'] as String : '',
             // What they are playing, as their greeting says now (lib/games/game_activity.dart): none said, none.
@@ -1355,7 +1369,7 @@ class HangoutRoom extends ChangeNotifier {
 /// Someone in a hangout's chat room, as they said they are.
 @immutable
 class HangoutPerson {
-  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.music = '', this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
+  const HangoutPerson(this.id, {this.name = '', this.username, this.inVoice = false, this.guest = false, this.music = '', this.camera = false, this.screen = false, this.status = '', this.pictureHash = '', this.game, this.cosmetics = Cosmetics.none});
   final String id;
   final String name;
   final String? username;
@@ -1375,6 +1389,10 @@ class HangoutPerson {
 
   /// The song they play to the space's call (lib/voice/spotify.dart), in words; '' for none.
   final String music;
+
+  /// In the space's call with their camera on, or sharing their screen there (`pv` in their greeting, GMFB-66): for the
+  /// lists of who is in a call as seen from outside it. Never both: a shared screen is sent in the camera's place.
+  final bool camera, screen;
   static const musicMost = 120;
 }
 

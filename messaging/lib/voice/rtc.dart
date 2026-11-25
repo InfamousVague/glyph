@@ -874,7 +874,7 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
   /// Settings changed while in the call: how loud others are and the microphone's processing at once; the rest
   /// from the next call.
   Future<void> applyLive(VoiceSettings fresh) async {
-    settings = fresh.copyWith(input: settings.input, output: settings.output, inputName: settings.inputName, outputName: settings.outputName);
+    settings = fresh.copyWith(input: settings.input, output: settings.output, inputName: settings.inputName, outputName: settings.outputName, camera: settings.camera, cameraName: settings.cameraName);
     _peers.keys.forEach(_apply);
     await VoiceFx.apply(settings);
   }
@@ -1060,13 +1060,89 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     }
   }
 
+  /// Whether a camera is chosen by name here (GMFB-68): a computer or a browser. A phone has Flip camera instead.
+  static bool get choosesCamera => _os != 'android' && _os != 'ios';
+
+  /// The camera chosen in Settings is not connected, so the system's own is used in its place (GMFB-68).
+  bool cameraMissing = false;
+  bool _changingCamera = false;
+
+  /// The camera to open (GMFB-68, Matt: "There is no way to switch or select a video device in the app or actively
+  /// during a call"): the one chosen in Settings › Voice and video where it is connected, else the system's own
+  /// (empty). A phone's are its front and its back, changed between in the call ([flipCamera]), so none is chosen there.
+  Future<String> _useCamera() async {
+    if (!choosesCamera || settings.camera.isEmpty) {
+      cameraMissing = false;
+      return '';
+    }
+    final c = DeviceChoice.resolve(settings.camera, settings.cameraName, await devices('videoinput'));
+    cameraMissing = c.missing;
+    return c.id;
+  }
+
+  /// What the camera [camera] is asked for: the picture's size, and which camera. Windows' and Linux's WebRTC take the
+  /// camera from `optional: [{sourceId}]` as they do the microphone ([_sourceIds]); the Mac's and a browser's from
+  /// `deviceId`. With none chosen, the one facing the person, or a phone's back one once flipped to.
+  Map<String, Object> _videoAsked(String camera) => {
+        'width': settings.videoSize.width,
+        'height': settings.videoSize.height,
+        'frameRate': 30,
+        if (camera.isEmpty) 'facingMode': _back ? 'environment' : 'user',
+        if (camera.isNotEmpty && !_sourceIds) 'deviceId': camera,
+        if (camera.isNotEmpty && _sourceIds)
+          'optional': [
+            {'sourceId': camera},
+          ],
+      };
+
+  Future<MediaStream> _openCamera() async => sound.open({'audio': false, 'video': _videoAsked(await _useCamera())});
+
+  /// Films with another camera (GMFB-68), in the call as it goes: the new one's picture in the old one's place in
+  /// every connection and in this device's own tile. With video off only the choice changes, for when it is turned
+  /// on. [name] is the system's name for it, to find it again by. A camera that will not open leaves the picture as
+  /// it was where it can.
+  Future<void> setCamera(String deviceId, {String name = ''}) async {
+    settings = settings.copyWith(camera: deviceId, cameraName: deviceId.isEmpty ? '' : name);
+    final old = _cam;
+    if (old == null || _changingCamera) return;
+    _changingCamera = true;
+    try {
+      MediaStream fresh;
+      var let = false;
+      try {
+        fresh = await _openCamera();
+      } catch (_) {
+        // Some cameras open once only (Windows, when the one chosen is the one already filming): the old picture is
+        // let go first, then it is asked for again.
+        if (!identical(_cam, old)) return;
+        await _dispose(old);
+        let = true;
+        fresh = await _openCamera();
+      }
+      // Video turned off while the camera opened: nothing to put it in.
+      if (!identical(_cam, old)) {
+        await _dispose(fresh);
+        return;
+      }
+      _cam = fresh;
+      localVideo.value = fresh;
+      for (final p in _peers.values) {
+        await p.showCamera(_picture);
+      }
+      if (!let) {
+        // As when video is turned off: the tile lets go of the old picture's renderer first (GMFB-5).
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await _dispose(old);
+      }
+    } finally {
+      _changingCamera = false;
+    }
+  }
+
   @override
   Future<void> setVideo(bool on) async {
     if (on && _cam == null) {
-      _cam = await navigator.mediaDevices.getUserMedia({
-        'audio': false,
-        'video': {'width': settings.videoSize.width, 'height': settings.videoSize.height, 'frameRate': 30, 'facingMode': _back ? 'environment' : 'user'},
-      });
+      _cam = await _openCamera();
       localVideo.value = _cam;
     } else if (!on && _cam != null) {
       final cam = _cam!;

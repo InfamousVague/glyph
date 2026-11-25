@@ -78,9 +78,13 @@ class CircleSpaceView {
 /// for this device), and the name to show.
 @immutable
 class CircleVoicePerson {
-  const CircleVoicePerson({required this.id, required this.name});
+  const CircleVoicePerson({required this.id, required this.name, this.camera = false, this.screen = false});
   final String id;
   final String name;
+
+  /// Their camera is on in the call, or they share their screen there (GMFB-66: "show what users are streaming and or
+  /// sharing video"): a small mark after their name.
+  final bool camera, screen;
 
   bool get me => id == 'me';
 }

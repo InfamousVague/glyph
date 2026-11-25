@@ -180,7 +180,7 @@ class CallPanel extends StatelessWidget {
     // The levels are listened to by each face alone (GMFB-6): the whole panel, video tiles and all, rebuilt at every
     // reading while anyone spoke.
     return ListenableBuilder(
-      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.hangoutFor(session.channel)]),
+      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?v.hangoutFor(session.channel), VideoShapes.changes]),
       builder: (context, _) {
         // A shared screen in the camera's place (GMFB-27), this device's own included.
         // A hangout's: each person's role beside their name, where it is not the one everyone starts with.
@@ -205,8 +205,15 @@ class CallPanel extends StatelessWidget {
             LayoutBuilder(builder: (context, box) {
               final size = videoTile(width: box.maxWidth, count: withVideo.length, gap: t.space(2), screenHeight: MediaQuery.sizeOf(context).height);
               final w = size.width;
-              return Wrap(alignment: WrapAlignment.center, spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: w, height: size.height, child: _Tile(name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen)),
+              // On a phone a camera's tile is the shape of its picture, so all of it shows (GMFB-71): as wide as its
+              // place where that is no taller than 60% of the screen, else that tall and narrower.
+              Size fit(MediaStream? stream, bool screen) {
+                final shape = Sms.computer || screen ? null : VideoShapes.of(stream?.id);
+                return shape == null ? Size(w, size.height) : wholeTile(width: w, shape: shape, most: MediaQuery.sizeOf(context).height * 0.6);
+              }
+
+              return Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, spacing: t.space(2), runSpacing: t.space(2), children: [
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: fit(p.video, p.screen).width, height: fit(p.video, p.screen).height, child: _Tile(whole: !Sms.computer, name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen, tools: p.me && !p.screen ? sessionVideoTools(context, session) : const [])),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -308,7 +315,7 @@ class CallVideos extends StatelessWidget {
         final shared = [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
         final tiles = shared == null ? all : [for (final x in all) if (!identical(x, shared)) x];
         Widget tile(({String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
-            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen && !session.backCamera, screen: x.screen);
+            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen && !session.backCamera, screen: x.screen, tools: x.me && !x.screen ? sessionVideoTools(context, session) : const []);
         if (shared != null) {
           return Column(children: [
             Expanded(flex: 3, child: tile(shared)),
@@ -383,7 +390,11 @@ class CallDock extends StatelessWidget {
                 onPress: () => session.setDeafened(!session.deafened),
                 kind: 'audiooutput',
               ),
-              button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
+              // The camera's too, where there are cameras to choose between (GMFB-68): a computer or a browser.
+              if (RtcMedia.choosesCamera)
+                DevicePill(icon: session.video ? Lucide.video : LucideMore.videoOff, label: session.video ? 'Turn video off' : 'Turn video on', on: session.video, onPress: () => session.setVideo(!session.video), kind: 'videoinput')
+              else
+                button(session.video ? Lucide.video : LucideMore.videoOff, session.video ? 'Turn video off' : 'Turn video on', () => session.setVideo(!session.video), on: session.video),
               // The other camera, beside the camera's button, on a phone while video is on (GMFB-57).
               if (session.canFlipCamera) button(Lucide.refreshCw, 'Flip camera', () => unawaited(session.flipCamera())),
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
@@ -399,7 +410,13 @@ class CallDock extends StatelessWidget {
 
 /// Someone's video in a call: their picture with the name along the foot, and a red mic-off mark while muted.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.name, required this.muted, this.mark = LucideMore.micOff, this.stream, this.mirror = false, this.screen = false});
+  const _Tile({required this.name, required this.muted, this.mark = LucideMore.micOff, this.stream, this.mirror = false, this.screen = false, this.tools = const [], this.whole = false});
+
+  /// The camera's picture drawn whole, where the tile has its shape (a phone, GMFB-71).
+  final bool whole;
+
+  /// Buttons over the picture ([TileTools]): this device's own camera's.
+  final List<TileTool> tools;
 
   /// The mark while [muted] ([mutedMark]).
   final LucideIcon mark;
@@ -414,14 +431,16 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return ClipRRect(
+    return TileTools(
+      tools: tools,
+      child: ClipRRect(
       borderRadius: BorderRadius.circular(t.radius('lg')),
       child: ColoredBox(
         color: screen ? const Color(0xFF000000) : t.color('app-paper-3'),
         child: Stack(fit: StackFit.expand, children: [
           // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
           // never carries on drawing whoever stood in that place before.
-          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror, contain: screen),
+          if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror, contain: screen || whole),
           Positioned(
             left: t.space(2),
             bottom: t.space(2),
@@ -433,6 +452,86 @@ class _Tile extends StatelessWidget {
           ),
         ]),
       ),
+    ));
+  }
+}
+
+/// A button over a video tile ([TileTools]).
+typedef TileTool = ({LucideIcon icon, String label, VoidCallback onPressed});
+
+/// What stands over this device's own camera picture (GMFB-70, Matt: "Move the flip video setting to show up as a
+/// button hovered over the video when available"): Flip camera where there is one to flip ([onFlip], a phone), else
+/// Change camera where cameras are chosen between ([onCamera], a computer; GMFB-68). Nothing where neither.
+List<TileTool> ownVideoTools({VoidCallback? onFlip, VoidCallback? onCamera}) => [
+      if (onFlip != null) (icon: Lucide.refreshCw, label: 'Flip camera', onPressed: onFlip) else if (onCamera != null) (icon: Lucide.refreshCw, label: 'Change camera', onPressed: onCamera),
+    ];
+
+/// The same for a call drawn from its session (CallPanel, CallVideos).
+List<TileTool> sessionVideoTools(BuildContext context, VoiceSession session) => ownVideoTools(
+      onFlip: session.canFlipCamera ? () => unawaited(session.flipCamera()) : null,
+      onCamera: session.video && !session.screen && RtcMedia.choosesCamera ? () => unawaited(showCameraChoices(context)) : null,
+    );
+
+/// The cameras there are, to change to in the call as it goes (GMFB-68, Matt: "There is no way to switch or select a
+/// video device in the app or actively during a call"): the system's own first, the one in use ticked, as Settings ›
+/// Voice and video lists them.
+Future<void> showCameraChoices(BuildContext context) async {
+  final v = Voice.instance;
+  final list = await RtcMedia.devices('videoinput');
+  if (!context.mounted) return;
+  final current = v.settings.camera;
+  await showChoices(context, title: 'Camera', choices: [
+    Choice(current.isEmpty ? '✓  The system\'s own' : 'The system\'s own', Lucide.laptop, () => unawaited(v.useCamera(''))),
+    for (final d in list)
+      if (d.deviceId != 'default')
+        Choice('${d.deviceId == current ? '✓  ' : ''}${d.label.isEmpty ? 'A device' : d.label}', Lucide.video, () => unawaited(v.useCamera(d.deviceId, name: d.label))),
+  ]);
+}
+
+/// [child], a video tile, with small round buttons at its top right: shown while the pointer is over the tile, and
+/// always where there is no pointer to hover with (a phone), so they can be reached there too (GMFB-70).
+class TileTools extends StatefulWidget {
+  const TileTools({super.key, required this.tools, required this.child});
+  final List<TileTool> tools;
+  final Widget child;
+
+  @override
+  State<TileTools> createState() => _TileToolsState();
+}
+
+class _TileToolsState extends State<TileTools> {
+  bool _over = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.tools.isEmpty) return widget.child;
+    final t = context.tokens;
+    final shown = _over || !WidgetsBinding.instance.mouseTracker.mouseIsConnected;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _over = true),
+      onExit: (_) => setState(() => _over = false),
+      child: Stack(fit: StackFit.expand, children: [
+        widget.child,
+        if (shown)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: [
+              for (final x in widget.tools)
+                GlacierPressable(
+                  onPressed: x.onPressed,
+                  semanticLabel: x.label,
+                  builder: (context, state) => Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: t.color(state.pressed ? 'app-paper-3' : 'glacier-bg').withValues(alpha: 0.9)),
+                    alignment: Alignment.center,
+                    child: AppIcon(x.icon, size: 16, wash: false, color: t.color('app-ink')),
+                  ),
+                ),
+            ]),
+          ),
+      ]),
     );
   }
 }
@@ -457,11 +556,18 @@ class _StreamViewState extends State<StreamView> {
   @override
   void initState() {
     super.initState();
+    _renderer.addListener(_shape);
     _renderer.initialize().then((_) {
       if (!mounted) return;
       _renderer.srcObject = widget.stream;
       setState(() => _ready = true);
     });
+  }
+
+  /// The picture's own shape, said as its frames give it (GMFB-71): a phone's tile is drawn that shape.
+  void _shape() {
+    final v = _renderer.value;
+    if (v.width > 0 && v.height > 0) VideoShapes.say(widget.stream.id, v.aspectRatio);
   }
 
   @override
@@ -472,6 +578,7 @@ class _StreamViewState extends State<StreamView> {
 
   @override
   void dispose() {
+    _renderer.removeListener(_shape);
     _renderer.dispose();
     super.dispose();
   }
@@ -974,6 +1081,22 @@ class _PersonSheet extends StatelessWidget {
                               control: GlacierSwitch(checked: session.muted, onCheckedChange: session.setMuted, ariaLabel: 'Mute'),
                             ),
                             SettingRow(label: 'Deafen', hint: const Text('Hear nobody, and say nothing.'), control: GlacierSwitch(checked: session.deafened, onCheckedChange: session.setDeafened, ariaLabel: 'Deafen')),
+                            // The camera, in what a press on one's own video opens (GMFB-70, Matt: "add it to the menu
+                            // that pops up when tapping on a video"): the other side of a phone, or another of a
+                            // computer's (GMFB-68).
+                            if (session.canFlipCamera)
+                              SettingRow(key: const ValueKey('sheet-flip'), icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Flip camera', hint: const Text('Front or back'), onPress: () => unawaited(session.flipCamera()))
+                            else if (session.video && !session.screen && RtcMedia.choosesCamera)
+                              SettingRow(
+                                key: const ValueKey('sheet-camera'),
+                                icon: AppIcon(Lucide.video, size: 18),
+                                label: 'Change camera',
+                                onPress: () {
+                                  final root = Navigator.of(context, rootNavigator: true);
+                                  root.pop();
+                                  unawaited(showCameraChoices(root.context));
+                                },
+                              ),
                           ] else if (!gone) ...[
                             SettingRow(
                               icon: AppIcon(LucideMore.volumeX, size: 18),
@@ -1156,13 +1279,15 @@ class _DevicePillState extends State<DevicePill> {
     final t = context.tokens;
     final v = Voice.instance;
     final input = widget.kind == 'audioinput';
-    final current = input ? v.settings.input : v.settings.output;
+    // The camera's (GMFB-68): the same pill, listing cameras.
+    final camera = widget.kind == 'videoinput';
+    final current = camera ? v.settings.camera : (input ? v.settings.input : v.settings.output);
     final ink = widget.on ? t.color('app-paper') : t.color('app-ink');
     final ground = widget.on ? t.color('app-ink') : t.color('glacier-bg');
     Widget row(String id, String name) => GlacierMenuItem(
-          icon: AppIcon(input ? Lucide.mic : LucideMore.headphones, size: 16),
+          icon: AppIcon(camera ? Lucide.video : (input ? Lucide.mic : LucideMore.headphones), size: 16),
           shortcut: id == current ? AppIcon(Lucide.check, size: 16, color: t.color('app-ink')) : const SizedBox(width: 16),
-          onSelect: () => input ? v.useInput(id, name: name) : v.useOutput(id, name: name),
+          onSelect: () => camera ? v.useCamera(id, name: name) : (input ? v.useInput(id, name: name) : v.useOutput(id, name: name)),
           child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
         );
     final ring = t.len('app-ring');
@@ -1192,11 +1317,11 @@ class _DevicePillState extends State<DevicePill> {
             if (open) _load();
           },
           placement: Placement.top,
-          ariaLabel: input ? 'Microphone' : 'Speaker',
+          ariaLabel: camera ? 'Camera' : (input ? 'Microphone' : 'Speaker'),
           style: GlacierMenuStyle(minWidth: t.lenOf('15rem'), maxWidth: t.lenOf('20rem')),
           trigger: (context, trigger) => GlacierPressable(
             onPressed: trigger.toggle,
-            semanticLabel: input ? 'Choose a microphone' : 'Choose a speaker',
+            semanticLabel: camera ? 'Choose a camera' : (input ? 'Choose a microphone' : 'Choose a speaker'),
             builder: (context, state) => Container(
               width: 24,
               height: ring,
@@ -1206,7 +1331,7 @@ class _DevicePillState extends State<DevicePill> {
             ),
           ),
           children: [
-            GlacierMenuLabel(child: Text(input ? 'Microphone' : 'Speaker or headset')),
+            GlacierMenuLabel(child: Text(camera ? 'Camera' : (input ? 'Microphone' : 'Speaker or headset'))),
             row('', input ? 'The system\'s own' : 'The system\'s own'),
             // The Mac's "default" is the system's own, the row above.
             for (final d in _devices)

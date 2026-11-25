@@ -15,6 +15,8 @@ class VoiceSettings {
     this.output = '',
     this.inputName = '',
     this.outputName = '',
+    this.camera = '',
+    this.cameraName = '',
     this.audioKbps = 510,
     this.stereo = true,
     this.echo = true,
@@ -35,6 +37,12 @@ class VoiceSettings {
   /// microphone afresh each time it is plugged in) is found again by its name ([SoundChoice.resolve]).
   final String inputName;
   final String outputName;
+
+  /// The camera's device id and the system's name for it, as the microphone's are kept (GMFB-68, Matt: "There is no
+  /// way to switch or select a video device in the app or actively during a call"); empty for the system's own. A
+  /// phone's front and back are changed between in the call instead (Flip camera).
+  final String camera;
+  final String cameraName;
   final int audioKbps;
   final bool stereo;
   final bool echo;
@@ -68,6 +76,8 @@ class VoiceSettings {
         output: app.choice('voice_output', ''),
         inputName: app.choice('voice_input_name', ''),
         outputName: app.choice('voice_output_name', ''),
+        camera: app.choice('voice_camera', ''),
+        cameraName: app.choice('voice_camera_name', ''),
         audioKbps: int.tryParse(app.choice('voice_kbps', '510')) ?? 510,
         stereo: app.flag('voice_stereo', fallback: true),
         echo: app.flag('voice_echo', fallback: true),
@@ -82,11 +92,13 @@ class VoiceSettings {
       );
 
   /// With another device or volume; everything else as it is.
-  VoiceSettings copyWith({String? input, String? output, String? inputName, String? outputName, int? inputVolume, int? outputVolume}) => VoiceSettings(
+  VoiceSettings copyWith({String? input, String? output, String? inputName, String? outputName, String? camera, String? cameraName, int? inputVolume, int? outputVolume}) => VoiceSettings(
         input: input ?? this.input,
         output: output ?? this.output,
         inputName: inputName ?? this.inputName,
         outputName: outputName ?? this.outputName,
+        camera: camera ?? this.camera,
+        cameraName: cameraName ?? this.cameraName,
         audioKbps: audioKbps,
         stereo: stereo,
         echo: echo,

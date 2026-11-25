@@ -16,6 +16,7 @@ import '../hangout_screen.dart' show roleInk;
 import '../ripple_avatar.dart';
 import '../skeleton.dart';
 import '../tile_grid.dart';
+import '../voice_screen.dart' show TileTool, TileTools, ownVideoTools;
 import 'space_design.dart';
 
 /// A space's call, laid out as Telegram's group voice chat (the one way a space's call is drawn: space_design.dart):
@@ -303,8 +304,9 @@ class _Menu extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         _MenuRow(icon: Lucide.userPlus, label: SpaceWords.invite, hint: 'Friends, a text or the link', onPressed: run(call.onInvite)),
         _MenuRow(icon: LucideMore.headphones, label: SpaceWords.devices, hint: 'Microphone, camera and speaker', onPressed: run(call.onDevices)),
-        // The other camera (GMFB-57): the foot's four buttons round the microphone leave no room, so it is here.
-        if (call.onFlip != null) _MenuRow(icon: SpaceWords.flipIcon, label: SpaceWords.flip, hint: 'Front or back', onPressed: run((_) => call.onFlip!())),
+        // The other camera (GMFB-57) was here; it is over one's own video now, and in what a press on it opens
+        // (GMFB-70, Matt: "Move the flip video setting to show up as a button hovered over the video when available
+        // and add it to the menu that pops up when tapping on a video").
         _MenuRow(icon: Lucide.settings, label: SpaceWords.settings, hint: 'Roles and permissions', onPressed: run(call.onSettings)),
         // What the plugins that are on in this call offer (Slots.callControls).
         for (final x in call.extras) _MenuRow(icon: x.icon, label: x.label, hint: x.builtIn ? 'A screen or a window, to everyone here' : 'A plugin', danger: x.danger, onPressed: run(x.run)),
@@ -407,7 +409,7 @@ class _People extends StatelessWidget {
           ),
           if (videos.isNotEmpty) ...[
             // Roomy: four fifths of the panel's height, or all the list leaves where that is more.
-            _VideoGrid(call: call, people: videos, room: roomy ? math.max(room, box.maxHeight * 0.8) : room, roomy: roomy),
+            _VideoGrid(call: call, people: videos, room: roomy ? math.max(room, box.maxHeight * 0.8) : room, roomy: roomy, most: box.maxHeight * 0.6),
             SizedBox(height: t.space(3)),
           ],
           Container(
@@ -610,9 +612,13 @@ class _MicMark extends StatelessWidget {
 }
 
 /// Everyone with video on: on a computer 4:3 tiles as large as fit ([roomy]); on a phone two across (one alone, or the
-/// last of an odd number, across the whole width).
+/// last of an odd number, across the whole width), each the shape of its own picture once that is known.
 class _VideoGrid extends StatelessWidget {
-  const _VideoGrid({required this.call, required this.people, required this.room, this.roomy = false});
+  const _VideoGrid({required this.call, required this.people, required this.room, this.roomy = false, this.most = double.infinity});
+
+  /// On a phone, the tallest a tile shaped as its picture may be (GMFB-71): an upright phone's picture across the
+  /// whole width would be taller than the screen, so it is drawn narrower, whole, in the middle.
+  final double most;
   final SpaceCall call;
   final List<SpacePerson> people;
 
@@ -653,12 +659,21 @@ class _VideoGrid extends StatelessWidget {
       final fit = math.max(84.0, (room - gap * (rows - 1)) / rows);
       final pair = math.min(half * 0.82, fit);
       final wide = math.min(math.min(box.maxWidth * 9 / 16, 200.0), fit);
-      return Wrap(spacing: gap, runSpacing: gap, children: [
+      // A phone's tile is the shape of the picture in it, so the whole of what the camera films shows (GMFB-71, Matt:
+      // "Videos are still rectangular on mobile and don't show the whole camera resolution"): tiles were a fixed wide
+      // strip (one alone 200 high across the screen) and an upright phone's 9:16 picture lost most of itself to fit.
+      // Each keeps its place two across, as wide as that allows and no taller than [most]; the list scrolls under
+      // them. Until a picture's shape is known (and for a face, with video not here yet) the tile is as it was.
+      Widget cell(SpacePerson p, double across, double high) {
+        final shape = p.screen ? null : p.shape;
+        if (shape == null) return SizedBox(width: across, height: high, child: _VideoTile(call: call, person: p));
+        final size = wholeTile(width: across, shape: shape, most: most);
+        return SizedBox(width: across, child: Center(child: SizedBox(key: ValueKey('tg-whole-${p.id}'), width: size.width, height: size.height, child: _VideoTile(call: call, person: p, whole: true))));
+      }
+
+      return Wrap(spacing: gap, runSpacing: gap, crossAxisAlignment: WrapCrossAlignment.center, children: [
         for (var i = 0; i < people.length; i++)
-          if (people.length.isOdd && i == people.length - 1)
-            SizedBox(width: box.maxWidth, height: wide, child: _VideoTile(call: call, person: people[i]))
-          else
-            SizedBox(width: half, height: pair, child: _VideoTile(call: call, person: people[i])),
+          if (people.length.isOdd && i == people.length - 1) cell(people[i], box.maxWidth, wide) else cell(people[i], half, pair),
       ]);
     });
   }
@@ -667,15 +682,24 @@ class _VideoGrid extends StatelessWidget {
 /// Someone whose camera is on, as a rounded tile: their picture (the face until it comes), edged green while they
 /// talk.
 class _VideoTile extends StatelessWidget {
-  const _VideoTile({required this.call, required this.person});
+  const _VideoTile({required this.call, required this.person, this.whole = false});
   final SpaceCall call;
   final SpacePerson person;
+
+  /// The tile is the picture's own shape: drawn whole (GMFB-71).
+  final bool whole;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final p = person;
-    return GlacierPressable(
+    // Over one's own camera's picture: the other camera (GMFB-70), or the choice of cameras (GMFB-68).
+    final tools = p.me && p.video && !p.screen
+        ? ownVideoTools(onFlip: call.onFlip, onCamera: call.onCamera == null ? null : () => call.onCamera!(context))
+        : const <TileTool>[];
+    return TileTools(
+      tools: tools,
+      child: GlacierPressable(
       onPressed: call.onPerson == null ? null : () => call.onPerson!(context, p),
       semanticLabel: '${p.shown}, video',
       builder: (context, state) => ValueListenableBuilder<Map<String, double>>(
@@ -702,6 +726,7 @@ class _VideoTile extends StatelessWidget {
                 SpaceVideo(
                   call: call,
                   person: p,
+                  whole: whole,
                   // The face in the middle of the part above the name chip (the chip's top is 28 from the foot), sized
                   // so its ripples, which reach 1.85 times its radius, stay above the chip too.
                   fallback: LayoutBuilder(builder: (context, box) {
@@ -741,7 +766,7 @@ class _VideoTile extends StatelessWidget {
           ));
         },
       ),
-    );
+    ));
   }
 }
 
