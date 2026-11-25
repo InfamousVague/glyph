@@ -56,18 +56,23 @@ class _Friends implements BuddiesPort {
 void main() {
   group('what is sent', () {
     test('ids by kind, empty ones left out, and read back the same', () {
-      const c = Cosmetics(decoration: 'cat-ears', banner: 'aurora', name: 'flame');
-      expect(c.toJson(), {'d': 'cat-ears', 'bn': 'aurora', 'ne': 'flame'});
+      const c = Cosmetics(banner: 'aurora', name: 'flame');
+      expect(c.toJson(), {'bn': 'aurora', 'ne': 'flame'});
       expect(Cosmetics.fromJson(c.toJson()), c);
+      // The decoration, the border and the profile effect are not worn any more (Matt, 2026-11-25: "remove the profile
+      // decoration, the profile border and the profile effect"): not sent, and not read from a build that sends them.
+      expect(const Cosmetics(decoration: 'cat-ears', border: 'neon-tube', effect: 'embers', banner: 'aurora').toJson(), {'bn': 'aurora'});
+      expect(Cosmetics.fromJson({'d': 'cat-ears', 'r': 'neon-tube', 'pe': 'embers', 'ne': 'flame'}), const Cosmetics(name: 'flame'));
       expect(Cosmetics.none.toJson(), isEmpty);
       expect(Cosmetics.fromJson(null), isNull, reason: 'a build from before says nothing');
     });
 
     test('a newer build\'s piece is kept to be drawn later; anything not shaped like an id is not', () {
-      final c = Cosmetics.fromJson({'d': 'jetpack-2027', 'r': '<script>', 'bn': 'x' * 60, 'ne': 42})!;
-      expect(c.decoration, 'jetpack-2027');
-      expect(CosmeticCatalog.find(CosmeticKind.decoration, c.decoration), isNull, reason: 'unknown here: drawn as nothing');
-      expect((c.border, c.banner, c.name), ('', '', ''));
+      final c = Cosmetics.fromJson({'bn': 'jetpack-2027', 'r': '<script>', 'ne': 'x' * 60})!;
+      expect(c.banner, 'jetpack-2027');
+      expect(CosmeticCatalog.find(CosmeticKind.banner, c.banner), isNull, reason: 'unknown here: drawn as nothing');
+      expect((c.border, c.name), ('', ''));
+      expect(Cosmetics.fromJson({'ne': 42})!.name, '');
     });
 
     test('a friend\'s profile carries it, and a friend\'s kept record keeps it', () {
@@ -116,7 +121,7 @@ void main() {
     tearDown(() => Buddies.instance = null);
 
     for (final dark in [false, true]) {
-      testWidgets('a friend\'s card wears their banner, decoration, border, name effect and profile effect (${dark ? 'dark' : 'light'})', (tester) async {
+      testWidgets('a friend\'s card wears their banner and name effect, and no decoration, border or profile effect (${dark ? 'dark' : 'light'})', (tester) async {
         final h = await SpaceHarness.load(tester);
         final room = h.room();
         await room.open();
@@ -126,8 +131,11 @@ void main() {
         final chat = find.text('Maya Chen').first;
         await tester.tap(chat);
         await tester.pump(const Duration(milliseconds: 400));
-        for (final key in ['banner-aurora', 'decoration-wisp-halo', 'border-neon-tube', 'name-rainbow', 'effect-embers']) {
+        for (final key in ['banner-aurora', 'name-rainbow']) {
           expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
+        }
+        for (final key in ['decoration-wisp-halo', 'border-neon-tube', 'effect-embers']) {
+          expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
         }
         await h.again(tester, 'cosmetics-card-open', dark: dark);
         await tester.pump(const Duration(seconds: 1));
@@ -143,13 +151,28 @@ void main() {
           ..set('me_cosmetics', jsonEncode(const Cosmetics(decoration: 'frost-crystals', banner: 'deep-space', name: 'shimmer').toJson()));
         await tester.runAsync(() => Me.instance.start(store, ValueNotifier(0), () => null));
         addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
+        Me.instance.hear({'dir': 'souls', 'n': 5, 'special': ['alpha', 'bughunter'], 'show': 'alpha'});
+        addTearDown(() => Me.instance.hear({'dir': 'souls', 'n': 0, 'special': const <String>[], 'show': ''}));
         await h.shoot(tester, const ProfileScreen(), 'profile-look', dark: dark, size: const Size(412, 1900));
         expect(find.byKey(const ValueKey('look-preview')), findsOneWidget);
-        expect(find.byKey(const ValueKey('decoration-frost-crystals')), findsWidgets);
+        expect(find.byKey(const ValueKey('decoration-frost-crystals')), findsNothing);
+        expect(find.byKey(const ValueKey('look-banner')), findsOneWidget);
+        expect(find.byKey(const ValueKey('look-name')), findsOneWidget);
+        for (final gone in ['look-decoration', 'look-border', 'look-effect']) {
+          expect(find.byKey(ValueKey(gone)), findsNothing, reason: gone);
+        }
+        expect(find.byType(BadgeSection), findsOneWidget, reason: 'the badge is chosen on the profile page');
         await tester.tap(find.byKey(const ValueKey('presence-mode-busy')));
         await tester.pump(const Duration(milliseconds: 100));
         expect(Me.instance.presenceMode, 'busy');
         expect(store.kept['me_presence'], 'busy');
+        // The badges you have, the one shown ticked; a press shows another beside your name.
+        expect(find.byKey(const ValueKey('profile-badge-alpha')), findsOneWidget);
+        expect(Me.instance.showcase, 'alpha');
+        await tester.ensureVisible(find.byKey(const ValueKey('profile-badge-bughunter')));
+        await tester.tap(find.byKey(const ValueKey('profile-badge-bughunter')));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(Me.instance.showcase, 'bughunter');
         Net.instance.setMode('online');
         await tester.pump(const Duration(seconds: 1));
       });
@@ -160,21 +183,19 @@ void main() {
       final store = MemoryMeStore()..set('me_username', 'me')..set('me_display', 'Matt');
       await tester.runAsync(() => Me.instance.start(store, ValueNotifier(0), () => null));
       addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
-      await h.shoot(tester, const CosmeticPickerScreen(kind: CosmeticKind.decoration), 'cosmetics-picker-decoration');
-      await tester.tap(find.byKey(const ValueKey('piece-cat-ears')));
+      await h.shoot(tester, const CosmeticPickerScreen(kind: CosmeticKind.banner), 'cosmetics-picker-banner');
+      await tester.tap(find.byKey(const ValueKey('piece-aurora')));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(Me.instance.cosmetics.decoration, 'cat-ears');
-      expect(store.kept['me_cosmetics'], contains('cat-ears'), reason: 'kept');
+      expect(Me.instance.cosmetics.banner, 'aurora');
+      expect(store.kept['me_cosmetics'], contains('aurora'), reason: 'kept');
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
-      expect(friends.sent.where((e) => (e.body['cx'] as Map?)?['d'] == 'cat-ears'), isNotEmpty, reason: 'friends told');
-      await h.again(tester, 'cosmetics-picker-decoration-worn');
+      expect(friends.sent.where((e) => (e.body['cx'] as Map?)?['bn'] == 'aurora'), isNotEmpty, reason: 'friends told');
+      await h.again(tester, 'cosmetics-picker-banner-worn');
       await tester.tap(find.byKey(const ValueKey('piece-none')));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(Me.instance.cosmetics.decoration, '');
-      // The other kinds' grids build too.
-      for (final kind in [CosmeticKind.border, CosmeticKind.banner, CosmeticKind.name, CosmeticKind.effect]) {
-        await h.shoot(tester, CosmeticPickerScreen(kind: kind), 'cosmetics-picker-${kind.name}');
-      }
+      expect(Me.instance.cosmetics.banner, '');
+      // The other kind's grid builds too.
+      await h.shoot(tester, const CosmeticPickerScreen(kind: CosmeticKind.name), 'cosmetics-picker-name');
       await tester.pump(const Duration(seconds: 1));
     });
   });
