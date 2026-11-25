@@ -349,14 +349,10 @@ class _HangoutScreenState extends State<HangoutScreen> {
         // you can still quickly navigate the circle"). The call's page draws the call: its own header, its people and
         // its buttons, with no Chat panel of its own.
         if (wide && !open) {
-          final app = AppState.of(context);
-          // The chat under the call can be put away, by a button beside Leave (Matt, 2026-11-24: "add a button next to
-          // the leave button for hiding and showing the chat"): kept with the device's choices ([SpaceSplit.chatPref]).
-          final chatShown = SpaceSplit.chatShown(app);
           return ColoredBox(
             color: t.color('glacier-bg'),
             child: SpaceSplit(
-              call: SpaceCallPage(key: ValueKey('split-call-${s.channel.room}'), inline: true, chatBelow: true, chatShown: chatShown, onChatBelow: () => SpaceSplit.setChatShown(app, !chatShown)),
+              call: SpaceCallPage(key: ValueKey('split-call-${s.channel.room}'), inline: true, chatBelow: true),
               chat: chatOver(pill),
             ),
           );
@@ -495,8 +491,11 @@ class SpaceSplit extends StatefulWidget {
   /// the Chat button beside Leave (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the
   /// chat"). Put away, the call has the whole pane, and stays so for every space until the button brings it back.
   static const chatPref = 'space_split_chat';
-  static bool chatShown(AppState? app) => app?.flag(chatPref) ?? true;
-  static void setChatShown(AppState app, bool shown) => app.setFlag(chatPref, shown);
+  ///
+  /// The button is Share screen now (Matt, 2026-11-25: "replace the who hide chat button with a share screen
+  /// button"), so nothing puts the chat away any more and it is always shown: a device that had it put away gets it
+  /// back, and the choice it kept is no longer read.
+  static bool chatShown(AppState? app) => true;
 
   /// Two thirds, as Matt asked.
   static const share = 0.66;

@@ -47,6 +47,7 @@ import 'contacts.dart';
 import 'conversations.dart';
 import 'nav_bar.dart';
 import 'nav_rail.dart';
+import 'profile.dart' show ProfileScreen;
 import 'nav_style.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart' show KeyRecorder;
@@ -1140,6 +1141,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // Share feedback above Settings: on a phone, where it was beside the search (lib/ui/conversations.dart).
               // Share feedback is a row under the search now (lib/ui/conversations.dart, QuickRow; Matt, 2026-11-20).
               onFeedback: null,
+              // The whole profile, from the bubble's card: in the pane, or over the list on a phone.
+              onProfile: Sms.followsPhone ? null : () => show(const ProfileScreen(), showing: 'profile'),
             );
           },
         ),

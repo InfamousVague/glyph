@@ -214,6 +214,7 @@ class Friends extends ChangeNotifier {
     _watchOut();
     await refresh();
     unawaited(_askHistory());
+    unawaited(_askSince());
     // A request that never got an answer is said again, by a route that costs nothing: either was lost.
     for (final s in _by.values.where((s) => s.on && s.friend == 'asked' && _actsOn(s))) {
       _say(s.address, 'ask');
@@ -256,6 +257,7 @@ class Friends extends ChangeNotifier {
       // A route that has just come up: what is waiting for an answer goes now, not at its next turn.
       if (_port.internet) _resend(all: true);
       unawaited(_askHistory());
+      unawaited(_askSince());
     });
   }
 
@@ -451,6 +453,8 @@ class Friends extends ChangeNotifier {
     if (r.envelope.kind == historyAsk && r.sealed && _port.isMine(r.peer)) return _answerHistory(r.envelope, r.device);
     if (r.envelope.kind == historyKind && r.sealed && _port.isMine(r.peer)) return _takeHistory(r.envelope);
     if (r.envelope.kind == historyGot && r.sealed && _port.isMine(r.peer)) return _historyHad(r.envelope, r.device);
+    // A device of this account catching up on what it missed while it was away ([sinceAsk]).
+    if (r.envelope.kind == sinceAsk && r.sealed && _port.isMine(r.peer)) return _answerSince(r.envelope, r.device);
     if (!r.sealed) return;
     final kind = r.envelope.kind;
     if (kind != 'friend' && kind != 'text') return;
@@ -840,6 +844,7 @@ class Friends extends ChangeNotifier {
   /// [historyParts] says so over the conversations (`history_partial`).
   Future<void> _takeHistory(Envelope e) async {
     final b = e.body;
+    if (_catchUp != null && b['n'] == _catchUp) return _takeSince(b);
     if (b['n'] != _myAsking) return;
     final end = b['e'];
     if (end == 1 || end == 2) {
@@ -875,6 +880,138 @@ class Friends extends ChangeNotifier {
     ];
     if (past.isEmpty) return;
     _takenRows[address] = (_takenRows[address] ?? 0) + past.length;
+    try {
+      await _port.keepHistory(address, past);
+    } catch (_) {}
+  }
+
+  // --- catching up on what was missed (Matt, 2026-11-25) -----------------------------------------------------------------
+
+  /// What a device asks its account's other devices each time it comes back: what was said with friends since it was
+  /// last in step (Matt, 2026-11-25: "messages are still not kept in sync across all devices, all my devices have
+  /// different sidebars"). The copies ([copyKind]) reach the devices that are connected as a message goes, and the
+  /// relay keeps one for those that are not only while none of the account's devices is connected at all: with a phone
+  /// that is always connected, a computer that was closed never heard of anything said meanwhile, and [historyAsk] is
+  /// answered once in a device's life. `{n, d, s}`: this asking, this device's number on the account's list, and the
+  /// time to answer from. Answered as [historyKind] is, in parts under `n`, with no end said; builds from before pass
+  /// it over.
+  static const sinceAsk = 'mine-since';
+
+  /// How far back a device's first catching up goes, how often it asks at most, how much earlier than its last
+  /// catching up it asks from (clocks differ a little, and an answer takes a moment), and how soon one device is
+  /// answered again.
+  static const sinceBack = Duration(days: 14);
+  static const sinceEvery = Duration(minutes: 10);
+  static const sinceMargin = Duration(minutes: 2);
+  static const sinceAnswerEvery = Duration(minutes: 2);
+
+  /// This run's asking, when it was made, and what it has taken in.
+  String? _catchUp;
+  int _catchUpAt = 0;
+  int _catchUpParts = 0;
+  final Map<String, int> _catchUpRows = {};
+  final Map<String, int> _sinceAnswered = {};
+
+  /// Catches up from the start again, now: friends were just taken in from the account's kept copy
+  /// (lib/account/account.dart takeIn), and what they said was passed over while they were nobody here.
+  void catchUpAgain() {
+    _app?.set('since_last', '');
+    _catchUpAt = 0;
+    unawaited(_askSince());
+  }
+
+  /// Asks this account's other devices for what was said since this device was last in step, where one is due.
+  Future<void> _askSince() async {
+    if (!_started || !_port.internet) return;
+    final me = _port.thisDevice;
+    if (me == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _catchUpAt < sinceEvery.inMilliseconds) return;
+    final last = int.tryParse(_app?.choice('since_last', '') ?? '') ?? 0;
+    final from = last > 0 ? max(last - sinceMargin.inMilliseconds, now - sinceBack.inMilliseconds) : now - sinceBack.inMilliseconds;
+    final n = base64Url.encode(List<int>.generate(12, (_) => _rand.nextInt(256)));
+    _catchUpAt = now;
+    try {
+      // By the hub alone, which says which device sent it, as [historyAsk] is.
+      final d = await _port.sendMine(Envelope(kind: sinceAsk, body: {'n': n, 'd': me.device, 's': from}), hubOnly: true);
+      if (d.sent) {
+        _catchUp = n;
+        _catchUpParts = 0;
+        _catchUpRows.clear();
+        // In step up to now, as far as this device can tell: the next asking is from here.
+        _app?.set('since_last', '$now');
+        return;
+      }
+    } catch (_) {}
+    // Nothing took it: asked again as the routes change.
+    _catchUpAt = 0;
+  }
+
+  /// Another device of this account is catching up: what is held here that was said since the time it names, for it
+  /// alone. The device it names must be the one the hub says sent it and be on the account's list, as for
+  /// [_answerHistory]; one device is answered at most every [sinceAnswerEvery], with [historyParts] parts at most.
+  Future<void> _answerSince(Envelope e, String? from) async {
+    final b = e.body;
+    final n = b['n'], device = b['d'], since = b['s'];
+    final me = _port.thisDevice;
+    if (from == null || from.isEmpty || n is! String || n.isEmpty || n == _catchUp || device is! String || device.isEmpty || since is! num || me == null || device == me.device) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - (_sinceAnswered[device] ?? 0) < sinceAnswerEvery.inMilliseconds) return;
+    if (!_answering.add('since $device')) return;
+    try {
+      if (await _port.vouch(device, from) == null) return;
+      _sinceAnswered[device] = now;
+      List<({String address, List<PastRow> rows})> held;
+      try {
+        held = await _port.history();
+      } catch (_) {
+        return;
+      }
+      final recent = [
+        for (final c in held) (address: c.address, rows: [for (final r in c.rows) if (r.at >= since) r]),
+      ]..removeWhere((c) => c.rows.isEmpty);
+      // The conversations spoken in last first: an answer cut at [historyParts] has what was said last.
+      recent.sort((x, y) => y.rows.last.at.compareTo(x.rows.last.at));
+      final parts = <Map<String, Object?>>[];
+      for (final c in recent) {
+        var part = <List<Object>>[];
+        var size = 0;
+        for (final r in c.rows) {
+          final row = _rowFitting(r);
+          final bytes = utf8.encode(jsonEncode(row)).length + 1;
+          if (size + bytes > historyBytes - 512 && part.isNotEmpty) {
+            parts.add({'n': n, 'a': c.address, 'r': part});
+            part = [];
+            size = 0;
+          }
+          part.add(row);
+          size += bytes;
+        }
+        if (part.isNotEmpty) parts.add({'n': n, 'a': c.address, 'r': part});
+      }
+      for (final body in parts.take(historyParts)) {
+        if (!await _sendPart(body)) return;
+        if (historyPace > Duration.zero) await Future<void>.delayed(historyPace);
+      }
+    } finally {
+      _answering.remove('since $device');
+    }
+  }
+
+  /// A part of an answer to this device's catching up: kept in its conversation, each message once
+  /// ([FriendsPort.keepHistory]), within the bounds one asking may take in. Past messages: nothing is made unread.
+  Future<void> _takeSince(Map<String, Object?> b) async {
+    final address = b['a'], rows = b['r'];
+    if (address is! String || !address.startsWith('@') || rows is! List) return;
+    if (++_catchUpParts > historyTaken) return;
+    final room = historyMost - (_catchUpRows[address] ?? 0);
+    if (room <= 0) return;
+    final past = <PastRow>[
+      for (final r in rows.take(room))
+        if (r is List && r.length >= 3 && r[0] is String && (r[0] as String).isNotEmpty && r[1] is num) (t: r[0] as String, at: (r[1] as num).toInt(), o: r[2] == 1),
+    ];
+    if (past.isEmpty) return;
+    _catchUpRows[address] = (_catchUpRows[address] ?? 0) + past.length;
     try {
       await _port.keepHistory(address, past);
     } catch (_) {}

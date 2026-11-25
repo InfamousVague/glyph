@@ -749,8 +749,7 @@ class _Controls extends StatelessWidget {
     Widget side(Widget child) => Expanded(child: Center(child: child));
     final leave = _RoundButton(icon: Lucide.x, label: SpaceWords.leave, danger: true, onPressed: call.onLeave);
     // Under the call with the chat below it (SpaceSplit) the buttons are a group in the middle, each in a slot of the
-    // same width, so the gaps between them are even. Chat, beside Leave, puts the chat under the call away and brings
-    // it back (Matt, 2026-11-24: "add a button next to the leave button for hiding and showing the chat").
+    // same width, so the gaps between them are even.
     if (call.chatBelow) {
       Widget slot(String key, Widget child) => SizedBox(key: ValueKey('tg-slot-$key'), width: _slot, child: Center(child: child));
       return Container(
@@ -761,7 +760,9 @@ class _Controls extends StatelessWidget {
           slot('video', _RoundButton(icon: SpaceWords.videoIcon(call), label: SpaceWords.video(call), on: call.video, onPressed: call.videoLocked ? null : call.onVideo)),
           slot('deafen', _RoundButton(icon: SpaceWords.deafenIcon(call), label: SpaceWords.deafen(call), on: call.deafened, onPressed: call.onDeafen)),
           slot('mic', _MicButton(call: call)),
-          if (call.onChatBelow != null) slot('chat', _RoundButton(icon: LucideMore.messageCircle, label: SpaceWords.chat, on: call.chatShown, onPressed: call.onChatBelow)),
+          // Share screen beside Leave, where this device can share one (Matt, 2026-11-25: "replace the who hide chat
+          // button with a share screen button"); it was Chat, which put the chat under the call away.
+          if (call.onScreen != null) slot('screen', _RoundButton(icon: LucideMore.screenShare, label: call.screen ? 'Stop sharing' : 'Share screen', on: call.screen, onPressed: () => call.onScreen!(context))),
           slot('leave', leave),
         ]))),
       );

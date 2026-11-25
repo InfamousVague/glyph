@@ -823,6 +823,31 @@ class Buddies extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Friends another device of this account has and this one does not, or has as less far along, taken in from the
+  /// account's kept copy (lib/account/account.dart takeIn; Matt, 2026-11-25: "messages are still not kept in sync
+  /// across all devices, all my devices have different sidebars"). A device learned the account's friends once, as it
+  /// signed in: a friend made on another device afterwards was never one here, so what they wrote was dropped here and
+  /// their conversation never came with the others. Nobody here is taken out or changed otherwise: a friend ended on
+  /// this device stays ended. How many were taken in.
+  Future<int> takeFromAccount(List<Object?> friends) async {
+    var taken = 0;
+    for (final j in friends) {
+      final b = Buddy.fromJson(j);
+      if (b == null || b.state != 'yes') continue;
+      final had = all.where((o) => o.id == b.id).firstOrNull;
+      if (had == null) {
+        _put(b);
+        taken++;
+      } else if (had.state == 'asked' || had.state == 'invited') {
+        // Asked or asking here, friends there: friends.
+        _put(had.copyWith(state: 'yes'));
+        taken++;
+      }
+    }
+    if (taken > 0) await _save();
+    return taken;
+  }
+
   /// Puts [b] in the list in place of whoever had its id, and keeps their picture.
   void _put(Buddy b) {
     all = [for (final o in all) if (o.id != b.id) o, b];

@@ -1242,6 +1242,35 @@ class Circles extends ChangeNotifier {
     if (changed) _changed();
   }
 
+  /// The circles another device of this account is in and this one is not, taken in from the account's kept copy
+  /// (lib/account/account.dart takeIn; Matt, 2026-11-25: "all my devices have different sidebars"). A device learned
+  /// the account's circles once, as it signed in, so one joined on another device afterwards never came here. Held as
+  /// a circle the phone told a computer of is ([answerDesk]): nothing is said in it of anyone joining. One left on this
+  /// device stays left, and one held here takes the newer of the two pages. How many were taken in.
+  int fromAccount(List<Object?> circles) {
+    var taken = 0, changed = false;
+    for (final j in circles) {
+      final c = Circle.fromJson(j);
+      if (c == null || removed(c.seed)) continue;
+      final have = bySeed(c.seed);
+      if (have == null) {
+        _answered(c.seed);
+        all = [...all, c];
+        taken++;
+        changed = true;
+      } else {
+        final next = have.merged(c.manifest);
+        if (next != null) {
+          all = [for (final x in all) x.seed == c.seed ? next : x];
+          _rooms[c.seed]?.circle = next;
+          changed = true;
+        }
+      }
+    }
+    if (changed) _changed();
+    return taken;
+  }
+
   /// On a computer: [c] to the phone, to keep too.
   void _toPhone(Circle c) {
     if (!Sms.paired) return;
