@@ -336,7 +336,7 @@ void main() {
       }
 
       expect(listOf('reservedPackIds').toSet(), reservedPackIds);
-      expect(reservedPackIds, hasLength(36));
+      expect(reservedPackIds, hasLength(38));
       expect(listOf('examplePackIds').toSet(), examplePackIds);
       expect(listOf('reservedDeveloperWords'), reservedDeveloperWords);
       expect(listOf('packHues'), packHues);

@@ -44,7 +44,7 @@ final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');
 
 /// Ids kept for the app's own plugins and places, and any id holding `ghost` or `gogho`.
 const Set<String> reservedPackIds = {
-  'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', //
+  'notion', 'spotify', 'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', //
   'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', //
   'ghost', 'ghostmessaging', 'official', 'admin', 'system', 'market', 'marketplace', 'store', 'plugin', 'plugins', 'settings', 'messages',
 };
