@@ -194,7 +194,7 @@ class MacSpotify implements SpotifyApp, MusicSource {
 bool isSpotifyAppId(Object? id) {
   if (id is! String || id.length > 200) return false;
   final s = id.toLowerCase();
-  return s == 'spotify.exe' || s == 'spotify' || s == 'com.spotify.client' || RegExp(r'^spotifyab\.spotifymusic_[a-z0-9]+!spotify$').hasMatch(s);
+  return s == 'spotify.exe' || RegExp(r'^spotifyab\.spotifymusic_[a-z0-9]+!spotify$').hasMatch(s);
 }
 
 /// The PC's buttons: a song is opened by its own address, and the rest is Windows' media controls for Spotify alone.
