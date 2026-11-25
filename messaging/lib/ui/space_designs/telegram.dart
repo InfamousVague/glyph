@@ -214,7 +214,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final n = call.people.length;
+    final n = call.count;
     final name = call.channel.name.isEmpty ? 'Space' : call.channel.name;
     // On the Mac this page covers the window, so its header is the top bar: dragged to move the window, and clear of
     // the three buttons at its left (lib/ui/window_chrome.dart).
@@ -523,6 +523,8 @@ const double _textStart = _rowLeft + _faceSize + _faceGap;
 
 /// What someone is doing now, in the list's words and colour: green talking, red muted, quiet ink listening.
 ({String words, Color color, LucideIcon icon}) _status(Tokens t, SpaceCall call, SpacePerson p, Map<String, double> now) {
+  // The music played to the call: what plays, or that it is paused.
+  if (p.music) return (words: p.doing!, color: p.doing == 'paused' ? t.color('app-ink-3') : _green(t), icon: LucideMore.music);
   // Which mute it is (GMFB-49): a moderator's for everyone, this device's own of them, or theirs of themselves.
   if (p.muted && (p.mutedForAll || p.mutedForMe)) return (words: SpaceWords.mutedWords(p), color: _red(t), icon: SpaceWords.mutedIcon(p));
   if (p.muted) return (words: p.me && call.micLocked && !call.micLockedByRole ? 'muted by a moderator' : 'muted', color: _red(t), icon: LucideMore.micOff);

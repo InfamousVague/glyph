@@ -554,6 +554,13 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     }
   }
 
+  /// [_noteConnection], for a connection made beside the call's own (the music's: lib/voice/spotify_link.dart), so that
+  /// it too is closed off the main thread.
+  static void note(RTCPeerConnection pc, Object? from) => _noteConnection(pc, from);
+
+  /// A connection beside the call's own: WebRTC's, or a test's ([connect]).
+  static Future<RTCPeerConnection> make(Map<String, dynamic> configuration) => (connect ?? createPeerConnection)(configuration);
+
   /// Closes [pc]. On a Mac the native half closes it first, off the main thread ([VoiceFx.closeAside]): closing waits
   /// for WebRTC to stop its sound, the system takes seconds over that, and flutter_webrtc closes on the main thread,
   /// so the window froze as a call ended (Matt, 2026-11-24: "it lagged on the call end"; sampled: 2.6 s in
