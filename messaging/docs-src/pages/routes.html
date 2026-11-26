@@ -86,6 +86,33 @@
 <li><b>If it can't start</b> on your device, <ui>Settings › Routes</ui> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
+<h2 id="local">Local network</h2>
+<p>A third way between Ghost apps: straight between devices on the same Wi-Fi or wired network, with no server and no internet at all. It comes after the relay server and Direct, as the way through when neither can carry something, and by itself it keeps you talking where there is a network and no internet: a cabin, a plane's Wi-Fi with nothing behind it, an office whose line is down.</p>
+<p><b>It starts off.</b> Switch it on under <ui>Settings › Routes</ui> on an Android phone or a computer (the Mac, Windows or Linux); it isn't in the iPhone app or the browser. The first time, a Mac asks whether Ghost Messaging may find devices on your local network, and Windows asks whether it may be reached on private networks: say yes, or the route stays down and Settings says so.</p>
+
+<m-screen title="Routes" back caption="Settings › Routes, with the local network switched on.">
+  <m-section title="Routes" foot="The ways this phone reaches another, tried from the top.">
+    <m-row icon="globe" hue="blue" label="Relay server" hint="Through a server on the internet. The server sees who talks to whom, never what is said." switch="on"/>
+    <m-row icon="wifi" hue="teal" label="Local network" hint="Ready. Straight between your devices and your friends' while they are on the same Wi-Fi or wired network as this one, with no server and no internet." switch="on"/>
+    <m-row icon="message-square" hue="green" label="SMS" hint="As data texts over the phone network. Each counts as a text on your plan." switch="on"/>
+  </m-section>
+  <m-section title="Local network" foot="Anyone else on the network sees that a copy of the app is here, never who you are.">
+    <m-row icon="wifi" hue="teal" label="Found 2 devices on this network" hint="Your own devices and your friends', while they have Ghost Messaging open on the same network with this route switched on."/>
+    <m-row icon="link-2" hue="teal" label="Linked to 2 devices now" hint="Maya Chen at 192.168.1.20. Your other devices at 192.168.1.14."/>
+  </m-section>
+</m-screen>
+
+<ul>
+<li><b>How devices find each other:</b> every few seconds your device says it is here to the whole network, in a way only your own devices and your friends' can recognise: a mark for each of them, made from the key the two of you already seal messages with, changed every ten minutes and mixed with noise. It names nobody. Anyone else on the network can tell that some copy of Ghost Messaging is there, and nothing more: not who you are, not who your friends are, not how many you have.</li>
+<li><b>Who it links with:</b> your own other devices and your friends' devices, as Direct does. Never people you only share a group with, and never someone who has only asked to be a friend. Both devices need the route switched on and the app open.</li>
+<li><b>What a link is:</b> each device proves to the other that it holds your shared key before anything is sent, and everything after is sealed for that link, on top of the sealing every message already has. Someone else on the Wi-Fi sees sealed bytes between two addresses.</li>
+<li><b>What a friend's device learns:</b> your device's address on that network (something like 192.168.1.20), which anything on the same network could see anyway.</li>
+<li><b>Only home and office networks:</b> the route speaks and listens only at the private addresses such networks use. It never says anything to the internet or over a phone's mobile data.</li>
+<li><b>On a phone</b> it runs only while the app is in use, and closes everything when the app is put away. On a computer it stays up while the route is on.</li>
+<li><b>Invisible:</b> while you're shown as Invisible, your device says it is here to your own devices alone, and lets go of any link to a friend's.</li>
+<li><b>Some networks keep devices apart</b> (many guest and hotel networks do): there the devices never hear each other, nothing is found, and the other routes carry everything as before.</li>
+</ul>
+
 <h2 id="checked">How the relay is checked</h2>
 <p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
 <ul>
@@ -111,7 +138,7 @@
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
 <h2 id="test">Test a route</h2>
-<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
+<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, <b>By a direct link only</b>, <b>By the local network only</b> (each where that route is on), or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
 
 <h2 id="invite">Invite someone by text</h2>
 <p><b>Invite someone by text</b> opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text. Once they have the app and you text each other, it offers to turn encryption on between you.</p>

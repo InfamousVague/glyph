@@ -13,6 +13,7 @@ add_executable(${BINARY_NAME} WIN32
   "win32_window.cpp"
   "voice_fx.cpp"
   "call_recorder.cpp"
+  "call_video.cpp"
   "speech.cpp"
   "main_thread.cpp"
   "sounds.cpp"

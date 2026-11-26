@@ -52,7 +52,7 @@
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Ghost Messaging takes the sound of the Spotify app, and of no other app, to play it to the people in your call.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between.</string>
+	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between, and, where you switch the Local network route on, your own devices and your friends' on that network.</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.social-networking</string>
 	<key>NSMainNibFile</key>

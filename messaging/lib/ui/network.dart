@@ -9,6 +9,8 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/carrier.dart';
 import '../net/hub_link.dart';
+import '../net/lan/lan_carrier.dart';
+import '../net/lan/lan_ground.dart' show lanGroundMissing;
 import '../net/ledger.dart';
 import '../net/name_watch.dart';
 import '../net/net.dart';
@@ -225,6 +227,54 @@ String _ago(DateTime at) {
   return '${s ~/ 3600} h ago';
 }
 
+// --- The local network route (GMFB-24; lib/net/lan) -----------------------------------------------------------------
+
+/// Under the list of routes: what this build has no route for, and why; null where there is nothing to say.
+String? routesFooter({required bool directOffered, required bool lanOffered, String? lanMissing}) {
+  final parts = [
+    if (!directOffered) 'A direct route between devices, with no server, isn\'t in this build yet.',
+    if (!lanOffered) 'No local network route here: ${lanMissing ?? 'this build has none.'}',
+  ];
+  return parts.isEmpty ? null : parts.join(' ');
+}
+
+/// How many of the people's devices are heard on this network, and how many are linked, in words.
+String lanFoundWords(int seen) => switch (seen) {
+      0 => 'Nobody\'s device found on this network yet',
+      1 => 'Found 1 device on this network',
+      _ => 'Found $seen devices on this network',
+    };
+String lanLinkedWords(int linked) => switch (linked) {
+      0 => 'Not linked to any now',
+      1 => 'Linked to 1 device now',
+      _ => 'Linked to $linked devices now',
+    };
+
+/// Under [lanFoundWords]: whose devices are looked for, and when they are found.
+const lanFoundHint =
+    'Your own devices and your friends\', while they have Ghost Messaging open on the same Wi-Fi or wired network with this route switched on. A device is found within a few seconds of joining the network.';
+
+/// Settings › Routes › Local network (GMFB-24): what the route finds and holds on this network now. Its own row, with
+/// its switch, is with the other routes above. [nameOf] names a person by their install's name.
+PaneSection lanSection(BuildContext context, LanCarrier lan, {required String Function(String id) nameOf}) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final links = lan.links;
+  return PaneSection(
+    title: 'Local network',
+    description: const Text('Straight between devices on the network this one is on, with no server and no internet. Used when the relay server can\'t carry something, and by itself where there is no internet at all.'),
+    footer: const Text('Every few seconds this device says it is here in a way only your own devices and your friends\' can recognise. Anyone else on the network sees that a copy of the app is here, never who you are. Nothing is said while you are shown as Invisible, except to your own devices.'),
+    children: [
+      SettingRow(key: const ValueKey('lan-seen'), icon: icon(Lucide.wifi), label: lanFoundWords(lan.seen), hint: const Text(lanFoundHint)),
+      SettingRow(
+        key: const ValueKey('lan-linked'),
+        icon: icon(Lucide.link2),
+        label: lanLinkedWords(links.length),
+        hint: links.isEmpty ? null : Text([for (final l in links) '${nameOf(l.peer)} at ${l.address}'].join('\n')),
+      ),
+    ],
+  );
+}
+
 // --- Which route each person is on (GMFB-24) ------------------------------------------------------------------------
 
 /// A route's name as Settings › Routes says which one carried something: the names the routes go by, whether or not
@@ -434,6 +484,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
   final board = net.board;
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final anyone = net.people.isNotEmpty;
+  // What this build has no route for, under the list of routes.
+  final routesNote = routesFooter(directOffered: net.directOffered, lanOffered: net.lan != null, lanMissing: lanGroundMissing());
 
   // Sends a test to one person (by the route [only], where named) and says how it went.
   Future<void> test(Peer p, {String? only}) async {
@@ -474,9 +526,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Routes',
         description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
-        footer: Text(!net.directOffered
-            ? 'A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'
-            : 'A route over the local network is being made: it will be listed here.'),
+        footer: routesNote == null ? null : Text(routesNote),
         children: [
           // Direct among them wherever the build offers it: its route's own row once it is made, else the same row
           // drawn from nothing, switched off (or on and not working), until the person switches it on.
@@ -502,6 +552,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(title: 'Direct', children: [
         SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
       ]),
+    // The local network route, while it is on: who is seen and linked on this network now (GMFB-24).
+    if (board != null && net.lan != null && net.lanOn) lanSection(context, net.lan!, nameOf: _usedName),
     // Checking the relay: what comparing over direct links found, and the name watch, which needs no direct route.
     if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, directOffered: net.directOffered && net.directProblem == null, nameOf: _friendName),
     if (board != null && net.hub != null)
@@ -590,6 +642,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
                 Choice('Send a test', Lucide.send, () => test(p)),
                 if (board?.carrier('hub') != null) Choice('By the relay server only', Lucide.globe, () => test(p, only: 'hub')),
                 if (board?.carrier('p2p') != null) Choice('By a direct link only', Lucide.link2, () => test(p, only: 'p2p')),
+                if (board?.carrier('lan') != null && net.lanOn) Choice('By the local network only', Lucide.wifi, () => test(p, only: 'lan')),
                 if (board?.carrier('sms') != null) Choice('By SMS only (one text on your plan)', Lucide.messageSquare, () => test(p, only: 'sms')),
               ]),
             ),

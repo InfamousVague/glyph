@@ -19,7 +19,7 @@
 /// no right to add files there, it stays on the device and says why.
 ///
 /// **With video** (GMFB-42: "capture the webcams and screenshares in the call, not just the audio tracks"; Matt,
-/// 2026-11-23: "One composed video"): on a Mac the recording can have the call's cameras and shared screens in it as
+/// 2026-11-23: "One composed video"): on a Mac or a Windows PC the recording can have the call's cameras and shared screens in it as
 /// one track of video (lib/voice/recording_video.dart). Whether it does is chosen as it starts ([startChoices]): with
 /// video where the device can, or the voices alone. Everyone is asked once, about both.
 library;

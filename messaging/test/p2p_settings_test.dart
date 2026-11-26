@@ -203,7 +203,7 @@ void main() {
       }
       expect(find.text('Direct'), findsNothing);
       expect(find.text('DIRECT'), findsNothing);
-      expect(find.textContaining('a peer-to-peer one, with no server, are being made'), findsOneWidget, reason: 'still said to be on its way');
+      expect(find.textContaining('A direct route between devices, with no server, isn\'t in this build yet.'), findsOneWidget, reason: 'said to be missing here');
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -244,7 +244,8 @@ void main() {
       expect(tester.widget<GlacierSwitch>(_switchIn('route-p2p')).checked, isFalse);
       expect([made, Net.instance.p2p], [0, null]);
       expect(find.textContaining('a peer-to-peer one'), findsNothing);
-      expect(find.text('A route over the local network is being made: it will be listed here.'), findsOneWidget);
+      // (No local network route under a test: it would open ports on this machine. test/lan_net_test.dart has it.)
+      expect(find.text('No local network route here: this build has none.'), findsOneWidget);
       // Its section says it too, before it is on, and offers "Only through link helpers" first.
       expect(find.text('DIRECT'), findsOneWidget);
       expect(find.text(directOffWords), findsOneWidget);
