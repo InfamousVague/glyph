@@ -97,6 +97,8 @@ export const sections = [
       { slug: 'appearance', icon: 'palette', title: 'Looks, colours and fonts', summary: 'The app\'s looks, making and sharing your own, and the Readable font.' },
       { slug: 'keyboard-shortcuts', icon: 'keyboard', title: 'Keyboard shortcuts', summary: 'Jump to a conversation, format what you write, mute a call, and change any shortcut\'s keys.' },
       { slug: 'routes', icon: 'globe', title: 'Routes', summary: 'How messages travel between Ghost apps: the relay, your own relay, texts, and testing them.' },
+      // For whoever runs the server (GMFB-25, "Self-hosting the relay, documented"): docs/SELF_HOSTING.md as a page of the site.
+      { slug: 'self-hosting', icon: 'hard-drive', title: 'Run your own relay', summary: 'Run the relay on a server of your own: what you give up, Docker or a single program, TLS, TURN for calls, and its settings.' },
       { slug: 'coming-soon', icon: 'clock', title: 'Coming soon', summary: 'What is built but not out yet.', soon: true },
     ],
   },
