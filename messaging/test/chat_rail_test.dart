@@ -193,9 +193,11 @@ void main() {
       await mouse.up();
       await settle(tester);
       expect(c.offset, greaterThan(c.position.maxScrollExtent - 60), reason: 'at the oldest');
-      // And a finger's press does the same: its foot is the newest.
-      await tester.tapAt(tester.getRect(rail).bottomCenter - const Offset(0, 2));
-      await settle(tester);
+      // And a finger's press does the same: its foot is newer, and once the map is back there, the newest.
+      for (var k = 0; k < 2; k++) {
+        await tester.tapAt(tester.getRect(rail).bottomCenter - const Offset(0, 2));
+        await settle(tester);
+      }
       expect(c.offset, 0, reason: 'the newest');
     });
 
@@ -252,6 +254,7 @@ void main() {
       const under = 30;
       await mouse.moveTo(Offset(box.center.dx, box.top + rest[under]));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
       final p = painter(tester);
       expect(p.growOf(under), closeTo(ChatRail.magnifyMost, 0.05));
       expect(p.yOf(under), closeTo(rest[under], 0.01), reason: 'the line under the pointer stays where it is');
@@ -262,17 +265,19 @@ void main() {
       expect(c.offset, 0, reason: 'a mouse over it scrolls nothing');
       if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/swell.png'));
       await mouse.moveTo(const Offset(100, 300));
-      await tester.pump();
+      await settle(tester);
       expect(painter(tester).growOf(under), 1);
       // A finger drawn over it scrolls the chat, and the swell goes with the finger.
       final touch = await tester.startGesture(Offset(box.center.dx, box.top + 200));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(painter(tester).growOf(_nearest(painter(tester), 200)), greaterThan(2));
       for (var k = 0; k < 6; k++) {
         await touch.moveBy(const Offset(0, 20));
         await tester.pump(const Duration(milliseconds: 16));
       }
       expect(c.offset, greaterThan(60), reason: 'still scrolls the chat');
+      await tester.pump(const Duration(milliseconds: 300));
       final q = painter(tester), at = _nearest(q, 320);
       expect(q.yOf(at), closeTo(320, ChatRail.pitch * ChatRail.magnifyMost), reason: 'under the finger where it is now');
       expect(q.growOf(at), greaterThan(2));
@@ -335,64 +340,70 @@ void main() {
     // Matt, 2026-11-25: "it's a bit glitchy though when getting to the top or bottom dont change the main size of the
     // chatmap scroll it up and down as we go back through history". The map fitted every message into its height: 60
     // messages were 9 apart, 200 were 6 apart and several to a line, so a page of older ones drew it all again.
-    testWidgets('older messages loaded in at the top leave the map its size and every line where it was', (tester) async {
-      final marks = ValueNotifier(long(60));
+    testWidgets('older messages loaded in at the top leave the map its size and its lines as far apart, and it glides to them', (tester) async {
+      final marks = ValueNotifier(long(50));
       final c = await openOn(tester, marks);
-      expect(painter(tester).ticks, hasLength(60), reason: 'a line a message');
+      expect(painter(tester).ticks, hasLength(50), reason: 'a line a message');
       expect(painter(tester).yOf(0) - painter(tester).yOf(1), ChatRail.pitch);
       c.jumpTo(c.position.maxScrollExtent);
       await settle(tester);
       final box = tester.getRect(rail);
-      final was = [for (final i in [0, 30, 59]) painter(tester).yOf(i)];
-      expect(was.first, painter(tester).tall - ChatRail.pitch / 2, reason: 'the newest at the map\'s foot');
+      expect(painter(tester).yOf(0), painter(tester).tall - ChatRail.pitch / 2, reason: 'all of it fits: the newest at the map\'s foot');
       for (final n in [200, 500]) {
+        final was = [for (final i in [0, 30, 49]) painter(tester).yOf(i)];
         marks.value = long(n);
+        await tester.pump();
+        expect([for (final i in [0, 30, 49]) painter(tester).yOf(i)], was, reason: 'no line jumps');
         await settle(tester);
         expect(tester.getRect(rail), box, reason: 'the map is where it was and as big, with $n');
         expect(painter(tester).ticks, hasLength(n), reason: 'still a line a message');
         expect(painter(tester).yOf(0) - painter(tester).yOf(1), ChatRail.pitch, reason: 'as far apart as they were');
-        expect([for (final i in [0, 30, 59]) painter(tester).yOf(i)], was, reason: 'no line moved');
+        // Glided on to its frame: what is on the screen (the oldest dozen or so of the fifty) in its middle.
+        expect(painter(tester).yOf(44), closeTo(painter(tester).tall / 2, ChatRail.pitch * 1.5));
       }
     });
 
-    testWidgets('a chat longer than the map: the map is scrolled with the chat, smoothly, and rests at each end', (tester) async {
+    // Matt, 2026-11-26: "have it scroll up and down like there is a frame of chat history we're viewing".
+    testWidgets('a chat longer than the map: the map is a frame on what is on the screen, moved with the chat, smoothly, and rests at each end', (tester) async {
       final marks = ValueNotifier(long(300));
       final c = await openOn(tester, marks);
       final size = tester.getSize(rail);
       final tall = painter(tester).tall;
       expect(tall, 540, reason: 'nine tenths of the chat\'s height, in whole lines');
       expect(painter(tester).yOf(0), tall - ChatRail.pitch / 2, reason: 'the newest at its foot');
-      // What is on the screen is still in the map: the map stays.
+      // Near the newest end the map rests at its foot.
       c.jumpTo(48.0 * 20);
       await settle(tester);
       expect(painter(tester).yOf(0), tall - ChatRail.pitch / 2);
-      // Further back than the map shows: it goes along, a line's space for each message scrolled by, parts of one too.
+      // Further back: what is on the screen (12.5 rows, from 120 up) is in the map's middle.
       c.jumpTo(48.0 * 120);
       await settle(tester);
-      // 12.5 rows on the screen: the oldest of them, 132.5 messages up, is at the map's top.
-      expect(painter(tester).yOf(131), closeTo(ChatRail.pitch, 0.01));
+      expect(painter(tester).yOf(126), closeTo(tall / 2, ChatRail.pitch));
       final was = painter(tester).yOf(100);
       c.jumpTo(48.0 * 120 + 20);
       await tester.pump();
       expect(painter(tester).yOf(100), closeTo(was + ChatRail.pitch * 20 / 48, 0.01), reason: 'by exactly as much as the chat was scrolled');
-      // Back down a little: what is on the screen is in the map, which stays.
       final held = painter(tester).yOf(100);
       c.jumpTo(48.0 * 110);
       await settle(tester);
-      expect(painter(tester).yOf(100), held);
+      expect(painter(tester).yOf(100), closeTo(held - ChatRail.pitch * (10 + 20 / 48), 0.01), reason: 'back down, and the map with it');
       // The oldest end: its line at the map's top, and no further.
       c.jumpTo(c.position.maxScrollExtent);
       await settle(tester);
       expect(painter(tester).yOf(299), ChatRail.pitch / 2);
       expect(tester.getSize(rail), size);
-      // Older ones loaded there: nothing moves, and scrolling on up takes the map up with it.
+      // Older ones loaded there: nothing jumps, the map glides on to put what is on the screen in its middle, and
+      // scrolling on up takes it up with it.
       marks.value = long(450);
-      await settle(tester);
+      await tester.pump();
       expect(painter(tester).yOf(299), ChatRail.pitch / 2);
+      await settle(tester);
+      expect(painter(tester).yOf(294), closeTo(tall / 2, ChatRail.pitch));
       expect(tester.getSize(rail), size);
+      final up = painter(tester).yOf(299);
       c.jumpTo(c.offset + 48);
       await settle(tester);
-      expect(painter(tester).yOf(299), ChatRail.pitch * 1.5);
+      expect(painter(tester).yOf(299), closeTo(up + ChatRail.pitch, 0.01));
       // And the newest end again.
       c.jumpTo(0);
       await settle(tester);
