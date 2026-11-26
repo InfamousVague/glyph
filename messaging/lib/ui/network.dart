@@ -250,6 +250,12 @@ String lanLinkedWords(int linked) => switch (linked) {
       _ => 'Linked to $linked devices now',
     };
 
+/// Under the Local network section: what the device says to the network, who can tell whose it is, and what Invisible
+/// changes and doesn't (found in review, 2026-11-26: it said "Nothing is said while you are shown as Invisible", and
+/// the device went on saying it was here under the same name, from the same address).
+const lanSaysWords =
+    'Every few seconds this device says it is here in a way only your own devices and your friends\' can recognise. Anyone else on the network sees that a copy of the app is at this address, never who you are. While you are shown as Invisible only your own devices can tell it is yours: it starts over under a new name, so your friends\' devices lose the one they knew, but a copy of the app is still seen at this address.';
+
 /// Under [lanFoundWords]: whose devices are looked for, and when they are found.
 const lanFoundHint =
     'Your own devices and your friends\', while they have Ghost Messaging open on the same Wi-Fi or wired network with this route switched on. A device is found within a few seconds of joining the network.';
@@ -262,7 +268,7 @@ PaneSection lanSection(BuildContext context, LanCarrier lan, {required String Fu
   return PaneSection(
     title: 'Local network',
     description: const Text('Straight between devices on the network this one is on, with no server and no internet. Used when the relay server can\'t carry something, and by itself where there is no internet at all.'),
-    footer: const Text('Every few seconds this device says it is here in a way only your own devices and your friends\' can recognise. Anyone else on the network sees that a copy of the app is here, never who you are. Nothing is said while you are shown as Invisible, except to your own devices.'),
+    footer: const Text(lanSaysWords),
     children: [
       SettingRow(key: const ValueKey('lan-seen'), icon: icon(Lucide.wifi), label: lanFoundWords(lan.seen), hint: const Text(lanFoundHint)),
       SettingRow(

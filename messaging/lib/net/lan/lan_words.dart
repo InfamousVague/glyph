@@ -23,10 +23,36 @@ abstract final class LanWords {
   static List<int> _n16(int n) => [(n >> 8) & 0xff, n & 0xff];
 
   /// The mark in a beacon that says "[from]'s device is here" to [to]'s devices, and to nobody else: eight bytes that
-  /// change with the ten minutes, the device's run ([instance]) and its door's [port].
-  static Uint8List mark(List<int> key, {required String from, required String to, required int bucket, required List<int> instance, required int port}) =>
-      NetCrypto.hmac(key, [...utf8.encode('ghost-lan beacon v1\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to), ..._n32(bucket), ...instance, ..._n16(port)]).sublist(0, markLength);
+  /// change with the ten minutes, the device's run ([instance]), its door's [port] and the [address] the beacon is said
+  /// from. The address is in it so that a beacon said again by someone else, from an address of their own, carries no
+  /// mark anyone recognises (found in review, 2026-11-26: it did, and was connected to). Null where [address] is no
+  /// IPv4 address.
+  static Uint8List? mark(List<int> key, {required String from, required String to, required int bucket, required List<int> instance, required int port, required String address}) {
+    final at = addressBytes(address);
+    if (at == null) return null;
+    return NetCrypto.hmac(key, [...utf8.encode('ghost-lan beacon v2\n'), ...NetCrypto.unhex(from), ...NetCrypto.unhex(to), ..._n32(bucket), ...instance, ..._n16(port), ...at]).sublist(0, markLength);
+  }
+
   static const markLength = 8;
+
+  /// A mark that is nobody's, to stand beside the real ones: made from a secret of the run ([secret]), so it stays the
+  /// same for its ten minutes as a real one does. Marks made anew for each beacon told themselves apart: whoever kept
+  /// what two beacons had in common had counted the device's people (found in review, 2026-11-26).
+  static Uint8List noise(List<int> secret, {required int bucket, required String address, required int slot}) =>
+      NetCrypto.hmac(secret, [...utf8.encode('ghost-lan noise v1\n'), ..._n32(bucket), ...utf8.encode(address), 0, ..._n32(slot)]).sublist(0, markLength);
+
+  /// [address] as its four bytes; null where it is not an IPv4 address written as four numbers.
+  static List<int>? addressBytes(String address) {
+    final parts = address.split('.');
+    if (parts.length != 4) return null;
+    final out = <int>[];
+    for (final p in parts) {
+      final n = int.tryParse(p);
+      if (n == null || n < 0 || n > 255) return null;
+      out.add(n);
+    }
+    return out;
+  }
 
   /// What a device that connects says first, to the one device it means: sixteen bytes only a device of [from] could
   /// make for a device of [to], for this connection alone ([nonce]).
@@ -58,8 +84,10 @@ abstract final class LanWords {
 }
 
 /// A beacon: what a device says to everyone on the network every few seconds. It names nobody: the run of the app it
-/// came from ([instance], random each start), the port its door is at, which ten minutes its marks are for, and marks,
-/// each of which one account's devices can recognise ([LanWords.mark]) and the rest take for noise.
+/// came from ([instance], random each time the route opens), the port its door is at, which ten minutes its marks are
+/// for, and marks, each of which one account's devices can recognise ([LanWords.mark]) and the rest take for noise
+/// ([LanWords.noise]). The marks are in the order of their bytes, so where one stands says nothing, and there are as
+/// many of them whether or not the person is shown as Invisible ([sizeFor]).
 ///
 ///     "GL" [1] [instance: 8] [port: 2] [bucket: 4] [how many: 1] [marks: 8 each]
 class LanBeacon {
@@ -70,12 +98,14 @@ class LanBeacon {
 
   static const instanceLength = 8;
 
-  /// The most marks in one beacon; a device with more people than that names a different lot of them each time.
-  static const mostMarks = 48;
+  /// The most marks in one beacon (it fits one datagram on any network); a device with more people than that names a
+  /// lot of them for each ten minutes.
+  static const mostMarks = 160;
 
-  /// Marks are made up to a multiple of this with noise, so how many there are says little of how many friends the
-  /// device has.
-  static const padTo = 8;
+  /// How many marks a beacon has for a device with [people] people: the first of these that holds them all, the rest
+  /// made up with noise, so its length says only roughly how many there are.
+  static const sizes = [8, 16, 32, 64, 128, mostMarks];
+  static int sizeFor(int people) => sizes.firstWhere((n) => n >= people, orElse: () => mostMarks);
 
   static const _magic = [0x47, 0x4c, 1];
   static const _head = 3 + instanceLength + 2 + 4 + 1;
@@ -91,6 +121,13 @@ class LanBeacon {
       out.add(m);
     }
     return out.toBytes();
+  }
+
+  /// The name of the run [bytes] says it is from (its eight bytes, as hex), without reading the rest; null where
+  /// [bytes] could be no beacon of this kind.
+  static String? runOf(Uint8List bytes) {
+    if (bytes.length < _head || bytes[0] != _magic[0] || bytes[1] != _magic[1] || bytes[2] != _magic[2]) return null;
+    return NetCrypto.hex(Uint8List.sublistView(bytes, 3, 3 + instanceLength));
   }
 
   /// What [bytes] says, or null where it is no beacon of this kind.

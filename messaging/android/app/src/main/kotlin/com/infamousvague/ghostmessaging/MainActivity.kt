@@ -188,6 +188,9 @@ open class MainActivity : FlutterActivity() {
         // The direct network's core is handed the app's context when Dart starts its first node, and not before
         // (P2pCore.kt): registering the channel it asks through loads nothing.
         P2pCore.register(applicationContext, messenger)
+        // The local network route hears what is said to a whole Wi-Fi network only while Android is told it listens
+        // (LanEar.kt): asked for by Dart as the route opens, and held no longer than it is open.
+        LanEar.register(applicationContext, messenger)
 
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.

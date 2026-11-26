@@ -206,16 +206,39 @@ class Net extends ChangeNotifier implements PeerBook {
     return [...friends, if (me != null && mine != null) Peer(id: me, key: mine)];
   }
 
-  /// How many devices the local network route was linked to when it last said anything changed.
-  int _lanLinked = 0;
+  /// The accounts the local network route was linked to when it last said anything changed, and when the routes were
+  /// last said to have changed for it.
+  Set<String> _lanAccounts = {};
+  DateTime? _lanSaid;
+  Timer? _lanSayLater;
 
-  /// Who is seen or linked on the local network changed: Settings › Routes draws it again, and where a link was made or
-  /// lost the routes are said to have changed, so what friends were sent and have not answered goes again (Friends).
+  /// The least time between two sayings that the routes changed for the local network's links (a test says another).
+  @visibleForTesting
+  static Duration lanSayEvery = const Duration(seconds: 20);
+
+  /// Who is seen or linked on the local network changed: Settings › Routes draws it again. Where an account is linked
+  /// that was not before, the routes are said to have changed, so what friends were sent and have not answered goes
+  /// again (Friends) and what a group's members are owed goes (Groups): but no oftener than [lanSayEvery], and never
+  /// for a link lost. One made sooner after the last is said when that time is up, not lost. Every change of the count
+  /// said so before, and each time Friends sent again everything unanswered, which whoever could make a link come and
+  /// go could have it do at will (found in review, 2026-11-26).
   void _lanChanged() {
     direct.value++;
-    final now = _lan?.links.length ?? 0;
-    if (now == _lanLinked) return;
-    _lanLinked = now;
+    final now = _lan?.linkedAccounts ?? const <String>{};
+    final someoneNew = now.any((a) => !_lanAccounts.contains(a));
+    _lanAccounts = now;
+    if (!someoneNew || _lanSayLater != null) return;
+    final at = DateTime.now(), last = _lanSaid;
+    final wait = last == null ? Duration.zero : lanSayEvery - at.difference(last);
+    if (wait > Duration.zero) {
+      _lanSayLater = Timer(wait, () {
+        _lanSayLater = null;
+        _lanSaid = DateTime.now();
+        notifyListeners();
+      });
+      return;
+    }
+    _lanSaid = at;
     notifyListeners();
   }
 
@@ -973,8 +996,16 @@ class Net extends ChangeNotifier implements PeerBook {
     _check = null;
     _lan = null;
     _lanGround = null;
-    _lanLinked = 0;
+    _lanAccounts = {};
+    _lanSaid = null;
+    _lanSayLater?.cancel();
+    _lanSayLater = null;
     lan?.changed.removeListener(_lanChanged);
+    // The local network route goes first, whatever goes wrong with the rest after: left running, it would go on saying
+    // this account's marks to the network with nothing holding it (found in review, 2026-11-26).
+    try {
+      await lan?.dispose();
+    } catch (_) {}
     _followHelpers(null);
     _homes?.dispose();
     _homes = null;
@@ -1015,7 +1046,6 @@ class Net extends ChangeNotifier implements PeerBook {
       await p2p.shutdown();
     }
     await board?.dispose();
-    await lan?.dispose();
     _peers.clear();
     _friendIds = {};
     recent.clear();

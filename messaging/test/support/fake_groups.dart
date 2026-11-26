@@ -14,6 +14,10 @@ class World {
   final Map<String, FakeGroupsPort> phones = {};
 }
 
+class _Routes extends ChangeNotifier {
+  void say() => notifyListeners();
+}
+
 class FakeGroupsPort implements GroupsPort {
   FakeGroupsPort(this.world, this.number) {
     world.phones[me] = this;
@@ -39,6 +43,23 @@ class FakeGroupsPort implements GroupsPort {
 
   bool up = true;
   bool here = true;
+
+  /// The phones no route reaches from here just now, by name, though one is up: as with no relay and the local network
+  /// linked to some members and not others. What is sent to one is taken by no route.
+  final Set<String> unreached = {};
+
+  /// What is owed to members as this phone last kept it, and the routes changing (a test says when).
+  String? keptOwed;
+  final _routes = _Routes();
+  @override
+  Listenable get changed => _routes;
+
+  /// The routes changed, as when one comes up or a link to someone's device is made.
+  void routesChanged() => _routes.say();
+  @override
+  Future<String?> owed() async => keptOwed;
+  @override
+  Future<void> keepOwed(String owed) async => keptOwed = owed;
 
   /// For a screen's picture: the conversation a group is on this phone, and who a number is in its contacts.
   final Map<String, int> threads = {};
@@ -73,6 +94,7 @@ class FakeGroupsPort implements GroupsPort {
   Future<Delivery> send(Peer peer, Envelope envelope) async {
     sent.add((to: peer.id, envelope: envelope));
     if (!up) return Delivery(envelope.id, tried: const ['hub: not up']);
+    if (unreached.contains(peer.id)) return Delivery(envelope.id, tried: const ['lan: they are not on this network now']);
     final other = world.phones[peer.id]!;
     if (!other.here) {
       other._held.add((from: me, envelope: envelope));

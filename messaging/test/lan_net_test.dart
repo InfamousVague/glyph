@@ -127,6 +127,7 @@ void main() {
     others.clear();
     await Net.instance.shutdown();
     Net.lanGround = Net.defaultLanGround;
+    Net.lanSayEvery = const Duration(seconds: 20);
   });
 
   test('under a test, and in a build with no ground for one, there is no local network route', () async {
@@ -181,6 +182,22 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     expect(mine.links.map((l) => l.peer), [sam.id], reason: 'never the group member\'s, who is no friend');
     expect(members.links, isEmpty);
+    // Sam's device goes and comes back four times in a moment. Each link made said the routes had changed, and each
+    // time everything unanswered was sent again: whoever could make a link come and go had that done at will. Now a
+    // link lost says nothing, and links made within the quiet time are said once, when it is up.
+    Net.lanSayEvery = const Duration(seconds: 3);
+    final quiet = changes;
+    for (var i = 0; i < 4; i++) {
+      await sams.stop();
+      await _until(() => mine.links.isEmpty, 'gone');
+      await sams.start();
+      await mine.beat();
+      await _until(() => mine.links.length == 1 && sams.links.length == 1, 'back');
+    }
+    expect(changes - quiet, lessThanOrEqualTo(1));
+    await _until(() => changes > quiet, 'said once the quiet time is up, not lost');
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(changes - quiet, inInclusiveRange(1, 2), reason: 'never once for each');
     // By the local network alone, as Settings › Routes' test sends it.
     final d = await Net.instance.send(Net.instance.byId(sam.id)!, Envelope(kind: 'text', ack: false), only: {'lan'});
     expect([d.via, d.handed], ['lan', Handed.passed]);

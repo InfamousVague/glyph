@@ -6,15 +6,15 @@ import 'package:ghost_messaging/net/lan/lan_wire.dart';
 /// A network in memory for the local network route's tests (lib/net/lan): every device that joins hears what the
 /// others say to everyone, and can connect to their doors. What crosses it is kept, so a test can look at what the
 /// network itself would see ([beacons], [frames]), and a test can stand on it as a stranger would ([FakeLanGround] used
-/// by hand: say anything, connect to any door, send any frame).
+/// by hand: say anything from its address, connect to any door, send any frame).
 class FakeLan {
   final List<FakeLanGround> _joined = [];
 
-  /// Every beacon said, with who said it; and every frame sent on any wire, in the order they were sent.
+  /// Every beacon said, with the address it was said from; and every frame sent on any wire, in the order they were sent.
   final List<({String from, Uint8List bytes})> beacons = [];
   final List<Uint8List> frames = [];
 
-  /// Every wire made, as its two ends, in the order they were connected.
+  /// Every wire made, as its two ends (the one that connected, the one connected to), in the order they were connected.
   final List<(FakeLanWire, FakeLanWire)> wires = [];
 
   /// Whether what is said to everyone is lost on the way (a network that passes no broadcasts); and to these alone.
@@ -32,25 +32,41 @@ class FakeLan {
 class FakeLanGround implements LanGround {
   FakeLanGround._(this.net, this.address);
   final FakeLan net;
-  final String address;
+
+  /// The address this device has; a test may give it another, as a device that moved networks has.
+  String address;
 
   void Function(Uint8List bytes, String address)? _heard;
+  void Function()? _lost;
   final Map<int, void Function(LanWire)> _doors = {};
   int _nextPort = 40000;
 
-  /// Whether opening the air fails, as a port another program holds does; and saying, as a system that keeps the app
-  /// off the network does.
-  bool noAir = false, mute = false;
+  /// Whether opening the air fails, as a port another program holds does; whether nothing can be said, as on a system
+  /// that keeps the app off the network (it is answered false, as dart:io's send answers 0: nothing is thrown); and
+  /// whether the device is on no network at all.
+  bool noAir = false, mute = false, noNetwork = false;
 
   /// How many times the air and a door were opened.
   int airs = 0, doors = 0;
 
   @override
-  Future<LanAir> air(void Function(Uint8List bytes, String address) heard) async {
+  Future<List<String>> addresses() async => noNetwork ? const [] : [address];
+
+  @override
+  Future<LanAir> air(void Function(Uint8List bytes, String address) heard, {void Function()? lost}) async {
     if (noAir) throw StateError('address in use');
     airs++;
     _heard = heard;
+    _lost = lost;
     return _FakeAir(this);
+  }
+
+  /// The system closes what the air listens on, as a socket's error does: the route is told, once.
+  void loseAir() {
+    final lost = _lost;
+    _heard = null;
+    _lost = null;
+    lost?.call();
   }
 
   @override
@@ -74,14 +90,16 @@ class FakeLanGround implements LanGround {
     return mine;
   }
 
-  /// Says [bytes] to everyone else on the network, as from this device.
-  void say(Uint8List bytes) {
-    net.beacons.add((from: address, bytes: bytes));
+  /// Says [bytes] to everyone else on the network, as from this device's address (or [from], which a datagram's
+  /// sender may write as it likes).
+  void say(Uint8List bytes, {String? from}) {
+    final source = from ?? address;
+    net.beacons.add((from: source, bytes: bytes));
     if (net.deaf) return;
     for (final g in net._joined) {
       if (identical(g, this) || net.deafTo.contains(g.address)) continue;
       final heard = g._heard;
-      if (heard != null) scheduleMicrotask(() => heard(bytes, address));
+      if (heard != null) scheduleMicrotask(() => heard(bytes, source));
     }
   }
 }
@@ -92,16 +110,17 @@ class _FakeAir implements LanAir {
   bool _closed = false;
 
   @override
-  Future<void> say(Uint8List beacon) async {
-    if (_closed) return;
-    if (_ground.mute) throw StateError('no route to host');
-    _ground.say(beacon);
+  Future<bool> say(String from, Uint8List beacon) async {
+    if (_closed || _ground.mute) return false;
+    _ground.say(beacon, from: from);
+    return true;
   }
 
   @override
   Future<void> close() async {
     _closed = true;
     _ground._heard = null;
+    _ground._lost = null;
   }
 }
 
@@ -114,7 +133,8 @@ class _FakeDoor implements LanDoor {
   Future<void> close() async => _ground._doors.remove(port);
 }
 
-/// One end of a wire in memory. What it is sent goes to the other end's [frames] a moment later.
+/// One end of a wire in memory. What it is sent goes to the other end's [frames] a moment later, in order, and what
+/// was sent before it closed still arrives, as over TCP.
 class FakeLanWire implements LanWire {
   FakeLanWire._(this._net, this.address);
   final FakeLan _net;
@@ -140,7 +160,7 @@ class FakeLanWire implements LanWire {
 
   /// [frame] comes to this end, as if the other had sent it: what someone on the wire could make it hear.
   void arrive(Uint8List frame) {
-    if (closed) return;
+    if (_frames.isClosed) return;
     scheduleMicrotask(() {
       if (!_frames.isClosed) _frames.add(frame);
     });
@@ -150,7 +170,10 @@ class FakeLanWire implements LanWire {
   Future<void> close() async {
     if (closed) return;
     closed = true;
-    unawaited(_frames.close());
+    // After what is already on its way, at both ends.
+    scheduleMicrotask(() {
+      if (!_frames.isClosed) unawaited(_frames.close());
+    });
     unawaited(_other.close());
   }
 }

@@ -73,7 +73,8 @@ against an hour, and an app started over and over is a cost of its own.
 `lan`, shown as "Local network" (`lib/net/lan/`, GMFB-24: "A LAN route: two devices on the same network find each
 other (mDNS or similar) and exchange sealed packets directly"). One more `Carrier`, after the relay's and the direct
 route in the order: the way through when neither can carry something, and by itself where there is a network and no
-internet. All of it is Dart, and none of it needs the direct route's core.
+internet. All of it is Dart but an Android phone's leave to listen (below), and none of it needs the direct route's
+core.
 
 - **Where.** Android, the Mac, Windows and Linux (`lan_ground_io.dart`, `LanSockets`). Not a browser (no sockets), nor
   an iPhone: Apple lets an app say something to a whole network only with an entitlement it grants app by app
@@ -82,13 +83,21 @@ internet. All of it is Dart, and none of it needs the direct route's core.
   its choice its own and never in `net_off`, as Direct's. The route is made with the others and opens nothing until
   it is switched on: switching it on is what makes a Mac ask about the local network and Windows about its firewall.
   A computer's runs whenever it is on; a phone's only while the app is in use (`LanPolicy.sleepsAway`).
-- **Finding each other** (`lan_words.dart`). Every five seconds a device says a beacon to the network's broadcast
-  addresses (UDP 16963): `"GL" [1] [run: 8] [door's port: 2] [ten minutes: 4] [how many: 1] [marks: 8 each]`. A mark is
-  `HMAC(key, "ghost-lan beacon v1\n" | from account | to account | ten minutes | run | port)[0..8]` under a key made
-  from what the two accounts seal with (`NetCrypto.derive(pair key, 'lan')`): only the other account's devices can
-  work it out, and it changes every ten minutes, with each run of the app and with the port. Marks of noise bring the
-  count to a multiple of eight (48 at most; with more people than that, a different lot each beacon). A beacon names
-  nobody: the network learns that a copy of the app is here.
+- **Finding each other** (`lan_words.dart`). Every five seconds a device says a beacon on each private IPv4 network
+  it has an address on, from that address (UDP 16963, to the network's broadcast addresses):
+  `"GL" [1] [run: 8] [door's port: 2] [ten minutes: 4] [how many: 1] [marks: 8 each]`. A mark is
+  `HMAC(key, "ghost-lan beacon v2\n" | from account | to account | ten minutes | run | port | the address it is said
+  from)[0..8]` under a key made from what the two accounts seal with (`NetCrypto.derive(pair key, 'lan')`): only the
+  other account's devices can work it out, with the address the datagram came from, so the same beacon said again by
+  anyone else from an address of their own carries nothing anyone recognises. It changes every ten minutes, with each
+  run of the route and with the port. Marks of noise stand beside the real ones (`LanWords.noise`: an HMAC of a secret
+  of the run, the same for its ten minutes as a real one is), all in the order of their bytes, 8, 16, 32, 64, 128 or
+  160 of them: as many while the person is shown as Invisible as when they are not. With more than 160 people, one lot
+  of them for each ten minutes. A beacon names nobody: the network learns that a copy of the app is at that address,
+  and at most roughly how many people it could have.
+- **On an Android phone** the Wi-Fi drops what is said to a whole network before any app sees it unless an app says it
+  is listening (with no multicast lock held, Android's packet filter drops IPv4 broadcasts): the route holds the lock
+  while it is open and no longer (`android/…/LanEar.kt`, the channel `ghost_messaging/lan`).
 - **Linking.** One connects to the other's door (TCP, a port the system chose): the one whose run has the lesser name
   at once, the other after two seconds if nothing came, so it works where only one of the two hears broadcasts.
 
@@ -104,21 +113,61 @@ internet. All of it is Dart, and none of it needs the direct route's core.
   said twice or out of turn ends the link. So the network sees no account's name in a packet's header.
 - **Whom.** This account's own other devices (by its own name, under the key they seal copies with) and friends
   (`Net._lanPeople`, who is a friend asked as the direct route asks it): never the other members of a group, never
-  someone who only asked. While the person chose Invisible, their own devices alone. Only at addresses of a home or
-  office network (`isLanAddress`: 10/8, 172.16/12, 192.168/16): nothing is heard from, connected to or taken from any
-  other.
+  someone who only asked. Only at private IPv4 addresses (`isLanAddress`: 10/8, 172.16/12, 192.168/16) on a network
+  this device has an address on (`sameNet`: the same first two numbers, the nearest thing to a network that can be told
+  without its mask): nothing is heard from, connected to or taken from any other.
+- **Its name.** A run of the route has a random name and a door of its own, which is all the network can know it by.
+  It starts over under new ones when the networks it is on change, when the person goes Invisible or comes back from
+  it, and every six hours while no link is open (`LanPolicy.rerunAfter`).
+- **Invisible.** Only the person's own devices are marked or linked with; every link to a friend's device is closed,
+  and the route starts over, so the name and the door their devices knew are gone. It still says a beacon, as long as
+  before, for its own devices to find: a copy of the app is still seen at that address. Settings › Routes says so
+  (`lanSaysWords`), and no longer that nothing is said.
 - **Carrying.** To every device of theirs a link is open to; where none is and one of theirs was heard in the last
-  thirty seconds, it is connected to first. It holds links of its own (`LiveLinks`): where the relay only kept
-  something for someone on this network, it goes by the link too. Copies to the account's own devices may go by it
-  (`Friends`' and `Buddies`' sends to the account's own name name it beside the relay and the direct route).
-- **Limits.** Two proved links with one device; sixteen connections not yet proved, four from one address, twelve
-  knocks a minute from one; marks worked out for 120 new runs a minute; 100 packets at once and 10 a second on a
-  link; a link with nothing heard for a minute is closed, one with nothing said for twenty seconds says a word.
+  thirty seconds, it is connected to first (a connection already being made is the one waited for). It holds links of
+  its own (`LiveLinks`): where the relay only kept something for someone on this network, it goes by the link too.
+  Copies to the account's own devices may go by it (`Friends`' and `Buddies`' sends to the account's own name name it
+  beside the relay and the direct route). The route is `up` while it can say its beacon or holds a link.
+- **Limits** (each a constant of `LanCarrier` or `LanSockets`). What it keeps of a device is kept by account and run
+  together, so one friend's device can't speak under another's name. Two proved links with one run of a device, eight
+  with one account's devices, 64 in all; sixteen devices kept as heard for one account. Datagrams: at most 50 read
+  each tenth of a second, the rest left for the system to drop; beacons of runs not known, 200 at once and 100 a
+  second; those of a run already known at that address have a count of their own (300 and 300), so no flood of
+  anyone else's keeps a device that is here from being heard. Marks are worked out for runs not seen before six a
+  minute from one address, and 120 at once and 10 a second from all. Connections made: four at a time, three a minute
+  to one address, sixteen at once and one every four seconds after in all. Connections taken: one from an address a
+  recognised device was heard at is always taken; of the rest, sixteen not yet proved, four from one address, twelve
+  knocks a minute from one, each given a second to knock. On a link: 100 packets at once and 10 a second (an account's
+  devices together, 150 and 15), and 400 frames of any kind at once and 200 a second, beyond which the link is closed
+  before the frame is opened. A link with nothing heard for a minute is closed; one with nothing said for twenty
+  seconds says a word. Stopped, it leaves no connection open and no timer.
+- **What it can't do.** Someone on the network who forges where their datagrams come from can still use up the
+  marks worked out for runs not seen before, and so slow the finding of a device that has only just come (never one
+  already found, and never a link). A phone on a Wi-Fi with no internet while its mobile data is on sends what is for
+  the Wi-Fi out by mobile data, as Android does for every socket not tied to a network: the route finds nothing
+  there, and the relay carries by mobile data (with no mobile data either, the Wi-Fi is the phone's network and the
+  route works). IPv4 only.
+- **Groups.** A route that is up need not reach everyone: with no relay and this route linked to some of a group's
+  members, what is written reaches those. What the others were not handed is owed to them and goes once a route
+  reaches them (`lib/friends/groups.dart`, "What a member was not handed").
+
+**The review of 2026-11-26** (an independent one, of the route as 0.12.41 shipped it, switched off) found the
+handshake and the sealing sound and fifteen things around them that were not: a broadcast socket closed by the first
+beacon that could not be sent, with the route still saying it was ready; a beacon said again from another address
+believed, and connected to; noise that was new each beacon, so two beacons gave the exact count of someone's people
+and showed the moment they went Invisible; limits that were shared, so a stranger's beacons or silent connections
+could keep friends from finding or linking; everything kept by a run's name alone, so one friend could close
+another's link or hold any number; floods of beacons or of a friend's frames stopping the app's isolate; a route
+that had been stopped still answering a knock; errors of a connection nobody took. Each is a test now:
+`test/lan_review_test.dart` (a network in memory) and `test/lan_sockets_test.dart` (real sockets on loopback, with
+the floods said from another isolate).
 
 `test/lan_test.dart` (the words; two friends finding each other, linking and carrying; what the network sees; who
 links with whom, a stranger, a replayed knock, two devices of one account, Invisible; under the switchboard; and once
 over this machine's own UDP and TCP) and `test/lan_net_test.dart` (as the app holds it, and Settings › Routes).
-**Not seen:** two real devices on a real Wi-Fi.
+**Seen:** two copies on one Mac finding each other over its real network (the real port, real broadcasts, its
+Wi-Fi's address) and carrying a packet. **Not seen:** two separate devices on a real Wi-Fi, and a phone at all.
+
 
 ## Checking the relay
 
