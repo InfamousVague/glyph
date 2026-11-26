@@ -6,42 +6,51 @@
 /// was going there (a long line is one of many within a few minutes, a short one stands alone), and the lines of what
 /// is on the screen now are the bright ones.
 ///
-/// The map has one size and one spacing: a line a message, [ChatRail.pitch] apart, standing up from its foot,
-/// whatever the chat's length. Where the chat has more lines than the map has room for, the map shows a part of it
-/// and is itself scrolled, kept on the part of the chat that is on the screen (Matt, 2026-11-25: "it's a bit glitchy though when getting to the top or bottom dont
-/// change the main size of the chatmap scroll it up and down as we go back through history"). It used to fit every
-/// message held into its height, so each older page loaded at the top drew every line again somewhere else, closer
-/// together or several messages to a line.
+/// The map has one size and one spacing: a line a message, [ChatRail.pitch] apart, whatever the chat's length. Where
+/// the chat has more lines than the map has room for, the map shows a part of it and is itself scrolled, kept on the
+/// part of the chat that is on the screen, as a frame on it (Matt, 2026-11-25: "dont change the main size of the
+/// chatmap scroll it up and down as we go back through history"; 2026-11-26: "have it scroll up and down like there is a
+/// frame of chat history we're viewing").
 ///
-/// A wheel, two fingers on a trackpad or a finger drawn over it scroll the chat as they do over the chat itself, and
-/// a press on it goes to the message pressed. It no longer opens into a list of the chat's stretches, and a finger
-/// held on it no longer drags the chat along (Matt, the same day: "Lets remove the popover for the summarized messages
-/// on the chat map for now and remove the tap and hold just allow scrolling normally"). The list and the hold are in
-/// this file as of commit 5cf3f3780, to be brought back from there; what the list was made from,
-/// [ChatRail.stretchesOf], is kept here with its tests for when it comes back.
+/// It swells where a finger is on it or a mouse is over it, as the Mac's Dock does (Matt, 2026-11-26: "Bring back the
+/// magnifying effect when scrolling through the chat map"), the swell following the pointer with a little lag.
 ///
-/// It swells where a finger is on it as it scrolls the chat, or a mouse is over it, as the Mac's Dock does (Matt,
-/// 2026-11-26: "Bring back the magnifying effect when scrolling through the chat map"). The swell follows the pointer
-/// with a little lag and comes and goes gently, and the lines move smoothly as it moves, not a line at a time; the map
-/// moves with the chat as a frame on what is on the screen, its lines the size they were (Matt, the same
-/// day: "add some smoothing on the desktop to the chat map it's too jittery when it picks up every little mouse
-/// movement, additionally make it zoomed in on a smaller chunk of chat and have it scroll up and down like there is a
-/// frame of chat history we're viewing instead of a huge chunk of it").
+/// What it does, since its second making (Matt, 2026-11-26: "when clicking something far up it doesn't go all the way
+/// to the message because it's still loading i assume and it's overall still kind of glitchy and i can't click and drag
+/// through it, please keep the same looks but do a revamp to make it far more performant and smooth"; and of the held
+/// drag: "it scrolls in reverse when touching holding and scrolling"):
+///
+///  * A press on a line goes to that message: the chat is put near it at once and run in the last of the way, and
+///    within a quarter of a second the message is in the middle of the screen, exactly (at once, with motion
+///    reduced), and stays there while pictures under it load. The chat's list does this itself now
+///    (lib/ui/chat_rows.dart): the map used to guess where a row it could not see was, look again a frame later and
+///    guess again, fourteen times at most, and among rows of very different heights the guesses went back and forth
+///    and ended a screen or more away.
+///  * A mouse's button held on it, or a finger held still for [holdFor], takes hold of the chat: drawn along the map,
+///    the chat goes to the message whose line is under the pointer, a message a line. UP the map is OLDER, as the map
+///    is drawn. The map stays where it is while held, so the same line is never under the pointer twice, and rolls on
+///    only when the pointer has held it a moment near its top or its foot, so one hold goes through the whole chat.
+///    Let go, it glides back to its frame.
+///  * A wheel, two fingers on a trackpad, or a finger drawn over it at once scroll the chat as they do over the chat
+///    itself.
+///
+/// It no longer opens into a list of the chat's stretches (Matt, 2026-11-25: "Lets remove the popover for the
+/// summarized messages on the chat map for now"). The list is in this file as of commit 5cf3f3780, to be brought back
+/// from there; what it was made from, [ChatRail.stretchesOf], is kept here with its tests for when it comes back.
 library;
 
+import 'dart:async' show Timer, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'dart:async' show unawaited;
-
-import 'package:flutter/gestures.dart' show Drag, GestureBinding, LongPressGestureRecognizer, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
-import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter/gestures.dart' show Drag, GestureBinding, LongPressGestureRecognizer, PointerDeviceKind, PointerScrollEvent, PointerScrollInertiaCancelEvent, TapGestureRecognizer, VerticalDragGestureRecognizer, kPrimaryButton;
 import 'package:flutter/scheduler.dart' show Ticker;
-import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../summaries.dart';
+import 'chat_rows.dart';
 import 'dialup/bevel.dart' show isBevelChrome;
 
 /// One message, as the map needs it.
@@ -121,6 +130,8 @@ class ChatRail extends StatefulWidget {
   /// put away for now, so neither is asked for. Kept so the chats that give them need not change when it is back.
   final Widget Function(String who, String name, bool mine, double size)? face;
   final Future<String?> Function(String lines)? summarize;
+
+  /// The chat's list, a [ChatListView]: the map asks it which rows are on the screen and sends it to a row.
   final Widget child;
 
   /// Fewer messages than this have no map: there is nothing to find one's way in.
@@ -156,8 +167,18 @@ class ChatRail extends StatefulWidget {
   /// is magnified, worked as a whole (the sum of [magnifyAt] from the middle out), so every line moves smoothly as the
   /// swell moves, never one jumping as another comes under the pointer. The line under the middle stays where it is,
   /// and those far off are pushed out by [swellPush] at most.
-  static double swollen(double d, [double amount = 1]) => d + (magnifyMost - 1) * amount * _sigma * math.sqrt(math.pi / 2) * _erf(d / (_sigma * math.sqrt2));
+  static double swollen(double d, [double amount = 1]) => d + swellPush * amount * _erf(d / (_sigma * math.sqrt2));
+
+  /// The most a swell pushes a line: (magnifyMost - 1) * sigma * sqrt(pi / 2).
   static const double swellPush = (magnifyMost - 1) * _sigma * 1.2533141373155;
+
+  /// How far a swollen line can be drawn past the map's own box: out of its left side toward the chat, and half its
+  /// thickness past its top and foot. The map is painted in a box that much larger ([RailPainter]), so nothing of it is
+  /// drawn outside what is painted by itself.
+  static const double spill = 32, spillTall = 4;
+
+  /// And past its right side: the round end of one's own line, swollen, reaches a pixel past the map's box there.
+  static const double spillRight = 4;
 
   /// The error function, to within 1.5e-7 (Abramowitz and Stegun 7.1.26).
   static double _erf(double x) {
@@ -181,6 +202,25 @@ class ChatRail extends StatefulWidget {
 
   /// The most stretches a chat is cut into.
   static const int mostStretches = 12;
+
+  /// How long a finger is held still on the map before it takes hold of the chat. A mouse's button takes hold at once:
+  /// a mouse does not scroll by dragging, so there is nothing for it to be told apart from (Matt, 2026-11-26: "i can't
+  /// click and drag through it").
+  static const holdFor = Duration(milliseconds: 300);
+
+  /// A pointer holding the map this near its top or its foot (or past it) rolls the map on, so a hold goes through
+  /// the whole chat; and how fast, in lines a second: [rollLeast] at the zone's start, [rollAtEdge] at the map's edge,
+  /// more past it, [rollMost] at most.
+  static const double rollZone = 36;
+  static const double rollLeast = 12, rollAtEdge = 90, rollMost = 240;
+
+  /// How fast the map rolls with the pointer [into] the zone: 0 at its start, 1 at the map's edge, more past it.
+  static double rollRate(double into) => into <= 0 ? 0 : math.min(rollMost, rollLeast + (rollAtEdge - rollLeast) * into * into);
+
+  /// A press runs the chat in to its message over this long, from no further than [runway] off: a chat sent far is
+  /// put near at once and only the last of the way is run, as the arrow back to the newest does.
+  static const runFor = Duration(milliseconds: 240);
+  static const double runway = 360;
 
   /// The lines for [marks] (newest first) in [rows] rows, the newest first.
   static List<RailTick> ticksOf(List<RailMark> marks, int rows) {
@@ -287,36 +327,57 @@ class ChatRail extends StatefulWidget {
 class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   bool _live = false;
 
+  /// The chat's list, found once it is laid out and kept while it is on the page.
+  RenderChatRows? _rows;
+
   ScrollController get _c => widget.controller;
 
   @override
   void initState() {
     super.initState();
     _ease = createTicker(_easeOn);
+    _roll = createTicker(_rollOn);
     _glide = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    // The chat is sent at each step of the run in, in the frame of the step (and once more as it ends, to where it
+    // rests): asked for a frame later, the chat stood still for the run's first frame.
+    _run = AnimationController(vsync: this, duration: ChatRail.runFor)
+      ..addListener(() {
+        if (_run.isAnimating) _go();
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _go();
+      });
+    _measureSoon();
   }
 
   @override
   void didUpdateWidget(ChatRail old) {
     super.didUpdateWidget(old);
-    if (!identical(old.controller, _c)) _list = null;
+    if (!identical(old.controller, _c)) _rows = null;
     if (old.chat != widget.chat) {
-      _list = null;
+      _rows = null;
       _at = 0;
       _ticksOf = null;
+      _newest = null;
       _glide.value = 1;
+      _letGo();
+      _to = null;
+      _run.stop();
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    _measureSoon();
   }
 
   @override
   void dispose() {
     _hold?.cancel();
     _pan?.cancel();
+    _rollArm?.cancel();
     _ease.dispose();
+    _roll.dispose();
     _glide.dispose();
+    _run.dispose();
     _focus.dispose();
+    _frame.dispose();
     super.dispose();
   }
 
@@ -326,84 +387,119 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   List<RailTick> _ticks = const [];
   List<String> _others = const [];
 
+  /// The newest message as the lines were last made, to find it by when more have come.
+  RailMark? _newest;
+
+  /// The same message, as far as the map can tell. (Not by its time alone: a network that dates to the second gives
+  /// two messages in one second the same time, and the one that came was not counted.)
+  static bool _same(RailMark a, RailMark b) => a.at == b.at && a.who == b.who && a.mine == b.mine && a.quiet == b.quiet && a.text == b.text;
+
   void _lines() {
     final m = widget.marks;
     final now = (m.length, m.isEmpty ? 0 : m.first.at, m.isEmpty ? 0 : m.last.at);
-    if (_ticksOf == now) return;
-    // More messages in the same chat (older ones loaded at the top, a new one at the foot): the map may now go where it
-    // could not, and glides there rather than jumping.
+    final was = _newest;
+    if (_ticksOf == now && (was == null || m.isEmpty || _same(m.first, was))) return;
     final had = _ticksOf;
-    if (had != null && had.$1 > 0 && had.$1 != now.$1 && !context.tokens.reducedMotion) {
-      _glideFrom = _at;
-      _glide.forward(from: 0);
+    if (had != null && had.$1 > 0 && m.isNotEmpty) {
+      // New messages at the foot: every message is that many lines further up the chat. The map goes up with them, so
+      // no line moves on it, and what is held (a message under the pointer, a message gone to) is still that message;
+      // the chat's list keeps the row it holds on that message by itself (lib/ui/chat_rows.dart, idOf). The map used
+      // to glide from where it was, which drew every line a step up and brought it down again.
+      var fresh = 0;
+      if (was != null) {
+        final grew = now.$1 - had.$1;
+        if (grew > 0 && grew <= 64 && grew < m.length && _same(m[grew], was)) {
+          fresh = grew;
+        } else if (!_same(m.first, was)) {
+          for (var i = 1; i < m.length && i <= 64; i++) {
+            if (_same(m[i], was)) {
+              fresh = i;
+              break;
+            }
+          }
+        }
+      }
+      if (fresh > 0) {
+        final by = fresh * ChatRail.pitch;
+        _at += by;
+        if (_gripAt != null) _gripAt = _gripAt! + by;
+        final g = _grip;
+        if (g != null) _grip = (at: g.at + by, y: g.y, line: g.line + fresh);
+        if (_to != null) _to = _to! + fresh;
+      }
+      // More messages in the same chat: the map may now go where it could not, and glides there rather than jumping.
+      if (had.$1 != now.$1 && !context.tokens.reducedMotion) {
+        _glideFrom = _at;
+        _glide.forward(from: 0);
+      }
+      // Held at the map's end with nothing further to roll to, and now there is (older messages read in).
+      if (had.$1 != now.$1) _rollIfDue();
     }
     _ticksOf = now;
+    _newest = m.isEmpty ? null : m.first;
     // A line a message, however many.
     _ticks = ChatRail.ticksOf(m, m.length);
     _others = {for (final x in m) if (!x.mine && !x.quiet) x.who}.toList()..sort();
   }
 
+  /// Looks again, once this frame is laid out, at whether there is a map ([_measure]): once a frame however often it
+  /// is asked (the list says its length has changed at every frame of some scrolls).
+  bool _measures = false;
+
+  void _measureSoon() {
+    if (_measures) return;
+    _measures = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measures = false;
+      _measure();
+    });
+  }
+
   /// There is a map where there is a chat to find one's way in: enough messages, and more of them than a screen.
   void _measure() {
     if (!mounted) return;
-    final live = widget.marks.length >= ChatRail.fewest && _c.hasClients && _c.position.hasContentDimensions && _c.position.maxScrollExtent > 40;
-    if (live != _live) setState(() => _live = live);
+    var rows = _rows;
+    if (rows != null && !rows.attached) rows = null;
+    if (rows == null && _c.hasClients) rows = RenderChatRows.under(_c.position);
+    final live = rows != null && widget.marks.length >= ChatRail.fewest && _c.hasClients && _c.position.hasContentDimensions && _c.position.maxScrollExtent > 40;
+    if (!live && _live) _drop();
+    if (live != _live || !identical(rows, _rows)) {
+      setState(() {
+        _live = live;
+        _rows = rows;
+      });
+    }
   }
 
-  /// The list's own rows as they are laid out now: for each one built, where it starts (from the newest end) and how
-  /// tall it is. Only the rows near the screen are built, and only these are known exactly.
-  Map<int, ({double at, double tall})> _laid() {
-    final out = <int, ({double at, double tall})>{};
-    if (!_c.hasClients) return out;
-    // Looked for once and kept while it is on the page: this is asked at every frame of a scroll.
-    var l = _list;
-    if (l == null || !l.attached) {
-      RenderSliverMultiBoxAdaptor? list;
-      void find(RenderObject o) {
-        if (list != null) return;
-        if (o is RenderSliverMultiBoxAdaptor) {
-          list = o;
-          return;
-        }
-        o.visitChildren(find);
-      }
-
-      _c.position.context.storageContext.findRenderObject()?.visitChildren(find);
-      l = _list = list;
-    }
-    if (l == null) return out;
-    // What is before the list in the scroll (its padding), where that can be told.
-    if (l.constraints.scrollOffset > 0) _before = _c.position.pixels - l.constraints.scrollOffset;
-    for (var child = l.firstChild; child != null; child = l.childAfter(child)) {
-      final d = child.parentData;
-      if (d is! SliverMultiBoxAdaptorParentData || d.index == null || d.layoutOffset == null || !child.hasSize) continue;
-      out[d.index!] = (at: d.layoutOffset! + _before, tall: child.size.height);
-    }
-    return out;
+  /// The map is off the page (too few messages for one now, its list gone, another look): whatever held it has let
+  /// go, as far as it can know. Its gestures went with it, and a button let go meanwhile is never heard of: it came
+  /// back still held, standing still while the chat scrolled, its swell up with nothing over it.
+  void _drop() {
+    _mouse = false;
+    _touching.clear();
+    _letGo();
+    _to = null;
+    _run.stop();
+    _glide.value = 1;
+    _target = null;
+    _ease.stop();
+    _focus.value = null;
   }
 
-  double _before = 0;
-  RenderSliverMultiBoxAdaptor? _list;
+  /// Whether the map was drawn at the last build.
+  bool _shown = false;
 
   /// Which of the messages are on the screen: from how many messages up from the newest to how many, parts of a
-  /// message counted (2.5 is half way up the third), so the map moves with the chat and not a line at a time. Exactly,
-  /// from the rows on the screen; by the scroll's share of its whole length until the list is laid out. Pulled past
-  /// an end, as a phone's list can be, the chat is still at that end here.
+  /// message counted (2.5 is half way up the third), so the map moves with the chat and not a line at a time. As the
+  /// chat's list last laid them out; by the scroll's share of its whole length until it has. Pulled past an end, as a
+  /// phone's list can be, the chat is still at that end here.
   (double, double) _view() {
     final n = widget.marks.length;
+    final rows = _rows;
+    final seen = rows != null && rows.attached ? rows.view : null;
+    if (seen != null) return ((seen.lo - widget.lead).clamp(0.0, n.toDouble()), (seen.hi - widget.lead).clamp(0.0, n.toDouble()));
     if (n == 0 || !_c.hasClients || !_c.position.hasContentDimensions) return (0, n.toDouble());
     final p = _c.position;
-    final foot = p.pixels, top = p.pixels + p.viewportDimension;
-    double? lo, hi;
-    _laid().forEach((index, row) {
-      if (row.tall <= 0 || row.at + row.tall <= foot || row.at >= top) return;
-      final mark = index - widget.lead;
-      if (mark < 0 || mark >= n) return;
-      final a = mark + ((foot - row.at) / row.tall).clamp(0.0, 1.0), b = mark + ((top - row.at) / row.tall).clamp(0.0, 1.0);
-      if (lo == null || a < lo!) lo = a;
-      if (hi == null || b > hi!) hi = b;
-    });
-    if (lo != null) return (lo!, hi!);
     final whole = p.maxScrollExtent + p.viewportDimension;
     if (whole <= 0) return (0, n.toDouble());
     final at = p.pixels.clamp(0.0, p.maxScrollExtent);
@@ -415,77 +511,160 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   /// top move no line.
   double _at = 0;
 
+  /// How tall the map is, as last built.
+  double _tall = 0;
+
+  /// The least and most the map can be scrolled, [tall] high: at rest at either end of the chat, and a chat whose
+  /// lines don't fill it has them in its middle, not at its foot (Matt, 2026-11-26: "center the chat map on right
+  /// side").
+  (double, double) _ends(double tall) {
+    final whole = widget.marks.length * ChatRail.pitch;
+    final double least = whole < tall ? -(tall - whole) / 2 : 0.0;
+    return (least, math.max(least, whole - tall));
+  }
+
   /// Where the map is now, [tall] high, and what of the chat is on the screen ([_view]). The lines of what is on the
   /// screen are kept in the map's middle, so the map moves with the chat as a frame on it, as smoothly as the chat
-  /// does (Matt, 2026-11-26: "have it scroll up and down like there is a frame of chat history we're viewing"); at
-  /// either end of the chat it rests at its own end. Counted from the newest end, so nothing in it moves when older
-  /// messages come in at the top. Asked at every paint.
+  /// does; at either end of the chat it rests at its own end. While a pointer holds the map it stays where it was
+  /// taken hold of ([_gripAt]). Asked at every paint.
   ({double lo, double hi, double at}) _place(double tall) {
     final (lo, hi) = _view();
-    final whole = widget.marks.length * ChatRail.pitch;
-    // A chat whose lines don't fill the map: they are in its middle, not at its foot (Matt, 2026-11-26: "center the
-    // chat map on right side").
-    final double least = whole < tall ? -(tall - whole) / 2 : 0.0, most = math.max(least, whole - tall);
-    var at = ((lo + hi) / 2 * ChatRail.pitch - tall / 2).clamp(least, most);
-    if (_glide.isAnimating) at = _glideFrom + (at - _glideFrom) * Curves.easeOutCubic.transform(_glide.value);
+    final (least, most) = _ends(tall);
+    final held = _gripAt;
+    double at;
+    if (held != null) {
+      at = _gripAt = held.clamp(least, most);
+    } else {
+      at = ((lo + hi) / 2 * ChatRail.pitch - tall / 2).clamp(least, most);
+      if (_glide.isAnimating) {
+        if ((at - _glideFrom).abs() < 0.01) {
+          // Nowhere to glide to (a message came while far back, the map let go of where it belongs): twenty frames of
+          // painting the same thing.
+          _glide.stop();
+        } else {
+          at = _glideFrom + (at - _glideFrom) * Curves.easeOutCubic.transform(_glide.value);
+        }
+      }
+    }
     return (lo: lo, hi: hi, at: _at = at);
   }
 
-  /// Where the map was when more messages came in, and its glide from there to where it now belongs.
+  /// Where the map was when more messages came in or it was let go of, and its glide from there to where it belongs.
   double _glideFrom = 0;
   late final AnimationController _glide;
 
-  /// Counts the goings, so a newer one stops an older one still finding its row.
-  int _going = 0;
+  /// Painted again when this changes: the map rolled under a pointer that has not moved.
+  final ValueNotifier<int> _frame = ValueNotifier(0);
 
-  /// Brings the message at [mark] onto the screen: its top to the screen's top where [top] (the start of a stretch,
-  /// to read on from), else to the middle. The list builds only the rows near the screen, so where a far row is is
-  /// not known: it goes to where the row should be by the rows it knows, looks again once those are laid out, and so
-  /// on until the row itself is there to be gone to exactly (Matt, 2026-11-25: "if i click on a section in the chat
-  /// map it doesn't always go right to where i clicked").
-  ///
-  /// [within] is where in the row goes to the screen's middle, from its foot (0) to its top (1).
-  Future<void> _goTo(int mark, {bool top = false, bool run = false, double within = 0.5}) async {
+  // ---- Going to a message -------------------------------------------------------------------------------------------
+
+  /// The line being gone to (a message, parts of it counted: where a hold was let go is seldom a message's middle),
+  /// until the chat is there; and whether the list has been told yet (after which, its letting go of the row means
+  /// something else has moved the chat, and the going is given up).
+  double? _to;
+  bool _told = false;
+
+  /// The run in to a message: how far off the chat started ([_runFrom], no more than [ChatRail.runway]), brought to
+  /// nothing over [ChatRail.runFor].
+  late final AnimationController _run;
+  double _runFrom = 0;
+
+  /// Sends the chat to [line] (39 is the fortieth message's middle in the screen's middle). The list puts it there
+  /// itself, whether or not the row was ever built, and keeps it there while what is round it loads
+  /// (lib/ui/chat_rows.dart).
+  void _goTo(double line) {
+    final rows = _rows;
     final n = widget.marks.length;
-    if (n == 0 || !_c.hasClients) return;
-    final item = mark.clamp(0, n - 1) + widget.lead;
-    final mine = ++_going;
-    for (var tries = 0; tries < 14; tries++) {
-      if (!mounted || mine != _going || !_c.hasClients || !_c.position.hasContentDimensions) return;
-      final p = _c.position;
-      final laid = _laid();
-      final row = laid[item];
-      if (row != null) {
-        final to = (top ? row.at + row.tall - p.viewportDimension + 12 : row.at + row.tall * within - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
-        if ((to - p.pixels).abs() < 1) return;
-        if (run && tries == 0 && !context.tokens.reducedMotion) {
-          await _c.animateTo(to, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
-        } else {
-          _c.jumpTo(to);
-        }
+    if (rows == null || !rows.attached || n == 0 || !_c.hasClients) return;
+    final to = _to = line.clamp(-0.499, n - 0.501);
+    _told = false;
+    final row = to.round();
+    final still = context.tokens.reducedMotion;
+    // From where it is, or from a little way off if it is far: only the last of the way is seen.
+    final off = still ? 0.0 : (rows.scrolled - rows.placeOf(row + widget.lead, within: to - row + 0.5)).clamp(-ChatRail.runway, ChatRail.runway);
+    if (off.abs() < 1) {
+      _run.stop();
+      _runFrom = 0;
+    } else {
+      _runFrom = off;
+      _run.forward(from: 0);
+    }
+    // With nothing holding the map it goes to its frame on the new place as the chat does, not at a leap.
+    if (_grip == null && !still) {
+      _glideFrom = _at;
+      _glide.forward(from: 0);
+    }
+    _go();
+  }
+
+  /// The chat is sent where it is wanted once a frame, however often the pointer moves in it.
+  bool _goes = false;
+
+  void _goSoon() {
+    if (_goes) return;
+    _goes = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _goes = false;
+      // (While the run in is under way each of its steps sends the chat, this frame's too.)
+      if (!_run.isAnimating) _go();
+    });
+  }
+
+  void _go() {
+    final rows = _rows;
+    final n = widget.marks.length;
+    if (!mounted || rows == null || !rows.attached || n == 0 || !_c.hasClients) return;
+    final g = _grip;
+    double line;
+    if (g != null) {
+      // Held: the message whose line is under the pointer now.
+      line = _under(g);
+    } else {
+      final to = _to;
+      if (to == null) return;
+      // Sent by a press, and since moved by something else (a wheel, a finger on the chat): theirs now.
+      if (_told && (rows.held == null || rows.strayed(_c.position))) {
+        _to = null;
+        _run.stop();
         return;
       }
-      final double guess;
-      if (laid.isEmpty) {
-        guess = (item + 0.5) / (n + widget.lead) * (p.maxScrollExtent + p.viewportDimension);
-      } else {
-        // From the nearest row that is known, by how tall the known rows are on the whole.
-        final near = laid.keys.reduce((a, b) => (a - item).abs() <= (b - item).abs() ? a : b);
-        final tall = laid.values.fold<double>(0, (sum, r) => sum + r.tall) / laid.length;
-        guess = laid[near]!.at + (item - near) * tall;
+      line = to;
+    }
+    line = line.clamp(-0.499, n - 0.501);
+    final mark = line.round();
+    if (g != null && mark != _ticked) {
+      _ticked = mark;
+      // A tick at a message under a finger, but not one for each of a hundred crossed in a second.
+      final now = DateTime.now();
+      if (_byTouch && now.difference(_tickedAt).inMilliseconds >= 40) {
+        _tickedAt = now;
+        unawaited(HapticFeedback.selectionClick());
       }
-      final to = (guess - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
-      // As far as the list goes and the row is still not there: it is not in the list (older ones still to come).
-      if ((to - p.pixels).abs() < 1) return;
-      _c.jumpTo(to);
-      await WidgetsBinding.instance.endOfFrame;
+    }
+    final shift = _run.isAnimating ? _runFrom * (1 - Curves.easeOutCubic.transform(_run.value)) : 0.0;
+    // A line is a message from its foot to its top: the pointer half way to the next line is the row's top in the
+    // screen's middle, which is the next row's foot.
+    rows.hold(_c.position, mark + widget.lead, within: line - mark + 0.5, shift: shift);
+    _told = true;
+    if (g == null && !_run.isAnimating) {
+      _to = null;
+      // Brought to the newest end, the chat is the chat again: held there, it stayed on its row as messages came,
+      // and they came in under the foot, unseen.
+      final p = _c.position;
+      if (p.hasContentDimensions && p.pixels <= p.minScrollExtent + 0.5) rows.release();
     }
   }
+
+  /// The line under the pointer that holds the map: up the map is older; and the map rolled on under a pointer that
+  /// is still has brought another line under it.
+  double _under(({double at, double y, double line}) g) => g.line + (g.y - _gripY) / ChatRail.pitch + ((_gripAt ?? g.at) - g.at) / ChatRail.pitch;
+
+  // ---- Scrolling the chat from over the map ------------------------------------------------------------------------
 
   /// A wheel turned over the map scrolls the chat, as it would over the chat itself: the map stands over the chat's
   /// list, which never hears the wheel there.
   void _wheel(PointerScrollEvent e) {
-    if (!_c.hasClients || e.scrollDelta.dy == 0) return;
+    if (!_c.hasClients || e.scrollDelta.dy == 0 || _grip != null) return;
     GestureBinding.instance.pointerSignalResolver.register(e, (e) {
       // The chat's list is drawn bottom up, so a turn down the page is toward its start.
       if (_c.hasClients) _c.position.pointerScroll(-(e as PointerScrollEvent).scrollDelta.dy);
@@ -497,6 +676,8 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   /// mouse, which does not drag the chat either.
   Drag? _pan;
   ScrollHoldController? _hold;
+
+  // ---- The swell ----------------------------------------------------------------------------------------------------
 
   /// Where down the map the swell is drawn and how far it has come up (0 to 1), if there is one: the lines round it
   /// are drawn larger and further apart, as the Dock swells under the pointer. It follows [_target] at a short lag
@@ -514,6 +695,8 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   static const _lagMouse = 0.07, _lagTouch = 0.03, _lagAmount = 0.09;
 
   void _aim(double? y, {bool touch = false}) {
+    // (A finger still down when the page goes is still heard by what it went down on.)
+    if (!mounted) return;
     _target = y;
     if (y != null) _byTouch = touch;
     if (context.tokens.reducedMotion) {
@@ -545,7 +728,7 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
       return;
     }
     _focus.value = (y: y, amount: amount);
-    if (t != null && (y - t).abs() < 0.05 && amount > 0.995) {
+    if (t != null && (y - t).abs() < 0.2 && amount > 0.99) {
       _focus.value = (y: t, amount: 1);
       _ease.stop();
     }
@@ -554,127 +737,178 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   /// The fingers on the map now, by pointer: the swell is under the last one put down.
   final Set<int> _touching = {};
 
-  Widget _scrollsChat(Widget child) => Listener(
-        onPointerSignal: (e) {
-          if (e is PointerScrollEvent) _wheel(e);
-        },
-        onPointerHover: (e) {
-          if (_touching.isEmpty) _aim(e.localPosition.dy);
-        },
-        onPointerDown: (e) {
-          if (e.kind == PointerDeviceKind.mouse) return;
-          _touching.add(e.pointer);
-          _aim(e.localPosition.dy, touch: true);
-        },
-        onPointerMove: (e) {
-          if (_touching.contains(e.pointer)) _aim(e.localPosition.dy, touch: true);
-        },
-        onPointerUp: (e) => _lift(e.pointer),
-        onPointerCancel: (e) => _lift(e.pointer),
-        child: RawGestureDetector(
-          gestures: {
-            // Held still, then drawn along: the map taken hold of. Not a trackpad's two fingers, which scroll.
-            LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-              () => LongPressGestureRecognizer(duration: holdFor, supportedDevices: const {PointerDeviceKind.mouse, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown}),
-              (r) => r
-                ..onLongPressStart = ((d) => _grab(d.localPosition.dy))
-                ..onLongPressMoveUpdate = ((d) => _grabMove(d.localPosition.dy))
-                ..onLongPressEnd = ((_) => _grabEnd())
-                ..onLongPressCancel = _grabEnd,
-            ),
-            VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-              () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown}),
-              (r) => r
-                ..onDown = (d) {
-                  _hold = _c.hasClients ? _c.position.hold(() => _hold = null) : null;
-                }
-                ..onStart = (d) {
-                  _pan?.cancel();
-                  // Beginning the drag ends the hold.
-                  _pan = _c.hasClients ? _c.position.drag(d, () => _pan = null) : null;
-                }
-                ..onUpdate = ((d) => _pan?.update(d))
-                ..onEnd = ((d) => _pan?.end(d))
-                ..onCancel = () {
-                  _hold?.cancel();
-                  _pan?.cancel();
-                },
-            ),
-          },
-          child: child,
-        ),
-      );
-
-  /// Held on the map, a finger or a mouse's button, then drawn along it: the map is taken hold of, and the chat goes
-  /// with it a message for every line, the line under the pointer staying under it, the swell on it and a light tick
-  /// at each message (Matt, 2026-11-26: "i'd like to be able to tap and hold to initate the scrolling mechanic and
-  /// click and hold as well"). Where the pointer was when it took hold, and the middle of what was on the screen then,
-  /// in messages up from the newest; null while nothing holds the map.
-  double? _grabY;
-  double _grabMid = 0;
-  int? _grabbed;
-
-  /// How long a finger or a button is held still before the map is taken hold of.
-  static const holdFor = Duration(milliseconds: 300);
-
-  void _grab(double y) {
-    final (lo, hi) = _view();
-    _grabY = y;
-    _grabMid = (lo + hi) / 2;
-    _grabbed = _grabMid.floor();
-    _going++;
-    _aim(y, touch: true);
-    unawaited(HapticFeedback.selectionClick());
-  }
-
-  void _grabMove(double y) {
-    final from = _grabY;
-    if (from == null) return;
-    _aim(y, touch: true);
-    // Drawn down the map, the lines go down with it: older messages come under the pointer.
-    final mid = (_grabMid + (y - from) / ChatRail.pitch).clamp(0.0, math.max(0.0, widget.marks.length - 0.001)).toDouble();
-    if (mid.floor() != _grabbed) {
-      _grabbed = mid.floor();
-      unawaited(HapticFeedback.selectionClick());
-    }
-    _grabGo(mid);
-  }
-
-  void _grabEnd() {
-    _grabY = null;
-    _grabbed = null;
-  }
-
-  /// The newest place a held map was drawn to, gone to once a frame, not once for every move of the pointer.
-  double? _grabTo;
-  bool _grabWaits = false;
-
-  void _grabGo(double mid) {
-    _grabTo = mid;
-    if (_grabWaits) return;
-    _grabWaits = true;
-    WidgetsBinding.instance.scheduleFrameCallback((_) {
-      _grabWaits = false;
-      final to = _grabTo;
-      _grabTo = null;
-      if (mounted && to != null) _goTo(to.floor(), within: to - to.floor());
-    });
-  }
-
   void _lift(int pointer) {
-    if (_touching.remove(pointer) && _touching.isEmpty) _aim(null);
+    if (_touching.remove(pointer) && _touching.isEmpty && !_mouse) _aim(null);
   }
 
-  /// The message whose line is drawn nearest [y] down a map [tall] high, swollen as it is.
-  int _markAt(double y, double tall) {
-    final n = widget.marks.length;
-    if (n == 0) return 0;
+  // ---- Taking hold of the chat --------------------------------------------------------------------------------------
+
+  /// While a pointer holds the map (a mouse's button down on it, a finger held on it): how far the map was scrolled
+  /// when it took hold, where the pointer was, and which message's line it took hold of. The chat is then at the
+  /// message whose line is under the pointer, wherever along the map it is drawn (Matt, 2026-11-26: "i'd like to be
+  /// able to tap and hold to initate the scrolling mechanic and click and hold as well"; "i can't click and drag
+  /// through it"). Up the map is older, as the map is drawn: it went the other way once, the lines following the
+  /// finger (Matt, the same day: "it scrolls in reverse when touching holding and scrolling").
+  ({double at, double y, double line})? _grip;
+
+  /// Where the pointer holding the map is now, down the map; whether it has been drawn along at all; and the message
+  /// last under it, for a tick at each.
+  double _gripY = 0;
+  bool _drawn = false;
+  int? _ticked;
+  DateTime _tickedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// How far the map is scrolled while held: where it was taken hold of, rolled on at its ends ([_rollOn]). Null while
+  /// nothing holds it, and the map follows the chat.
+  double? _gripAt;
+
+  /// A mouse's button holds the map.
+  bool _mouse = false;
+
+  /// The swell is put on the pointer, with no lag, while a pointer presses or holds the map: where the swell's middle
+  /// is, the line drawn under the pointer is the line that belongs there, and a line more along the map is a message
+  /// more. Left to catch up, the lines round the pointer stood out of their places, and the chat was some messages
+  /// from the line under it for as long as it moved.
+  void _swellAt(double y, {required bool touch}) {
+    _aim(y, touch: touch);
     final f = _focus.value;
-    // Back through the swell: where the line drawn at [y] would be without it.
-    var d = y - (f?.y ?? 0);
+    if (f != null && f.y != y) _focus.value = (y: y, amount: f.amount);
+  }
+
+  /// A pointer takes hold of the map at [y] down it: the chat goes to the message whose line is there, and from then
+  /// on to whichever is under the pointer.
+  void _take(double y, {required bool touch}) {
+    // One thing at a time: not while a finger is scrolling the chat from over the map, nor twice.
+    if (_rows == null || widget.marks.isEmpty || _pan != null || _grip != null) return;
+    // The line drawn there now, though it be past either end of the chat's lines (a chat too short to fill the map
+    // has room over and under them): drawn on from there, the pointer is on a line when the chat is at its message.
+    final drawn = _lineAt(y);
+    final line = drawn.roundToDouble();
+    // Then the swell on the pointer, and the map moved by as much as the swell had that line out of its place (a
+    // mouse pressed while still moving has the swell some way behind it): the line pressed is still the one under the
+    // pointer, and stays so.
+    _swellAt(y, touch: touch);
+    final (least, most) = _ends(_tall);
+    final at = (y - _tall + (drawn + 0.5) * ChatRail.pitch).clamp(least, most);
+    _grip = (at: at, y: y, line: line);
+    _gripAt = at;
+    _gripY = y;
+    _drawn = false;
+    _ticked = _markAt(y);
+    if (touch) unawaited(HapticFeedback.selectionClick());
+    // It rolls only once held a moment, moved or not: a press at the map's top that slipped a pixel rolled it some
+    // lines on, and a button held quite still there never rolled it. (A finger has held it that long already.)
+    _rollArm?.cancel();
+    _rolls = touch;
+    if (!touch) {
+      _rollArm = Timer(ChatRail.holdFor, () {
+        _rolls = true;
+        _rollIfDue();
+      });
+    }
+    _goTo(line);
+    _rollIfDue();
+  }
+
+  /// The pointer holding the map is now at [y] down it.
+  void _draw(double y, {required bool touch}) {
+    if (_grip == null) return;
+    final moved = y != _gripY;
+    if (moved) _drawn = true;
+    _gripY = y;
+    _swellAt(y, touch: touch);
+    _rollIfDue();
+    // (Moved sideways only, the chat is where it was.)
+    if (moved) _goSoon();
+  }
+
+  /// The pointer lets go: the map glides back to its frame on what is on the screen, and the chat goes on to where it
+  /// was brought, the list still holding that message in its place until the chat is next scrolled.
+  void _letGo() {
+    final g = _grip;
+    if (g == null) return;
+    final n = widget.marks.length;
+    // Drawn along: what is left of the run in goes on, to the line let go on. (It was stopped where it stood: a press
+    // that slipped a pixel and was let go at once left the chat most of a screen short of its message.) Only
+    // pressed: it goes on to the message pressed.
+    if (_drawn && n > 0) _to = _under(g).clamp(-0.499, n - 0.501);
+    _grip = null;
+    _gripAt = null;
+    _ticked = null;
+    _rollArm?.cancel();
+    _rolls = false;
+    _roll.stop();
+    if (mounted && !context.tokens.reducedMotion) {
+      _glideFrom = _at;
+      _glide.forward(from: 0);
+    }
+    _frame.value++;
+    // Once more, where it is to rest: the list is told, and at the newest end is let go.
+    _goSoon();
+  }
+
+  /// The map rolls on while the pointer holding it is near its top or its foot, or past them, so one hold goes
+  /// through the whole chat: toward older messages at the top, newer at the foot, faster the further in.
+  late final Ticker _roll;
+  Duration _rolled = Duration.zero;
+
+  /// Whether the hold has lasted long enough to roll, and what waits for that.
+  bool _rolls = false;
+  Timer? _rollArm;
+
+  /// How fast the map is to roll now, in lines a second: over 0 toward older messages.
+  double _rollBy() {
+    if (_grip == null || !_rolls || _tall <= 0) return 0;
+    if (_gripY < ChatRail.rollZone) return ChatRail.rollRate((ChatRail.rollZone - _gripY) / ChatRail.rollZone);
+    if (_gripY > _tall - ChatRail.rollZone) return -ChatRail.rollRate((_gripY - (_tall - ChatRail.rollZone)) / ChatRail.rollZone);
+    return 0;
+  }
+
+  /// Starts the roll where it is due and has somewhere to go.
+  void _rollIfDue() {
+    if (!mounted || _roll.isActive) return;
+    final by = _rollBy(), at = _gripAt;
+    if (by == 0 || at == null) return;
+    final (least, most) = _ends(_tall);
+    if (by > 0 ? at >= most : at <= least) return;
+    _rolled = Duration.zero;
+    _roll.start();
+  }
+
+  void _rollOn(Duration now) {
+    final dt = (now - _rolled).inMicroseconds / 1e6;
+    _rolled = now;
+    final by = mounted ? _rollBy() : 0.0;
+    final at = _gripAt;
+    if (by == 0 || at == null) {
+      _roll.stop();
+      return;
+    }
+    if (dt <= 0) return;
+    final (least, most) = _ends(_tall);
+    final next = (at + by * ChatRail.pitch * dt).clamp(least, most);
+    if (next == at) {
+      // At an end: nothing to do until there is more (older messages read in start it again, [_lines]), and no frame
+      // asked for meanwhile.
+      _roll.stop();
+      return;
+    }
+    _gripAt = next;
+    _drawn = true;
+    _frame.value++;
+    _go();
+  }
+
+  /// Which message's line is drawn at [y] down the map, swollen as it is, parts of a line counted: 39 is the middle
+  /// of the fortieth line from the newest, 39.5 half way to the next.
+  double _lineAt(double y) {
+    final f = _focus.value;
+    var base = y;
     if (f != null) {
-      var lo = -1e5, hi = 1e5;
-      for (var k = 0; k < 60; k++) {
+      // Back through the swell: where the line drawn at [y] would be without it.
+      final d = y - f.y;
+      var lo = d - ChatRail.swellPush - 1, hi = d + ChatRail.swellPush + 1;
+      for (var k = 0; k < 40; k++) {
         final mid = (lo + hi) / 2;
         if (ChatRail.swollen(mid, f.amount) < d) {
           lo = mid;
@@ -682,23 +916,151 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
           hi = mid;
         }
       }
-      d = (lo + hi) / 2;
+      base = (lo + hi) / 2 + f.y;
     }
-    final base = d + (f?.y ?? 0);
-    return ((_at + tall - base) / ChatRail.pitch - 0.5).round().clamp(0, n - 1);
+    return (_at + _tall - base) / ChatRail.pitch - 0.5;
+  }
+
+  /// The message whose line is drawn nearest [y] down the map.
+  int _markAt(double y) {
+    final n = widget.marks.length;
+    return n == 0 ? 0 : _lineAt(y).round().clamp(0, n - 1);
+  }
+
+  static const _fingers = {PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown};
+
+  /// The map's gestures. A mouse's button down on it takes hold at once and every move of it is followed (it is alone
+  /// among the mouse's gestures here, so it has the press from the start; were anything over the map to want a
+  /// mouse's drag too, the two would be told apart by the usual slop). A finger's press goes to the message, held
+  /// still for [ChatRail.holdFor] it takes hold, and drawn at once it scrolls the chat; a trackpad's two fingers
+  /// scroll. Each gets the device's own slop, as the chat's list does.
+  Widget _gestures(BuildContext context, Widget child) {
+    final settings = MediaQuery.maybeGestureSettingsOf(context);
+    final behaviour = ScrollConfiguration.of(context);
+    return Listener(
+      onPointerSignal: (e) {
+        if (e is PointerScrollEvent) {
+          _wheel(e);
+        } else if (e is PointerScrollInertiaCancelEvent && _c.hasClients) {
+          // Fingers rested on a trackpad stop the chat's glide, as they do over the chat.
+          _c.position.pointerScroll(0);
+        }
+      },
+      onPointerHover: (e) {
+        if (_touching.isEmpty && !_mouse) _aim(e.localPosition.dy);
+      },
+      onPointerDown: (e) {
+        if (!_fingers.contains(e.kind)) return;
+        _touching.add(e.pointer);
+        if (_grip == null) _aim(e.localPosition.dy, touch: true);
+      },
+      onPointerMove: (e) {
+        if (_touching.contains(e.pointer) && _grip == null) _aim(e.localPosition.dy, touch: true);
+      },
+      onPointerUp: (e) => _lift(e.pointer),
+      onPointerCancel: (e) => _lift(e.pointer),
+      child: RawGestureDetector(
+        key: const ValueKey('chat-rail'),
+        behavior: HitTestBehavior.opaque,
+        gestures: {
+          _MouseHold: GestureRecognizerFactoryWithHandlers<_MouseHold>(
+            _MouseHold.new,
+            (r) => r
+              ..gestureSettings = settings
+              ..onDown = (d) {
+                _mouse = true;
+                _take(d.localPosition.dy, touch: false);
+              }
+              ..onUpdate = ((d) => _draw(d.localPosition.dy, touch: false))
+              ..onEnd = ((d) => _mouseUp(d.localPosition))
+              ..onCancel = (() => _mouseUp(null)),
+          ),
+          // A finger's press goes to the message pressed. Not one put down to stop the chat gliding: over the chat
+          // that presses nothing either.
+          TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            () => TapGestureRecognizer(supportedDevices: _fingers),
+            (r) => r
+              ..gestureSettings = settings
+              ..onTapUp = (d) {
+                if (!_stopped) _goTo(_markAt(d.localPosition.dy).toDouble());
+              },
+          ),
+          // Held still, then drawn along: the chat taken hold of. Not a trackpad's two fingers, which scroll.
+          LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+            () => LongPressGestureRecognizer(duration: ChatRail.holdFor, supportedDevices: _fingers),
+            (r) => r
+              ..gestureSettings = settings
+              ..onLongPressStart = ((d) => _take(d.localPosition.dy, touch: true))
+              ..onLongPressMoveUpdate = ((d) => _draw(d.localPosition.dy, touch: true))
+              ..onLongPressEnd = ((_) => _letGo())
+              ..onLongPressCancel = _letGo,
+          ),
+          VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
+            () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad, ..._fingers}),
+            (r) => r
+              ..gestureSettings = settings
+              // Its glide after, and its fingers counted, as the chat's own list has them.
+              ..velocityTrackerBuilder = behaviour.velocityTrackerBuilder(context)
+              ..multitouchDragStrategy = behaviour.getMultitouchDragStrategy(context)
+              ..onDown = (d) {
+                // Not under a finger that holds the map: a second finger scrolls nothing.
+                if (_grip != null) return;
+                _stopped = _c.hasClients && _c.position.isScrollingNotifier.value;
+                _hold = _c.hasClients ? _c.position.hold(() => _hold = null) : null;
+              }
+              ..onStart = (d) {
+                if (_grip != null) return;
+                _pan?.cancel();
+                // Beginning the drag ends the hold.
+                _pan = _c.hasClients ? _c.position.drag(d, () => _pan = null) : null;
+              }
+              ..onUpdate = ((d) => _pan?.update(d))
+              ..onEnd = ((d) => _pan?.end(d))
+              ..onCancel = () {
+                _hold?.cancel();
+                _pan?.cancel();
+              },
+          ),
+        },
+        child: child,
+      ),
+    );
+  }
+
+  /// The finger now on the map came down while the chat was gliding, and stopped it.
+  bool _stopped = false;
+
+  /// The mouse's button is let go, at [at] if that is known.
+  void _mouseUp(Offset? at) {
+    if (!_mouse) return;
+    _mouse = false;
+    _letGo();
+    // Still over the map, the swell stays under the pointer; let go somewhere else, it goes.
+    final over = at != null && at.dy >= 0 && at.dy <= _tall && at.dx >= 0 && at.dx <= ChatRail.gutter;
+    if (_touching.isEmpty) _aim(over ? at.dy : null);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // Not one that has left the page since it was found ([_measure] looks again once this frame is drawn).
+    final rows = _rows != null && _rows!.attached ? _rows : null;
+    // No map under Dial-Up, whose chat is a transcript: taken away under a pointer, it lets go as it goes.
+    final shown = _live && !isBevelChrome(t);
+    if (_shown && !shown && _live) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _drop();
+      });
+    }
+    _shown = shown;
     return NotificationListener<ScrollMetricsNotification>(
       onNotification: (_) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+        _measureSoon();
         return false;
       },
       child: Stack(children: [
         widget.child,
-        if (_live && !isBevelChrome(t))
+        if (shown)
           Positioned(
             top: 0,
             bottom: 0,
@@ -706,45 +1068,52 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
             child: LayoutBuilder(builder: (context, box) {
               _lines();
               final ticks = _ticks, others = _others;
-              // Its one size, a whole number of lines, however few the messages: their lines stand up from its foot, as
-              // the chat's rows do from the chat's, so a line stays where it is as older messages come in over it, and
-              // once there are more lines than room the map is scrolled.
-              final height = (math.min(box.maxHeight * ChatRail.share, ChatRail.tallest) / ChatRail.pitch).floor() * ChatRail.pitch;
+              // Its one size, a whole number of lines, however few the messages: once there are more lines than room
+              // the map is scrolled.
+              final height = _tall = (math.min(box.maxHeight * ChatRail.share, ChatRail.tallest) / ChatRail.pitch).floor() * ChatRail.pitch;
               return Center(
                 widthFactor: 1,
                 child: MouseRegion(
                   onExit: (_) {
-                    if (_touching.isEmpty) _aim(null);
+                    if (_touching.isEmpty && !_mouse) _aim(null);
                   },
-                  child: _scrollsChat(Semantics(
-                  label: 'Map of this chat',
-                  container: true,
-                  child: GestureDetector(
-                    key: const ValueKey('chat-rail'),
-                    behavior: HitTestBehavior.opaque,
-                    // A press goes to the message pressed.
-                    onTapUp: (d) => _goTo(_markAt(d.localPosition.dy, height), run: true),
+                  child: _gestures(context, Semantics(
+                    label: 'Map of this chat',
+                    container: true,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
                       child: SizedBox(
                         width: ChatRail.width,
                         height: height,
-                        child: CustomPaint(
-                          painter: RailPainter(
-                            ticks: ticks,
-                            tall: height,
-                            place: _place,
-                            focus: _focus,
-                            repaint: Listenable.merge([_c, _focus, _glide]),
-                            mine: t.color('app-accent'),
-                            theirs: t.color('app-ink-2'),
-                            hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
-                            quiet: t.color('app-ink-3'),
+                        // Painted by itself: the map is painted at every frame of a scroll and of the pointer over it,
+                        // and nothing else of the chat need be drawn again for that (the whole page was, header and
+                        // composer and all). Its box is larger than the map by what a swell spills out of it, so all
+                        // of it is inside what is painted.
+                        child: OverflowBox(
+                          // Its right edge [ChatRail.spillRight] past the map's, the rest of what it is wider by to the left.
+                          alignment: const Alignment((ChatRail.spill - ChatRail.spillRight) / (ChatRail.spill + ChatRail.spillRight), 0),
+                          minWidth: ChatRail.width + ChatRail.spill + ChatRail.spillRight,
+                          maxWidth: ChatRail.width + ChatRail.spill + ChatRail.spillRight,
+                          minHeight: height + ChatRail.spillTall * 2,
+                          maxHeight: height + ChatRail.spillTall * 2,
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              painter: RailPainter(
+                                ticks: ticks,
+                                tall: height,
+                                place: _place,
+                                focus: _focus,
+                                repaint: Listenable.merge([_c, if (rows != null) rows.laid, _focus, _glide, _frame]),
+                                mine: t.color('app-accent'),
+                                theirs: t.color('app-ink-2'),
+                                hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
+                                quiet: t.color('app-ink-3'),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
                   )),
                 ),
               );
@@ -796,12 +1165,22 @@ class RailPainter extends CustomPainter {
   /// How much the line of message [mark] is magnified now: 1 where nothing is near it.
   double growOf(int mark) => _line(mark, place(tall).at).grow;
 
+  /// Which messages are on the screen now, as the map has them: its bright lines.
+  ({double lo, double hi}) get seen {
+    final (:lo, :hi, at: _) = place(tall);
+    return (lo: lo, hi: hi);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final n = ticks.length;
     if (n == 0) return;
     final (:lo, :hi, :at) = place(tall);
     final paint = Paint()..strokeCap = StrokeCap.round;
+    // The map itself is [ChatRail.width] wide and [tall] high, [ChatRail.spillRight] in from the box's right: the rest
+    // is room for a swell.
+    canvas.translate(size.width - ChatRail.width - ChatRail.spillRight, (size.height - tall) / 2);
+    const width = ChatRail.width;
     // Only the lines in the map now, and those a swell could push into it: a long chat has many more.
     final first = math.max(0, (at / ChatRail.pitch).floor() - _spare), last = math.min(n - 1, ((at + tall) / ChatRail.pitch).ceil() + _spare);
     if (last < first) return;
@@ -820,7 +1199,7 @@ class RailPainter extends CustomPainter {
       // Swollen, a line grows toward the chat, out of the map's left side, as the Dock's icons grow up out of it.
       final more = length * (m - 1);
       if (k.mine && !k.quiet) {
-        canvas.drawLine(Offset(size.width - 2 - length - more, y), Offset(size.width - 2, y), paint);
+        canvas.drawLine(Offset(width - 2 - length - more, y), Offset(width - 2, y), paint);
       } else {
         canvas.drawLine(Offset(2 - more, y), Offset(2 + length, y), paint);
       }
@@ -829,4 +1208,12 @@ class RailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(RailPainter old) => !identical(old.ticks, ticks) || old.tall != tall || old.mine != mine || old.theirs != theirs || old.quiet != quiet;
+}
+
+/// A mouse's button held on the map and drawn along it: a drag of its own kind, so it can stand beside the drag that
+/// scrolls the chat under a finger or a trackpad.
+class _MouseHold extends VerticalDragGestureRecognizer {
+  _MouseHold() : super(supportedDevices: const {PointerDeviceKind.mouse}, allowedButtonsFilter: _primary);
+
+  static bool _primary(int buttons) => buttons == kPrimaryButton;
 }

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show precisionErrorTolerance;
+import 'package:flutter/physics.dart' show nearEqual;
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -8,6 +10,7 @@ import '../art/app_icon.dart';
 import '../backgrounds.dart' show lookCorner;
 import '../art/lucide.g.dart';
 import '../kit/semantic_colors.dart';
+import 'chat_rows.dart' show RowHeights;
 import 'dialup/bevel.dart' show DialupColors, isDialup;
 import 'dialup/retro_button.dart';
 
@@ -54,15 +57,26 @@ class ScrollMemory {
     if (spot != null) _spots[chat] = (offset: spot.offset, seen: spot.seen, held: held, fit: spot.fit);
   }
 
-  static void forget(String chat) => _spots.remove(chat);
+  /// [chat]'s spot forgotten, and how tall its rows were with it (lib/ui/chat_rows.dart): a spot is dropped where the
+  /// chat is to be drawn in another layout, and there every row is another height.
+  static void forget(String chat) {
+    _spots.remove(chat);
+    RowHeights.forgetChat(chat);
+  }
 
   /// Every chat whose key starts with [prefix] forgotten: a network signed out of (`inbox:telegram:`) or a phone
   /// unpaired (`sms:`). The same ids then name other conversations, and an old spot put back on one of them would open
   /// it at some unrelated height.
-  static void forgetAll(String prefix) => _spots.removeWhere((chat, _) => chat.startsWith(prefix));
+  static void forgetAll(String prefix) {
+    _spots.removeWhere((chat, _) => chat.startsWith(prefix));
+    RowHeights.forgetAll(prefix);
+  }
 
   /// Every chat forgotten (for tests).
-  static void clear() => _spots.clear();
+  static void clear() {
+    _spots.clear();
+    RowHeights.clear();
+  }
 
   /// A controller that starts where the chat [chat] names was left, so the chat's first frame is drawn there rather
   /// than at the newest and moved a frame later. [chat] is asked each time the controller is attached to a list rather
@@ -78,6 +92,136 @@ class _ChatScrollController extends ScrollController {
 
   @override
   double get initialScrollOffset => ScrollMemory.of(chat())?.offset ?? 0;
+
+  @override
+  ScrollPosition createScrollPosition(ScrollPhysics physics, ScrollContext context, ScrollPosition? oldPosition) =>
+      _ChatScrollPosition(physics: physics, context: context, initialPixels: initialScrollOffset, keepScrollOffset: keepScrollOffset, oldPosition: oldPosition, debugLabel: debugLabel);
+}
+
+/// A chat's scroll position, which says so when its list corrects it.
+///
+/// A chat's list (lib/ui/chat_rows.dart) takes a row it has not measured to be about as tall as the others, and when
+/// the row is laid out and is not, it corrects the scroll offset under what is on the screen, in the same layout, so
+/// nothing is seen to move. A correction is silent: nothing that listens to the controller hears of it. So:
+///
+///  * those who listen are told once the frame is drawn, and the arrow keeps the chat's real place (it kept the
+///    number from before, and a chat left then was opened again that much off);
+///  * a run to somewhere (animateTo: the arrow's run to the newest message, a message brought into view, Page Up and
+///    Down) goes on from the corrected offset ([_ChatRun]). The framework's run sets the offset afresh at each frame
+///    from where it began, so the correction was written over a frame later and the page jumped by it, at each row
+///    that came in.
+class _ChatScrollPosition extends ScrollPositionWithSingleContext {
+  _ChatScrollPosition({required super.physics, required super.context, super.initialPixels, super.keepScrollOffset, super.oldPosition, super.debugLabel});
+
+  /// What the list has corrected the offset by in this frame's layout, not yet told.
+  double _corrected = 0;
+  bool _telling = false;
+  bool _gone = false;
+
+  @override
+  Future<void> animateTo(double to, {required Duration duration, required Curve curve}) {
+    // As the framework's own: there already, or a run begun.
+    if (nearEqual(to, pixels, physics.toleranceFor(this).distance)) {
+      jumpTo(to);
+      return Future<void>.value();
+    }
+    // The newest end is offset 0 whatever is corrected; the oldest is the list's whole length, which every
+    // correction moves; a place in between moves with what is corrected under it.
+    final toward = !hasContentDimensions || to <= minScrollExtent + 0.5
+        ? _RunTo.newest
+        : to >= maxScrollExtent - 0.5
+            ? _RunTo.oldest
+            : _RunTo.place;
+    final run = _ChatRun(this, from: pixels, to: to, toward: toward, duration: duration, curve: curve, vsync: context.vsync);
+    beginActivity(run);
+    return run.done;
+  }
+
+  @override
+  void correctBy(double correction) {
+    final run = activity;
+    // Where the run stands is read before the offset is corrected under it.
+    if (run is _ChatRun) run.corrected(correction, pixels);
+    super.correctBy(correction);
+    _corrected += correction;
+    if (_telling) return;
+    _telling = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _telling = false;
+      final by = _corrected;
+      _corrected = 0;
+      if (_gone || by == 0 || !hasPixels) return;
+      notifyListeners();
+      if (context.notificationContext == null) return;
+      // Told as an update only of a scroll under way, which will end; with nothing scrolling, as the end of one. On
+      // a computer the list has the framework's scrollbar, which an update brings up and only an end fades: told as
+      // updates alone, it came up at a press on the map and stayed.
+      if (activity?.isScrolling ?? false) {
+        didUpdateScrollPositionBy(by);
+      } else {
+        didEndScroll();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _gone = true;
+    super.dispose();
+  }
+}
+
+/// Where a run is going: an end of the list, or a place in it.
+enum _RunTo { newest, oldest, place }
+
+/// A run to somewhere (animateTo) that goes on from the corrected offset when the list corrects it. Its own animation
+/// goes from 0 to 1 by the caller's curve, and the offset is worked out at each frame from where the run last stood
+/// and where it is going: nothing is begun again at a correction, so no frame is lost, and it ends when it ends.
+class _ChatRun extends DrivenScrollActivity {
+  _ChatRun(super.delegate, {required double from, required double to, required this.toward, required super.duration, required super.curve, required super.vsync})
+      : _stood = from,
+        _to = to,
+        super(from: 0, to: 1);
+
+  final _RunTo toward;
+
+  /// Where the run stood, and how far along it was, when it began or was last corrected.
+  double _stood;
+  double _stoodAt = 0;
+
+  /// Where it is going: fixed for the newest end, moved with each correction for a place, and for the oldest end the
+  /// list's end as it is now.
+  double _to;
+
+  /// How far along the animation last said.
+  double _along = 0;
+
+  double get _goal => toward == _RunTo.oldest ? (delegate as ScrollPosition).maxScrollExtent : _to;
+
+  double _at(double along) {
+    final rest = 1 - _stoodAt;
+    return rest.abs() < precisionErrorTolerance ? _goal : _stood + (_goal - _stood) * (along - _stoodAt) / rest;
+  }
+
+  @override
+  bool applyMoveTo(double value) {
+    _along = value;
+    return super.applyMoveTo(_at(value));
+  }
+
+  /// The list is about to correct the offset, now [at], [by]: the run stands that much further on, as far along as it
+  /// was.
+  void corrected(double by, double at) {
+    _stood = at + by;
+    _stoodAt = _along;
+    if (toward == _RunTo.place) _to += by;
+  }
+
+  @override
+  double get velocity {
+    final rest = 1 - _stoodAt;
+    return rest.abs() < precisionErrorTolerance ? 0 : super.velocity * (_goal - _stood) / rest;
+  }
 }
 
 /// A chat's list with a down arrow over its foot, at the right, that takes the person back to the newest
@@ -159,6 +303,9 @@ class _JumpToLatestState extends State<JumpToLatest> {
   bool _restoring = false;
   bool _framePending = false;
 
+  /// The page was given another chat in this frame.
+  bool _changed = false;
+
   /// The tallest the list has been while this chat is open: the keyboard coming up halves it, and a threshold read from
   /// the halved list would bring the arrow up on its own for someone who has not moved.
   double _tallest = 0;
@@ -199,6 +346,15 @@ class _JumpToLatestState extends State<JumpToLatest> {
     }
     if (old.chat != widget.chat) {
       ScrollMemory.keep(old.chat, _restore ?? _offset, seen: _seen, fit: _fit);
+      // The list is put at the new chat's own place at once, and silently (nothing may be told while building), so
+      // this frame's layout is there: left at the old chat's offset for a frame, a list that knew nothing of the new
+      // chat's rows yet laid out every one of them from the newest up to that offset, to let them go a frame later.
+      final c = widget.controller;
+      if (c.hasClients) {
+        final spot = ScrollMemory.of(widget.chat);
+        c.position.correctPixels(spot != null && (spot.fit == null || spot.fit == _fit) ? spot.offset : 0);
+        _changed = true;
+      }
       _begin();
       return;
     }
@@ -265,8 +421,11 @@ class _JumpToLatestState extends State<JumpToLatest> {
             _restore = null;
           }
         }
-        // Already there when the controller was made for this chat (ScrollMemory.controllerFor).
-        if ((p.pixels - goal).abs() > 1) {
+        // Already there when the controller was made for this chat (ScrollMemory.controllerFor). (Gone to all the
+        // same after the page was given another chat, though the offset is there: it also ends whatever was moving
+        // the old one.)
+        if (_changed || (p.pixels - goal).abs() > 1) {
+          _changed = false;
           _restoring = true;
           try {
             c.jumpTo(goal);
@@ -344,7 +503,11 @@ class _JumpToLatestState extends State<JumpToLatest> {
     final inset = widget.inset ?? const EdgeInsets.only(right: 12, bottom: 12);
     // Laid out before the list in it is built, so a spot measured in another layout is dropped before the list's
     // controller reads it for its first frame: a dropped spot opens at the newest, better than at the wrong message.
-    return LayoutBuilder(builder: (context, box) {
+    // Painted by itself: a chat that scrolls, or a row in it that moves, or this arrow coming up, is not the page's
+    // header and composer drawn again with it (they were, at every frame). Round the LayoutBuilder and not in it: what
+    // is built again under one is laid out, and painted, from the LayoutBuilder itself.
+    return RepaintBoundary(
+        child: LayoutBuilder(builder: (context, box) {
       _fit = _fitOf(context, box);
       if (_checkFit) {
         _checkFit = false;
@@ -388,7 +551,7 @@ class _JumpToLatestState extends State<JumpToLatest> {
           ),
         ],
       );
-    });
+    }));
   }
 }
 
