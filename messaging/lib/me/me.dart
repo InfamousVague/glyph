@@ -775,6 +775,7 @@ class Me extends ChangeNotifier {
     _app?.set('me_picture_full', small.isEmpty || p == null || p.full.length > ProfilePictures.fullMost ? '' : p.full);
     final now = pictureOwn;
     _keepPast([if (was.isNotEmpty && was != now) was, ...picturesPast.where((x) => x != was && x != now)]);
+    if (was != now) _changedHere('picture');
     notifyListeners();
   }
 
@@ -810,6 +811,7 @@ class Me extends ChangeNotifier {
   /// "show the users profile popup with linked numbers"). Off until switched on: nobody is told the number otherwise.
   bool get shareLinks => _app?.flag('me_share_links', fallback: false) ?? false;
   void setShareLinks(bool on) {
+    if (on != shareLinks) _changedHere('words');
     _app?.setFlag('me_share_links', on);
     notifyListeners();
   }
@@ -829,7 +831,9 @@ class Me extends ChangeNotifier {
   /// Keeps [links] as this person's own, those that can be one ([OwnLink.listOf]).
   void setOwnLinks(List<OwnLink> links) {
     final good = OwnLink.listOf([for (final l in links) l.toJson()]) ?? const <OwnLink>[];
+    final was = _app?.choice('me_own_links', '') ?? '';
     _app?.set('me_own_links', good.isEmpty ? '' : jsonEncode([for (final l in good) l.toJson()]));
+    if (was != (_app?.choice('me_own_links', '') ?? '')) _changedHere('words');
     notifyListeners();
   }
 
@@ -841,7 +845,9 @@ class Me extends ChangeNotifier {
 
   /// Sets the banner picture, or takes it away (null, or one too long to send).
   void setBanner(String? picture) {
+    final was = banner;
     _app?.set('me_banner', picture == null || picture.length > ProfilePictures.bannerMost ? '' : picture);
+    if (was != banner) _changedHere('banner');
     notifyListeners();
   }
 
@@ -878,11 +884,14 @@ class Me extends ChangeNotifier {
 
   /// Keeps what the profile wears (`me_cosmetics`; nothing kept for none).
   void setCosmetics(Cosmetics c) {
+    final was = _app?.choice('me_cosmetics', '') ?? '';
     _app?.set('me_cosmetics', c.isEmpty ? '' : jsonEncode(c.toJson()));
+    if (was != (_app?.choice('me_cosmetics', '') ?? '')) _changedHere('words');
     notifyListeners();
   }
 
   void setProfile({String? displayName, String? bio, String? picture, String? status}) {
+    final words = [displayName, bio, status].any((x) => x != null) ? jsonEncode(_ownWords()) : null, pictureWas = pictureOwn;
     if (displayName != null) _app?.set('me_display', displayName.trim());
     if (bio != null) _app?.set('me_bio', bio.trim());
     if (picture != null) {
@@ -894,7 +903,93 @@ class Me extends ChangeNotifier {
       final s = status.trim().replaceAll(RegExp(r'\s+'), ' ');
       _app?.set('me_status', String.fromCharCodes(s.runes.take(statusMost)));
     }
+    if (words != null && words != jsonEncode(_ownWords())) _changedHere('words');
+    if (picture != null && pictureWas != pictureOwn) _changedHere('picture');
     notifyListeners();
+  }
+
+  // --- this person's profile kept the same on each of the account's devices ------------------------------------------
+
+  // Matt, 2026-11-25: "on my mac i updated my profile picture and the banner but it didn't sync to my phone". The
+  // profile was put in place on a device once, as it signed in (Account.apply), and each kept its own after: friends
+  // were told a change, the account's other devices never. Now each change made here is stamped by its part and told
+  // to them (Buddies.profileKind), and a newer part one of them tells is taken in ([takeOwn]).
+
+  /// The parts of a profile told on their own: the words (name, line, status, links, what it wears), the picture,
+  /// and the banner picture; each with its own time, so a picture changed here and a status changed there both stay.
+  static const ownParts = ['words', 'picture', 'banner'];
+
+  /// When [part] was last changed on any of this account's devices, as far as this one knows (ms); 0 for never.
+  int ownAt(String part) => int.tryParse(_app?.choice('me_at_$part', '') ?? '') ?? 0;
+
+  /// The parts changed here, as they change: what the account's other devices are to be told.
+  Stream<String> get ownChanged => _ownChanged.stream;
+  final _ownChanged = StreamController<String>.broadcast();
+
+  void _changedHere(String part) {
+    final now = DateTime.now().millisecondsSinceEpoch, at = ownAt(part);
+    _app?.set('me_at_$part', '${now > at ? now : at + 1}');
+    _ownChanged.add(part);
+  }
+
+  Map<String, Object> _ownWords() => {
+        'n': displayName,
+        'b': bio,
+        'st': status,
+        'sl': shareLinks,
+        'ol': [for (final l in ownLinks) l.toJson()],
+        'cx': cosmetics.toJson(),
+      };
+
+  /// [part] as it goes to the account's other devices, in pieces that each fit a packet: the picture's small and sharp
+  /// ones go apart (together they are more than the relay takes at once).
+  List<Map<String, Object>> ownPieces(String part) => switch (part) {
+        'words' => [_ownWords()],
+        'picture' => picture.isEmpty ? [{'p': ''}] : [{'p': picture}, {'pp': _app?.choice('me_picture_sharp', '') ?? ''}],
+        'banner' => [{'bp': banner}],
+        _ => const [],
+      };
+
+  /// [part] as another device of this account said it at [at]: taken where it is newer than the one here, and the
+  /// time kept; true where it was. What can't be one is passed over, as a friend's profile's is.
+  bool takeOwn(String part, int at, Map said) {
+    if (!ownParts.contains(part) || at <= ownAt(part)) return false;
+    final app = _app;
+    if (app == null) return false;
+    switch (part) {
+      case 'words':
+        final n = said['n'], b = said['b'], st = said['st'];
+        if (n is String) app.set('me_display', n.trim());
+        if (b is String) app.set('me_bio', b.trim());
+        if (st is String) app.set('me_status', String.fromCharCodes(st.trim().replaceAll(RegExp(r'\s+'), ' ').runes.take(statusMost)));
+        if (said['sl'] is bool) app.setFlag('me_share_links', said['sl'] as bool);
+        if (said.containsKey('ol')) {
+          final good = OwnLink.listOf(said['ol']) ?? const <OwnLink>[];
+          app.set('me_own_links', good.isEmpty ? '' : jsonEncode([for (final l in good) l.toJson()]));
+        }
+        if (said.containsKey('cx')) {
+          final c = Cosmetics.fromJson(said['cx']) ?? Cosmetics.none;
+          app.set('me_cosmetics', c.isEmpty ? '' : jsonEncode(c.toJson()));
+        }
+      case 'picture':
+        final p = said['p'], pp = said['pp'];
+        if (p is! String || p.length > ProfilePictures.oldMost) return false;
+        final was = pictureOwn;
+        final sharp = p.isNotEmpty && pp is String && pp.length <= ProfilePictures.most ? pp : '';
+        app.set('me_picture', p);
+        app.set('me_picture_sharp', sharp);
+        // The larger one is this device's alone: one made here goes with the picture it was made for.
+        app.set('me_picture_full', '');
+        final now = pictureOwn;
+        _keepPast([if (was.isNotEmpty && was != now) was, ...picturesPast.where((x) => x != was && x != now)]);
+      case 'banner':
+        final bp = said['bp'];
+        if (bp is! String || (bp.isNotEmpty && !ProfilePictures.goodBanner(bp))) return false;
+        app.set('me_banner', bp);
+    }
+    app.set('me_at_$part', '$at');
+    notifyListeners();
+    return true;
   }
 
   /// Three to twenty letters, numbers, dots or underscores (the server's `Handles.goodName`).
