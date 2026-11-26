@@ -9,8 +9,9 @@
 
 services:
   relay:
-    build: ..
-    image: ghost-relay
+    # The image each release publishes (.github/workflows/relay.yml), for x64 and arm64. Built from this folder instead:
+    # `docker build -t ghost-relay ..`, and `image: ghost-relay` here.
+    image: ghcr.io/infamousvague/ghost-relay:latest
     restart: unless-stopped
     env_file:
       - path: relay.env
