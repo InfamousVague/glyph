@@ -133,6 +133,17 @@ List<SettingsSection> _ownSections() => [
     },
     page: _appearance,
   ),
+  // The app's language, a section of its own (Matt, 2026-11-26: "make sure there is a language section in the
+  // settings"), now that there are twenty.
+  SettingsSection(
+    id: 'language',
+    label: 'Language',
+    icon: _icon(LucideMore.languages),
+    hue: 'cyan',
+    group: 'look',
+    summary: (m) => languageWords(m.app.choice(Words.key, Words.automatic)),
+    page: _language,
+  ),
   SettingsSection(
     id: 'background',
     label: 'Chat background',
@@ -432,6 +443,32 @@ String sealedWords(String hubUrl) {
 /// The version this build is, where Android has not said (the screens drawn in tests).
 const appVersion = '0.12.44';
 
+// --- Language ---------------------------------------------------------------------------------------------------------
+
+/// Settings › Language (GMFB-32, lib/l10n/words.dart): Automatic (the device's own where the app has it) or one of
+/// the twenty, each named in itself, the one in use ticked.
+List<Widget> _language(BuildContext context, SettingsModel m) {
+  final app = m.app;
+  final chosen = app.choice(Words.key, Words.automatic);
+  Widget row(String code, String name, {String? hint}) => SettingRow(
+        key: ValueKey('language-$code'),
+        label: name,
+        hint: hint == null ? null : Text(hint),
+        value: chosen == code ? AppIcon(Lucide.check, size: 18, color: context.tokens.color('app-ink')) : null,
+        onPress: () => app.set(Words.key, code),
+      );
+  return [
+    PaneSection(
+      title: 'Language',
+      footer: Text(languageHint(Words.instance.language)),
+      children: [
+        row(Words.automatic, 'Automatic'.t, hint: Words.languages[Words.meant(Words.automatic)]),
+        for (final e in Words.languages.entries) row(e.key, e.value),
+      ],
+    ),
+  ];
+}
+
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
 /// Settings › Appearance: the look, the theme, your bubbles' colour and the size of a message's words.
@@ -443,23 +480,6 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
   // A look of one's own in use (GMFB-41, lib/custom_theme.dart): it has one brightness, as some of the app's do.
   final own = CustomTheme.used(app);
   return [
-    // The app's language (GMFB-32, lib/l10n/words.dart): the device's own where the app has it, or one chosen.
-    PaneSection(
-      title: 'Language',
-      children: [
-        SettingRow(
-          key: const ValueKey('language'),
-          icon: _icon(LucideMore.languages),
-          label: 'Language',
-          hint: Text(languageHint(Words.instance.language)),
-          value: Text(languageWords(app.choice(Words.key, Words.automatic))),
-          onPress: () => showChoices(context, title: 'Language', choices: [
-            Choice('Automatic', Lucide.globe, () => app.set(Words.key, Words.automatic), hint: Words.languages[Words.meant(Words.automatic)]),
-            for (final e in Words.languages.entries) Choice(e.value, Lucide.check, () => app.set(Words.key, e.key)),
-          ]),
-        ),
-      ],
-    ),
     // Looks for the whole app (Matt, 2026-11-16: "spend some time making a few themes for ghost"), above Theme, which
     // only a look with both a light and a dark half has.
     PaneSection(
