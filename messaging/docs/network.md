@@ -315,6 +315,24 @@ A call's ring, sealed, is 123 bytes: one data text. Longer ones cross a short ro
   key is held for, only a `hello` in the clear is shown to the app.
 - An answer never goes back by a route that costs money.
 
+## Which route each conversation is on
+
+`Switchboard.used` (`RouteUse`): for each person, by their install's name, the route that last carried something
+sealed to them and the one that last brought something from them, each with when; 200 people at most, the longest
+quiet let go first. Settings › Routes lists it by conversation (GMFB-24: "Settings › Network shows which route each
+conversation is using"; `routesUsedSection`, `lib/ui/network.dart`): a person's own conversation is their row, and a
+group of friends is one row that goes person by person (`groupRouteWords`), since each member is reached by a route of
+their own. Circles and spaces are rooms on their relay and texts go by the phone's carrier: the section's footer says
+so, and lists neither.
+
+It is kept from one run to the next (`lib/net/routes_kept.dart`, `RoutesKept`): one small file out of any backup,
+beside the ledger's (`routesFiles`, `kept_files.dart`: the folder `routes`), holding for each person the two routes'
+names and the two times and nothing else. Written eight seconds after a change and as the app is put away, read back
+as the routes are set up (`Switchboard.seedUsed`: behind whatever this run has already seen, never in its place), kept
+a week, read only by the account it was written under, and deleted at sign-out (`Net.forgetRoutesUsed`,
+`Account._wipe`). A browser has nowhere to keep it and starts each time knowing none.
+`test/routes_kept_test.dart`.
+
 ## The hub
 
 `relay/` serves it at any address ending `/hub`, beside the pairings' relay (`/relay/<channel>`): on our server

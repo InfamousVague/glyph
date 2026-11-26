@@ -29,6 +29,7 @@ import 'p2p/p2p.dart';
 import 'p2p/p2p_carrier.dart' show P2pCarrier;
 import 'packet.dart';
 import 'relay_choice.dart';
+import 'routes_kept.dart';
 import 'sms_carrier.dart';
 import 'switchboard.dart';
 
@@ -245,7 +246,43 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Routes draws which route each person is on from it.
   final ValueNotifier<int> routesUsed = ValueNotifier(0);
 
-  void _routesUsedChanged() => routesUsed.value++;
+  void _routesUsedChanged() {
+    routesUsed.value++;
+    final board = _board;
+    if (board != null) _routesKept?.changed(() => board.used);
+  }
+
+  /// Where which route each person was last on is kept from one run to the next (routes_kept.dart): a file of its own,
+  /// out of any backup; under a test, memory; null where there is nowhere (a browser), and then nothing is kept.
+  static FsStore? Function() routesStore = defaultRoutesStore;
+  static FsStore? defaultRoutesStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : routesFiles();
+
+  RoutesKept? _routesKept;
+
+  /// Reads what was kept of which route each person was on, for this account, into [board], and keeps what it sees
+  /// from now on. Whatever goes wrong there costs only that.
+  void _keepRoutes(Switchboard board, String me) {
+    try {
+      final store = routesStore();
+      if (store == null) return;
+      final kept = _routesKept = RoutesKept(store: store, me: me);
+      unawaited(kept.read().then((was) {
+        if (identical(board, _board) && identical(kept, _routesKept)) board.seedUsed(was);
+      }).catchError((Object _) {}));
+    } catch (_) {
+      _routesKept = null;
+    }
+  }
+
+  /// Deletes which route each person was on, here and where it is kept: signing out.
+  Future<void> forgetRoutesUsed() async {
+    final kept = _routesKept;
+    _routesKept = null;
+    _board?.clearUsed();
+    if (kept != null) return kept.wipe();
+    final store = routesStore();
+    if (store != null) await RoutesKept.forget(store);
+  }
 
   // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
 
@@ -427,8 +464,9 @@ class Net extends ChangeNotifier implements PeerBook {
     _lan?.setAway(away);
     // A phone's relay runs only while the app is in use (lib/relay_host).
     _host?.appAway(hostAway ?? away);
-    // Put away, the app may not come back: what the ledger listed is written now.
+    // Put away, the app may not come back: what the ledger listed is written now, and which route each person is on.
     if (away) unawaited(_ledger?.flush());
+    if (away) unawaited(_routesKept?.flush());
   }
 
   /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
@@ -588,6 +626,7 @@ class Net extends ChangeNotifier implements PeerBook {
       if (lan != null && !lanOn) board.off.add(LanCarrier.routeId);
       board.changed.addListener(notifyListeners);
       board.usedChanged.addListener(_routesUsedChanged);
+      _keepRoutes(board, me.id);
       _subs.add(board.received.listen(_received));
       if (p2p != null) _holdDirect(board, p2p, me.id, device);
       // A relay hosted from this device (lib/relay_host), where it can host one: started now where the person has it
@@ -958,6 +997,15 @@ class Net extends ChangeNotifier implements PeerBook {
       board.changed.removeListener(notifyListeners);
       board.usedChanged.removeListener(_routesUsedChanged);
       await board.stop();
+    }
+    // Which route each person was on is written as the routes go, for the next run.
+    final routesKept = _routesKept;
+    _routesKept = null;
+    if (routesKept != null) {
+      try {
+        await routesKept.flush();
+      } catch (_) {}
+      routesKept.dispose();
     }
     if (p2p != null) {
       p2p.removeListener(_directChanged);

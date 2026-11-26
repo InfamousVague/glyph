@@ -40,6 +40,10 @@ Future<Directory?> keptDir(String name) async {
 /// waited for by each read and write. Where none can be named, nothing is read or kept.
 FsStore? ledgerFiles() => FilesFsStore.later(keptDir('ledger'));
 
+/// Where which route each person was last on is kept (routes_kept.dart): a folder of its own beside the ledger's, out
+/// of any backup as it is.
+FsStore? routesFiles() => FilesFsStore.later(keptDir('routes'));
+
 /// What is kept, a file for each name in a folder: written whole each time (to a file beside it, then moved over it, so a
 /// write cut short leaves the one before), and gone when written empty. Writes go one after another, and a read waits
 /// for those asked before it, so two at once never write the same file together (the second review, N5).

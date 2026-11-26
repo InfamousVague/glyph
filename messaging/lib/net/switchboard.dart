@@ -50,7 +50,8 @@ class Received {
 }
 
 /// The route that last carried something to someone, and the one that last brought something from them, each with when
-/// (Settings › Routes, "Which route each person is on"; GMFB-24). Null where nothing has gone, or come, this run.
+/// (Settings › Routes, "Which route each conversation is on"; GMFB-24). Null where nothing has gone, or come, that is
+/// known of: this run, or the week before it as the app kept it (lib/net/routes_kept.dart).
 @immutable
 class RouteUse {
   const RouteUse({this.sentBy, this.sentAt, this.cameBy, this.cameAt});
@@ -220,15 +221,42 @@ class Switchboard {
   final changed = ValueNotifier<int>(0);
 
   /// Which route last carried something to each person, and which brought something from them ([RouteUse]), by their
-  /// install's name: what this switchboard saw this run, in memory only, never written down or told anyone. Only what
-  /// was sealed for someone a key is held for (this account's own other devices among them, by its own name). No more
-  /// than [mostUsed] people, the longest quiet let go first.
+  /// install's name: what this switchboard saw, and what the app kept from the run before ([seedUsed]). Never told
+  /// anyone; the app keeps it on the device, out of any backup (lib/net/routes_kept.dart). Only what was sealed for
+  /// someone a key is held for (this account's own other devices among them, by its own name). No more than
+  /// [mostUsed] people, the longest quiet let go first.
   Map<String, RouteUse> get used => UnmodifiableMapView(_used);
   final LinkedHashMap<String, RouteUse> _used = LinkedHashMap();
   static const mostUsed = 200;
 
   /// Goes up whenever [used] changes: Settings › Routes draws from it.
   final usedChanged = ValueNotifier<int>(0);
+
+  /// Takes what was kept of [used] from the run before ([kept], the longest quiet first): each person's routes as they
+  /// were, behind whatever this run has already seen of anyone, and never in place of it.
+  void seedUsed(Map<String, RouteUse> kept) {
+    if (kept.isEmpty) return;
+    final now = Map.of(_used);
+    _used.clear();
+    for (final e in kept.entries) {
+      if (!now.containsKey(e.key)) _used[e.key] = e.value;
+    }
+    for (final e in now.entries) {
+      final was = kept[e.key];
+      _used[e.key] = was == null ? e.value : RouteUse(sentBy: e.value.sentBy ?? was.sentBy, sentAt: e.value.sentBy != null ? e.value.sentAt : was.sentAt, cameBy: e.value.cameBy ?? was.cameBy, cameAt: e.value.cameBy != null ? e.value.cameAt : was.cameAt);
+    }
+    while (_used.length > mostUsed) {
+      _used.remove(_used.keys.first);
+    }
+    usedChanged.value++;
+  }
+
+  /// Forgets which route anyone was on: signing out.
+  void clearUsed() {
+    if (_used.isEmpty) return;
+    _used.clear();
+    usedChanged.value++;
+  }
 
   void _use(String peer, {String? sentBy, String? cameBy}) {
     final had = _used.remove(peer);

@@ -104,7 +104,7 @@ void main() {
     model.addListener(() => drawn++);
     Net.instance.direct.value++;
     expect(drawn, 1);
-    // And when the route that last carried something to or from someone changes (Which route each person is on).
+    // And when the route that last carried something to or from someone changes (Which route each conversation is on).
     Net.instance.routesUsed.value++;
     expect(drawn, 2);
     model.dispose();
@@ -164,7 +164,7 @@ void main() {
     testWidgets('which route each person is on: none listed before anything went or came; then the route that last carried something each way, and when', (tester) async {
       await open(tester, AppState());
       final key = NetCrypto.netKey(NetCrypto.conversationKey(me, sam.public)!);
-      expect(find.text('WHICH ROUTE EACH PERSON IS ON'), findsNothing);
+      expect(find.text('WHICH ROUTE EACH CONVERSATION IS ON'), findsNothing);
       expect(find.byKey(ValueKey('used-${sam.id}')), findsNothing);
       await tester.runAsync(() async {
         await Net.instance.send(Net.instance.byId(sam.id)!, Envelope(kind: 'text', ack: false), only: {'hub'});
@@ -177,7 +177,7 @@ void main() {
       final model = SettingsModel(AppState());
       addTearDown(model.dispose);
       await _pump(tester, AppState(), Listenable.merge([Net.instance, Net.instance.routesUsed]), (context) => networkPane(context, model));
-      expect(find.text('WHICH ROUTE EACH PERSON IS ON'), findsOneWidget);
+      expect(find.text('WHICH ROUTE EACH CONVERSATION IS ON'), findsOneWidget);
       expect(_words(tester, 'used-${sam.id}'), ['@sam', 'Last sent by Relay server, just now; last came by SMS, just now.']);
       // What they send next by the relay is what is shown, as it comes.
       await tester.runAsync(() async {

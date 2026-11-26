@@ -114,7 +114,7 @@ class SettingsModel extends ChangeNotifier {
     // And as the direct route's devices and links change (Settings › Routes › Direct).
     Net.instance.direct.addListener(_say);
     // And as the route that last carried something to or from someone changes (Settings › Routes › Which route each
-    // person is on).
+    // conversation is on).
     Net.instance.routesUsed.addListener(_say);
     Me.instance.addListener(_say);
     // The packs on this device (lib/plugins/pack): Settings › Developer's Plugins in development lists them, and the

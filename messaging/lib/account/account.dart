@@ -772,6 +772,10 @@ class Account extends ChangeNotifier {
       final files = Net.ledgerStore();
       if (files != null) await Ledger.forget(files);
     } catch (_) {}
+    // And which route each person was last on (lib/net/routes_kept.dart), kept beside the ledger's files.
+    try {
+      await Net.instance.forgetRoutesUsed();
+    } catch (_) {}
     NameWatch.instance?.wipe();
     LookupBudget.instance.clear();
     // (A build before the ledger had files of its own kept it with the choices.)

@@ -275,7 +275,7 @@ PaneSection lanSection(BuildContext context, LanCarrier lan, {required String Fu
   );
 }
 
-// --- Which route each person is on (GMFB-24) ------------------------------------------------------------------------
+// --- Which route each conversation is on (GMFB-24) -------------------------------------------------------------------
 
 /// A route's name as Settings › Routes says which one carried something: the names the routes go by, whether or not
 /// the route is still there (Direct switched off since, say).
@@ -283,35 +283,71 @@ String routeName(String id) => switch (id) { 'hub' => 'Relay server', P2pCarrier
 
 /// What went to someone and came from them, and by which route, as the line under their name says it.
 String routeUseWords(RouteUse u, {required int now}) {
-  final sent = u.sentBy == null ? 'Nothing sent since the app started' : 'Last sent by ${routeName(u.sentBy!)}, ${agoWords(u.sentAt!.millisecondsSinceEpoch, now)}';
-  final came = u.cameBy == null ? 'nothing has come since the app started' : 'last came by ${routeName(u.cameBy!)}, ${agoWords(u.cameAt!.millisecondsSinceEpoch, now)}';
+  final sent = u.sentBy == null ? 'Nothing sent lately' : 'Last sent by ${routeName(u.sentBy!)}, ${agoWords(u.sentAt!.millisecondsSinceEpoch, now)}';
+  final came = u.cameBy == null ? 'nothing has come lately' : 'last came by ${routeName(u.cameBy!)}, ${agoWords(u.cameAt!.millisecondsSinceEpoch, now)}';
   return '$sent; $came.';
 }
 
-/// The most people "Which route each person is on" lists: those heard from or sent to last.
+/// The route [u] was on last, whichever way: the one that brought something where that was later than what was sent.
+String routeLastOf(RouteUse u) => u.cameBy != null && (u.sentAt == null || u.cameAt!.isAfter(u.sentAt!)) ? u.cameBy! : u.sentBy ?? '';
+
+/// A group's line: each of its people who has been sent to or heard from with the route they were last on, in the
+/// group's own order, then how many of the rest there are. [members] is each one's name with what is known of them.
+String groupRouteWords(List<(String name, RouteUse? use)> members) {
+  final known = [for (final (name, use) in members) if (use != null) '$name by ${routeName(routeLastOf(use))}'];
+  final rest = members.length - known.length;
+  final others = rest == 0 ? '' : known.isEmpty ? '' : '; nothing lately to or from ${rest == 1 ? '1 other' : '$rest others'}';
+  return '${known.join(', ')}$others.';
+}
+
+/// The most conversations "Which route each conversation is on" lists: those used last.
 const routesUsedShown = 20;
 
-/// Settings › Routes › Which route each person is on (GMFB-24): each person this app has sent to or heard from since it
-/// started, newest first, with the route that last carried something each way and when. From what the switchboard saw
-/// ([Switchboard.used]), held in memory only: nothing is written or sent for it. [nameOf] names a person by their
-/// install's name.
-PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, {required String Function(String id) nameOf, int? now}) {
+/// Settings › Routes › Which route each conversation is on (GMFB-24: "Settings › Network shows which route each
+/// conversation is using"): each conversation with someone the routes reach, newest first, with the route that last
+/// carried something each way and when. A person's own conversation is their row; a group of friends goes person by
+/// person, since each of its people is reached by a route of their own ([groups], those this phone is in). From what
+/// the switchboard saw ([Switchboard.used]), which the app keeps on this device from one run to the next
+/// (lib/net/routes_kept.dart). [nameOf] names a person by their install's name.
+PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, {required String Function(String id) nameOf, Iterable<Group> groups = const [], int? now}) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final at = now ?? DateTime.now().millisecondsSinceEpoch;
-  final people = used.entries.toList()..sort((a, b) => b.value.last.compareTo(a.value.last));
-  return PaneSection(
-    title: 'Which route each person is on',
-    description: const Text('The route that last carried something to each person, and the one that last brought something from them, since the app started.'),
-    footer: Text('${people.length > routesUsedShown ? 'The $routesUsedShown heard from or sent to last. ' : ''}Kept on this device only, and forgotten when the app closes.'),
-    children: [
-      for (final e in people.take(routesUsedShown))
+  // Each row with when anything last went or came in it, to put the newest first.
+  final rows = <(DateTime, Widget)>[
+    for (final e in used.entries)
+      (
+        e.value.last,
         SettingRow(
           key: ValueKey('used-${e.key}'),
-          icon: icon(_routeIcon(e.value.cameBy != null && (e.value.sentAt == null || e.value.cameAt!.isAfter(e.value.sentAt!)) ? e.value.cameBy! : e.value.sentBy ?? '')),
+          icon: icon(_routeIcon(routeLastOf(e.value))),
           label: nameOf(e.key),
           hint: Text(routeUseWords(e.value, now: at)),
         ),
-    ],
+      ),
+  ];
+  for (final g in groups) {
+    if (g.gone) continue;
+    final members = [for (final m in g.others) (m.label, used[m.id])];
+    final uses = [for (final (_, u) in members) ?u];
+    if (uses.isEmpty) continue;
+    final last = uses.reduce((a, b) => a.last.isAfter(b.last) ? a : b);
+    rows.add((
+      last.last,
+      SettingRow(
+        key: ValueKey('used-group-${g.id}'),
+        icon: icon(Lucide.users),
+        label: g.title,
+        hint: Text(groupRouteWords(members)),
+      ),
+    ));
+  }
+  rows.sort((a, b) => b.$1.compareTo(a.$1));
+  return PaneSection(
+    title: 'Which route each conversation is on',
+    description: const Text('The route that last carried something to each person, and the one that last brought something from them. A group goes person by person: each of its people is reached by a route of their own.'),
+    footer: Text(
+        '${rows.length > routesUsedShown ? 'The $routesUsedShown used last. ' : ''}Circles and spaces always go by the relay server they were made on, and texts by the phone\'s carrier. Kept on this device only, out of any backup, for a week, and deleted when you sign out.'),
+    children: [for (final (_, row) in rows.take(routesUsedShown)) row],
   );
 }
 
@@ -648,8 +684,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
             ),
         ],
       ),
-    // Which route each person is on: what the switchboard saw this run (GMFB-24).
-    if (board != null && board.used.isNotEmpty) routesUsedSection(context, board.used, nameOf: _usedName),
+    // Which route each conversation is on: what the switchboard saw, this run and the week before it (GMFB-24).
+    if (board != null && board.used.isNotEmpty) routesUsedSection(context, board.used, nameOf: _usedName, groups: Groups.instance.all),
     if (net.recent.isNotEmpty)
       PaneSection(
         title: 'Lately',

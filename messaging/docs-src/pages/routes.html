@@ -137,6 +137,19 @@
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
+<h2 id="which">Which route each conversation is on</h2>
+<p><ui>Settings › Routes</ui> lists each conversation with someone the routes reach, the one used last first, with the route that last carried something to them, the one that last brought something from them, and when. A group of friends goes person by person, because each of its people is reached by a route of their own: one may be on the relay server while another, sitting beside you, is on the local network.</p>
+
+<m-screen title="Routes" back caption="Settings › Routes, Which route each conversation is on.">
+  <m-section title="Which route each conversation is on" foot="Circles and spaces always go by the relay server they were made on, and texts by the phone's carrier. Kept on this device only, out of any backup, for a week, and deleted when you sign out.">
+    <m-row icon="wifi" hue="teal" label="Maya Chen" hint="Last sent by Local network, 2 min ago; last came by Local network, 1 min ago."/>
+    <m-row icon="users" hue="violet" label="Weekend" hint="Maya by Local network, Sam by Relay server; nothing lately to or from 1 other."/>
+    <m-row icon="globe" hue="blue" label="Sam Okafor" hint="Last sent by Relay server, 3 h ago; last came by Relay server, 2 days ago."/>
+  </m-section>
+</m-screen>
+
+<p>The list is kept on your device from one time you open the app to the next, for a week, in a file that no backup takes, and it is deleted when you sign out. It holds which route and when, never anything that was said. A circle or a space is a room on its relay, so it always goes by the relay server; texts go by the phone's carrier.</p>
+
 <h2 id="test">Test a route</h2>
 <p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, <b>By a direct link only</b>, <b>By the local network only</b> (each where that route is on), or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
 
