@@ -27,6 +27,7 @@ import 'mention_alerts.dart';
 import 'roles.dart';
 import 'leveler.dart';
 import 'live_changer.dart';
+import 'screen_sound.dart';
 import 'soundboard.dart';
 import 'spotify.dart';
 import 'watch_together.dart';
@@ -1118,6 +1119,8 @@ class Voice extends ChangeNotifier {
       Soundboard.instance.follow();
       // And the music played to it (spotify.dart).
       SpotifyMusic.instance.follow();
+      // And the sound of a screen shared in it (screen_sound.dart).
+      ScreenSound.instance.follow();
       SpotifyMusic.instance.removeListener(_sayMusic); // Once, however often a call is come into.
       SpotifyMusic.instance.addListener(_sayMusic);
       _sayMusic();
@@ -1209,6 +1212,7 @@ class Voice extends ChangeNotifier {
     Soundboard.instance.follow();
     SpotifyMusic.instance.removeListener(_sayMusic);
     SpotifyMusic.instance.follow();
+    ScreenSound.instance.follow();
     if (s != null) _hangouts[s.channel.seed]?.sayMusic('');
     OpenSpaces.instance.follow();
     Sounds.instance.stopLoop(UiSound.ringOut);

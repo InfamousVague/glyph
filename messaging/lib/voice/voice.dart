@@ -297,6 +297,37 @@ abstract class ScreenMedia {
   ValueListenable<MediaStream?> get localScreen;
 }
 
+/// The sound of what this device shares (GMFB-63), and the connections that send it: one to each viewer who asked
+/// (lib/voice/screen_sound.dart says how it is asked for and by whom).
+abstract class ShareSoundSource {
+  /// A connection to [id], made anew, and its offer; null where it could not be made.
+  Future<String?> offer(String id, {required List<Map<String, Object>> servers, required bool relayOnly});
+  Future<bool> answer(String id, String sdp);
+  Future<void> candidate(String id, Map<String, dynamic> c);
+  Future<void> close(String id);
+
+  /// Ends all of it: no connection left. The sound itself is the share's, and ends with it.
+  Future<void> end();
+
+  void Function(String id, Map<String, dynamic> candidate)? onCandidate;
+
+  /// How a connection stands: `connected`, `failed`, `closed`, or anything between.
+  void Function(String id, String state)? onState;
+}
+
+/// Media that can send what the computer plays with its shared screen (GMFB-63; lib/voice/screen_sound.dart). Apart
+/// from [ScreenMedia] so the stand-ins in tests, and the builds from before it, need not.
+abstract class ScreenSoundMedia {
+  /// Whether this device can: a PC, and a Mac from macOS 14.4.
+  Future<bool> screenSoundSupported();
+
+  /// Whether the next share is to take the computer's sound too. Set before [ScreenMedia.setScreen] starts one.
+  set screenWithSound(bool on);
+
+  /// The sound of the share there is, and the connections that send it; null while it shares none.
+  ShareSoundSource? get screenSound;
+}
+
 /// A screen or window that can be shared, as a computer lists them.
 @immutable
 class ScreenSource {
@@ -593,6 +624,17 @@ class VoiceSession extends ChangeNotifier {
   /// This device is sharing its screen (GMFB-27): the picture it sends is the screen, in the camera's place.
   bool screen = false;
 
+  /// And the computer's sound with it (GMFB-63; lib/voice/screen_sound.dart): said in 'me' as 'sa' beside 's'. Who
+  /// else in the call says so of their own share is [sharingSound].
+  bool screenSound = false;
+  final Set<String> sharingSound = {};
+
+  /// Told what someone said of a share's sound ('ss', lib/voice/screen_sound.dart).
+  void Function(String from, Map<String, dynamic> what)? onShareSound;
+
+  /// Says [what] of a share's sound to the one person it names (`to`).
+  void sayShareSound(Map<String, Object?> what) => _say({'t': 'ss', ...what});
+
   /// When this device came into the call.
   DateTime? since;
 
@@ -805,6 +847,8 @@ class VoiceSession extends ChangeNotifier {
     _relayed.clear();
     _withheld.clear();
     members.clear();
+    sharingSound.clear();
+    screenSound = false;
     await media.stop();
     notifyListeners();
   }
@@ -863,19 +907,26 @@ class VoiceSession extends ChangeNotifier {
   /// the camera's place, so turning it on or off asks nothing of the connections; the camera comes back when it
   /// stops, if video is on. Held by the same rule as video (a role that may not show video may not share). False when
   /// it did not start: the person said no to the system's question, or there is nothing to capture.
-  Future<bool> setScreen(bool on, {String? source}) async {
+  ///
+  /// [sound]: with what the computer plays too, where this device can take it ([ScreenSoundMedia]); [screenSound]
+  /// says whether it then is.
+  Future<bool> setScreen(bool on, {String? source, bool sound = false}) async {
     final m = media is ScreenMedia ? media as ScreenMedia : null;
     if (m == null) return false;
     if (on && videoLocked) return false;
     if (!on && !screen) return true;
+    final withSound = media is ScreenSoundMedia ? media as ScreenSoundMedia : null;
+    withSound?.screenWithSound = on && sound;
     final started = await m.setScreen(on, source: source, onEnded: () {
       // Stopped from outside the app (the system's own Stop sharing, the window closed).
       if (!screen) return;
       screen = false;
+      screenSound = false;
       _sayState();
       notifyListeners();
     });
     screen = on && started;
+    screenSound = screen && withSound?.screenSound != null;
     _sayState();
     notifyListeners();
     return started;
@@ -1135,6 +1186,7 @@ class VoiceSession extends ChangeNotifier {
         // Video is said while the screen is shared, so a build that knows nothing of sharing shows the picture.
         'v': video || screen,
         if (screen) 's': 1,
+        if (screen && screenSound) 'sa': 1,
         if (username != null) 'u': username,
         'rs': 1,
         if (recording != null) 'r': recording,
@@ -1210,6 +1262,7 @@ class VoiceSession extends ChangeNotifier {
         members[from] = had
             .copyWith(name: bareName('${m['n'] ?? ''}'), muted: m['m'] == true, video: m['v'] == true, screen: m['s'] == 1, guest: m['g'] == true, username: m['u'] is String ? m['u'] as String : null, hand: m['h'] == 1)
             .withRecording(notices: m['rs'] == 1, recording: m['r'] is String ? m['r'] as String : null, agreed: ids(m['ry']), declined: ids(m['rn']), captions: m['cw'] == 1, recordsVideo: m['rv'] == 1, pictured: ids(m['rp']));
+        m['s'] == 1 && m['sa'] == 1 ? sharingSound.add(from) : sharingSound.remove(from);
         notifyListeners();
       case 'wt':
         onWatch?.call(from, m);
@@ -1217,6 +1270,8 @@ class VoiceSession extends ChangeNotifier {
         if (m['s'] is String) onSound?.call(from, m['s'] as String);
       case 'mu':
         onMusic?.call(from, m);
+      case 'ss':
+        onShareSound?.call(from, m);
       case 'os' || 'osg':
         onPlace?.call(from, m);
       case 'cap':

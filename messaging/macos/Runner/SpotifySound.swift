@@ -8,11 +8,30 @@ import Foundation
 /// no other device, so no microphone and no speaker is ever part of it, and handed on as 48 kHz stereo (MusicFeed).
 /// Spotify is not muted by it: whoever plays still hears it from Spotify itself.
 ///
+/// The same tap takes what the Mac plays for a shared screen's sound (ScreenSound.swift; GMFB-63): everything but one
+/// app's own processes ([What.allBut]), which is this app's, so the call itself is never sent back into it.
+///
 /// Every call is on [queue]. macOS 14.4 and later, which asks the person for "System Audio Recording" the first time.
 @available(macOS 14.4, *)
 final class SpotifySound {
   static let bundle = "com.spotify.client"
 
+  /// What is taken: one app's own processes and nothing else (by its bundle: Spotify's), or everything the Mac plays
+  /// but one app's.
+  enum What: Equatable {
+    case app(String)
+    case allBut(String)
+
+    var bundle: String {
+      switch self {
+      case .app(let b), .allBut(let b): return b
+      }
+    }
+  }
+
+  private let what: What
+  /// What the tap and its device are called in the system, and what is said where it can't be made.
+  private let name: String, cant: String
   private let feed: MusicFeed
   private let queue = DispatchQueue(label: "ghost.spotify.sound", qos: .userInitiated)
   /// Where the sound arrives: one block at a time, in order.
@@ -34,7 +53,12 @@ final class SpotifySound {
   private let peakLock = NSLock()
   private var peak: Float = 0
 
-  init(feed: MusicFeed) { self.feed = feed }
+  init(feed: MusicFeed, what: What = .app(SpotifySound.bundle), name: String = "Ghost Messaging music", cant: String = "The sound of Spotify could not be taken on this Mac.") {
+    self.feed = feed
+    self.what = what
+    self.name = name
+    self.cant = cant
+  }
 
   /// Begins. nil: begun (or waiting for Spotify to make a sound); else why not.
   func start(done: @escaping (String?) -> Void) {
@@ -43,7 +67,7 @@ final class SpotifySound {
         on = true
         watch()
       }
-      done(build() ? nil : "The sound of Spotify could not be taken on this Mac.")
+      done(build() ? nil : cant)
     }
   }
 
@@ -78,8 +102,8 @@ final class SpotifySound {
     AudioObjectPropertyAddress(mSelector: s, mScope: scope, mElement: kAudioObjectPropertyElementMain)
   }
 
-  /// Spotify's processes that the system's sound knows of: the app itself and its helpers, by their bundle.
-  private static func processes() -> Set<AudioObjectID> {
+  /// An app's processes that the system's sound knows of: the app itself and its helpers, by their bundle.
+  private static func processes(of bundle: String) -> Set<AudioObjectID> {
     var a = address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
     let system = AudioObjectID(kAudioObjectSystemObject)
     guard AudioObjectGetPropertyDataSize(system, &a, 0, nil, &size) == noErr, size > 0 else { return [] }
@@ -99,28 +123,36 @@ final class SpotifySound {
   /// is nothing of Spotify's to tap yet.
   private func build() -> Bool {
     guard on else { return false }
-    let now = Self.processes()
+    let now = Self.processes(of: what.bundle)
     if now == tapped && device != kAudioObjectUnknown { return true }
     tearDown()
-    if now.isEmpty { return true }
 
-    let what = CATapDescription(stereoMixdownOfProcesses: Array(now).sorted())
-    what.name = "Ghost Messaging music"
-    what.uuid = UUID()
-    what.isPrivate = true
-    what.muteBehavior = .unmuted
+    let described: CATapDescription
+    switch what {
+    case .app:
+      // Nothing of the app's to tap yet: it is tapped when it makes a sound ([watch]).
+      if now.isEmpty { return true }
+      described = CATapDescription(stereoMixdownOfProcesses: Array(now).sorted())
+    case .allBut:
+      // Everything the Mac plays, but what these play: with none of them known yet, everything.
+      described = CATapDescription(stereoGlobalTapButExcludeProcesses: Array(now).sorted())
+    }
+    described.name = name
+    described.uuid = UUID()
+    described.isPrivate = true
+    described.muteBehavior = .unmuted
     var made = AudioObjectID(kAudioObjectUnknown)
-    guard AudioHardwareCreateProcessTap(what, &made) == noErr, made != kAudioObjectUnknown else { return false }
+    guard AudioHardwareCreateProcessTap(described, &made) == noErr, made != kAudioObjectUnknown else { return false }
     tap = made
 
     // The device holds the tap alone: no other device's sound, and no microphone that a headset would bring with it.
     let holds: [String: Any] = [
-      kAudioAggregateDeviceNameKey: "Ghost Messaging music",
-      kAudioAggregateDeviceUIDKey: "ghost-music-\(UUID().uuidString)",
+      kAudioAggregateDeviceNameKey: name,
+      kAudioAggregateDeviceUIDKey: "ghost-sound-\(UUID().uuidString)",
       kAudioAggregateDeviceIsPrivateKey: true,
       kAudioAggregateDeviceIsStackedKey: false,
       kAudioAggregateDeviceSubDeviceListKey: [] as [Any],
-      kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: what.uuid.uuidString, kAudioSubTapDriftCompensationKey: true] as [String: Any]],
+      kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: described.uuid.uuidString, kAudioSubTapDriftCompensationKey: true] as [String: Any]],
     ]
     var agg = AudioObjectID(kAudioObjectUnknown)
     guard AudioHardwareCreateAggregateDevice(holds as CFDictionary, &agg) == noErr, agg != kAudioObjectUnknown else {

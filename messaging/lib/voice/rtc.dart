@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'call_sound.dart';
+import 'screen_sound.dart';
 import 'voice.dart';
 import 'voice_fx.dart';
 import 'voice_settings.dart';
@@ -18,7 +19,7 @@ import 'voice_settings.dart';
 /// Settings › Voice has it ([_audioAsked]), and sent as Opus at the rate chosen there, 510 kb/s unless changed.
 /// Each connection carries one sound and one picture both ways from its start; turning video on or off
 /// puts the camera's picture in or takes it out, with nothing to work out again between the two.
-class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia, PictureMedia {
+class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, ScreenSoundMedia, LinkedMedia, CameraMedia, SoundMedia, PlacedMedia, PictureMedia {
   RtcMedia({this.relay, this.settings = const VoiceSettings(), this.light = false});
 
   /// Settings' microphone test, made light where the native half can say how loud the microphone is (the Mac's,
@@ -68,6 +69,25 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
 
   /// How tall the shared screen is, where WebRTC says: it is sent at 1080 lines at most.
   double? _screenHeight;
+
+  /// What the computer plays, with the screen it shares (GMFB-63; lib/voice/screen_sound.dart). A PC's is a track
+  /// flutter_webrtc makes beside the screen's own: everything the PC plays but this app's sound for a whole screen,
+  /// the one app's for a window. A Mac's is a tap of this app's making (macos/Runner/ScreenSound.swift), since the
+  /// plugin gives a Mac none. Nowhere else: Linux's sound system gives only everything the computer plays, the call
+  /// among it, and everyone would be sent their own voice back; a phone's is not built.
+  @override
+  bool screenWithSound = false;
+  ShareSoundSource? _screenSound;
+  @override
+  ShareSoundSource? get screenSound => _screenSound;
+
+  @override
+  Future<bool> screenSoundSupported() async {
+    if (kIsWeb) return false;
+    if (PlatformInfo.isWindows) return true;
+    if (PlatformInfo.isMacOS) return MacShareSound.able();
+    return false;
+  }
 
   /// This device's camera while video is on, for its own tile.
   final ValueNotifier<MediaStream?> localVideo = ValueNotifier(null);
@@ -969,7 +989,8 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
             'deviceId': {'exact': source},
             'mandatory': {'frameRate': 30.0},
           },
-          'audio': false,
+          // A PC's sound comes with its screen where it is asked for (see [screenWithSound]).
+          'audio': screenWithSound && PlatformInfo.isWindows,
         });
       }
     } catch (e) {
@@ -983,9 +1004,25 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
       if (PlatformInfo.isAndroid) await screenService?.call(false);
       return false;
     }
-    // Another share in this one's place: the old one goes.
+    // Another share in this one's place: the old one goes, and its sound's connections with it.
     final old = _screen;
+    final oldSound = _screenSound;
+    _screenSound = null;
+    await oldSound?.end().catchError((_) {});
     _screen = stream;
+    if (screenWithSound) {
+      if (PlatformInfo.isWindows) {
+        final heard = stream.getAudioTracks().firstOrNull;
+        if (heard != null) _screenSound = TrackShareSound(heard);
+      } else if (PlatformInfo.isMacOS) {
+        _screenSound = await MacShareSound.begin();
+        // Stopped, or another share begun, while the Mac was asked.
+        if (!identical(_screen, stream)) {
+          await _screenSound?.end().catchError((_) {});
+          _screenSound = null;
+        }
+      }
+    }
     localScreen.value = stream;
     _screenHeight = null;
     try {
@@ -1010,6 +1047,9 @@ class RtcMedia implements VoiceMedia, FallbackMedia, ScreenMedia, LinkedMedia, C
     if (was == null) return;
     _screen = null;
     _screenHeight = null;
+    final sound = _screenSound;
+    _screenSound = null;
+    unawaited(sound?.end().catchError((_) {}));
     localScreen.value = null;
     // The camera back in its place where video is on; else no picture.
     for (final p in _peers.values) {
