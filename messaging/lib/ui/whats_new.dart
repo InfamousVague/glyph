@@ -78,6 +78,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['relay server'], Lucide.hardDrive),
   // The Marketplace and plugins from other developers (Matt, 2026-11-20): before developer mode, which loads them too.
   (['marketplace', 'make your own'], Lucide.store),
+  (['custom css'], Lucide.palette),
   (['developer mode'], Lucide.braces),
   (['icons', 'phosphor'], Lucide.shapes),
   (['sign up', 'sign-up', 'signing in'], Lucide.userPlus),
@@ -105,7 +106,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['banner', 'picture', 'photo'], Lucide.image),
   (['remove', 'ban'], Lucide.userMinus),
   (['code'], Lucide.keyRound),
-  (['contact', 'friend'], Lucide.contactRound),
+  (['contact', 'friend', 'add-me'], Lucide.contactRound),
   (['name', 'username'], Lucide.userRound),
   (['unread', 'notification'], Lucide.bell),
   (['voice', 'call', 'sound'], LucideMore.headphones),
