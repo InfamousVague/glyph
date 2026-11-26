@@ -69,6 +69,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   // Before the plainer words below: an open space is not any space, and a line of fixes names many things.
   (['open space'], Lucide.compass),
   (['ai model'], Lucide.wandSparkles),
+  (['language'], LucideMore.languages),
   (['fixes'], Lucide.listChecks),
   (['replies on'], LucideMore.reply),
   (['share screen'], LucideMore.screenShare),

@@ -25,6 +25,10 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.45', '2026-11-26', [
+    'Ghost Messaging speaks twenty languages: Arabic, Bengali, Chinese, English, French, German, Hindi, Indonesian, Japanese, Korean, Marathi, Portuguese, Russian, Spanish, Swahili, Tamil, Telugu, Turkish, Urdu and Vietnamese.',
+    'Language has a section of its own in Settings: Automatic follows your device, or choose one.',
+  ]),
   ReleaseNotes('0.12.44', '2026-11-26', [
     'Ghost Messaging speaks Spanish: Settings › Appearance › Language. Automatic follows your device\'s language. Names, counts and other words the app puts together as it goes are still in English for now.',
     'Pictures from Google Messages show as pictures, not "Attachment", and a chat\'s last line in the list is the message it really ended on.',
