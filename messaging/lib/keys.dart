@@ -41,7 +41,11 @@ enum KeyCommand {
   markRead('Mark all as read', 'Every conversation in the tab shown', group: 'Conversations'),
   bold('Bold', 'The words chosen, or what you type next', group: 'Writing'),
   italic('Italic', 'The words chosen, or what you type next', group: 'Writing'),
-  code('Code', 'The words chosen, or what you type next', group: 'Writing');
+  code('Code', 'The words chosen, or what you type next', group: 'Writing'),
+  // GMFB-35 ("Composer shortcuts"): the rest of what a message can be written with.
+  strike('Strikethrough', 'The words chosen, or what you type next', group: 'Writing'),
+  spoiler('Spoiler', 'Hidden until pressed: the words chosen, or what you type next', group: 'Writing'),
+  quote('Quote', 'The lines chosen, or the line the cursor is on', group: 'Writing');
 
   const KeyCommand(this.label, this.hint, {required this.group});
 
@@ -194,10 +198,16 @@ class Keys extends ChangeNotifier {
     KeyCommand.bold: KeyBinding(LogicalKeyboardKey.keyB, primary: true),
     KeyCommand.italic: KeyBinding(LogicalKeyboardKey.keyI, primary: true),
     KeyCommand.code: KeyBinding(LogicalKeyboardKey.keyE, primary: true),
+    // With Shift, on letters: Cmd+X is Cut, and a number or a sign with Shift is another key on some keyboards.
+    // Strikethrough and Spoiler where other messengers have them; B for a block quote (Cmd+Shift+Q logs out of a Mac).
+    KeyCommand.strike: KeyBinding(LogicalKeyboardKey.keyX, primary: true, shift: true),
+    KeyCommand.spoiler: KeyBinding(LogicalKeyboardKey.keyP, primary: true, shift: true),
+    KeyCommand.quote: KeyBinding(LogicalKeyboardKey.keyB, primary: true, shift: true),
   };
 
-  /// The formatting each of the Writing commands puts round the words chosen (lib/message_format.dart).
-  static const markers = {KeyCommand.bold: '**', KeyCommand.italic: '*', KeyCommand.code: '`'};
+  /// The formatting each of the Writing commands puts round the words chosen (lib/message_format.dart). Quote is not
+  /// here: it goes before each line ([format]).
+  static const markers = {KeyCommand.bold: '**', KeyCommand.italic: '*', KeyCommand.code: '`', KeyCommand.strike: '~~', KeyCommand.spoiler: '||'};
 
   void start(AppState app) {
     _app = app;
@@ -308,13 +318,17 @@ class Keys extends ChangeNotifier {
     return c;
   }
 
-  /// Puts [command]'s markers round the words chosen in the field the cursor is in: false where it is in none that
-  /// formats, so the key goes on to whatever else wants it.
+  /// Puts [command]'s markers round the words chosen in the field the cursor is in, or for Quote "> " before each of
+  /// their lines: false where it is in none that formats, so the key goes on to whatever else wants it.
   static bool format(KeyCommand command) {
     final marker = markers[command];
     final field = formatting;
-    if (marker == null || field == null) return false;
-    field.wrapSelection(marker);
+    if (field == null || (marker == null && command != KeyCommand.quote)) return false;
+    if (marker == null) {
+      field.quoteSelection();
+    } else {
+      field.wrapSelection(marker);
+    }
     return true;
   }
 

@@ -68,6 +68,31 @@ void main() {
     expect(_spans(tester).map((s) => s.text).join(), '▍ said\nok');
   });
 
+  testWidgets('a list has a bullet or a number beside each item, the item still formatted (GMFB-35)', (tester) async {
+    await tester.pumpWidget(_host(SizedBox(
+      width: 120,
+      child: LinkedText('to buy:\n- **milk** and a great deal more of it besides\n  - oat\n2. eggs\nthanks', ink: _ink, style: const TextStyle(fontSize: 14, color: _ink), before: const [TextSpan(text: 'Ann: ')], after: const [TextSpan(text: ' 5:43')]),
+    )));
+    String words(RichText r) => r.text.toPlainText();
+    final drawn = [for (final r in tester.widgetList<RichText>(find.byType(RichText))) words(r)];
+    expect(drawn, ['Ann: to buy:', '\u2022', 'milk and a great deal more of it besides', '\u2022', 'oat', '2.', 'eggs', 'thanks 5:43']);
+    final bold = <TextSpan>[];
+    tester.widget<RichText>(find.byType(RichText).at(2)).text.visitChildren((s) {
+      if (s is TextSpan && s.text == 'milk') bold.add(s);
+      return true;
+    });
+    expect(bold.single.style!.fontWeight, FontWeight.w700);
+    // The item's second line hangs under its first, not under the bullet; an item two spaces in stands further in.
+    final bullet = tester.getTopLeft(find.byType(RichText).at(1)), item = tester.getRect(find.byType(RichText).at(2));
+    expect(item.left, greaterThan(bullet.dx));
+    expect(item.height, greaterThan(tester.getSize(find.byType(RichText).at(1)).height), reason: 'it wraps');
+    expect(tester.getTopLeft(find.byType(RichText).at(3)).dx, greaterThan(bullet.dx));
+    // No list: one run of words as ever.
+    await tester.pumpWidget(_host(const LinkedText('well - maybe\n-5 outside', ink: _ink, style: TextStyle(fontSize: 14, color: _ink))));
+    expect(find.byType(RichText), findsOneWidget);
+    expect(find.byType(Row), findsNothing);
+  });
+
   testWidgets('words under a link open its address', (tester) async {
     await tester.pumpWidget(_host(const LinkedText('read [the docs](https://gogho.st/docs)', ink: _ink, style: TextStyle(fontSize: 14, color: _ink))));
     final spans = _spans(tester);
@@ -102,6 +127,12 @@ void main() {
       expect(drawn.firstWhere((s) => s.text == 'for').style!.backgroundColor, isNotNull);
       expect(drawn.firstWhere((s) => s.text == 'it').style!.fontStyle, FontStyle.italic);
       expect(drawn.firstWhere((s) => s.text == ' test ').style, isNull);
+      // A list is drawn as typed, its items formatted.
+      c.text = '- **milk**\n1. eggs';
+      final list = [for (final s in c.buildTextSpan(context: ctx, style: const TextStyle(color: _ink), withComposing: false).children!) s as TextSpan];
+      expect(list.map((s) => s.text).join(), c.text);
+      expect(list.firstWhere((s) => s.text == '- ').style, isNull);
+      expect(list.firstWhere((s) => s.text == 'milk').style!.fontWeight, FontWeight.w700);
       c.dims = () => false;
       expect(c.buildTextSpan(context: ctx, style: const TextStyle(color: _ink), withComposing: false).children, isNull);
     });

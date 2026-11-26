@@ -454,6 +454,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       case KeyCommand.bold:
       case KeyCommand.italic:
       case KeyCommand.code:
+      case KeyCommand.strike:
+      case KeyCommand.spoiler:
+      case KeyCommand.quote:
         return Keys.format(command);
     }
     return true;

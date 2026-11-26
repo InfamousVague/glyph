@@ -2336,8 +2336,8 @@ class RolesScreen extends StatelessWidget {
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
                   if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
-                  // Export (GMFB-36): the chat and its threads as a Markdown file.
-                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Text('Every message here, threads too, as a Markdown file.'), onPress: () => exportSpace(context, room)),
+                  // Export (GMFB-36): the chat and its threads as a Markdown or JSON file, with its files if asked.
+                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Text('Every message here, threads too, as Markdown or JSON, with its files if you like.'), onPress: () => exportSpace(context, room)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                   // What the space is for, under its name in the header; the owner and admins write it (Matt, 2026-11-17).
                   SettingRow(
@@ -2700,11 +2700,13 @@ class HangoutModeration extends StatelessWidget {
 /// A hangout's menu, held or pressed with the other button on its row (Matt, 2026-11-15: "there also needs to be a
 /// context menu to open settings for hangouts and manage permissions and such as well as delete the hangouts"): open
 /// it, its settings and roles, invite people into it (space_invite.dart), delete it.
-void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? onOpen}) {
+void showHangoutMenu(BuildContext context, VoiceChannel channel, {VoidCallback? onOpen, List<Choice> more = const []}) {
   final v = Voice.instance;
   final room = v.hangoutFor(channel);
   showChoices(context, title: channel.name, choices: [
     if (onOpen != null) Choice('Open', LucideMore.messageCircle, onOpen),
+    // Whatever the list it was pressed in has for it: Messages' Snooze (GMFB-36).
+    ...more,
     Choice('Settings and permissions', Lucide.shieldCheck, () => push(context, (_) => HangoutSettingsScreen(channel: channel))),
     if (room != null) Choice('Export chat', Lucide.download, () => exportSpace(context, room)),
     if ((room == null || room.can(Perm.invite)) && _circleInvites(channel)) Choice('Invite people', Lucide.userPlus, () => showSpaceInvite(context, channel)),

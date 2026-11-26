@@ -102,6 +102,12 @@ void main() {
       expect(await press(tester, keys, LogicalKeyboardKey.keyI, held: [primary], typing: true), KeyCommand.italic);
       expect(await press(tester, keys, LogicalKeyboardKey.keyE, held: [primary], typing: true), KeyCommand.code);
       expect(await press(tester, keys, LogicalKeyboardKey.keyE, held: [primary, LogicalKeyboardKey.shiftLeft]), KeyCommand.leaveCall, reason: 'Shift makes it another command');
+      // GMFB-35: strikethrough, spoiler and quote, each on keys of its own and nobody else's.
+      expect(await press(tester, keys, LogicalKeyboardKey.keyX, held: [primary, LogicalKeyboardKey.shiftLeft], typing: true), KeyCommand.strike);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyP, held: [primary, LogicalKeyboardKey.shiftLeft], typing: true), KeyCommand.spoiler);
+      expect(await press(tester, keys, LogicalKeyboardKey.keyB, held: [primary, LogicalKeyboardKey.shiftLeft], typing: true), KeyCommand.quote);
+      expect(Keys.defaults.values.toSet().length, Keys.defaults.length, reason: 'no two commands start on the same keys');
+      expect(Keys.defaults.keys.toSet(), KeyCommand.values.toSet());
       for (final c in Keys.markers.keys) {
         expect(c.group, 'Writing');
       }
@@ -165,6 +171,25 @@ void main() {
       expect(chat.text, 'see ***you*** soon``');
       expect(chat.selection, TextSelection.collapsed(offset: chat.text.length - 1), reason: 'at a cursor, typing goes between the two');
       expect(Keys.format(KeyCommand.newChat), isFalse, reason: 'not a Writing command');
+      // Strikethrough and Spoiler go round the words; Quote goes before each line chosen, and comes off again.
+      chat.text = 'one\ntwo\nthree';
+      chat.selection = const TextSelection(baseOffset: 4, extentOffset: 7);
+      expect(Keys.format(KeyCommand.strike), isTrue);
+      expect(chat.text, 'one\n~~two~~\nthree');
+      expect(Keys.format(KeyCommand.spoiler), isTrue);
+      expect(chat.text, 'one\n~~||two||~~\nthree');
+      chat.text = 'one\ntwo\nthree';
+      chat.selection = const TextSelection(baseOffset: 5, extentOffset: 11);
+      expect(Keys.format(KeyCommand.quote), isTrue);
+      expect(chat.text, 'one\n> two\n> three');
+      expect(chat.selection.textInside(chat.text), 'wo\n> thr', reason: 'the same words stay chosen');
+      expect(Keys.format(KeyCommand.quote), isTrue);
+      expect(chat.text, 'one\ntwo\nthree');
+      expect(chat.selection, const TextSelection(baseOffset: 5, extentOffset: 11));
+      chat.selection = const TextSelection.collapsed(offset: 1);
+      expect(Keys.format(KeyCommand.quote), isTrue);
+      expect(chat.text, '> one\ntwo\nthree');
+      expect(chat.selection, const TextSelection.collapsed(offset: 3), reason: 'the cursor stays in its word');
       // A text shows the markers as written: none are put in.
       textFocus.requestFocus();
       await tester.pump();

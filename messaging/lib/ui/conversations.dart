@@ -226,6 +226,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     Summaries.instance.addListener(_summed);
     Voice.instance.addListener(_summed);
     Snoozed.instance.addListener(_summed);
+    // A snooze that ends is said here where the device has no notification for it (GMFB-36).
+    if (!widget.archived) Snoozed.back = _snoozeBack;
     Circles.instance.addListener(_summed);
     ConversationsScreen.wantTab.addListener(_wanted);
     _wanted();
@@ -244,6 +246,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
 
   void _summed() {
     if (mounted) setState(() {});
+  }
+
+  void _snoozeBack(String title) {
+    if (mounted) toast(context, '$title is back from snooze');
   }
 
   /// The Circles tab's rows: circles offered and not yet joined, then each circle. Only circles (Matt, 2026-11-17:
@@ -268,6 +274,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     Summaries.instance.removeListener(_summed);
     Voice.instance.removeListener(_summed);
     Snoozed.instance.removeListener(_summed);
+    if (Snoozed.back == _snoozeBack) Snoozed.back = null;
     Circles.instance.removeListener(_summed);
     ConversationsScreen.wantTab.removeListener(_wanted);
     _inbox.removeListener(_summed);
@@ -459,35 +466,42 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
   /// (GMFB-36). A search finds a snoozed one, and the archive is as it was.
   List<Object> _snoozing(List<Object> rows) {
     final z = Snoozed.instance;
-    if (widget.archived || (z.count == 0 && !rows.any((r) => r is Conversation && z.woken(Snoozed.text(r.id))))) return rows;
+    // A space's chat in Messages is snoozed as a conversation is.
+    String? keyOf(Object r) => r is Conversation ? Snoozed.text(r.id) : r is VoiceChannel ? Snoozed.space(r.room) : null;
+    if (widget.archived || (z.count == 0 && !rows.any((r) => keyOf(r) != null && z.woken(keyOf(r)!)))) return rows;
     final searching = _query.isNotEmpty;
     final woken = <Object>[], rest = <Object>[];
     for (final r in rows) {
-      final key = r is Conversation ? Snoozed.text(r.id) : null;
+      final key = keyOf(r);
       if (key != null && z.hides(key) && !searching) continue;
       (key != null && z.woken(key) ? woken : rest).add(r);
     }
     return [...woken, ...rest];
   }
 
-  /// When a snoozed conversation comes back, in words; null where it isn't snoozed.
-  String? _snoozedUntil(Conversation c) {
-    final u = Snoozed.instance.until(Snoozed.text(c.id));
+  /// When the snoozed conversation kept under [key] comes back, in words; null where it isn't snoozed.
+  String? _snoozedUntil(String key) {
+    final u = Snoozed.instance.until(key);
     return u == null ? null : 'Until ${dayHeading(u)} ${clock(u)}';
   }
 
-  /// Snoozes [c] until a time chosen from a few; one hidden by a snooze already is brought straight back instead.
-  Future<void> _snooze(Conversation c) async {
-    final key = Snoozed.text(c.id);
+  /// The menu's line that snoozes the conversation or the space's chat kept under [key], called [title], or brings it
+  /// back (GMFB-36).
+  Choice _snoozeChoice(String key, String title) =>
+      Choice(Snoozed.instance.hides(key) ? 'Unsnooze' : 'Snooze…', Lucide.clock, () => unawaited(_snooze(key, title)), hint: _snoozedUntil(key));
+
+  /// Snoozes the one kept under [key] until a time chosen from a few; one hidden by a snooze already is brought
+  /// straight back instead.
+  Future<void> _snooze(String key, String title) async {
     if (Snoozed.instance.hides(key)) {
       Snoozed.instance.unsnooze(key);
       toast(context, 'Back in Messages');
       return;
     }
-    await showChoices(context, title: 'Snooze ${c.title}: it leaves Messages and comes back at the top, with a notification.', choices: [
+    await showChoices(context, title: 'Snooze $title: it leaves Messages and comes back at the top${Snoozed.notifies ? ', with a notification' : ''}.', choices: [
       for (final o in Snoozed.choices(DateTime.now()))
         Choice(o.label, Lucide.clock, () {
-          Snoozed.instance.snooze(key, o.at, title: c.title);
+          Snoozed.instance.snooze(key, o.at, title: title);
           toast(context, 'Snoozed until ${dayHeading(o.at)} ${clock(o.at)}', action: GlacierToastAction(label: 'Undo', onPress: () => Snoozed.instance.unsnooze(key)));
         }),
     ]);
@@ -553,7 +567,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       // Its kind's mark: headphones, a speech bubble for texting, a folder for files (lib/ui/circles/circle_face.dart).
       badge: AppIcon(spaceKindIcon(v.kind), size: 12, strokeWidth: 2.4, wash: false, color: t.color(inCall > 0 ? 'app-ink' : 'app-ink-2')),
       onPress: () => _openVoice(v),
-      onLongPress: () => showHangoutMenu(context, v, onOpen: () => _openVoice(v)),
+      // Snoozed from its menu as a conversation is (GMFB-36).
+      onLongPress: () => showHangoutMenu(context, v, onOpen: () => _openVoice(v), more: [if (!widget.archived) _snoozeChoice(Snoozed.space(v.room), v.name)]),
     );
   }
 
@@ -659,6 +674,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
 
   /// Hops into [c] and shows it.
   Future<void> _openVoice(VoiceChannel c) async {
+    Snoozed.instance.opened(Snoozed.space(c.room));
     // A group of friends' space is its conversation (Matt, 2026-11-17: "each group should come with a space"; he chose
     // one chat for both): it opens there, where its call is joined from the top.
     final group = c.group == null ? null : Groups.instance.of(c.group!);
@@ -1016,9 +1032,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       if (!widget.archived) ..._plugins.menu(context, c),
       Choice(c.pinned ? 'Unpin' : 'Pin to top', c.pinned ? Lucide.pinOff : Lucide.pin, () => _pin(c)),
       // Snooze (GMFB-36): out of Messages until a time, then back at the top.
-      if (!widget.archived)
-        Choice(Snoozed.instance.hides(Snoozed.text(c.id)) ? 'Unsnooze' : 'Snooze…', Lucide.clock, () => unawaited(_snooze(c)),
-            hint: _snoozedUntil(c)),
+      if (!widget.archived) _snoozeChoice(Snoozed.text(c.id), c.title),
       Choice(c.muted ? 'Unmute' : 'Mute notifications', c.muted ? Lucide.bell : GhostIcons.bellOff, () async {
         await Sms.instance.threadFlag('muted', c.id, !c.muted);
         await _load();

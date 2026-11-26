@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/export_chat.dart';
@@ -66,6 +71,19 @@ void main() {
       expect(Snoozed.instance.woken(Snoozed.text(1)), isFalse);
     });
 
+    test('a space\'s chat is snoozed under a key of its own, beside a conversation\'s (GMFB-36)', () {
+      Snoozed.instance.start(AppState());
+      final space = Snoozed.space('room-1');
+      expect(space, 'space:room-1');
+      Snoozed.instance.snooze(space, now.add(const Duration(hours: 1)), title: 'Weekend');
+      expect(Snoozed.instance.hides(space), isTrue);
+      expect(Snoozed.instance.hides(Snoozed.text(1)), isFalse);
+      now = now.add(const Duration(hours: 2));
+      Snoozed.instance.wakeDue();
+      expect(told, ['space:room-1 Weekend']);
+      expect(Snoozed.instance.woken(space), isTrue);
+    });
+
     test('the times offered: an hour, three, this evening while it is before five, tomorrow at nine, Monday at nine', () {
       final sunday2pm = Snoozed.choices(DateTime(2026, 11, 22, 14, 0));
       expect(sunday2pm.map((c) => c.label), ['For an hour', 'For 3 hours', 'Until this evening (6 PM)', 'Until tomorrow (9 AM)', 'Until next week (Monday, 9 AM)']);
@@ -92,7 +110,60 @@ void main() {
       expect(md, contains('**Maya Chen** 09:06\n> Replying to You: Coffee?\nYes!'));
     });
 
+    final three = <ExportLine>[
+      (at: DateTime(2026, 11, 22, 9, 5), who: 'You', text: 'Coffee?', files: const ['IMG 1.jpg', 'IMG 1.jpg'], replyTo: null, edited: false),
+      (at: DateTime(2026, 11, 21, 18, 0), who: 'Maya', text: 'The plan', files: const ['plan.pdf', 'gone.mov', 'huge.bin'], replyTo: 'Replying to You: ok', edited: true),
+    ];
+
+    test('JSON: what it is, then each message oldest first with who, when, words and files (GMFB-36)', () {
+      final j = jsonDecode(chatJson('Maya', three, now: DateTime(2026, 11, 22, 20, 0), where: 'a space')) as Map;
+      expect(j['app'], 'Ghost Messaging');
+      expect(j['title'], 'Maya');
+      expect(j['where'], 'a space');
+      expect(j['exported'], '2026-11-22T20:00:00.000');
+      final messages = j['messages'] as List;
+      expect(messages.map((m) => (m as Map)['who']), ['Maya', 'You']);
+      expect(messages.first, {'at': '2026-11-21T18:00:00.000', 'who': 'Maya', 'text': 'The plan', 'replyTo': 'Replying to You: ok', 'edited': true, 'files': [{'name': 'plan.pdf'}, {'name': 'gone.mov'}, {'name': 'huge.bin'}]});
+      expect((messages.last as Map).containsKey('edited'), isFalse);
+      expect((jsonDecode(chatJson('Maya', three.sublist(0, 1))) as Map).containsKey('where'), isFalse);
+    });
+
+    test('with its files: a zip of the export and a files folder, each file linked where it is named (GMFB-36)', () async {
+      final dir = await Directory.systemTemp.createTemp('ghost-export-test');
+      addTearDown(() => dir.delete(recursive: true));
+      final onDisk = File('${dir.path}/plan.pdf')..writeAsBytesSync([1, 2, 3, 4]);
+      final files = <ExportFile>[
+        (line: 0, file: 0, name: 'IMG 1.jpg', size: 0, read: () async => Uint8List.fromList([9, 9])),
+        (line: 0, file: 1, name: 'IMG 1.jpg', size: 0, read: () async => Uint8List.fromList([8])),
+        (line: 1, file: 0, name: 'plan.pdf', size: 4, read: () async => onDisk.path),
+        (line: 1, file: 1, name: 'gone.mov', size: 0, read: () async => null),
+        (line: 1, file: 2, name: 'huge.bin', size: 5000, read: () async => fail('past the most: never read')),
+      ];
+      final zip = await writeExportZip('Maya 2026-11-22.zip', 'Maya 2026-11-22.md', files, (links) => chatMarkdown('Maya', three, links: links), most: 1000);
+      addTearDown(() => File(zip.path).parent.delete(recursive: true));
+      expect(zip.packed, 3);
+      expect(zip.named, 2);
+      expect(zip.path, endsWith('Maya 2026-11-22.zip'));
+      final held = ZipDecoder().decodeBytes(File(zip.path).readAsBytesSync());
+      expect(held.files.map((f) => f.name).toSet(), {'files/IMG 1.jpg', 'files/IMG 1 (2).jpg', 'files/plan.pdf', 'Maya 2026-11-22.md'});
+      expect(held.findFile('files/plan.pdf')!.content, [1, 2, 3, 4]);
+      expect(held.findFile('files/IMG 1 (2).jpg')!.content, [8]);
+      final md = utf8.decode(held.findFile('Maya 2026-11-22.md')!.content);
+      expect(md, contains('- 📎 [IMG 1.jpg](files/IMG%201.jpg)\n- 📎 [IMG 1.jpg](files/IMG%201%20(2).jpg)'));
+      expect(md, contains('- 📎 [plan.pdf](files/plan.pdf)\n- 📎 gone.mov\n- 📎 huge.bin'));
+      // The same as JSON: where each went is its path.
+      final asJson = await writeExportZip('m.zip', 'm.json', files.sublist(2, 4), (links) => chatJson('Maya', three, links: links));
+      addTearDown(() => File(asJson.path).parent.delete(recursive: true));
+      final j = jsonDecode(utf8.decode(ZipDecoder().decodeBytes(File(asJson.path).readAsBytesSync()).findFile('m.json')!.content)) as Map;
+      expect(((j['messages'] as List).first as Map)['files'], [{'name': 'plan.pdf', 'path': 'files/plan.pdf'}, {'name': 'gone.mov'}, {'name': 'huge.bin'}]);
+      // Without links, the Markdown is as it ever was.
+      expect(chatMarkdown('Maya', three), contains('- 📎 plan.pdf\n- 📎 gone.mov'));
+    });
+
     test('a file name a file system takes, with the day', () {
+      expect(exportName('Maya', now: DateTime(2026, 11, 22), ending: 'json'), 'Maya 2026-11-22.json');
+      final taken = <String>{};
+      expect([exportFileName('a/b.txt', taken), exportFileName('A b.txt', taken), exportFileName('', taken), exportFileName('..', taken)], ['a b.txt', 'A b (2).txt', 'file', 'file (2)']);
       expect(exportName('Maya: plans/ideas?', now: DateTime(2026, 11, 22)), 'Maya plans ideas 2026-11-22.md');
       expect(exportName('   ', now: DateTime(2026, 11, 22)), 'Conversation 2026-11-22.md');
     });

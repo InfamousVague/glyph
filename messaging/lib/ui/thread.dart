@@ -1903,7 +1903,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   Widget _contextMenu(BuildContext context, EditableTextState state) {
     final t = context.tokens;
-    // Words chosen to a friend: made bold, italic or code from here too (GMFB-35), the markers put round them.
+    // Words chosen to a friend: made bold, italic, code and the rest from here too (GMFB-35), the markers put round
+    // them, or "> " before their lines for a quote.
     final chosen = _text.selection;
     final format = chosen.isValid && !chosen.isCollapsed && (_text.dims?.call() ?? true);
     ContextMenuButtonItem wrap(String label, String marker) => ContextMenuButtonItem(
@@ -1915,7 +1916,20 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         );
     final items = [
       ...state.contextMenuButtonItems,
-      if (format) ...[wrap('Bold', '**'), wrap('Italic', '*'), wrap('Code', '`')],
+      if (format) ...[
+        wrap('Bold', '**'),
+        wrap('Italic', '*'),
+        wrap('Code', '`'),
+        wrap('Strikethrough', '~~'),
+        wrap('Spoiler', '||'),
+        ContextMenuButtonItem(
+          label: 'Quote',
+          onPressed: () {
+            _text.quoteSelection();
+            state.hideToolbar();
+          },
+        ),
+      ],
     ];
     final width = MediaQuery.sizeOf(context).width;
     final left = (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, math.max(8.0, width - 248)).toDouble();
@@ -1927,7 +1941,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           constraints: BoxConstraints(maxWidth: math.max(0.0, width - left - 8)),
           padding: EdgeInsets.all(t.space(1)),
           decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('md'))),
-          // More than fit across (with Bold, Italic and Code on a phone) scroll sideways.
+          // More than fit across (with Bold, Italic, Code and the rest on a phone) scroll sideways.
           child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(mainAxisSize: MainAxisSize.min, children: [
             for (final item in items)
               GlacierPressable(
@@ -2593,7 +2607,8 @@ class _ReactionRow extends StatelessWidget {
 ///
 /// And drawn with the formatting written into them (GMFB-35, lib/message_format.dart): bold, italic, strike, code and
 /// blocks of it, quotes behind a bar, and spoilers as a block of ink until pressed. The markers are not drawn; links
-/// and mentions work inside formatting as outside it, and nothing in code is a link.
+/// and mentions work inside formatting as outside it, and nothing in code is a link. A list's items ("- ", "1. ")
+/// each have their bullet or number at the left and their lines hanging beside it.
 class LinkedText extends StatefulWidget {
   const LinkedText(this.text, {super.key, required this.ink, required this.style, this.before = const [], this.after = const [], this.mentions = const [], this.mentionStyle, this.onMention});
   final String text;
@@ -2700,30 +2715,47 @@ class _LinkedTextState extends State<LinkedText> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  /// The first of [count] things, in order, that ends after [at], given where each [end]s; [count] where none does.
+  static int _firstAfter(int count, int Function(int) end, int at) {
+    var lo = 0, hi = count;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (end(mid) <= at) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  /// The words from [from] to [to] as they are drawn, given the links and mentions in the order they come ([marks]):
+  /// all of them, or one list item's, or the lines between two.
+  List<InlineSpan> _spans(int from, int to, List<(int, int, bool, int)> marks) {
     final text = widget.text;
     final ink = widget.ink;
-    final spans = <InlineSpan>[...widget.before];
-    // Links and mentions in the order they come in the words (none over another: a link in a mention was left out).
-    final marks = <(int, int, bool, int)>[
-      for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
-      for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
-    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    final runs = _format.runs;
+    final spans = <InlineSpan>[];
+    var ri = _firstAfter(runs.length, (i) => runs[i].end, from), mi = _firstAfter(marks.length, (i) => marks[i].$2, from);
     // Cut where a formatted stretch, a link or a mention begins or ends; each piece drawn as all three say.
-    final cuts = <int>{0, text.length, for (final r in _format.runs) ...[r.start, r.end], for (final m in marks) ...[m.$1, m.$2]}.toList()..sort();
-    var ri = 0, mi = 0;
+    final cuts = <int>{
+      from,
+      to,
+      for (var i = ri; i < runs.length && runs[i].start < to; i++) ...[runs[i].start, runs[i].end],
+      for (var i = mi; i < marks.length && marks[i].$1 < to; i++) ...[marks[i].$1, marks[i].$2],
+    }.where((c) => c >= from && c <= to).toList()
+      ..sort();
     for (var c = 0; c + 1 < cuts.length; c++) {
       final a = cuts[c], b = cuts[c + 1];
       if (b <= a) continue;
-      while (ri < _format.runs.length && _format.runs[ri].end <= a) {
+      while (ri < runs.length && runs[ri].end <= a) {
         ri++;
       }
       while (mi < marks.length && marks[mi].$2 <= a) {
         mi++;
       }
-      final r = ri < _format.runs.length ? _format.runs[ri] : FormatRun(a, b, 0);
-      if (r.marker) continue;
+      final r = ri < runs.length ? runs[ri] : FormatRun(a, b, 0);
+      if (r.marker || r.item) continue;
       if (r.bar) {
         // A quote's "> " as a bar at the line's start.
         if (a == r.start) spans.add(TextSpan(text: '\u258D ', style: TextStyle(color: ink.withValues(alpha: 0.45), fontWeight: FontWeight.w700, fontStyle: FontStyle.normal)));
@@ -2767,8 +2799,61 @@ class _LinkedTextState extends State<LinkedText> {
         spans.add(TextSpan(text: words, style: style));
       }
     }
-    spans.addAll(widget.after);
-    return Text.rich(TextSpan(children: spans), style: widget.style);
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.text;
+    // Links and mentions in the order they come in the words (none over another: a link in a mention was left out).
+    final marks = <(int, int, bool, int)>[
+      for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
+      for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    if (!_format.hasItems) return Text.rich(TextSpan(children: [...widget.before, ..._spans(0, text.length, marks), ...widget.after]), style: widget.style);
+    // A list (GMFB-35): the words in parts one under another, each either the lines between two items, drawn as ever,
+    // or an item, with its bullet or number (null for lines) and how far in it stands. A paragraph has no hanging
+    // indent, so an item is its mark and its words side by side.
+    final parts = <(String?, int, List<InlineSpan>)>[];
+    var at = 0;
+    for (final r in _format.runs) {
+      if (!r.item) continue;
+      // The lines before it, without the line break that ends them.
+      if (r.start > at) parts.add((null, 0, _spans(at, r.start - 1, marks)));
+      var end = text.indexOf('\n', r.end);
+      if (end < 0) end = text.length;
+      final (mark, depth) = MessageFormat.itemMark(text.substring(r.start, r.end));
+      parts.add((mark, depth, _spans(r.end, end, marks)));
+      at = end + 1;
+    }
+    if (at <= text.length) parts.add((null, 0, _spans(at, text.length, marks)));
+    // Dial-Up's "Name: " stays on the first line where that is words, and has a line of its own above a list.
+    if (widget.before.isNotEmpty) {
+      if (parts.first.$1 == null) {
+        parts.first.$3.insertAll(0, widget.before);
+      } else {
+        parts.insert(0, (null, 0, [...widget.before]));
+      }
+    }
+    parts.last.$3.addAll(widget.after);
+    final size = widget.style.fontSize ?? 14;
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final (mark, depth, spans) in parts)
+        if (mark == null)
+          Text.rich(TextSpan(children: spans), style: widget.style)
+        else
+          Padding(
+            padding: EdgeInsets.only(left: size * 1.1 * depth),
+            child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Numbers each as wide as another, so "9." and "10." keep their words in a line.
+              Padding(
+                padding: EdgeInsets.only(left: size * 0.2, right: size * 0.45),
+                child: Text(mark, style: widget.style.copyWith(fontFeatures: const [FontFeature.tabularFigures()]), semanticsLabel: mark == '\u2022' ? 'Bullet' : mark),
+              ),
+              Flexible(child: Text.rich(TextSpan(children: spans), style: widget.style)),
+            ]),
+          ),
+    ]);
   }
 }
 
