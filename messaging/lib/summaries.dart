@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import 'app_state.dart';
+import 'local_ai.dart';
 import 'sms.dart';
 
 /// Summaries of unread conversations, made by the phone's own model (Matt, 2026-11-14: "Use a local AI to summarize
@@ -44,8 +45,9 @@ class Summaries extends ChangeNotifier {
   /// Asks the phone where its model stands, and asks for it where it can be had.
   Future<void> start(AppState app) async {
     _app = app;
-    status = await Sms.instance.summaryStatus();
-    if (status == 'downloadable' && chosen(app)) status = await Sms.instance.summaryPrepare();
+    // The phone's model, or a Mac's or an iPhone's own (lib/local_ai.dart).
+    status = await LocalAi.instance.status();
+    if (status == 'downloadable' && chosen(app) && !Sms.remote) status = await Sms.instance.summaryPrepare();
     notifyListeners();
   }
 
@@ -111,7 +113,7 @@ class Summaries extends ChangeNotifier {
       return null;
     }
     final lines = conversationFor(recent, c.people);
-    return lines == null ? null : Sms.instance.summarize(lines);
+    return lines == null ? null : LocalAi.instance.summarize(lines);
   }
 
   /// The unread run of [recent] (newest first, as the phone gives them: the texts since the person last wrote) as

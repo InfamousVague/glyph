@@ -37,8 +37,10 @@ void main() {
 
   group('in the app', () {
     late List<String> asked;
+    var newer = false;
     setUp(() {
       asked = [];
+      newer = false;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async {
         asked.add(call.method);
         switch (call.method) {
@@ -46,6 +48,7 @@ void main() {
             return 'available';
           case 'messages':
             return [
+              if (newer) {'id': 4, 'kind': 'sms', 'address': '+15551230001', 'body': 'and popcorn', 'date': 4000, 'outgoing': false},
               {'id': 3, 'kind': 'sms', 'address': '+15551230001', 'body': 'bring the cable', 'date': 3000, 'outgoing': false},
               {'id': 2, 'kind': 'sms', 'address': '+15551230001', 'body': 'movie at 7?', 'date': 2000, 'outgoing': false},
             ];
@@ -73,15 +76,16 @@ void main() {
       expect(app.choice('summary_7', ''), startsWith('3000\t'), reason: 'kept across the app being closed');
       // Read: the words come back.
       expect(Summaries.instance.of(Conversation.from({'id': 7, 'date': 3000, 'people': [{'address': '+15551230001', 'name': 'Maya Chen'}], 'snippet': 'x', 'unread': false})), isNull);
-      // A newer text: a new summary.
-      final newer = Conversation.from({'id': 7, 'date': 4000, 'people': [{'address': '+15551230001', 'name': 'Maya Chen'}], 'snippet': 'x', 'unread': true});
-      expect(Summaries.instance.of(newer), isNull);
-      Summaries.instance.want(newer);
+      // A newer text: a new summary (the same words again are answered from what the model said, lib/local_ai.dart).
+      newer = true;
+      final next = Conversation.from({'id': 7, 'date': 4000, 'people': [{'address': '+15551230001', 'name': 'Maya Chen'}], 'snippet': 'x', 'unread': true});
+      expect(Summaries.instance.of(next), isNull);
+      Summaries.instance.want(next);
       await pumpEventQueue();
       expect(asked.where((m) => m == 'summarize'), hasLength(2));
       // Turned off: none shown.
       app.setFlag('summaries', false);
-      expect(Summaries.instance.of(newer), isNull);
+      expect(Summaries.instance.of(next), isNull);
     });
   });
 }

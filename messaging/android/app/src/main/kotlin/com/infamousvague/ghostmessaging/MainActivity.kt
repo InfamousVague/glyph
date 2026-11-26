@@ -635,6 +635,9 @@ open class MainActivity : FlutterActivity() {
                 "summaryStatus" -> bg { Summaries.status(this) }
                 "summaryPrepare" -> bg { Summaries.prepare(this) }
                 "summarize" -> bg { Summaries.summarize(this, call.argument<String>("text") ?: "") }
+                // Replies to choose from, by a small model inside the app that reads the conversation (SmartReplies.kt).
+                @Suppress("UNCHECKED_CAST")
+                "smartReplies" -> bg { SmartReplies.suggest(this, (call.argument<List<Map<String, Any?>>>("messages") ?: emptyList())) }
                 // Texts in another language, translated on the phone (Translate.kt, lib/plugins/translate.dart).
                 "translate" -> on(translating) { Translate.call(applicationContext, "text", argsOf(call.arguments)) }
                 "translateLanguages" -> on(translating) { Translate.call(applicationContext, "languages", emptyMap()) }
