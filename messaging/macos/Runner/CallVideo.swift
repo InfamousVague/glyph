@@ -126,6 +126,15 @@ final class CallVideo: NSObject {
         AVVideoCodecKey: AVVideoCodecType.h264,
         AVVideoWidthKey: width,
         AVVideoHeightKey: height,
+        // Its colours said in the file: unsaid, one player takes a 720-line video for BT.709 and another for BT.601,
+        // and a green or a pink is plainly another colour in one of them. BT.601's matrix, because that is what the
+        // writer turns these BGRA frames into whatever is asked: asked for BT.709 it wrote "BT.709" over BT.601
+        // numbers (measured 2026-11-26: a pink of 92 green came back 109).
+        AVVideoColorPropertiesKey: [
+          AVVideoColorPrimariesKey: AVVideoColorPrimaries_SMPTE_C,
+          AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+          AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_601_4,
+        ],
         AVVideoCompressionPropertiesKey: [
           AVVideoAverageBitRateKey: bitrate,
           AVVideoMaxKeyFrameIntervalKey: fps * 2,

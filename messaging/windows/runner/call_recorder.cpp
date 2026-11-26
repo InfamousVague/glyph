@@ -10,6 +10,8 @@
 // - "encode": one voice's file as AAC in an .m4a, by Media Foundation's sink writer. The app puts the voices'
 //   files together into one MP4 itself (lib/voice/mp4_merge.dart), so nothing here relies on Media Foundation
 //   writing several sound tracks into one file.
+// - The call's picture (GMFB-42): call_video.cpp makes a file of video while the call runs, and the app puts its
+//   track in after the voices. Its `video.` calls come through this channel.
 // _wfopen: the standard library's plain file opening, as voicefx does (_CRT_SECURE_NO_WARNINGS).
 #define _CRT_SECURE_NO_WARNINGS
 #include "call_recorder.h"
@@ -38,6 +40,7 @@
 #include "rtc_audio_track.h"
 #include "rtc_media_track.h"
 
+#include "call_video.h"
 #include "main_thread.h"
 
 namespace {
@@ -386,6 +389,10 @@ std::string EncodeAac(const std::string& in, const std::string& out, int bytes_p
   return Encode(in, out, bytes_per_second);
 }
 
+int64_t CallRecorderDue() {
+  return Due();
+}
+
 void CallRecorderMic(const float* samples, int frames, int rate) {
   if (g_started.load() == 0) return;
   std::shared_ptr<Track> mic;
@@ -443,6 +450,9 @@ void RegisterCallRecorder(flutter::BinaryMessenger* messenger) {
           }
         });
       }).detach();
+    } else if (m.rfind("video.", 0) == 0) {
+      // The recording's picture (call_video.cpp): video.start, video.layout, video.stop.
+      CallVideoHandle(m, args, std::move(result));
     } else {
       result->NotImplemented();
     }

@@ -17,7 +17,7 @@
 /// mixes them, has the platform encode each as AAC into one MP4, and names the tracks (lib/voice/mp4_names.dart). The
 /// recording stays on the device ([CallRecorder.folder]) until its maker shares it.
 ///
-/// **With video** (GMFB-42, lib/voice/recording_video.dart), on a Mac, where its maker chose so at the start: one track
+/// **With video** (GMFB-42, lib/voice/recording_video.dart), on a Mac or a Windows PC, where its maker chose so at the start: one track
 /// of video after the voices, the cameras and shared screens of those who said yes to voice and video. The native half
 /// encodes it to a file of its own while the call runs (the frames can't be kept as they are, as the voices are), and
 /// the stop copies it into the MP4 beside the voices without encoding it again.
@@ -123,8 +123,9 @@ class _Taking {
   /// It takes video too (GMFB-42): the native half is encoding the call's picture beside the voices.
   bool video = false;
 
-  /// The picture's file while it is made: video alone, put into the MP4 at the stop.
-  String get videoPart => '$dir/video.mov';
+  /// The picture's file while it is made: video alone, put into the MP4 at the stop. An MP4 on Windows, where Media
+  /// Foundation's writer goes by the name's ending and lib/voice/mp4_merge.dart reads it.
+  String get videoPart => !kIsWeb && PlatformInfo.isWindows ? '$dir/video.mp4' : '$dir/video.mov';
 
   /// What the native half was last told to draw ([VideoLayout.signature]), and the telling still on its way.
   String pictureSaid = '';
@@ -816,8 +817,7 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
   /// [names]; [work] is a folder for what is made on the way. Also what a recording mixed again in the mixer is saved
   /// as (lib/voice/recording_playback.dart).
   ///
-  /// [video] is a file of video alone to put in as the last track, as it is (GMFB-42; a Mac's, which is where one is
-  /// made). After the voices, so every voice keeps its place in the file and a reader that counts tracks finds them
+  /// [video] is a file of video alone to put in as the last track, as it is (GMFB-42; made on a Mac and on Windows). After the voices, so every voice keeps its place in the file and a reader that counts tracks finds them
   /// where they were. True where the file made has it.
   static Future<bool> makeMp4(List<String> inputs, String out, List<String> names, {required String work, String? video}) async {
     var pictured = false;
@@ -829,7 +829,8 @@ class CallRecorder extends ChangeNotifier implements RecordingDesk {
         await _channel.invokeMethod('encode', {'in': p, 'out': part});
         parts.add(part);
       }
-      await Mp4Merge.merge(parts, out);
+      // The picture's file, where one was made (windows/runner/call_video.cpp), goes in after them as it is.
+      pictured = await Mp4Merge.merge(parts, out, video: video);
     } else {
       // With a picture asked for, the answer says whether it went in; without, it is the file's path, as it was.
       final made = await _channel.invokeMethod<Object?>('mux', {'out': out, 'inputs': inputs, 'video': ?video});
