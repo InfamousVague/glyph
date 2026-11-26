@@ -409,6 +409,8 @@ class Me extends ChangeNotifier {
           _hub?.sayHandles({'dir': 'watch', 'add': keys.sublist(i, i + 400 > keys.length ? keys.length : i + 400)});
         }
         _write();
+        // Greeted by another relay than the last (Settings › Routes › Relay server): this install's username there.
+        unawaited(_relayGreeted(_hub?.url ?? ''));
       case 'souls':
         _takeSouls(m);
         final got = m['got'];
@@ -1003,6 +1005,9 @@ class Me extends ChangeNotifier {
     final got = await _ask({'dir': 'claim', 'name': tidyHandle(name)}, 'claim');
     if (got['ok'] != true) throw MeError(got['err'] == 'taken' ? '@${tidyHandle(name)} is taken.' : 'That username can\'t be used.');
     _app?.set('me_username', tidyHandle(name));
+    // It has a username on this relay now, whatever was said of one it couldn't have there, or of having given one up.
+    if ((_app?.choice(takenName, '') ?? '').isNotEmpty) _app?.set(takenName, '');
+    _noteGivenUp(false);
     notifyListeners();
   }
 
@@ -1010,6 +1015,13 @@ class Me extends ChangeNotifier {
   Future<void> releaseUsername() async {
     await _ask({'dir': 'release'}, 'released');
     _app?.set('me_username', '');
+    // Given up on this relay: not claimed again by itself the next time the app comes back to it ([_relayGreeted]).
+    final app = _app, url = _hub?.url;
+    if (app != null && url != null) {
+      final names = _namesKept(app);
+      if (names.remove(url) != null) app.set(namesName, jsonEncode(names));
+    }
+    _noteGivenUp(true);
     notifyListeners();
   }
 
@@ -1072,10 +1084,126 @@ class Me extends ChangeNotifier {
   /// Which username this install's key holds on the relay, as the relay keeps it: the name's hash ([nameKeyOf]), or
   /// null for none. What the name watch holds its own username to (lib/net/name_watch.dart): a username given up or
   /// changed on another device, a new key, or another relay are this answering otherwise, not the relay lying.
-  Future<String?> heldName() async {
-    final got = await _ask({'dir': 'name'}, 'name');
-    final k = got['k'];
-    return k is String && k.isNotEmpty ? k : null;
+  Future<String?> heldName() async => (await _held())?.k;
+
+  /// The same, with the name's letters where the relay has them (one from before it said them has none). Asked once
+  /// for all who ask at the same moment: an answer fills one waiting slot, and a second asking took the first's.
+  Future<({String k, String? n})?> _held() => _heldAsking ??= () async {
+        try {
+          final got = await _ask({'dir': 'name'}, 'name');
+          final k = got['k'], n = got['n'];
+          return k is String && k.isNotEmpty ? (k: k, n: n is String && goodUsername(n) && nameKeyOf(n) == k ? tidyHandle(n) : null) : null;
+        } finally {
+          _heldAsking = null;
+        }
+      }();
+  Future<({String k, String? n})?>? _heldAsking;
+
+  // --- a username on each relay (GMFB-25: "The app works fully against a self-hosted hub") ---------------------------
+  //
+  // A username is a name on one relay: each relay is its own directory. The app kept one, wherever it was claimed, and
+  // went on showing it after moving to another relay (Settings › Routes › Relay server), where nobody could find this
+  // person by it, their account couldn't be signed in to by it, and it might be someone else's.
+
+  /// The relay this install was last greeted by, and the username it holds on each relay it has used, by address.
+  /// And the relays where this person gave their username up ([releaseUsername]): none is claimed there by itself.
+  static const relayName = 'me_relay', namesName = 'me_names', takenName = 'me_name_taken', givenUpName = 'me_names_none';
+
+  /// Where this install's username could not follow it to the relay in use, because someone else holds it there: the
+  /// name and the relay. Null where there is nothing to say. Gone once a username is claimed there, or the relay left.
+  ({String name, String relay})? get nameTaken {
+    try {
+      final j = jsonDecode(_app?.choice(takenName, '') ?? '');
+      if (j is Map && j['n'] is String && j['r'] is String) return (name: j['n'] as String, relay: j['r'] as String);
+    } catch (_) {}
+    return null;
+  }
+
+  Map<String, String> _namesKept(MeStore app) {
+    try {
+      final j = jsonDecode(app.choice(namesName, '{}'));
+      if (j is Map) return {for (final e in j.entries) if (e.key is String && e.value is String && goodUsername(e.value as String)) e.key as String: e.value as String};
+    } catch (_) {}
+    return {};
+  }
+
+  Set<String> _givenUpAt(MeStore app) {
+    try {
+      final j = jsonDecode(app.choice(givenUpName, '[]'));
+      if (j is List) return {for (final x in j) if (x is String) x};
+    } catch (_) {}
+    return {};
+  }
+
+  /// Keeps whether this person gave their username up on the relay in use ([gaveUp]), or has one there again.
+  void _noteGivenUp(bool gaveUp) {
+    final app = _app, url = _hub?.url;
+    if (app == null || url == null) return;
+    final at = _givenUpAt(app);
+    if (gaveUp ? at.add(url) : at.remove(url)) app.set(givenUpName, jsonEncode(at.toList()));
+  }
+
+  bool _settlingName = false;
+
+  /// The relay at [url] greeted this install. Where it is another relay than the last, the username is settled for it:
+  /// the one the relay says this key holds there; else the one it had there before, or the one it goes by, claimed
+  /// there now where it is free (never on a relay where the person gave their username up: [releaseUsername]). Where
+  /// someone else holds it there, this install has no username on that relay, and [nameTaken] says so. The name it
+  /// had on the relay it left is kept for when it goes back.
+  ///
+  /// The first greeting since this was kept settles nothing on Ghost Messaging's relay, where nothing has moved; on
+  /// another, the username is taken to have been Ghost Messaging's. Whatever fails leaves everything as it was, to be
+  /// settled at the next greeting.
+  @visibleForTesting
+  Future<void> relayGreeted(String url) => _relayGreeted(url);
+
+  Future<void> _relayGreeted(String url) async {
+    final app = _app;
+    if (app == null || url.isEmpty || _settlingName) return;
+    final last = app.choice(relayName, '');
+    if (last == url) return;
+    final from = last.isNotEmpty ? last : (url == Net.defaultHub ? '' : Net.defaultHub);
+    if (from.isEmpty) return app.set(relayName, url);
+    _settlingName = true;
+    try {
+      final names = _namesKept(app);
+      final was = username ?? '';
+      if (was.isNotEmpty) names[from] = was;
+      final known = names[url];
+      final held = await _held();
+      var next = '';
+      String? taken;
+      if (held != null) {
+        // This key holds a name here already: as the relay spells it; else the one known to be it.
+        next = held.n ?? (known != null && nameKeyOf(known) == held.k ? known : (was.isNotEmpty && nameKeyOf(was) == held.k ? was : ''));
+      } else if (!_givenUpAt(app).contains(url)) {
+        // It holds none here, and never gave one up here: the one it had here before, else the one it goes by.
+        final want = tidyHandle(known ?? was);
+        if (want.isNotEmpty) {
+          final got = await _ask({'dir': 'claim', 'name': want}, 'claim');
+          if (got['ok'] == true) {
+            next = want;
+          } else {
+            taken = want;
+          }
+        }
+      }
+      // Moved again meanwhile: that relay's greeting settles it.
+      if (_hub?.url != url) return;
+      if (next.isNotEmpty) {
+        names[url] = next;
+      } else {
+        names.remove(url);
+      }
+      app.set(namesName, jsonEncode(names));
+      app.set('me_username', next);
+      app.set(takenName, taken == null ? '' : jsonEncode({'n': taken, 'r': url}));
+      app.set(relayName, url);
+      notifyListeners();
+    } catch (_) {
+    } finally {
+      _settlingName = false;
+    }
   }
 
   /// What a username is kept by on the relay: its hash, as the relay's `Handles.nameKey` makes it.

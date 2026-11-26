@@ -152,6 +152,19 @@ class _Told extends Device {
   }
 }
 
+/// A device whose relay is from before relays said whether they hold an account: its `acct-hello` has no `account`,
+/// and once [gone] says the device is not known.
+class _OldRelay extends Device {
+  _OldRelay(super.relayAccounts, super.handles);
+  bool gone = false;
+  @override
+  Future<Map<String, dynamic>> ask(Map<String, Object?> what) async {
+    if (what['dir'] == 'acct-hello' && gone) return {'dir': 'acct-hello', 'known': false};
+    final m = await super.ask(what);
+    return what['dir'] == 'acct-hello' ? ({...m}..remove('account')) : m;
+  }
+}
+
 /// A device whose relay keeps no removals (one from before they were kept): `removed` never comes with acct-hello.
 class _NoProofs extends Device {
   _NoProofs(super.relayAccounts, super.handles);
@@ -598,6 +611,63 @@ void main() {
       await iphone.account.check();
       expect(iphone.account.ended, isTrue);
       expect(told, greaterThan(0));
+    });
+  });
+
+  // GMFB-25 ("The app works fully against a self-hosted hub"): an Android phone moved to a relay of its keeper's own
+  // forgot the account's words and keys the first time it asked, since that relay had never heard of the account, and
+  // was never offered "List this device again", which every other device was. Only a relay that holds the account and
+  // doesn't list the phone (it was removed), or one from before relays said which, makes a phone forget.
+  group('an Android phone and a relay that doesn\'t hold its account', () {
+    setUp(() => Account.addAgainAfter = Duration.zero);
+
+    test('moved to another relay: nothing forgotten, it says the relay doesn\'t know the account, and listing it again puts the account there', () async {
+      expect(Sms.standalone, isFalse);
+      final phone = Device(accounts, handles, hasFriends: true);
+      await phone.claim('maya');
+      final draft = phone.account.draft();
+      await phone.account.create(draft, 'correct horse battery');
+      await phone.account.check();
+      expect([phone.account.unknownHere, phone.account.removedHere], [false, false]);
+      final kept = {...phone.secrets};
+      // A relay of its own, with no such account.
+      final otherHandles = Handles(texts: FakeTexts())..load();
+      final otherAccounts = Accounts(handles: otherHandles);
+      phone.relayAccounts = otherAccounts;
+      phone.handles = otherHandles;
+      otherHandles.came(phone.connection, (_) {}, key: phone.keys.public);
+      var told = 0;
+      phone.account.addListener(() => told++);
+      await phone.account.check();
+      expect([phone.account.unknownHere, phone.account.removedHere, phone.account.signedIn], [true, false, true]);
+      expect(phone.secrets, kept, reason: 'the words and the password\'s key are still here');
+      expect(told, 1);
+      expect(await phone.account.revealWords('correct horse battery'), draft.words);
+      // Put there from the phone, with what the phone has: known from then on.
+      await phone.account.listHereAgain();
+      expect(phone.account.unknownHere, isFalse);
+      await phone.account.check();
+      expect([phone.account.unknownHere, phone.account.removedHere, phone.account.signedIn], [false, false, true]);
+      expect(phone.secrets, kept);
+      // Another device signs in to it on that relay by the words.
+      final laptop = Device(otherAccounts, otherHandles);
+      await laptop.account.finish(await laptop.account.signInWithWords(draft.words));
+      expect(laptop.account.address, phone.account.address);
+    });
+
+    test('a relay that holds the account and doesn\'t list the phone, or one from before relays said which, makes it forget as ever', () async {
+      for (final from in ['holds it', 'says nothing of it']) {
+        final phone = from == 'holds it' ? (_Told(accounts, handles)..held = true) : _OldRelay(accounts, handles);
+        await phone.claim('maya${from.length}');
+        await phone.account.create(phone.account.draft(), 'correct horse battery');
+        await phone.account.check();
+        expect(phone.account.signedIn, isTrue, reason: from);
+        if (phone is _Told) phone.said = const {'what': 'nothing'};
+        if (phone is _OldRelay) phone.gone = true;
+        await phone.account.check();
+        expect([phone.account.removedHere, phone.account.unknownHere, phone.account.signedIn], [true, false, false], reason: from);
+        expect(phone.secrets.keys.where((k) => k.startsWith('account')), isEmpty, reason: from);
+      }
     });
   });
 

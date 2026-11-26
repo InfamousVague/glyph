@@ -146,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
               PaneSection(
                 title: 'Username',
-                description: Text(me.username == null ? 'How people find you to add you as a friend. Nobody sees your number.' : 'People add you as @${me.username}.'),
+                description: Text(usernameWords(me.username, taken: me.nameTaken)),
                 footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
                 children: [
                   field(_username, 'username', 'Username', onSubmitted: (_) => _claim(), caps: TextCapitalization.none),
@@ -401,6 +401,17 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
 
 /// The pictures this person had before (Me.picturesPast), as faces in a row: a press makes one the picture again, and
 /// the one it takes the place of joins them. A long press, or a press with the other button, forgets one.
+/// The line under Username on the profile page: how people find you; and, where the app moved to a relay on which the
+/// name you go by is someone else's (Me.nameTaken; GMFB-25), that you have none on this relay yet and still have yours
+/// on the one you came from.
+String usernameWords(String? username, {({String name, String relay})? taken}) {
+  if (username != null) return 'People add you as @$username.';
+  if (taken == null) return 'How people find you to add you as a friend. Nobody sees your number.';
+  final u = Uri.tryParse(taken.relay);
+  final host = u == null || u.host.isEmpty ? 'this relay' : u.host;
+  return '@${taken.name} belongs to someone else on $host, so you have no username on this relay yet: choose one for it here. On the relay you came from you are still @${taken.name}.';
+}
+
 /// The badge shown beside your name, chosen on the profile page (Matt, 2026-11-25: "We're also missing the section in
 /// the profile to be able to set the badge"): the badges you have, each with what it is for, the one shown ticked. It
 /// was on the Souls page and the profile bubble's card only.

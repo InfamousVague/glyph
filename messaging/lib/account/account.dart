@@ -286,7 +286,7 @@ class Account extends ChangeNotifier {
   /// Whether [username] has an account, and whether its number has to be sent a code first.
   Future<({bool phone})> findByName(String username) async {
     final m = await relay.ask({'dir': 'acct-find', 'name': tidyHandle(username)});
-    if (m['none'] == true) throw AccountError('No account has that username.');
+    if (m['none'] == true) throw AccountNotFound();
     return (phone: m['phone'] == true);
   }
 
@@ -304,7 +304,7 @@ class Account extends ChangeNotifier {
   Future<AccountRestore> signInWithPassword(String username, String password, {String? number, String? code}) async {
     final name = tidyHandle(username);
     final found = await relay.ask({'dir': 'acct-find', 'name': name});
-    if (found['none'] == true) throw AccountError('No account has that username.');
+    if (found['none'] == true) throw AccountNotFound();
     if (found['phone'] == true && code == null) throw AccountNeedsCode();
     final kdf = found['kdf'];
     // Never weaker than an account is made with: a relay offering cheaper settings would be after a proof it could
@@ -673,12 +673,22 @@ class Account extends ChangeNotifier {
         } catch (_) {}
       }
       if (m['known'] == false) {
-        // Whether this relay holds the account at all: where it does, this device isn't on its list.
-        final held = m['account'] == true;
-        if (!Sms.standalone) {
-          // An Android phone, or a computer paired with one: it forgets the account's words and keys, as it always has.
+        // Whether this relay holds the account at all: where it does, this device isn't on its list. A relay from before
+        // it said so says nothing of it either way.
+        final held = m['account'] == true, says = m.containsKey('account');
+        if (!Sms.standalone && (held || !says)) {
+          // An Android phone, or a computer paired with one, on a relay that holds the account and doesn't list it (or
+          // one from before relays said which): it forgets the account's words and keys, as it always has. Not where
+          // the relay says it holds no such account at all, which is below (GMFB-25: moving to a relay of one's own
+          // forgot the account on a phone, and on a phone alone).
           removedHere = true;
           await _forgetHere();
+        } else if (!Sms.standalone) {
+          // An Android phone on a relay that doesn't hold the account at all: as every other device.
+          if (!unknownHere) {
+            unknownHere = true;
+            notifyListeners();
+          }
         } else if (removalProven(m['removed'], address: address, device: device, joinedAt: joinedAt) || (Sms.browser && held)) {
           // A device of its own the account removed (its own signed words say so): it stops being the account
           // altogether, everything of it this device keeps deleted, and the app starts again with nothing. Kept, its
@@ -914,6 +924,12 @@ class AccountError implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// Nobody on the relay asked has that username. An account is kept on the relay it was made on, so on a relay of one's
+/// own this may only mean the account is on another: the sign-in screen says which relay was asked (GMFB-25).
+class AccountNotFound extends AccountError {
+  AccountNotFound() : super('No account has that username.');
 }
 
 /// The account has a verified number, and a code texted to it is wanted before its backup is handed over.

@@ -802,9 +802,11 @@ class Handles {
           // What is kept in that slot, as it was given; null for nothing.
           tell({'dir': 'curl-kept', 'blob': _curl[id]});
         case 'name':
-          // Whether this install has a username here; the app keeps the words, this server only their hash.
+          // Whether this install has a username here: its hash, and its letters where this server has them (said with a
+          // hello or a claim, for the admin's page), so an app that moved here from another relay, or whose account
+          // claimed it on another device, can show the name it holds here (GMFB-25).
           final mine = _nameOf[id];
-          tell({'dir': 'name', 'k': mine});
+          tell({'dir': 'name', 'k': mine, 'n': ?(mine == null ? null : _shown[mine])});
         case 'claim':
           // Takes a username for this install, giving up the one it had; refused as taken where another holds it.
           final name = said['name'];
