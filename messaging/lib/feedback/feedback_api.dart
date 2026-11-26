@@ -92,6 +92,24 @@ class FeedbackError implements Exception {
   String toString() => message;
 }
 
+/// Whether a relay's answer says it takes no feedback at all: none set up there (503, relay/lib/feedback.dart), or a
+/// relay from before it took any (404).
+bool feedbackNotTaken(FeedbackError e) => e.status == 503 || e.status == 404;
+
+/// Sends feedback by [send] to the relay in use ([hubUrl]) and, where that is a relay of someone's own that takes none
+/// ([feedbackNotTaken]), to Ghost Messaging's ([ours]) instead: the feedback is about the app, and on a relay with no
+/// board of its own it was answered "Feedback isn't set up on this server yet" and lost (GMFB-25: "features that only
+/// exist on gogho.st ... fall back cleanly"). The ticket's id. Never from a page in a browser ([mayLeave] false), which
+/// may speak only to the relay it came from. Any other failure is the relay's own to say.
+Future<String> sendFeedbackOrOurs({required String hubUrl, required String ours, required bool mayLeave, required Future<String> Function(String hubUrl) send}) async {
+  try {
+    return await send(hubUrl);
+  } on FeedbackError catch (e) {
+    if (!mayLeave || hubUrl == ours || !feedbackNotTaken(e)) rethrow;
+    return send(ours);
+  }
+}
+
 /// Where feedback goes on the relay at [hubUrl]: the same server, `/feedback` in place of `/hub` (as FilesApi.baseFor
 /// finds `/files`).
 Uri feedbackUrlFor(String hubUrl) {

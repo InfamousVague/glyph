@@ -41,23 +41,24 @@
 <table>
   <tr><th>What</th><th>On a relay of your own</th></tr>
   <tr><td>Friends by username: requests, messages, reactions, edits, read marks</td><td><b>Yes</b>, between people on your relay. With people on another relay too, where both relays talk to each other: add them as <code>@maya@their.relay</code>.</td></tr>
-  <tr><td>Circles and spaces</td><td>Only between people on the same relay. A circle's link works anywhere, but members on different relays don't see each other's messages or who is in a space.</td></tr>
+  <tr><td>Circles and spaces</td><td>Only between people on the same relay. A link made on your relay names it at its end (<code>…@relay.example.com</code>): opened by someone on another relay, the app says which relay the circle is on instead of joining an empty room there, and a browser guest opening a space's link is connected to the relay it names.</td></tr>
   <tr><td>Calls</td><td>Only between people on the same relay: a call is a room on one relay. The app says so instead of ringing a friend on another relay. Calls that can't go straight between two devices need <a href="#turn">your own TURN server</a>.</td></tr>
   <tr><td>Who is online, away, last seen</td><td>Not shown for a friend on another relay.</td></tr>
-  <tr><td>Your account (username and password, the sealed backup)</td><td>Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay.</td></tr>
-  <tr><td>Your username</td><td>Kept on each relay apart. <code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people.</td></tr>
-  <tr><td>Add-me links (<code>gogho.st/add/…</code>)</td><td>The link always says gogho.st, but the app looks the name up on the relay it uses. On yours that may be someone else, or nobody. The app says so before it sends a friend request.</td></tr>
+  <tr><td>Your account (username and password, the sealed backup)</td><td>Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay, and the sign-in screen says which relay it asks. An app moved to a relay that doesn't hold its account keeps everything and offers <b>List this device again</b>, which puts the account on that relay from the device.</td></tr>
+  <tr><td>Your username</td><td>Kept on each relay apart. <code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people. When the app moves to another relay your username is claimed there too where it is free; where someone else holds it, your profile asks you to choose one for that relay. The one on the relay you left is yours again when you go back.</td></tr>
+  <tr><td>Add-me links (<code>gogho.st/add/…</code>)</td><td>A link made on your relay names it after the key (<code>#KEY@relay.example.com</code>). Whoever opens it is asked for on that relay, from whichever relay they use; a link that names none is someone on gogho.st. The link's key makes sure it is only ever the person who shared it.</td></tr>
   <tr><td>Circle invite words (<code>gogho.st/c/…</code>)</td><td>Kept on each relay apart. A word made on your relay works typed into <b>Join a circle</b> by people on your relay; the gogho.st page only knows gogho.st's words.</td></tr>
   <tr><td>Files spaces</td><td>Kept on your relay's disk, for people on your relay.</td></tr>
   <tr><td>Texts (SMS), encrypted ones included</td><td>Unchanged. They go over the phone network, not through any relay.</td></tr>
   <tr><td>The Marketplace</td><td>Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay.</td></tr>
   <tr><td>Verifying your number; linking Discord, X, Telegram</td><td>Off unless you set up your own Twilio Verify service and your own apps with those networks.</td></tr>
   <tr><td>Waking a closed iPhone</td><td>Not possible. It needs Apple's push key for the app, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened.</td></tr>
-  <tr><td>Share feedback</td><td>Goes to the relay in use, so to yours, where it isn't filed anywhere.</td></tr>
-  <tr><td>A computer paired to the phone</td><td>Messages go through the phone, so through your relay. The computer's own key for voice spaces still uses gogho.st.</td></tr>
+  <tr><td>Share feedback</td><td>Goes to your relay where you set up a board for it; where you didn't, the app sends it to gogho.st instead, since it is about the app.</td></tr>
+  <tr><td>A computer paired to the phone</td><td>Messages go through the phone, so through your relay, and the computer's own connection for spaces goes to the relay the phone uses.</td></tr>
+  <tr><td>Souls</td><td>Counted by each relay apart. The Souls page says whose count it shows; bug bounties are given on gogho.st.</td></tr>
   <tr><td>App updates, these docs, the website</td><td>From gogho.st, as before.</td></tr>
 </table>
-<p><b>Not done yet:</b> circles, spaces and calls across relays; who is online across relays; add-me links and invite links that name a relay; and an account signing in on another relay than its own.</p>
+<p><b>Not done yet:</b> circles, spaces and calls across relays (the app uses one relay at a time, and an invite to a circle elsewhere says which relay to use first); who is online across relays; and signing in by username on another relay than the account's own, until a device that holds the account lists itself there.</p>
 
 <h2 id="serves">What it is</h2>
 <p>One program on one port (8787 unless told otherwise), speaking plain HTTP and WebSockets. It has no dependencies beyond Dart's own library. You put a web server in front of it for TLS.</p>

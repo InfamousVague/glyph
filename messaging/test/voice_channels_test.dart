@@ -527,6 +527,28 @@ void main() {
     expect(v.own.map((c) => c.seed), [mine.seed]);
   });
 
+  // GMFB-25 ("The app works fully against a self-hosted hub"): a computer paired with a phone made its own connection
+  // for spaces to Ghost Messaging's relay whatever relay the phone used, so the two were in different rooms.
+  test('the phone says which relay it uses where it is not Ghost Messaging\'s, and its computer\'s spaces go to that one', () async {
+    final v = Voice.instance;
+    // On Ghost Messaging's relay the phone says nothing of it, and its answer is what it always was.
+    expect((await v.answerDesk({'op': 'list'}) as Map).containsKey('hub'), isFalse);
+    // What a computer takes from the answer: a hub's address it can dial, or ours.
+    expect(Voice.hubFromPhone('wss://relay.example.com/hub'), 'wss://relay.example.com/hub');
+    expect(Voice.hubFromPhone('relay.example.com'), 'wss://relay.example.com/hub');
+    expect(Voice.hubFromPhone('wss://gogho.st/hub'), isNull, reason: 'ours is the one used with nothing said');
+    for (final not in [null, 7, '', 'not an address at all', 'ghost-relay://${'a' * 32}?n=${'b' * 64}', 'wss://${'x' * 400}.example.com/hub']) {
+      expect(Voice.hubFromPhone(not), isNull, reason: '$not');
+    }
+    addTearDown(() => v.takePhoneHub(null));
+    expect(v.pairedHubUrl, 'wss://gogho.st/hub');
+    v.takePhoneHub('wss://relay.example.com/hub');
+    expect(v.pairedHubUrl, 'wss://relay.example.com/hub');
+    // A phone from before, or back on Ghost Messaging's relay, says none: ours again.
+    v.takePhoneHub(null);
+    expect(v.pairedHubUrl, 'wss://gogho.st/hub');
+  });
+
   // Matt, 2026-11-24: "please see what you can do about the high CPU usage on the app". A paired computer asks for
   // this every eight seconds, and was sent every space and circle whole each time (lib/desk_stamp.dart).
   test('a computer that asks again is answered in a word while nothing has changed, and in full once something has', () async {

@@ -17,6 +17,7 @@ import '../art/lucide.g.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../net/net.dart' show Net;
 import 'common.dart';
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'nav_bar.dart' show HoverTip;
@@ -256,6 +257,11 @@ class SoulsSheet extends StatelessWidget {
                   SizedBox(height: t.space(2)),
                   // Since GMFB-39 some can be sent to a friend (lib/ui/souls_send.dart).
                   Text('Send some to a friend to say thanks: press + in a chat with them. There\'s nothing else to use them on yet.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
+                  // On a relay of one's own: whose count this is (GMFB-25).
+                  if (soulsRelayWords(Net.instance.hubUrl) case final words?) ...[
+                    SizedBox(height: t.space(2)),
+                    Text(words, key: const ValueKey('souls-relay'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
+                  ],
                   if (badges.isNotEmpty) ...[
                     SizedBox(height: t.space(4)),
                     Text('YOUR BADGES', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
@@ -288,4 +294,14 @@ class SoulsSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// On the Souls page while the app uses a relay other than Ghost Messaging's own (GMFB-25: "features that only exist on
+/// gogho.st (marketplace, souls) fall back cleanly"): souls are counted by each relay apart, so the count shown is that
+/// relay's, and the ones given on Ghost Messaging's are still there. Null on ours, where there is nothing to say.
+String? soulsRelayWords(String hubUrl) {
+  if (hubUrl == Net.defaultHub) return null;
+  final u = Uri.tryParse(hubUrl);
+  final host = u == null || u.host.isEmpty ? 'the relay you chose' : u.host;
+  return 'Each relay counts souls apart. This is your count on $host, and souls go only between people on it. The ones you were given on Ghost Messaging\'s relay are still yours there, and show again when you go back to it. Bug bounties are given on Ghost Messaging\'s relay.';
 }

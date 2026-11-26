@@ -57,6 +57,7 @@ import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
+import '../net/net.dart' show Net;
 
 /// A row's icon at the size every settings row uses.
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -417,6 +418,14 @@ List<SettingsSection> _ownSections() => [
     page: _about,
   ),
     ];
+
+/// Settings › About › Sealed, end to end: where texts stay and which relay the rest goes through. It named gogho.st's
+/// whatever relay the app used (GMFB-25).
+String sealedWords(String hubUrl) {
+  final u = Uri.tryParse(hubUrl);
+  final host = hubUrl == Net.defaultHub || u == null || u.host.isEmpty ? 'gogho.st' : u.host;
+  return 'Your texts stay on this phone. Friends, circles and spaces go through ${hubUrl == Net.defaultHub ? 'gogho.st\'s relay' : 'the relay you chose ($host)'}, sealed so it can\'t read them.';
+}
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
 const appVersion = '0.12.41';
@@ -1498,7 +1507,7 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.lock),
           // Since accounts, friends and circles, the relay at gogho.st carries sealed messages: said as it is.
           label: 'Sealed, end to end',
-          hint: const Text('Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.'),
+          hint: Text(sealedWords(Net.instance.hubUrl)),
         ),
       ],
     ),

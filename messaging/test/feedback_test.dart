@@ -177,6 +177,42 @@ void main() {
     });
   });
 
+  // GMFB-25 ("features that only exist on gogho.st ... fall back cleanly"): on a relay of someone's own with no board
+  // set up, feedback was answered "Feedback isn't set up on this server yet" and went nowhere.
+  test('a relay of someone\'s own that takes no feedback: it goes to Ghost Messaging\'s instead; any other refusal is that relay\'s to say', () async {
+    const own = 'wss://relay.example.com/hub', ours = 'wss://gogho.st/hub';
+    final asked = <String>[];
+    Future<String> Function(String) sender(Map<String, Object> answers) => (url) async {
+          asked.add(url);
+          final a = answers[url]!;
+          if (a is FeedbackError) throw a;
+          return a as String;
+        };
+    // It has a board of its own: filed there, and ours never hears of it.
+    expect(await sendFeedbackOrOurs(hubUrl: own, ours: ours, mayLeave: true, send: sender({own: 'OWN-3'})), 'OWN-3');
+    expect(asked, [own]);
+    // None set up there (503), or a relay from before it took any (404): to ours.
+    for (final status in [503, 404]) {
+      asked.clear();
+      expect(await sendFeedbackOrOurs(hubUrl: own, ours: ours, mayLeave: true, send: sender({own: FeedbackError('Feedback isn\'t set up on this server yet.', status: status), ours: 'GMFB-70'})), 'GMFB-70');
+      expect(asked, [own, ours], reason: '$status');
+    }
+    // Anything else it says is said: too many, too large, unreachable.
+    for (final e in [FeedbackError('Too many reports. Try again later.', status: 429), FeedbackError('Couldn\'t reach the server. Check your connection and try again.')]) {
+      asked.clear();
+      await expectLater(sendFeedbackOrOurs(hubUrl: own, ours: ours, mayLeave: true, send: sender({own: e, ours: 'GMFB-70'})), throwsA(same(e)));
+      expect(asked, [own]);
+    }
+    // On ours there is nowhere else to go, and a page in a browser speaks only to the relay it came from.
+    asked.clear();
+    final off = FeedbackError('Feedback isn\'t set up on this server yet.', status: 503);
+    await expectLater(sendFeedbackOrOurs(hubUrl: ours, ours: ours, mayLeave: true, send: sender({ours: off})), throwsA(same(off)));
+    await expectLater(sendFeedbackOrOurs(hubUrl: own, ours: ours, mayLeave: false, send: sender({own: off, ours: 'GMFB-70'})), throwsA(same(off)));
+    expect(asked, [ours, own]);
+    expect(feedbackGoesWords(ours), 'It goes to the Ghost Messaging team.');
+    expect(feedbackGoesWords(own), 'It goes to your relay\'s own feedback board where it has one, and to the Ghost Messaging team where it doesn\'t.');
+  });
+
   test('the address is the hub\'s server with /feedback in place of /hub', () {
     expect(feedbackUrlFor('wss://gogho.st/hub').toString(), 'https://gogho.st/feedback');
     expect(feedbackUrlFor('ws://127.0.0.1:8787/hub').toString(), 'http://127.0.0.1:8787/feedback');

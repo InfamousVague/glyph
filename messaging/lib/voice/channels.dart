@@ -12,6 +12,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../net/net.dart';
 import '../net/packet.dart';
+import '../net/relay_choice.dart' show tidyRelayAddress;
 import '../net/switchboard.dart';
 import '../sms.dart';
 import '../keys.dart';
@@ -283,6 +284,8 @@ class Voice extends ChangeNotifier {
       _volumes.addAll(((people['v'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toDouble())));
       _silenced.addAll(((people['m'] as List?) ?? const []).cast<String>());
     } catch (_) {}
+    // The relay its phone last said it uses, on a computer paired with one.
+    if (Sms.paired) _phoneHub = hubFromPhone(app.choice(phoneHubName, ''));
     Net.instance.addListener(_follow);
     // A computer paired with a phone asks it for its spaces now and every 8 seconds.
     if (Sms.paired) {
@@ -354,6 +357,10 @@ class Voice extends ChangeNotifier {
           'gone': _gone,
           'name': me.shownName,
           if (me.username != null) 'u': me.username,
+          // The relay this phone uses, where it is not Ghost Messaging's own: its computer's own connection for spaces
+          // goes to the same one (GMFB-25; [takePhoneHub]). Never one hosted from an app, which only this phone's
+          // routes can dial.
+          if (!Net.instance.onDefaultHub && Net.instance.hubUrl.startsWith('ws')) 'hub': Net.instance.hubUrl,
         });
     }
   }
@@ -407,6 +414,7 @@ class Voice extends ChangeNotifier {
       _phone = list;
       _deskName = name;
       _deskUsername = got['u'] as String?;
+      takePhoneHub(got['hub']);
       // Channels made here that the phone does not have yet go to it.
       for (final c in own) {
         if (!list.any((p) => p.seed == c.seed) && !removed(c.seed)) unawaited(Sms.instance.voiceSync(_deskAdd(c)).catchError((_) => <String, dynamic>{}));
@@ -417,6 +425,39 @@ class Voice extends ChangeNotifier {
     } catch (_) {
       // The phone is away or older: the computer keeps what it last heard.
     }
+  }
+
+  /// On a computer paired with a phone: the relay the phone said it uses ([hubFromPhone]), where it is not Ghost
+  /// Messaging's own; null for ours. Kept with the choices, so the next start dials it before the phone has answered.
+  String? _phoneHub;
+  static const phoneHubName = 'voice_phone_hub';
+
+  /// The relay this computer's own connection for spaces goes to while it speaks under a key of its own
+  /// ([separateKey]): the phone's, as it last said, else Ghost Messaging's.
+  @visibleForTesting
+  String get pairedHubUrl => _phoneHub ?? Net.defaultHub;
+
+  /// What a phone's answer names as its relay, as a hub's address this computer can dial; null where it names none, or
+  /// what it says is no such address (then Ghost Messaging's is used, as it always was).
+  static String? hubFromPhone(Object? said) {
+    if (said is! String || said.length > 300) return null;
+    final url = tidyRelayAddress(said);
+    return url == null || url.isEmpty || url == Net.defaultHub || !url.startsWith('ws') ? null : url;
+  }
+
+  /// The phone said which relay it uses ([said], its answer's `hub`): a computer's spaces were on Ghost Messaging's
+  /// relay whatever relay its phone used, so the two were in different rooms under the same names (GMFB-25). Where it
+  /// is another than this computer's own connection is to, that connection is closed and one made to the phone's.
+  void takePhoneHub(Object? said) {
+    final url = hubFromPhone(said);
+    if (url == _phoneHub) return;
+    _phoneHub = url;
+    _app?.set(phoneHubName, url ?? '');
+    final had = _ownHub;
+    if (had == null || had.url == pairedHubUrl) return;
+    _ownHub = null;
+    unawaited(had.stop());
+    _follow();
   }
 
   /// What the phone is told of a space made on a computer.
@@ -507,7 +548,8 @@ class Voice extends ChangeNotifier {
       keys = NetKeys.generate();
       app.set('voice_key', NetCrypto.hex(keys.scalar));
     }
-    return HubCarrier(url: Net.defaultHub, signer: KeysSigner(keys));
+    // On the relay its phone uses (GMFB-25), which is Ghost Messaging's unless the phone said another.
+    return HubCarrier(url: pairedHubUrl, signer: KeysSigner(keys));
   }
 
   /// [carryOver] is running: a second asking meanwhile does nothing.
