@@ -44,8 +44,8 @@ app's store in the browser, and a script slipped into one of those could read wh
 sends the relay two things across addresses, a report (`POST /market/abuse`) and feedback (`POST /feedback`):
 `GHOST_APP_ORIGIN` names that address (`https://app.gogho.st` for gogho.st), and the relay answers those two, and
 nothing else, so the page may read them (CORS: `Access-Control-Allow-Origin` that address, a `POST` with the app's
-signature headers). Without it, the page at its own address can send neither. A build with Files spaces (the app's
-`tool/build-web.mjs --files`) also lists, reads and writes a space's files there: the relay answers `/files/<space>…`
+signature headers). Without it, the page at its own address can send neither. A build with Files spaces (every
+`tool/build-web.mjs` build but `--no-files`) also lists, reads and writes a space's files there: the relay answers `/files/<space>…`
 to that address too (`GET`, `PUT`, `POST`, `DELETE`, with the space's token, a `Range` and the signature's headers),
 and still asks every request for the token and every write for its signature.
 

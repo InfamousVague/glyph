@@ -1,6 +1,7 @@
 // A folder on a computer kept in step with My files (GMFB-38: "Sync a folder on your computer with a drive"): one
-// pass's rules against a real temporary folder and a drive of the test's own. Nothing is ever deleted on either side,
-// and a local file is replaced only where its content is one the sync recorded.
+// pass's rules against a real temporary folder and a drive of the test's own. A changed file replaces the older one, a
+// removal is followed only for a file the sync had in step (a local file is moved aside, never deleted), many gone at
+// once wait for the person, and a local file is replaced only where its content is one the sync recorded.
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,8 +9,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/files/folder_sync.dart';
 
-/// A drive in memory: files by id, each with its bytes. Like the real one it never replaces: the same path added again
-/// is a newer file beside the older.
+/// A drive in memory: files by id, each with its bytes. Like the real one, the same path added again is a newer file
+/// beside the older until the older is removed ([delete], as the log's `del`).
 class FakeDrive implements SyncDrive {
   FakeDrive(this.dir);
   final Directory dir;
@@ -32,6 +33,19 @@ class FakeDrive implements SyncDrive {
   }
 
   void remove(String path) => files.removeWhere((_, v) => v.$1.path == path);
+  List<DriveFile> of(String path) => [for (final v in files.values) if (v.$1.path == path) v.$1];
+
+  /// Ids this device may not remove (someone else's, in a space), and how many were removed.
+  final Set<String> refuse = {};
+  int deletes = 0;
+
+  @override
+  Future<bool> delete(DriveFile f) async {
+    if (refuse.contains(f.id)) return false;
+    deletes++;
+    files.remove(f.id);
+    return true;
+  }
   List<String> get paths => [for (final v in files.values) v.$1.path]..sort();
   String newest(String path) => utf8.decode((files.values.where((v) => v.$1.path == path).toList()..sort((a, b) => b.$1.at.compareTo(a.$1.at))).first.$2);
 
@@ -71,7 +85,7 @@ void main() {
           if (e is File) e.path.substring(root.length + 1),
       ]..sort();
 
-  FolderSyncEngine engine({int most = 2000}) => FolderSyncEngine(root: root, drive: drive, state: SyncState(File('${tmp.path}/app/state.json')), now: now, most: most);
+  FolderSyncEngine engine({int most = 2000, Set<String> allow = const {}, Set<String> forget = const {}}) => FolderSyncEngine(root: root, drive: drive, state: SyncState(File('${tmp.path}/app/state.json')), now: now, most: most, allow: allow, forget: forget);
   Future<SyncReport> pass({int most = 2000}) => engine(most: most).run();
 
   setUp(() {
@@ -117,7 +131,7 @@ void main() {
     expect(drive.files.length, 2);
   });
 
-  test('changed here goes up as the newest; changed there comes down over the copy the sync recorded', () async {
+  test('changed here replaces the older in the drive; changed there comes down over the copy the sync recorded', () async {
     write('a.txt', 'a1');
     write('b.txt', 'b1');
     await pass();
@@ -130,8 +144,12 @@ void main() {
     expect(drive.newest('a.txt'), 'a2 longer');
     expect(local('b.txt').readAsStringSync(), 'b2 from the drive');
     expect(localPaths(), ['a.txt', 'b.txt']);
-    // The older a.txt is still in the drive: nothing is removed there.
-    expect(drive.files.values.where((v) => v.$1.path == 'a.txt').length, 2);
+    // GMFB-38, "the files log has no replace": the older a.txt is removed once the newer is up, not left beside it.
+    expect(drive.of('a.txt').length, 1);
+    // And b1, which the test's drive left beside b2 as a build from before would: the sync had it in step.
+    expect(drive.of('b.txt').length, 1);
+    expect(drive.deletes, 2);
+    expect((await pass()).moved, 0);
   });
 
   test('both changed keeps both: the drive\'s beside it with a suffix, the local one untouched and sent up', () async {
@@ -144,10 +162,13 @@ void main() {
     expect(local('doc.txt').readAsStringSync(), 'mine, changed here');
     expect(local('doc (from My files).txt').readAsStringSync(), 'theirs, changed there');
     expect(drive.newest('doc.txt'), 'mine, changed here');
-    // Next pass the copy beside it is a file like any other, and nothing is copied twice.
+    // The path was in step before: the drive's is replaced, its words kept beside here, which go up next pass.
+    expect(drive.of('doc.txt').length, 1);
     final again = await pass();
     expect(again.both, 0);
     expect(localPaths(), ['doc (from My files).txt', 'doc.txt']);
+    expect(drive.paths, ['doc (from My files).txt', 'doc.txt']);
+    expect(drive.newest('doc (from My files).txt'), 'theirs, changed there');
     expect((await pass()).moved, 0);
   });
 
@@ -161,6 +182,9 @@ void main() {
     expect(local('diff (from My files).txt').readAsStringSync(), 'drive words');
     expect(r.both, 1);
     expect(drive.files.values.where((v) => v.$1.path == 'same.txt').length, 1, reason: 'not sent again');
+    // Never in step before: the drive's diff.txt is someone's file the sync never had, and stays.
+    expect(drive.of('diff.txt').length, 2);
+    expect(drive.deletes, 0);
   });
 
   test('a local file changed without its size or time showing it is still not replaced (its content is checked)', () async {
@@ -176,18 +200,217 @@ void main() {
     expect(r.both, 1);
   });
 
-  test('a local delete does not delete from the drive, and a drive delete does not delete locally: each comes back', () async {
+  // GMFB-38: deletes, both ways, only of what the sync had in step.
+  test('removed here is removed from the drive; removed there is moved into .ghost-deleted here, never deleted', () async {
     write('here.txt', 'here');
-    write('there.txt', 'there');
+    write('Trip/there.txt', 'there');
+    write('keep.txt', 'keep');
     await pass();
     local('here.txt').deleteSync();
-    drive.remove('there.txt');
+    drive.remove('Trip/there.txt');
     final r = await pass();
     expect(r.stopped, isNull);
-    expect(drive.paths, ['here.txt', 'there.txt']);
-    expect(localPaths(), ['here.txt', 'there.txt']);
-    expect(local('here.txt').readAsStringSync(), 'here');
-    expect(drive.newest('there.txt'), 'there');
+    expect(r.deletedThere, 1);
+    expect(r.removedHere, 1);
+    expect(drive.paths, ['keep.txt']);
+    expect(local('Trip/there.txt').existsSync(), isFalse);
+    expect(File('$root/.ghost-deleted/Trip/there.txt').readAsStringSync(), 'there', reason: 'moved aside, whole');
+    // Nothing comes back, and what was set aside is hidden from the sync.
+    final again = await pass();
+    expect(again.moved, 0);
+    expect(drive.paths, ['keep.txt']);
+    expect(local('here.txt').existsSync(), isFalse);
+    // Removed there a second time under the same name: set aside beside the first, never over it.
+    write('Trip/there.txt', 'there again');
+    await pass();
+    drive.remove('Trip/there.txt');
+    await pass();
+    expect(File('$root/.ghost-deleted/Trip/there (2).txt').readAsStringSync(), 'there again');
+    expect(File('$root/.ghost-deleted/Trip/there.txt').readAsStringSync(), 'there');
+  });
+
+  test('a file on one side the sync never had in step is never removed, and one changed meanwhile goes the other way', () async {
+    write('synced-here.txt', 'one');
+    write('synced-there.txt', 'two');
+    await pass();
+    // Never synced: new on each side while the other's copy is gone. Each is sent or brought, never removed.
+    write('only-here.txt', 'local only');
+    drive.put('only-there.txt', 'drive only');
+    // Removed here, but changed in the drive since: the drive's comes down.
+    local('synced-here.txt').deleteSync();
+    drive.put('synced-here.txt', 'changed there');
+    // Removed in the drive, but changed here since: it goes up again.
+    drive.remove('synced-there.txt');
+    write('synced-there.txt', 'changed here, longer');
+    final r = await pass();
+    expect(r.deletedThere, 0);
+    expect(r.removedHere, 0);
+    expect(local('only-there.txt').readAsStringSync(), 'drive only');
+    expect(drive.newest('only-here.txt'), 'local only');
+    expect(local('synced-here.txt').readAsStringSync(), 'changed there');
+    expect(drive.newest('synced-there.txt'), 'changed here, longer');
+    expect(Directory('$root/.ghost-deleted').existsSync(), isFalse);
+  });
+
+  test('a local file changed without its size or time showing it is sent up, not set aside, when the drive removed it', () async {
+    write('a.txt', 'aaaa');
+    await pass();
+    final when = local('a.txt').lastModifiedSync();
+    write('a.txt', 'bbbb');
+    local('a.txt').setLastModifiedSync(when);
+    drive.remove('a.txt');
+    final r = await pass();
+    expect(r.removedHere, 0);
+    expect(local('a.txt').readAsStringSync(), 'bbbb');
+    expect(drive.newest('a.txt'), 'bbbb');
+  });
+
+  test('a changed file that isn\'t this device\'s to replace leaves both; one not this device\'s to remove comes back', () async {
+    write('a.txt', 'a1');
+    write('b.txt', 'b1');
+    await pass();
+    drive.refuse.addAll([for (final f in drive.files.values) f.$1.id]);
+    write('a.txt', 'a2 longer');
+    local('b.txt').deleteSync();
+    final r = await pass();
+    expect(drive.of('a.txt').length, 2);
+    expect(r.skipped.keys, contains('whose older copy in My files isn\'t yours to remove'));
+    expect(r.skipped.keys, contains('that aren\'t yours to remove from My files, so they come back'));
+    // Next pass: a.txt in step on the newer, the older never brought down over it; b.txt back.
+    final again = await pass();
+    expect(local('a.txt').readAsStringSync(), 'a2 longer');
+    expect(local('b.txt').readAsStringSync(), 'b1');
+    expect(again.down, 1);
+    expect((await pass()).moved, 0);
+  });
+
+  test('an older copy of a path left in the drive by a build from before never comes down once the newer is removed', () async {
+    write('a.txt', 'v1');
+    await pass();
+    // Another computer's older build sent its change beside the first, as builds before the replace did. The first is
+    // the sync's, so it is removed once the newer comes down.
+    drive.put('a.txt', 'v2 from an old build');
+    await pass();
+    expect(local('a.txt').readAsStringSync(), 'v2 from an old build');
+    expect(drive.of('a.txt').length, 1);
+    expect(drive.newest('a.txt'), 'v2 from an old build');
+
+    // In a space, where the older is someone else's this device may not remove, it stays beside the newer.
+    final first = drive.of('a.txt').single;
+    drive.refuse.add(first.id);
+    drive.put('a.txt', 'v3 from an old build');
+    await pass();
+    expect(local('a.txt').readAsStringSync(), 'v3 from an old build');
+    expect(drive.of('a.txt').length, 2);
+    // The newer removed in the drive: the folder follows, and v2 is not brought back from under it.
+    drive.files.remove(drive.of('a.txt').reduce((x, y) => x.at > y.at ? x : y).id);
+    final r = await pass();
+    expect(r.removedHere, 1);
+    expect(r.down, 0);
+    expect(local('a.txt').existsSync(), isFalse);
+    expect((await pass()).down, 0);
+    expect(local('a.txt').existsSync(), isFalse);
+    expect(drive.of('a.txt').single.id, first.id, reason: 'left in the drive, never brought down');
+  });
+
+  test('state from a build before the drive\'s time was kept learns it on the first pass, and then holds an older copy back', () async {
+    write('a.txt', 'v1');
+    await pass();
+    // v1 stays beside v2 (not this device's to remove).
+    drive.refuse.add(drive.of('a.txt').single.id);
+    drive.put('a.txt', 'v2');
+    await pass();
+    expect(drive.of('a.txt').length, 2);
+    // As a build from before kept it: no 'a'.
+    final f = File('${tmp.path}/app/state.json');
+    final j = jsonDecode(f.readAsStringSync()) as Map;
+    for (final e in (j['files'] as Map).values) {
+      (e as Map).remove('a');
+    }
+    f.writeAsStringSync(jsonEncode(j));
+    expect((await pass()).moved, 0);
+    expect(((jsonDecode(f.readAsStringSync()) as Map)['files'] as Map)['a.txt']['a'], isNotNull);
+    drive.files.remove(drive.of('a.txt').reduce((x, y) => x.at > y.at ? x : y).id);
+    final r = await pass();
+    expect(r.down, 0);
+    expect(local('a.txt').existsSync(), isFalse);
+  });
+
+  group('many gone at once', () {
+    test('more than 20 removed from the folder are held: nothing removed from the drive and nothing brought back', () async {
+      for (var i = 0; i < 25; i++) {
+        write('f$i.txt', '$i');
+      }
+      await pass();
+      for (var i = 0; i < 25; i++) {
+        local('f$i.txt').deleteSync();
+      }
+      final r = await pass();
+      expect(r.heldHere.length, 25);
+      expect(r.heldThere, isEmpty);
+      expect(r.deletedThere, 0);
+      expect(r.down, 0);
+      expect(drive.files.length, 25);
+      expect(localPaths(), isEmpty);
+      expect(r.line, 'Waiting for you: 25 files are gone.');
+      // Held again next pass, until the person says.
+      expect((await pass()).heldHere.length, 25);
+      // Yes: removed, however many.
+      final yes = await engine(allow: {...r.heldHere}).run();
+      expect(yes.deletedThere, 25);
+      expect(drive.files, isEmpty);
+    });
+
+    test('more than half of those in step removed from the drive are held; a few are not', () async {
+      for (var i = 0; i < 8; i++) {
+        write('f$i.txt', '$i');
+      }
+      await pass();
+      drive.remove('f0.txt');
+      drive.remove('f1.txt');
+      expect((await pass()).removedHere, 2, reason: 'two of eight go as they are');
+      for (var i = 2; i < 7; i++) {
+        drive.remove('f$i.txt');
+      }
+      final r = await pass();
+      expect(r.heldThere.length, 5, reason: 'five of the six left');
+      expect(r.removedHere, 0);
+      expect(r.up, 0, reason: 'not sent up again while held');
+      expect(localPaths(), ['.ghost-deleted/f0.txt', '.ghost-deleted/f1.txt', 'f2.txt', 'f3.txt', 'f4.txt', 'f5.txt', 'f6.txt', 'f7.txt']);
+      // No: kept, as never synced, so each goes up again.
+      final no = await engine(forget: {...r.heldThere}).run();
+      expect(no.up, 5);
+      expect(drive.paths, ['f2.txt', 'f3.txt', 'f4.txt', 'f5.txt', 'f6.txt', 'f7.txt']);
+    });
+
+    test('the choice asks, and Remove them and Keep them are each for that pass', () async {
+      final s = FolderSync(data: () => Directory('${tmp.path}/app/folder-sync'), drive: () async => drive, home: () => '${tmp.path}/home', own: () => ['${tmp.path}/app'], quiet: Duration.zero);
+      for (var i = 0; i < 6; i++) {
+        write('f$i.txt', '$i');
+      }
+      expect(s.choose(root), isNull);
+      while (s.running) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      for (var i = 0; i < 4; i++) {
+        local('f$i.txt').deleteSync();
+      }
+      await s.pass();
+      expect(s.heldHere.length, 4);
+      expect(s.line, 'Waiting for you: 4 files are gone.');
+      await s.keepHeld();
+      expect(s.heldHere, isEmpty);
+      expect(localPaths().length, 6, reason: 'brought back');
+      for (var i = 0; i < 4; i++) {
+        local('f$i.txt').deleteSync();
+      }
+      await s.pass();
+      expect(s.heldHere.length, 4);
+      await s.removeHeld();
+      expect(s.heldHere, isEmpty);
+      expect(drive.paths, ['f4.txt', 'f5.txt']);
+      expect(s.line, 'In step.');
+    });
   });
 
   test('hidden files and folders and links are left out, and a link is never followed or written through', () async {

@@ -12,10 +12,12 @@
  *   node tool/build-web.mjs --out <folder>    somewhere else
  *   node tool/build-web.mjs --base /app/      where it will be served from (/app/, as the relay serves it)
  *   node tool/build-web.mjs --hub <wss://…>   the hub it speaks to (none: the one beside the page, /hub where it is /app/)
- *   node tool/build-web.mjs --calls           with calls (GMFB-30, GMFB-51): the page's own WebRTC joins spaces' calls and
- *                                             friends' and groups' calls (lib/sms.dart browserCalls); without it, none
- *   node tool/build-web.mjs --files           with Files spaces (GMFB-30): a circle's files listed, uploaded, downloaded
- *                                             and shown in the page (lib/sms.dart browserFiles); without it, none
+ *   node tool/build-web.mjs --no-calls        without calls. Every build has them otherwise (GMFB-30, GMFB-51; since
+ *                                             2026-11-25, when --calls was needed for them): the page's own WebRTC joins
+ *                                             spaces' calls and friends' and groups' calls (lib/sms.dart browserCalls)
+ *   node tool/build-web.mjs --no-files        without Files spaces. Every build has them otherwise (GMFB-30): a circle's
+ *                                             files listed, uploaded, downloaded and shown in the page (lib/sms.dart
+ *                                             browserFiles). --calls and --files are still taken, and change nothing
  *
  *   dart run relay/bin/relay.dart --web build/web      then: http://127.0.0.1:8787/app/
  *   node tool/web/e2e.mjs                               two people using it, in Chromium and WebKit
@@ -32,8 +34,8 @@
  *        --pwa-strategy=none      no service worker (web/flutter_bootstrap.js sets none up)
  *        --base-href              where the page is served from
  *        --dart-define=GHOST_WEB_HUB   the hub, where one is named (lib/web/app.dart: hubFor)
- *        --dart-define=GHOST_WEB_CALLS=true   with --calls (lib/web/app.dart: webCalls)
- *        --dart-define=GHOST_WEB_FILES=true   with --files (lib/web/app.dart: webFiles)
+ *        --dart-define=GHOST_WEB_CALLS=false  with --no-calls (lib/web/app.dart: webCalls, true where nothing says)
+ *        --dart-define=GHOST_WEB_FILES=false  with --no-files (lib/web/app.dart: webFiles, true where nothing says)
  *      and, where a hub is named, the page's policy lets it speak to that one too (connect-src), and send there the
  *      feedback, a report where the hub is Ghost Messaging's own, and a Files space's files (tool/lib/web_site.mjs
  *      connectFor).
@@ -79,8 +81,9 @@ const out = resolve(option('out', join(ROOT, 'build', forApp ? 'web-app' : 'web'
 const profile = args.includes('--profile');
 const base = option('base', forApp ? '/' : '/app/');
 const hub = option('hub', forApp ? APP_HUB : '');
-const withCalls = args.includes('--calls');
-const withFiles = args.includes('--files');
+// Calls and Files spaces are in every build unless left out (GMFB-30: the full web client).
+const withCalls = !args.includes('--no-calls');
+const withFiles = !args.includes('--no-files');
 if (!base.startsWith('/') || !base.endsWith('/')) fail(`--base starts and ends with a slash (${base}).`);
 if (hub && !goodHub(hub)) fail(`--hub is a wss:// address with a path (or ws:// to this computer, for a try here): ${hub}`);
 
@@ -106,7 +109,7 @@ if (existsSync(join(ROOT, 'extension', 'node_modules', '@noble', 'hashes'))) {
 const version = /^version:\s*(\S+?)\+(\d+)/m.exec(readFileSync(join(ROOT, 'pubspec.yaml'), 'utf8'));
 const built = spawnSync(
   'flutter',
-  ['build', 'web', '-t', 'lib/web/main.dart', profile ? '--profile' : '--release', '--no-web-resources-cdn', '--csp', '--pwa-strategy=none', '--no-wasm-dry-run', `--base-href=${base}`, ...(hub ? [`--dart-define=GHOST_WEB_HUB=${hub}`] : []), ...(withCalls ? ['--dart-define=GHOST_WEB_CALLS=true'] : []), ...(withFiles ? ['--dart-define=GHOST_WEB_FILES=true'] : []), '-o', out],
+  ['build', 'web', '-t', 'lib/web/main.dart', profile ? '--profile' : '--release', '--no-web-resources-cdn', '--csp', '--pwa-strategy=none', '--no-wasm-dry-run', `--base-href=${base}`, ...(hub ? [`--dart-define=GHOST_WEB_HUB=${hub}`] : []), `--dart-define=GHOST_WEB_CALLS=${withCalls}`, `--dart-define=GHOST_WEB_FILES=${withFiles}`, '-o', out],
   { cwd: ROOT, stdio: 'inherit' },
 );
 if (built.status !== 0) fail('flutter build web failed.');
@@ -214,7 +217,7 @@ const first = ['index.html', 'flutter_bootstrap.js', named, 'canvaskit/chromium/
 const emojiInUse = 'assets/assets/emoji/NotoColor.ttf';
 const sum = (names, key) => names.reduce((n, name) => n + (sizes.get(name)?.[key] ?? 0), 0);
 const all = [...sizes.keys()];
-console.log(`\nGhost Messaging for a browser${version ? ` ${version[1]} (${version[2]})` : ''}, ${profile ? 'profile' : 'release'}, to be served from ${base}${forApp ? ' of app.gogho.st' : ''}, speaking to ${hub || 'the hub beside it'}, ${withCalls ? 'with calls' : 'without calls (--calls for them)'}, ${withFiles ? 'with Files spaces' : 'without Files spaces (--files for them)'}: ${out}`);
+console.log(`\nGhost Messaging for a browser${version ? ` ${version[1]} (${version[2]})` : ''}, ${profile ? 'profile' : 'release'}, to be served from ${base}${forApp ? ' of app.gogho.st' : ''}, speaking to ${hub || 'the hub beside it'}, ${withCalls ? 'with calls' : 'without calls (--no-calls)'}, ${withFiles ? 'with Files spaces' : 'without Files spaces (--no-files)'}: ${out}`);
 console.log(`  the app's JavaScript   ${show(named)}`);
 console.log(`  Argon2id, as a worker  ${show('argon2id.js')}`);
 console.log('  a first visit fetches, before the first screen:');
@@ -227,5 +230,5 @@ console.log(`  the fonts for letters outside the app's own: ${fallback}`);
 if (forApp) {
   console.log(`\nShip it to app.gogho.st: node tool/deploy-site.mjs --app ${relative(process.cwd(), out) || '.'} --print first, to see what it does.`);
 } else {
-  console.log(`\nServe it: dart run relay/bin/relay.dart --web ${relative(process.cwd(), out) || '.'}    Try it: node tool/web/e2e.mjs${out === join(ROOT, 'build', 'web') ? '' : ` --web ${out}`}`);
+  console.log(`\nServe it: dart run relay/bin/relay.dart --web ${relative(process.cwd(), out) || '.'}    Try it: node tool/web/e2e.mjs${out === join(ROOT, 'build', 'web') ? '' : ` --web ${out}`}${withCalls ? '' : ' --no-calls'}${withFiles ? '' : ' --no-files'}`);
 }

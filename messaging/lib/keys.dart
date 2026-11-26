@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_state.dart';
+import 'desktop/mini_window.dart' show CallMini;
 import 'sms.dart' show Sms;
 import 'ui/markdown_field.dart';
 
@@ -22,6 +23,8 @@ enum KeyCommand {
   toggleMute('Mute or unmute', 'In a call', group: 'Calls'),
   toggleDeafen('Deafen or undeafen', 'In a call', group: 'Calls'),
   leaveCall('Leave the call', 'In a call', group: 'Calls'),
+  // GMFB-41 ("An always-on-top call overlay for games on desktop"): lib/desktop/mini_window.dart.
+  miniWindow('Mini window', 'The call in a small window above every other, and back', group: 'Calls'),
   newChat('Start something new', 'A chat, a group, a space or a circle', group: 'Go to'),
   search('Search', 'The conversations\' search', group: 'Go to'),
   messages('Messages', 'The list of conversations', group: 'Go to'),
@@ -179,6 +182,8 @@ class Keys extends ChangeNotifier {
     KeyCommand.toggleMute: KeyBinding(LogicalKeyboardKey.keyM, primary: true, shift: true),
     KeyCommand.toggleDeafen: KeyBinding(LogicalKeyboardKey.keyD, primary: true, shift: true),
     KeyCommand.leaveCall: KeyBinding(LogicalKeyboardKey.keyE, primary: true, shift: true),
+    // O for overlay, with Shift as the calls' others are.
+    KeyCommand.miniWindow: KeyBinding(LogicalKeyboardKey.keyO, primary: true, shift: true),
     KeyCommand.newChat: KeyBinding(LogicalKeyboardKey.keyN, primary: true),
     // Cmd+K jumps to a conversation, as most messengers have it; Search moved to Cmd+F for it (GMFB-41).
     KeyCommand.search: KeyBinding(LogicalKeyboardKey.keyF, primary: true),
@@ -292,7 +297,7 @@ class Keys extends ChangeNotifier {
   /// now: Sms.callsHere), nor the Marketplace where there is none (a browser, which has nowhere to keep a plugin). One
   /// that isn't is on no key ([commandFor]), and in neither Settings' list of shortcuts nor the quick switcher
   /// (lib/ui/settings_shortcuts.dart, lib/ui/shell.dart). Everywhere else, every one is.
-  static bool offered(KeyCommand c) => c.group == 'Calls' ? Sms.callsHere : c == KeyCommand.marketplace ? !Sms.browser : true;
+  static bool offered(KeyCommand c) => c == KeyCommand.miniWindow ? CallMini.here : c.group == 'Calls' ? Sms.callsHere : c == KeyCommand.marketplace ? !Sms.browser : true;
 
   /// The command [e] is, given whether the cursor is in a text field ([typing]): one on a key alone is not taken
   /// from someone typing, and one of something this device hasn't got ([offered]) is no command here.

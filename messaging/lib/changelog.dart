@@ -25,6 +25,14 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.38', '2026-11-25', [
+    'Threads open beside the chat on a wide window, and a single message can be snoozed: it comes back with a notification and a pin at the top of the chat.',
+    'Make your own look: pick a font, save the look to a .ghostlook file and open one from a file, with its custom CSS if you like.',
+    'Mini window on a Mac and a PC: put the call in a small window that stays above everything else, for games (Cmd/Ctrl+Shift+O).',
+    'The add-me link opens a friend request on Linux and iPhone, and a link that starts the app is no longer lost on any platform.',
+    'Sync a folder now follows deletions both ways (a removed file is set aside in .ghost-deleted, never erased) and a changed file replaces the old one.',
+    'The web client at gogho.st/app has calls and Files spaces, and updates with each release.',
+  ]),
   ReleaseNotes('0.12.37', '2026-11-25', [
     'Your profile picture, banner, name, status and links now reach your other devices when you change them, and a device that was closed catches up when it opens. Both devices need this version; set a picture you already changed once more.',
   ]),

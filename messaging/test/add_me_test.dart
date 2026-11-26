@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/circles/pending_link.dart';
 import 'package:ghost_messaging/desktop/links.dart';
 import 'package:ghost_messaging/friends/add_link.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
@@ -13,6 +15,10 @@ import 'package:ghost_messaging/ui/add_me.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/profile.dart';
 
+import 'package:ghost_messaging/app_state.dart';
+import 'package:ghost_messaging/ui/shell.dart' show AppShell;
+
+import 'support/list_harness.dart';
 import 'support/space_call_harness.dart';
 
 /// The add-me link (GMFB-34: "A gogho.st/add/<username> link and QR code that opens a friend request").
@@ -119,6 +125,37 @@ void main() {
     expect(DeskLinks.isAddLink('ghostmsg://add/'), isFalse);
   });
 
+  test('an add-me link that started the app (Linux, an iPhone, a Mac or a PC not running) is taken on "ghost_desktop/links" and held until the frame is up, once (GMFB-34)', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const link = 'ghostmsg://add/maya#0123456789abcdef0123456789abcdef';
+    final asked = <String>[];
+    // What linux/runner/links.cc, ios/Runner/SceneDelegate.swift, the Mac's AppDelegate and windows/runner/links.cpp
+    // answer: "take", with the links that came before the app asked, the fragment (the account's name) kept whole.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_desktop/links'), (call) async {
+      asked.add(call.method);
+      return call.method == 'take' ? <String>[link] : null;
+    });
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_desktop/links'), null));
+    await DeskLinks.start();
+    expect(asked, ['take']);
+    expect(DeskLinks.takeHeldAdd(), link, reason: 'no frame yet: held for it');
+    expect(DeskLinks.takeHeldAdd(), isNull, reason: 'asked about once');
+  });
+
+  test('a pairing link opened into the app (an iPhone\'s camera) is let go, not held as a circle\'s or an add-me link', () async {
+    final wrote = <String>[];
+    final read = PendingCircleLink.readPrefs, write = PendingCircleLink.writePref;
+    PendingCircleLink.readPrefs = () async => {};
+    PendingCircleLink.writePref = (k, v) async => wrote.add('$k=$v');
+    addTearDown(() {
+      PendingCircleLink.readPrefs = read;
+      PendingCircleLink.writePref = write;
+    });
+    await DeskLinks.opened('ghostmsg://pair/eyJ2IjoxfQ');
+    expect(wrote, isEmpty);
+    expect(DeskLinks.takeHeldAdd(), isNull);
+  });
+
   test('the link and the names it can carry', () {
     expect(addMeLink('maya'), 'https://gogho.st/add/maya');
     expect(addLinkUsername('https://gogho.st/add/maya'), 'maya');
@@ -174,6 +211,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(friends.asked, ['maya']);
       expect(Buddies.instance.all.single.username, 'maya');
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('an add-me link held from before the frame was up is asked about once the frame is on the screen (GMFB-34)', (tester) async {
+      ListPhone(const []).install();
+      await tester.runAsync(() => Me.instance.start(MemoryMeStore()..set('me_username', 'matt'), ValueNotifier(0), () => null));
+      addTearDown(() => tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null)));
+      await DeskLinks.opened('ghostmsg://add/maya');
+      final sheet = await loadSheet(tester);
+      await pumpScreen(tester, sheet, const AppShell(), AppState());
+      await settle(tester);
+      expect(find.text('Send @maya a friend request?'), findsOneWidget);
+      expect(friends.asked, isEmpty, reason: 'nothing sent before the yes');
+      expect(DeskLinks.takeHeldAdd(), isNull, reason: 'taken by the frame');
       await tester.pump(const Duration(seconds: 3));
     });
 

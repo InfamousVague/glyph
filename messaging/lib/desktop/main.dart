@@ -23,6 +23,7 @@ import '../net/net.dart';
 import '../net/p2p/node_factory.dart';
 import '../sms.dart';
 import '../ui/app_lock_ui.dart' show AppLockGate;
+import '../ui/call_mini.dart' show CallMiniFrame;
 import '../ui/call_moved_note.dart';
 import '../ui/files_space/share_in.dart';
 import '../ui/performance_row.dart';
@@ -399,10 +400,13 @@ class _DesktopAppState extends State<DesktopApp> {
                   dragStrip: true,
                   child: GlacierToastProvider(
                     // Under the title bar (the app's own strip on a Mac, the system's elsewhere), the Performance
-                    // plugin's row while it is on (lib/ui/performance_row.dart).
-                    child: MacChrome.stripEnabled
-                        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: PerformanceUnder(navigator: _navigator, child: _recorded(child!)))])
-                        : PerformanceUnder(navigator: _navigator, child: _recorded(child!)),
+                    // plugin's row while it is on (lib/ui/performance_row.dart). All of it gives way to the call's mini
+                    // window while the window is that (GMFB-41, lib/ui/call_mini.dart), and is kept under it.
+                    child: CallMiniFrame(
+                      child: MacChrome.stripEnabled
+                          ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [DeskTitleBar(navigator: _navigator), Expanded(child: PerformanceUnder(navigator: _navigator, child: _recorded(child!)))])
+                          : PerformanceUnder(navigator: _navigator, child: _recorded(child!)),
+                    ),
                   ),
                 ),
               )),

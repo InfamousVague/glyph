@@ -93,13 +93,13 @@ void _taken() {
 /// the build for app.gogho.st names gogho.st's; a relay's own build names none.
 const builtHub = String.fromEnvironment('GHOST_WEB_HUB');
 
-/// Whether this build has Files spaces (`node tool/build-web.mjs --files`, `--dart-define=GHOST_WEB_FILES=true`): off
-/// unless asked for (Sms.browserFiles; docs/OPEN_NETWORK.md, part 6).
-const webFiles = bool.fromEnvironment('GHOST_WEB_FILES');
+/// Whether this build has Files spaces (Sms.browserFiles; docs/OPEN_NETWORK.md, part 6): on unless left out
+/// (`node tool/build-web.mjs --no-files`, `--dart-define=GHOST_WEB_FILES=false`; GMFB-30, since 2026-11-25).
+const webFiles = bool.fromEnvironment('GHOST_WEB_FILES', defaultValue: true);
 
-/// Whether this build joins calls (`node tool/build-web.mjs --calls`, `--dart-define=GHOST_WEB_CALLS=true`): off
-/// unless asked for (Sms.browserCalls).
-const webCalls = bool.fromEnvironment('GHOST_WEB_CALLS');
+/// Whether this build joins calls (Sms.browserCalls): on unless left out (`node tool/build-web.mjs --no-calls`,
+/// `--dart-define=GHOST_WEB_CALLS=false`; GMFB-30, since 2026-11-25).
+const webCalls = bool.fromEnvironment('GHOST_WEB_CALLS', defaultValue: true);
 
 /// Where the hub is for a page at [address]: the one the build names ([built], [builtHub]: app.gogho.st's is on
 /// gogho.st, an address of its own, so no page of the site's can read what the app keeps); or, for a build that names
@@ -180,9 +180,9 @@ Future<void> _start(Browser b) async {
   Sms.standalone = true;
   Sms.browser = true;
   Sms.browserName = b.name;
-  // Calls, where this build has them (tool/build-web.mjs --calls): the page's own WebRTC, the app's own call code.
+  // Calls, unless this build left them out (tool/build-web.mjs --no-calls): the page's own WebRTC, the app's own call code.
   Sms.browserCalls = webCalls;
-  // Files spaces, where this build has them (tool/build-web.mjs --files): the app's own files store, keeping nothing
+  // Files spaces, unless this build left them out (tool/build-web.mjs --no-files): the app's own files store, keeping nothing
   // in the browser (FilesStore.browser).
   Sms.browserFiles = webFiles;
   Net.homeHub = hubFor(b.address);

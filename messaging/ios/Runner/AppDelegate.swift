@@ -34,6 +34,8 @@ import UIKit
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "GhostMessaging") else { return }
     let messenger = registrar.messenger()
     desk = DeskChannels(messenger: messenger)
+    // Links opened into the app, handed over by the scene (SceneDelegate.swift, lib/desktop/links.dart).
+    DeskLinks.shared.attach(messenger: messenger)
     // The microphone's processing in calls (VoiceFx.swift).
     VoiceFx.shared.register(messenger: messenger)
     // A circle's music played here without loss (MusicSink.swift).

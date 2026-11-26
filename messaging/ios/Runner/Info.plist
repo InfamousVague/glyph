@@ -2,6 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- The app's own links (GMFB-34): someone's add-me link opened from its page (site/add: ghostmsg://add/NAME#KEY),
+	     a circle's invite (site/join: ghostmsg://join/#c.…), a relay's; handed to the app by SceneDelegate.swift. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Ghost Messaging invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ghostmsg</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Those links are the app's to read (lib/desktop/links.dart), not routes for Flutter's navigator to push. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Ghost Messaging writes out a recorded call's words on this device. Nothing is sent anywhere.</string>
 	<key>NSFaceIDUsageDescription</key>

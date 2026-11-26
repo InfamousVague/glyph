@@ -22,6 +22,8 @@ import '../voice/voice.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'call_float.dart';
+import 'call_mini.dart' show MiniWords, toggleCallMini;
+import '../desktop/mini_window.dart' show CallMini;
 import 'connecting_banner.dart';
 import 'skeleton.dart';
 import '../voice/rtc.dart';
@@ -416,6 +418,9 @@ class CallDock extends StatelessWidget {
               if (session.canShareScreen) button(LucideMore.screenShare, screenShareLabel(session), () => unawaited(toggleScreenShare(context, session)), on: session.screen),
               // Away from the call with its picture floating over the app (GMFB-64), where there is a picture to float.
               if (CallPictures.anyIn(session)) button(LucideMore.pictureInPicture, FloatWords.popOut, () => popOutCall(context)),
+              // The call in a small window above every other, for playing a game in a call (GMFB-41,
+              // lib/ui/call_mini.dart): a Mac's and a PC's app.
+              if (CallMini.here) button(LucideMore.minimize, MiniWords.enter, () => unawaited(toggleCallMini(context))),
               button(LucideMore.phoneOff, 'Leave', () => Voice.instance.leave(), danger: true),
             ]),
           ),

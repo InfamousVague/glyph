@@ -107,6 +107,8 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
         // A space's folder is everyone's in the space: said before a folder is chosen (GMFB-38).
         final shared = widget.sync.space != null;
         final quiet = pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'));
+        // Too many files gone at once: asked, not done (GMFB-38).
+        final here = widget.sync.heldHere.length, there = widget.sync.heldThere.length, held = here + there;
         return Padding(
           key: const ValueKey('folder-sync'),
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
@@ -120,7 +122,22 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
                 : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(root, key: const ValueKey('folder-sync-path'), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(widget.sync.line.isEmpty ? (widget.sync.running ? 'Looking for changes' : 'Waiting to sync') : widget.sync.line, key: const ValueKey('folder-sync-line'), style: quiet),
-                    Text('New and changed files go both ways. Removing a file here doesn\'t remove it from $name yet, so it comes back. A changed file goes up as a newer one, and the older stays in $name.', key: const ValueKey('folder-sync-rules'), style: quiet),
+                    if (held > 0) ...[
+                      SizedBox(height: t.space(1)),
+                      Text(
+                        [
+                          if (here > 0) '$here ${here == 1 ? 'file is' : 'files are'} gone from this folder. Remove ${here == 1 ? 'it' : 'them'} from $name too?',
+                          if (there > 0) '$there ${there == 1 ? 'file is' : 'files are'} gone from $name. Remove ${there == 1 ? 'it' : 'them'} from this folder too?',
+                        ].join(' '),
+                        key: const ValueKey('folder-sync-held'),
+                      ),
+                      SizedBox(height: t.space(1)),
+                      Wrap(spacing: t.space(2), runSpacing: t.space(1), children: [
+                        RowAction(key: const ValueKey('folder-sync-remove-held'), onPress: () => unawaited(widget.sync.removeHeld()), child: Text(held == 1 ? 'Remove it' : 'Remove them')),
+                        RowAction(key: const ValueKey('folder-sync-keep-held'), onPress: () => unawaited(widget.sync.keepHeld()), child: Text(held == 1 ? 'Keep it' : 'Keep them')),
+                      ]),
+                    ],
+                    Text('New, changed and removed files go both ways. A changed file replaces the older one in $name. A file removed from $name is moved into the hidden folder ${FolderSyncEngine.binName} here, never deleted, and many gone at once wait for you to say.', key: const ValueKey('folder-sync-rules'), style: quiet),
                   ]),
           ),
         );

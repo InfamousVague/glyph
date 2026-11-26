@@ -31,6 +31,7 @@ import 'looks.dart';
 import 'ui/text_scale.dart';
 import 'backgrounds.dart';
 import 'bubble.dart';
+import 'desktop/links.dart' show DeskLinks;
 import 'desktop/main.dart';
 import 'desktop/store.dart' show DeskStore;
 import 'standalone/overlay.dart';
@@ -51,6 +52,7 @@ import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
+import 'snooze.dart';
 import 'sounds.dart';
 import 'keys.dart';
 import 'gm/rcs_share.dart';
@@ -184,6 +186,10 @@ Future<void> main() async {
   // Android's picture in picture for a call with a picture (GMFB-64, lib/ui/call_pip.dart): what there is to show is
   // told to MainActivity as it changes.
   if (PlatformInfo.isAndroid) CallPip.instance.follow();
+  // An iPhone's links (ghostmsg:…: someone's add-me link, a circle's invite, a relay's; GMFB-34) come as a computer's
+  // do, from its scene (ios/Runner/SceneDelegate.swift) on "ghost_desktop/links": held until the frame is up where
+  // they come before it (lib/desktop/links.dart). Android's come with what the app was opened to show (OpenRequest).
+  if (PlatformInfo.isIOS) unawaited(DeskLinks.start());
   runApp(GhostMessagingApp(sheet: sheet, state: state, accents: accents));
 }
 
@@ -482,6 +488,24 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Someone joined a circle (above): the circle.
       final c = Circles.instance.bySeed(req.inbox!.substring('circle:'.length));
       if (c != null) shell.openCircle(c);
+    } else if (req.inbox != null && req.inbox!.startsWith('snooze:')) {
+      // A snooze's notification (lib/snooze.dart, GMFB-36): its conversation, or its space's chat, and a message's
+      // shown in it as it opens.
+      final key = req.inbox!.substring('snooze:'.length);
+      final chat = Snoozed.chatOf(key);
+      if (key != chat) Snoozed.instance.showOnOpen(chat, key.substring(chat.length + 1));
+      if (chat.startsWith('text:')) {
+        final thread = int.tryParse(chat.substring('text:'.length));
+        if (thread != null) {
+          unawaited(Sms.instance.people(thread).then((people) {
+            if (shell.mounted) shell.openThread(thread, people);
+          }));
+        }
+      } else if (chat.startsWith('space:')) {
+        final room = chat.substring('space:'.length);
+        final c = Voice.instance.channels.where((x) => x.room == room).firstOrNull;
+        if (c != null) shell.openSpace(c);
+      }
     } else if (req.inbox != null && req.inbox!.startsWith('space:')) {
       // A mention's notification (lib/voice/mention_alerts.dart): the space it was in, where it is listed.
       final seed = req.inbox!.substring('space:'.length);

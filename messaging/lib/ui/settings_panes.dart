@@ -419,7 +419,7 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.37';
+const appVersion = '0.12.38';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -436,7 +436,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
     // only a look with both a light and a dark half has.
     PaneSection(
       title: 'Look',
-      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours, and share it as a code.'),
+      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours and a font, and share it as a code or a file.'),
       children: [
         SettingRowBox(child: LookPicker(app: app)),
         // Your own looks (GMFB-41, from the Uplink gap review: "custom CSS-style themes"): made from four colours, or
@@ -455,6 +455,16 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           hint: const Text('One someone shared with you'),
           onPress: () => pasteTheme(context, app),
         ),
+        // A look kept as a file (GMFB-41, "Custom themes as a file you can import/share (colours and fonts)"):
+        // saved from the look's own menu or its editor, taken in here.
+        if (lookFilesHere)
+          SettingRow(
+            key: const ValueKey('import-look'),
+            icon: _icon(Lucide.folderOpen),
+            label: 'Open a look from a file',
+            hint: const Text('A .ghostlook someone sent you, or one you saved'),
+            onPress: () => importLook(context, app),
+          ),
         // CSS of one's own over the look (GMFB-41; Matt, 2026-11-25: "if I search css or styles i don't see anything
         // in settings"): the label and hint carry the words a search would be made with.
         SettingRow(

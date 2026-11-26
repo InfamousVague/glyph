@@ -1,8 +1,15 @@
 /// Settings › Appearance › Make your own look (GMFB-41, from the Uplink gap review: "Customization: custom CSS-style
 /// themes"): four colours, light or dark, and a name, seen as they are changed, then kept and used. Shared as a short
 /// code, and taken in from one pasted (lib/custom_theme.dart refuses anything that is not a look's colours and name).
+/// A look can draw in one of the app's own faces, and is kept as a .ghostlook file, with the custom CSS in use, and
+/// taken in from one (lib/look_file.dart).
 library;
 
+import 'dart:async';
+import 'dart:convert' show utf8;
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -10,7 +17,11 @@ import 'package:glacier/glacier.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../custom_css.dart';
 import '../custom_theme.dart';
+import '../export_chat.dart' show writeExport;
+import '../files/file_platform.dart';
+import '../look_file.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
@@ -32,7 +43,9 @@ class CustomThemePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final size = large ? t.fontSize('sm') : t.fontSize('xs');
-    final words = t.textAt(size, color: theme.ink);
+    // In its own face, where it has one: the face is the page's only once the look is in use.
+    final family = CustomTheme.fontFamilies[theme.font];
+    final words = family == null ? t.textAt(size, color: theme.ink) : t.textAt(size, color: theme.ink).copyWith(fontFamily: family);
     final strut = StrutStyle(fontSize: size, height: 1.25, forceStrutHeight: true);
     Widget line(String text, {required bool out}) => Align(
           alignment: out ? Alignment.centerRight : Alignment.centerLeft,
@@ -48,7 +61,7 @@ class CustomThemePreview extends StatelessWidget {
       color: theme.paper,
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (large) ...[
-          Text(theme.name.trim().isEmpty ? 'Your own look' : theme.name.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textAt(t.fontSize('md'), weight: 'semibold', color: theme.ink)),
+          Text(theme.name.trim().isEmpty ? 'Your own look' : theme.name.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textAt(t.fontSize('md'), weight: 'semibold', color: theme.ink).copyWith(fontFamily: family)),
           SizedBox(height: t.space(3)),
           line('Are we still on for Friday?', out: false),
           SizedBox(height: t.space(2)),
@@ -76,16 +89,108 @@ Future<void> pasteTheme(BuildContext context, AppState app) async {
   if (!context.mounted) return;
   final theme = CustomTheme.decode(text);
   if (theme == null) {
-    toast(context, text.trim().isEmpty ? 'Copy a look\'s code first, then paste it here' : 'That isn\'t a look\'s code. A code starts GT1.', tone: GlacierToastTone.danger);
+    toast(context, text.trim().isEmpty ? 'Copy a look\'s code first, then paste it here' : 'That isn\'t a look\'s code. A code starts GT1 or GT2.', tone: GlacierToastTone.danger);
     return;
   }
   await push<void>(context, (_) => CustomThemeEditor(app: app, start: theme, pasted: true));
+}
+
+// --- a look as a file (lib/look_file.dart) -----------------------------------------------------------------------
+
+/// Whether looks can be saved to files and taken in from them here: a computer's app and the Android phone's, which
+/// save and choose files (lib/files/file_platform.dart). Not a browser's tab, which keeps no file of its own to hand
+/// to Save, nor an iPhone's, which has no Save yet.
+bool get lookFilesHere => !kIsWeb && FilePlatform.canSave && FilePlatform.canPick;
+
+/// Saves [theme] to a .ghostlook where the person says, with the custom CSS in use if there is any ([CustomCss.used]).
+Future<void> exportLook(BuildContext context, AppState app, CustomTheme theme) async {
+  if (!lookFilesHere) {
+    toast(context, 'This device can\'t save files yet');
+    return;
+  }
+  final css = CustomCss.used(app);
+  final name = LookFile.fileName(theme);
+  try {
+    final path = await writeExport(LookFile.write(theme, css: css), name);
+    final done = await FilePlatform.save(path, name, 'application/json');
+    if (context.mounted && done != null) toast(context, '$done: ${theme.name}${css.trim().isEmpty ? '' : ', with your custom CSS'}');
+  } catch (e) {
+    if (context.mounted) toast(context, 'Couldn\'t save the look: $e', tone: GlacierToastTone.danger);
+  }
+}
+
+/// The text of the file at [path], where it is no larger than a look's file can be; null where it is larger.
+Future<String?> readLookText(String path) async {
+  final bytes = <int>[];
+  await for (final piece in File(path).openRead(0, LookFile.mostBytes + 1)) {
+    bytes.addAll(piece);
+  }
+  if (bytes.length > LookFile.mostBytes) return null;
+  return utf8.decode(bytes, allowMalformed: true);
+}
+
+/// Takes in a look from a .ghostlook chosen with the device's picker: shown in the editor first, to keep or leave, as
+/// a pasted code's is. Where it came with CSS, asked first whether that is taken too (it takes the place of the
+/// person's own). Said plainly where the file is not a look.
+Future<void> importLook(BuildContext context, AppState app) async {
+  if (!lookFilesHere) {
+    toast(context, 'This device can\'t open files yet');
+    return;
+  }
+  String? text;
+  try {
+    final picked = await FilePlatform.pick();
+    if (picked.isEmpty) return;
+    try {
+      text = await readLookText(picked.first.path);
+    } finally {
+      // A phone's picked copy is the app's own, and goes once read.
+      for (final p in picked) {
+        if (p.owned) {
+          try {
+            await File(p.path).delete();
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (e) {
+    if (context.mounted) toast(context, 'Couldn\'t open the file: $e', tone: GlacierToastTone.danger);
+    return;
+  }
+  if (!context.mounted) return;
+  if (text == null) {
+    toast(context, 'That file is too large to be a look', tone: GlacierToastTone.danger);
+    return;
+  }
+  await takeLookFile(context, app, text);
+}
+
+/// Takes in the look in a file's [text]: what [importLook] does once the file is read.
+Future<void> takeLookFile(BuildContext context, AppState app, String text) async {
+  final read = LookFile.read(text);
+  final look = read.file;
+  if (look == null) {
+    toast(context, read.problem ?? 'That file isn\'t a look', tone: GlacierToastTone.danger);
+    return;
+  }
+  for (final p in look.passedOver) {
+    toast(context, p);
+  }
+  Future<void> open(String? css) => push<void>(context, (_) => CustomThemeEditor(app: app, start: look.theme, pasted: true, css: css));
+  final css = look.css;
+  if (css == null) return open(null);
+  final mine = CustomCss.text(app).trim().isNotEmpty;
+  await showChoices(context, title: '${look.theme.name} comes with custom CSS', choices: [
+    Choice('Use its CSS too', Lucide.braces, () => unawaited(open(css)), hint: mine ? 'It takes the place of your own custom CSS.' : 'Its styles go over the look, as in Custom CSS.'),
+    Choice('Only its colours and font', Lucide.palette, () => unawaited(open(null)), hint: mine ? 'Your own custom CSS stays as it is.' : null),
+  ]);
 }
 
 /// What a look of one's own offers when pressed while it is in use: change it, share it, remove it.
 void themeMenu(BuildContext context, AppState app, CustomTheme theme) => showChoices(context, title: theme.name, choices: [
       Choice('Edit', Lucide.pencil, () => push<void>(context, (_) => CustomThemeEditor(app: app, start: theme, replacing: theme))),
       Choice('Copy its code to share', Lucide.share2, () => shareTheme(context, theme)),
+      if (lookFilesHere) Choice('Save it to a file', Lucide.hardDriveDownload, () => unawaited(exportLook(context, app, theme))),
       Choice('Remove', Lucide.trash2, () {
         CustomTheme.remove(app, theme);
         toast(context, '${theme.name} removed');
@@ -104,13 +209,15 @@ enum _Part {
 }
 
 /// Making a look, or changing one ([replacing]); [start] is where it begins: the colours on the screen now for a new
-/// one, a code's for one [pasted].
+/// one, a code's or a file's for one [pasted]. [css]: the custom CSS a file brought, taken with the look when it is
+/// kept.
 class CustomThemeEditor extends StatefulWidget {
-  const CustomThemeEditor({super.key, required this.app, this.start, this.replacing, this.pasted = false});
+  const CustomThemeEditor({super.key, required this.app, this.start, this.replacing, this.pasted = false, this.css});
   final AppState app;
   final CustomTheme? start;
   final CustomTheme? replacing;
   final bool pasted;
+  final String? css;
 
   @override
   State<CustomThemeEditor> createState() => _CustomThemeEditorState();
@@ -165,7 +272,9 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
     final theme = _theme!.copyWith(name: _name.text.trim());
     if (theme.problem != null) return;
     CustomTheme.save(widget.app, theme, replacing: widget.replacing);
-    toast(context, '${theme.name} is your look now');
+    final css = widget.css;
+    if (css != null) CustomCss.save(widget.app, css, on: true);
+    toast(context, css != null ? '${theme.name} and its CSS are your look now' : '${theme.name} is your look now');
     Navigator.of(context).maybePop();
   }
 
@@ -186,7 +295,9 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
           padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
           children: [
             PaneSection(
-              description: Text(widget.pasted ? 'This is how it looks. Keep it to use it; you can change it first.' : 'Choose four colours and see them here as you go.'),
+              description: Text(widget.pasted
+                  ? 'This is how it looks. Keep it to use it; you can change it first.${widget.css != null ? ' Its custom CSS is used with it once kept.' : ''}'
+                  : 'Choose four colours and a font, and see them here as you go.'),
               children: [
                 SettingRowBox(
                   child: ClipRRect(
@@ -225,6 +336,22 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
                     options: const [
                       GlacierSegmentedOption(value: 'light', label: Text('Light')),
                       GlacierSegmentedOption(value: 'dark', label: Text('Dark')),
+                    ],
+                  ),
+                ),
+                // A face of the app's own (GMFB-41, "colours and fonts"): every one is bundled, so nothing is downloaded.
+                SettingRow(
+                  key: const ValueKey('custom-theme-font'),
+                  icon: _icon(Lucide.type),
+                  label: 'Font',
+                  layout: SettingRowLayout.stacked,
+                  control: GlacierSegmentedControl(
+                    fullWidth: true,
+                    value: theme.font ?? 'app',
+                    onValueChange: (v) => setState(() => _theme = theme.copyWith(font: v == 'app' ? null : v)),
+                    options: [
+                      const GlacierSegmentedOption(value: 'app', label: Text('Standard')),
+                      for (final f in CustomTheme.fonts.entries) GlacierSegmentedOption(value: f.key, label: Text(f.value)),
                     ],
                   ),
                 ),
@@ -267,6 +394,14 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
                 onPress: _save,
               ),
               if (problem == null) SettingRow(icon: _icon(Lucide.share2), label: 'Copy its code to share', onPress: () => shareTheme(context, theme.copyWith(name: _name.text.trim()))),
+              if (problem == null && lookFilesHere)
+                SettingRow(
+                  key: const ValueKey('custom-theme-export'),
+                  icon: _icon(Lucide.hardDriveDownload),
+                  label: 'Save it to a file',
+                  hint: Text(CustomCss.used(widget.app).trim().isEmpty ? 'A .ghostlook anyone can open in Appearance' : 'A .ghostlook, with your custom CSS'),
+                  onPress: () => unawaited(exportLook(context, widget.app, theme.copyWith(name: _name.text.trim()))),
+                ),
               if (editing)
                 SettingRow(
                   icon: _icon(Lucide.trash2),

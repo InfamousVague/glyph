@@ -477,10 +477,11 @@ void main() {
       expect(circleSpacePage(lounge), isA<HangoutScreen>());
     });
 
-    // GMFB-30, GMFB-51: a build with calls (tool/build-web.mjs --calls) joins them through the page's own WebRTC.
+    // GMFB-30, GMFB-51: a build with calls (every one but tool/build-web.mjs --no-calls) joins them through the page's own WebRTC.
     test('with calls in its build, a browser offers them: the spaces\' calls, their keys, Voice and video, and says what a call leaves out', () async {
       asAPage();
-      expect(webCalls, isFalse, reason: 'off unless the build turns them on');
+      expect(webCalls, isTrue, reason: 'on unless the build leaves them out (--no-calls)');
+      expect(webFiles, isTrue, reason: 'on unless the build leaves them out (--no-files)');
       Sms.browserCalls = true;
       expect(Sms.callsHere, isTrue);
       // Into a call as anywhere else: here no relay is connected, which is what stops it, not the browser.
@@ -534,6 +535,8 @@ void main() {
     // switcher, however it is asked for; everywhere else every command is as it was.
     test('the Marketplace and the calls\' commands are on no key, and in no list, in a browser', () {
       for (final c in KeyCommand.values) {
+        // The call's mini window is only a Mac's and a PC's app's (lib/desktop/mini_window.dart, test/call_mini_test.dart).
+        if (c == KeyCommand.miniWindow) continue;
         expect(Keys.offered(c), isTrue, reason: '${c.name} elsewhere');
       }
       final keys = Keys.forTest();

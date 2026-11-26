@@ -647,6 +647,8 @@ void main() {
       expect(find.text('👍'), findsWidgets);
       expect(find.text('🎈'), findsNothing, reason: 'the effects are behind Effects, not a row of their pictures');
       expect(find.text('Copy text'), findsOneWidget);
+      // One message snoozed from its menu (GMFB-36).
+      expect(find.text('Snooze…'), findsOneWidget);
       // Effects opens them in the menu's own place, each by its name, with the way back at the top.
       await tester.tap(find.text('Effects'));
       await _settle(tester);
