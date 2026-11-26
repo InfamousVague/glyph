@@ -10,9 +10,10 @@ import 'package:ghost_messaging/ui/chat_rail.dart';
 import 'support/list_harness.dart';
 
 // Matt, 2026-11-25: "in the right hand of the chat gutter add this same style of chat scrolling to show frequency of
-// messages and who differently sent messages etc", then "hovering over it should show profile pictures and a brief
-// summary of the messages if a local AI is enabled". lib/ui/chat_rail.dart. Run with --update-goldens, the pictures
-// are build/chat-rail/*.png.
+// messages and who differently sent messages etc". Then, the same day: "Lets remove the popover for the summarized
+// messages on the chat map for now and remove the tap and hold just allow scrolling normally it's a bit glitchy though
+// when getting to the top or bottom dont change the main size of the chatmap scroll it up and down as we go back
+// through history". lib/ui/chat_rail.dart. Run with --update-goldens, the pictures are build/chat-rail/*.png.
 
 const _minute = 60 * 1000;
 final _now = DateTime(2026, 11, 25, 15).millisecondsSinceEpoch;
@@ -124,19 +125,29 @@ void main() {
   });
 
   group('in a chat', () {
-    Future<ScrollController> open(WidgetTester tester, List<RailMark> marks, {Future<String?> Function(String)? summarize}) async {
+    /// A chat's list with its map, 700 by 600 with rows 48 tall unless [tall] says. [marks] can be given again, as
+    /// when older messages are loaded.
+    Future<ScrollController> openOn(WidgetTester tester, ValueNotifier<List<RailMark>> marks, {double Function(int i)? tall, ScrollPhysics? physics}) async {
       final sheet = await loadSheet(tester);
       final c = ScrollController();
       addTearDown(c.dispose);
       await pumpScreen(
         tester,
         sheet,
-        ChatRail(
-          controller: c,
-          marks: marks,
-          chat: 'test-${marks.length}-${summarize.hashCode}',
-          summarize: summarize,
-          child: ListView.builder(controller: c, reverse: true, itemCount: marks.length, itemBuilder: (context, i) => SizedBox(height: 48, child: Text(marks[i].text))),
+        ValueListenableBuilder<List<RailMark>>(
+          valueListenable: marks,
+          builder: (context, m, _) => ChatRail(
+            controller: c,
+            marks: m,
+            chat: 'test',
+            child: ListView.builder(
+              controller: c,
+              reverse: true,
+              physics: physics,
+              itemCount: m.length,
+              itemBuilder: (context, i) => SizedBox(key: ValueKey('row-${m.length - i}'), height: tall?.call(i) ?? 48, child: Text(m[i].text)),
+            ),
+          ),
         ),
         AppState(),
         size: const Size(700, 600),
@@ -147,69 +158,29 @@ void main() {
       return c;
     }
 
+    Future<ScrollController> open(WidgetTester tester, List<RailMark> marks, {double Function(int i)? tall}) => openOn(tester, ValueNotifier(marks), tall: tall);
+
+    final rail = find.byKey(const ValueKey('chat-rail'));
+    RailPainter painter(WidgetTester tester) => tester.widget<CustomPaint>(find.descendant(of: rail, matching: find.byType(CustomPaint))).painter! as RailPainter;
+
+    /// [n] messages a minute apart, newest first.
+    List<RailMark> long(int n) => [for (var i = 0; i < n; i++) RailMark(at: _now - i * _minute, who: i.isEven ? 'maya' : 'me', mine: i.isOdd, name: i.isEven ? 'Maya Chen' : 'You', text: 'line ${n - i}')];
+
     setUpAll(_fonts);
 
     testWidgets('a picture of a week of a group', (tester) async {
-      Future<String?> sum(String lines) async => switch (lines.split('\n').length) {
-            > 30 => 'Dinner on Friday at 7: Sam brings the projector, Maya orders for the table.',
-            > 15 => 'Who has the cable, and photos from last night going up.',
-            _ => 'Running late; the table is held until 9.',
-          };
-      await open(tester, _week(), summarize: sum);
-      final rail = find.byKey(const ValueKey('chat-rail'));
+      await open(tester, _week());
       expect(rail, findsOneWidget);
       if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/week.png'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await settle(tester);
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsOneWidget);
-      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/week-list.png'));
-    });
-
-    // Matt, 2026-11-25: "i'd like to be able to press and hold to drag through the chat map and have it magnify out where
-    // my thumb is like the mac dock does when hovering".
-    test('the lines swell under the finger, most right under it, and are as they were a little way off', () {
-      expect(ChatRail.magnifyAt(0), ChatRail.magnifyMost);
-      expect(ChatRail.magnifyAt(10), lessThan(ChatRail.magnifyMost));
-      expect(ChatRail.magnifyAt(10), greaterThan(ChatRail.magnifyAt(30)));
-      expect(ChatRail.magnifyAt(-30), ChatRail.magnifyAt(30));
-      expect(ChatRail.magnifyAt(120), closeTo(1, 0.01));
-    });
-
-    testWidgets('a finger held on the map and drawn along it takes the chat with it, swollen under it, and lets go', (tester) async {
-      final c = await open(tester, _chat());
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final box = tester.getRect(rail);
-      final touch = await tester.startGesture(box.bottomCenter - const Offset(0, 6));
-      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing, reason: 'a hold is not a press: no list');
-      for (var i = 1; i <= 10; i++) {
-        await touch.moveTo(Offset(box.center.dx, box.bottom - 6 - (box.height - 12) * i / 10));
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      await settle(tester);
-      expect(c.offset, greaterThan(c.position.maxScrollExtent - 60), reason: 'drawn to the top, the chat is at its oldest');
-      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/held.png'));
-      await touch.moveTo(box.center);
-      await tester.pump(const Duration(milliseconds: 16));
-      await settle(tester);
-      expect(c.offset, lessThan(c.position.maxScrollExtent - 60), reason: 'and back down with it');
-      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/held-middle.png'));
-      await touch.up();
-      await settle(tester);
-      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a short chat has no map', (tester) async {
       await open(tester, _chat(each: 2));
-      expect(find.byKey(const ValueKey('chat-rail')), findsNothing);
+      expect(rail, findsNothing);
     });
 
     testWidgets('the map is at the right, and a press on it goes there', (tester) async {
       final c = await open(tester, _chat());
-      final rail = find.byKey(const ValueKey('chat-rail'));
       expect(rail, findsOneWidget);
       expect(tester.getRect(rail).right, 700);
       expect(c.offset, 0);
@@ -222,173 +193,70 @@ void main() {
       await mouse.up();
       await settle(tester);
       expect(c.offset, greaterThan(c.position.maxScrollExtent - 60), reason: 'at the oldest');
-    });
-
-    testWidgets('the mouse over it lists the stretches, with a face each and how each began; a press on one goes to it', (tester) async {
-      final c = await open(tester, _chat());
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await tester.pump();
-      await tester.pump();
-      final list = find.byKey(const ValueKey('chat-rail-list'));
-      expect(list, findsOneWidget);
-      for (final day in [0, 1, 2]) {
-        expect(find.descendant(of: list, matching: find.text('You: day $day line 1')), findsOneWidget);
-      }
-      expect(find.descendant(of: list, matching: find.textContaining('20 messages')), findsNWidgets(3));
-      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/list.png'));
-      // The oldest stretch is the top row.
-      await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('chat-rail-stretch-59'))));
-      await tester.pump();
-      expect(list, findsOneWidget, reason: 'still open with the mouse in the list');
-      await mouse.down(tester.getCenter(find.byKey(const ValueKey('chat-rail-stretch-59'))));
-      await mouse.up();
-      await settle(tester);
-      expect(c.offset, greaterThan(c.position.maxScrollExtent * 0.6));
-      // And away from both, it closes.
-      await mouse.moveTo(const Offset(100, 300));
-      await tester.pump();
-      await tester.pump();
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
-    });
-
-    testWidgets('a press on a stretch goes to where it begins, exactly, however far and however tall the rows between', (tester) async {
-      // Rows of very different heights, so a guess by the scroll's share of its length lands somewhere else.
-      final marks = _chat();
-      final sheet = await loadSheet(tester);
-      final c = ScrollController();
-      addTearDown(c.dispose);
-      await pumpScreen(
-        tester,
-        sheet,
-        ChatRail(
-          controller: c,
-          marks: marks,
-          chat: 'tall-rows',
-          child: ListView.builder(controller: c, reverse: true, itemCount: marks.length, itemBuilder: (context, i) => SizedBox(key: ValueKey('row-$i'), height: i < 20 ? 30 : (i < 40 ? 140 : 60), child: Text(marks[i].text))),
-        ),
-        AppState(),
-        size: const Size(700, 600),
-        platform: 'desktop',
-      );
-      await tester.pump();
-      await tester.pump();
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await tester.pump();
-      await tester.pump();
-      // The middle stretch: messages 20 to 39, the oldest of them 39.
-      final middle = find.byKey(const ValueKey('chat-rail-stretch-39'));
-      await mouse.moveTo(tester.getCenter(middle));
-      await mouse.down(tester.getCenter(middle));
-      await mouse.up();
-      await settle(tester);
-      expect(find.byKey(const ValueKey('row-39')), findsOneWidget, reason: 'the stretch\'s first message is on the screen');
-      expect(tester.getRect(find.byKey(const ValueKey('row-39'))).top, closeTo(12, 1), reason: 'at the top, to read on from');
-      // And the oldest, at the very top of the chat.
-      final oldest = find.byKey(const ValueKey('chat-rail-stretch-59'));
-      await mouse.moveTo(tester.getCenter(oldest));
-      await mouse.down(tester.getCenter(oldest));
-      await mouse.up();
-      await settle(tester);
-      expect(c.offset, c.position.maxScrollExtent);
-      expect(tester.getRect(find.byKey(const ValueKey('row-59'))).top, closeTo(0, 1));
-      // A press on the map itself: the message under it, in the middle of the screen.
-      await mouse.moveTo(tester.getRect(rail).bottomCenter - const Offset(0, 2));
-      await mouse.down(tester.getRect(rail).bottomCenter - const Offset(0, 2));
-      await mouse.up();
+      // And a finger's press does the same: its foot is the newest.
+      await tester.tapAt(tester.getRect(rail).bottomCenter - const Offset(0, 2));
       await settle(tester);
       expect(c.offset, 0, reason: 'the newest');
     });
 
-    testWidgets('on a phone a press opens the list, a press on its first row goes there, and a press outside puts it away', (tester) async {
-      final c = await open(tester, _chat());
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      await tester.tap(rail);
+    testWidgets('a press goes to the message pressed, exactly, however tall the rows between', (tester) async {
+      // Rows of very different heights, so a guess by the scroll's share of its length lands somewhere else.
+      final marks = _chat();
+      await open(tester, marks, tall: (i) => i < 20 ? 30 : (i < 40 ? 140 : 60));
+      final box = tester.getRect(rail);
+      // The 40th message from the newest (39, counted from 0), by where its line is.
+      await tester.tapAt(Offset(box.center.dx, box.top + painter(tester).yOf(39)));
       await settle(tester);
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsOneWidget);
-      // Outside: away, and the chat does not take the press.
-      await tester.tapAt(const Offset(80, 300));
+      final row = find.byKey(ValueKey('row-${marks.length - 39}'));
+      expect(row, findsOneWidget);
+      expect(tester.getRect(row).center.dy, closeTo(300, 1), reason: 'in the middle of the screen');
+    });
+
+    // Matt, 2026-11-25: "Lets remove the popover for the summarized messages on the chat map for now and remove the tap
+    // and hold".
+    testWidgets('no list of stretches opens from it, under a mouse or a press, and nothing swells under a finger held on it', (tester) async {
+      final c = await open(tester, _chat());
+      final was = [for (var i = 0; i < 60; i += 7) painter(tester).yOf(i)];
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(rail));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
+      expect(find.textContaining('20 messages'), findsNothing);
+      await mouse.moveTo(const Offset(100, 300));
+      await tester.pump();
+      // Held at its foot, where the chat is already: nothing moves, nothing opens, the lines are where they were.
+      final size = tester.getSize(rail);
+      final touch = await tester.startGesture(tester.getRect(rail).bottomCenter - const Offset(0, 2));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       await settle(tester);
       expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
       expect(c.offset, 0);
-      // Again, and the first row: the oldest stretch.
-      await tester.tap(rail);
+      expect(tester.getSize(rail), size);
+      expect([for (var i = 0; i < 60; i += 7) painter(tester).yOf(i)], was);
+      await touch.up();
       await settle(tester);
-      await tester.tap(find.byKey(const ValueKey('chat-rail-stretch-59')));
-      await settle(tester);
-      expect(c.offset, c.position.maxScrollExtent, reason: 'at the oldest');
-      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing, reason: 'put away once somewhere is chosen');
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the list keeps the stretch on the screen in its middle as the chat is scrolled', (tester) async {
-      // Many stretches, more than the list shows at once.
-      final marks = [
-        for (var s = 0; s < 12; s++)
-          for (var i = 0; i < 6; i++) RailMark(at: _now - s * 5 * 60 * _minute - i * _minute, who: 'maya', mine: false, name: 'Maya', text: 'stretch $s line $i'),
-      ];
-      final c = await open(tester, marks);
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await settle(tester);
-      final list = tester.getRect(find.byKey(const ValueKey('chat-rail-list')));
-      c.jumpTo(c.position.maxScrollExtent);
-      await settle(tester);
-      final oldest = tester.getRect(find.byKey(const ValueKey('chat-rail-stretch-71')));
-      expect(oldest.top, greaterThanOrEqualTo(list.top), reason: 'the oldest stretch, now on the screen, is in the list\'s view');
-      expect(oldest.bottom, lessThanOrEqualTo(list.bottom));
-      c.jumpTo(0);
-      await settle(tester);
-      final newest = tester.getRect(find.byKey(const ValueKey('chat-rail-stretch-5')));
-      expect(newest.top, greaterThanOrEqualTo(list.top));
-      expect(newest.bottom, lessThanOrEqualTo(list.bottom));
-    });
-
-    // Matt, 2026-11-25: "using the chat map is still pretty laggy and i can't scroll up and down in the popup menu to
-    // scroll up and down either".
-    testWidgets('a wheel turned over the list of stretches, or over the map, scrolls the chat', (tester) async {
+    // Matt, 2026-11-25: "just allow scrolling normally".
+    testWidgets('a wheel turned over the map scrolls the chat', (tester) async {
       final c = await open(tester, _week());
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await settle(tester);
-      final list = find.byKey(const ValueKey('chat-rail-list'));
-      expect(list, findsOneWidget);
       expect(c.offset, 0);
       // Up the page, toward what is older: the chat is drawn bottom up, so its scroll grows.
-      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(list), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, -300)));
+      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(rail), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, -300)));
       await settle(tester);
       expect(c.offset, closeTo(300, 1));
-      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(rail), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, -200)));
-      await settle(tester);
-      expect(c.offset, closeTo(500, 1));
-      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(list), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, 500)));
+      await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(rail), kind: PointerDeviceKind.mouse, scrollDelta: const Offset(0, 500)));
       await settle(tester);
       expect(c.offset, closeTo(0, 1));
-      expect(list, findsOneWidget, reason: 'still open under the mouse');
     });
 
-    testWidgets('two fingers on a trackpad over the list scroll the chat too', (tester) async {
+    testWidgets('two fingers on a trackpad over the map scroll the chat too', (tester) async {
       final c = await open(tester, _week());
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
-      await settle(tester);
-      final at = tester.getCenter(find.byKey(const ValueKey('chat-rail-list')));
+      final at = tester.getCenter(rail);
       final pad = await tester.createGesture(kind: PointerDeviceKind.trackpad);
       await pad.panZoomStart(at);
       await pad.panZoomUpdate(at, pan: const Offset(0, 60));
@@ -398,77 +266,128 @@ void main() {
       expect(c.offset, greaterThan(150));
     });
 
-    testWidgets('scrolling the chat builds the list of stretches again only when another stretch comes onto the screen', (tester) async {
-      var faces = 0;
-      final marks = _week();
-      final sheet = await loadSheet(tester);
-      final c = ScrollController();
-      addTearDown(c.dispose);
-      await pumpScreen(
-        tester,
-        sheet,
-        ChatRail(
-          controller: c,
-          marks: marks,
-          chat: 'builds',
-          face: (who, name, mine, size) {
-            faces++;
-            return SizedBox.square(dimension: size);
-          },
-          child: ListView.builder(controller: c, reverse: true, itemCount: marks.length, itemBuilder: (context, i) => SizedBox(height: 48, child: Text(marks[i].text))),
-        ),
-        AppState(),
-        size: const Size(700, 600),
-        platform: 'desktop',
-      );
+    testWidgets('a finger drawn over the map scrolls the chat as it does over the chat, with its glide after, and a finger put down stops the glide', (tester) async {
+      final c = await open(tester, long(300));
+      // Down the screen: toward what is older.
+      await tester.drag(rail, const Offset(0, 200));
       await tester.pump();
-      await tester.pump();
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      expect(c.offset, inInclusiveRange(170, 200), reason: 'the chat goes with the finger');
       await settle(tester);
-      final before = faces;
-      expect(before, greaterThan(0));
-      // A little way, inside the newest stretch: nothing of the list is built again.
-      for (var i = 1; i <= 10; i++) {
-        c.jumpTo(i * 4.0);
-        await tester.pump();
-      }
-      expect(faces, before);
-      // To the oldest end: another stretch is the one on the screen, and the list says so.
-      c.jumpTo(c.position.maxScrollExtent);
+      final rested = c.offset;
+      await tester.fling(rail, const Offset(0, 200), 2500);
+      final let = c.offset;
+      expect(let, greaterThan(rested + 150));
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(c.offset, greaterThan(let + 50), reason: 'it glides on once let go');
+      final touch = await tester.startGesture(tester.getCenter(rail));
+      await tester.pump(const Duration(milliseconds: 16));
+      final stopped = c.offset;
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(c.offset, stopped, reason: 'held where the finger came down');
+      await touch.moveBy(const Offset(0, -80));
+      await touch.up();
       await settle(tester);
-      expect(faces, greaterThan(before));
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('with a model to ask, each stretch is its summary, asked for once', (tester) async {
-      final asked = <String>[];
-      Future<String?> sum(String lines) async {
-        asked.add(lines);
-        return 'Plans for day ${asked.length}';
+    // Matt, 2026-11-25: "it's a bit glitchy though when getting to the top or bottom dont change the main size of the
+    // chatmap scroll it up and down as we go back through history". The map fitted every message into its height: 60
+    // messages were 9 apart, 200 were 6 apart and several to a line, so a page of older ones drew it all again.
+    testWidgets('older messages loaded in at the top leave the map its size and every line where it was', (tester) async {
+      final marks = ValueNotifier(long(60));
+      final c = await openOn(tester, marks);
+      expect(painter(tester).ticks, hasLength(60), reason: 'a line a message');
+      expect(painter(tester).yOf(0) - painter(tester).yOf(1), ChatRail.pitch);
+      c.jumpTo(c.position.maxScrollExtent);
+      await settle(tester);
+      final box = tester.getRect(rail);
+      final was = [for (final i in [0, 30, 59]) painter(tester).yOf(i)];
+      expect(was.first, painter(tester).tall - ChatRail.pitch / 2, reason: 'the newest at the map\'s foot');
+      for (final n in [200, 500]) {
+        marks.value = long(n);
+        await settle(tester);
+        expect(tester.getRect(rail), box, reason: 'the map is where it was and as big, with $n');
+        expect(painter(tester).ticks, hasLength(n), reason: 'still a line a message');
+        expect(painter(tester).yOf(0) - painter(tester).yOf(1), ChatRail.pitch, reason: 'as far apart as they were');
+        expect([for (final i in [0, 30, 59]) painter(tester).yOf(i)], was, reason: 'no line moved');
       }
+    });
 
-      await open(tester, _chat(), summarize: sum);
-      final rail = find.byKey(const ValueKey('chat-rail'));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(rail));
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+    testWidgets('a chat longer than the map: the map is scrolled with the chat, smoothly, and rests at each end', (tester) async {
+      final marks = ValueNotifier(long(300));
+      final c = await openOn(tester, marks);
+      final size = tester.getSize(rail);
+      final tall = painter(tester).tall;
+      expect(tall, 540, reason: 'nine tenths of the chat\'s height, in whole lines');
+      expect(painter(tester).yOf(0), tall - ChatRail.pitch / 2, reason: 'the newest at its foot');
+      // What is on the screen is still in the map: the map stays.
+      c.jumpTo(48.0 * 20);
       await settle(tester);
-      expect(asked, hasLength(3));
-      expect(asked.first.split('\n').first, 'You: day 0 line 1', reason: 'the newest stretch first, oldest words first');
-      for (final n in [1, 2, 3]) {
-        expect(find.text('Plans for day $n'), findsOneWidget);
-      }
-      // Away and back: nothing asked again.
-      await mouse.moveTo(const Offset(100, 300));
+      expect(painter(tester).yOf(0), tall - ChatRail.pitch / 2);
+      // Further back than the map shows: it goes along, a line's space for each message scrolled by, parts of one too.
+      c.jumpTo(48.0 * 120);
       await settle(tester);
-      await mouse.moveTo(tester.getCenter(rail) + const Offset(0, 1));
+      // 12.5 rows on the screen: the oldest of them, 132.5 messages up, is at the map's top.
+      expect(painter(tester).yOf(131), closeTo(ChatRail.pitch, 0.01));
+      final was = painter(tester).yOf(100);
+      c.jumpTo(48.0 * 120 + 20);
+      await tester.pump();
+      expect(painter(tester).yOf(100), closeTo(was + ChatRail.pitch * 20 / 48, 0.01), reason: 'by exactly as much as the chat was scrolled');
+      // Back down a little: what is on the screen is in the map, which stays.
+      final held = painter(tester).yOf(100);
+      c.jumpTo(48.0 * 110);
       await settle(tester);
-      expect(asked, hasLength(3));
-      expect(find.text('Plans for day 1'), findsOneWidget);
+      expect(painter(tester).yOf(100), held);
+      // The oldest end: its line at the map's top, and no further.
+      c.jumpTo(c.position.maxScrollExtent);
+      await settle(tester);
+      expect(painter(tester).yOf(299), ChatRail.pitch / 2);
+      expect(tester.getSize(rail), size);
+      // Older ones loaded there: nothing moves, and scrolling on up takes the map up with it.
+      marks.value = long(450);
+      await settle(tester);
+      expect(painter(tester).yOf(299), ChatRail.pitch / 2);
+      expect(tester.getSize(rail), size);
+      c.jumpTo(c.offset + 48);
+      await settle(tester);
+      expect(painter(tester).yOf(299), ChatRail.pitch * 1.5);
+      // And the newest end again.
+      c.jumpTo(0);
+      await settle(tester);
+      expect(painter(tester).yOf(0), tall - ChatRail.pitch / 2);
+      expect(tester.getSize(rail), size);
+    });
+
+    testWidgets('pulled past an end, as a phone\'s list can be, the map does not move or change its size', (tester) async {
+      final c = await openOn(tester, ValueNotifier(long(300)), physics: const BouncingScrollPhysics());
+      final size = tester.getSize(rail);
+      c.jumpTo(c.position.maxScrollExtent);
+      await settle(tester);
+      final top = painter(tester).yOf(299);
+      // A finger pulling the oldest end down past where it stops.
+      final touch = await tester.startGesture(const Offset(200, 200));
+      await touch.moveBy(const Offset(0, 30));
+      await touch.moveBy(const Offset(0, 120));
+      await tester.pump();
+      expect(c.offset, greaterThan(c.position.maxScrollExtent + 20), reason: 'pulled past the end');
+      expect(painter(tester).yOf(299), top);
+      expect(tester.getSize(rail), size);
+      await touch.up();
+      await settle(tester);
+      // And the newest end.
+      c.jumpTo(0);
+      await settle(tester);
+      final foot = painter(tester).yOf(0);
+      final pull = await tester.startGesture(const Offset(200, 400));
+      await pull.moveBy(const Offset(0, -30));
+      await pull.moveBy(const Offset(0, -120));
+      await tester.pump();
+      expect(c.offset, lessThan(-20));
+      expect(painter(tester).yOf(0), foot);
+      expect(tester.getSize(rail), size);
+      await pull.up();
+      await settle(tester);
     });
   });
 }
