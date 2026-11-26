@@ -59,6 +59,7 @@ import 'nav_style.dart';
 import '../summaries.dart';
 import '../keep_running.dart';
 import '../net/net.dart' show Net;
+import '../l10n/words.dart';
 
 /// A row's icon at the size every settings row uses.
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -429,7 +430,7 @@ String sealedWords(String hubUrl) {
 }
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.43';
+const appVersion = '0.12.44';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -442,11 +443,28 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
   // A look of one's own in use (GMFB-41, lib/custom_theme.dart): it has one brightness, as some of the app's do.
   final own = CustomTheme.used(app);
   return [
+    // The app's language (GMFB-32, lib/l10n/words.dart): the device's own where the app has it, or one chosen.
+    PaneSection(
+      title: 'Language',
+      children: [
+        SettingRow(
+          key: const ValueKey('language'),
+          icon: _icon(LucideMore.languages),
+          label: 'Language',
+          hint: Text(languageHint(Words.instance.language)),
+          value: Text(languageWords(app.choice(Words.key, Words.automatic))),
+          onPress: () => showChoices(context, title: 'Language', choices: [
+            Choice('Automatic', Lucide.globe, () => app.set(Words.key, Words.automatic), hint: Words.languages[Words.meant(Words.automatic)]),
+            for (final e in Words.languages.entries) Choice(e.value, Lucide.check, () => app.set(Words.key, e.key)),
+          ]),
+        ),
+      ],
+    ),
     // Looks for the whole app (Matt, 2026-11-16: "spend some time making a few themes for ghost"), above Theme, which
     // only a look with both a light and a dark half has.
     PaneSection(
       title: 'Look',
-      footer: const Text('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours and a font, and share it as a code or a file.'),
+      footer: const Tr('How the whole app looks. Each look brings its own colour for your bubbles, which you can still change below. Make your own from four colours and a font, and share it as a code or a file.'),
       children: [
         SettingRowBox(child: LookPicker(app: app)),
         // Your own looks (GMFB-41, from the Uplink gap review: "custom CSS-style themes"): made from four colours, or
@@ -455,14 +473,14 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           key: const ValueKey('make-own-look'),
           icon: _icon(Lucide.palette),
           label: 'Make your own look',
-          hint: const Text('Choose the background, surface, text and accent colours'),
+          hint: const Tr('Choose the background, surface, text and accent colours'),
           onPress: () => push<void>(context, (_) => CustomThemeEditor(app: app)),
         ),
         SettingRow(
           key: const ValueKey('paste-look'),
           icon: _icon(Lucide.clipboardPaste),
           label: 'Paste a look\'s code',
-          hint: const Text('One someone shared with you'),
+          hint: const Tr('One someone shared with you'),
           onPress: () => pasteTheme(context, app),
         ),
         // A look kept as a file (GMFB-41, "Custom themes as a file you can import/share (colours and fonts)"):
@@ -472,7 +490,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
             key: const ValueKey('import-look'),
             icon: _icon(Lucide.folderOpen),
             label: 'Open a look from a file',
-            hint: const Text('A .ghostlook someone sent you, or one you saved'),
+            hint: const Tr('A .ghostlook someone sent you, or one you saved'),
             onPress: () => importLook(context, app),
           ),
         // CSS of one's own over the look (GMFB-41; Matt, 2026-11-25: "if I search css or styles i don't see anything
@@ -503,7 +521,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
             value: app.theme,
             onValueChange: app.setTheme,
             options: [
-              const GlacierSegmentedOption(value: 'system', label: Text('System')),
+              const GlacierSegmentedOption(value: 'system', label: Tr('System')),
               GlacierSegmentedOption(value: 'light', label: Text(look.lightName)),
               GlacierSegmentedOption(value: 'dark', label: Text(look.darkName)),
             ],
@@ -543,8 +561,8 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           value: app.font,
           onValueChange: app.setFont,
           options: const [
-            GlacierSegmentedOption(value: 'default', label: Text('Default')),
-            GlacierSegmentedOption(value: 'readable', label: Text('Readable')),
+            GlacierSegmentedOption(value: 'default', label: Tr('Default')),
+            GlacierSegmentedOption(value: 'readable', label: Tr('Readable')),
           ],
         ),
       ),
@@ -580,7 +598,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Emoji set',
-      footer: const Text('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
+      footer: const Tr('How emoji are drawn in this app. What the other person sees is drawn by their own phone.'),
       children: [
         for (final set in offeredEmojiSets)
           SettingRow(
@@ -606,7 +624,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(LucideMore.smile),
         label: 'Large emoji',
-        hint: const Text('A message of one to three emoji and nothing else is drawn large, with no bubble.'),
+        hint: const Tr('A message of one to three emoji and nothing else is drawn large, with no bubble.'),
         control: GlacierSwitch(checked: app.bigEmoji, onCheckedChange: (v) => app.setFlag('big_emoji', v), ariaLabel: 'Large emoji'),
       ),
     ]),
@@ -623,14 +641,14 @@ List<Widget> _effects(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(Lucide.sparkles),
         label: 'Message effects',
-        hint: const Text('Confetti for "Congratulations", balloons for "Happy birthday", and more, as a message arrives or is sent.'),
+        hint: const Tr('Confetti for "Congratulations", balloons for "Happy birthday", and more, as a message arrives or is sent.'),
         control: GlacierSwitch(checked: app.effects, onCheckedChange: app.setEffects, ariaLabel: 'Message effects'),
       ),
     ]),
     PaneSection(
       title: 'Every effect',
-      description: const Text('Each with what sets it off. Tap one to play it here.'),
-      footer: const Text('An effect plays once, as its message arrives or is sent while the conversation is open. A message\'s menu can play it again.'),
+      description: const Tr('Each with what sets it off. Tap one to play it here.'),
+      footer: const Tr('An effect plays once, as its message arrives or is sent while the conversation is open. A message\'s menu can play it again.'),
       children: [
         for (final effect in ScreenEffect.values)
           SettingRow(
@@ -659,7 +677,7 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(Lucide.audioLines),
         label: 'Sounds',
-        hint: const Text('A message in and out, friends, calls, muting, and the phone and computer connecting.'),
+        hint: const Tr('A message in and out, friends, calls, muting, and the phone and computer connecting.'),
         control: GlacierSwitch(checked: s.on, onCheckedChange: s.setOn, ariaLabel: 'Sounds'),
       ),
     ]),
@@ -678,7 +696,7 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'Ringing',
-      description: const Text('Played while a group calls you. Tap one to hear it.'),
+      description: const Tr('Played while a group calls you. Tap one to hear it.'),
       children: [
         for (final c in Sounds.ringChoices)
           SettingRow(
@@ -700,7 +718,7 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
             SizedBox(width: t.lenOf('3rem'), child: Text('${s.quiet}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
           ]),
         ),
-        SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Text('The sound of a reaction, at this loudness.'), onPress: () => s.play(UiSound.reaction)),
+        SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Tr('The sound of a reaction, at this loudness.'), onPress: () => s.play(UiSound.reaction)),
       ],
     ),
   ];
@@ -730,7 +748,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.link),
           label: 'Google Messages connection',
-          hint: const Text('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
+          hint: const Tr('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
           onPress: () => push(context, (_) => const GmWebScreen()),
         ),
         // The same on a Mac or a PC, kept running (lib/ui/gm_guide_screen.dart; Matt, 2026-11-15: "Tell me how to setup
@@ -738,7 +756,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.laptop),
           label: 'On a Mac or PC',
-          hint: const Text('How to run the Google Messages helper on your computer, and keep it running.'),
+          hint: const Tr('How to run the Google Messages helper on your computer, and keep it running.'),
           onPress: () => push(context, (_) => const GmGuideScreen()),
         ),
       ]),
@@ -746,14 +764,14 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(LucideMore.keyboard),
         label: 'Enter sends',
-        hint: const Text('The keyboard\'s Enter key sends the message. Off, it starts a new line.'),
+        hint: const Tr('The keyboard\'s Enter key sends the message. Off, it starts a new line.'),
         control: GlacierSwitch(checked: app.enterSends, onCheckedChange: (v) => app.setFlag('enter_sends', v), ariaLabel: 'Enter sends'),
       ),
       // Turned off by "Delete, and don't ask again" on the question a slide asks (lib/ui/inbox_ui.dart deleteAskOff).
       SettingRow(
         icon: _icon(Lucide.trash2),
         label: 'Ask before a slide deletes',
-        hint: const Text('A conversation slid all the way asks first. Off, it is deleted straight away.'),
+        hint: const Tr('A conversation slid all the way asks first. Off, it is deleted straight away.'),
         control: GlacierSwitch(checked: app.flag('delete_ask', fallback: true), onCheckedChange: (v) => app.setFlag('delete_ask', v), ariaLabel: 'Ask before a slide deletes'),
       ),
     ]),
@@ -779,7 +797,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'Reactions',
-      footer: const Text('Other phones send a reaction as a text, like Loved “See you at 7”. On, it is drawn as a ❤️ on the message it names. Off, every text is shown as it came.'),
+      footer: const Tr('Other phones send a reaction as a text, like Loved “See you at 7”. On, it is drawn as a ❤️ on the message it names. Off, every text is shown as it came.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.messageSquare),
@@ -799,27 +817,27 @@ List<Widget> _receipts(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Ask for',
-      footer: const Text('Delivered is your carrier saying the message reached the other phone. Read exists only for picture and group messages, and only from phones that answer; a plain text has no way to say it was read.'),
+      footer: const Tr('Delivered is your carrier saying the message reached the other phone. Read exists only for picture and group messages, and only from phones that answer; a plain text has no way to say it was read.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.check),
           label: 'Delivery reports',
-          hint: const Text('On every message you send.'),
+          hint: const Tr('On every message you send.'),
           control: GlacierSwitch(checked: app.flag('delivery_reports'), onCheckedChange: (v) => app.setFlag('delivery_reports', v), ariaLabel: 'Delivery reports'),
         ),
         SettingRow(
           icon: _icon(Lucide.checkCheck),
           label: 'Read receipts',
-          hint: const Text('On picture and group messages.'),
+          hint: const Tr('On picture and group messages.'),
           control: GlacierSwitch(checked: app.readReports, onCheckedChange: app.setReadReports, ariaLabel: 'Read receipts'),
         ),
       ],
     ),
     PaneSection(title: 'The ticks', children: [
-      SettingRow(icon: _icon(Lucide.clock), label: 'A clock', hint: const Text('Sending.')),
-      SettingRow(icon: _icon(Lucide.check), label: 'One tick', hint: const Text('Sent.')),
-      SettingRow(icon: _icon(Lucide.checkCheck), label: 'Two ticks', hint: const Text('Delivered. In colour: read.')),
-      SettingRow(icon: _icon(Lucide.lock), label: 'A lock', hint: const Text('It went encrypted (Settings › Encryption).')),
+      SettingRow(icon: _icon(Lucide.clock), label: 'A clock', hint: const Tr('Sending.')),
+      SettingRow(icon: _icon(Lucide.check), label: 'One tick', hint: const Tr('Sent.')),
+      SettingRow(icon: _icon(Lucide.checkCheck), label: 'Two ticks', hint: const Tr('Delivered. In colour: read.')),
+      SettingRow(icon: _icon(Lucide.lock), label: 'A lock', hint: const Tr('It went encrypted (Settings › Encryption).')),
     ]),
   ];
 }
@@ -846,6 +864,14 @@ String bubbleSettingHint(String? system, {required bool on}) {
     _ => 'Only the conversations you choose bubble: press a notification\'s bubble button. Tap to let every one bubble.',
   };
 }
+
+/// What the Language row says it is set to: Automatic, or the language chosen, named in itself.
+String languageWords(String choice) => choice == Words.automatic || !Words.languages.containsKey(choice) ? 'Automatic'.t : Words.languages[choice]!;
+
+/// Under the Language row: what changes, and what stays English.
+String languageHint(String language) => language == 'en'
+    ? 'The words of the app. Automatic follows your device\'s language where the app has it.'.t
+    : 'The words of the app. What it puts together as it goes, like a name or a count, stays in English for now.'.t;
 
 /// Settings › Notifications › While the app is closed (GMFB-28; lib/keep_running.dart): the switch that keeps the app
 /// connected after its screen is closed, so a friend's call rings, and beside it, once it is on, whether Android lets
@@ -891,7 +917,7 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(Lucide.bell),
         label: 'Notifications',
-        hint: s != null && !s.notifications ? const Text('Android isn\'t letting this app notify you. Tap to allow it.') : null,
+        hint: s != null && !s.notifications ? const Tr('Android isn\'t letting this app notify you. Tap to allow it.') : null,
         value: Text(s == null ? '' : (s.notifications ? 'Allowed' : 'Off')),
         onPress: s == null || s.notifications
             ? null
@@ -903,7 +929,7 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(LucideMore.vibrate),
         label: 'Sound and vibration',
-        hint: const Text('Android\'s own page for this app: the sound, vibration, the lock screen and Do Not Disturb.'),
+        hint: const Tr('Android\'s own page for this app: the sound, vibration, the lock screen and Do Not Disturb.'),
         onPress: () => Sms.instance.notificationSettings(),
       ),
     ]),
@@ -912,32 +938,32 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
     if (s != null && !Sms.remote && PlatformInfo.isAndroid) reachSection(app, battery: s.battery, askBattery: () => Sms.instance.askBattery()),
     PaneSection(
       title: 'What a notification shows',
-      footer: const Text('A conversation you muted arrives without a notification (long press it in the list).'),
+      footer: const Tr('A conversation you muted arrives without a notification (long press it in the list).'),
       children: [
         SettingRow(
           icon: _icon(Lucide.eye),
           label: 'Message previews',
-          hint: const Text('The message\'s words. Off, a notification says "New message" and who it is from.'),
+          hint: const Tr('The message\'s words. Off, a notification says "New message" and who it is from.'),
           control: GlacierSwitch(checked: app.flag('notif_preview'), onCheckedChange: (v) => app.setFlag('notif_preview', v), ariaLabel: 'Message previews'),
         ),
         SettingRow(
           icon: _icon(Lucide.copy),
           label: 'Copy code button',
-          hint: const Text('A text with a sign-in code gets a button that copies it.'),
+          hint: const Tr('A text with a sign-in code gets a button that copies it.'),
           control: GlacierSwitch(checked: app.flag('notif_code'), onCheckedChange: (v) => app.setFlag('notif_code', v), ariaLabel: 'Copy code button'),
         ),
         // Matt, 2026-11-19: "Add mentions support to spaces and circles with the @user prefix".
         SettingRow(
           icon: _icon(Lucide.atSign),
           label: 'Mentions in spaces',
-          hint: const Text('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
+          hint: const Tr('A notification when someone writes @ and your name in a space or a circle. A space\'s other messages don\'t notify.'),
           control: GlacierSwitch(checked: app.flag('notif_mentions'), onCheckedChange: (v) => app.setFlag('notif_mentions', v), ariaLabel: 'Mentions in spaces'),
         ),
         // Matt, 2026-11-19: "add join notifications for memebers in circles".
         SettingRow(
           icon: _icon(Lucide.userPlus),
           label: 'Joins in circles',
-          hint: const Text('Told when someone new joins a circle you\'re in.'),
+          hint: const Tr('Told when someone new joins a circle you\'re in.'),
           control: GlacierSwitch(checked: app.flag('notif_joins'), onCheckedChange: (v) => app.setFlag('notif_joins', v), ariaLabel: 'Joins in circles'),
         ),
       ],
@@ -948,12 +974,12 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
     if (s?.bubbles != null)
       PaneSection(
         title: 'Bubbles',
-        footer: const Text('A conversation\'s notification has a bubble button: press it to keep that conversation on the side of the screen. Drag a bubble to the X to put it away.'),
+        footer: const Tr('A conversation\'s notification has a bubble button: press it to keep that conversation on the side of the screen. Drag a bubble to the X to put it away.'),
         children: [
           SettingRow(
             icon: _icon(LucideMore.messageCircle),
             label: 'Conversation bubbles',
-            hint: const Text('A conversation can sit on the side of the screen as a bubble and open over whatever you\'re doing.'),
+            hint: const Tr('A conversation can sit on the side of the screen as a bubble and open over whatever you\'re doing.'),
             control: GlacierSwitch(checked: app.flag(bubblesKey), onCheckedChange: (v) => app.setFlag(bubblesKey, v), ariaLabel: 'Conversation bubbles'),
           ),
           SettingRow(
@@ -971,18 +997,18 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
     if (m.status?.beside ?? false)
       PaneSection(
         title: 'Beside Google Messages',
-        footer: const Text('Keep Google Messages\' notifications allowed (set them to Silent): Ghost reads them to see RCS chats. Turned off completely, Ghost sees nothing new.'),
+        footer: const Tr('Keep Google Messages\' notifications allowed (set them to Silent): Ghost reads them to see RCS chats. Turned off completely, Ghost sees nothing new.'),
         children: [
           SettingRow(
             icon: _icon(Lucide.bell),
             label: 'Ghost\'s notifications in place of Google Messages\'',
-            hint: const Text('Each Google Messages notification is hidden as it comes and Ghost shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
+            hint: const Tr('Each Google Messages notification is hidden as it comes and Ghost shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
             control: GlacierSwitch(checked: app.flag('gm_proxy', fallback: true), onCheckedChange: (v) => app.setFlag('gm_proxy', v), ariaLabel: 'Ghost\'s notifications in place of Google Messages\''),
           ),
           SettingRow(
             icon: _icon(LucideMore.vibrate),
             label: 'Make Google Messages\' silent',
-            hint: const Text('Which of its notifications still make a sound, as of their last message, each with the way to silence it: its Incoming messages, and any conversation with a sound of its own.'),
+            hint: const Tr('Which of its notifications still make a sound, as of their last message, each with the way to silence it: its Incoming messages, and any conversation with a sound of its own.'),
             onPress: () => push(context, (_) => const RcsSetupScreen()),
           ),
         ],
@@ -1008,12 +1034,12 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.lock),
           label: 'Encrypted texts',
-          hint: const Text('With someone who also has Ghost Messaging, your texts go sealed so only your two phones can read them. Not your carrier, and not another app on either phone.'),
+          hint: const Tr('With someone who also has Ghost Messaging, your texts go sealed so only your two phones can read them. Not your carrier, and not another app on either phone.'),
         ),
         SettingRow(
           icon: _icon(Lucide.info),
           label: 'What it doesn\'t cover',
-          hint: const Text('One person at a time: group conversations and pictures go as they always have. The keys travel by text, so compare the safety number in person or on a call to be sure nobody swapped one. There is no forward secrecy: this is not Signal\'s protocol. A sealed text is longer, so it can cost more texts. To any other app a sealed text is a line of letters.'),
+          hint: const Tr('One person at a time: group conversations and pictures go as they always have. The keys travel by text, so compare the safety number in person or on a call to be sure nobody swapped one. There is no forward secrecy: this is not Signal\'s protocol. A sealed text is longer, so it can cost more texts. To any other app a sealed text is a line of letters.'),
         ),
       ],
     ),
@@ -1021,19 +1047,19 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
     if (!Sms.remote)
     PaneSection(
       title: 'Finding each other',
-      footer: const Text('The hello is three invisible characters at the end of a text, now and then, and only where they add nothing to what the text costs. Every other app draws them as nothing. Nothing else is sent: encryption starts only when one of you taps Turn on, which sends a key, and the other accepts. The safety number is how you check nobody is in the middle.'),
+      footer: const Tr('The hello is three invisible characters at the end of a text, now and then, and only where they add nothing to what the text costs. Every other app draws them as nothing. Nothing else is sent: encryption starts only when one of you taps Turn on, which sends a key, and the other accepts. The safety number is how you check nobody is in the middle.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.sparkles),
           label: 'Find people who have Ghost Messaging',
-          hint: const Text('When someone you text has Ghost Messaging too, the two phones recognise each other, and the conversation shows a banner offering to encrypt it. Off, your phone says nothing of itself, and you turn encryption on from a conversation\'s header.'),
+          hint: const Tr('When someone you text has Ghost Messaging too, the two phones recognise each other, and the conversation shows a banner offering to encrypt it. Off, your phone says nothing of itself, and you turn encryption on from a conversation\'s header.'),
           control: GlacierSwitch(checked: m.app.flag('e2e_detect'), onCheckedChange: (v) => m.app.setFlag('e2e_detect', v), ariaLabel: 'Find people who have Ghost Messaging'),
         ),
       ],
     ),
     PaneSection(
       title: 'People',
-      footer: m.e2e.isEmpty ? const Text('Nobody yet. A conversation with someone who has Ghost Messaging offers it in a banner, or open any conversation, tap the name at the top, and choose Encryption.') : null,
+      footer: m.e2e.isEmpty ? const Tr('Nobody yet. A conversation with someone who has Ghost Messaging offers it in a banner, or open any conversation, tap the name at the top, and choose Encryption.') : null,
       children: [
         for (final e in m.e2e)
           SettingRow(
@@ -1049,13 +1075,13 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.keyRound),
           label: 'Your phone holds the key',
-          hint: const Text('The key, a new one, and finding people who have Ghost Messaging are set on the phone, under Settings › Encryption.'),
+          hint: const Tr('The key, a new one, and finding people who have Ghost Messaging are set on the phone, under Settings › Encryption.'),
         ),
       ]),
     if (!Sms.remote)
     PaneSection(
       title: 'This phone',
-      footer: const Text('A new key ends encryption with everyone. Each conversation is exchanged again to go on, and texts sealed under the old key can no longer be opened.'),
+      footer: const Tr('A new key ends encryption with everyone. Each conversation is exchanged again to go on, and texts sealed under the old key can no longer be opened.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.keyRound),
@@ -1097,7 +1123,7 @@ String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'(?<=\d)(?=(\d
 List<Widget> _texts(BuildContext context, SettingsModel m) => [
       PaneSection(
         title: 'Texts are off',
-        description: const Text('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on to read and send your texts here too, as your texting app or beside Google Messages.'),
+        description: const Tr('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on to read and send your texts here too, as your texting app or beside Google Messages.'),
         children: [
           SettingRowBox(
             child: Padding(
@@ -1133,8 +1159,8 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
     if (s != null && (s.beside || (!s.isDefault && s.gmInstalled)))
       PaneSection(
         title: 'Beside Google Messages',
-        description: const Text('Google Messages is the default SMS app and keeps RCS. Ghost reads your texts from Android and RCS chats from Google Messages\' notifications, and replies through it.'),
-        footer: const Text('Not seen: chats muted in Google Messages, or open there when a message comes. RCS chats from before aren\'t brought over, and RCS pictures stay in Google Messages. New group chats and pictures open Google Messages to send.'),
+        description: const Tr('Google Messages is the default SMS app and keeps RCS. Ghost reads your texts from Android and RCS chats from Google Messages\' notifications, and replies through it.'),
+        footer: const Tr('Not seen: chats muted in Google Messages, or open there when a message comes. RCS chats from before aren\'t brought over, and RCS pictures stay in Google Messages. New group chats and pictures open Google Messages to send.'),
         children: [
           SettingRow(
             icon: _icon(s.bridge ? Lucide.circleCheck : Lucide.triangleAlert),
@@ -1145,7 +1171,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(Lucide.rotateCcw),
             label: 'Make Ghost the default instead',
-            hint: const Text('Everything then goes through Ghost, pictures and group chats too, and RCS is turned off for your number.'),
+            hint: const Tr('Everything then goes through Ghost, pictures and group chats too, and RCS is turned off for your number.'),
             onPress: () => Sms.instance.openDefaultApps(),
           ),
         ],
@@ -1154,7 +1180,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Coming from ${a.app}',
         description: Text('Android can\'t tell this app whether RCS chats are on for your number. ${a.app} is on this phone, and RCS chats are on there unless you turned them off.'),
-        footer: const Text('After RCS is off, people\'s phones go back to sending you texts. It can take a few minutes to a few hours for their phones to notice.'),
+        footer: const Tr('After RCS is off, people\'s phones go back to sending you texts. It can take a few minutes to a few hours for their phones to notice.'),
         children: [
           SettingRow(
             icon: _icon(Lucide.triangleAlert),
@@ -1164,7 +1190,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(Lucide.keyRound),
             label: 'Turn RCS off with a code',
-            hint: const Text('Google\'s page asks for your number and texts you a six-digit code. The text arrives here. Type the code there and RCS is off for your number. No need to switch apps.'),
+            hint: const Tr('Google\'s page asks for your number and texts you a six-digit code. The text arrives here. Type the code there and RCS is off for your number. No need to switch apps.'),
             onPress: () => Sms.instance.openRcsOff(),
           ),
           SettingRow(
@@ -1185,8 +1211,8 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
     // seems like picture sending is also not working at all almost like MMS isn't working").
     PaneSection(
       title: 'Picture messages',
-      description: const Text('Pictures, stickers and group messages travel as picture messages (MMS), over mobile data even when the phone is on Wi-Fi.'),
-      footer: const Text('A picture message that fails says why under it in the conversation. If they keep failing, copy the report and send it to whoever is helping.'),
+      description: const Tr('Pictures, stickers and group messages travel as picture messages (MMS), over mobile data even when the phone is on Wi-Fi.'),
+      footer: const Tr('A picture message that fails says why under it in the conversation. If they keep failing, copy the report and send it to whoever is helping.'),
       children: [
         SettingRow(
           icon: _icon(m.mms.obstacle == null ? Lucide.image : Lucide.triangleAlert),
@@ -1204,7 +1230,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(Lucide.rotateCcw),
             label: '${m.mms.waiting} waiting to be fetched',
-            hint: const Text('Announced by the carrier and not yet fetched. They are asked for again each time the app opens; tap to ask now.'),
+            hint: const Tr('Announced by the carrier and not yet fetched. They are asked for again each time the app opens; tap to ask now.'),
             onPress: () async {
               final n = await Sms.instance.mmsRetry();
               if (context.mounted) toast(context, n == 0 ? 'Already being fetched' : 'Asking for $n again');
@@ -1213,7 +1239,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.copy),
           label: 'Copy a report',
-          hint: const Text('The lines above as text. No messages, names or numbers are in it.'),
+          hint: const Tr('The lines above as text. No messages, names or numbers are in it.'),
           onPress: () async {
             await Clipboard.setData(ClipboardData(text: m.mms.report(appVersion)));
             if (context.mounted) toast(context, 'Report copied');
@@ -1234,24 +1260,24 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
     if (a.sideloaded)
       PaneSection(
         title: 'Until it is on the Play Store',
-        footer: const Text('Android does this to every app installed from a file. It is asked once.'),
+        footer: const Tr('Android does this to every app installed from a file. It is asked once.'),
         children: [
           SettingRow(
             icon: _icon(LucideMore.shieldCheck),
             label: 'Allow restricted settings',
-            hint: const Text('If Android says a setting is restricted or unavailable (the default SMS app, a permission), open Android\'s page for Ghost Messaging, tap ⋮ at the top, and choose Allow restricted settings. Then try again.'),
+            hint: const Tr('If Android says a setting is restricted or unavailable (the default SMS app, a permission), open Android\'s page for Ghost Messaging, tap ⋮ at the top, and choose Allow restricted settings. Then try again.'),
             onPress: () => Sms.instance.openAppInfo(),
           ),
         ],
       ),
     PaneSection(
       title: 'What Android has allowed',
-      footer: const Text('Your messages are kept by Android, not by this app: every one is still there if you make another app the default.'),
+      footer: const Tr('Your messages are kept by Android, not by this app: every one is still there if you make another app the default.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.messageSquare),
           label: 'Default SMS app',
-          hint: const Text('Only the default app may send texts and is handed the ones that arrive.'),
+          hint: const Tr('Only the default app may send texts and is handed the ones that arrive.'),
           value: Text(s == null ? '' : (s.isDefault ? 'Yes' : 'No')),
           onPress: s == null || s.isDefault
               ? null
@@ -1265,7 +1291,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           label: 'Contacts',
           // Plugins from other developers see only strangers, which can't be told from contacts without it (lib/plugins/
           // pack/format.dart packSees).
-          hint: const Text('Names and photos in place of numbers. Plugins from other developers see nothing without it, as they can\'t tell your contacts from strangers.'),
+          hint: const Tr('Names and photos in place of numbers. Plugins from other developers see nothing without it, as they can\'t tell your contacts from strangers.'),
           value: Text(s == null ? '' : (s.contacts ? 'Allowed' : 'Off')),
           onPress: s == null || s.contacts
               ? null
@@ -1277,7 +1303,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.phone),
           label: 'Phone number',
-          hint: const Text('So Android can say this phone\'s number, for group messages.'),
+          hint: const Tr('So Android can say this phone\'s number, for group messages.'),
           value: Text(s == null ? '' : (s.phone ? 'Allowed' : 'Off')),
           onPress: s == null || s.phone
               ? null
@@ -1306,7 +1332,7 @@ List<Widget> _keyboard(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.keyRound),
           label: 'Offer sign-in codes to Ghost Keyboard',
-          hint: const Text('When a text arrives with a code, like "Your code is 482913", Ghost Keyboard shows the code above its keys to tap in. Only the code is handed over, for ten minutes, and only to Ghost Keyboard, which is checked by its signature.'),
+          hint: const Tr('When a text arrives with a code, like "Your code is 482913", Ghost Keyboard shows the code above its keys to tap in. Only the code is handed over, for ten minutes, and only to Ghost Keyboard, which is checked by its signature.'),
           control: GlacierSwitch(checked: app.flag('kbd_codes'), onCheckedChange: (v) => app.setFlag('kbd_codes', v), ariaLabel: 'Offer sign-in codes to Ghost Keyboard'),
         ),
       ],
@@ -1315,7 +1341,7 @@ List<Widget> _keyboard(BuildContext context, SettingsModel m) {
       SettingRow(
         icon: _icon(Lucide.info),
         label: 'Android keeps codes from keyboards',
-        hint: const Text('A keyboard needs Android\'s permission to receive texts, which newer versions refuse apps from outside a store, and Android 17 holds code texts back from every app but the default SMS app. This app is the default SMS app, so it has the code at once.'),
+        hint: const Tr('A keyboard needs Android\'s permission to receive texts, which newer versions refuse apps from outside a store, and Android 17 holds code texts back from every app but the default SMS app. This app is the default SMS app, so it has the code at once.'),
       ),
     ]),
   ];
@@ -1418,7 +1444,7 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.braces),
           label: 'Developer mode',
-          hint: const Text('Shows Settings › API, Plugins in development below, and the Marketplace\'s In development.'),
+          hint: const Tr('Shows Settings › API, Plugins in development below, and the Marketplace\'s In development.'),
           control: GlacierSwitch(checked: app.flag('dev_mode', fallback: false), onCheckedChange: (on) => app.setFlag('dev_mode', on), ariaLabel: 'Developer mode'),
         ),
       ],
@@ -1432,7 +1458,7 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
     // views"; lib/ui/nav_style.dart).
     PaneSection(
       title: 'Navigation',
-      description: const Text('How you get round the app. The two newer ways are the same on every page; the rail adds your circles down the left, as Discord and Slack have.'),
+      description: const Tr('How you get round the app. The two newer ways are the same on every page; the rail adds your circles down the left, as Discord and Slack have.'),
       children: [
         for (final n in NavStyle.values)
           SettingRow(
@@ -1447,8 +1473,8 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'Report',
-      description: const Text('What this phone is, how picture messages stand, and the log below, as text.'),
-      footer: const Text('It holds no message\'s words, and anything that looks like a phone number is struck out. It leaves the phone only if you copy or share it.'),
+      description: const Tr('What this phone is, how picture messages stand, and the log below, as text.'),
+      footer: const Tr('It holds no message\'s words, and anything that looks like a phone number is struck out. It leaves the phone only if you copy or share it.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.copy),
@@ -1461,7 +1487,7 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.send),
           label: 'Share the report',
-          hint: const Text('To an email, a note or another app.'),
+          hint: const Tr('To an email, a note or another app.'),
           onPress: () => Sms.instance.shareText('Ghost Messaging report', m.devReport),
         ),
         SettingRow(
@@ -1479,7 +1505,7 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: lines.isEmpty ? 'Log' : 'Log · ${lines.length} ${lines.length == 1 ? 'line' : 'lines'}, newest first',
-      footer: const Text('Errors, and each picture message: what it was made into, how large, and what the carrier answered. The last 300 lines are kept.'),
+      footer: const Tr('Errors, and each picture message: what it was made into, how large, and what the carrier answered. The last 300 lines are kept.'),
       children: [
         SettingRowBox(
           child: lines.isEmpty
@@ -1530,19 +1556,19 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Ghost Messaging',
-      footer: const Text('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
+      footer: const Tr('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current), onPress: () => versionTapped(context, m.app)),
         // The release notes again (lib/ui/whats_new.dart).
-        SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
+        SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Tr('What the last update brought.'), onPress: () => showWhatsNew(context)),
         // The first-run walkthrough again (lib/onboarding), on the phone, whose setup it is.
         if (!Sms.remote) SettingRow(icon: _icon(LucideMore.rocket), label: 'Watch the walkthrough again', onPress: () => openOnboarding(context)),
         // gogho.st/docs, in the browser.
-        SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
+        SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Tr('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
         SettingRow(
           icon: _icon(Lucide.info),
           label: 'Texts and picture messages',
-          hint: const Text('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.'),
+          hint: const Tr('SMS and MMS through your carrier. RCS and iMessage aren\'t available to apps other than Google\'s and Apple\'s own.'),
         ),
         SettingRow(
           icon: _icon(Lucide.lock),
@@ -1561,9 +1587,9 @@ PaneSection aboutLicences() => PaneSection(title: 'Licences', children: [
       SettingRow(
         icon: _icon(LucideMore.smile),
         label: 'Emoji sets',
-        hint: const Text('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).'),
+        hint: const Tr('Noto Color Emoji and Noto Emoji © Google (SIL OFL 1.1). Twemoji © Twitter and contributors (CC-BY 4.0). All emojis designed by OpenMoji, the open-source emoji and icon project (CC BY-SA 4.0).'),
       ),
-      SettingRow(icon: _icon(Lucide.info), label: 'Icons', hint: const Text('Lucide (ISC licence).')),
+      SettingRow(icon: _icon(Lucide.info), label: 'Icons', hint: const Tr('Lucide (ISC licence).')),
     ]);
 
 extension on String {

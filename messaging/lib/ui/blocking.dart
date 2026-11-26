@@ -10,6 +10,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'inbox_ui.dart' show inboxMark;
 import 'person_reach.dart';
+import '../l10n/words.dart';
 
 /// Blocking, said and done the same way for texts, Telegram and Signal (Matt, 2026-11-17: "add the signal helper and
 /// do your recommendation. Make sure the UIs are unified across SMS Telegram and Signal, Also add a block list to our
@@ -172,7 +173,7 @@ class _BlockedListState extends State<BlockedList> {
                 null,
               ),
         ];
-        const intro = Text('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat; a Ghost person when you report them.');
+        const intro = Tr('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat; a Ghost person when you report them.');
         if (groups.isEmpty) {
           return PaneSection(
             title: 'Blocked',
@@ -185,7 +186,7 @@ class _BlockedListState extends State<BlockedList> {
             PaneSection(
               title: groups[i].$1,
               description: i == 0 ? intro : null,
-              footer: groups[i].$3 != null ? Text(groups[i].$3!) : (i == groups.length - 1 ? const Text('Tap someone to unblock them.') : null),
+              footer: groups[i].$3 != null ? Text(groups[i].$3!) : (i == groups.length - 1 ? const Tr('Tap someone to unblock them.') : null),
               children: groups[i].$2,
             ),
         ]);

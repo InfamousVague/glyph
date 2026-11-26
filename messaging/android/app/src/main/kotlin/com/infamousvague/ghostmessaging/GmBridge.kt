@@ -161,8 +161,72 @@ object GmBridge {
 
     // --- reading a notification ---------------------------------------------------------------------------------------
 
-    /** One message read from a notification, before it is kept. */
-    data class Heard(val text: String, val time: Long, val sender: String?, val senderAddress: String?, val out: Boolean)
+    /**
+     * One message read from a notification, before it is kept. [mime] and [uri]: the picture (or video, sound, file) it
+     * carries, as MessagingStyle gives one, where it does.
+     */
+    data class Heard(val text: String, val time: Long, val sender: String?, val senderAddress: String?, val out: Boolean, val mime: String? = null, val uri: String? = null)
+
+    /**
+     * Whether a notification's words are what Google Messages puts in place of a picture or a file ("Photo",
+     * "Attachment", "Sent an image", "SMS message from Jade"), not anything anyone wrote (Matt, 2026-11-26: "some RCS
+     * images are just displaying as "attachment""). Kept as words, such a copy was a bubble saying it beside the picture
+     * itself, never the same message as it.
+     */
+    fun standIn(text: String): Boolean {
+        // Its marks first (an emoji is two of Kotlin's chars, so they go as words): "📷 Photo".
+        var s = text.trim()
+        for (mark in listOf("📷", "🎥", "📎", "🎤", "🖼", "️")) s = s.replace(mark, "")
+        s = s.trim().lowercase().removeSuffix(".")
+        if (s.isEmpty()) return false
+        if (s in STAND_INS) return true
+        if (Regex("^sent (a|an) (photo|picture|image|gif|sticker|video|attachment|file|voice message|audio message|audio)$").matches(s)) return true
+        return Regex("^(sms|mms|rcs|picture|multimedia) message from .+$").matches(s)
+    }
+
+    private val STAND_INS = setOf(
+        "attachment", "photo", "picture", "image", "gif", "sticker", "video", "audio", "voice message", "audio message",
+        "file", "picture message", "multimedia message", "mms", "mms message", "photo message", "image attachment",
+    )
+
+    /**
+     * Whether a notification's copy of a message ([noted], with [notedMedia] where it carries a picture) is the
+     * on-phone connection's of [web] ([webMedia]): the same words, or a picture where the notification said only a
+     * stand-in or nothing. Each is told of by its own way within moments of the other.
+     */
+    fun sameMessage(noted: String, notedMedia: Boolean, web: String, webMedia: Boolean): Boolean {
+        if (noted.trim() == web.trim() && (noted.isNotBlank() || notedMedia == webMedia)) return true
+        return webMedia && (notedMedia || noted.isBlank() || standIn(noted))
+    }
+
+    /**
+     * What a conversation's list shows of a message of the bridge's: its words, or what it carries where it has none
+     * or only a stand-in ([types]: its parts' kinds). Never "Attachment" for a picture.
+     */
+    fun summary(text: String, types: List<String>): String {
+        val words = text.trim()
+        if (words.isNotEmpty() && !standIn(words)) return words
+        return when {
+            types.any { it.startsWith("image/") && it != "image/svg+xml" } -> "Picture"
+            types.any { it.startsWith("video/") } -> "Video"
+            types.any { it.startsWith("audio/") } -> "Voice message"
+            types.isNotEmpty() -> "Attachment"
+            words.isEmpty() -> ""
+            else -> standInKind(words)
+        }
+    }
+
+    /** What a stand-in says a message is: "Picture", "Video", "Voice message", or a picture message for the rest. */
+    fun standInKind(text: String): String {
+        val s = text.lowercase()
+        return when {
+            s.contains("video") -> "Video"
+            s.contains("audio") || s.contains("voice") -> "Voice message"
+            s.contains("photo") || s.contains("picture") || s.contains("image") || s.contains("gif") || s.contains("sticker") -> "Picture"
+            s.contains("file") -> "Attachment"
+            else -> "Picture message"
+        }
+    }
 
     /** A notification of Google Messages', read: which conversation, who is in it, and its messages. */
     data class Read(val conv: String, val title: String?, val group: Boolean, val addresses: List<String>, val messages: List<Heard>)
@@ -196,7 +260,11 @@ object GmBridge {
             val out = person == null && b.getCharSequence("sender") == null || (me != null && person != null && samePerson(me, person))
             val address = if (out) null else person?.let { addressOf(context, it) }
             if (address != null) addresses += address
-            heard += Heard(text, time, if (out) null else senderName, address, out)
+            // A picture's message names what it carries ("type", "uri"): its words are then a stand-in, or its caption.
+            val mime = b.getString("type")?.trim()?.lowercase()?.takeIf { it.isNotEmpty() && !it.startsWith("text/") }
+            @Suppress("DEPRECATION") val uri = if (mime == null) null else (b.getParcelable<Uri>("uri"))?.toString()
+            val words = if (mime != null && standIn(text)) "" else text
+            heard += Heard(words, time, if (out) null else senderName, address, out, mime, uri)
         }
         // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Ghost can notify
         // from Android's own copy of the text.
@@ -286,8 +354,38 @@ object GmBridge {
         db.keepConversation(r, thread)
         var fresh = false
         var incoming = false
-        for (m in r.messages) if (db.keepMessage(r.conv, m)) { fresh = true; if (!m.out) incoming = true }
+        for (m in r.messages) if (db.keepMessage(r.conv, m, mediaOf(context, r.conv, m))) { fresh = true; if (!m.out) incoming = true }
         return Kept(thread, fresh, incoming, hidden = r.messages.isEmpty(), conv = r.conv, group = r.group, senders = senders)
+    }
+
+    /**
+     * The parts of a notification's message that carries a picture, as the bridge keeps a message's (`[{id, type}]`):
+     * the picture copied from the notification into the cache the screens read pictures from (GmWeb.file), where
+     * Google Messages lets it be read; else the kind alone, `missing`, so it is said to be a picture and not shown as
+     * nothing. Null for a message with words alone.
+     */
+    private val unreadable: MutableSet<Long> = ConcurrentHashMap.newKeySet()
+
+    private fun mediaOf(context: Context, conv: String, m: Heard): String? {
+        val mime = m.mime ?: return null
+        val id = GmWeb.partId("note:$conv:${m.time}:${m.out}")
+        val ending = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "bin"
+        val f = File(File(context.cacheDir, "gmmedia").apply { mkdirs() }, "$id.$ending")
+        // Every notification of a conversation tells its last few messages again: one not readable is tried once.
+        val had = f.length() > 0 || (m.uri != null && id !in unreadable && try {
+            context.contentResolver.openInputStream(Uri.parse(m.uri))?.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+            f.length() > 0
+        } catch (e: Exception) {
+            unreadable += id
+            DevLog.add(context, "bridge", "picture of a notification not readable: ${e.javaClass.simpleName}")
+            false
+        })
+        if (!had) {
+            f.delete()
+            return org.json.JSONArray().put(org.json.JSONObject().put("type", mime).put("missing", true)).toString()
+        }
+        Db.get(context).keepPart(id, "note:${m.uri}", "", mime, null)
+        return org.json.JSONArray().put(org.json.JSONObject().put("id", id).put("type", mime).put("name", "")).toString()
     }
 
     /**
@@ -536,12 +634,16 @@ object GmBridge {
             // Told of again: its words too, where they have changed (a stand-in kept before this fix, now had in full;
             // an edit), so it is the same as Android's copy and shown once.
             if (db.update("msg", ContentValues(update).apply { if (text.isNotBlank()) put("text", text) }, "gm_id = ?", arrayOf(gmId)) > 0) return false
+            // The notification's copy, the nearest first: the same words, or a picture it said only "Photo" or
+            // "Attachment" of (sameMessage). It becomes this one, words and all.
+            val hasMedia = !media.isNullOrBlank() && media != "[]"
             db.rawQuery(
-                "SELECT m.id FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NULL AND m.out = ? AND m.text = ? AND ABS(m.time - ?) < 180000 LIMIT 1",
-                arrayOf("$thread", if (out) "1" else "0", text, "$time"),
+                "SELECT m.id, m.text, m.media FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = ? AND m.gm_id IS NULL AND m.out = ? AND ABS(m.time - ?) < 180000 ORDER BY ABS(m.time - ?)",
+                arrayOf("$thread", if (out) "1" else "0", "$time", "$time"),
             ).use { c ->
-                if (c.moveToFirst()) {
-                    db.update("msg", ContentValues(update).apply { put("gm_id", gmId); put("conv", conv); put("time", time) }, "id = ?", arrayOf("${c.getLong(0)}"))
+                while (c.moveToNext()) {
+                    if (!sameMessage(c.getString(1) ?: "", !c.getString(2).isNullOrBlank(), text, hasMedia)) continue
+                    db.update("msg", ContentValues(update).apply { put("gm_id", gmId); put("conv", conv); put("time", time); put("text", text) }, "id = ?", arrayOf("${c.getLong(0)}"))
                     return false
                 }
             }
@@ -595,26 +697,51 @@ object GmBridge {
         }
 
         /** True where it is new. An outgoing message seen twice (sent here, then shown back by Google Messages) is one. */
-        fun keepMessage(conv: String, m: Heard): Boolean {
+        fun keepMessage(conv: String, m: Heard, media: String? = null): Boolean {
+            val out = if (m.out) "1" else "0"
             if (m.out) {
                 // Ours, sent through the Reply moments ago and now shown back: the same words within two minutes.
                 readableDatabase.rawQuery("SELECT 1 FROM msg WHERE conv = ? AND out = 1 AND text = ? AND ABS(time - ?) < 120000", arrayOf(conv, m.text, "${m.time}")).use { c ->
                     if (c.moveToFirst()) return false
                 }
             }
+            val hasMedia = media != null
+            // Told of again (each notification says a conversation's last few again): one kept when its picture was a
+            // stand-in's words ("Photo") is that picture now.
+            readableDatabase.rawQuery("SELECT id, text FROM msg WHERE conv = ? AND time = ? AND out = ?", arrayOf(conv, "${m.time}", out)).use { c ->
+                while (c.moveToNext()) {
+                    val had = c.getString(1) ?: ""
+                    if (had == m.text) return false
+                    if (hasMedia && (had.isBlank() || standIn(had))) {
+                        writableDatabase.update("msg", ContentValues().apply { put("text", m.text); put("media", media) }, "id = ?", arrayOf("${c.getLong(0)}"))
+                        return false
+                    }
+                }
+            }
+            // The on-phone connection has it already (it was quicker than the notification): the same words, or the
+            // picture this says only "Photo" of.
+            readableDatabase.rawQuery(
+                "SELECT m.text, m.media FROM msg m JOIN conv c ON c.conv = m.conv WHERE c.thread = (SELECT thread FROM conv WHERE conv = ?) AND m.gm_id IS NOT NULL AND m.out = ? AND ABS(m.time - ?) < 180000",
+                arrayOf(conv, out, "${m.time}"),
+            ).use { c ->
+                while (c.moveToNext()) if (sameMessage(m.text, hasMedia, c.getString(0) ?: "", !c.getString(1).isNullOrBlank() && c.getString(1) != "[]")) return false
+            }
             val id = writableDatabase.insertWithOnConflict("msg", null, ContentValues().apply {
                 put("conv", conv); put("text", m.text); put("time", m.time); put("sender", m.sender); put("address", m.senderAddress); put("out", if (m.out) 1 else 0)
+                if (media != null) put("media", media)
             }, SQLiteDatabase.CONFLICT_IGNORE)
             return id != -1L
         }
 
         /** The conversations kept, newest first. */
         fun conversations(): List<Conv> = readableDatabase.rawQuery(
-            "SELECT c.conv, c.thread, c.title, c.grp, c.addresses, m.text, m.time, m.out, (SELECT COUNT(*) FROM msg u WHERE u.conv = c.conv AND u.out = 0 AND u.read = 0) " +
-                "FROM conv c JOIN msg m ON m.id = (SELECT id FROM msg x WHERE x.conv = c.conv ORDER BY time DESC LIMIT 1) ORDER BY m.time DESC", null,
+            // Its newest message as its conversation shows it: not a picture message still coming down, whose words
+            // are a stand-in (Store.withBridgedMessages leaves those out too).
+            "SELECT c.conv, c.thread, c.title, c.grp, c.addresses, m.text, m.time, m.out, (SELECT COUNT(*) FROM msg u WHERE u.conv = c.conv AND u.out = 0 AND u.read = 0), m.media " +
+                "FROM conv c JOIN msg m ON m.id = (SELECT id FROM msg x WHERE x.conv = c.conv AND NOT (x.out = 0 AND x.status LIKE 'incoming\\_%' ESCAPE '\\' AND (x.status LIKE '%downloading%' OR x.status LIKE '%retrying%' OR x.status LIKE '%awaiting_auto_download%')) ORDER BY time DESC LIMIT 1) ORDER BY m.time DESC", null,
         ).use { c ->
             buildList {
-                while (c.moveToNext()) add(Conv(c.getString(0), c.getLong(1), c.getString(2), c.getInt(3) == 1, c.getString(4).split('\u001f').filter { it.isNotEmpty() }, c.getString(5), c.getLong(6), c.getInt(7) == 1, c.getInt(8)))
+                while (c.moveToNext()) add(Conv(c.getString(0), c.getLong(1), c.getString(2), c.getInt(3) == 1, c.getString(4).split('\u001f').filter { it.isNotEmpty() }, c.getString(5), c.getLong(6), c.getInt(7) == 1, c.getInt(8), c.getString(9)))
             }
         }
 
@@ -651,7 +778,7 @@ object GmBridge {
     }
 
     /** A row of each table: a conversation as the bridge knows it (its newest words and when), and a message. */
-    data class Conv(val conv: String, val thread: Long, val title: String?, val group: Boolean, val addresses: List<String>, val text: String, val time: Long, val out: Boolean, val unread: Int)
+    data class Conv(val conv: String, val thread: Long, val title: String?, val group: Boolean, val addresses: List<String>, val text: String, val time: Long, val out: Boolean, val unread: Int, val media: String? = null)
     data class Msg(val id: Long, val conv: String, val text: String, val time: Long, val sender: String?, val address: String?, val out: Boolean, val read: Boolean, val status: String? = null, val media: String? = null, val reactions: String? = null)
 }
 

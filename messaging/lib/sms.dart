@@ -205,6 +205,7 @@ class Message {
     this.encrypted = false,
     this.notice,
     this.why,
+    this.missing,
     this.via,
     this.read = true,
     this.reactions = const [],
@@ -244,6 +245,10 @@ class Message {
   /// Why it was not sent, where it was not and the phone knows (a picture message: android/.../MmsWhy.kt).
   final String? why;
 
+  /// What a message of Google Messages' carried that this phone could not get (its notification said "Photo" and
+  /// nothing more): "Picture", "Video", "Voice message", "Picture message" or "Attachment"; null for the rest.
+  final String? missing;
+
   /// 'net' where it came or went by the app's routes, between friends, not as a text (lib/friends/friends.dart).
   final String? via;
 
@@ -267,6 +272,7 @@ class Message {
         encrypted: m['encrypted'] == true,
         notice: m['notice'] as String?,
         why: m['why'] as String?,
+        missing: m['missing'] as String?,
         via: m['via'] as String?,
         read: m['read'] != false,
         reactions: [for (final r in (m['reactions'] as List? ?? const [])) '$r'],

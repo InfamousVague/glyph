@@ -81,6 +81,7 @@ import 'ui/inbox_ui.dart';
 import 'ui/settings_panes.dart' show appVersion;
 import 'ui/shell.dart';
 import 'ui/update_banner.dart';
+import 'l10n/words.dart';
 
 /// What goes wrong on the screens' side goes in the app's own log (Settings › Developer; Matt, 2026-11-13: "a
 /// developer setting with copying errors and reporting"): what it was and where, never what a message said.
@@ -158,6 +159,8 @@ Future<void> main() async {
     state.load(),
     PhonePalette.load(),
   ]);
+  // The language chosen, loaded before the first page is drawn (lib/l10n/words.dart, GMFB-32).
+  await Words.instance.follow(state);
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);

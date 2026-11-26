@@ -65,6 +65,7 @@ import '../standalone/welcome.dart';
 import '../ui/account_screens.dart' show RestartScreen, SignInScreen;
 import '../ui/common.dart' show push;
 import 'ui/link_offer.dart';
+import '../l10n/words.dart';
 
 /// How long a window's size stands still before the theme is worked out for it. Null in a test that sizes a window
 /// and looks at once.
@@ -144,6 +145,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // (Matt, 2026-11-20: "when signing in the app re launches and I have to login twice").
   final state = AppState();
   final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
+  // The language chosen, loaded before the first page is drawn (lib/l10n/words.dart, GMFB-32).
+  await Words.instance.follow(state);
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);

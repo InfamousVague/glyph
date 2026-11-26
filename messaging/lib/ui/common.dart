@@ -16,6 +16,7 @@ import '../kit/semantic_colors.dart';
 import 'dialup/dialup.dart';
 import 'window_chrome.dart';
 import '../kit/picture_decode.dart';
+import '../l10n/words.dart';
 
 /// The page under every screen: the ground, a bar with the way back (or a big title), its actions, and the body.
 class GhostPage extends StatelessWidget {
@@ -65,6 +66,8 @@ class GhostPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The page's name in the language drawn (lib/l10n/words.dart).
+    final title = this.title.t;
     final t = context.tokens;
     final pad = MediaQuery.paddingOf(context);
     final inset = MediaQuery.viewInsetsOf(context).bottom;
@@ -594,6 +597,7 @@ class IconTap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = this.label.t;
     final t = context.tokens;
     final box = this.box ?? t.lenOf('2.75rem');
     // Dial-Up: the one main action (Send) is a raised button with its word on it; the composer's own buttons stand
@@ -914,7 +918,7 @@ class _ChoiceSheet extends StatelessWidget {
                   Padding(
                     padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(2)),
                     // A message's own words are cut short by whoever asks; what a sheet explains is said whole.
-                    child: Text(title!, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
+                    child: Text(title!.t, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
                   ),
                 ?header,
                 for (final c in choices)
@@ -935,10 +939,10 @@ class _ChoiceSheet extends StatelessWidget {
                             // A long line wraps rather than running off the sheet.
                             Flexible(
                               child: c.hint == null
-                                  ? Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))
+                                  ? Text(c.label.t, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink))
                                   : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                                      Text(c.label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink)),
-                                      Text(c.hint!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                                      Text(c.label.t, style: pageText(t, t.fontSize('md'), weight: 'medium', color: ink)),
+                                      Text(c.hint!.t, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                                     ]),
                             ),
                           ]),
@@ -972,7 +976,7 @@ class _ChoiceSheet extends StatelessWidget {
                 if (title != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-                    child: Text(title!, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, 14, color: c.onChrome, height: 1.35)),
+                    child: Text(title!.t, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, 14, color: c.onChrome, height: 1.35)),
                   ),
                 if (title != null) _etch(c),
                 ?header,
@@ -995,8 +999,8 @@ class _ChoiceSheet extends StatelessWidget {
                               const SizedBox(width: 10),
                               Flexible(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                                  Text(choice.label, style: pageText(t, 16, color: ink)),
-                                  if (choice.hint != null) Text(choice.hint!, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 13, color: state.pressed ? c.onHighlight : c.inkSoft)),
+                                  Text(choice.label.t, style: pageText(t, 16, color: ink)),
+                                  if (choice.hint != null) Text(choice.hint!.t, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 13, color: state.pressed ? c.onHighlight : c.inkSoft)),
                                 ]),
                               ),
                             ]),

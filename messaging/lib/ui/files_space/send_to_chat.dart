@@ -37,6 +37,7 @@ import '../../voice/hangout.dart';
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../space_chat_files.dart' show spaceMayAttach;
+import '../../l10n/words.dart';
 
 /// The spaces whose chat a file can be sent to from here: every space with a chat (not a group's call) that this
 /// device's circle roles let it write and send files in; its own first, then each circle's by the circle's name.
@@ -172,7 +173,7 @@ void sendFileToChat(BuildContext context, VoiceChannel from, SpaceFile f, {requi
       final path = await store.fetch(from, f);
       room = await Voice.instance.hold(c);
       if (room == null) {
-        toasts.toast(message: const Text('Not connected to the relay yet. Try again in a moment.'), tone: GlacierToastTone.danger);
+        toasts.toast(message: const Tr('Not connected to the relay yet. Try again in a moment.'), tone: GlacierToastTone.danger);
         return;
       }
       toasts.toast(message: Text('Sending ${f.name} to ${c.name}'));

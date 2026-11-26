@@ -17,6 +17,7 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../platform_info.dart';
 import '../common.dart';
+import '../../l10n/words.dart';
 
 /// The computer's own "choose a folder", asked of the system with nothing new built into the app: the Mac's
 /// (`choose folder` through osascript), Windows' folder dialog (through PowerShell), and GNOME's zenity or KDE's
@@ -115,8 +116,8 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
           child: SettingsCallout(
             icon: const AppIcon(Lucide.folderInput, size: 18),
             action: root == null
-                ? RowAction(key: const ValueKey('folder-sync-choose'), onPress: _choose, disabled: _choosing, child: const Text('Sync a folder'))
-                : RowAction(key: const ValueKey('folder-sync-stop'), onPress: widget.sync.stop, child: const Text('Stop syncing')),
+                ? RowAction(key: const ValueKey('folder-sync-choose'), onPress: _choose, disabled: _choosing, child: const Tr('Sync a folder'))
+                : RowAction(key: const ValueKey('folder-sync-stop'), onPress: widget.sync.stop, child: const Tr('Stop syncing')),
             child: root == null
                 ? Text('Keep a folder on this computer in step with $name.${shared ? ' Everyone in the space gets what is in it.' : ''}', key: const ValueKey('folder-sync-words'))
                 : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

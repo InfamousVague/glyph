@@ -48,6 +48,7 @@ import '../shell.dart';
 import 'market_forms.dart';
 import 'my_submissions.dart';
 import 'try_pack.dart';
+import '../../l10n/words.dart';
 
 /// Where the form is drawn, as it decides what it offers: Android and a Mac choose files; Windows has no picture panel;
 /// a computer pastes pictures.
@@ -833,12 +834,12 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
     return [
       PaneSection(
         title: 'The plugin',
-        description: const Text('A .ghostplugin file: the plugin\'s rules, and what it says about itself.'),
+        description: const Tr('A .ghostplugin file: the plugin\'s rules, and what it says about itself.'),
         footer: _issuesUnder(t, under('plugin')),
         children: [
           if (_canPickFile)
             SettingRow(key: const ValueKey('market-submit-file'), icon: const AppIcon(Lucide.folderOpen, size: 18), label: 'Choose the plugin file', disabled: _sending || _busy, onPress: _fromFile),
-          SettingRow(key: const ValueKey('market-submit-paste'), icon: const AppIcon(Lucide.clipboardPaste, size: 18), label: 'Paste the plugin', hint: const Text('Its words, copied from anywhere.'), disabled: _sending, onPress: () => unawaited(_pasted())),
+          SettingRow(key: const ValueKey('market-submit-paste'), icon: const AppIcon(Lucide.clipboardPaste, size: 18), label: 'Paste the plugin', hint: const Tr('Its words, copied from anywhere.'), disabled: _sending, onPress: () => unawaited(_pasted())),
           if (devs.isNotEmpty) SettingRow(key: const ValueKey('market-submit-dev'), icon: const AppIcon(Lucide.flaskConical, size: 18), label: 'Use one in development', disabled: _sending, onPress: _fromDev),
           if (pack != null)
             SettingRow(
@@ -876,21 +877,21 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
               icon: face == null ? const AppIcon(Lucide.image, size: 18) : PluginTile(plugin: face, size: t.lenOf('1.85rem')),
               label: 'Icon',
               hint: Text(_icon == null ? 'A square picture, 64 to 512 pixels a side. Needed to send it.' : 'Its own picture, as it shows on its card and page.'),
-              value: _canChoosePicture ? const Text('Choose a picture') : null,
+              value: _canChoosePicture ? const Tr('Choose a picture') : null,
               disabled: _sending || _busy,
               onPress: _canChoosePicture ? () => unawaited(_iconFrom(_choose)) : null,
             ),
-            if (_computer) SettingRow(key: const ValueKey('market-submit-icon-paste'), icon: const AppIcon(Lucide.clipboardPaste, size: 18), label: 'Paste a picture', hint: const Text('A copied picture becomes its icon.'), disabled: _sending || _busy, onPress: () => unawaited(_iconFrom(widget.pastePicture ?? pastePicture))),
-            SettingRowBox(child: GlacierInput(key: const ValueKey('market-submit-name'), controller: _name, placeholder: 'Name', ariaLabel: 'Name', maxLength: PackLimits.name, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('name'))),
-            SettingRowBox(child: GlacierInput(key: const ValueKey('market-submit-tagline'), controller: _tagline, placeholder: 'Short line: what it does, in a few words', ariaLabel: 'Short line', maxLength: PackLimits.tagline, autoCapitalize: TextCapitalization.sentences, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('tagline'))),
-            SettingRowBox(child: MarketTextArea(key: const ValueKey('market-submit-description'), controller: _description, label: 'Description', placeholder: 'Description: what it does, and what it never does', most: PackLimits.description, readOnly: _sending, onChanged: (_) => _edited('description'))),
+            if (_computer) SettingRow(key: const ValueKey('market-submit-icon-paste'), icon: const AppIcon(Lucide.clipboardPaste, size: 18), label: 'Paste a picture', hint: const Tr('A copied picture becomes its icon.'), disabled: _sending || _busy, onPress: () => unawaited(_iconFrom(widget.pastePicture ?? pastePicture))),
+            SettingRowBox(child: GlacierInput(key: const ValueKey('market-submit-name'), controller: _name, placeholder: 'Name'.t, ariaLabel: 'Name', maxLength: PackLimits.name, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('name'))),
+            SettingRowBox(child: GlacierInput(key: const ValueKey('market-submit-tagline'), controller: _tagline, placeholder: 'Short line: what it does, in a few words'.t, ariaLabel: 'Short line', maxLength: PackLimits.tagline, autoCapitalize: TextCapitalization.sentences, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('tagline'))),
+            SettingRowBox(child: MarketTextArea(key: const ValueKey('market-submit-description'), controller: _description, label: 'Description', placeholder: 'Description: what it does, and what it never does'.t, most: PackLimits.description, readOnly: _sending, onChanged: (_) => _edited('description'))),
             SettingRow(key: const ValueKey('market-submit-shelf'), icon: const AppIcon(Lucide.layoutGrid, size: 18), label: 'Category', value: Text(PluginShelf.values.asNameMap()[_shelf]?.label ?? _shelf), disabled: _sending, onPress: _chooseShelf),
             SettingRow(key: const ValueKey('market-submit-hue'), icon: const AppIcon(Lucide.palette, size: 18), label: 'Colour', value: Row(mainAxisSize: MainAxisSize.min, children: [_swatch(t, _hue), SizedBox(width: t.space(2)), Text(_hueWords(_hue))]), disabled: _sending, onPress: _chooseHue),
             SettingRowBox(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Tags', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
                 SizedBox(height: t.space(1)),
-                Text('One to four: people find it by them.', style: quiet),
+                Tr('One to four: people find it by them.', style: quiet),
                 SizedBox(height: t.space(2)),
                 Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
                   for (final e in packLabels.entries) MarketChip(key: ValueKey('market-submit-label-${e.key}'), label: e.value, chosen: _labels.contains(e.key), onPress: _sending ? () {} : () => _label(e.key)),
@@ -914,23 +915,23 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
             SettingRow(
               icon: const AppIcon(Lucide.mail, size: 18),
               label: 'Help link or email',
-              hint: const Text('Shown on your plugin\'s page for anyone to see.'),
+              hint: const Tr('Shown on your plugin\'s page for anyone to see.'),
               layout: SettingRowLayout.stacked,
-              control: GlacierInput(key: const ValueKey('market-submit-support'), controller: _support, placeholder: 'https://… or you@example.com', ariaLabel: 'Help link or email', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('support')),
+              control: GlacierInput(key: const ValueKey('market-submit-support'), controller: _support, placeholder: 'https://… or you@example.com'.t, ariaLabel: 'Help link or email', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md, readOnly: _sending, onChange: (_) => _edited('support')),
             ),
           ],
         ),
         gap,
         PaneSection(
           title: 'Screenshots',
-          description: const Text('Everyone sees these once it\'s listed. Use made-up texts, never real conversations or anyone\'s number.'),
+          description: const Tr('Everyone sees these once it\'s listed. Use made-up texts, never real conversations or anyone\'s number.'),
           footer: _issuesUnder(t, under('shots')) ?? Text('Up to ${PackLimits.shots}.'),
           children: [
             if (_shots.isNotEmpty) SettingRowBox(child: Wrap(spacing: t.space(3), runSpacing: t.space(3), children: [for (final (i, s) in _shots.indexed) _thumb(t, i, s)])),
             if (_shots.length < PackLimits.shots) ...[
               if (_canChoosePicture) SettingRow(key: const ValueKey('market-submit-shot-add'), icon: const AppIcon(Lucide.imagePlus, size: 18), label: _busy ? 'Adding…' : 'Add a screenshot', disabled: _sending || _busy, onPress: () => unawaited(_shotFrom(_choose))),
               if (_computer) SettingRow(key: const ValueKey('market-submit-shot-paste'), icon: const AppIcon(Lucide.clipboardPaste, size: 18), label: 'Paste a picture', disabled: _sending || _busy, onPress: () => unawaited(_shotFrom(widget.pastePicture ?? pastePicture))),
-              SettingRow(key: const ValueKey('market-submit-shot-samples'), icon: const AppIcon(Lucide.listChecks, size: 18), label: 'Add a picture of the samples', hint: const Text('The list\'s rows for the sample texts it sorts: made-up texts, safe to show.'), disabled: _sending || _busy, onPress: () => unawaited(_samples())),
+              SettingRow(key: const ValueKey('market-submit-shot-samples'), icon: const AppIcon(Lucide.listChecks, size: 18), label: 'Add a picture of the samples', hint: const Tr('The list\'s rows for the sample texts it sorts: made-up texts, safe to show.'), disabled: _sending || _busy, onPress: () => unawaited(_samples())),
             ],
           ],
         ),
@@ -965,7 +966,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
                 key: const ValueKey('market-submit-notes'),
                 controller: _notes,
                 label: 'Notes',
-                placeholder: 'Notes for the reviewer (optional): how to try it, what changed',
+                placeholder: 'Notes for the reviewer (optional): how to try it, what changed'.t,
                 most: MarketMost.notes,
                 minLines: 3,
                 maxLines: 8,
@@ -994,7 +995,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
         PaneSection(
           title: 'Send',
           children: [
-            SettingRow(key: const ValueKey('market-submit-as'), icon: const AppIcon(Lucide.atSign, size: 18), label: 'As @$who', hint: const Text('Your username, help link and screenshots are shown to everyone once it\'s listed.')),
+            SettingRow(key: const ValueKey('market-submit-as'), icon: const AppIcon(Lucide.atSign, size: 18), label: 'As @$who', hint: const Tr('Your username, help link and screenshots are shown to everyone once it\'s listed.')),
             if (problems.isNotEmpty)
               SettingRowBox(
                 key: const ValueKey('market-submit-problems'),

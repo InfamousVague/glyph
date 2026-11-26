@@ -22,6 +22,7 @@ import 'hangout_screen.dart' show SpaceFace;
 import 'open_space_chat.dart';
 import 'ripple_avatar.dart';
 import 'voice_screen.dart' show LinkBadge, showPerson;
+import '../l10n/words.dart';
 
 /// Draws one person on an open space's floor. Today's is [avatarFigure]; a character (a ghost dressed in cosmetics)
 /// is another of these, handed the same [OpenFigure]: which way they face and whether they walk are already in it.
@@ -789,8 +790,8 @@ class _NameGroupPageState extends State<_NameGroupPage> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
           children: [
-            PaneSection(title: 'Name', description: const Text('What the group is for: a game, a film, a quiet corner.'), children: [
-              SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Group name', ariaLabel: 'Group name', autoFocus: true, autoCapitalize: TextCapitalization.sentences, size: GlacierFieldSize.md, onSubmitted: (_) => _done())),
+            PaneSection(title: 'Name', description: const Tr('What the group is for: a game, a film, a quiet corner.'), children: [
+              SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Group name'.t, ariaLabel: 'Group name', autoFocus: true, autoCapitalize: TextCapitalization.sentences, size: GlacierFieldSize.md, onSubmitted: (_) => _done())),
             ]),
             SizedBox(height: t.space(6)),
             PaneSection(children: [

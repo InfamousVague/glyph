@@ -11,6 +11,7 @@ import '../voice/soundboard.dart' show Soundboard;
 import '../voice/live_changer.dart';
 import '../voice/voice_changer.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// The Voice changer plugin's rows in its section of Settings, and the pages they open (Matt, 2026-11-20: "build it as
 /// a plugin"; lib/voice/voice_changer.dart): the ElevenLabs key, the voice, whether the next messages are changed,
@@ -146,7 +147,7 @@ class VoiceChangerCleanRow extends _Row {
         key: const ValueKey('changer-clean'),
         icon: _icon(Lucide.ear),
         label: 'Take out background noise',
-        hint: const Text('The room behind you is removed before the voice is changed.'),
+        hint: const Tr('The room behind you is removed before the voice is changed.'),
         control: GlacierSwitch(checked: c.clean, ariaLabel: 'Take out background noise', onCheckedChange: c.setClean),
       );
 }
@@ -161,7 +162,7 @@ class VoiceChangerForgetRow extends _Row {
         icon: _icon(Lucide.trash2),
         label: 'Forget the key',
         labelColor: c.hasKey ? context.tokens.danger : null,
-        hint: const Text('Takes the key, the voice and the list of voices off this device. The key itself stays in your ElevenLabs account until you delete it there.'),
+        hint: const Tr('Takes the key, the voice and the list of voices off this device. The key itself stays in your ElevenLabs account until you delete it there.'),
         disabled: !c.hasKey,
         onPress: () => showChoices(context, title: 'Forget your ElevenLabs key on this device?', choices: [
           Choice('Forget it', Lucide.trash2, () {
@@ -229,19 +230,19 @@ class _VoiceChangerKeyScreenState extends State<VoiceChangerKeyScreen> {
         child: ListView(padding: pad, keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, children: [
           SettingsCallout(
             icon: AppIcon(Lucide.info, size: 18),
-            child: const Text('With this key, each voice message you send while Voice changer is on goes from this device to ElevenLabs to be changed, and counts against your ElevenLabs plan. Ghost\'s servers never see the key or the recording.'),
+            child: const Tr('With this key, each voice message you send while Voice changer is on goes from this device to ElevenLabs to be changed, and counts against your ElevenLabs plan. Ghost\'s servers never see the key or the recording.'),
           ),
           SizedBox(height: t.space(4)),
           PaneSection(
             title: had ? 'A new key' : 'Your key',
-            description: const Text('At elevenlabs.io, open Developers › API keys and create one. If you restrict it, let it use Voice Changer and read Voices.'),
+            description: const Tr('At elevenlabs.io, open Developers › API keys and create one. If you restrict it, let it use Voice Changer and read Voices.'),
             children: [
               SettingRowBox(
                 child: GlacierInput(
                   key: const ValueKey('changer-key-field'),
                   controller: _key,
                   type: GlacierInputType.password,
-                  placeholder: 'sk_…',
+                  placeholder: 'sk_…'.t,
                   ariaLabel: 'ElevenLabs API key',
                   autoCorrect: false,
                   autoCapitalize: TextCapitalization.none,
@@ -298,9 +299,9 @@ class VoiceChangerVoicesScreen extends StatelessWidget {
             child: ListView(padding: pad, children: [
               PaneSection(
                 title: 'Your ElevenLabs voices',
-                description: const Text('ElevenLabs\' own and any you made or saved there. Your voice messages keep how you said them, in the voice you choose.'),
+                description: const Tr('ElevenLabs\' own and any you made or saved there. Your voice messages keep how you said them, in the voice you choose.'),
                 children: [
-                  if (c.voices.isEmpty) const SettingRowBox(child: Text('No voices yet. Add your key, or read them again.')),
+                  if (c.voices.isEmpty) const SettingRowBox(child: Tr('No voices yet. Add your key, or read them again.')),
                   for (final v in c.voices)
                     SettingRow(
                       key: ValueKey('changer-voice-${v.id}'),

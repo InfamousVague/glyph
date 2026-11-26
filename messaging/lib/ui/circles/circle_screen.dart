@@ -37,6 +37,7 @@ import 'circle_list.dart';
 import 'circle_view.dart';
 import 'members_drawer.dart' show showCircleMembers;
 import 'new_circle.dart';
+import '../../l10n/words.dart';
 
 export 'circle_invite.dart' show showCircleInvite;
 
@@ -62,7 +63,7 @@ class FilesNotHere extends StatelessWidget {
       title: channel.name,
       body: Padding(
         padding: EdgeInsets.all(t.space(4)),
-        child: Align(alignment: Alignment.topCenter, child: SettingsCallout(child: const Text('Files spaces aren\'t in the browser yet. This one opens in Ghost Messaging on a phone or a computer.'))),
+        child: Align(alignment: Alignment.topCenter, child: SettingsCallout(child: const Tr('Files spaces aren\'t in the browser yet. This one opens in Ghost Messaging on a phone or a computer.'))),
       ),
     );
   }
@@ -151,7 +152,7 @@ class CircleScreen extends StatelessWidget {
         final back = onBack ?? () => Navigator.of(context).maybePop();
         if (c == null) {
           // Left meanwhile (here, or on the phone or computer).
-          return GhostPage(title: 'Circle', onBack: back, body: const Center(child: Text('You left this circle.')));
+          return GhostPage(title: 'Circle', onBack: back, body: const Center(child: Tr('You left this circle.')));
         }
         // The window is named for the circle while its list is open (lib/ui/window_title.dart).
         return WindowTitle(name: c.name, circle: true, child: CircleList(view: circleView(context, c, onBack: back)));

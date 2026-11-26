@@ -9,6 +9,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Signing in to Google Chat (lib/inbox/google_chat.dart): Google's own page opens in the browser, and Ghost waits for
 /// the browser to come back to it on this device (a listener on 127.0.0.1, closed as soon as it has).
@@ -91,7 +92,7 @@ class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Text('Your messages go between this device and Google only. Ghost\'s servers never see them; only the sign-in Google gives back is kept on this device.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and Google only. Ghost\'s servers never see them; only the sign-in Google gives back is kept on this device.')),
               ],
             ),
           ),

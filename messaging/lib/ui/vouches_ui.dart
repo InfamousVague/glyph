@@ -10,6 +10,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
 import 'nav_bar.dart' show HoverTip;
+import '../l10n/words.dart';
 
 // Vouches on screen (GMFB-33; lib/friends/vouches.dart): how many of the viewer's own friends vouch for someone, with
 // their names on a tap; vouching for a friend and taking it back; and hiding the vouches one holds.
@@ -151,7 +152,7 @@ class VouchesSection extends StatelessWidget {
         final who = b.vouchersOf(null);
         return PaneSection(
           title: 'Vouches',
-          description: const Text('A friend can vouch that this account is really you, for a year. Your friends receive the vouches you hold, and each counts only those by their own friends: never a count of everyone.'),
+          description: const Tr('A friend can vouch that this account is really you, for a year. Your friends receive the vouches you hold, and each counts only those by their own friends: never a count of everyone.'),
           children: [
             SettingRow(
               key: const ValueKey('vouches-mine'),
@@ -162,7 +163,7 @@ class VouchesSection extends StatelessWidget {
             SettingRow(
               icon: _icon(Lucide.eyeOff),
               label: 'Show friends who vouches for me',
-              hint: const Text('Off, your friends see no vouches on your profile.'),
+              hint: const Tr('Off, your friends see no vouches on your profile.'),
               control: GlacierSwitch(
                 key: const ValueKey('vouches-show'),
                 checked: !b.vouches.hidden,

@@ -16,6 +16,7 @@ import '../voice/channels.dart';
 import '../voice/voice.dart';
 import 'circles/new_circle.dart' show CirclePerson, circlePeople;
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// [space]'s entry in its circle, where it is an SMS space; null otherwise.
 CircleSpace? smsSpaceOf(VoiceChannel space) {
@@ -125,7 +126,7 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
             if (mine) ...[
               SizedBox(height: t.space(5)),
               PaneSection(title: 'In it by text', children: [
-                if (people.isEmpty) const SettingRowBox(child: Text('Nobody yet. Members whose number is linked to Ghost Messaging are added by themselves when they come in; add anyone else below. Each gets a text saying how it works and how to leave.')),
+                if (people.isEmpty) const SettingRowBox(child: Tr('Nobody yet. Members whose number is linked to Ghost Messaging are added by themselves when they come in; add anyone else below. Each gets a text saying how it works and how to leave.')),
                 for (final p in people)
                   SettingRow(
                     key: ValueKey('texted-${p.number}'),
@@ -140,8 +141,8 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
               ]),
               SizedBox(height: t.space(5)),
               PaneSection(title: 'Add someone by text', children: [
-                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Name', ariaLabel: 'Their name', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
-                SettingRowBox(child: GlacierInput(controller: _number, placeholder: 'Phone number', ariaLabel: 'Their phone number', inputMode: TextInputType.phone, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Name'.t, ariaLabel: 'Their name', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _number, placeholder: 'Phone number'.t, ariaLabel: 'Their phone number', inputMode: TextInputType.phone, size: GlacierFieldSize.md)),
                 SettingRow(key: const ValueKey('texted-add'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Add and text them', onPress: _add),
               ]),
             ],

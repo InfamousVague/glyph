@@ -31,6 +31,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
 import 'handover_screens.dart';
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -64,7 +65,7 @@ Widget _accountSection(BuildContext context) {
         description: Text(paired
             ? 'Sign in to the account your phone is in, so this computer is the same you as your phone, or make one for who you are now.'
             : 'Keep who you are on Ghost Messaging, your friends and circles, and sign in with them on another device.'),
-        footer: account.removedHere ? const Text('This device was signed out of your account from another device.') : null,
+        footer: account.removedHere ? const Tr('This device was signed out of your account from another device.') : null,
         children: [
           if (phones != null)
             SettingRow(
@@ -80,9 +81,9 @@ Widget _accountSection(BuildContext context) {
             onPress: () => push(context, (_) => const CreateAccountScreen()),
           ),
           if (phones == null || phones.username.isEmpty)
-            SettingRow(icon: _icon(Lucide.keyRound), label: paired ? 'Sign in to your Ghost account' : 'Sign in to an account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen()))
+            SettingRow(icon: _icon(Lucide.keyRound), label: paired ? 'Sign in to your Ghost account' : 'Sign in to an account', hint: const Tr('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen()))
           else
-            SettingRow(icon: _icon(Lucide.keyRound), label: 'Sign in to another account', hint: const Text('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
+            SettingRow(icon: _icon(Lucide.keyRound), label: 'Sign in to another account', hint: const Tr('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
         ],
       );
   }
@@ -111,11 +112,11 @@ Widget _accountSection(BuildContext context) {
           control: _CopyButton(text: address),
         ),
         SettingRow(icon: _icon(Lucide.lock), label: 'Change password', onPress: () => push(context, (_) => const ChangePasswordScreen())),
-        SettingRow(icon: _icon(Lucide.eye), label: 'Show recovery words', hint: const Text('After your password'), onPress: () => push(context, (_) => const ShowWordsScreen())),
+        SettingRow(icon: _icon(Lucide.eye), label: 'Show recovery words', hint: const Tr('After your password'), onPress: () => push(context, (_) => const ShowWordsScreen())),
         SettingRow(
           icon: _icon(Lucide.laptop),
           label: 'Signed in on these devices',
-          hint: Account.keepsWords ? null : const Text('After your password'),
+          hint: Account.keepsWords ? null : const Tr('After your password'),
           onPress: () => push(context, (_) => const DevicesScreen()),
         ),
         // Signing in a new device by scanning the code on its sign-in screen (GMFB-45). On Android only for now: the
@@ -126,7 +127,7 @@ Widget _accountSection(BuildContext context) {
             key: const ValueKey('account-new-device'),
             icon: _icon(LucideMore.qrCode),
             label: 'Sign in a new device',
-            hint: const Text('Scan the code on its sign-in screen'),
+            hint: const Tr('Scan the code on its sign-in screen'),
             onPress: () => push(context, (_) => const HandoverApproveScreen()),
           ),
         // A browser keeps no words and no password key, so its backup is brought up to date only when asked, with the
@@ -135,7 +136,7 @@ Widget _accountSection(BuildContext context) {
           SettingRow(
             icon: _icon(Lucide.refreshCw),
             label: 'Update your backup',
-            hint: const Text('Your profile, friends and circles from this browser, after your password'),
+            hint: const Tr('Your profile, friends and circles from this browser, after your password'),
             onPress: () => push(context, (_) => const UpdateBackupScreen()),
           ),
         SettingRow(
@@ -298,7 +299,7 @@ class AddressBlock extends StatelessWidget {
       label: 'Address $address',
       child: ExcludeSemantics(
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('0x ', style: style.copyWith(color: t.color('app-ink-2'))),
+          Tr('0x ', style: style.copyWith(color: t.color('app-ink-2'))),
           Expanded(child: Text([for (var i = 0; i < groups.length; i += 2) groups.skip(i).take(2).join(' ')].join('\n'), style: style)),
         ]),
       ),
@@ -449,7 +450,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         return _AccountPage(title: 'Create an account', children: [
           PaneSection(
             title: 'Choose a password',
-            description: const Text('With your username and this password you can sign in on another device. Make it long: anyone who got hold of your backup could try passwords against it.'),
+            description: const Tr('With your username and this password you can sign in on another device. Make it long: anyone who got hold of your backup could try passwords against it.'),
             footer: _problem == null ? Text('At least $minPassword characters.') : _problemText(context, _problem),
             children: [
               _field(_password, 'Password', 'Password', secret: true, autofill: 'new-password'),
@@ -463,11 +464,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         return _AccountPage(title: 'Your recovery words', children: [
           PaneSection(
             title: 'Write these down',
-            description: const Text('On paper, in this order, and keep it somewhere safe. These 12 words are your account: with them you can sign in without your password, and nobody can give them back to you if they are lost.'),
+            description: const Tr('On paper, in this order, and keep it somewhere safe. These 12 words are your account: with them you can sign in without your password, and nobody can give them back to you if they are lost.'),
             children: [Padding(padding: EdgeInsets.all(t.space(3)), child: RecoveryWordsGrid(words: words))],
           ),
           _gap(context),
-          SettingsCallout(icon: _icon(Lucide.shieldCheck), child: const Text('Never type them into a website or tell them to anyone. Ghost Messaging will never ask for them except here, to sign in.')),
+          SettingsCallout(icon: _icon(Lucide.shieldCheck), child: const Tr('Never type them into a website or tell them to anyone. Ghost Messaging will never ask for them except here, to sign in.')),
           _gap(context, 8),
           PairButton(label: 'I\'ve written them down', icon: Lucide.arrowRight, onPressed: () => setState(() => _step = CreateStep.confirm)),
           // Just made at sign-up (GMFB-3, @kevin: "We need to find a way to reduce friction when onboarding new users. I
@@ -527,7 +528,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               key: const ValueKey('skip-word-check'),
               icon: _icon(Lucide.chevronRight),
               label: 'Skip this check',
-              hint: const Text('See your words again any time in Settings › Me'),
+              hint: const Tr('See your words again any time in Settings › Me'),
               onPress: _skipCheck,
             ),
           ]),
@@ -545,7 +546,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         return _AccountPage(title: 'Your account', children: [
           PaneSection(
             title: 'Your account is ready',
-            description: const Text('This is its address. It is yours alone, and it is the same in any wallet that takes your recovery words.'),
+            description: const Tr('This is its address. It is yours alone, and it is the same in any wallet that takes your recovery words.'),
             children: [
               Padding(padding: EdgeInsets.all(t.space(4)), child: AddressBlock(address: _draft.address)),
               SettingRow(icon: _icon(Lucide.copy), label: 'Copy address', onPress: () {
@@ -736,9 +737,9 @@ class _SignInScreenState extends State<SignInScreen> {
           _problem = null;
         }),
         options: const [
-          GlacierSegmentedOption(value: 'password', label: Text('Username')),
-          GlacierSegmentedOption(value: 'words', label: Text('Recovery words')),
-          GlacierSegmentedOption(value: 'phone', label: Text('Phone')),
+          GlacierSegmentedOption(value: 'password', label: Tr('Username')),
+          GlacierSegmentedOption(value: 'words', label: Tr('Recovery words')),
+          GlacierSegmentedOption(value: 'phone', label: Tr('Phone')),
         ],
       ),
     );
@@ -780,11 +781,11 @@ class _SignInScreenState extends State<SignInScreen> {
         tabs,
         PaneSection(
           title: 'Your recovery words',
-          description: const Text('The 12 words you wrote down, in order, with spaces between. No password or code is needed.'),
+          description: const Tr('The 12 words you wrote down, in order, with spaces between. No password or code is needed.'),
           footer: _problemText(context, _problem),
           children: [
             SettingRowBox(
-              child: GlacierInput(controller: _typedWords, placeholder: 'word word word …', ariaLabel: 'Recovery words', autoCorrect: false, spellCheck: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md, onSubmitted: (_) => _withWords()),
+              child: GlacierInput(controller: _typedWords, placeholder: 'word word word …'.t, ariaLabel: 'Recovery words', autoCorrect: false, spellCheck: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md, onSubmitted: (_) => _withWords()),
             ),
           ],
         ),
@@ -809,7 +810,7 @@ class _SignInScreenState extends State<SignInScreen> {
         _gap(context),
         PaneSection(
           title: 'Your number',
-          description: const Text('This account has a verified number. Type it, and a code is texted to it to show it\'s you.'),
+          description: const Tr('This account has a verified number. Type it, and a code is texted to it to show it\'s you.'),
           footer: _problemText(context, _problem),
           children: [
             _field(_number, '+1 555 010 0199', 'Phone number', keyboard: TextInputType.phone, autofill: 'tel'),
@@ -911,7 +912,7 @@ class _ShowWordsScreenState extends State<ShowWordsScreen> {
       return _AccountPage(title: 'Recovery words', children: [
         PaneSection(
           title: 'Your recovery words',
-          description: const Text('Make sure nobody can see your screen. Write them down in this order.'),
+          description: const Tr('Make sure nobody can see your screen. Write them down in this order.'),
           children: [Padding(padding: EdgeInsets.all(context.tokens.space(3)), child: RecoveryWordsGrid(words: words))],
         ),
       ]);
@@ -980,7 +981,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         _gap(context),
         PaneSection(
           title: 'A new one',
-          description: const Text('Your backup is sealed again with it. Your recovery words stay the same.'),
+          description: const Tr('Your backup is sealed again with it. Your recovery words stay the same.'),
           footer: _problemText(context, _problem),
           children: [
             _field(_next, 'New password', 'New password', secret: true, autofill: 'new-password'),
@@ -1084,7 +1085,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       return _AccountPage(title: 'Devices', children: [
         PaneSection(
           title: 'Your password first',
-          description: const Text('This browser keeps nothing that can change your account, so your password opens it for this page.'),
+          description: const Tr('This browser keeps nothing that can change your account, so your password opens it for this page.'),
           footer: _problemText(context, _problem),
           children: [_field(_password, 'Password', 'Password', secret: true, autofill: 'current-password', onSubmitted: (_) => _open())],
         ),
@@ -1097,8 +1098,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
     return _AccountPage(title: 'Devices', children: [
       PaneSection(
         title: 'Signed in on these devices',
-        description: const Text('Each one is your account. Remove one you no longer have. A browser is signed out within a few minutes, or as soon as it is next opened; a phone or a computer the next time it starts. A browser, an iPhone or a computer of its own then deletes everything of your account from itself, its other networks\' sign-ins and call recordings included. An Android phone, or a computer linked to one, is signed out and forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations.'),
-        footer: _problem != null ? _problemText(context, _problem) : _list == null ? const Text('Asking the relay server…') : null,
+        description: const Tr('Each one is your account. Remove one you no longer have. A browser is signed out within a few minutes, or as soon as it is next opened; a phone or a computer the next time it starts. A browser, an iPhone or a computer of its own then deletes everything of your account from itself, its other networks\' sign-ins and call recordings included. An Android phone, or a computer linked to one, is signed out and forgets your recovery words and its keys for circles and forward secrecy, and keeps its username, friends and conversations.'),
+        footer: _problem != null ? _problemText(context, _problem) : _list == null ? const Tr('Asking the relay server…') : null,
         children: [
           for (final d in list)
             SettingRow(
@@ -1121,7 +1122,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       ],
       _gap(context),
       // Every device signed in is connected at once since the hub keeps each of a name's devices (relay/lib/hub.dart).
-      const SettingsCallout(child: Text('Every device signed in is connected as your account at once, and each gets what is sent to you. Each browser you sign in on, and each private window, is a device of its own here until it signs out or you remove it; an account has room for 20.')),
+      const SettingsCallout(child: Tr('Every device signed in is connected as your account at once, and each gets what is sent to you. Each browser you sign in on, and each private window, is a device of its own here until it signs out or you remove it; an account has room for 20.')),
     ]);
   }
 }
@@ -1229,7 +1230,7 @@ class _UpdateBackupScreenState extends State<UpdateBackupScreen> {
   Widget build(BuildContext context) => _AccountPage(title: 'Update your backup', children: [
         PaneSection(
           title: 'Your password first',
-          description: const Text('Your profile, friends and circles from this browser go into your backup beside what is there, so a device signing in next has them. It is sealed again with your password and your recovery words.'),
+          description: const Tr('Your profile, friends and circles from this browser go into your backup beside what is there, so a device signing in next has them. It is sealed again with your password and your recovery words.'),
           footer: _problemText(context, _problem),
           children: [_field(_password, 'Password', 'Password', secret: true, autofill: 'current-password', onSubmitted: (_) => _go())],
         ),

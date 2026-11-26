@@ -14,6 +14,7 @@ import '../common.dart';
 import '../dialup/bevel.dart';
 import 'circle_face.dart';
 import 'new_circle.dart';
+import '../../l10n/words.dart';
 
 /// The page: the circle with [seed]'s spaces in their order, read again each time the circle changes.
 class ArrangeCircleSpacesScreen extends StatelessWidget {
@@ -28,7 +29,7 @@ class ArrangeCircleSpacesScreen extends StatelessWidget {
       listenable: circles,
       builder: (context, _) {
         final c = circles.bySeed(seed);
-        if (c == null) return GhostPage(title: 'Spaces', body: const Center(child: Text('You left this circle.')));
+        if (c == null) return GhostPage(title: 'Spaces', body: const Center(child: Tr('You left this circle.')));
         final spaces = c.spaces;
         final edit = circles.can(c, CirclePerm.spaces);
         final bevel = isBevelChrome(t);

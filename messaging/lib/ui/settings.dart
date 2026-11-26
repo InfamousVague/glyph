@@ -15,6 +15,7 @@ import '../me/me.dart';
 import '../app_state.dart';
 import '../effects.dart';
 import '../kit/fold.dart';
+import '../l10n/words.dart';
 import '../kit/settings_icons.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
@@ -238,7 +239,7 @@ abstract final class SettingsSources {
 /// One section: a row on the list and the page it opens.
 @immutable
 class SettingsSection {
-  const SettingsSection({required this.id, required this.label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen, this.where = SettingsWhere.everywhere, this.when, this.listed = true, this.entry});
+  const SettingsSection({required this.id, required String label, required this.icon, required this.hue, required this.group, required this.page, this.summary, this.screen, this.where = SettingsWhere.everywhere, this.when, this.listed = true, this.entry}) : english = label;
 
   /// The kind of device it is for.
   final SettingsWhere where;
@@ -248,7 +249,10 @@ class SettingsSection {
   final bool Function(SettingsModel model)? when;
 
   final String id;
-  final String label;
+
+  /// Its name as written; [label] is it in the language drawn (lib/l10n/words.dart).
+  final String english;
+  String get label => english.t;
   final Widget icon;
 
   /// Its colour, by the names settings.css keeps (kit/settings_css.dart).
@@ -388,7 +392,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
               padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
-              child: GlacierSearchField(placeholder: 'Search settings', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
+              child: GlacierSearchField(placeholder: 'Search settings'.t, size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
             ),
             // The header ends under the search field, as the conversations' does: what hangs under a header (the
             // update banner) hangs under this one, in this column.
@@ -749,7 +753,7 @@ class SettingsSectionRow extends StatelessWidget {
                         Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
                         if (hasSummary) ...[
                           SizedBox(height: t.lenOf('0.1rem')),
-                          Text(summary!, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color(summaryDanger ? 'app-danger' : 'app-ink-3'))),
+                          Text(translatedParts(summary!), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color(summaryDanger ? 'app-danger' : 'app-ink-3'))),
                         ],
                       ],
                     ),
@@ -795,17 +799,17 @@ class SettingsHit {
 /// its title alone: what its footnote says is about its rows, which are found themselves.
 List<(String, String)> pageEntries(List<Widget> widgets) {
   final out = <(String, String)>[];
-  String textOf(Widget? w) => w is Text ? (w.data ?? '') : '';
+  String textOf(Widget? w) => w is Tr ? w.words.t : (w is Text ? (w.data ?? '') : '');
   void walk(Widget w) {
     if (w is PaneSection) {
-      if ((w.title ?? '').isNotEmpty) out.add((w.title!, ''));
+      if ((w.title ?? '').isNotEmpty) out.add((w.title!.t, ''));
       for (final c in w.children) {
         walk(c);
       }
     } else if (w is SettingRow) {
-      out.add((w.label, textOf(w.hint)));
+      out.add((w.label.t, textOf(w.hint)));
     } else if (w is PaneHero) {
-      out.add((w.title, textOf(w.meta)));
+      out.add((w.title.t, textOf(w.meta)));
     }
   }
 

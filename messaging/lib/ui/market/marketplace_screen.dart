@@ -36,6 +36,7 @@ import 'market_flows.dart';
 import 'my_submissions.dart';
 import 'review_queue.dart';
 import 'submit_screen.dart';
+import '../../l10n/words.dart';
 
 /// One of the Marketplace's sections: its row, and the heading it stands under ('' for none).
 class MarketSection {
@@ -253,7 +254,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         if (!beside)
           Padding(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
-            child: GlacierSearchField(key: const ValueKey('market-search'), placeholder: 'Search the Marketplace', size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
+            child: GlacierSearchField(key: const ValueKey('market-search'), placeholder: 'Search the Marketplace'.t, size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
           ),
         const HeaderEnd(),
         Expanded(

@@ -201,6 +201,8 @@ class Store(private val context: Context) {
         val standIns = rcsStandIns()
         // Android's blocked list, read once: asking it about each conversation's number is a call to Android apiece.
         val blocked = blockedKeys()
+        // The newest of each RCS group's stand-in threads, left out of the list, for its group's row.
+        val carried = Newest()
         readCanonical()
         // No projection: OEM providers (Samsung's among them) differ in the columns they keep, and naming one they
         // lack fails the whole query. Each column is read if it is there.
@@ -227,8 +229,14 @@ class Store(private val context: Context) {
                     if (hidden[id]?.let { date <= it } == true) return null
                     // An RCS group's stand-in, already found to be a group the bridge shows (withBridge).
                     val standIn = group == null && recipients.isNotEmpty() && recipients.all(::isRcsStandIn)
-                    if (standIn && id in standIns) return null
                     val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
+                    // Its messages are its group's (messages()), so its newest is the group's newest too, where it is
+                    // newer: the list said the group's older words while the group showed these (Matt, 2026-11-26: "The
+                    // most recent message doesnt match what's actually sent as the last message on chats").
+                    if (standIn && id in standIns) {
+                        carried.carry(standIns.getValue(id), date, summary.ifBlank { latestSnippet(id, "$date:$count") }, iRead >= 0 && c.getInt(iRead) == 0)
+                        return null
+                    }
                     val people = recipients.map { contact(it) }
                     return mapOf(
                         "id" to id,
@@ -278,6 +286,7 @@ class Store(private val context: Context) {
             next = null
             if (offset <= 0) out += conversationsFromTexts(archived, pinned, muted, drafts).filter { only == null || (it["id"] as Long) in only }
         }
+        carried.into(out)
         if (offset <= 0) withBridge(out, only, lastShown = if (next != null) out.lastOrNull()?.get("date") as Long? else null)
         withReadHere(out)
         return mapOf("items" to out, "next" to next)
@@ -300,10 +309,12 @@ class Store(private val context: Context) {
             if (only != null && b.thread !in only) continue
             if (hidden[b.thread]?.let { b.time <= it } == true) continue
             val i = at[b.thread]
+            // Its words, or what it carries where it has none or only Google Messages' stand-in ("Photo", "Attachment").
+            val said = GmBridge.summary(b.text, partTypes(b.media))
             if (i != null) {
                 val row = out[i]
                 if (b.time > (row["date"] as Long)) {
-                    out[i] = row + mapOf("date" to b.time, "snippet" to b.text, "unread" to ((row["unread"] as Boolean) || b.unread > 0), "bridged" to true)
+                    out[i] = row + mapOf("date" to b.time, "snippet" to said, "unread" to ((row["unread"] as Boolean) || b.unread > 0), "bridged" to true)
                     added = true
                 } else if (b.unread > 0 && row["unread"] != true) {
                     out[i] = row + mapOf("unread" to true)
@@ -313,7 +324,7 @@ class Store(private val context: Context) {
             if (lastShown != null && b.time < lastShown) continue
             val people = if (b.addresses.isNotEmpty()) b.addresses.map { contact(it) } else listOf(mapOf("address" to (b.title ?: ""), "name" to b.title))
             out += mapOf(
-                "id" to b.thread, "date" to b.time, "count" to 1, "people" to people, "heard" to null, "snippet" to b.text,
+                "id" to b.thread, "date" to b.time, "count" to 1, "people" to people, "heard" to null, "snippet" to said,
                 "encrypted" to false, "group" to null, "unread" to (b.unread > 0), "error" to false, "attachment" to false,
                 "archived" to archived.contains(b.thread), "pinned" to pinned.contains(b.thread), "muted" to muted.contains(b.thread),
                 "name" to (threadName(b.thread) ?: if (b.group) b.title else null), "draft" to null, "blocked" to false, "bridged" to true,
@@ -330,6 +341,8 @@ class Store(private val context: Context) {
             val learned = HashMap<Long, Long>()
             val iter = out.listIterator()
             val unreadIn = HashSet<Long>()
+            // What each one left out said last, for its group's row where it is newer.
+            val newest = Newest()
             while (iter.hasNext()) {
                 val row = iter.next()
                 @Suppress("UNCHECKED_CAST") val people = row["people"] as List<Map<String, Any?>>
@@ -347,11 +360,13 @@ class Store(private val context: Context) {
                     ?: continue
                 learned[row["id"] as Long] = match.thread
                 if (row["unread"] == true) unreadIn += match.thread
+                newest.carry(match.thread, date, words, row["unread"] == true)
                 iter.remove()
             }
             if (learned.isNotEmpty()) {
                 keepRcsStandIns(learned)
                 out.forEachIndexed { i, row -> if (row["id"] in unreadIn && row["unread"] != true) out[i] = row + mapOf("unread" to true) }
+                if (newest.into(out)) added = true
             }
         }
         if (added) out.sortByDescending { it["date"] as Long }
@@ -935,14 +950,30 @@ class Store(private val context: Context) {
             // A picture message still coming down, kept before it was waited for: its words are a stand-in, and Android's
             // copy is the message itself (Matt, 2026-11-18: "it still shows me the "attachement" and "Sms message from jade"").
             if (!m.out && GmBridge.downloading(m.status ?: "")) continue
-            if (androidCopyOf(have, m.out, m.text, m.time, !m.media.isNullOrBlank() && m.media != "[]", used) != null) continue
-            // From the on-phone connection (GmWeb): its pictures, its delivered and read marks, and reactions.
+            // From a notification (no status of Google Messages' own): words that are a stand-in for a picture ("Photo",
+            // "Attachment", kept so before 0.12.43) are no words, and say it is a picture (Matt, 2026-11-26: "some RCS
+            // images are just displaying as "attachment"").
+            val noted = m.status == null
+            val stand = noted && GmBridge.standIn(m.text)
+            val text = if (stand) "" else m.text
+            // From the on-phone connection (GmWeb) or a notification: its pictures, where they can be had; else what
+            // they were (`missing`).
+            var missing: String? = if (stand) GmBridge.standInKind(m.text) else null
             val parts = m.media?.let { j ->
                 try {
                     val a = org.json.JSONArray(j)
-                    (0 until a.length()).map { i -> a.getJSONObject(i).let { p -> mapOf("id" to p.getLong("id"), "type" to p.optString("type"), "name" to p.optString("name").ifBlank { null }) } }
+                    (0 until a.length()).mapNotNull { i ->
+                        a.getJSONObject(i).let { p ->
+                            if (p.optBoolean("missing") || !p.has("id")) { missing = GmBridge.summary("", listOf(p.optString("type"))); null }
+                            else mapOf("id" to p.getLong("id"), "type" to p.optString("type"), "name" to p.optString("name").ifBlank { null })
+                        }
+                    }
                 } catch (_: Exception) { emptyList() }
             } ?: emptyList()
+            val media = parts.isNotEmpty() || missing != null
+            if (androidCopyOf(have, m.out, text, m.time, media, used) != null) continue
+            // A notification's copy beside the on-phone connection's own, kept before either knew of the other.
+            if (noted && bridged.any { w -> w.status != null && w.out == m.out && kotlin.math.abs(w.time - m.time) < 180_000 && GmBridge.sameMessage(m.text, media, w.text, !w.media.isNullOrBlank() && w.media != "[]") }) continue
             val status = m.status ?: ""
             val state = when {
                 !m.out -> "received"
@@ -959,9 +990,10 @@ class Store(private val context: Context) {
                 // Its reactions apart from its words, drawn once with the rest (lib/reactions.dart): in the words they were
                 // shown twice, there and under it (Matt, 2026-11-17: "When people react to a message we sent we see double
                 // reactions").
-                "body" to m.text, "reactions" to (m.reactions?.split(Regex("\\s+"))?.filter { it.isNotBlank() } ?: emptyList<String>()), "encrypted" to false,
+                "body" to text, "reactions" to (m.reactions?.split(Regex("\\s+"))?.filter { it.isNotBlank() } ?: emptyList<String>()), "encrypted" to false,
                 "notice" to null, "date" to m.time, "outgoing" to m.out, "state" to state,
                 "read" to (m.out || m.read), "via" to "gm", "sender" to m.sender, "parts" to parts,
+                "missing" to (if (parts.isEmpty()) missing else null),
             )
         }
     }
@@ -1264,6 +1296,40 @@ class Store(private val context: Context) {
         if (archived) s += thread.toString() else s -= thread.toString()
         prefs.edit().putStringSet("archived", s).apply()
     }
+
+    /**
+     * The newest message of conversations left out of the list for another's sake (an RCS group's stand-in thread, its
+     * messages shown in its group's): [into] gives each one's row its newest words and time where they are newer.
+     */
+    class Newest {
+        private val by = HashMap<Long, Triple<Long, String, Boolean>>()
+
+        /** [date] and [snippet] of a conversation shown as [thread]'s: kept where newer than any kept for it. */
+        fun carry(thread: Long, date: Long, snippet: String, unread: Boolean) {
+            val had = by[thread]
+            by[thread] = if (had == null || date > had.first) Triple(date, snippet, unread || had?.third == true) else had.copy(third = had.third || unread)
+        }
+
+        /** Each of [rows] (by `id`) brought to the newest kept for it; true where any changed. */
+        fun into(rows: MutableList<Map<String, Any?>>): Boolean {
+            if (by.isEmpty()) return false
+            var changed = false
+            rows.forEachIndexed { i, row ->
+                val (date, snippet, unread) = by[row["id"] as Long] ?: return@forEachIndexed
+                val newer = date > (row["date"] as Long) && snippet.isNotBlank()
+                if (!newer && (!unread || row["unread"] == true)) return@forEachIndexed
+                rows[i] = row + (if (newer) mapOf("date" to date, "snippet" to snippet) else emptyMap()) + (if (unread) mapOf("unread" to true) else emptyMap())
+                changed = true
+            }
+            return changed
+        }
+    }
+
+    /** The kinds of a bridged message's parts (its `media`, `[{id, type}]`); none where it has none. */
+    private fun partTypes(media: String?): List<String> = if (media.isNullOrBlank()) emptyList() else try {
+        val a = org.json.JSONArray(media)
+        (0 until a.length()).map { a.getJSONObject(it).optString("type") }
+    } catch (_: Exception) { emptyList() }
 
     /** A message as Android's database lists it, for [androidCopyOf]: its side, its words, when, whether it has a picture. */
     data class AndroidCopy(val out: Boolean, val words: String, val time: Long, val media: Boolean)

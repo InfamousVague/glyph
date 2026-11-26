@@ -20,6 +20,7 @@ import '../voice/spotify.dart';
 import '../voice/spotify_queue.dart';
 import 'common.dart';
 import 'voice_screen.dart' show VolumeSlider;
+import '../l10n/words.dart';
 
 /// "3:07".
 String songClock(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -183,7 +184,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
       if (on && m.canDj) ...[
         SizedBox(height: t.space(4)),
         PaneSection(
-          footer: const Text('Spotify must be open on this computer and signed in, on Premium to play a song of your choosing. People hear it live, and nothing is stored. Spotify\'s terms are for personal use and don\'t allow rebroadcasting: keep it to a small private call, at your own account\'s risk. Wear headphones, so your microphone doesn\'t send the music a second time.'),
+          footer: const Tr('Spotify must be open on this computer and signed in, on Premium to play a song of your choosing. People hear it live, and nothing is stored. Spotify\'s terms are for personal use and don\'t allow rebroadcasting: keep it to a small private call, at your own account\'s risk. Wear headphones, so your microphone doesn\'t send the music a second time.'),
           children: [
             SettingRow(
               key: const ValueKey('spotify-start'),
@@ -218,7 +219,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
             child: GlacierInput(
               key: const ValueKey('spotify-link'),
               controller: _link,
-              placeholder: 'Paste a song\'s link',
+              placeholder: 'Paste a song\'s link'.t,
               ariaLabel: 'A song\'s link from Spotify',
               autoCorrect: false,
               autoCapitalize: TextCapitalization.none,
@@ -261,7 +262,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
               ]),
             ),
           if (!m.mine) ..._heard(t, m),
-          if (m.mine) SettingRow(key: const ValueKey('spotify-stop'), icon: AppIcon(Lucide.x, size: 18), label: 'Stop', hint: const Text('Stop playing to the call, for everyone'), onPress: m.stop),
+          if (m.mine) SettingRow(key: const ValueKey('spotify-stop'), icon: AppIcon(Lucide.x, size: 18), label: 'Stop', hint: const Tr('Stop playing to the call, for everyone'), onPress: m.stop),
           if (m.mine)
             SettingRow(
               key: const ValueKey('spotify-listeners'),
@@ -305,7 +306,7 @@ List<Widget> _heard(Tokens t, SpotifyMusic m) {
         key: const ValueKey('spotify-lossless'),
         icon: AppIcon(LucideMore.music, size: 18),
         label: 'Lossless music',
-        hint: const Text('About 1 Mbit/s, and a second or so later than the DJ hears it. Off, it is Opus at its highest.'),
+        hint: const Tr('About 1 Mbit/s, and a second or so later than the DJ hears it. Off, it is Opus at its highest.'),
         control: GlacierSwitch(checked: m.lossless, onCheckedChange: m.setLossless, ariaLabel: 'Lossless music'),
       ),
     if (m.losslessCan && m.asksHeadphones)
@@ -313,7 +314,7 @@ List<Widget> _heard(Tokens t, SpotifyMusic m) {
         key: const ValueKey('spotify-headphones'),
         icon: AppIcon(LucideMore.headphones, size: 18),
         label: 'I\'m wearing headphones',
-        hint: const Text('Say so for what you hear it on now, and lossless plays to it.'),
+        hint: const Tr('Say so for what you hear it on now, and lossless plays to it.'),
         control: GlacierSwitch(checked: m.headphones, onCheckedChange: m.setHeadphones, ariaLabel: 'I\'m wearing headphones'),
       ),
   ];

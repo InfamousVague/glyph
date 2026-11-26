@@ -16,6 +16,7 @@ import 'ripple_avatar.dart';
 import 'shell.dart';
 import 'space_designs/space_design.dart';
 import '../voice/channels.dart';
+import '../l10n/words.dart';
 
 /// The Spaces tab's groups (Matt, 2026-11-16: "add grouping options to spaces so we can group all of a servers spaces
 /// under one group and show members that are in a space proxied from discord"): spaces in no group first, then each
@@ -154,7 +155,7 @@ class _GroupNamePageState extends State<_GroupNamePage> {
         children: [
           PaneSection(title: 'Name', children: [
             SettingRowBox(
-              child: GlacierInput(controller: _name, placeholder: 'Group name', ariaLabel: 'Group name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md, onSubmitted: (_) => _done()),
+              child: GlacierInput(controller: _name, placeholder: 'Group name'.t, ariaLabel: 'Group name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md, onSubmitted: (_) => _done()),
             ),
           ]),
           SizedBox(height: t.space(4)),
@@ -314,16 +315,16 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
-          SettingsCallout(child: const Text('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Ghost\'s bot carries the sound and the chat both ways.')),
+          SettingsCallout(child: const Tr('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Ghost\'s bot carries the sound and the chat both ways.')),
           gap,
           PaneSection(
             title: '1. Add the bot',
-            description: const Text('Someone who can manage the server adds Ghost Messaging\'s bot. It only sees channel names and who is in voice.'),
+            description: const Tr('Someone who can manage the server adds Ghost Messaging\'s bot. It only sees channel names and who is in voice.'),
             children: [
               SettingRow(
                 icon: AppIcon(Lucide.userPlus, size: 18),
                 label: 'Add the bot to your server',
-                hint: const Text('Opens Discord. Skip this if the bot is already there.'),
+                hint: const Tr('Opens Discord. Skip this if the bot is already there.'),
                 onPress: () => Sms.instance.openLink(_invite ?? DiscordServers.knownInvite),
               ),
             ],
@@ -331,13 +332,13 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
           gap,
           PaneSection(
             title: '2. Get a code',
-            description: const Text('In any channel of the server, type /ghost link. The bot answers with a code only you see. It works once, for 10 minutes.'),
+            description: const Tr('In any channel of the server, type /ghost link. The bot answers with a code only you see. It works once, for 10 minutes.'),
             children: const [],
           ),
           gap,
           PaneSection(title: '3. Enter it', children: [
             SettingRowBox(
-              child: GlacierInput(controller: _code, placeholder: 'ABC123', ariaLabel: 'Code', autoCapitalize: TextCapitalization.characters, size: GlacierFieldSize.md, onSubmitted: (_) => _link()),
+              child: GlacierInput(controller: _code, placeholder: 'ABC123'.t, ariaLabel: 'Code', autoCapitalize: TextCapitalization.characters, size: GlacierFieldSize.md, onSubmitted: (_) => _link()),
             ),
             SettingRow(icon: AppIcon(Lucide.link, size: 18), label: _busy ? 'Linking…' : 'Link the server', disabled: _busy, onPress: _busy ? null : _link),
           ]),

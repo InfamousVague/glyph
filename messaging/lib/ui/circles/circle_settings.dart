@@ -55,6 +55,7 @@ import 'circle_picture.dart';
 import 'circle_welcome.dart';
 import 'new_circle.dart';
 import 'perm_toggle.dart';
+import '../../l10n/words.dart';
 
 /// The sections of a circle's settings, in the sidebar's order, each under its heading ([group]).
 enum CircleSettingsSection {
@@ -118,7 +119,7 @@ class _CircleSettingsPageState extends State<CircleSettingsPage> {
       listenable: Listenable.merge([circles, Voice.instance]),
       builder: (context, _) {
         final c = circles.bySeed(widget.seed);
-        if (c == null) return GhostPage(title: 'Circle', body: const Center(child: Text('You left this circle.')));
+        if (c == null) return GhostPage(title: 'Circle', body: const Center(child: Tr('You left this circle.')));
         return LayoutBuilder(builder: (context, box) {
           if (box.maxWidth < circleSettingsWideAt) {
             // A phone: the sidebar is the page; a section opens over it with its way back.
@@ -288,7 +289,7 @@ class _SectionPageState extends State<_SectionPage> {
       listenable: Listenable.merge([Circles.instance, Voice.instance]),
       builder: (context, _) {
         final c = Circles.instance.bySeed(widget.seed);
-        if (c == null) return GhostPage(title: widget.section.label, body: const Center(child: Text('You left this circle.')));
+        if (c == null) return GhostPage(title: widget.section.label, body: const Center(child: Tr('You left this circle.')));
         return GhostPage(
           title: widget.section.label,
           body: _SectionBody(circle: c, section: widget.section, qr: _qr, onQr: () => setState(() => _qr = !_qr), onOpen: (o) => push<void>(context, (_) => _OpenPage(seed: c.seed, open: o))),
@@ -311,7 +312,7 @@ class _OpenPage extends StatelessWidget {
       builder: (context, _) {
         final c = Circles.instance.bySeed(seed);
         final title = c == null ? null : _openTitle(c, open);
-        if (c == null || title == null) return GhostPage(title: 'Circle', body: const Center(child: Text('This is gone.')));
+        if (c == null || title == null) return GhostPage(title: 'Circle', body: const Center(child: Tr('This is gone.')));
         return GhostPage(title: title, body: _OpenBody(circle: c, open: open, onGone: () => Navigator.of(context).maybePop()));
       },
     );
@@ -400,7 +401,7 @@ class _SectionBody extends StatelessWidget {
             key: const ValueKey('circle-picture'),
             icon: AppIcon(Lucide.imagePlus, size: 18),
             label: c.picture == null ? 'Choose a picture' : 'Change the picture',
-            hint: const Text('Shown in the icon\'s place'),
+            hint: const Tr('Shown in the icon\'s place'),
             onPress: () async {
               final p = await pickCirclePicture(context);
               if (p != null) circles.edit(c, picture: p);
@@ -412,7 +413,7 @@ class _SectionBody extends StatelessWidget {
             key: const ValueKey('circle-banner'),
             icon: AppIcon(Lucide.imagePlus, size: 18),
             label: c.banner == null ? 'Choose a banner' : 'Change the banner',
-            hint: const Text('A wide picture across the top of the circle\'s sidebar'),
+            hint: const Tr('A wide picture across the top of the circle\'s sidebar'),
             onPress: () async {
               await chooseCircleBanner(context, c);
             },
@@ -438,9 +439,9 @@ class _SectionBody extends StatelessWidget {
       if (!edit) ...[SettingsCallout(child: Text('Whoever has Change the circle turns plugins on or off for everyone in ${c.name}.')), SizedBox(height: context.tokens.space(4))],
       PaneSection(
         title: 'For everyone in the circle',
-        description: const Text('Turned on here, a plugin works in this circle\'s spaces for every member, without anyone adding it.'),
+        description: const Tr('Turned on here, a plugin works in this circle\'s spaces for every member, without anyone adding it.'),
         children: [
-          if (list.isEmpty) const SettingRowBox(child: Text('No plugin works for a whole circle yet.')),
+          if (list.isEmpty) const SettingRowBox(child: Tr('No plugin works for a whole circle yet.')),
           for (final p in list)
             SettingRow(
               key: ValueKey('circle-plugin-${p.id}'),
@@ -559,7 +560,7 @@ class _SectionBody extends StatelessWidget {
               key: const ValueKey('circle-word-copy'),
               icon: AppIcon(Lucide.link, size: 18),
               label: 'gogho.st/c/$word',
-              value: const Text('Copy'),
+              value: const Tr('Copy'),
               onPress: () {
                 Clipboard.setData(ClipboardData(text: inviteWordLink(word)));
                 toast(context, 'Invite link copied');
@@ -570,7 +571,7 @@ class _SectionBody extends StatelessWidget {
               key: const ValueKey('circle-word-choose'),
               icon: AppIcon(Lucide.pencil, size: 18),
               label: word == null ? 'Choose an invite word' : 'Change the word',
-              hint: const Text('3 to 32 letters, numbers or hyphens.'),
+              hint: const Tr('3 to 32 letters, numbers or hyphens.'),
               onPress: () => askCircleWords(context, title: 'Invite word', initial: word ?? tidyInviteWord(c.name) ?? '', hint: 'gogho.st/c/…', then: (raw) => chooseCircleInviteWord(context, c, raw)),
             ),
             if (word != null)
@@ -578,18 +579,18 @@ class _SectionBody extends StatelessWidget {
                 key: const ValueKey('circle-word-remove'),
                 icon: AppIcon(Lucide.trash2, size: 18),
                 label: 'Remove the word',
-                hint: const Text('The long link goes on working.'),
+                hint: const Tr('The long link goes on working.'),
                 onPress: () => chooseCircleInviteWord(context, c, null),
               ),
           ] else if (word == null)
-            const SettingRow(label: 'No invite word yet', hint: Text('Whoever may change the circle can choose one.')),
+            const SettingRow(label: 'No invite word yet', hint: Tr('Whoever may change the circle can choose one.')),
         ],
       ),
       PaneSection(
         title: 'Invite link',
-        description: const Text('Whoever has the link is in the circle, so share it with people you know.'),
+        description: const Tr('Whoever has the link is in the circle, so share it with people you know.'),
         children: [
-          if (circles.can(c, CirclePerm.invite)) SettingRow(key: const ValueKey('circle-settings-invite-people'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
+          if (circles.can(c, CirclePerm.invite)) SettingRow(key: const ValueKey('circle-settings-invite-people'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Tr('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
           SettingRow(
             key: const ValueKey('circle-copy-link'),
             icon: AppIcon(Lucide.copy, size: 18),
@@ -638,8 +639,8 @@ class _SectionBody extends StatelessWidget {
               onPress: edit ? () => onOpen((kind: 'space', id: s.seed)) : null,
             ),
           if (edit) ...[
-            SettingRow(key: const ValueKey('circle-settings-new-space'), icon: AppIcon(Lucide.plus, size: 18), label: 'New space', hint: const Text('A chat, a voice chat, or a files space'), onPress: () => push<void>(context, (_) => NewCircleSpaceScreen(circle: c))),
-            SettingRow(key: const ValueKey('circle-arrange'), icon: AppIcon(Lucide.chevronsUpDown, size: 18), label: 'Arrange spaces', hint: const Text('Their order and headings'), onPress: () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed))),
+            SettingRow(key: const ValueKey('circle-settings-new-space'), icon: AppIcon(Lucide.plus, size: 18), label: 'New space', hint: const Tr('A chat, a voice chat, or a files space'), onPress: () => push<void>(context, (_) => NewCircleSpaceScreen(circle: c))),
+            SettingRow(key: const ValueKey('circle-arrange'), icon: AppIcon(Lucide.chevronsUpDown, size: 18), label: 'Arrange spaces', hint: const Tr('Their order and headings'), onPress: () => push<void>(context, (_) => ArrangeCircleSpacesScreen(seed: c.seed))),
           ],
         ],
       ),
@@ -745,7 +746,7 @@ class _RolesList extends StatelessWidget {
               key: const ValueKey('circle-role-new'),
               icon: AppIcon(Lucide.plus, size: 18),
               label: 'New role',
-              hint: const Text('Made at the bottom, over everyone'),
+              hint: const Tr('Made at the bottom, over everyone'),
               onPress: () => askCircleWords(context, title: 'New role', then: (name) async {
                 final r = CircleRole.make(name, hue: circleHues[roles.length % circleHues.length], perms: const {});
                 final ok = await circles.saveRole(circles.bySeed(c.seed) ?? c, r);
@@ -794,7 +795,7 @@ class _RolesList extends StatelessWidget {
       gap,
       PaneSection(
         title: 'Owner',
-        description: const Text('Above every role: can do everything, give any role, make admins, and delete the circle.'),
+        description: const Tr('Above every role: can do everything, give any role, make admins, and delete the circle.'),
         children: [
           SettingRow(
             key: const ValueKey('circle-role-owner'),
@@ -808,7 +809,7 @@ class _RolesList extends StatelessWidget {
         gap,
         PaneSection(
           title: 'Admins',
-          description: const Text('Made by the owner, with no role: just under the owner, they can do everything but delete the circle or make admins.'),
+          description: const Tr('Made by the owner, with no role: just under the owner, they can do everything but delete the circle or make admins.'),
           children: [
             for (final p in admins)
               SettingRow(key: ValueKey('circle-role-admin-${p.id}'), icon: AppIcon(Lucide.shieldCheck, size: 18), label: p.me ? 'You' : p.name, labelColor: circleRoleInk(t, p), onPress: _isOwner(c) ? () => circlePersonMenu(context, c, p) : null),
@@ -960,7 +961,7 @@ class _CircleRoleEditorState extends State<CircleRoleEditor> {
     final c = widget.circle;
     final m = c.manifest;
     final r = _everyone ? null : m.roles.where((x) => x.id == widget.roleId).firstOrNull;
-    if (!_everyone && r == null) return const Center(child: Text('This role is gone.'));
+    if (!_everyone && r == null) return const Center(child: Tr('This role is gone.'));
     final owner = _isOwner(c);
     final manage = _everyone ? circles.can(c, CirclePerm.roles) : circles.mayManageRole(c, r!.id) && circles.can(c, CirclePerm.roles);
     final tab = _everyone ? _RoleTab.permissions : _tab;
@@ -997,12 +998,12 @@ class _CircleRoleEditorState extends State<CircleRoleEditor> {
           gap,
           PaneSection(
             title: 'Colour',
-            description: const Text('Names are drawn in the colour of their highest role that has one.'),
+            description: const Tr('Names are drawn in the colour of their highest role that has one.'),
             children: [
               SettingRow(
                 key: const ValueKey('role-no-colour'),
                 label: 'No colour',
-                hint: const Text('Names keep the text\'s own colour'),
+                hint: const Tr('Names keep the text\'s own colour'),
                 disabledReason: why,
                 control: GlacierSwitch(checked: r.hue == circleRoleNoHue, disabled: !manage, ariaLabel: 'No colour', onCheckedChange: (on) => save(r.copyWith(hue: on ? circleRoleNoHue : 'blue'))),
               ),
@@ -1017,7 +1018,7 @@ class _CircleRoleEditorState extends State<CircleRoleEditor> {
           ],
         ],
       _RoleTab.permissions => [
-          if (_everyone) ...[SettingsCallout(child: const Text('What everyone in the circle may do, whatever their roles. A space can change this for itself, in its Permissions.')), gap],
+          if (_everyone) ...[SettingsCallout(child: const Tr('What everyone in the circle may do, whatever their roles. A space can change this for itself, in its Permissions.')), gap],
           for (final (group, list) in CirclePerm.groups) ...[
             PaneSection(
               title: group,
@@ -1102,9 +1103,9 @@ class _CircleRoleEditorState extends State<CircleRoleEditor> {
           value: tab.name,
           onValueChange: (v) => setState(() => _tab = _RoleTab.values.byName(v)),
           options: const [
-            GlacierSegmentedOption(value: 'display', label: Text('Display')),
-            GlacierSegmentedOption(value: 'permissions', label: Text('Permissions')),
-            GlacierSegmentedOption(value: 'members', label: Text('Members')),
+            GlacierSegmentedOption(value: 'display', label: Tr('Display')),
+            GlacierSegmentedOption(value: 'permissions', label: Tr('Permissions')),
+            GlacierSegmentedOption(value: 'members', label: Tr('Members')),
           ],
         ),
         SizedBox(height: t.space(5)),
@@ -1147,7 +1148,7 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
     final c = widget.circle;
     final m = c.manifest;
     final s = c.space(widget.spaceSeed);
-    if (s == null) return const Center(child: Text('This space is gone.'));
+    if (s == null) return const Center(child: Tr('This space is gone.'));
     final edit = circles.can(c, CirclePerm.spaces);
     final roles = m.roles;
     if (_role != CircleManifest.everyoneId && !roles.any((r) => r.id == _role)) _role = CircleManifest.everyoneId;
@@ -1189,7 +1190,7 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
           key: const ValueKey('space-slow'),
           icon: AppIcon(Lucide.hourglass, size: 18),
           label: 'Slow mode',
-          hint: const Text('How long each person waits between messages here. Those who manage spaces don\'t wait.'),
+          hint: const Tr('How long each person waits between messages here. Those who manage spaces don\'t wait.'),
           value: Text(slowModeLabel(slowModeOf(s))),
           onPress: edit
               ? () => showChoices(context, title: 'Slow mode in ${s.name}', choices: [
@@ -1220,7 +1221,7 @@ class _SpacePermissionsState extends State<_SpacePermissions> {
       gap,
       PaneSection(
         title: 'Permissions',
-        description: const Text('What each role may do in this space: the cross takes a permission away here, the slash leaves it as the circle says, and the tick gives it. A role\'s word outweighs everyone\'s.'),
+        description: const Tr('What each role may do in this space: the cross takes a permission away here, the slash leaves it as the circle says, and the tick gives it. A role\'s word outweighs everyone\'s.'),
         children: [
           SettingRowBox(
             child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
@@ -1293,13 +1294,13 @@ class _MembersState extends State<_Members> {
     final people = q.isEmpty ? all : [for (final p in all) if (p.name.toLowerCase().contains(q) || m.rolesOf(p.id).any((r) => r.name.toLowerCase().contains(q))) p];
     final manage = circles.can(c, CirclePerm.roles) || _isOwner(c);
     return _Scroll(hue: widget.hue, children: [
-      GlacierSearchField(key: const ValueKey('circle-members-search'), placeholder: 'Search members or roles', value: _find, onValueChange: (v) => setState(() => _find = v)),
+      GlacierSearchField(key: const ValueKey('circle-members-search'), placeholder: 'Search members or roles'.t, value: _find, onValueChange: (v) => setState(() => _find = v)),
       SizedBox(height: t.space(4)),
       PaneSection(
         title: q.isEmpty ? _count(all.length, 'person', 'people') : '${people.length} of ${all.length}',
         description: Text(manage ? 'Press someone to give them roles or take roles away.' : 'Who is in ${c.name}, and their roles.'),
         children: [
-          if (circles.can(c, CirclePerm.invite) && q.isEmpty) SettingRow(key: const ValueKey('circle-settings-invite'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
+          if (circles.can(c, CirclePerm.invite) && q.isEmpty) SettingRow(key: const ValueKey('circle-settings-invite'), icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Tr('Friends in the app, anyone by a text, or the link.'), onPress: () => showCircleInvite(context, c)),
           for (final p in people)
             SettingRow(
               key: ValueKey('circle-person-${p.id}'),
@@ -1326,14 +1327,14 @@ class _MembersState extends State<_Members> {
         PaneSection(
           key: const ValueKey('circle-banned'),
           title: 'Banned',
-          description: const Text('Kept out of the circle, and not heard in it. Unbanned, they can come back if invited again.'),
+          description: const Tr('Kept out of the circle, and not heard in it. Unbanned, they can come back if invited again.'),
           children: [
             for (final id in m.removed)
               SettingRow(
                 key: ValueKey('circle-banned-$id'),
                 icon: AppIcon(Lucide.ban, size: 18),
                 label: Voice.instance.nameOf(id).isEmpty ? 'Someone (${id.substring(0, id.length < 8 ? id.length : 8)})' : Voice.instance.nameOf(id),
-                value: circles.canEdit(c) ? const Text('Unban') : null,
+                value: circles.canEdit(c) ? const Tr('Unban') : null,
                 onPress: circles.canEdit(c)
                     ? () async {
                         final ok = await circles.removeMember(circles.bySeed(c.seed) ?? c, id, back: true);
@@ -1361,7 +1362,7 @@ class _PersonRoles extends StatelessWidget {
     final circles = Circles.instance;
     final c = circle;
     final person = circlePeople(c).where((p) => p.id == personId).firstOrNull;
-    if (person == null) return const Center(child: Text('They are no longer listed.'));
+    if (person == null) return const Center(child: Tr('They are no longer listed.'));
     final owner = _isOwner(c);
     final mine = c.manifest.roleAssignments[person.id] ?? const [];
     return _Scroll(hue: 'green', children: [
@@ -1399,7 +1400,7 @@ class _PersonRoles extends StatelessWidget {
         SizedBox(height: t.space(6)),
         PaneSection(
           title: 'Admin',
-          description: const Text('An admin with no role can do everything but delete the circle or make admins.'),
+          description: const Tr('An admin with no role can do everything but delete the circle or make admins.'),
           children: [
             SettingRow(
               key: const ValueKey('person-admin'),

@@ -14,6 +14,7 @@ import '../kit/settings_kit.dart';
 import '../net/pair_room.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 export '../inbox/whatsapp.dart' show whatsAppWarning;
 
@@ -122,7 +123,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           if (!_agreed)
             PaneSection(
               title: 'WhatsApp doesn\'t support this',
-              description: const Text('Read this before linking.'),
+              description: const Tr('Read this before linking.'),
               children: [
                 _warning(context),
                 SettingRow(icon: _icon(Lucide.shieldCheck), label: 'I understand, link WhatsApp', onPress: _agree),
@@ -132,7 +133,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           else if (!_byNumber)
             PaneSection(
               title: 'Scan this with WhatsApp',
-              description: const Text('In WhatsApp on your phone: Settings › Linked devices › Link a device, then point it at this code. Ghost becomes another of your devices, as WhatsApp Web is, and your recent chats come across.'),
+              description: const Tr('In WhatsApp on your phone: Settings › Linked devices › Link a device, then point it at this code. Ghost becomes another of your devices, as WhatsApp Web is, and your recent chats come across.'),
               footer: error,
               children: [
                 SettingRowBox(
@@ -161,11 +162,11 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           else
             PaneSection(
               title: 'Link with your phone number',
-              description: const Text('Your WhatsApp number, with its country code. Ghost gets an eight-letter code from WhatsApp: in WhatsApp on your phone, Settings › Linked devices › Link a device › Link with phone number instead, then type it there.'),
+              description: const Tr('Your WhatsApp number, with its country code. Ghost gets an eight-letter code from WhatsApp: in WhatsApp on your phone, Settings › Linked devices › Link a device › Link with phone number instead, then type it there.'),
               footer: error,
               children: [
                 SettingRowBox(
-                  child: GlacierInput(controller: _phone, type: GlacierInputType.tel, placeholder: '+1 555 010 0199', ariaLabel: 'Your WhatsApp number', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _pair()),
+                  child: GlacierInput(controller: _phone, type: GlacierInputType.tel, placeholder: '+1 555 010 0199'.t, ariaLabel: 'Your WhatsApp number', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _pair()),
                 ),
                 SettingRow(icon: _icon(Lucide.arrowRight), label: _asking ? 'Asking WhatsApp…' : 'Get a code', disabled: _asking, onPress: _pair),
                 if (n.pairCode != null)

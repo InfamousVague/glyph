@@ -15,6 +15,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -91,7 +92,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
           padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
           children: [
             PaneSection(
-              description: const Text(
+              description: const Tr(
                 'Write your own styles over the look you use. The app reads CSS variables, such as --app-accent, set on :root. Anything that would stop the app being drawn or read is left out and listed below.',
               ),
               children: [
@@ -99,7 +100,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
                   key: const ValueKey('custom-css-on'),
                   icon: _icon(Lucide.braces),
                   label: 'Use my CSS',
-                  hint: const Text('Kept on this device'),
+                  hint: const Tr('Kept on this device'),
                   control: GlacierSwitch(checked: on, onCheckedChange: (v) => CustomCss.save(app, CustomCss.text(app), on: v), ariaLabel: 'Use my CSS'),
                 ),
               ],
@@ -119,7 +120,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
                     behavior: HitTestBehavior.opaque,
                     onTap: _focus.requestFocus,
                     child: Stack(children: [
-                      if (_text.text.isEmpty) IgnorePointer(child: Text(':root { --app-accent: #ff5c8a; }', style: mono.copyWith(color: t.color('app-ink-3')))),
+                      if (_text.text.isEmpty) IgnorePointer(child: Tr(':root { --app-accent: #ff5c8a; }', style: mono.copyWith(color: t.color('app-ink-3')))),
                       EditableText(
                         key: const ValueKey('custom-css-text'),
                         controller: _text,
@@ -165,7 +166,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
             SizedBox(height: t.space(5)),
             PaneSection(
               title: 'Help',
-              footer: const Text('Rules about elements (button, div) and plain properties (color: red) do nothing: the app is drawn from variables. Fonts can only be ones the app has.'),
+              footer: const Tr('Rules about elements (button, div) and plain properties (color: red) do nothing: the app is drawn from variables. Fonts can only be ones the app has.'),
               children: [
                 if (_text.text.trim().isEmpty)
                   SettingRow(
@@ -178,7 +179,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
                   key: const ValueKey('custom-css-variables'),
                   icon: _icon(Lucide.copy),
                   label: 'Copy every variable',
-                  hint: const Text('All the names the app reads, with their values now, to paste and change'),
+                  hint: const Tr('All the names the app reads, with their values now, to paste and change'),
                   onPress: _copyVariables,
                 ),
                 if (_text.text.isNotEmpty)

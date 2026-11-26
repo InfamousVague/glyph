@@ -23,6 +23,7 @@ import 'dialup/bevel.dart' show isBevelChrome;
 import 'dialup/parts.dart' show DialupFace;
 import 'plugin_note_card.dart' show NoteWords;
 import 'reaction_stickers.dart' show ReactionChips;
+import '../l10n/words.dart';
 
 /// One message as a channel's line: the face in a gutter by a run's first message, the name and the time beside it, and
 /// what was said under them on the page.
@@ -211,7 +212,7 @@ InlineSpan editedMark(TextStyle style, Color ink, {Key? key, VoidCallback? onTap
       baseline: TextBaseline.alphabetic,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(key: key, behavior: HitTestBehavior.opaque, onTap: onTap, child: Text('(edited)', style: small)),
+        child: GestureDetector(key: key, behavior: HitTestBehavior.opaque, onTap: onTap, child: Tr('(edited)', style: small)),
       ),
     ),
   ]);

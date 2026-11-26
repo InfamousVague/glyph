@@ -9,6 +9,7 @@ import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Signing in to Matrix (Matt, 2026-11-17: "Let's add support for matrix, microsoft teams and google chat"): the
 /// homeserver or the person's user id, then the browser (single sign-on, the way matrix.org signs people in since it
@@ -104,11 +105,11 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                 if (!ready) ...[
                   PaneSection(
                     title: 'Your server',
-                    description: const Text('The server your account is on, or your whole user id (@you:matrix.org). Left empty, it\'s matrix.org.'),
+                    description: const Tr('The server your account is on, or your whole user id (@you:matrix.org). Left empty, it\'s matrix.org.'),
                     footer: n.error == null || _browser ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                     children: [
                       SettingRowBox(
-                        child: GlacierInput(controller: _server, placeholder: 'matrix.org', ariaLabel: 'Your server or user id', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md),
+                        child: GlacierInput(controller: _server, placeholder: 'matrix.org'.t, ariaLabel: 'Your server or user id', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md),
                       ),
                       SettingRow(
                         icon: _icon(Lucide.globe),
@@ -125,13 +126,13 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                   SizedBox(height: t.space(4)),
                   PaneSection(
                     title: 'Or with a password',
-                    description: const Text('For servers that still take one. matrix.org and others on Matrix Authentication Service sign in with the browser only.'),
+                    description: const Tr('For servers that still take one. matrix.org and others on Matrix Authentication Service sign in with the browser only.'),
                     children: [
                       SettingRowBox(
-                        child: GlacierInput(controller: _user, placeholder: '@you:matrix.org', ariaLabel: 'User name', autoCorrect: false, size: GlacierFieldSize.md),
+                        child: GlacierInput(controller: _user, placeholder: '@you:matrix.org'.t, ariaLabel: 'User name', autoCorrect: false, size: GlacierFieldSize.md),
                       ),
                       SettingRowBox(
-                        child: GlacierInput(controller: _password, type: GlacierInputType.password, placeholder: 'Password', ariaLabel: 'Password', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _withPassword()),
+                        child: GlacierInput(controller: _password, type: GlacierInputType.password, placeholder: 'Password'.t, ariaLabel: 'Password', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _withPassword()),
                       ),
                       SettingRow(icon: _icon(Lucide.arrowRight), label: busy && !_browser ? 'Signing in…' : 'Sign in', disabled: busy, onPress: _withPassword),
                     ],
@@ -139,7 +140,7 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                 ] else ...[
                   PaneSection(
                     title: 'Unlock older messages',
-                    description: const Text(
+                    description: const Tr(
                         'Most Matrix chats are end-to-end encrypted. New messages reach this device once your other devices share their keys with it. Your recovery key (Element calls it the Security Key) unlocks the rest: this device is verified as yours, and the keys to messages from before it was signed in come down from your server\'s key backup. It is used once and not kept.'),
                     footer: _keyError == null ? null : Text(_keyError!, style: TextStyle(color: t.danger)),
                     children: [
@@ -147,7 +148,7 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                         SettingRow(icon: _icon(Lucide.shieldCheck), label: 'This device is verified', hint: Text('Signed in as ${n.userId ?? n.account ?? ''}'))
                       else ...[
                         SettingRowBox(
-                          child: GlacierInput(controller: _key, type: GlacierInputType.password, placeholder: 'EsTx xxxx xxxx …', ariaLabel: 'Recovery key', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _unlock()),
+                          child: GlacierInput(controller: _key, type: GlacierInputType.password, placeholder: 'EsTx xxxx xxxx …'.t, ariaLabel: 'Recovery key', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _unlock()),
                         ),
                         SettingRow(icon: _icon(Lucide.keyRound), label: _unlocking ? 'Unlocking…' : 'Unlock', disabled: _unlocking, onPress: _unlock),
                       ],
@@ -156,7 +157,7 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                   ),
                 ],
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Text('Your messages go between this device and your Matrix server only. Ghost\'s servers never see them, and your password isn\'t kept: only the session your server gives back, and this device\'s encryption keys.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and your Matrix server only. Ghost\'s servers never see them, and your password isn\'t kept: only the session your server gives back, and this device\'s encryption keys.')),
               ],
             ),
           ),

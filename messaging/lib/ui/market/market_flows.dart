@@ -35,6 +35,7 @@ import '../plugins_page/plugin_art.dart';
 import '../plugins_page/plugins_page.dart' show pluginsHere;
 import 'market_forms.dart' show MarketLengthLimit;
 import '../../plugins/plugin_sync.dart';
+import '../../l10n/words.dart';
 
 /// A computer on its own, with no phone's texts: a plugin from another developer has nothing here to sort.
 bool get marketNoTexts => Sms.standalone && !PlatformInfo.isAndroid && !PlatformInfo.isIOS;
@@ -298,7 +299,7 @@ class _ReportPageState extends State<_ReportPage> {
                   padding: EdgeInsets.all(t.space(3)),
                   decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                   child: Stack(children: [
-                    ListenableBuilder(listenable: _words, builder: (context, _) => _words.text.isEmpty ? IgnorePointer(child: Text('Don\'t paste your texts here.', style: ink.copyWith(color: t.color('app-ink-3')))) : const SizedBox.shrink()),
+                    ListenableBuilder(listenable: _words, builder: (context, _) => _words.text.isEmpty ? IgnorePointer(child: Tr('Don\'t paste your texts here.', style: ink.copyWith(color: t.color('app-ink-3')))) : const SizedBox.shrink()),
                     Semantics(
                       label: 'Say more',
                       textField: true,

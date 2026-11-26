@@ -47,10 +47,17 @@ class CircleKeys {
   /// The app's own, set by Circles as it starts; HangoutRoom seals a circle space's chat with it.
   static CircleKeys? app;
 
-  /// Whether circles change their key at all. Off until the circle half of GMFB-26 is ready (docs/FORWARD_SECRECY.md):
-  /// with it off no device has circle keys, so every circle is sealed with its seed's keys and nothing of this is said
-  /// in its rooms, exactly as before this ticket. A test of the circle keys switches it on.
-  static bool enabled = false;
+  /// Whether this device takes part in circle keys at all: holds an inbox and says it, takes a key handed to it, asks
+  /// for one it lacks, and opens and seals what a circle's newest key covers. On since 2026-11-26 (GMFB-26, step 1 of
+  /// docs/FORWARD_SECRECY.md's "Switching it on"), so that by the time keys are made every device that has updated can
+  /// read them. Off, every circle is sealed with its seed's keys and nothing of this is said in its rooms, as before.
+  static bool enabled = true;
+
+  /// Whether this device makes a circle a new key when someone is put out of it ([Circles.rotateKey]). Off: while
+  /// builds from before [enabled] are about, a new key would lock them out of the circle at its first removal, and
+  /// that can't be undone for a circle. Switched on once nearly every device has updated (Matt's call). A test of the
+  /// circle keys switches it on.
+  static bool makes = false;
 
   final FsStore _secrets;
 

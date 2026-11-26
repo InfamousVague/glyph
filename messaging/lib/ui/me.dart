@@ -25,6 +25,7 @@ import 'common.dart';
 import 'profile.dart';
 import 'settings.dart';
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -207,12 +208,12 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
       SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Routes).')),
     PaneSection(
       title: 'Linked accounts',
-      description: const Text('Show that an account is yours. Friends who asked to hear about that account are then told you\'re on Ghost Messaging, if you turn that on below.'),
+      description: const Tr('Show that an account is yours. Friends who asked to hear about that account are then told you\'re on Ghost Messaging, if you turn that on below.'),
       children: [for (final n in networks) _LinkRow(network: n)],
     ),
     PaneSection(
       title: 'Being found',
-      footer: const Text(
+      footer: const Tr(
           'Off, nobody is told anything. On, someone who already knows one of your linked handles, and asked to hear about it, is told that it is on Ghost Messaging. They are not given your number, your name or your other accounts, and nobody is told about your number, verified or not. The relay server keeps a scrambled form of each linked handle, never the handle itself.'),
       children: [
         SettingRow(
@@ -229,7 +230,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.trash2),
           label: 'Remove everything about me',
-          hint: const Text('Unlinks every account and your number, and clears the people you watch for, on this phone and on the relay server.'),
+          hint: const Tr('Unlinks every account and your number, and clears the people you watch for, on this phone and on the relay server.'),
           disabled: !me.ready || (me.links.isEmpty && me.watch.isEmpty && !me.listed),
           onPress: () => showChoices(context, title: 'Unlink every account and clear your watch list? Friends will no longer be told you\'re here.', choices: [
             Choice('Remove everything', Lucide.trash2, () async {
@@ -265,7 +266,7 @@ class _NumberRow extends StatelessWidget implements PaneRow {
       return SettingRow(
         icon: icon,
         label: 'Number',
-        hint: const Text('Verified'),
+        hint: const Tr('Verified'),
         value: Text(shown),
         onPress: () => showChoices(context, title: '$shown is verified: a code texted to it reached this phone.', choices: [
           Choice('Copy number', Lucide.copy, () {
@@ -283,7 +284,7 @@ class _NumberRow extends StatelessWidget implements PaneRow {
     final shown = Text(own == null || own!.isEmpty ? 'Not known' : (numberFits(tidy) ? showNumber(tidy) : own!));
     // On a computer it is verified through the phone (Me.followPhone), as on the phone itself.
     // Short words here, beside the number; the page it opens has room for why and how.
-    return SettingRow(icon: icon, label: 'Number', hint: const Text('Not verified'), value: shown, onPress: me.ready ? () => push<void>(context, (_) => NumberScreen(own: own)) : null);
+    return SettingRow(icon: icon, label: 'Number', hint: const Tr('Not verified'), value: shown, onPress: me.ready ? () => push<void>(context, (_) => NumberScreen(own: own)) : null);
   }
 }
 
@@ -425,14 +426,14 @@ class _NumberScreenState extends State<NumberScreen> {
             children: [
               PaneSection(
                 title: 'Your number',
-                description: const Text('A code is texted to this number, and coming back it shows the number is this phone\'s. The relay server and the texting service it uses see the number. Nobody else is told it.'),
+                description: const Tr('A code is texted to this number, and coming back it shows the number is this phone\'s. The relay server and the texting service it uses see the number. Nobody else is told it.'),
                 footer: sent == null ? problem : null,
                 children: [
                   SettingRowBox(
                     child: GlacierInput(
                       controller: _number,
                       type: GlacierInputType.tel,
-                      placeholder: '+1 555 010 0199',
+                      placeholder: '+1 555 010 0199'.t,
                       ariaLabel: 'Your phone number',
                       autoFocus: _number.text.isEmpty,
                       autoCorrect: false,
@@ -465,7 +466,7 @@ class _NumberScreenState extends State<NumberScreen> {
                       child: GlacierInput(
                         controller: _code,
                         type: GlacierInputType.number,
-                        placeholder: '482913',
+                        placeholder: '482913'.t,
                         ariaLabel: 'The code from the text',
                         autoCorrect: false,
                         maxLength: 10,
@@ -527,8 +528,8 @@ class _LinkRow extends StatelessWidget implements PaneRow {
         ]),
       );
     }
-    if (n.soon) return SettingRow(icon: mark, label: n.name, hint: const Text('Coming soon'), disabled: true);
-    if (Sms.followsPhone || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Text('Not linked'), disabled: true);
+    if (n.soon) return SettingRow(icon: mark, label: n.name, hint: const Tr('Coming soon'), disabled: true);
+    if (Sms.followsPhone || !me.ready) return SettingRow(icon: mark, label: n.name, hint: const Tr('Not linked'), disabled: true);
     if (n.signIn && me.ways[n.id] != 'signin') {
       return SettingRow(icon: mark, label: n.name, hint: Text('Signing in with ${n.name} isn\'t set up on the relay server yet.'), disabled: true);
     }
@@ -646,7 +647,7 @@ class _ProofScreenState extends State<ProofScreen> {
                     SettingRow(
                       icon: _icon(Lucide.copy),
                       label: code,
-                      value: const Text('Copy'),
+                      value: const Tr('Copy'),
                       onPress: () {
                         Clipboard.setData(ClipboardData(text: code));
                         toast(context, 'Code copied');
@@ -677,19 +678,19 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
       title: 'On Ghost Messaging',
       children: [
         if (me.joined.isEmpty)
-          const SettingRow(label: 'Nobody yet', hint: Text('When someone you watch for links their account and chooses to be found, they show here.'))
+          const SettingRow(label: 'Nobody yet', hint: Tr('When someone you watch for links their account and chooses to be found, they show here.'))
         else
           for (final j in me.joined) _JoinedRow(joined: j),
       ],
     ),
     PaneSection(
       title: 'Watching for',
-      description: const Text('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself.'),
+      description: const Tr('The handles you want to hear about. Discord, Telegram and X don\'t let an app read your friends or followers, so add those yourself.'),
       footer: Text(me.watch.isEmpty
           ? 'The relay server is given a scrambled form of each handle, never the handle itself.'
           : '${me.watch.length} ${me.watch.length == 1 ? 'handle' : 'handles'}. The relay server holds a scrambled form of each, never the handle itself.'),
       children: [
-        SettingRow(icon: _icon(Lucide.plus), label: 'Add handles', hint: const Text('Type or paste as many as you like.'), disabled: Sms.followsPhone, onPress: () => push<void>(context, (_) => const AddWatchScreen())),
+        SettingRow(icon: _icon(Lucide.plus), label: 'Add handles', hint: const Tr('Type or paste as many as you like.'), disabled: Sms.followsPhone, onPress: () => push<void>(context, (_) => const AddWatchScreen())),
         for (final n in importable) _ImportRow(network: n),
         for (final n in networks)
           if (me.watch.any((w) => w.network == n.id))
@@ -716,7 +717,7 @@ class _JoinedRow extends StatelessWidget implements PaneRow {
     return SettingRow(
       icon: NetworkMark(n),
       label: '@${joined.handle}',
-      labelAfter: joined.seen ? null : Padding(padding: const EdgeInsets.only(left: 8), child: const GlacierPill(size: GlacierPillSize.sm, child: Text('New'))),
+      labelAfter: joined.seen ? null : Padding(padding: const EdgeInsets.only(left: 8), child: const GlacierPill(size: GlacierPillSize.sm, child: Tr('New'))),
       hint: Text('${n.name} · joined ${_when(joined.at)}'),
       onPress: () => showChoices(context, title: '@${joined.handle} from ${n.name} is on Ghost Messaging. Ask them for their number there to start a conversation here.', choices: [
         if (page != null) Choice('Open their ${n.name} profile', Lucide.externalLink, () => Sms.instance.openLink(page)),
@@ -847,7 +848,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
                         padding: EdgeInsets.all(t.space(3)),
                         decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                         child: Stack(children: [
-                          if (_text.text.isEmpty) IgnorePointer(child: Text('@maya  @jordan  @sam', style: ink.copyWith(color: t.color('app-ink-3')))),
+                          if (_text.text.isEmpty) IgnorePointer(child: Tr('@maya  @jordan  @sam', style: ink.copyWith(color: t.color('app-ink-3')))),
                           EditableText(
                             controller: _text,
                             focusNode: _focus,
@@ -908,11 +909,11 @@ class WatchListScreen extends StatelessWidget {
                 children: [
                   PaneSection(
                     children: [
-                      if (mine.isEmpty) const SettingRow(label: 'Nobody', hint: Text('Add handles from Friends joining.')),
+                      if (mine.isEmpty) const SettingRow(label: 'Nobody', hint: Tr('Add handles from Friends joining.')),
                       for (final w in mine.take(400))
                         SettingRow(
                           label: '@${w.handle}',
-                          value: here.contains(w.handle) ? const Text('Here') : null,
+                          value: here.contains(w.handle) ? const Tr('Here') : null,
                           onPress: () => showChoices(context, title: '@${w.handle} on ${n.name}', choices: [
                             if (n.profile(w.handle) != null) Choice('Open profile', Lucide.externalLink, () => Sms.instance.openLink(n.profile(w.handle)!)),
                             Choice('Stop watching for them', Lucide.eyeOff, () => me.removeWatch(w), danger: true),
@@ -968,7 +969,7 @@ class _SameYou extends StatelessWidget {
           };
           return PaneSection(
             title: 'Account',
-            description: const Text('Your phone hands over who you are, your friends and your conversations with them, so this computer is the same you, with your phone switched off too. Then you can sign in to your Ghost account here.'),
+            description: const Tr('Your phone hands over who you are, your friends and your conversations with them, so this computer is the same you, with your phone switched off too. Then you can sign in to your Ghost account here.'),
             children: [
               SettingRow(
                 icon: _icon(Lucide.refreshCw),

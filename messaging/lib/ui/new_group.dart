@@ -9,6 +9,7 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'shell.dart';
+import '../l10n/words.dart';
 
 /// A new group of friends (Matt, 2026-11-14: "expand on the ability to create, name and manage groups like
 /// telegram"): its name, and which friends are in it. Made, it opens as its own conversation, with whoever made it
@@ -90,7 +91,7 @@ class _NewGroupState extends State<NewGroupScreen> {
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(3)),
-          child: GlacierInput(controller: _name, placeholder: 'Group name', ariaLabel: 'Group name', size: GlacierFieldSize.md),
+          child: GlacierInput(controller: _name, placeholder: 'Group name'.t, ariaLabel: 'Group name', size: GlacierFieldSize.md),
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),

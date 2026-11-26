@@ -178,7 +178,7 @@ class Circles extends ChangeNotifier {
     _app = app;
     _load(app);
     try {
-      // Switched off as a whole for now (CircleKeys.enabled): circles are sealed with their seeds' keys, as before.
+      // Off as a whole where CircleKeys.enabled is: circles are then sealed with their seeds' keys, as before.
       if (CircleKeys.enabled) {
         final k = CircleKeys(secrets: _CircleSecrets(), device: HubCarrier.device);
         await k.load();
@@ -1022,7 +1022,8 @@ class Circles extends ChangeNotifier {
   /// or an admin) or has no keys.
   Future<bool> rotateKey(Circle c) async {
     final k = keys, s = signer;
-    if (k == null || s == null) return false;
+    // Not made by any device yet (CircleKeys.makes): taken where a device that makes them hands one over.
+    if (k == null || s == null || !CircleKeys.makes) return false;
     final room = _rooms[c.seed];
     final to = [for (final i in room?.inboxes.values ?? const <CircleInbox>[]) if (mayHaveKey(c.seed, i.id)) i];
     final said = await k.rotate(c, s, to);

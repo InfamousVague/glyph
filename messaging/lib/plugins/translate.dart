@@ -28,6 +28,7 @@ import 'codes.dart' show signInCode;
 import 'plugin.dart';
 import 'registry.dart';
 import 'shown_store.dart';
+import '../l10n/words.dart';
 
 /// The languages the phone's translation has models for (ML Kit's 59, as of translate 17.0.3): each one's tag, its
 /// name in English (the app's language) and its name in itself.
@@ -343,7 +344,7 @@ List<Widget> _settingsRows(PluginPrefs prefs) => PluginRegistry.textHost.canTran
         SettingRow(
           icon: AppIcon(Lucide.info, size: 18),
           label: 'Not on this device yet',
-          hint: Text('Translation runs on an Android phone. Pair this iPhone with one to translate here.'),
+          hint: Tr('Translation runs on an Android phone. Pair this iPhone with one to translate here.'),
         ),
       ];
 
@@ -386,7 +387,7 @@ class _AlsoRead extends StatelessWidget implements PaneRow {
     return SettingRow(
       icon: const AppIcon(Lucide.bookOpen, size: 18),
       label: 'Languages you also read',
-      hint: const Text('Never translated.'),
+      hint: const Tr('Never translated.'),
       value: Text(known.isEmpty ? 'None' : known.map((k) => languageName(k) ?? k).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis),
       onPress: () => push(context, (_) => _LanguagePage(
             title: 'Languages you also read',
@@ -451,7 +452,7 @@ class _OnThePhoneState extends State<_OnThePhone> {
                           await host.model(here[i].tag, delete: true);
                           if (mounted) _reload();
                         },
-                        child: const Text('Delete'),
+                        child: const Tr('Delete'),
                       ),
               ),
             ),
@@ -507,7 +508,7 @@ class _LanguagePageState extends State<_LanguagePage> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
-          GlacierSearchField(placeholder: 'Search languages', onValueChange: (v) => setState(() => _query = v)),
+          GlacierSearchField(placeholder: 'Search languages'.t, onValueChange: (v) => setState(() => _query = v)),
           SizedBox(height: t.space(3)),
           if (widget.firstRow != null && q.isEmpty) ...[
             PaneSection(children: [

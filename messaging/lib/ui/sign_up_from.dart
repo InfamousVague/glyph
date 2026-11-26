@@ -34,6 +34,7 @@ import 'common.dart';
 import 'inbox_ui.dart' show SignalLinkScreen, TelegramSignInScreen, inboxMark;
 import 'me.dart' show NetworkMark;
 import 'profile_card.dart' show ProfileFace;
+import '../l10n/words.dart';
 
 /// What an account someone has said of them, for a new profile.
 @immutable
@@ -227,7 +228,7 @@ class _SignUpFromSectionState extends State<SignUpFromSection> {
 
         return PaneSection(
           title: 'Start from an account you have',
-          description: const Text('Fills in your username, name, picture and status for you. You can change any of it.'),
+          description: const Tr('Fills in your username, name, picture and status for you. You can change any of it.'),
           footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
           children: [for (final id in sources) row(id)],
         );

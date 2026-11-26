@@ -20,6 +20,7 @@ import '../kit/settings_type.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
 import 'settings.dart' show SettingsModel;
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -55,7 +56,7 @@ List<Widget> apiPane(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'On this phone',
-      description: const Text('The API over HTTP, served by the app. From a computer over USB: adb forward tcp:8765 tcp:8765, then http://127.0.0.1:8765. Every request carries the token.'),
+      description: const Tr('The API over HTTP, served by the app. From a computer over USB: adb forward tcp:8765 tcp:8765, then http://127.0.0.1:8765. Every request carries the token.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.terminal),
@@ -79,7 +80,7 @@ List<Widget> apiPane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.wifi),
           label: 'Allow from Wi-Fi',
-          hint: const Text('Served on the phone\'s address on your network too, for anyone on it who has the token.'),
+          hint: const Tr('Served on the phone\'s address on your network too, for anyone on it who has the token.'),
           control: GlacierSwitch(
             checked: ApiServer.lan(app),
             disabled: !localOn,
@@ -93,14 +94,14 @@ List<Widget> apiPane(BuildContext context, SettingsModel m) {
           ),
         ),
         if (localOn) ...[
-          SettingRow(icon: _icon(Lucide.keyRound), label: 'Copy the token', hint: const Text('Authorization: Bearer <token>'), onPress: () => _copy(context, ApiServer.token(app), 'Token copied')),
+          SettingRow(icon: _icon(Lucide.keyRound), label: 'Copy the token', hint: const Tr('Authorization: Bearer <token>'), onPress: () => _copy(context, ApiServer.token(app), 'Token copied')),
           SettingRow(
             icon: _icon(Lucide.copy),
             label: 'Copy an example',
-            hint: const Text('A curl command that calls app.info.'),
+            hint: const Tr('A curl command that calls app.info.'),
             onPress: () => _copy(context, 'curl -s -X POST -H "Authorization: Bearer ${ApiServer.token(app)}" http://127.0.0.1:${ApiServer.port(app)}/api/app.info', 'Example copied'),
           ),
-          SettingRow(icon: _icon(Lucide.refreshCw), label: 'Make a new token', hint: const Text('Whoever has the old one is shut out.'), onPress: () {
+          SettingRow(icon: _icon(Lucide.refreshCw), label: 'Make a new token', hint: const Tr('Whoever has the old one is shut out.'), onPress: () {
             ApiServer.newToken(app);
             toast(context, 'New token made');
           }),
@@ -109,7 +110,7 @@ List<Widget> apiPane(BuildContext context, SettingsModel m) {
     ),
     PaneSection(
       title: 'From anywhere',
-      description: const Text('The API through the relay server, from any network. Requests and answers are sealed with the connection string\'s key: the relay passes them and cannot read them. The app has to be running.'),
+      description: const Tr('The API through the relay server, from any network. Requests and answers are sealed with the connection string\'s key: the relay passes them and cannot read them. The app has to be running.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.globe),
@@ -134,14 +135,14 @@ List<Widget> apiPane(BuildContext context, SettingsModel m) {
           ),
         ),
         if (remoteOn) ...[
-          SettingRow(icon: _icon(Lucide.keyRound), label: 'Copy the connection string', hint: const Text('ghostapi1:… Whoever has it can call the API: keep it as you would a password.'), onPress: () => _copy(context, ApiRemote.connection(app), 'Connection string copied')),
+          SettingRow(icon: _icon(Lucide.keyRound), label: 'Copy the connection string', hint: const Tr('ghostapi1:… Whoever has it can call the API: keep it as you would a password.'), onPress: () => _copy(context, ApiRemote.connection(app), 'Connection string copied')),
           SettingRow(
             icon: _icon(Lucide.copy),
             label: 'Copy an example',
-            hint: const Text('Calls app.info with tool/ghost-api.mjs, from the repository.'),
+            hint: const Tr('Calls app.info with tool/ghost-api.mjs, from the repository.'),
             onPress: () => _copy(context, 'node messaging/tool/ghost-api.mjs --remote ${ApiRemote.connection(app)} app.info', 'Example copied'),
           ),
-          SettingRow(icon: _icon(Lucide.refreshCw), label: 'Make a new connection string', hint: const Text('The old one stops working at once.'), onPress: () {
+          SettingRow(icon: _icon(Lucide.refreshCw), label: 'Make a new connection string', hint: const Tr('The old one stops working at once.'), onPress: () {
             ApiRemote.newConnection(app);
             ApiRemote.instance.apply(app);
             toast(context, 'New connection string made');
@@ -284,7 +285,7 @@ class _ApiMethodPageState extends State<ApiMethodPage> {
             children: [
               SettingRowBox(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  GlacierInput(controller: _params, ariaLabel: 'Parameters as JSON', placeholder: '{}', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md),
+                  GlacierInput(controller: _params, ariaLabel: 'Parameters as JSON', placeholder: '{}'.t, autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md),
                   SizedBox(height: t.space(2)),
                   PairButton(label: _running ? 'Running…' : 'Run ${m.name}', icon: Lucide.play, onPressed: _running ? null : _run),
                 ]),

@@ -19,6 +19,7 @@ import '../relay_host/words.dart';
 import '../sms.dart';
 import 'common.dart';
 import 'network.dart' show movingWords, relayLimitsWords;
+import '../l10n/words.dart';
 
 /// Settings › Routes › Host a relay on this device (lib/relay_host; docs/OPEN_NETWORK.md, section 5; Matt, 2026-11-22:
 /// "i'd like everyone to be able to host a relay from their client"): the switch, said before it is pressed (what the
@@ -49,7 +50,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
         if (host.on) SettingRow(key: const ValueKey('host-via'), icon: icon(Lucide.globe), label: viaWords(host.viaLink, host.via)),
         if (host.on) SettingRowBox(child: RelayHostViaBox(host: host)),
         if (up && host.inUse)
-          SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Text('To leave it, go back to Ghost Messaging\'s relay above, or switch it off.'))
+          SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Tr('To leave it, go back to Ghost Messaging\'s relay above, or switch it off.'))
         else if (up && host.phone)
           SettingRow(key: const ValueKey('host-use-not'), icon: icon(Lucide.info), label: 'Not for this app on a phone', hint: const Text(phoneNotHereWords))
         else if (up && host.viaLink.kind != ViaKind.stays)
@@ -83,11 +84,11 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
                 key: ValueKey('host-lan-$i'),
                 icon: icon(Lucide.link),
                 label: url,
-                hint: const Text('Copy'),
+                hint: const Tr('Copy'),
                 onPress: () => _copy(context, url, 'Copied its address on this network'),
               ),
           if (host.lan && host.lanUrls.isNotEmpty) ...[
-            SettingRow(key: const ValueKey('host-lan-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', hint: const Text('A phone\'s camera opens it in Ghost Messaging, at "Use this relay?".'), onPress: () => showRelayCode(context, host.lanUrls.first)),
+            SettingRow(key: const ValueKey('host-lan-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', hint: const Tr('A phone\'s camera opens it in Ghost Messaging, at "Use this relay?".'), onPress: () => showRelayCode(context, host.lanUrls.first)),
             SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('A relay on our network', relayLink(host.lanUrls.first))),
           ],
           if (host.lan) SettingRowBox(child: RelayHostPortBox(host: host)),
@@ -239,7 +240,7 @@ Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url,
         Text([movingWords(from ?? Net.instance.hubUrl), if (check.hosted) joinHostedWords, if (url.startsWith('ws://')) lanSeenWords, if (!usable) hostedNotLinkedWords, relayLimitsWords].join('\n\n'), key: const ValueKey('relay-words'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
         if (check.asksPass) ...[
           SizedBox(height: t.space(3)),
-          GlacierInput(key: const ValueKey('relay-pass'), controller: pass, type: GlacierInputType.password, placeholder: 'Its pass phrase', ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md),
+          GlacierInput(key: const ValueKey('relay-pass'), controller: pass, type: GlacierInputType.password, placeholder: 'Its pass phrase'.t, ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md),
         ],
       ]),
     ),
@@ -302,10 +303,10 @@ class _RelayHostPortBoxState extends State<RelayHostPortBox> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      GlacierInput(key: const ValueKey('host-port-field'), controller: _port, type: GlacierInputType.number, placeholder: '7787', ariaLabel: 'The port devices on this network use', size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
+      GlacierInput(key: const ValueKey('host-port-field'), controller: _port, type: GlacierInputType.number, placeholder: '7787'.t, ariaLabel: 'The port devices on this network use', size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
       if (_problem != null) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text(_problem!, key: const ValueKey('host-port-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-danger')))),
       SizedBox(height: t.space(2)),
-      SettingRow(key: const ValueKey('host-port'), icon: const AppIcon(Lucide.check, size: 18), label: 'Use this port', hint: const Text('Anyone on it now signs in again at the new one.'), onPress: _use),
+      SettingRow(key: const ValueKey('host-port'), icon: const AppIcon(Lucide.check, size: 18), label: 'Use this port', hint: const Tr('Anyone on it now signs in again at the new one.'), onPress: _use),
     ]);
   }
 }
@@ -345,7 +346,7 @@ class _RelayHostPassBoxState extends State<RelayHostPassBox> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       GlacierInput(key: const ValueKey('host-pass-field'), controller: _pass, type: GlacierInputType.password, placeholder: widget.host.hasPass ? 'A new pass phrase' : 'A long pass phrase', ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (v) => v.trim().isEmpty ? null : _set(v)),
       SizedBox(height: t.space(2)),
-      SettingRow(key: const ValueKey('host-pass-set'), icon: const AppIcon(Lucide.keyRound, size: 18), label: widget.host.hasPass ? 'Change the pass phrase' : 'Ask for this pass phrase', hint: const Text('Give it to whoever you let use it. Everyone on it signs in again.'), disabled: _busy, onPress: () => _pass.text.trim().isEmpty ? null : _set(_pass.text)),
+      SettingRow(key: const ValueKey('host-pass-set'), icon: const AppIcon(Lucide.keyRound, size: 18), label: widget.host.hasPass ? 'Change the pass phrase' : 'Ask for this pass phrase', hint: const Tr('Give it to whoever you let use it. Everyone on it signs in again.'), disabled: _busy, onPress: () => _pass.text.trim().isEmpty ? null : _set(_pass.text)),
       if (widget.host.hasPass) SettingRow(key: const ValueKey('host-pass-clear'), icon: const AppIcon(Lucide.lock, size: 18), label: 'Ask for no pass phrase', disabled: _busy, onPress: () => _set(null)),
     ]);
   }
@@ -383,10 +384,10 @@ class _RelayHostViaBoxState extends State<RelayHostViaBox> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(viaChoiceWords, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
       SizedBox(height: t.space(2)),
-      GlacierInput(key: const ValueKey('host-via-field'), controller: _via, placeholder: 'gogho.st', ariaLabel: 'The public relay it stays linked to', inputMode: TextInputType.url, autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
+      GlacierInput(key: const ValueKey('host-via-field'), controller: _via, placeholder: 'gogho.st'.t, ariaLabel: 'The public relay it stays linked to', inputMode: TextInputType.url, autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
       if (_problem != null) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text(_problem!, key: const ValueKey('host-via-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-danger')))),
       SizedBox(height: t.space(2)),
-      SettingRow(key: const ValueKey('host-via-use'), icon: const AppIcon(Lucide.globe, size: 18), label: 'Stay linked to this relay', hint: const Text('Empty: Ghost Messaging\'s own.'), onPress: _use),
+      SettingRow(key: const ValueKey('host-via-use'), icon: const AppIcon(Lucide.globe, size: 18), label: 'Stay linked to this relay', hint: const Tr('Empty: Ghost Messaging\'s own.'), onPress: _use),
     ]);
   }
 }

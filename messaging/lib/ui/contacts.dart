@@ -21,6 +21,7 @@ import 'thread.dart';
 import 'add_friend_drawer.dart';
 import 'username_friends.dart';
 import '../friends/buddies.dart';
+import '../l10n/words.dart';
 
 /// The address book (Matt, 2026-11-14: "add an address book icon"): the phone's contacts, searched by name or
 /// number, and a press on one opens the conversation with them. It is the phone's own list, asked of the phone: with
@@ -307,7 +308,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           // where there is none (lib/ui/add_friend_drawer.dart; Matt, 2026-11-16: "move the Add button to the side of
           // search and have it open a drawer"). On the phone, whose friends they are.
           child: Row(children: [
-            Expanded(child: GlacierSearchField(placeholder: 'Search contacts', size: GlacierFieldSize.md, onValueChange: _typed)),
+            Expanded(child: GlacierSearchField(placeholder: 'Search contacts'.t, size: GlacierFieldSize.md, onValueChange: _typed)),
             // On a computer too, through its phone (Matt, 2026-11-18: "I don't see the ability to add friends on desktop").
             ...[SizedBox(width: t.space(2)), const AddFriendButton()],
             // Blocked, to the right of Add (Matt, 2026-11-19: "move blocked to the right of the add friend button

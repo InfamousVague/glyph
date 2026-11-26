@@ -17,6 +17,7 @@ import '../net/net.dart';
 import '../sms.dart';
 import 'common.dart';
 import '../invites/link_relay.dart';
+import '../l10n/words.dart';
 
 /// Google Messages' web connection on this phone (android GmWeb.kt; Matt, 2026-11-15: "Can you build the on phone
 /// google messages connection too?"): Google Messages' conversations whole in Ghost, with pictures, reactions and
@@ -138,12 +139,12 @@ class _GmWebScreenState extends State<GmWebScreen> {
     final problem = s['problem'] as String?;
     final children = <Widget>[];
     if (s['available'] != true) {
-      children.add(SettingsCallout(child: const Text('This copy of Ghost has no Google Messages helper. Update Ghost to get it.')));
+      children.add(SettingsCallout(child: const Tr('This copy of Ghost has no Google Messages helper. Update Ghost to get it.')));
     } else if (_paired) {
       final inactive = s['inactive'] == true;
       children.add(PaneSection(
         title: 'Connected to Google Messages',
-        footer: const Text('Ghost now has Google Messages\' conversations whole: RCS and texts, pictures, reactions, and when your messages are delivered and read. Google Messages\' own notifications can be turned off altogether; Ghost shows its own. Google Messages has one web session at a time: if a computer or messages.google.com takes it, this phone takes it back.'),
+        footer: const Tr('Ghost now has Google Messages\' conversations whole: RCS and texts, pictures, reactions, and when your messages are delivered and read. Google Messages\' own notifications can be turned off altogether; Ghost shows its own. Google Messages has one web session at a time: if a computer or messages.google.com takes it, this phone takes it back.'),
         children: [
           SettingRow(
             icon: icon(s['connected'] == true && !inactive ? Lucide.circleCheck : Lucide.triangleAlert),
@@ -153,7 +154,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
           SettingRow(
             icon: icon(Lucide.unlink),
             label: 'Unpair',
-            hint: const Text('Ghost goes back to reading Google Messages\' notifications.'),
+            hint: const Tr('Ghost goes back to reading Google Messages\' notifications.'),
             onPress: () => showChoices(context, title: 'Unpair Google Messages from Ghost on this phone?', choices: [
               Choice('Unpair', Lucide.unlink, () async {
                 final s = await Sms.instance.gmWebUnpair();
@@ -169,8 +170,8 @@ class _GmWebScreenState extends State<GmWebScreen> {
       // signed in to an account.
       children.add(PaneSection(
         title: 'Set up Google Messages in Ghost',
-        description: const Text('Ghost then has every conversation, with pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
-        footer: const Text('It is done by an open-source helper built on mautrix-gmessages (GNU AGPL), talking to Google directly, never through Ghost\'s servers.'),
+        description: const Tr('Ghost then has every conversation, with pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
+        footer: const Tr('It is done by an open-source helper built on mautrix-gmessages (GNU AGPL), talking to Google directly, never through Ghost\'s servers.'),
         children: [
           SettingRowBox(child: Padding(
             padding: EdgeInsets.symmetric(vertical: t.space(2)),
@@ -188,13 +189,13 @@ class _GmWebScreenState extends State<GmWebScreen> {
         ],
       ));
       children.add(PaneSection(children: [
-        SettingRow(icon: icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Text('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner: shows the code on another screen.'), onPress: _pair),
+        SettingRow(icon: icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Tr('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner: shows the code on another screen.'), onPress: _pair),
       ]));
     } else {
       final link = _link!;
       children.add(PaneSection(
         title: 'Open this link on another screen',
-        description: const Text('Share it to your computer (or anything with a browser) and open it there. Then on this phone open Google Messages, tap your profile picture, then Device pairing, then QR code scanner, and scan the code it shows.'),
+        description: const Tr('Share it to your computer (or anything with a browser) and open it there. Then on this phone open Google Messages, tap your profile picture, then Device pairing, then QR code scanner, and scan the code it shows.'),
         footer: Text(s['qr'] == null ? 'Getting a code from Google…' : 'A fresh code goes to the page about every half minute, for five minutes.'),
         children: [
           SettingRowBox(child: Padding(padding: EdgeInsets.all(t.space(2)), child: Text(link, style: pageText(t, t.fontSize('sm'), mono: true, color: t.color('app-ink-2'))))),

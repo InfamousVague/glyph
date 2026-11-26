@@ -59,6 +59,7 @@ import '../souls/souls_send.dart' show SoulsCard;
 import 'souls.dart' show SoulsChip;
 import 'window_chrome.dart' show MacChrome;
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 /// Home: every conversation, the newest first, with a search over names, numbers and the last message.
 ///
@@ -1286,7 +1287,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
         SettingsEmpty(
           icon: AppIcon(Lucide.circleDot, size: 28, color: t.color('app-ink-3')),
           title: 'No circles yet',
-          body: const Text('A circle keeps a few people and their spaces together: for chat and voice, for texting, or for files.'),
+          body: const Tr('A circle keeps a few people and their spaces together: for chat and voice, for texting, or for files.'),
           action: SettingsEmptyAction('New circle', () => _shell != null ? _shell!.show(const NewCircleScreen(key: ValueKey('new-circle')), showing: 'new') : push(context, (_) => const NewCircleScreen())),
         ),
       ]);
@@ -1297,7 +1298,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
         SettingsEmpty(
           icon: AppIcon(Lucide.keyRound, size: 28, color: t.color('app-ink-3')),
           title: 'No codes yet',
-          body: const Text('Sign-in codes sent to you wait here, the newest first. A tap copies one.'),
+          body: const Tr('Sign-in codes sent to you wait here, the newest first. A tap copies one.'),
         ),
       ]);
     } else if (rows.isEmpty) {

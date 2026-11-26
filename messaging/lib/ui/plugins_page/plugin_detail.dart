@@ -31,6 +31,7 @@ import '../dialup/title_bar.dart';
 import '../translated_card.dart' show TranslatePreview;
 import 'market_parts.dart';
 import 'plugin_art.dart';
+import '../../l10n/words.dart';
 
 /// A picture of a plugin at work, for its page, where it has one: Translate's text with the words as they came dimmed
 /// in the card and the translation in the bubble (Matt, 2026-11-17: "show the original text dimmed in a card with the
@@ -295,7 +296,7 @@ class PluginDetail extends StatelessWidget {
           section('How it looks', [SizedBox(height: t.space(1)), _Shots(key: const ValueKey('plugins-detail-shots'), shots: shots, shotOf: p!.shotOf!)]),
         if (whatsNew != null && whatsNew.isNotEmpty) section('What\'s new in ${pk!.version}', [Text(whatsNew, style: body)], key: const ValueKey('plugins-detail-whatsnew')),
         if (plugin.adds.isNotEmpty) section('What it adds', [for (final add in plugin.adds) point(Lucide.check, add)]),
-        if (p != null && hasSection) Padding(padding: EdgeInsets.only(top: t.space(3)), child: Text('Built-in plugins sort first: a text Codes, Spam filter or a kind of Kinds of text takes stays theirs.', key: const ValueKey('plugins-detail-first'), style: quiet)),
+        if (p != null && hasSection) Padding(padding: EdgeInsets.only(top: t.space(3)), child: Tr('Built-in plugins sort first: a text Codes, Spam filter or a kind of Kinds of text takes stays theirs.', key: const ValueKey('plugins-detail-first'), style: quiet)),
         section('What it reads and keeps', [
           for (final r in plugin.reaches) point(r.icon, r.label, hint: r.hint),
           // A pack's card is its package's lines and nothing else: they say where it runs and that it reaches nothing.
@@ -329,7 +330,7 @@ class PluginDetail extends StatelessWidget {
           // Not on this device yet: what it will let you set, by name.
           section('Its settings', [for (final s in pk.settings) if (s.type != 'heading') point(Lucide.slidersHorizontal, s.label)], key: const ValueKey('plugins-detail-settings-names'))
         else if (!added && hasSettings && !stuck)
-          section('Its settings', [Text('Once it is added, its settings are here.', style: quiet)]),
+          section('Its settings', [Tr('Once it is added, its settings are here.', style: quiet)]),
         if (pk?.support != null)
           section('Help from the developer', [
             Padding(
@@ -491,7 +492,7 @@ class PluginDetail extends StatelessWidget {
                       if (plugin.labels.isNotEmpty) ...[const SizedBox(height: 4), Wrap(spacing: 6, runSpacing: 4, children: _labels(t))],
                       if (p.kind == PackKind.dev) ...[
                         const SizedBox(height: 6),
-                        Bevel(key: const ValueKey('plugins-detail-dev'), style: BevelStyle.sunken, padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), child: Text('In development · not reviewed', style: pageText(t, 13, weight: 'bold', color: c.onChrome))),
+                        Bevel(key: const ValueKey('plugins-detail-dev'), style: BevelStyle.sunken, padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), child: Tr('In development · not reviewed', style: pageText(t, 13, weight: 'bold', color: c.onChrome))),
                       ],
                       if (p.kind == PackKind.stuck) ...[const SizedBox(height: 4), Text(status, key: const ValueKey('plugins-detail-status'), style: pageText(t, 13, weight: 'bold', color: c.onChrome))],
                     ],

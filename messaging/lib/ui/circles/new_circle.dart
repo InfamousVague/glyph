@@ -34,6 +34,7 @@ import 'circle_face.dart';
 import 'circle_settings.dart';
 import 'circle_picture.dart';
 import '../../voice/roles.dart' show Role;
+import '../../l10n/words.dart';
 
 /// A section of a settings-like page, its rows' icons on [hue] (as Settings' own sections are).
 Widget _hued(String hue, Widget section) => GlacierScope(attrs: {'hue': hue}, child: section);
@@ -268,7 +269,7 @@ List<Widget> _pictureRows(BuildContext context, {required String? picture, requi
         key: const ValueKey('circle-picture'),
         icon: AppIcon(Lucide.imagePlus, size: 18),
         label: picture == null ? 'Choose a picture' : 'Change the picture',
-        hint: const Text('Shown in the icon\'s place'),
+        hint: const Tr('Shown in the icon\'s place'),
         onPress: () async {
           final p = await pickCirclePicture(context);
           if (p != null) onPicked(p);
@@ -403,7 +404,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
                 Wrap(alignment: WrapAlignment.center, spacing: t.space(1) + 2, runSpacing: t.space(1) + 2, children: [for (final d in _spaces) _SpacePill(kind: d.kind, name: d.name)]),
                 SizedBox(height: t.space(5)),
                 PaneSection(title: 'Name', children: [
-                  SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Circle name', ariaLabel: 'Circle name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                  SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Circle name'.t, ariaLabel: 'Circle name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
                 ]),
                 gap,
                 PaneSection(title: 'Colour', children: [SettingRowBox(child: CircleHuePicker(value: _hue, onChanged: (h) => setState(() => _hue = h)))]),
@@ -412,7 +413,7 @@ class _NewCircleScreenState extends State<NewCircleScreen> {
                 gap,
                 // Not in a browser, which can't choose a picture yet (Sms.browser).
                 if (!Sms.browser) ...[
-                  _hued('purple', PaneSection(title: 'Picture', description: const Text('Optional: a picture of your own on the circle\'s face.'), children: _pictureRows(context, picture: _picture, onPicked: (p) => setState(() => _picture = p), onCleared: () => setState(() => _picture = null)))),
+                  _hued('purple', PaneSection(title: 'Picture', description: const Tr('Optional: a picture of your own on the circle\'s face.'), children: _pictureRows(context, picture: _picture, onPicked: (p) => setState(() => _picture = p), onCleared: () => setState(() => _picture = null)))),
                   gap,
                 ],
                 PaneSection(
@@ -535,7 +536,7 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
                   key: const ValueKey('new-space-sms'),
                   icon: AppIcon(Lucide.smartphone, size: 18),
                   label: 'SMS space',
-                  hint: const Text('People without the app are in it by text, sent from your phone and your number.'),
+                  hint: const Tr('People without the app are in it by text, sent from your phone and your number.'),
                   control: GlacierSwitch(checked: _sms, ariaLabel: 'SMS space', onCheckedChange: (v) => setState(() => _sms = v)),
                 ),
               ]),
@@ -546,16 +547,16 @@ class _NewCircleSpaceScreenState extends State<NewCircleSpaceScreen> {
                 child: Row(children: [
                   SpaceKindBadge(kind: _kind, size: 28),
                   SizedBox(width: t.space(2)),
-                  Expanded(child: GlacierInput(controller: _name, placeholder: 'Space name', ariaLabel: 'Space name', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                  Expanded(child: GlacierInput(controller: _name, placeholder: 'Space name'.t, ariaLabel: 'Space name', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
                 ]),
               ),
             ]),
             gap,
             PaneSection(
               title: 'Heading',
-              description: const Text('Spaces with the same heading are listed together. Leave it empty for none.'),
+              description: const Tr('Spaces with the same heading are listed together. Leave it empty for none.'),
               children: [
-                SettingRowBox(child: GlacierInput(controller: _section, placeholder: 'No heading', ariaLabel: 'Heading', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _section, placeholder: 'No heading'.t, ariaLabel: 'Heading', autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
                 if (headings.isNotEmpty)
                   SettingRowBox(
                     child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [

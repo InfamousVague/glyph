@@ -17,6 +17,7 @@ import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 // An account's key as the world can know it (GMFB-33; lib/me/identity.dart): its did:key on the profile, with Copy and
 // Share, and statements signed with it, and checked. Vouches are lib/ui/vouches_ui.dart's.
@@ -88,7 +89,7 @@ class _AccountKeySectionState extends State<AccountKeySection> {
                 key: const ValueKey('did-copy'),
                 icon: _icon(Lucide.keyRound),
                 label: did == null ? (snap.connectionState == ConnectionState.done ? 'Not made yet' : 'Reading…') : Did.short(did),
-                hint: did == null ? null : const Text('Copy'),
+                hint: did == null ? null : const Tr('Copy'),
                 disabled: did == null,
                 onPress: did == null
                     ? null
@@ -103,7 +104,7 @@ class _AccountKeySectionState extends State<AccountKeySection> {
                   key: const ValueKey('did-address'),
                   icon: _icon(Lucide.atSign),
                   label: '${address.substring(0, 8)}…${address.substring(address.length - 6)}',
-                  hint: const Text('Your account\'s address, made from your recovery words. Copy'),
+                  hint: const Tr('Your account\'s address, made from your recovery words. Copy'),
                   onPress: () {
                     unawaited(Clipboard.setData(ClipboardData(text: address)));
                     toast(context, 'Copied your account\'s address');
@@ -113,7 +114,7 @@ class _AccountKeySectionState extends State<AccountKeySection> {
                 key: const ValueKey('proof-sign'),
                 icon: _icon(Lucide.penLine),
                 label: 'Sign a statement',
-                hint: const Text('Words to paste anywhere, which show they came from this account'),
+                hint: const Tr('Words to paste anywhere, which show they came from this account'),
                 disabled: me == null,
                 onPress: me == null ? null : () => push<void>(context, (_) => SignStatementScreen(publicKey: me.key, sign: widget.sign ?? Sms.instance.netSign)),
               ),
@@ -121,7 +122,7 @@ class _AccountKeySectionState extends State<AccountKeySection> {
                 key: const ValueKey('proof-check'),
                 icon: _icon(Lucide.shieldCheck),
                 label: 'Check a statement',
-                hint: const Text('Paste one to see whose it is'),
+                hint: const Tr('Paste one to see whose it is'),
                 onPress: () => push<void>(context, (_) => CheckStatementScreen(mine: me?.key)),
               ),
             ],
@@ -252,10 +253,10 @@ class _SignStatementScreenState extends State<SignStatementScreen> {
           children: [
             PaneSection(
               title: 'What you say',
-              description: const Text('Say which account elsewhere is yours, and paste the signed block there: in a bio, a post or a page. It shows the words came from this account, and when.'),
+              description: const Tr('Say which account elsewhere is yours, and paste the signed block there: in a bio, a post or a page. It shows the words came from this account, and when.'),
               footer: Text(_problem ?? (left >= 0 ? '$left characters left' : '${-left} too many'), style: TextStyle(color: _problem != null || left < 0 ? t.danger : t.color('app-ink-3'))),
               children: [
-                _Words(controller: _words, placeholder: 'I am @maya on Ghost Messaging', fieldKey: const ValueKey('proof-words')),
+                _Words(controller: _words, placeholder: 'I am @maya on Ghost Messaging'.t, fieldKey: const ValueKey('proof-words')),
                 SettingRow(key: const ValueKey('proof-make'), icon: _icon(Lucide.penLine), label: _busy ? 'Signing…' : 'Sign it', disabled: _busy || left < 0, onPress: _sign),
               ],
             ),
@@ -263,9 +264,9 @@ class _SignStatementScreenState extends State<SignStatementScreen> {
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'Your signed statement',
-                description: const Text('Paste all of it, from the first line to the last. Anyone can check it in Ghost Messaging, or with standard tools: the page "How accounts work" says how.'),
+                description: const Tr('Paste all of it, from the first line to the last. Anyone can check it in Ghost Messaging, or with standard tools: the page "How accounts work" says how.'),
                 children: [
-                  _Words(controller: _block, placeholder: '', readOnly: true, fieldKey: const ValueKey('proof-block')),
+                  _Words(controller: _block, placeholder: ''.t, readOnly: true, fieldKey: const ValueKey('proof-block')),
                   SettingRow(
                     key: const ValueKey('proof-copy'),
                     icon: _icon(Lucide.copy),
@@ -336,7 +337,7 @@ class _CheckStatementScreenState extends State<CheckStatementScreen> {
           children: [
             PaneSection(
               title: 'The statement',
-              description: const Text('Paste a signed statement, from its BEGIN line to its END line. Nothing is sent anywhere to check it.'),
+              description: const Tr('Paste a signed statement, from its BEGIN line to its END line. Nothing is sent anywhere to check it.'),
               children: [
                 _Words(controller: _pasted, placeholder: Proof.begin, fieldKey: const ValueKey('check-words')),
                 SettingRow(icon: _icon(Lucide.clipboardPaste), label: 'Paste', onPress: () => unawaited(_paste())),

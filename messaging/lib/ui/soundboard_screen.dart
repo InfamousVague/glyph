@@ -16,6 +16,7 @@ import '../voice/voice.dart' show VoiceChannel;
 import '../voice/soundboard.dart';
 import 'common.dart';
 import 'voice_screen.dart' show VolumeSlider;
+import '../l10n/words.dart';
 
 /// The soundboard's pads (Matt, 2026-11-20: "build a soundboards plugin for circles"; lib/voice/soundboard.dart): the
 /// app's own sounds, then the circle's. In a call a press plays for everyone in it; outside one, here alone. Whoever
@@ -87,7 +88,7 @@ class SoundboardScreen extends StatelessWidget {
               SizedBox(height: t.space(5)),
               PaneSection(
                 title: 'On this device',
-                footer: const Text('Deafened in a call, you hear none of it either way.'),
+                footer: const Tr('Deafened in a call, you hear none of it either way.'),
                 children: [
                   SettingRow(
                     key: const ValueKey('soundboard-hear'),
@@ -286,7 +287,7 @@ class _SoundNameScreenState extends State<SoundNameScreen> {
                 child: GlacierInput(
                   key: const ValueKey('sound-name'),
                   controller: _name,
-                  placeholder: 'What the pad says',
+                  placeholder: 'What the pad says'.t,
                   ariaLabel: 'The sound\'s name',
                   autoCapitalize: TextCapitalization.sentences,
                   size: GlacierFieldSize.md,

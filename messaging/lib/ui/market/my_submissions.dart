@@ -33,6 +33,7 @@ import '../settings_panes.dart' show appVersion;
 import '../shell.dart';
 import 'market_forms.dart';
 import 'submit_screen.dart';
+import '../../l10n/words.dart';
 
 /// A plugin's place in the Marketplace, as its heading says it.
 String listingWords(PluginState? p) => switch (p?.listing) {
@@ -389,7 +390,7 @@ class _MySubmissionScreenState extends State<MySubmissionScreen> {
             key: const ValueKey('market-mine-notes'),
             title: 'Notes',
             children: [
-              if (s.notes.isEmpty) SettingRowBox(child: Text('No notes yet.', style: quiet)),
+              if (s.notes.isEmpty) SettingRowBox(child: Tr('No notes yet.', style: quiet)),
               for (final n in s.notes)
                 SettingRowBox(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -440,9 +441,9 @@ class _MySubmissionScreenState extends State<MySubmissionScreen> {
           ],
           gap,
           PaneSection(children: [
-            if (s.open) SettingRow(key: const ValueKey('market-mine-withdraw'), icon: const AppIcon(Lucide.undo2, size: 18), label: _withdrawing ? 'Withdrawing…' : 'Withdraw', labelColor: t.danger, hint: const Text('Out of the review queue.'), disabled: _withdrawing, onPress: () => unawaited(_withdraw())),
+            if (s.open) SettingRow(key: const ValueKey('market-mine-withdraw'), icon: const AppIcon(Lucide.undo2, size: 18), label: _withdrawing ? 'Withdrawing…' : 'Withdraw', labelColor: t.danger, hint: const Tr('Out of the review queue.'), disabled: _withdrawing, onPress: () => unawaited(_withdraw())),
             SettingRow(key: const ValueKey('market-mine-resubmit'), icon: const AppIcon(Lucide.send, size: 18), label: 'Submit a new version', hint: Text(pack == null ? (_packageFailed ? 'Its package couldn\'t be read.' : 'Reading its package…') : 'As ${resubmitVersion(s, current: widget.current)}, from this one, its screenshots kept.'), disabled: pack == null, onPress: pack == null ? null : _resubmit),
-            SettingRow(key: const ValueKey('market-mine-copy'), icon: const AppIcon(Lucide.copy, size: 18), label: 'Copy the package', hint: const Text('Its file as it was sent, to change and load again.'), disabled: _package == null, onPress: _package == null ? null : () => unawaited(_copy())),
+            SettingRow(key: const ValueKey('market-mine-copy'), icon: const AppIcon(Lucide.copy, size: 18), label: 'Copy the package', hint: const Tr('Its file as it was sent, to change and load again.'), disabled: _package == null, onPress: _package == null ? null : () => unawaited(_copy())),
           ]),
         ],
       ),

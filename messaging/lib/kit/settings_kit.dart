@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../l10n/words.dart';
 import 'fold.dart';
 import 'settings_icons.dart';
 import 'settings_type.dart';
@@ -391,12 +392,12 @@ class PaneSection extends StatelessWidget {
           Padding(
             padding: side,
             child: Semantics(
-              label: title,
+              label: title!.t,
               child: ExcludeSemantics(
                 // `text-transform: uppercase`: drawn in capitals, named as written. Dial-Up's group labels are as
-                // written, as the era's group boxes had them.
+                // written, as the era's group boxes had them. In the language drawn (lib/l10n/words.dart).
                 child: Text(
-                  _bevel(t) ? title! : title!.toUpperCase(),
+                  _bevel(t) ? title!.t : title!.t.toUpperCase(),
                   style: pageText(t, titleSize, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: titleSize)),
                 ),
               ),
@@ -561,11 +562,11 @@ class SettingRow extends StatelessWidget implements PaneRow {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (labelAfter == null)
-          ExactLines.of(Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium', color: labelColor)), normal: true, dpr: t.css.lineDpr)
+          ExactLines.of(Text(label.t, style: pageText(t, t.fontSize('md'), weight: 'medium', color: labelColor)), normal: true, dpr: t.css.lineDpr)
         else
           Text.rich(
             TextSpan(
-              text: label,
+              text: label.t,
               children: [WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: labelAfter!)],
             ),
             style: pageText(t, t.fontSize('md'), weight: 'medium', color: labelColor),
@@ -641,7 +642,7 @@ class SettingRow extends StatelessWidget implements PaneRow {
         child: IgnorePointer(ignoring: _off, child: ExcludeFocus(excluding: _off, child: ExcludeSemantics(excluding: _off, child: plain))),
       );
     }
-    return SettingsFindableMark(name: label, child: DefaultTextStyle(style: pageText(t, _rem(t)), child: row));
+    return SettingsFindableMark(name: label.t, child: DefaultTextStyle(style: pageText(t, _rem(t)), child: row));
   }
 }
 
@@ -894,7 +895,7 @@ class SettingsEmpty extends StatelessWidget {
             ),
             SizedBox(height: gap),
           ],
-          Text(title, textAlign: TextAlign.center, style: pageText(t, _rem(t), weight: 'medium')),
+          Text(title.t, textAlign: TextAlign.center, style: pageText(t, _rem(t), weight: 'medium')),
           if (body != null) ...[
             SizedBox(height: gap),
             DefaultTextStyle(
@@ -1114,7 +1115,7 @@ class Pick extends StatelessWidget {
             inMutuallyExclusiveGroup: true,
             checked: checked,
             enabled: !disabled,
-            label: label,
+            label: label.t,
             // The tap and the focus come up into this node from the pressable's own detectors.
             child: GlacierPressable(
               onPressed: disabled ? null : onPress,

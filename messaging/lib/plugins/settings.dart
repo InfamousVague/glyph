@@ -24,6 +24,7 @@ import '../ui/plugins_page/plugin_sync_row.dart';
 import 'networks.dart';
 import 'plugin.dart';
 import 'registry.dart';
+import '../l10n/words.dart';
 
 /// The plugins' sections of Settings: Plugins itself, there once the app has a plugin to switch, and after it a
 /// section for each plugin that has one of its own ([GhostPlugin.settingsPage]), which Settings' list does not show
@@ -147,7 +148,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     PaneSection(
       title: 'Plugins',
       description: Text('Extra things the app can do with your messages. Each one works on this ${Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') : 'phone'} alone, and does nothing while it is off.'),
-      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Text('Each plugin\'s settings are on its page in the Marketplace.') : null,
+      footer: registry.plugins.any((p) => p.settingsPage != null) ? const Tr('Each plugin\'s settings are on its page in the Marketplace.') : null,
       children: [
         for (final p in registry.plugins)
           SettingRow(
@@ -182,8 +183,8 @@ List<Widget> _own(BuildContext context, GhostPlugin plugin, PluginRegistry regis
   for (final s in registry.settingsOf(plugin)) {
     if (s.heading) {
       close();
-      heading = s.label;
-      intro = s.hint == null ? null : Text(s.hint!);
+      heading = s.label.t;
+      intro = s.hint == null ? null : Text(s.hint!.t);
       continue;
     }
     rows.addAll(_row(s, prefs));
@@ -199,11 +200,11 @@ List<Widget> _row(PluginSetting s, PluginPrefs prefs) {
   if (s.options.isNotEmpty) {
     final chosen = prefs.get(s.key!) ?? s.choice;
     return [
-      if (s.hint != null || icon != null) SettingRow(icon: icon, label: s.label, hint: s.hint == null ? null : Text(s.hint!)),
+      if (s.hint != null || icon != null) SettingRow(icon: icon, label: s.label, hint: s.hint == null ? null : Text(s.hint!.t)),
       for (final o in s.options)
         SettingRow(
           label: o.label,
-          hint: o.hint == null ? null : Text(o.hint!),
+          hint: o.hint == null ? null : Text(o.hint!.t),
           control: Pick(checked: chosen == o.value, label: '${s.label}: ${o.label}', onPress: () => prefs.set(s.key!, o.value)),
         ),
     ];
@@ -213,7 +214,7 @@ List<Widget> _row(PluginSetting s, PluginPrefs prefs) {
       SettingRow(
         icon: icon,
         label: s.label,
-        hint: s.hint == null ? null : Text(s.hint!),
+        hint: s.hint == null ? null : Text(s.hint!.t),
         layout: SettingRowLayout.stacked,
         control: _WordsField(key: ValueKey('words-${s.key}'), prefs: prefs, keyName: s.key!, label: s.label, placeholder: s.placeholder),
       ),
@@ -223,7 +224,7 @@ List<Widget> _row(PluginSetting s, PluginPrefs prefs) {
     SettingRow(
       icon: icon,
       label: s.label,
-      hint: s.hint == null ? null : Text(s.hint!),
+      hint: s.hint == null ? null : Text(s.hint!.t),
       control: s.key == null ? null : GlacierSwitch(checked: prefs.flag(s.key!, fallback: s.fallback), onCheckedChange: (on) => prefs.setFlag(s.key!, on), ariaLabel: s.label),
     ),
   ];
@@ -261,7 +262,7 @@ class _WordsFieldState extends State<_WordsField> {
   @override
   Widget build(BuildContext context) => GlacierInput(
         controller: _text,
-        placeholder: widget.placeholder ?? 'Words, with commas between them',
+        placeholder: (widget.placeholder ?? 'Words, with commas between them').t,
         ariaLabel: widget.label,
         autoCorrect: false,
         autoCapitalize: TextCapitalization.none,

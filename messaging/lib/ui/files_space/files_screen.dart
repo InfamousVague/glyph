@@ -55,6 +55,7 @@ import 'file_badge.dart';
 import 'file_preview.dart';
 import 'folder_sync_entry.dart';
 import 'send_to_chat.dart';
+import '../../l10n/words.dart';
 
 /// The page of the Files space [channel]. It holds the space's room open while it shows, for its chat.
 ///
@@ -412,7 +413,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     final canFolder = _store.canFolder(_c);
     final canUpload = _store.canUpload(_c);
 
-    final search = GlacierSearchField(key: const ValueKey('files-search'), placeholder: 'Search files', size: GlacierFieldSize.md, autoFocus: narrow && _searching && _query.isEmpty, onValueChange: (v) => setState(() => _query = v));
+    final search = GlacierSearchField(key: const ValueKey('files-search'), placeholder: 'Search files'.t, size: GlacierFieldSize.md, autoFocus: narrow && _searching && _query.isEmpty, onValueChange: (v) => setState(() => _query = v));
     final field = bevel ? DialupWell(child: search) : search;
     // A phone: one row (a magnifier, the sort, list or grid, Upload), the search field over it only once the magnifier
     // is pressed. A wider window has room for all of it in one row.

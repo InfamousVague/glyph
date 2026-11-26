@@ -43,6 +43,7 @@ import '../settings_panes.dart' show appVersion;
 import 'market_flows.dart' show packGrew;
 import 'market_forms.dart';
 import 'try_pack.dart';
+import '../../l10n/words.dart';
 
 // --- the file, written out for reading ------------------------------------------------------------------------------
 
@@ -806,12 +807,12 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
             hint: Text([pack?.tagline ?? row.view.tagline, '@${pack?.developer ?? row.developer ?? '?'}', submissionStatusWords(row.view)].where((s) => s.isNotEmpty).join(' · ')),
           ),
           if (row.status == 'submitted')
-            SettingRow(key: const ValueKey('market-review-start'), icon: const AppIcon(Lucide.play, size: 18), label: _deciding == 'start' ? 'Starting…' : 'Start review', hint: const Text('Its developer sees it\'s being reviewed.'), disabled: _deciding != null, onPress: () => unawaited(_decide(const ReviewDecision.start()))),
+            SettingRow(key: const ValueKey('market-review-start'), icon: const AppIcon(Lucide.play, size: 18), label: _deciding == 'start' ? 'Starting…' : 'Start review', hint: const Tr('Its developer sees it\'s being reviewed.'), disabled: _deciding != null, onPress: () => unawaited(_decide(const ReviewDecision.start()))),
         ]),
         gap,
-        PaneSection(key: const ValueKey('market-review-what'), title: 'What it can do', description: packHere() == 'phone' ? null : const Text('As on a phone, where it does the most.'), children: [
+        PaneSection(key: const ValueKey('market-review-what'), title: 'What it can do', description: packHere() == 'phone' ? null : const Tr('As on a phone, where it does the most.'), children: [
           if (pack == null)
-            SettingRowBox(child: Text('It doesn\'t load here, so what it can do can\'t be said: see Checks.', style: quiet))
+            SettingRowBox(child: Tr('It doesn\'t load here, so what it can do can\'t be said: see Checks.', style: quiet))
           else ...[
             for (final r in packReaches(pack, here: 'phone')) SettingRow(icon: AppIcon(r.icon, size: 18), label: r.label, hint: r.hint == null ? null : Text(r.hint!)),
             for (final a in packAdds(pack, here: 'phone')) SettingRow(icon: const AppIcon(Lucide.plus, size: 18), label: a),
@@ -826,9 +827,9 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
         PaneSection(
           key: const ValueKey('market-review-risky'),
           title: 'Look closely',
-          description: const Text('What acts on texts or reaches outside it, set apart from its phrases.'),
+          description: const Tr('What acts on texts or reaches outside it, set apart from its phrases.'),
           children: [
-            if (closely.isEmpty) SettingRowBox(child: Text('Nothing: it only tags and sorts.', style: quiet)) else lines(closely, style: mono),
+            if (closely.isEmpty) SettingRowBox(child: Tr('Nothing: it only tags and sorts.', style: quiet)) else lines(closely, style: mono),
             if (closelyBefore != null) ...[
               SettingRowBox(child: Text('Since ${item.previous!.version}:', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-2')))),
               lines([
@@ -880,7 +881,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
         PaneSection(
           key: const ValueKey('market-review-listing'),
           title: 'Its listing',
-          footer: const Text('Check the screenshots show no real person\'s texts or number.'),
+          footer: const Tr('Check the screenshots show no real person\'s texts or number.'),
           children: [
             if (shotShas.isNotEmpty)
               SettingRowBox(
@@ -904,7 +905,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
                 ),
               )
             else
-              SettingRowBox(child: Text('No screenshots.', style: quiet)),
+              SettingRowBox(child: Tr('No screenshots.', style: quiet)),
             if ((pack?.whatsNew ?? '').isNotEmpty) SettingRow(icon: const AppIcon(Lucide.sparkles, size: 18), label: 'What\'s new', hint: Text(pack!.whatsNew!)),
             SettingRow(icon: const AppIcon(Lucide.mail, size: 18), label: 'Help link or email', hint: Text(pack?.support ?? row.view.support ?? 'None')),
             if (developerNote != null) SettingRow(icon: const AppIcon(Lucide.messageSquare, size: 18), label: 'The developer\'s notes', hint: Text(developerNote.text)),
@@ -930,12 +931,12 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
               SettingRow(icon: const AppIcon(Lucide.globe, size: 18), label: marketUnreachableWords),
               SettingRow(key: const ValueKey('market-review-again'), icon: const AppIcon(Lucide.refreshCw, size: 18), label: 'Try again', disabled: _deciding != null, onPress: () => unawaited(_decide(_held!))),
             ],
-            SettingRowBox(child: MarketTextArea(key: const ValueKey('market-review-note'), controller: _note, label: 'Note', placeholder: 'A note for the developer: what to change, or why not. Needed to ask for changes or to reject.', most: 2000, minLines: 3, maxLines: 10)),
+            SettingRowBox(child: MarketTextArea(key: const ValueKey('market-review-note'), controller: _note, label: 'Note', placeholder: 'A note for the developer: what to change, or why not. Needed to ask for changes or to reject.'.t, most: 2000, minLines: 3, maxLines: 10)),
             if (item.previous != null && open && _previousSha != null)
               SettingRow(
                 icon: const AppIcon(Lucide.undo2, size: 18),
                 label: 'Withdraw ${item.previous!.version} too',
-                hint: const Text('Off: devices that haven\'t updated keep it. On: it\'s switched off on each of them.'),
+                hint: const Tr('Off: devices that haven\'t updated keep it. On: it\'s switched off on each of them.'),
                 control: GlacierSwitch(key: const ValueKey('market-review-revoke-previous'), checked: _revokePrevious, onCheckedChange: (on) => setState(() => _revokePrevious = on), ariaLabel: 'Withdraw ${item.previous!.version} too'),
               )
             else if (item.previous != null && open)
@@ -943,7 +944,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
                 key: const ValueKey('market-review-revoke-previous-off'),
                 icon: const AppIcon(Lucide.undo2, size: 18),
                 label: 'Withdraw ${item.previous!.version} too',
-                hint: const Text('Can\'t from here: the copy of it the Marketplace sent doesn\'t check out on this device.'),
+                hint: const Tr('Can\'t from here: the copy of it the Marketplace sent doesn\'t check out on this device.'),
                 disabled: true,
               ),
             SettingRow(

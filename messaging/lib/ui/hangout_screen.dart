@@ -88,6 +88,7 @@ import 'paste_images.dart';
 import 'thread.dart' show LinkedText;
 import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
+import '../l10n/words.dart';
 
 /// A hangout: its chat, who is in it, and its call (Matt, 2026-11-15: "add a chat to hangouts so the whole group can
 /// send messages to the hangout as well as voice and video"; roles: "Implement a permissions system similar to
@@ -2365,14 +2366,14 @@ class _AboutPageState extends State<_AboutPage> {
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(
-            description: const Text('Shown under the space\'s name, to everyone in it. Leave it empty to show none.'),
+            description: const Tr('Shown under the space\'s name, to everyone in it. Leave it empty to show none.'),
             children: [
               SettingRowBox(
                 child: GlacierInput(
                   key: const ValueKey('about-words'),
                   controller: _words,
                   ariaLabel: 'Description',
-                  placeholder: 'What this space is for',
+                  placeholder: 'What this space is for'.t,
                   autoFocus: true,
                   autoCapitalize: TextCapitalization.sentences,
                   maxLength: SpaceAbout.most,
@@ -2421,9 +2422,9 @@ class RolesScreen extends StatelessWidget {
             children: [
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
-                  if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Text('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
+                  if (room.can(Perm.invite) && _circleInvites(c)) SettingRow(icon: AppIcon(Lucide.userPlus, size: 18), label: 'Invite people', hint: const Tr('Friends in the app, anyone by a text, or the link.'), onPress: () => showSpaceInvite(context, c)),
                   // Export (GMFB-36): the chat and its threads as a Markdown or JSON file, with its files if asked.
-                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Text('Every message here, threads too, as Markdown or JSON, with its files if you like.'), onPress: () => exportSpace(context, room)),
+                  SettingRow(icon: AppIcon(Lucide.download, size: 18), label: 'Export chat', hint: const Tr('Every message here, threads too, as Markdown or JSON, with its files if you like.'), onPress: () => exportSpace(context, room)),
                   SettingRow(icon: AppIcon(Lucide.users, size: 18), label: 'Owner', value: Text(r.isOwner(room.me) ? 'You' : (r.hasOwner ? _nameOf(room, r.ownerId) : 'None'))),
                   // What the space is for, under its name in the header; the owner and admins write it (Matt, 2026-11-17).
                   SettingRow(
@@ -2436,13 +2437,13 @@ class RolesScreen extends StatelessWidget {
                 gap,
               ],
               if (!r.hasOwner)
-                SettingsCallout(child: const Text('This space was made before roles, so it has no owner: everyone in it is a member, and no one can change that.'))
+                SettingsCallout(child: const Tr('This space was made before roles, so it has no owner: everyone in it is a member, and no one can change that.'))
               else if (!manage)
                 SettingsCallout(child: Text('You\'re ${r.isOwner(room.me) ? 'the owner' : 'a ${r.roleOf(room.me).name.toLowerCase()}'}. The owner and admins change roles.')),
               if (r.hasOwner) ...[
                 _hued('green', PaneSection(
                   title: 'People',
-                  description: const Text('Press someone to change their role. Admins are made by the owner alone.'),
+                  description: const Tr('Press someone to change their role. Admins are made by the owner alone.'),
                   children: [
                     for (final role in r.ranked)
                       for (final id in byRole[role.id] ?? const <String>[])
@@ -2458,7 +2459,7 @@ class RolesScreen extends StatelessWidget {
                 gap,
                 _hued('purple', PaneSection(
                   title: 'Roles',
-                  description: const Text('Highest first. A role can act on the ones below it: mute, remove, delete their messages.'),
+                  description: const Tr('Highest first. A role can act on the ones below it: mute, remove, delete their messages.'),
                   children: [
                     for (final role in r.ranked)
                       SettingRow(
@@ -2500,7 +2501,7 @@ class RolesScreen extends StatelessWidget {
                 if (settings) ...[
                   gap,
                   _hued('red', PaneSection(title: '', children: [
-                    SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Delete space', hint: const Text('From this phone and your computer.'), onPress: () => confirmDeleteHangout(context, c)),
+                    SettingRow(icon: AppIcon(Lucide.trash2, size: 18), label: 'Delete space', hint: const Tr('From this phone and your computer.'), onPress: () => confirmDeleteHangout(context, c)),
                   ])),
                 ],
                 if (r.banned.isNotEmpty) ...[
@@ -2512,7 +2513,7 @@ class RolesScreen extends StatelessWidget {
                         SettingRow(
                           icon: AppIcon(Lucide.ban, size: 18),
                           label: _nameOf(room, id),
-                          value: manage ? const Text('Unban') : null,
+                          value: manage ? const Tr('Unban') : null,
                           onPress: manage ? () => room.ban(id, on: false) : null,
                         ),
                     ],
@@ -2590,13 +2591,13 @@ class _RoleScreenState extends State<RoleScreen> {
           body: ListView(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
-              if (admin) SettingsCallout(child: const Text('Admins may do everything, and give out every role but admin. The owner makes admins.')),
+              if (admin) SettingsCallout(child: const Tr('Admins may do everything, and give out every role but admin. The owner makes admins.')),
               if (edit && !builtIn)
                 PaneSection(title: 'Name', children: [
                   SettingRowBox(
                     child: GlacierInput(
                       controller: _name,
-                      placeholder: 'Role name',
+                      placeholder: 'Role name'.t,
                       ariaLabel: 'Role name',
                       autoCapitalize: TextCapitalization.words,
                       size: GlacierFieldSize.md,
@@ -2607,7 +2608,7 @@ class _RoleScreenState extends State<RoleScreen> {
                   ),
                 ]),
               if (edit && !builtIn)
-                PaneSection(title: 'Place', description: const Text('Above Member to act on members; below Moderator to be acted on by moderators.'), children: [
+                PaneSection(title: 'Place', description: const Tr('Above Member to act on members; below Moderator to be acted on by moderators.'), children: [
                   SettingRow(
                     icon: AppIcon(Lucide.shieldCheck, size: 18),
                     label: 'Ranks',
@@ -2621,7 +2622,7 @@ class _RoleScreenState extends State<RoleScreen> {
                 ]),
               // The colour its people's names are drawn in, as a Discord role's (Matt, 2026-11-17: "assign role colors like
               // discord does"): any role's, the admins' too, by whoever manages the space.
-              PaneSection(title: 'Colour', description: const Text('Names of people with this role are drawn in it, in the chat and the member list.'), children: [
+              PaneSection(title: 'Colour', description: const Tr('Names of people with this role are drawn in it, in the chat and the member list.'), children: [
                 SettingRowBox(child: _RoleColours(role: role, enabled: room.canManage, onPick: (c) => room.saveRole(c == null ? role.copyWith(noColor: true) : role.copyWith(color: c)))),
               ]),
               PaneSection(
@@ -2647,7 +2648,7 @@ class _RoleScreenState extends State<RoleScreen> {
                   SettingRow(
                     icon: AppIcon(Lucide.trash2, size: 18),
                     label: 'Delete ${role.name}',
-                    hint: const Text('Whoever has it goes back to the role new people get.'),
+                    hint: const Tr('Whoever has it goes back to the role new people get.'),
                     onPress: () async {
                       if (await room.deleteRole(role.id) && context.mounted) Navigator.of(context).maybePop();
                     },
@@ -2752,14 +2753,14 @@ class HangoutModeration extends StatelessWidget {
               icon: AppIcon(Lucide.lock, size: 18),
               label: 'Mute for everyone',
               // What sets it apart from Mute for me, above it in the sheet (GMFB-49).
-              hint: const Text('No one in the space hears them, and they can\'t unmute themselves.'),
+              hint: const Tr('No one in the space hears them, and they can\'t unmute themselves.'),
               control: GlacierSwitch(checked: mutedAll, onCheckedChange: (on) => room.muteForAll(id, on), ariaLabel: 'Mute $name for everyone'),
             ),
           if (above && room.can(Perm.removeMembers))
             SettingRow(
               icon: AppIcon(Lucide.userMinus, size: 18),
               label: 'Remove from space',
-              hint: const Text('They can come back with the link.'),
+              hint: const Tr('They can come back with the link.'),
               onPress: () {
                 room.remove(id);
                 Navigator.of(context).maybePop();
@@ -2769,7 +2770,7 @@ class HangoutModeration extends StatelessWidget {
             SettingRow(
               icon: AppIcon(Lucide.ban, size: 18),
               label: 'Ban',
-              hint: const Text('Kept out for good, even with the link.'),
+              hint: const Tr('Kept out for good, even with the link.'),
               onPress: () => showChoices(context, title: 'Ban $name? They\'re removed now and can\'t come back.', choices: [
                 Choice('Ban', Lucide.ban, () async {
                   await room.ban(id);
@@ -2858,7 +2859,7 @@ class _HangoutSettingsScreenState extends State<HangoutSettingsScreen> {
   Widget build(BuildContext context) {
     final room = _room;
     if (room == null) {
-      return GhostPage(title: widget.channel.name, body: Padding(padding: EdgeInsets.all(context.tokens.space(4)), child: SettingsCallout(child: const Text('The relay server isn\'t connected, so this space\'s settings can\'t be reached right now.'))));
+      return GhostPage(title: widget.channel.name, body: Padding(padding: EdgeInsets.all(context.tokens.space(4)), child: SettingsCallout(child: const Tr('The relay server isn\'t connected, so this space\'s settings can\'t be reached right now.'))));
     }
     return RolesScreen(room: room, settings: true);
   }

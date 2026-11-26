@@ -11,6 +11,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'dialup/bevel.dart' show DialupColors, Sunken, isDialup;
 import 'message_line.dart';
+import '../l10n/words.dart';
 
 /// Choosing what is behind the messages (lib/backgrounds.dart): for every chat (Settings › Chat background), or for
 /// one conversation (its header › Chat background), which may also wear every chat's. A small conversation at the
@@ -168,7 +169,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                       SettingRow(
                         icon: const AppIcon(Lucide.refreshCw, size: 18),
                         label: 'Sync with $_them',
-                        hint: worn.kind == 'image' ? const Text('A picture goes as a picture message, at the size your carrier allows.') : null,
+                        hint: worn.kind == 'image' ? const Tr('A picture goes as a picture message, at the size your carrier allows.') : null,
                         control: GlacierSwitch(
                           checked: _syncOn(app),
                           ariaLabel: 'Sync with $_them',
@@ -184,8 +185,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                 ],
                 PaneSection(
                   footer: thread == null
-                      ? const Text('What a conversation wears until it has a background of its own. Each conversation\'s own is in its settings: the cog at its top.')
-                      : const Text('For this conversation alone. Every other conversation keeps what it wears.'),
+                      ? const Tr('What a conversation wears until it has a background of its own. Each conversation\'s own is in its settings: the cog at its top.')
+                      : const Tr('For this conversation alone. Every other conversation keeps what it wears.'),
                   children: [
                     if (thread != null)
                       SettingRow(
@@ -195,14 +196,14 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                       ),
                     SettingRow(
                       label: 'None',
-                      hint: const Text('The plain page.'),
+                      hint: const Tr('The plain page.'),
                       control: Pick(checked: chosen(ChatBackground.none), label: 'No background', onPress: () => _set(ChatBackground.none)),
                     ),
                     // The phone's wallpaper is the phone's: a computer has none of Android's to match.
                     if (!Sms.remote)
                     SettingRow(
                       label: 'Match my wallpaper',
-                      hint: const Text('The colours Android takes from this phone\'s wallpaper, which the phone\'s own apps wear too. It changes when the wallpaper does.'),
+                      hint: const Tr('The colours Android takes from this phone\'s wallpaper, which the phone\'s own apps wear too. It changes when the wallpaper does.'),
                       disabledReason: hasPalette ? null : 'Needs Android 12 or later.',
                       control: Pick(checked: chosen(ChatBackground.wallpaper), label: 'Match my wallpaper', onPress: () => _set(ChatBackground.wallpaper)),
                     ),
@@ -257,12 +258,12 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                 // Not in a browser, which can't choose a picture yet (Sms.browser).
                 if (!Sms.browser) PaneSection(
                   title: 'A picture',
-                  footer: const Text('A copy is kept by the app on this phone. It is drawn under a light veil so messages stay readable.'),
+                  footer: const Tr('A copy is kept by the app on this phone. It is drawn under a light veil so messages stay readable.'),
                   children: [
                     SettingRow(
                       icon: const AppIcon(Lucide.imagePlus, size: 18),
                       label: own?.kind == 'image' ? 'Choose another picture' : 'Choose a picture',
-                      hint: const Text('From your photos.'),
+                      hint: const Tr('From your photos.'),
                       onPress: _pickPicture,
                     ),
                   ],
@@ -272,7 +273,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                   SizedBox(height: t.space(5)),
                   PaneSection(
                     title: 'Shared backgrounds',
-                    footer: const Text('Someone with Ghost Messaging can sync a conversation\'s background with you, and you with them, from the conversation\'s header. It travels as a text in the conversation. Off, theirs is not worn here.'),
+                    footer: const Tr('Someone with Ghost Messaging can sync a conversation\'s background with you, and you with them, from the conversation\'s header. It travels as a text in the conversation. Off, theirs is not worn here.'),
                     children: [
                       SettingRow(
                         icon: const AppIcon(Lucide.refreshCw, size: 18),

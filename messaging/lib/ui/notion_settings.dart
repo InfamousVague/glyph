@@ -17,6 +17,7 @@ import '../kit/settings_type.dart';
 import '../notion/notion.dart';
 import '../plugins/notion.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// The Notion section of a circle's plugins: its token, and taking it away.
 class NotionCircleSection extends StatelessWidget {
@@ -52,7 +53,7 @@ class NotionCircleSection extends StatelessWidget {
             key: const ValueKey('circle-notion-remove'),
             icon: AppIcon(Lucide.trash2, size: 18),
             label: 'Take the token away',
-            hint: const Text('Notion links stop opening out. To cut off anyone who already has it, delete the integration in Notion too.'),
+            hint: const Tr('Notion links stop opening out. To cut off anyone who already has it, delete the integration in Notion too.'),
             onPress: () => showChoices(context, title: 'Take ${c.name}\'s Notion token away?', choices: [
               Choice('Take it away', Lucide.trash2, () async {
                 final ok = await NotionCircle.remove(c);
@@ -136,14 +137,14 @@ class _NotionTokenScreenState extends State<NotionTokenScreen> {
           SizedBox(height: t.space(4)),
           PaneSection(
             title: had ? 'A new token' : 'The circle\'s token',
-            description: const Text('In Notion, open Settings › Connections › Develop or manage integrations, make an internal integration that can only read content, and copy its secret. Then, on each page or database the circle should see, open ••• › Connections and add the integration.'),
+            description: const Tr('In Notion, open Settings › Connections › Develop or manage integrations, make an internal integration that can only read content, and copy its secret. Then, on each page or database the circle should see, open ••• › Connections and add the integration.'),
             children: [
               SettingRowBox(
                 child: GlacierInput(
                   key: const ValueKey('notion-token-field'),
                   controller: _token,
                   type: GlacierInputType.password,
-                  placeholder: 'ntn_…',
+                  placeholder: 'ntn_…'.t,
                   ariaLabel: 'Notion integration token',
                   autoCorrect: false,
                   autoCapitalize: TextCapitalization.none,

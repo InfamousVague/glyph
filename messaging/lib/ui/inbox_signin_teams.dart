@@ -11,6 +11,7 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 /// Signing in to Microsoft Teams (lib/inbox/teams.dart): Microsoft's device code. Ghost shows a short code, opens
 /// microsoft.com/devicelogin in the browser, and waits there while the person types the code and approves.
@@ -115,11 +116,11 @@ class _TeamsSignInScreenState extends State<TeamsSignInScreen> {
                 ),
                 if (code != null) ...[
                   SizedBox(height: t.space(2)),
-                  const SettingsFootnote(child: Text('Waiting for you to approve on Microsoft\'s page…')),
+                  const SettingsFootnote(child: Tr('Waiting for you to approve on Microsoft\'s page…')),
                 ],
                 SizedBox(height: t.space(4)),
                 const SettingsFootnote(
-                  child: Text('Your messages go between this device and Microsoft only. Ghost\'s servers never see them; only the sign-in Microsoft gives back is kept on this device.'),
+                  child: Tr('Your messages go between this device and Microsoft only. Ghost\'s servers never see them; only the sign-in Microsoft gives back is kept on this device.'),
                 ),
               ],
             ),

@@ -17,6 +17,7 @@ import '../ui/common.dart' show push, toast;
 import '../ui/computers.dart' show PairButton;
 import '../kit/semantic_colors.dart';
 import 'standalone.dart' show StandaloneCalls;
+import '../l10n/words.dart';
 
 /// The first thing a device of its own shows (lib/standalone; Matt, 2026-11-15: "roll a version of the app that works
 /// without sms"). Since 2026-11-20 it asks for two things only (Matt: "rework the onboarding flow to be very simple and
@@ -154,7 +155,7 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                     child: GlacierInput(
                       key: const ValueKey('welcome-username'),
                       controller: _username,
-                      placeholder: 'Username',
+                      placeholder: 'Username'.t,
                       ariaLabel: 'Username',
                       autoCorrect: false,
                       autoCapitalize: TextCapitalization.none,
@@ -167,7 +168,7 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                     child: GlacierInput(
                       key: const ValueKey('welcome-password'),
                       controller: _password,
-                      placeholder: 'Password',
+                      placeholder: 'Password'.t,
                       ariaLabel: 'Password',
                       type: GlacierInputType.password,
                       autoCorrect: false,
