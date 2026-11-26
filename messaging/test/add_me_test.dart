@@ -11,6 +11,7 @@ import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
+import 'package:ghost_messaging/net/relay_choice.dart' show relayHostForLinks;
 import 'package:ghost_messaging/ui/add_me.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/profile.dart';
@@ -164,6 +165,54 @@ void main() {
     expect(addLinkUsername('https://gogho.st/add/ab'), isNull, reason: 'too short to be a username');
     expect(addLinkUsername('https://evil.example/add/maya'), isNull);
     expect(addLinkUsername('https://gogho.st/c/maya'), isNull, reason: 'a circle\'s invite word');
+  });
+
+  // GMFB-25: a username is a name on one relay, and a link named none, so on a relay of one's own it found whoever held
+  // the name there, or nobody.
+  test('a link from someone on a relay of their own says which, after the key; one that names none is Ghost Messaging\'s', () {
+    final id = 'ab' * 16;
+    expect(addMeLink('maya', id: id), 'https://gogho.st/add/maya#$id');
+    expect(addMeLink('maya', id: id, relay: 'Relay.Example.com'), 'https://gogho.st/add/maya#$id@relay.example.com');
+    expect(addMeLink('maya', id: id, relay: 'relay.example.com:8443'), 'https://gogho.st/add/maya#$id@relay.example.com:8443');
+    expect(addMeLink('maya', id: id, relay: 'not a host'), 'https://gogho.st/add/maya#$id', reason: 'nothing that could not be a host');
+    expect(addMeLink('maya', relay: 'relay.example.com'), 'https://gogho.st/add/maya', reason: 'never a relay without the key that holds its answer');
+    final link = addMeLink('maya', id: id, relay: 'relay.example.com');
+    expect([addLinkUsername(link), addLinkKey(link), addLinkRelay(link)], ['maya', id, 'relay.example.com']);
+    expect([addLinkKey('ghostmsg://add/maya#$id@Relay.Example.com:8443'), addLinkRelay('ghostmsg://add/maya#$id@Relay.Example.com:8443')], [id, 'relay.example.com:8443'], reason: 'as the page hands it to the app');
+    expect([addLinkKey('https://gogho.st/add/maya#$id'), addLinkRelay('https://gogho.st/add/maya#$id')], [id, null]);
+    expect(addLinkRelay('https://gogho.st/add/maya#@relay.example.com'), isNull, reason: 'no key, no relay');
+    expect([addLinkKey('https://gogho.st/add/maya#$id@'), addLinkRelay('https://gogho.st/add/maya#$id@')], [id, null]);
+    expect(addLinkRelay('https://gogho.st/add/maya#$id@localhost'), isNull);
+    expect(addLinkRelay('https://gogho.st/add/maya#$id@relay.example.com/../x'), isNull);
+    // The relay in use, as a link names it.
+    expect(relayHostForLinks('wss://gogho.st/hub'), isNull);
+    expect(relayHostForLinks('wss://relay.example.com/hub'), 'relay.example.com');
+    expect(relayHostForLinks('wss://Relay.Example.com:8443/hub'), 'relay.example.com:8443');
+    expect(relayHostForLinks('wss://relay.example.com:443/hub'), 'relay.example.com');
+    expect(relayHostForLinks('ws://192.168.1.20:7787/hub'), isNull, reason: 'nobody elsewhere could dial it');
+    expect(relayHostForLinks('ghost-relay://${'c' * 32}?n=${'d' * 64}'), isNull);
+  });
+
+  test('where a link\'s person is asked for: here where they are on this app\'s relay, of their own relay where they are on another, and of Ghost Messaging\'s after this one where the link names none', () {
+    const own = 'wss://relay.example.com/hub';
+    bool nowhere(String _) => false;
+    // On Ghost Messaging's relay, a link that names none: as ever.
+    expect(addPlan('maya', theirs: null, mine: null, onDefault: true, hubUrl: 'wss://gogho.st/hub', hasKey: true, here: nowhere), (ask: 'maya', then: null, note: null));
+    // On Ghost Messaging's relay, a link from someone on their own.
+    final other = addPlan('maya', theirs: 'relay.example.com', mine: null, onDefault: true, hubUrl: 'wss://gogho.st/hub', hasKey: true, here: nowhere);
+    expect([other.ask, other.then], ['maya@relay.example.com', null]);
+    expect(other.note, '@maya is on relay.example.com, another relay than yours. The request goes from your relay to theirs, where both pass messages to each other; if they don\'t yet, it is sent again by itself for two weeks.');
+    // On a relay of one's own, a link from someone on the same one: looked up here, nothing to say.
+    expect(addPlan('maya', theirs: 'relay.example.com', mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: nowhere), (ask: 'maya', then: null, note: null));
+    // The same relay under another of its names.
+    expect(addPlan('maya', theirs: 'www.relay.example.com', mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: (h) => h == 'www.relay.example.com').ask, 'maya');
+    // On a relay of one's own, a link that names none: here first, then Ghost Messaging's, both held to the key.
+    final unnamed = addPlan('maya', theirs: null, mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: nowhere);
+    expect([unnamed.ask, unnamed.then], ['maya', 'maya@gogho.st']);
+    expect(unnamed.note, contains('this link names no relay. @maya is looked for there first, then on Ghost Messaging\'s relay'));
+    // With no key to hold an answer to (a link from before): here alone, with the warning there always was.
+    final old = addPlan('maya', theirs: null, mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: false, here: nowhere);
+    expect([old.ask, old.then, old.note], ['maya', null, addMeElsewhereWords(own, 'maya')]);
   });
 
   testWidgets('an opened link whose key the relay\'s answer doesn\'t match is refused on screen, and nothing is sent', (tester) async {

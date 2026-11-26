@@ -649,6 +649,7 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
                   screen: large.screen,
                   mirror: large.mirror,
                   pinned: large.pinned,
+                  who: large.id == 'me' ? null : large.id,
                   onPin: () => CallPin.toggle(session, large.id),
                   onBack: () => leaveStage(session, large.id, pinned: large.pinned, putAway: (id) => setState(() => _putAway = id)),
                 ),

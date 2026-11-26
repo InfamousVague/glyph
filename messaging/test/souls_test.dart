@@ -10,6 +10,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/ui/admin_page.dart';
 import 'package:ghost_messaging/ui/common.dart' show GhostPage;
 import 'package:ghost_messaging/ui/settings.dart';
+import 'package:ghost_messaging/ui/settings_panes.dart' show sealedWords;
 import 'package:ghost_messaging/ui/souls.dart';
 import 'package:ghost_messaging/ui/special_badges.dart';
 import 'package:glacier/glacier.dart';
@@ -24,6 +25,15 @@ import 'support/space_call_harness.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
+
+  // GMFB-25: souls are counted by each relay apart, and nothing said whose count was shown on a relay of one's own.
+  test('on a relay of your own the Souls page says whose count it is; on Ghost Messaging\'s it says nothing more', () {
+    expect(soulsRelayWords('wss://gogho.st/hub'), isNull);
+    expect(soulsRelayWords('wss://relay.example.com/hub'), startsWith('Each relay counts souls apart. This is your count on relay.example.com, and souls go only between people on it.'));
+    expect(soulsRelayWords('wss://relay.example.com/hub'), contains('still yours there'));
+    expect(sealedWords('wss://gogho.st/hub'), 'Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.');
+    expect(sealedWords('wss://relay.example.com/hub'), 'Your texts stay on this phone. Friends, circles and spaces go through the relay you chose (relay.example.com), sealed so it can\'t read them.');
+  });
 
   test('counts read short', () {
     expect(soulsCount(0), '0');

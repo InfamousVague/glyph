@@ -14,6 +14,7 @@
 		5907F1C02F2A0B0C000000B4 /* MusicSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5907F1C02F2A0B0C000000B3 /* MusicSink.swift */; };
 		4D5E6F7A8B9C0D1E2F30CA9B /* LiveCaptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */; };
 		4D5E6F7A8B9C0D1E2F305C1B /* Scribe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */; };
+		4D5E6F7A8B9C0D1E2F30A1B1 /* LocalAi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F30A1F1 /* LocalAi.swift */; };
 		4D5E6F7A8B9C0D1E2F30C0DE /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */; };
 		4D5E6F7A8B9C0D1E2F310003 /* VoiceFxC in Frameworks */ = {isa = PBXBuildFile; productRef = 4D5E6F7A8B9C0D1E2F310002 /* VoiceFxC */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
@@ -58,6 +59,7 @@
 		5907F1C02F2A0B0C000000B3 /* MusicSink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSink.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCaptions.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scribe.swift; sourceTree = "<group>"; };
+		4D5E6F7A8B9C0D1E2F30A1F1 /* LocalAi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAi.swift; sourceTree = "<group>"; };
 		4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 				5907F1C02F2A0B0C000000B3 /* MusicSink.swift */,
 				4D5E6F7A8B9C0D1E2F30CA9F /* LiveCaptions.swift */,
 				4D5E6F7A8B9C0D1E2F305C1F /* Scribe.swift */,
+				4D5E6F7A8B9C0D1E2F30A1F1 /* LocalAi.swift */,
 				4D5E6F7A8B9C0D1E2F30C0DF /* CallRecorder.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
@@ -317,6 +320,7 @@
 				5907F1C02F2A0B0C000000B4 /* MusicSink.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F30CA9B /* LiveCaptions.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F305C1B /* Scribe.swift in Sources */,
+				4D5E6F7A8B9C0D1E2F30A1B1 /* LocalAi.swift in Sources */,
 				4D5E6F7A8B9C0D1E2F30C0DE /* CallRecorder.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,

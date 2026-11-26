@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'crypto.dart';
 import 'net.dart';
+import '../invites/link_relay.dart';
 
 /// A QR code shown on another screen, for a phone that cannot scan its own (Google Messages' Device pairing, Signal's
 /// Link new device): a room on Ghost's relay whose name, token and key come from a secret in a link
@@ -27,7 +28,11 @@ class PairRoom {
   static const sayAgain = Duration(seconds: 6);
 
   /// The page's address, once the room is open.
-  String? get link => _secret == null ? null : 'https://gogho.st/pair/#${NetCrypto.hex(_secret!)}';
+  ///
+  /// The room is on the relay this app uses, so where that is not Ghost Messaging's own the address names it after the
+  /// secret (lib/invites/link_relay.dart; GMFB-25): the page dialled gogho.st's hub whatever relay the app was on, and
+  /// waited in a room the app was never in.
+  String? get link => _secret == null ? null : LinkRelay.mark('https://gogho.st/pair/#${NetCrypto.hex(_secret!)}');
 
   /// Joined on the relay: only then does a page at [link] get anything.
   bool get open => _joined;

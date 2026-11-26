@@ -18,6 +18,7 @@
 /// day, a script or a package, could meet the same contract: the README says what that would still need.
 library;
 
+import '../local_ai.dart' show AiLine;
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -506,7 +507,7 @@ class ConversationPlace {
 /// it is the newest of all (no reply yet); whether anyone in it is a contact, and whether it is a group.
 @immutable
 class ComposerPlace {
-  const ComposerPlace({required this.thread, required this.senders, this.text = '', this.lastIn, this.lastOut, this.title = '', this.contact = true, this.group = false, this.count = 0});
+  const ComposerPlace({required this.thread, required this.senders, this.text = '', this.lastIn, this.lastOut, this.title = '', this.contact = true, this.group = false, this.count = 0, this.recent = const []});
   final int thread;
   final List<String> senders;
   final String text;
@@ -522,6 +523,11 @@ class ComposerPlace {
 
   /// How many messages the conversation holds as the screen has them.
   final int count;
+
+  /// The conversation's newest messages with words, oldest first (at most a dozen), for the device's own model to
+  /// read (lib/local_ai.dart): the Replies plugin's replies and summaries. Ours alone: a plugin from another developer
+  /// is not given them.
+  final List<AiLine> recent;
 }
 
 /// One message in a conversation.

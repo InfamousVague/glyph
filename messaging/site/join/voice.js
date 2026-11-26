@@ -40,9 +40,25 @@ const readName = (b64, fallback) => {
  * is not one.
  */
 export function readLink(fragment) {
-  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$/.exec(fragment ?? '');
+  const { rest, relay } = splitRelay(fragment);
+  const m = /^#?([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$/.exec(rest);
   if (!m) return null;
-  return { seed: m[1], name: readName(m[2], 'Space'), owner: m[3] ?? '', kind: m[4] ?? 'voice' };
+  return { seed: m[1], name: readName(m[2], 'Space'), owner: m[3] ?? '', kind: m[4] ?? 'voice', relay };
+}
+
+/**
+ * The relay a link names after an `@` at its end (lib/invites/link_relay.dart; GMFB-25): a space or a circle made on a
+ * relay other than Ghost Messaging's says which, `…@relay.example.com`. The fragment without it, and the relay's host
+ * (lower case, with its port where it has one), or '' where it names none. What follows the `@` is taken only where
+ * it could be a host, as the app takes it (lib/net/home_record.dart goodRelayHost).
+ */
+export function splitRelay(fragment) {
+  const f = fragment ?? '';
+  const at = f.lastIndexOf('@');
+  if (at < 0) return { rest: f, relay: '' };
+  const host = f.slice(at + 1).toLowerCase();
+  const ok = host.length <= 120 && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+(:[0-9]{1,5})?$/.test(host);
+  return ok ? { rest: f.slice(0, at), relay: host } : { rest: f, relay: '' };
 }
 
 /**
@@ -50,9 +66,10 @@ export function readLink(fragment) {
  * the app, where its list of spaces is; this page says what it is and how to get there. Null where it is not one.
  */
 export function readCircleLink(fragment) {
-  const m = /^#?c\.([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(fragment ?? '');
+  const { rest, relay } = splitRelay(fragment);
+  const m = /^#?c\.([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$/.exec(rest);
   if (!m) return null;
-  return { seed: m[1], name: readName(m[2], 'Circle'), owner: m[3] ?? '' };
+  return { seed: m[1], name: readName(m[2], 'Circle'), owner: m[3] ?? '', relay };
 }
 
 // lib/voice/voice.dart highestOpus and videoFor.

@@ -59,9 +59,11 @@
 </main>
 <script src="qrcode.js"></script>
 <script type="module">
-  import { identity, connectHub, unhex, hex } from '../join/voice.js';
+  import { identity, connectHub, unhex, hex, splitRelay } from '../join/voice.js';
   const enc = new TextEncoder(), dec = new TextDecoder();
-  const secret = location.hash.slice(1);
+  // After the secret, the relay the phone's app uses where it is not Ghost Messaging's own (#SECRET@relay.example.com,
+  // lib/invites/link_relay.dart): the room is on that relay, so its hub is the one dialled.
+  const { rest: secret, relay } = splitRelay(location.hash.slice(1));
   // Leave no copy behind in the address bar.
   history.replaceState(null, '', location.pathname + location.search);
   const state = document.getElementById('state');
@@ -104,7 +106,7 @@
       state.textContent = words.fresh;
     };
     try {
-      const hubUrl = new URLSearchParams(location.search).get('hub') ?? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/hub`;
+      const hubUrl = new URLSearchParams(location.search).get('hub') ?? (relay ? `wss://${relay}/hub` : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/hub`);
       const hub = await connectHub(hubUrl, await identity(false));
       hub.bin.add(async (d) => {
         if (d[0] !== 2 || hex(d.slice(1, 17)) !== room) return;

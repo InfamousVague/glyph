@@ -104,17 +104,30 @@ void main() {
       expect(LanBeacon.decode(noPort), isNull, reason: 'a door at no port');
     });
 
-    test('a mark is for one direction, one ten minutes, one run and one port, and nobody without the key makes it', () {
+    test('a mark is for one direction, one ten minutes, one run, one port and one address, and nobody without the key makes it', () {
       final key = LanWords.keyOf(annBen);
       final run = List.generate(8, (i) => i);
-      Uint8List mark({List<int>? k, String? from, String? to, int bucket = 100, List<int>? instance, int port = 4000}) => LanWords.mark(k ?? key, from: from ?? ann.id, to: to ?? ben.id, bucket: bucket, instance: instance ?? run, port: port);
+      Uint8List mark({List<int>? k, String? from, String? to, int bucket = 100, List<int>? instance, int port = 4000, String address = '192.168.1.10'}) =>
+          LanWords.mark(k ?? key, from: from ?? ann.id, to: to ?? ben.id, bucket: bucket, instance: instance ?? run, port: port, address: address)!;
       final m = mark();
       expect(m, hasLength(8));
       expect(mark(), m, reason: 'the same from the same');
-      for (final other in [mark(from: ben.id, to: ann.id), mark(bucket: 101), mark(instance: List.filled(8, 9)), mark(port: 4001), mark(k: LanWords.keyOf(pair(ann, cat))), mark(to: cat.id)]) {
+      for (final other in [mark(from: ben.id, to: ann.id), mark(bucket: 101), mark(instance: List.filled(8, 9)), mark(port: 4001), mark(k: LanWords.keyOf(pair(ann, cat))), mark(to: cat.id), mark(address: '192.168.1.66')]) {
         expect(other, isNot(m));
       }
       expect(LanWords.keyOf(annBen), isNot(annBen), reason: 'never the key packets are sealed with itself');
+      // Said from nowhere a mark can be made for: no mark.
+      for (final not in ['fe80::1', '', '1.2.3', '1.2.3.256', 'a.b.c.d']) {
+        expect(LanWords.mark(key, from: ann.id, to: ben.id, bucket: 100, instance: run, port: 4000, address: not), isNull, reason: not);
+      }
+      // Noise: the same for its ten minutes, another for the next, for another address and for another place among them.
+      final secret = List.filled(32, 7);
+      final n = LanWords.noise(secret, bucket: 100, address: '192.168.1.10', slot: 0);
+      expect([n.length, LanWords.noise(secret, bucket: 100, address: '192.168.1.10', slot: 0)], [8, n]);
+      for (final other in [LanWords.noise(secret, bucket: 101, address: '192.168.1.10', slot: 0), LanWords.noise(secret, bucket: 100, address: '192.168.1.11', slot: 0), LanWords.noise(secret, bucket: 100, address: '192.168.1.10', slot: 1), LanWords.noise(List.filled(32, 8), bucket: 100, address: '192.168.1.10', slot: 0)]) {
+        expect(other, isNot(n));
+      }
+      expect([for (final people in [0, 1, 8, 9, 16, 17, 100, 160, 161, 5000]) LanBeacon.sizeFor(people)], [8, 8, 8, 16, 16, 32, 128, 160, 160, 160]);
     });
 
     test('frames come whole however the bytes are cut, and a length too long ends it', () {
@@ -135,7 +148,9 @@ void main() {
       expect(f.add(LanFramer.wrap(c)), isEmpty, reason: 'nothing more is taken');
     });
 
-    test('only a home or office network\'s addresses count as the local network', () {
+    test('only a private network\'s addresses count as the local network, and two are one network by their first two numbers', () {
+      expect([sameNet('192.168.1.10', '192.168.7.20'), sameNet('10.0.5.1', '10.0.9.9'), sameNet('172.20.1.1', '172.20.200.3')], [true, true, true]);
+      expect([sameNet('10.0.5.1', '10.1.5.1'), sameNet('192.168.1.10', '10.168.1.10'), sameNet('8.8.8.8', '8.8.4.4'), sameNet('192.168.1.10', '')], [false, false, false, false]);
       for (final yes in ['10.0.0.7', '192.168.1.20', '172.16.0.1', '172.31.255.254']) {
         expect(isLanAddress(yes), isTrue, reason: yes);
       }
@@ -213,9 +228,11 @@ void main() {
           expect(_holds(x, secret), isFalse);
         }
       }
-      // A beacon carries noise beside its one real mark, in a multiple of eight.
+      // A beacon carries noise beside its one real mark, eight in all, in the order of their bytes.
       final beacon = LanBeacon.decode(lan.beacons.first.bytes)!;
       expect(beacon.marks, hasLength(8));
+      final hexes = [for (final m in beacon.marks) NetCrypto.hex(m)];
+      expect(hexes, [...hexes]..sort());
       // And two beacons from one run, ten minutes apart, share no mark.
       final before = LanBeacon.decode(lan.beacons.lastWhere((x) => x.from == '192.168.1.10').bytes)!;
       clock = clock.add(const Duration(minutes: 11));
@@ -452,6 +469,21 @@ void main() {
       ground.mute = false;
       await a.beat();
       expect([a.state.value, a.problem], [CarrierState.up, null]);
+      // A device that can't say its own beacon, and is heard and connected to all the same, carries: it is not down
+      // while a link is open, and is again once the link has gone.
+      ground.mute = true;
+      await a.beat();
+      expect(a.state.value, CarrierState.down);
+      final b = device(ben, '192.168.1.11', () => [Peer(id: ann.id, key: annBen)]);
+      await b.start();
+      await _until(() => a.links.length == 1 && b.links.length == 1, 'linked: hers heard his');
+      expect([a.state.value, a.problem], [CarrierState.up, null]);
+      await a.beat();
+      expect([a.state.value, a.problem], [CarrierState.up, null], reason: 'still, with its next beacon unsaid');
+      await b.stop();
+      await _until(() => a.links.isEmpty, 'his is gone');
+      await a.beat();
+      expect(a.state.value, CarrierState.down);
     });
 
     test('a phone\'s closes everything while the app is put away and opens again as it comes back; a computer\'s stays', () async {
@@ -474,23 +506,31 @@ void main() {
       await _until(() => phone.links.length == 1 && desk.links.length == 1, 'linked again');
     });
 
-    test('more people than a beacon holds are named a lot at a time, so each is found within a few beacons', () async {
-      final many = [for (var i = 0; i < 100; i++) Peer(id: NetCrypto.hex(NetCrypto.randomBytes(16)), key: NetCrypto.randomBytes(32))];
+    test('more people than a beacon holds: one lot of them for each ten minutes, the same all through it, and everyone in turn', () async {
+      final many = [for (var i = 0; i < 200; i++) Peer(id: NetCrypto.hex(NetCrypto.randomBytes(16)), key: NetCrypto.randomBytes(32))];
       final annPeer = Peer(id: ann.id, key: annBen), benPeer = Peer(id: ben.id, key: annBen);
-      // Ben is the last of Ann's hundred and one.
       final a = device(ann, '192.168.1.10', () => [...many, benPeer], run: 9);
-      final b = device(ben, '192.168.1.11', () => [annPeer], run: 1);
+      // Only Ann's beacons are heard: whether Ben's device finds hers is whether her beacon names him.
       lan.deafTo.add('192.168.1.10');
+      final b = device(ben, '192.168.1.11', () => [annPeer], run: 1);
       await a.start();
       await b.start();
       await _settle();
-      expect(LanBeacon.decode(lan.beacons.firstWhere((x) => x.from == '192.168.1.10').bytes)!.marks, hasLength(LanBeacon.mostMarks));
-      for (var i = 0; i < 3 && b.links.isEmpty; i++) {
-        await a.beat();
+      Set<String> marksNow() => {for (final m in LanBeacon.decode(lan.beacons.lastWhere((x) => x.from == '192.168.1.10').bytes)!.marks) NetCrypto.hex(m)};
+      final first = marksNow();
+      expect(first, hasLength(LanBeacon.mostMarks));
+      await a.beat();
+      expect(marksNow(), first, reason: 'the same lot all through the ten minutes: what stays from one beacon to the next says nothing of who is real');
+      // Ben is named in this ten minutes or the next: 201 people, 160 to a lot.
+      for (var i = 0; i < 2 && b.links.isEmpty; i++) {
         await _settle();
-        await Future<void>.delayed(const Duration(milliseconds: 60));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        if (b.links.isNotEmpty) break;
+        clock = clock.add(const Duration(minutes: 10));
+        await a.beat();
+        await b.beat();
       }
-      await _until(() => b.links.length == 1, 'found within three beacons');
+      await _until(() => b.links.length == 1, 'found within two lots');
     });
   });
 
@@ -559,8 +599,8 @@ void main() {
     final pa = await free(), pb = await free();
     final annPeer = Peer(id: ann.id, key: annBen), benPeer = Peer(id: ben.id, key: annBen);
     const policy = LanPolicy(beatEvery: Duration(milliseconds: 100), yieldFor: Duration(milliseconds: 100), sleepsAway: false);
-    final a = LanCarrier(me: ann.id, ground: LanSockets(port: pa, sayPort: pb, bind: loop, beaconTo: [loop]), people: () => [benPeer], policy: policy, allowed: (x) => x == '127.0.0.1');
-    final b = LanCarrier(me: ben.id, ground: LanSockets(port: pb, sayPort: pa, bind: loop, beaconTo: [loop]), people: () => [annPeer], policy: policy, allowed: (x) => x == '127.0.0.1');
+    final a = LanCarrier(me: ann.id, ground: LanSockets(port: pa, sayPort: pb, bind: loop, beaconTo: [loop], local: const ['127.0.0.1']), people: () => [benPeer], policy: policy, allowed: (x) => x == '127.0.0.1');
+    final b = LanCarrier(me: ben.id, ground: LanSockets(port: pb, sayPort: pa, bind: loop, beaconTo: [loop], local: const ['127.0.0.1']), people: () => [annPeer], policy: policy, allowed: (x) => x == '127.0.0.1');
     made.addAll([a, b]);
     await a.start();
     await b.start();

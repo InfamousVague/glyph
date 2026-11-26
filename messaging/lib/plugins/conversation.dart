@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
+import '../local_ai.dart' show AiLine;
 import '../sms.dart';
 import '../ui/common.dart';
 import 'list.dart' show PluginEffects, SmsEffects;
@@ -123,7 +124,7 @@ class ConversationPlugins {
   }
 
   /// What the plugins put over the composer. [lastIn] is the newest message where it is from them (no reply yet).
-  List<Widget> aboveComposer(BuildContext context, {String text = '', String? lastIn, String? lastOut, String title = '', int count = 0}) {
+  List<Widget> aboveComposer(BuildContext context, {String text = '', String? lastIn, String? lastOut, String title = '', int count = 0, Iterable<Message> newestFirst = const []}) {
     final store = AppStore(AppState.of(context));
     final all = people();
     final place = ComposerPlace(
@@ -136,6 +137,7 @@ class ConversationPlugins {
       contact: all.any((p) => p.name != null && p.name!.isNotEmpty),
       group: all.length > 1,
       count: count,
+      recent: recentLines(newestFirst, all),
     );
     return registry.widgets(Slots.aboveComposer, context, place, store);
   }
@@ -150,6 +152,25 @@ class ConversationPlugins {
         Choice(b.action.label, b.action.icon, () => runPluginAction(registry, b.plugin, b.action, _Host(this, b.plugin, context, facts, tags)), danger: b.action.danger),
     ];
   }
+}
+
+/// The newest dozen of [newestFirst] that have words, oldest first, as the device's model reads them: whose each is
+/// by [people]'s names.
+List<AiLine> recentLines(Iterable<Message> newestFirst, List<Person> people) {
+  String who(String address) {
+    for (final p in people) {
+      if (p.address == address && (p.name ?? '').trim().isNotEmpty) return p.name!.trim();
+    }
+    return people.length == 1 && (people.first.name ?? '').trim().isNotEmpty ? people.first.name!.trim() : address;
+  }
+
+  final out = <AiLine>[];
+  for (final m in newestFirst) {
+    if (out.length == 12) break;
+    if (m.notice != null || m.body.trim().isEmpty) continue;
+    out.add((mine: m.outgoing, who: m.outgoing ? '' : who(m.address), text: m.body.trim(), at: m.date.millisecondsSinceEpoch));
+  }
+  return out.reversed.toList();
 }
 
 /// A conversation's side of the contract, for one plugin's action.

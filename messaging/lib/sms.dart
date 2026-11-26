@@ -1340,6 +1340,17 @@ class Sms {
     }
   }
 
+  /// Up to three replies to the newest of [messages] (`{mine, who, text, at}`, oldest first) by the small model inside
+  /// the app (android/.../SmartReplies.kt); empty where it has none.
+  Future<List<String>> smartReplies(List<Object?> messages) async {
+    if (remote) return const [];
+    try {
+      return ((await _calls.invokeMethod<List<Object?>>('smartReplies', {'messages': messages})) ?? const []).whereType<String>().toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// [text] translated into [to] on the phone (android/.../Translate.kt), for the Translate plugin
   /// (lib/plugins/translate.dart; Matt, 2026-11-17: "add a translate plugin which can automatically translate texts when
   /// detected from another language"): `{state, text, from}`, as Translate.kt answers. On a computer, or an iPhone

@@ -258,6 +258,9 @@ if (circle) {
   if (iphone) $('circle-open').hidden = true;
   $('circle-open').href = own;
   const say = (words) => { $('circle-note').textContent = words; };
+  // A circle on a relay other than Ghost Messaging's (the link says which, lib/invites/link_relay.dart): the app has to
+  // use that relay to join it, and says so itself where it doesn't.
+  if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Ghost Messaging, use that relay first (Settings › Routes › Relay server), then open this link.');
   // Get the app: the invite copied as it goes, for the app to find once it is set up.
   $('circle-get').addEventListener('click', () => {
     const done = () => say('Your invite is copied. Install Ghost Messaging and open it: once it\'s set up, it takes you to ' + circle.name + '.');
@@ -297,8 +300,9 @@ if (chatOnly) {
 }
 show('lobby');
 
-// The hub is this site's own, unless a test names another (?hub=ws://…).
-const hubUrl = new URLSearchParams(location.search).get('hub') ?? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/hub`;
+// The hub is this site's own, unless the space is on another relay, which its link names (lib/invites/link_relay.dart:
+// its hub is asked, since a space is a room on the relay it was made on), or a test names one (?hub=ws://…).
+const hubUrl = new URLSearchParams(location.search).get('hub') ?? (link.relay ? `wss://${link.relay}/hub` : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/hub`);
 let username = store.get('ghost-voice-username');
 $('name').value = store.get('ghost-voice-name') || (username ? '@' + username : '');
 const me = await identity(true);

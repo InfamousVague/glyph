@@ -16,6 +16,7 @@ import '../net/crypto.dart';
 import '../net/net.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../invites/link_relay.dart';
 
 /// Google Messages' web connection on this phone (android GmWeb.kt; Matt, 2026-11-15: "Can you build the on phone
 /// google messages connection too?"): Google Messages' conversations whole in Ghost, with pictures, reactions and
@@ -127,7 +128,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
 
   /// The page to open on a computer to see the code: the room's secret is after the #, which is never sent to the
   /// server.
-  String? get _link => _secret == null ? null : 'https://gogho.st/pair/#${NetCrypto.hex(_secret!)}';
+  String? get _link => _secret == null ? null : LinkRelay.mark('https://gogho.st/pair/#${NetCrypto.hex(_secret!)}');
 
   @override
   Widget build(BuildContext context) {

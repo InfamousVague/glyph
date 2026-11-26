@@ -57,6 +57,7 @@ import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
+import '../net/net.dart' show Net;
 
 /// A row's icon at the size every settings row uses.
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -418,8 +419,16 @@ List<SettingsSection> _ownSections() => [
   ),
     ];
 
+/// Settings › About › Sealed, end to end: where texts stay and which relay the rest goes through. It named gogho.st's
+/// whatever relay the app used (GMFB-25).
+String sealedWords(String hubUrl) {
+  final u = Uri.tryParse(hubUrl);
+  final host = hubUrl == Net.defaultHub || u == null || u.host.isEmpty ? 'gogho.st' : u.host;
+  return 'Your texts stay on this phone. Friends, circles and spaces go through ${hubUrl == Net.defaultHub ? 'gogho.st\'s relay' : 'the relay you chose ($host)'}, sealed so it can\'t read them.';
+}
+
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.41';
+const appVersion = '0.12.42';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -752,16 +761,17 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
     PaneSection(
       title: 'Summaries',
       footer: Text(switch (Summaries.instance.status) {
-        'available' => 'Several unread texts in a row, or one long one, are summed up in a line in the list, marked with a sparkle. They are made on this phone by Android\'s own model; nothing is sent anywhere.',
-        'downloading' || 'downloadable' => 'Android is fetching its on-phone model for this, over Wi-Fi. Summaries begin once it is here; nothing is sent anywhere.',
-        'unknown' => 'Looking for Android\'s on-phone model.',
-        _ => Sms.remote ? 'Summaries are made on your phone, where Android\'s own model is.' : 'This phone has no on-phone model for summaries (Android\'s Gemini Nano, on newer phones). The list shows the texts as they came.',
+        // A Mac's or an iPhone's are Apple Intelligence's (lib/local_ai.dart, macos/Runner/LocalAi.swift).
+        'available' => 'Several unread texts in a row, or one long one, are summed up in a line in the list, marked with a sparkle. They are made on this ${Sms.remote ? 'device by Apple Intelligence' : 'phone by Android\'s own model'}; nothing is sent anywhere.',
+        'downloading' || 'downloadable' => Sms.remote ? 'Apple Intelligence is still fetching its model. Summaries begin once it is here; nothing is sent anywhere.' : 'Android is fetching its on-phone model for this, over Wi-Fi. Summaries begin once it is here; nothing is sent anywhere.',
+        'unknown' => 'Looking for this device\'s own model.',
+        _ => Sms.remote ? 'Summaries are made by Apple Intelligence on a Mac or an iPhone that has it switched on, or by Android\'s own model on your phone.' : 'This phone has no on-phone model for summaries (Android\'s Gemini Nano, on newer phones). The list shows the texts as they came.',
       }),
       children: [
         SettingRow(
           icon: _icon(Lucide.sparkles),
           label: 'Summarize unread conversations',
-          disabledReason: const {'available', 'downloading', 'downloadable', 'unknown'}.contains(Summaries.instance.status) ? null : 'Not on this phone',
+          disabledReason: const {'available', 'downloading', 'downloadable', 'unknown'}.contains(Summaries.instance.status) ? null : Sms.remote ? 'Not on this device' : 'Not on this phone',
           control: GlacierSwitch(checked: Summaries.chosen(app), onCheckedChange: (v) => app.setFlag('summaries', v), ariaLabel: 'Summarize unread conversations'),
         ),
       ],
@@ -1498,7 +1508,7 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.lock),
           // Since accounts, friends and circles, the relay at gogho.st carries sealed messages: said as it is.
           label: 'Sealed, end to end',
-          hint: const Text('Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.'),
+          hint: Text(sealedWords(Net.instance.hubUrl)),
         ),
       ],
     ),

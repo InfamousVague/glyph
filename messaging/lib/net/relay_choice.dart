@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../relay_host/address.dart';
+import 'home_record.dart' show goodRelayHost;
 import 'hub_carrier.dart' show HubRelay;
 import 'hub_link.dart';
 import 'net.dart';
@@ -21,6 +22,18 @@ import 'net.dart';
 bool isOwnRelay(String url) {
   final host = Uri.tryParse(url.trim())?.host.toLowerCase() ?? '';
   return host == 'gogho.st' || host == 'ghost-sms.com' || host == 'www.gogho.st';
+}
+
+/// The host a link names for the relay at [hubUrl] (an add-me link, lib/friends/add_link.dart): its host, with its
+/// port where that is not the scheme's own. Null for Ghost Messaging's own (a link that names none means ours), and for
+/// a relay nobody elsewhere could dial by a host's name: one hosted from an app, or one at a plain `ws://` address on a
+/// local network.
+String? relayHostForLinks(String hubUrl) {
+  if (hubUrl == Net.defaultHub || isOwnRelay(hubUrl)) return null;
+  final u = Uri.tryParse(hubUrl);
+  if (u == null || u.scheme != 'wss' || u.host.isEmpty) return null;
+  final host = '${u.host.toLowerCase()}${u.hasPort && u.port != 443 ? ':${u.port}' : ''}';
+  return goodRelayHost(host) ? host : null;
 }
 
 /// The relay in use, in a line for Settings › Routes.
