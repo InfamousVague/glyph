@@ -1,5 +1,7 @@
 import '../circles/circles.dart';
 import '../circles/pending_link.dart';
+import '../desktop/links.dart' show DeskLinks;
+import 'add_me.dart' show askToAdd;
 import '../circles/invite_word.dart';
 import '../invites/invite_relay.dart' show InviteRelayError;
 import 'whats_new.dart' show showWhatsNewIfUpdated;
@@ -341,6 +343,12 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     // A circle's link held while the app was being set up, or copied by the invite page before the app was got
     // (lib/circles/pending_link.dart): the circle joined and opened, now there is a list to open it in.
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_takeHeldLink()));
+    // And someone's add-me link that started the app on a computer or an iPhone before the frame was up (GMFB-34,
+    // lib/desktop/links.dart): asked about now.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final add = DeskLinks.takeHeldAdd();
+      if (add != null && mounted) askToAdd(context, add);
+    });
     // What's new, once after an update (Matt, 2026-11-19: "Implement a changelog that pops up ever time a new update is
     // released with release notes"): a moment after the frame is up, over it.
     Future<void>.delayed(const Duration(milliseconds: 600), () {

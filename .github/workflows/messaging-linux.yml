@@ -130,6 +130,11 @@ jobs:
            Your texts, friends, circles and spaces, sealed end to end.
           CONTROL
           sed -i 's/^          //' "$PKG/DEBIAN/control"
+          # The menu entry names the app's own links (x-scheme-handler/ghostmsg: an add-me link, a circle's invite;
+          # GMFB-34): the desktop's list of which app opens what is made again as it is installed and removed.
+          printf '#!/bin/sh\nset -e\nif command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database -q /usr/share/applications || true; fi\n' > "$PKG/DEBIAN/postinst"
+          cp "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/postrm"
+          chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/postrm"
           dpkg-deb --build --root-owner-group "$PKG" "$OUT/ghost-messaging_${VERSION}_amd64.deb"
           ls -la "$OUT"
 
@@ -138,7 +143,10 @@ jobs:
       - name: Install it and start it
         run: |
           set -e
+          sudo apt-get install -y desktop-file-utils
           sudo apt-get install -y ./build/linux-packages/ghost-messaging_${VERSION}_amd64.deb
+          # Installed, the app is the one that opens ghostmsg: links (GMFB-34).
+          if grep -q '^x-scheme-handler/ghostmsg=.*ghost-messaging.desktop' /usr/share/applications/mimeinfo.cache; then echo "ghostmsg: links open Ghost Messaging"; else echo "ghostmsg: links aren't registered"; exit 1; fi
           xvfb-run -a -s '-screen 0 1280x800x24' ghost-messaging > build/linux-run.log 2>&1 &
           sleep 20
           if pgrep -x ghost-messaging > /dev/null; then echo "Ghost Messaging is running"; else echo "It stopped:"; cat build/linux-run.log; exit 1; fi

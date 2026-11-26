@@ -6,6 +6,7 @@
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+#include "links.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -83,6 +84,8 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  // Links opened into the app, for lib/desktop/links.dart (links.cc).
+  links_attach(view);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -92,14 +95,26 @@ static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  // Strip out the first argument as it is the binary name. A ghostmsg: link the desktop started the app with (Exec …
+  // %u: an add-me link, a circle's invite, a relay's) is not one of Dart's arguments: it is handed over below.
+  g_autoptr(GPtrArray) dart_args = g_ptr_array_new();
+  g_autoptr(GPtrArray) links = g_ptr_array_new();
+  for (gchar** a = *arguments + 1; *a != nullptr; a++) g_ptr_array_add(links_is_link(*a) ? links : dart_args, *a);
+  g_ptr_array_add(dart_args, nullptr);
+  self->dart_entrypoint_arguments = g_strdupv(reinterpret_cast<gchar**>(dart_args->pdata));
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
     g_warning("Failed to register: %s", error->message);
     *exit_status = 1;
     return TRUE;
+  }
+
+  // Each link to the copy that is the one of its kind: this one (held until the app asks for it), or the one already
+  // running, over the session's bus, before it is asked to activate (GMFB-34).
+  for (guint i = 0; i < links->len; i++) {
+    g_action_group_activate_action(G_ACTION_GROUP(application), LINKS_ACTION,
+                                   g_variant_new_string(static_cast<const gchar*>(g_ptr_array_index(links, i))));
   }
 
   g_application_activate(application);
@@ -115,6 +130,8 @@ static void my_application_startup(GApplication* application) {
   // Perform any actions required at application startup.
 
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
+  // Run only in the copy that is the one of its kind: a second start's link comes to it by this action (links.cc).
+  links_add_action(application);
 }
 
 // Implements GApplication::shutdown.
