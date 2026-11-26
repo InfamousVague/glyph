@@ -67,8 +67,9 @@ void main() {
     expect(Words.meant('en', device: 'es'), 'en');
     expect(Words.meant(Words.automatic, device: 'es'), 'es');
     expect(Words.meant(Words.automatic, device: 'ES'), 'es');
-    expect(Words.meant(Words.automatic, device: 'fr'), 'en');
-    expect(Words.meant('xx', device: 'de'), 'en', reason: 'a choice from a newer build that this one has not');
+    expect(Words.meant(Words.automatic, device: 'fr'), 'fr');
+    expect(Words.meant(Words.automatic, device: 'it'), 'en', reason: 'a language the app has not');
+    expect(Words.meant('xx', device: 'it'), 'en', reason: 'a choice from a newer build that this one has not');
   });
 
   test('loaded from the files: English drawn as written, Spanish by its English, anything untranslated in English', () async {
@@ -122,7 +123,7 @@ void main() {
     });
     await h.shoot(tester, const SettingsScreen(), 'l10n-es-settings-fonts');
     expect(find.text('Apariencia'), findsWidgets);
-    await h.shoot(tester, const SettingsSectionScreen('appearance'), 'l10n-es-appearance-fonts');
+    await h.shoot(tester, const SettingsSectionScreen('language'), 'l10n-es-language-fonts');
     expect(find.text('IDIOMA'), findsOneWidget);
     await tester.runAsync(() async {
       app.set(Words.key, 'en');
@@ -140,7 +141,7 @@ void main() {
     expect(find.text('Ajustes'), findsWidgets);
     expect(find.text('Apariencia'), findsWidgets, reason: 'a section named in Spanish');
     expect(find.text('Appearance'), findsNothing);
-    await pumpScreen(tester, sheet, const SettingsSectionScreen('appearance'), app, size: const Size(412, 1400));
+    await pumpScreen(tester, sheet, const SettingsSectionScreen('language'), app, size: const Size(412, 1400));
     await settle(tester);
     expect(find.text('IDIOMA'), findsOneWidget);
     expect(find.text('Español'), findsOneWidget, reason: 'the language chosen, named in itself');

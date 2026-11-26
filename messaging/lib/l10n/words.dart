@@ -29,7 +29,31 @@ class Words extends ChangeNotifier {
   static final Words instance = Words._();
 
   /// The languages there are, by their code, each named in itself.
-  static const languages = {'en': 'English', 'es': 'Español'};
+  ///
+  /// The twenty most spoken (Matt, 2026-11-26: "Add translations for the 20 most popular languages"). Chinese is
+  /// Simplified (a device in Chinese of any kind is given it); Arabic and Urdu are drawn left to right for now.
+  static const languages = {
+    'en': 'English',
+    'ar': 'العربية',
+    'bn': 'বাংলা',
+    'de': 'Deutsch',
+    'es': 'Español',
+    'fr': 'Français',
+    'hi': 'हिन्दी',
+    'id': 'Bahasa Indonesia',
+    'ja': '日本語',
+    'ko': '한국어',
+    'mr': 'मराठी',
+    'pt': 'Português',
+    'ru': 'Русский',
+    'sw': 'Kiswahili',
+    'ta': 'தமிழ்',
+    'te': 'తెలుగు',
+    'tr': 'Türkçe',
+    'ur': 'اردو',
+    'vi': 'Tiếng Việt',
+    'zh': '简体中文',
+  };
 
   /// Where the choice is kept: a code of [languages], or [automatic] for the device's own where it is one of them.
   static const key = 'language', automatic = 'auto';
