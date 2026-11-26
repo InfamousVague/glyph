@@ -27,6 +27,7 @@ class ReleaseNotes {
 const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.44', '2026-11-26', [
     'Ghost Messaging speaks Spanish: Settings › Appearance › Language. Automatic follows your device\'s language. Names, counts and other words the app puts together as it goes are still in English for now.',
+    'Pictures from Google Messages show as pictures, not "Attachment", and a chat\'s last line in the list is the message it really ended on.',
     'Groundwork for circles to change their key when someone is removed: your device can now take and read a new key. Nothing changes yet; it is switched on in a later version.',
   ]),
   ReleaseNotes('0.12.43', '2026-11-26', [
