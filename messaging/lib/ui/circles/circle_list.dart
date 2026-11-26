@@ -431,6 +431,17 @@ class CircleVoicePeople extends StatelessWidget {
           child: VoiceRipples(level: level, reach: 9, corner: bevel ? 0 : null, builder: (context, _) => picture),
         );
     Widget rows(Map<String, double> levels) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          // A stage says so over who is in it, with how many of them listen (GMFB-29).
+          if (space.listening case final listening?)
+            Padding(
+              key: ValueKey('circle-voice-${space.seed}-stage'),
+              padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
+              child: Row(children: [
+                AppIcon(Lucide.megaphone, size: 14, color: t.color('app-ink-3'), wash: false),
+                SizedBox(width: t.space(1)),
+                Expanded(child: Text('Stage · $listening listening', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3')))),
+              ]),
+            ),
           for (final p in shown)
             () {
               final talking = (levels[p.id] ?? 0) > RippleAvatar.talking;
@@ -490,7 +501,7 @@ class CircleVoicePeople extends StatelessWidget {
     return GlacierPressable(
       key: ValueKey('circle-voice-${space.seed}'),
       onPressed: onPress,
-      semanticLabel: 'In ${space.name}: ${space.inVoice.join(', ')}${space.music == null ? '' : ', and Spotify playing ${space.music!.song}'}',
+      semanticLabel: 'In ${space.name}${space.listening == null ? '' : ', a stage with ${space.listening} listening'}: ${space.inVoice.join(', ')}${space.music == null ? '' : ', and Spotify playing ${space.music!.song}'}',
       builder: (context, _) => levels == null ? rows(const {}) : ValueListenableBuilder<Map<String, double>>(valueListenable: levels, builder: (context, l, _) => rows(l)),
     );
   }

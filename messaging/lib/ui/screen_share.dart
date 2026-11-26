@@ -9,6 +9,8 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:glacier/glacier.dart';
@@ -22,7 +24,9 @@ import '../sms.dart';
 import '../voice/channels.dart';
 import '../voice/voice.dart';
 import 'common.dart';
+import 'tile_grid.dart' show VideoShapes;
 import 'voice_screen.dart' show StreamView;
+import 'whole_window.dart';
 
 /// What the button says: "Share screen", or "Stop sharing" while this device shares.
 String screenShareLabel(VoiceSession s) => s.screen ? 'Stop sharing' : 'Share screen';
@@ -272,60 +276,272 @@ class _SourceTile extends StatelessWidget {
   return null;
 }
 
-/// Someone's screen, large: the whole of it on black, their name over it, and a way back to the call.
-class ScreenStage extends StatelessWidget {
-  const ScreenStage({super.key, required this.name, required this.stream, required this.onBack});
+/// Whose picture this device keeps large in a call (GMFB-27: "Viewers see the share as its own large tile, can pin
+/// it, and full-screen it"): chosen with Pin in what a press on someone's picture opens, kept until Unpin. This
+/// device's alone: nothing of it is said to the call. One call's pin is not the next call's.
+abstract final class CallPin {
+  /// The call and who is pinned in it ('me' for this device); null for nobody.
+  static final ValueNotifier<({VoiceSession call, String id})?> who = ValueNotifier(null);
+
+  /// Who is pinned in [s]; null for nobody.
+  static String? inCall(VoiceSession s) => identical(who.value?.call, s) ? who.value!.id : null;
+
+  /// Pins [id] in [s], or unpins them where they were the one pinned.
+  static void toggle(VoiceSession s, String id) => who.value = inCall(s) == id ? null : (call: s, id: id);
+
+  static void clear() => who.value = null;
+
+  /// Whether [id] has a picture in [s] to keep large: their camera or their screen.
+  static bool canPin(VoiceSession s, String id) {
+    if (id == 'me') return s.video || s.screen;
+    return s.members[id]?.video ?? false;
+  }
+}
+
+/// Whose picture is shown large in [s] now: whoever this device pinned ([CallPin]) while their picture is on, else
+/// someone else's shared screen unless it was put away ([putAway], their id). Null for nobody. `stream` is null until
+/// their picture arrives; `screen` says it is a screen, not a camera.
+({String id, String name, MediaStream? stream, bool screen, bool pinned, bool mirror})? stagedIn(VoiceSession s, {String? putAway}) {
+  final v = Voice.instance;
+  final media = v.media;
+  final pin = CallPin.inCall(s);
+  if (pin == 'me' && CallPin.canPin(s, 'me')) {
+    final screen = media?.localScreen.value;
+    return (id: 'me', name: 'You', stream: screen ?? media?.localVideo.value, screen: s.screen, pinned: true, mirror: !s.screen && !s.backCamera);
+  }
+  final m = pin == null ? null : s.members[pin];
+  if (m != null && m.video) return (id: m.id, name: v.nameOf(m.id), stream: media?.remote.value[m.id], screen: m.screen, pinned: true, mirror: false);
+  final sharer = sharerIn(s);
+  if (sharer == null || sharer.id == putAway) return null;
+  return (id: sharer.id, name: sharer.name, stream: sharer.stream, screen: true, pinned: false, mirror: false);
+}
+
+/// Someone's screen, large: the whole of it on black, their name over it, and a way back to the call. A camera kept
+/// large with Pin is shown the same way ([screen] false).
+///
+/// Once the picture is here there is a button for full screen (GMFB-27): the picture alone over the whole window, the
+/// window full screen on a computer, the bars hidden on a phone; Esc, the button again or the phone's back leaves it.
+/// It goes in and out as a played video does (lib/ui/whole_window.dart). With [onPin], a button that pins or unpins.
+class ScreenStage extends StatefulWidget {
+  const ScreenStage({super.key, required this.name, required this.stream, required this.onBack, this.screen = true, this.mirror = false, this.pinned = false, this.onPin, this.desk, this.picture});
   final String name;
 
   /// Null until their picture arrives.
   final MediaStream? stream;
   final VoidCallback onBack;
 
+  /// A shared screen ("Maya's screen"); false for a camera, named as the person is and filling its space.
+  final bool screen;
+
+  /// This device's own camera, drawn as a mirror shows it.
+  final bool mirror;
+
+  /// Kept large by this device ([CallPin]); [onPin] pins or unpins, and with none there is no button for it.
+  final bool pinned;
+  final VoidCallback? onPin;
+
+  /// Whether this is a computer, for a test; null: as the device is.
+  final bool? desk;
+
+  /// Drawn where the stream's picture would be, for a test, which has no stream.
+  final Widget? picture;
+
+  @override
+  State<ScreenStage> createState() => _ScreenStageState();
+}
+
+class _ScreenStageState extends State<ScreenStage> {
+  bool _full = false;
+  final _over = OverlayPortalController(debugLabel: 'shared screen full screen');
+  final _stage = GlobalKey(debugLabel: 'shared screen');
+  final _focus = FocusNode(debugLabel: 'shared screen');
+
+  bool get _desk => widget.desk ?? (!kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux));
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    if (_full) WholeWindow.gone(desk: _desk);
+    super.dispose();
+  }
+
+  Future<void> _toggleFull() async {
+    setState(() => _full = !_full);
+    final done = WholeWindow.set(_full, desk: _desk, over: _over, aspect: VideoShapes.of(widget.stream?.id) ?? 0);
+    // The keys are the stage's while it is full screen: Esc leaves it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _full) _focus.requestFocus();
+    });
+    await done;
+  }
+
+  void _back() {
+    if (_full) unawaited(_toggleFull());
+    widget.onBack();
+  }
+
+  KeyEventResult _key(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent || e.logicalKey != LogicalKeyboardKey.escape || !_full) return KeyEventResult.ignored;
+    unawaited(_toggleFull());
+    return KeyEventResult.handled;
+  }
+
+  /// A round button over the picture.
+  Widget _tool(Tokens t, LucideIcon icon, String label, VoidCallback onPressed, {bool on = false, Key? key}) => Padding(
+        padding: EdgeInsets.only(right: t.space(2)),
+        child: GlacierPressable(
+          key: key,
+          onPressed: onPressed,
+          semanticLabel: label,
+          builder: (context, state) => Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: on ? const Color(0xFFFFFFFF) : Color(state.pressed || state.hovered ? 0xCC000000 : 0x99000000)),
+            child: AppIcon(icon, size: 16, wash: false, color: on ? const Color(0xFF000000) : const Color(0xFFFFFFFF)),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final top = MediaQuery.paddingOf(context).top;
-    final s = stream;
-    return ColoredBox(
-      color: const Color(0xFF000000),
-      child: Stack(children: [
-        Positioned.fill(
-          child: s == null
-              ? Center(child: Text('Waiting for $name\'s screen…', style: pageText(t, t.fontSize('sm'), color: const Color(0xFFB0B0B6))))
-              // One renderer per stream (GMFB-5).
-              : StreamView(key: ObjectKey(s), stream: s, contain: true),
-        ),
-        Positioned(
-          top: top + t.space(2),
-          left: t.space(3),
-          right: t.space(3),
-          child: Row(children: [
-            Flexible(
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const AppIcon(LucideMore.screenShare, size: 16, wash: false, color: Color(0xFFFFFFFF)),
-                  SizedBox(width: t.space(2)),
-                  Flexible(child: Text('$name\'s screen', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
+    final s = widget.stream;
+    final name = widget.name;
+    final here = s != null || widget.picture != null;
+    final stage = KeyedSubtree(
+      key: _stage,
+      // A phone's back gesture leaves full screen first, as Esc does on a computer.
+      child: PopScope(
+        canPop: !_full,
+        onPopInvokedWithResult: (popped, _) {
+          if (!popped && _full) unawaited(_toggleFull());
+        },
+        child: Focus(
+          focusNode: _focus,
+          onKeyEvent: _key,
+          child: ColoredBox(
+            color: const Color(0xFF000000),
+            child: Stack(children: [
+              Positioned.fill(
+                child: widget.picture ??
+                    (s == null
+                        ? Center(child: Text(widget.screen ? 'Waiting for $name\'s screen…' : 'Waiting for $name\'s video…', style: pageText(t, t.fontSize('sm'), color: const Color(0xFFB0B0B6))))
+                        // One renderer per stream (GMFB-5). A camera is drawn whole too: large, nothing of it cut off.
+                        : StreamView(key: ObjectKey(s), stream: s, mirror: widget.mirror, contain: true)),
+              ),
+              Positioned(
+                top: top + t.space(2),
+                left: t.space(3),
+                right: t.space(3),
+                child: Row(children: [
+                  Flexible(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                      decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(999)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        AppIcon(widget.screen ? LucideMore.screenShare : Lucide.video, size: 16, wash: false, color: const Color(0xFFFFFFFF)),
+                        SizedBox(width: t.space(2)),
+                        Flexible(child: Text(widget.screen ? (name == 'You' ? 'Your screen' : '$name\'s screen') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
+                      ]),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (widget.onPin != null)
+                    _tool(t, widget.pinned ? Lucide.pinOff : Lucide.pin, widget.pinned ? 'Unpin' : 'Pin', widget.onPin!, on: widget.pinned, key: const ValueKey('stage-pin')),
+                  if (here)
+                    _tool(t, _full ? LucideMore.minimize : Lucide.maximize, _full ? 'Leave full screen' : 'Full screen', () => unawaited(_toggleFull()), key: const ValueKey('stage-full')),
+                  GlacierPressable(
+                    onPressed: _back,
+                    semanticLabel: 'Back to the call',
+                    builder: (context, state) => Container(
+                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                      decoration: BoxDecoration(color: Color(state.pressed ? 0xFFDDDDDD : 0xFFFFFFFF), borderRadius: BorderRadius.circular(999)),
+                      child: Text('Back to call', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFF000000))),
+                    ),
+                  ),
                 ]),
               ),
-            ),
-            const Spacer(),
-            GlacierPressable(
-              onPressed: onBack,
-              semanticLabel: 'Back to the call',
-              builder: (context, state) => Container(
-                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                decoration: BoxDecoration(color: Color(state.pressed ? 0xFFDDDDDD : 0xFFFFFFFF), borderRadius: BorderRadius.circular(999)),
-                child: Text('Back to call', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFF000000))),
-              ),
-            ),
-          ]),
+            ]),
+          ),
         ),
-      ]),
+      ),
+    );
+    if (!_desk) return stage;
+    // On a computer, full screen draws it over the whole window: the list, the rail and the title bar are under it,
+    // as under a played video (GMFB-65). Black stands in its place meanwhile.
+    final whole = _full && _over.isShowing;
+    return OverlayPortal(
+      controller: _over,
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: (_) => Positioned.fill(child: whole ? stage : const SizedBox.shrink()),
+      child: whole ? const ColoredBox(color: Color(0xFF000000), child: SizedBox.expand()) : stage,
     );
   }
+}
+
+/// A call's page with what is shown large over it (GMFB-27): a friend's call and a group's get the stage a space's
+/// call has. Someone else's shared screen covers [child] until Back to call, which leaves a line over the call with
+/// View; whoever this device pinned ([CallPin]) covers it until unpinned. This device's own share is a line with Stop.
+class StagedCall extends StatefulWidget {
+  const StagedCall({super.key, required this.session, required this.child});
+  final VoiceSession session;
+  final Widget child;
+
+  @override
+  State<StagedCall> createState() => _StagedCallState();
+}
+
+class _StagedCallState extends State<StagedCall> {
+  /// Whose shared screen was put away with Back to call.
+  String? _putAway;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.session;
+    final media = Voice.instance.media;
+    return ListenableBuilder(
+      listenable: Listenable.merge([s, CallPin.who, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
+      builder: (context, _) {
+        if (_putAway != null && sharerIn(s) == null) _putAway = null;
+        final staged = stagedIn(s, putAway: _putAway);
+        final viewing = staged != null && !staged.pinned;
+        return Stack(children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (ScreenShareBanner.shows(s, viewing: viewing))
+              ScreenShareBanner(
+                session: s,
+                onView: () {
+                  CallPin.clear();
+                  setState(() => _putAway = null);
+                },
+              ),
+            Expanded(child: widget.child),
+          ]),
+          if (staged != null)
+            Positioned.fill(
+              child: ScreenStage(
+                name: staged.name,
+                stream: staged.stream,
+                screen: staged.screen,
+                mirror: staged.mirror,
+                pinned: staged.pinned,
+                onPin: () => CallPin.toggle(s, staged.id),
+                onBack: () => leaveStage(s, staged.id, pinned: staged.pinned, putAway: (id) => setState(() => _putAway = id)),
+              ),
+            ),
+        ]);
+      },
+    );
+  }
+}
+
+/// Back to call from what is shown large: a pin is let go, and where it is someone's shared screen it is put away
+/// too ([putAway], told their id), so the call is what shows.
+void leaveStage(VoiceSession s, String id, {required bool pinned, required void Function(String id) putAway}) {
+  if (pinned) CallPin.clear();
+  if (id != 'me' && (s.members[id]?.screen ?? false)) putAway(id);
 }
 
 /// The line over a call while a screen is shared: this device's own, with Stop; or someone else's, with View, while

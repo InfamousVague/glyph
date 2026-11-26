@@ -167,6 +167,8 @@ class SpaceCall {
     this.chatBelow = false,
     this.chatShown = true,
     this.onChatBelow,
+    this.listening,
+    this.hands = 0,
   });
 
   /// A stage's items in the call's menu (GMFB-29, from the Uplink gap review: "A stage/stream mode: some people speak,
@@ -174,8 +176,7 @@ class SpaceCall {
   /// stage or ending one, with how many are listening.
   static List<SpaceExtra> stageExtras(VoiceSession s, HangoutRoom? room) {
     if (room == null || !s.channel.hasVoice) return const [];
-    final listening = [if (room.listens(room.me)) room.me, for (final id in s.members.keys) if (room.listens(id)) id].length;
-    final hands = s.members.values.where((m) => m.hand).length;
+    final (:listening, :hands) = stageCount(s, room);
     return [
       if (room.stage && s.locked)
         SpaceExtra(label: s.hand ? 'Lower your hand' : 'Raise your hand', icon: LucideMore.hand, builtIn: true, run: (_) => s.raiseHand(!s.hand)),
@@ -193,6 +194,18 @@ class SpaceCall {
         ),
     ];
   }
+
+  /// How many in [s] listen on [room]'s stage, this device among them, and how many of them have a hand raised.
+  static ({int listening, int hands}) stageCount(VoiceSession s, HangoutRoom room) => (
+        listening: [if (room.listens(room.me)) room.me, for (final id in s.members.keys) if (room.listens(id)) id].length,
+        hands: (s.hand ? 1 : 0) + s.members.values.where((m) => m.hand).length,
+      );
+
+  /// What a stage says of itself to everyone in it (GMFB-29: "some people speak, many listen, with a listener count"):
+  /// "Stage · 12 listening", and to whoever manages it how many hands are raised. Until now only the manager was told
+  /// the count, in a menu's row.
+  static String stageLine(int listening, {int hands = 0}) =>
+      'Stage · $listening listening${hands > 0 ? ' · $hands ${hands == 1 ? 'hand' : 'hands'} raised' : ''}';
 
   /// Whether this device may invite people into [channel]'s call: never a group's (its members' alone, and it has no
   /// [room]), and in a space with roles only where this device's role may invite.
@@ -255,16 +268,20 @@ class SpaceCall {
         if (!d.bot) SpacePerson(id: 'dc:${d.id}', name: d.name, muted: d.muted || d.deafened, tag: 'Discord'),
       ?musicPerson(),
     ];
+    final stage = room != null && room.stage && s.channel.hasVoice ? stageCount(s, room) : null;
     return SpaceCall(
       channel: s.channel,
       people: people,
       levels: callLevels(s),
       // The ways through and the microphone too: what the call is waiting for follows them ([wait]).
-      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance, VideoShapes.changes]),
+      changes: Listenable.merge([v, s, ?room, ?media?.remote, ?media?.localVideo, ?media?.localScreen, ?media?.links, ?media?.micLive, CallRecorder.instance, SpotifyMusic.instance, VideoShapes.changes, CallPin.who]),
       bridged: s.channel.discord != null,
       chatBelow: chatBelow,
       chatShown: chatShown,
       onChatBelow: onChatBelow,
+      listening: stage?.listening,
+      // Hands are raised to whoever can bring people up to speak.
+      hands: stage != null && room!.canManage ? stage.hands : 0,
       room: room,
       muted: s.muted,
       deafened: s.deafened,
@@ -389,6 +406,12 @@ class SpaceCall {
   /// does that there, in place of opening a panel of its own. Null: nothing to put away, and no button.
   final bool chatShown;
   final VoidCallback? onChatBelow;
+
+  /// While the space is a stage (GMFB-29): how many in the call listen, shown to everyone under the space's name
+  /// ([stageLine]); null where it is not a stage. [hands]: how many hands are raised, known here only to whoever
+  /// manages the stage (0 for everyone else).
+  final int? listening;
+  final int hands;
 
   /// Whether the call draws its Chat button: always on its own page, and under the split where the chat there can be
   /// put away.
@@ -599,17 +622,37 @@ class _SpaceCallPageState extends State<SpaceCallPage> {
         final page = KeyedSubtree(key: const ValueKey('space-call'), child: TelegramCall(call: now));
         // What the plugins put over the call (Slots.callBanner): a line everyone must see.
         final session = Voice.instance.session;
-        // Someone else's shared screen, large over the call until put away (GMFB-27).
-        final sharer = session == null ? null : sharerIn(session);
-        if (sharer == null && _putAway != null) _putAway = null;
-        final staged = sharer != null && sharer.id != _putAway;
+        // Someone else's shared screen, large over the call until put away (GMFB-27); or whoever this device pinned
+        // (CallPin), until unpinned.
+        if (_putAway != null && (session == null || sharerIn(session) == null)) _putAway = null;
+        final large = session == null ? null : stagedIn(session, putAway: _putAway);
+        // Whether the screen someone shares is the one shown: else its line, with View, stays over the call.
+        final staged = large != null && !large.pinned;
         // A recording is told to everyone, whatever plugins are on (lib/ui/recording_ui.dart).
         final banners = [
           if (session != null && RecordingBanner.shows(session)) const RecordingBanner(),
-          if (session != null && ScreenShareBanner.shows(session, viewing: staged)) ScreenShareBanner(session: session, onView: () => setState(() => _putAway = null)),
+          if (session != null && ScreenShareBanner.shows(session, viewing: staged)) ScreenShareBanner(
+              session: session,
+              onView: () {
+                CallPin.clear();
+                setState(() => _putAway = null);
+              },
+            ),
           ...CallPlugins.banners(context),
         ];
-        final stage = staged ? Positioned.fill(child: ScreenStage(name: sharer.name, stream: sharer.stream, onBack: () => setState(() => _putAway = sharer.id))) : null;
+        final stage = large == null || session == null
+            ? null
+            : Positioned.fill(
+                child: ScreenStage(
+                  name: large.name,
+                  stream: large.stream,
+                  screen: large.screen,
+                  mirror: large.mirror,
+                  pinned: large.pinned,
+                  onPin: () => CallPin.toggle(session, large.id),
+                  onBack: () => leaveStage(session, large.id, pinned: large.pinned, putAway: (id) => setState(() => _putAway = id)),
+                ),
+              );
         if (banners.isEmpty && stage == null) return page;
         // Clipped to its own box in a pane, so the banners dragged about stay over the call, not over the chat below.
         final stack = Stack(children: [page, ?stage, if (banners.isNotEmpty) CallBanners(top: MediaQuery.paddingOf(context).top + 62, children: banners)]);

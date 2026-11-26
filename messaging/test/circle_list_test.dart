@@ -255,6 +255,24 @@ void main() {
         online: view.online,
       );
 
+  // GMFB-29: "A stage/stream mode: some people speak, many listen, with a listener count".
+  testWidgets('a voice space that is a stage says so over who is in it, with how many listen', (tester) async {
+    final sample = sampleCircleView();
+    CircleSpaceView lounge(int? listening) {
+      final s = sample.spaces.firstWhere((s) => s.name == 'Lounge');
+      return CircleSpaceView(space: s.space, channel: s.channel, inVoice: const ['Maya Chen', 'Sam'], people: const [CircleVoicePerson(id: 'aa11', name: 'Maya Chen'), CircleVoicePerson(id: 'bb22', name: 'Sam')], listening: listening);
+    }
+
+    final seed = lounge(null).seed;
+    await draw(tester, CircleList(view: withSpaces(sample, [for (final s in sample.spaces) s.name == 'Lounge' ? lounge(null) : s])), size: const Size(412, 1400));
+    expect(find.byKey(ValueKey('circle-voice-$seed-stage')), findsNothing, reason: 'not a stage');
+    await draw(tester, CircleList(view: withSpaces(sample, [for (final s in sample.spaces) s.name == 'Lounge' ? lounge(1) : s])), size: const Size(412, 1400));
+    expect(find.text('Stage · 1 listening'), findsOneWidget);
+    final line = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-stage'))), first = tester.getRect(find.byKey(ValueKey('circle-voice-$seed-aa11')));
+    expect(line.bottom, lessThanOrEqualTo(first.top + 1), reason: 'over the people');
+    expect(tester.takeException(), isNull);
+  });
+
   // Matt, 2026-11-24: "also show a list of connected users in the sidebar under the voice space with profile pictures
   // and names like discord does".
   testWidgets('who is in a voice space\'s call is listed under it, a face and a name each, and a press opens the space', (tester) async {

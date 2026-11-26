@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
-import 'package:media_kit_video/media_kit_video.dart' show defaultEnterNativeFullscreen, defaultExitNativeFullscreen;
 
 import '../app_state.dart';
 import '../art/app_icon.dart';
@@ -22,7 +21,7 @@ import 'dialup/parts.dart' show DialupTool;
 import 'dialup/retro_button.dart';
 import 'dialup/title_bar.dart';
 import 'video_engine.dart';
-import 'window_chrome.dart' show MacChrome;
+import 'whole_window.dart';
 import 'video_tracks.dart';
 
 /// A video, the whole screen, in the app's own look (Matt, 2026-11-15: "id like a video player built with glacier UI
@@ -247,11 +246,7 @@ class _VideoScreenState extends State<VideoScreen> {
     _hide?.cancel();
     _skipShown?.cancel();
     _focus.dispose();
-    if (_fullscreen && _desk) {
-      // Not during this frame's teardown: the strip is built again by it.
-      scheduleMicrotask(() => MacChrome.covered.value = false);
-    }
-    if (_fullscreen) unawaited(_desk ? defaultExitNativeFullscreen() : _leavePhoneFullscreen());
+    if (_fullscreen) WholeWindow.gone(desk: _desk);
     final engine = _engine;
     final drop = widget.dropFile && !_handedOn ? _path : null;
     final stream = widget.stream;
@@ -417,41 +412,19 @@ class _VideoScreenState extends State<VideoScreen> {
     _show();
   }
 
+  /// Full screen and back (lib/ui/whole_window.dart, which a screen shared in a call uses too). On a computer the
+  /// player is drawn over the whole window, and back in its pane after (GMFB-65); the keys stay the player's. On a
+  /// phone (Matt, 2026-11-21: "add the ability to full screen videos played from files") the bars are hidden and the
+  /// phone turned the way the picture is; going back, or the button again, puts both back.
   Future<void> _toggleFullscreen() async {
     setState(() => _fullscreen = !_fullscreen);
+    final done = WholeWindow.set(_fullscreen, desk: _desk, over: _over, aspect: _desk ? 0 : _now.aspect);
     if (_desk) {
-      // Over the whole window, and back into its pane (GMFB-65); the keys stay the player's.
-      _fullscreen ? _over.show() : _over.hide();
-      MacChrome.covered.value = _fullscreen;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
-      await (_fullscreen ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
-      return;
     }
-    await (_fullscreen ? _enterPhoneFullscreen() : _leavePhoneFullscreen());
-  }
-
-  /// Out of full screen on a phone: the bars shown again, and the phone free to turn as it is held.
-  static Future<void> _leavePhoneFullscreen() async {
-    try {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
-      await SystemChrome.setPreferredOrientations(const []);
-    } catch (_) {}
-  }
-
-  /// Full screen on a phone (Matt, 2026-11-21: "add the ability to full screen videos played from files"): the status
-  /// and navigation bars hidden (a swipe from the edge shows them for a moment), and the phone turned the way the
-  /// picture is: on its side for a wide video, upright for a tall one; a picture whose shape isn't known yet counts as
-  /// wide. Going back, or the button again, puts both back ([_leavePhoneFullscreen]).
-  Future<void> _enterPhoneFullscreen() async {
-    final aspect = _now.aspect;
-    try {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky, overlays: const []);
-      await SystemChrome.setPreferredOrientations(aspect > 0 && aspect < 1
-          ? const [DeviceOrientation.portraitUp]
-          : const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-    } catch (_) {}
+    await done;
   }
 
   Future<void> _back() async {

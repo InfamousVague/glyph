@@ -233,7 +233,8 @@ class _Header extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
             const SizedBox(height: 1),
-            Text(call.wait?.title ?? (n <= 1 ? 'Just you' : '$n in voice'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+            // On a stage, how many listen, said to everyone in it (GMFB-29); hands raised, to whoever manages it.
+            Text(call.wait?.title ?? (call.listening != null ? SpaceCall.stageLine(call.listening!, hands: call.hands) : (n <= 1 ? 'Just you' : '$n in voice')), key: call.wait == null && call.listening != null ? const ValueKey('tg-stage-line') : null, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             // Bridged to Discord: its sound and chat pass through the bridge, so say what that costs.
             if (call.bridged) Text('Bridged to Discord · not end-to-end encrypted', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
           ]),
