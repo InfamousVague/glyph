@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.43', '2026-11-26', [
+    'The chat map goes all the way to the message you press, however far back, in one go, and stays on it while pictures load. Hold it and draw along it with a mouse or a finger: up goes to older messages. It looks as it did, and runs smoother.',
+    'A message that arrives while you read far back no longer moves what you are reading.',
+    'A friend\'s call can ring an Android phone even when the app is closed: Settings › Notifications › Ring when the app is closed.',
+  ]),
   ReleaseNotes('0.12.42', '2026-11-26', [
     'Smarter replies: where your device has a small AI model of its own (Smart Reply on Android, Apple Intelligence on a Mac or an iPhone), the replies over the composer read the conversation, not just the last message. Nothing leaves the device.',
     'Summarize: when a lot came in at once, a tap over the composer sums it up in a sentence, by the same on-device AI model.',
