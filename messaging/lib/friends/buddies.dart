@@ -1680,7 +1680,7 @@ class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner, Budd
     final board = Net.instance.board;
     final me = await Net.instance.mine();
     if (board == null || me == null) return false;
-    return (await board.send(me, envelope, only: const {'hub', 'p2p'})).sent;
+    return (await board.send(me, envelope, only: const {'hub', 'p2p', 'lan'})).sent;
   }
 
   @override
