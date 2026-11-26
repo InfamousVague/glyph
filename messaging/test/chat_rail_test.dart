@@ -287,6 +287,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // Matt, 2026-11-26: "i'd like to be able to tap and hold to initate the scrolling mechanic and click and hold as well".
+    for (final kind in [PointerDeviceKind.touch, PointerDeviceKind.mouse]) {
+      testWidgets('held with a ${kind.name}, then drawn along: the chat goes with the map, a message a line, the line under it staying under it', (tester) async {
+        final c = await open(tester, long(300));
+        c.jumpTo(48.0 * 100);
+        await settle(tester);
+        final box = tester.getRect(rail);
+        final p0 = painter(tester);
+        final at = Offset(box.center.dx, box.top + p0.tall / 2);
+        final under = _nearest(p0, p0.tall / 2);
+        final g = await tester.createGesture(kind: kind);
+        if (kind == PointerDeviceKind.mouse) await g.addPointer(location: at);
+        await g.down(at);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(c.offset, closeTo(48.0 * 100, 1), reason: 'held still, nothing moves');
+        // Down the map by ten lines: ten messages older, the same message's line still under the pointer.
+        for (var k = 0; k < 10; k++) {
+          await g.moveBy(const Offset(0, ChatRail.pitch));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(c.offset, closeTo(48.0 * 110, 48), reason: 'ten messages older');
+        expect(painter(tester).yOf(under), closeTo(p0.tall / 2 + 10 * ChatRail.pitch, ChatRail.pitch * 1.5), reason: 'still under the pointer');
+        // And back up past where it began.
+        for (var k = 0; k < 20; k++) {
+          await g.moveBy(const Offset(0, -ChatRail.pitch));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(c.offset, closeTo(48.0 * 90, 48), reason: 'ten messages newer than where it began');
+        await g.up();
+        if (kind == PointerDeviceKind.mouse) await g.removePointer();
+        await settle(tester);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     // Matt, 2026-11-25: "just allow scrolling normally".
     testWidgets('a wheel turned over the map scrolls the chat', (tester) async {
       final c = await open(tester, _week());

@@ -32,7 +32,10 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/gestures.dart' show Drag, GestureBinding, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
+import 'dart:async' show unawaited;
+
+import 'package:flutter/gestures.dart' show Drag, GestureBinding, LongPressGestureRecognizer, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
 import 'package:flutter/widgets.dart';
@@ -440,7 +443,9 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   /// not known: it goes to where the row should be by the rows it knows, looks again once those are laid out, and so
   /// on until the row itself is there to be gone to exactly (Matt, 2026-11-25: "if i click on a section in the chat
   /// map it doesn't always go right to where i clicked").
-  Future<void> _goTo(int mark, {bool top = false, bool run = false}) async {
+  ///
+  /// [within] is where in the row goes to the screen's middle, from its foot (0) to its top (1).
+  Future<void> _goTo(int mark, {bool top = false, bool run = false, double within = 0.5}) async {
     final n = widget.marks.length;
     if (n == 0 || !_c.hasClients) return;
     final item = mark.clamp(0, n - 1) + widget.lead;
@@ -451,7 +456,7 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
       final laid = _laid();
       final row = laid[item];
       if (row != null) {
-        final to = (top ? row.at + row.tall - p.viewportDimension + 12 : row.at + row.tall / 2 - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
+        final to = (top ? row.at + row.tall - p.viewportDimension + 12 : row.at + row.tall * within - p.viewportDimension / 2).clamp(0.0, p.maxScrollExtent);
         if ((to - p.pixels).abs() < 1) return;
         if (run && tries == 0 && !context.tokens.reducedMotion) {
           await _c.animateTo(to, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
@@ -568,6 +573,15 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
         onPointerCancel: (e) => _lift(e.pointer),
         child: RawGestureDetector(
           gestures: {
+            // Held still, then drawn along: the map taken hold of. Not a trackpad's two fingers, which scroll.
+            LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(duration: holdFor, supportedDevices: const {PointerDeviceKind.mouse, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown}),
+              (r) => r
+                ..onLongPressStart = ((d) => _grab(d.localPosition.dy))
+                ..onLongPressMoveUpdate = ((d) => _grabMove(d.localPosition.dy))
+                ..onLongPressEnd = ((_) => _grabEnd())
+                ..onLongPressCancel = _grabEnd,
+            ),
             VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
               () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown}),
               (r) => r
@@ -590,6 +604,62 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
           child: child,
         ),
       );
+
+  /// Held on the map, a finger or a mouse's button, then drawn along it: the map is taken hold of, and the chat goes
+  /// with it a message for every line, the line under the pointer staying under it, the swell on it and a light tick
+  /// at each message (Matt, 2026-11-26: "i'd like to be able to tap and hold to initate the scrolling mechanic and
+  /// click and hold as well"). Where the pointer was when it took hold, and the middle of what was on the screen then,
+  /// in messages up from the newest; null while nothing holds the map.
+  double? _grabY;
+  double _grabMid = 0;
+  int? _grabbed;
+
+  /// How long a finger or a button is held still before the map is taken hold of.
+  static const holdFor = Duration(milliseconds: 300);
+
+  void _grab(double y) {
+    final (lo, hi) = _view();
+    _grabY = y;
+    _grabMid = (lo + hi) / 2;
+    _grabbed = _grabMid.floor();
+    _going++;
+    _aim(y, touch: true);
+    unawaited(HapticFeedback.selectionClick());
+  }
+
+  void _grabMove(double y) {
+    final from = _grabY;
+    if (from == null) return;
+    _aim(y, touch: true);
+    // Drawn down the map, the lines go down with it: older messages come under the pointer.
+    final mid = (_grabMid + (y - from) / ChatRail.pitch).clamp(0.0, math.max(0.0, widget.marks.length - 0.001)).toDouble();
+    if (mid.floor() != _grabbed) {
+      _grabbed = mid.floor();
+      unawaited(HapticFeedback.selectionClick());
+    }
+    _grabGo(mid);
+  }
+
+  void _grabEnd() {
+    _grabY = null;
+    _grabbed = null;
+  }
+
+  /// The newest place a held map was drawn to, gone to once a frame, not once for every move of the pointer.
+  double? _grabTo;
+  bool _grabWaits = false;
+
+  void _grabGo(double mid) {
+    _grabTo = mid;
+    if (_grabWaits) return;
+    _grabWaits = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _grabWaits = false;
+      final to = _grabTo;
+      _grabTo = null;
+      if (mounted && to != null) _goTo(to.floor(), within: to - to.floor());
+    });
+  }
 
   void _lift(int pointer) {
     if (_touching.remove(pointer) && _touching.isEmpty) _aim(null);
