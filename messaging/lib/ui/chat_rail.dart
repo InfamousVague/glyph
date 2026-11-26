@@ -22,6 +22,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show Drag, GestureBinding, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
 import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -141,6 +143,11 @@ class ChatRail extends StatefulWidget {
 
   /// A line's length, from one message alone to the busiest.
   static const double shortest = 8, longest = 18;
+
+  /// How much a line is magnified [d] away from the finger or pointer: [magnifyMost] times under it, falling away over
+  /// about [magnifyReach], as the Dock's icons do.
+  static const double magnifyMost = 2.4, magnifyReach = 44;
+  static double magnifyAt(double d) => 1 + (magnifyMost - 1) * math.exp(-(d * d) / (2 * (magnifyReach / 2) * (magnifyReach / 2)));
 
   /// Messages this near in time count toward how fast the chat was going.
   static const int near = 5 * 60 * 1000;
@@ -296,6 +303,7 @@ class _ChatRailState extends State<ChatRail> {
 
   @override
   void dispose() {
+    _focus.dispose();
     _c.removeListener(_moved);
     super.dispose();
   }
@@ -460,6 +468,31 @@ class _ChatRailState extends State<ChatRail> {
     }
   }
 
+  /// Where a finger held on the map, or a mouse over it, is now, from the map's top; null while neither is. The lines
+  /// round it are drawn larger and further apart, as the Mac's Dock swells under the pointer (Matt, 2026-11-25: "i'd
+  /// like to be able to press and hold to drag through the chat map and have it magnify out where my thumb is like the
+  /// mac dock does when hovering").
+  final ValueNotifier<double?> _focus = ValueNotifier(null);
+
+  /// A finger held on the map and drawn along it: the chat follows it, a light tick at each new message.
+  bool _scrubbing = false;
+  int? _scrubbed;
+
+  void _scrubTo(double y, double Function(Offset) shareAt) {
+    _focus.value = y;
+    final mark = _markAt(shareAt(Offset(0, y)));
+    if (mark == _scrubbed) return;
+    _scrubbed = mark;
+    unawaited(HapticFeedback.selectionClick());
+    _dragGo(mark);
+  }
+
+  void _scrubEnd() {
+    _scrubbing = false;
+    _scrubbed = null;
+    _focus.value = null;
+  }
+
   /// A drag along the map: the newest place asked for is gone to once a frame, not once for every move of the mouse
   /// (several come in a frame, and each began a going of its own).
   int? _dragTo;
@@ -599,7 +632,12 @@ class _ChatRailState extends State<ChatRail> {
               final rail = Semantics(
                 label: 'Map of this chat',
                 container: true,
-                child: GestureDetector(
+                child: MouseRegion(
+                  onHover: (e) => _focus.value = e.localPosition.dy,
+                  onExit: (_) {
+                    if (!_scrubbing) _focus.value = null;
+                  },
+                  child: GestureDetector(
                   key: const ValueKey('chat-rail'),
                   behavior: HitTestBehavior.opaque,
                   // Not a trackpad's two fingers, which scroll the chat (_scrollsChat).
@@ -608,6 +646,16 @@ class _ChatRailState extends State<ChatRail> {
                   // puts it away.
                   onTapUp: (d) => d.kind == PointerDeviceKind.mouse || d.kind == PointerDeviceKind.trackpad ? _goTo(_markAt(shareAt(d.localPosition)), run: true) : _show(open: !_open),
                   onVerticalDragUpdate: _hover ? (d) => _dragGo(_markAt(shareAt(d.localPosition))) : null,
+                  // Held, then drawn along: the chat goes with the finger, and the map swells under it. The list of
+                  // stretches is put away while it does, so the finger sees where it is.
+                  onLongPressStart: (d) {
+                    _scrubbing = true;
+                    if (_open) _show(open: false);
+                    _scrubTo(d.localPosition.dy, shareAt);
+                  },
+                  onLongPressMoveUpdate: (d) => _scrubTo(d.localPosition.dy.clamp(0.0, height), shareAt),
+                  onLongPressEnd: (_) => _scrubEnd(),
+                  onLongPressCancel: _scrubEnd,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
                     child: SizedBox(
@@ -618,7 +666,8 @@ class _ChatRailState extends State<ChatRail> {
                         ticks: ticks,
                         pitch: pitch,
                         view: _view,
-                        repaint: _c,
+                        repaint: Listenable.merge([_c, _focus]),
+                        focus: _focus,
                         mine: t.color('app-accent'),
                         theirs: t.color('app-ink-2'),
                         hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
@@ -627,11 +676,15 @@ class _ChatRailState extends State<ChatRail> {
                     ),
                     ),
                   ),
+                  ),
                 ),
               );
               return MouseRegion(
                 onEnter: (_) => _show(hover: true),
-                onExit: (_) => _show(hover: false),
+                onExit: (_) {
+                  _show(hover: false);
+                  if (!_scrubbing) _focus.value = null;
+                },
                 child: _scrollsChat(Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
                   if (_shown) _panel(t, box.maxHeight),
                   rail,
@@ -749,7 +802,8 @@ class _ChatRailState extends State<ChatRail> {
 }
 
 class _RailPainter extends CustomPainter {
-  _RailPainter({required this.ticks, required this.pitch, required this.view, required Listenable repaint, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
+  _RailPainter({required this.ticks, required this.pitch, required this.view, required Listenable repaint, required this.focus, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
+  final ValueListenable<double?> focus;
   final List<RailTick> ticks;
   final double pitch;
   final (double, double) Function() view;
@@ -761,23 +815,45 @@ class _RailPainter extends CustomPainter {
     final n = ticks.length;
     if (n == 0) return;
     final (from, to) = view();
-    final paint = Paint()
-      ..strokeWidth = ChatRail.thick
-      ..strokeCap = StrokeCap.round;
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    final f = focus.value;
+    // Where each line goes with the map swollen round [f]: each line takes as much room as it is magnified, counted out
+    // from the line under the finger, which stays where it is.
+    final ys = List<double>.filled(n, 0), grow = List<double>.filled(n, 1);
+    for (var i = 0; i < n; i++) {
+      final y = size.height - (i + 0.5) * pitch;
+      grow[i] = f == null ? 1 : ChatRail.magnifyAt(y - f);
+      ys[i] = y;
+    }
+    if (f != null) {
+      var at = n - 1;
+      for (var i = 0; i < n; i++) {
+        if ((ys[i] - f).abs() < (ys[at] - f).abs()) at = i;
+      }
+      for (var i = at + 1; i < n; i++) {
+        ys[i] = ys[i - 1] - pitch * (grow[i - 1] + grow[i]) / 2;
+      }
+      for (var i = at - 1; i >= 0; i--) {
+        ys[i] = ys[i + 1] + pitch * (grow[i + 1] + grow[i]) / 2;
+      }
+    }
     for (var i = 0; i < n; i++) {
       final k = ticks[i];
       // The newest at the foot.
-      final y = size.height - (i + 0.5) * pitch;
+      final y = ys[i], m = grow[i];
+      paint.strokeWidth = ChatRail.thick * (1 + (m - 1) * 0.6);
       final seen = (i + 1) / n > from && i / n < to;
       final colour = k.quiet ? quiet : (k.mine ? mine : (hues[k.who] ?? theirs));
       final length = k.quiet ? ChatRail.shortest : ChatRail.shortest + (ChatRail.longest - ChatRail.shortest) * k.rate;
       paint.color = colour.withValues(alpha: seen ? 1 : (k.quiet ? 0.28 : 0.42));
       // One's own from the right edge and everyone else's from the left, as their bubbles are, so the two are told
       // apart in a look whose accent is its ink.
+      // Swollen, a line grows toward the chat, out of the map's left side, as the Dock's icons grow up out of it.
+      final more = length * (m - 1);
       if (k.mine && !k.quiet) {
-        canvas.drawLine(Offset(size.width - 2 - length, y), Offset(size.width - 2, y), paint);
+        canvas.drawLine(Offset(size.width - 2 - length - more, y), Offset(size.width - 2, y), paint);
       } else {
-        canvas.drawLine(Offset(2, y), Offset(2 + length, y), paint);
+        canvas.drawLine(Offset(2 - more, y), Offset(2 + length, y), paint);
       }
     }
   }
