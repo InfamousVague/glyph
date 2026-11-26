@@ -11,11 +11,13 @@ import 'looks.dart';
 /// (lib/ui/custom_theme_editor.dart). Not a stylesheet anyone writes: the four colours are made into the same block of
 /// rules the app's own looks are (assets/css/app.css), so what it can change is only what a look can.
 ///
-/// It is shared as a short code ([code]): `GT1` and the colours, the flag and the name as base64url bytes. A code
-/// pasted in is taken only as those bytes ([CustomTheme.decode]): colours and a name, nothing that runs, and nothing
-/// unreadable (words that can't be read against the page are refused).
+/// It is shared as a short code ([code]): `GT1` and the colours, the flag and the name as base64url bytes, or `GT2`
+/// where it has a face of its own ([font]), said in the flag's other bits. A code pasted in is taken only as those
+/// bytes ([CustomTheme.decode]): colours, a face among the app's own and a name, nothing that runs, and nothing
+/// unreadable (words that can't be read against the page are refused). It is also kept in a file, with any custom CSS
+/// (lib/look_file.dart).
 class CustomTheme {
-  const CustomTheme({required this.name, required this.dark, required this.paper, required this.surface, required this.ink, required this.accent});
+  const CustomTheme({required this.name, required this.dark, required this.paper, required this.surface, required this.ink, required this.accent, this.font});
 
   /// What it is called in the picker: at most [nameMost] bytes of UTF-8.
   final String name;
@@ -27,13 +29,26 @@ class CustomTheme {
   /// Send and what is chosen wear.
   final Color paper, surface, ink, accent;
 
+  /// The face it draws in (GMFB-41, "Custom themes as a file you can import/share (colours and fonts)"): one of
+  /// [fonts], all bundled with the app, so a look never asks for a download; null for the app's own (Inter). Stamped
+  /// as `data-font` (assets/css/app.css), which the Readable font chosen in Appearance still draws over.
+  final String? font;
+
+  /// The faces a look can have, by id, with what Appearance calls each, in the order of their number in a code (one
+  /// after the app's own, which is 0). An id is never taken out or moved: a code made with it would mean another face.
+  static const fonts = {'arimo': 'Classic', 'readable': 'Readable', 'mono': 'Mono'};
+
+  /// Each face's family in pubspec.yaml, for drawing a look small before it is used.
+  static const fontFamilies = {'arimo': 'Arimo', 'readable': 'Atkinson Hyperlegible Next Variable', 'mono': 'JetBrains Mono Variable'};
+
   static const nameMost = 40;
 
   /// The ink's contrast with the page must be at least this to be saved or taken in: AA's for large text.
   static const leastContrast = 3.0;
 
-  /// The code's mark and version.
-  static const _mark = 'GT1';
+  /// The code's mark and version: GT1 for a look in the app's own face, as every code was before looks had faces (so
+  /// those codes, and a build from before, are as they were), GT2 for one with a face of its own.
+  static const _mark = 'GT1', _markFont = 'GT2';
 
   /// Where codes are kept ('custom_themes', a JSON list) and which is in use ('custom_theme', its code, or empty).
   static const savedPref = 'custom_themes', usedPref = 'custom_theme';
@@ -41,14 +56,21 @@ class CustomTheme {
   /// The page attribute that names it to the stylesheet, as a look's name does.
   static const preset = 'custom';
 
-  CustomTheme copyWith({String? name, bool? dark, Color? paper, Color? surface, Color? ink, Color? accent}) => CustomTheme(
+  /// [font]: a face's id, or null for the app's own; left out, the face it has.
+  CustomTheme copyWith({String? name, bool? dark, Color? paper, Color? surface, Color? ink, Color? accent, Object? font = _same}) => CustomTheme(
         name: name ?? this.name,
         dark: dark ?? this.dark,
         paper: paper ?? this.paper,
         surface: surface ?? this.surface,
         ink: ink ?? this.ink,
         accent: accent ?? this.accent,
+        font: identical(font, _same) ? this.font : font as String?,
       );
+
+  static const _same = Object();
+
+  /// [font]'s number in a code: 0 for the app's own face, or one not known.
+  int get _fontNumber => font == null ? 0 : CustomTheme.fonts.keys.toList().indexOf(font!) + 1;
 
   /// The words drawn on the accent: near black or white, whichever is read better.
   Color get onAccent => contrast(accent, const Color(0xFFFFFFFF)) >= contrast(accent, const Color(0xFF16181D)) ? const Color(0xFFFFFFFF) : const Color(0xFF16181D);
@@ -56,6 +78,7 @@ class CustomTheme {
   /// Why it can't be used, in a few words, or null where it can: a name, and words that can be read on the page.
   String? get problem {
     if (name.trim().isEmpty) return 'Give it a name';
+    if (font != null && !fonts.containsKey(font)) return 'That font isn\'t one of the app\'s';
     if (utf8.encode(name.trim()).length > nameMost) return 'The name is too long';
     if (contrast(ink, paper) < leastContrast) return 'The words can\'t be read on the background';
     if (contrast(ink, surface) < leastContrast) return 'The words can\'t be read on the surface';
@@ -67,14 +90,15 @@ class CustomTheme {
   /// The short code it is shared as.
   String get code {
     final words = utf8.encode(name.trim());
+    final face = _fontNumber;
     final bytes = BytesBuilder()
-      ..addByte(dark ? 1 : 0)
+      ..addByte((dark ? 1 : 0) | face << 1)
       ..add(_rgb(paper))
       ..add(_rgb(surface))
       ..add(_rgb(ink))
       ..add(_rgb(accent))
       ..add(words.length > nameMost ? words.sublist(0, nameMost) : words);
-    return '$_mark${base64Url.encode(bytes.toBytes()).replaceAll('=', '')}';
+    return '${face == 0 ? _mark : _markFont}${base64Url.encode(bytes.toBytes()).replaceAll('=', '')}';
   }
 
   /// [c]'s red, green and blue, a byte each; how see-through it is is left out.
@@ -83,14 +107,15 @@ class CustomTheme {
     return [(v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF];
   }
 
-  static final _codeIn = RegExp('$_mark[A-Za-z0-9_-]{18,80}');
+  static final _codeIn = RegExp('GT[12][A-Za-z0-9_-]{18,80}');
 
   /// The look in [text]: a code alone, or a message or link with one in it. Null where there is none, or what is
   /// there is not a look: the wrong length, a flag that means nothing, a name that is not text, or words that can't
-  /// be read.
+  /// be read. A GT2 says a face of the app's own in the flag's bits above the first; one not known is no look.
   static CustomTheme? decode(String text) {
     final found = _codeIn.firstMatch(text.trim());
     if (found == null) return null;
+    final faced = found.group(0)!.startsWith(_markFont);
     final body = found.group(0)!.substring(_mark.length);
     final Uint8List bytes;
     try {
@@ -99,7 +124,8 @@ class CustomTheme {
       return null;
     }
     if (bytes.length < 14 || bytes.length > 13 + nameMost) return null;
-    if (bytes[0] > 1) return null;
+    final face = bytes[0] >> 1;
+    if (faced ? face < 1 || face > fonts.length : bytes[0] > 1) return null;
     Color at(int i) => Color(0xFF000000 | bytes[i] << 16 | bytes[i + 1] << 8 | bytes[i + 2]);
     final String name;
     try {
@@ -109,7 +135,7 @@ class CustomTheme {
     }
     // Words only: no line breaks or other control characters in a name shown in the picker.
     if (name.trim().isEmpty || name.runes.any((r) => r < 0x20 || r == 0x7F)) return null;
-    final theme = CustomTheme(name: name.trim(), dark: bytes[0] == 1, paper: at(1), surface: at(4), ink: at(7), accent: at(10));
+    final theme = CustomTheme(name: name.trim(), dark: bytes[0] & 1 == 1, paper: at(1), surface: at(4), ink: at(7), accent: at(10), font: faced ? fonts.keys.elementAt(face - 1) : null);
     return theme.problem == null ? theme : null;
   }
 
@@ -121,8 +147,9 @@ class CustomTheme {
 
   // --- the rules ----------------------------------------------------------------------------------------------------
 
-  /// The page's `data-` attributes while it is the look in use: its brightness always, as a look with one half has.
-  Map<String, String> attrs({required String platform}) => {'platform': platform, 'theme': dark ? 'dark' : 'light', 'theme-preset': preset};
+  /// The page's `data-` attributes while it is the look in use: its brightness always, as a look with one half has,
+  /// and its face where it has one of its own.
+  Map<String, String> attrs({required String platform}) => {'platform': platform, 'theme': dark ? 'dark' : 'light', 'theme-preset': preset, 'font': ?font};
 
   /// Its block of rules, written as the app's looks are written (assets/css/app.css explains the two specificities):
   /// twelve greys from the page through the surface to the ink, and the rest at specificity 5 so it is above ink.css

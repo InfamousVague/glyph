@@ -1386,6 +1386,11 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-font-sans: 'Arimo', Arial, Helvetica, sans-serif;
 }
 
+/* A look of one's own in the terminal's face (lib/custom_theme.dart's fonts, GMFB-41): the mono Phosphor draws in. */
+[data-font='mono'] {
+  --glacier-font-sans: 'JetBrains Mono Variable', ui-monospace, monospace;
+}
+
 /* The Readable font (Settings › Appearance; GMFB-41, from the Uplink gap review: "dyslexia font"): Atkinson
    Hyperlegible Next, bundled, in place of every look's own face, Dial-Up's and Phosphor's too. Above the looks' rules
    (specificity 5), since a face chosen for reading must win. Code stays in the mono. */
