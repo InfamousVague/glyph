@@ -338,5 +338,74 @@ void main() {
       await t.pass();
       expect(t.line, 'Stopped: the folder isn\'t there any more.');
     });
+
+    // GMFB-38, "Pick a local folder on desktop to keep in two-way sync with a Files space or the personal drive".
+    test('a Files space has a folder of its own, kept apart from My files\' and never in, around or the same as it', () async {
+      final team = FakeDrive(Directory('${tmp.path}/team'));
+      FolderSync space({SyncDrive? Function()? d}) => FolderSync(
+            data: () => Directory('${tmp.path}/app/folder-sync'),
+            drive: () async => d == null ? team : d(),
+            home: () => '${tmp.path}/home',
+            own: () => ['${tmp.path}/app'],
+            quiet: Duration.zero,
+            space: 'abc123',
+            driveName: 'Team files',
+          );
+      Future<void> wait(FolderSync s) async {
+        while (s.running) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      write('mine.txt', 'private');
+      Directory('$root/Inside').createSync();
+      final mine = sync();
+      expect(mine.choose(root), isNull);
+      await wait(mine);
+
+      // What is in My files must not go up into a space: its folder, one in it and one around it are all refused.
+      final s = space();
+      expect(s.choose(root), contains('already synced'));
+      expect(s.choose('$root/Inside'), contains('already synced'));
+      final shared = Directory('${tmp.path}/Shared/Team')..createSync(recursive: true);
+      File('${shared.path}/plan.txt').writeAsStringSync('plan');
+      expect(s.choose(shared.path), isNull);
+      await wait(s);
+      expect(s.line, 'In step.');
+      expect(team.paths, ['plan.txt']);
+      expect(drive.paths, ['mine.txt'], reason: 'My files has only its own folder\'s files');
+      expect(File('${tmp.path}/app/folder-sync/space-abc123.json').existsSync(), isTrue);
+      // And My files can't then take the space's folder, or the one around it.
+      expect(sync().choose('${tmp.path}/Shared'), contains('already synced'));
+
+      // Each is remembered apart; stopping the space's leaves My files' as it was, and removes nothing.
+      expect((sync()..load()).root, root);
+      expect((space()..load()).root, shared.path);
+
+      // Both changed: the space's copy is kept beside the local one under the space's name.
+      team.put('plan.txt', 'theirs');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      File('${shared.path}/plan.txt').writeAsStringSync('mine, changed');
+      await s.pass();
+      expect(File('${shared.path}/plan (from Team files).txt').readAsStringSync(), 'theirs');
+      expect(File('${shared.path}/plan.txt').readAsStringSync(), 'mine, changed');
+
+      // The space gone from this computer, or a role that can't add files: it stops and says why.
+      final gone = space(d: () => null)..load();
+      await gone.pass();
+      expect(gone.line, 'Stopped: this space isn\'t on this computer any more.');
+      final role = space(d: () => throw const SyncStop('your role in this space can\'t add files.'))..load();
+      await role.pass();
+      expect(role.line, 'Stopped: your role in this space can\'t add files.');
+      team.reachable = false;
+      await s.pass();
+      expect(s.line, 'Stopped: Team files can\'t be reached right now.');
+
+      s.stop();
+      expect((space()..load()).root, isNull);
+      expect((sync()..load()).root, root);
+      expect(File('${shared.path}/plan.txt').existsSync(), isTrue);
+      expect(team.paths, contains('plan.txt'));
+    });
   });
 }

@@ -25,6 +25,20 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.36', '2026-11-25', [
+    'Custom CSS: Settings › Appearance › Custom CSS takes styles of your own over the look you use. Anything that would stop the app being drawn or read is left out and listed.',
+    'Text size is a slider from 80% to 150% and changes every word in the app, not only messages.',
+    'Lists in messages: start lines with - or 1. and they are drawn as bullets and numbers. New shortcuts for strikethrough, spoiler and quote.',
+    'Export a conversation as Markdown or JSON, with its pictures and files in a zip if you like. Spaces can be snoozed too.',
+    'A shared screen in a call can go full screen, and you can pin anyone\'s video or screen to keep it large. Friend and group calls show a shared screen large too.',
+    'On a stage, everyone sees how many are listening, in the call and in the circle\'s list.',
+    'Your profile can wear a banner picture of your own and list up to five links you type yourself; friends see the links marked as your word.',
+    'A vouch you give or take back shows on all your devices, and a small check sits by the name of anyone a friend of yours vouches for.',
+    'Send to a chat in My files offers your friends as well as spaces, and on a computer a Files space can keep a folder of yours in step, as My files does.',
+    'Linux: voice messages can be recorded, and the .deb copy installs its own updates when you press Install and restart.',
+    'The add-me link opens the app on a Mac and a PC.',
+    'The chat map swells under a finger held on it, or a mouse over it.',
+  ]),
   ReleaseNotes('0.12.35', '2026-11-25', [
     'Lossless music from Spotify in a call, to try: with headphones on a Mac, an iPhone, a PC or an Android phone with a wired headset, the DJ\'s music plays with nothing taken out of it. Everyone else has it at high quality. The queue\'s page says which you have and why.',
     'Pop out a video call: leave a call with video or a shared screen for another chat and the picture stays over the app, in a corner you can drag it to. On Android, going home keeps it in picture-in-picture.',

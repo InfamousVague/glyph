@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 
+import '../kit/picture_decode.dart';
 import '../me/cosmetics.dart';
 
 /// How a profile's cosmetics are drawn (lib/me/cosmetics.dart; GMFB-34). Each piece is its art where the build has it
@@ -152,24 +153,33 @@ class _SparksPainter extends CustomPainter {
 
 /// A banner: the piece [id]'s art, else its colours as a gradient; with no piece, [fallback] (the card's own band).
 class CosmeticBanner extends StatelessWidget {
-  const CosmeticBanner({super.key, required this.id, required this.fallback});
+  const CosmeticBanner({super.key, required this.id, required this.fallback, this.picture = ''});
   final String id;
   final Widget fallback;
+
+  /// The person's own picture as their banner (GMFB-34; base64, lib/me/picture_make.dart's bannerPictureOf): drawn in
+  /// place of the piece [id] names where there is one and it can be read; '' for none.
+  final String picture;
 
   @override
   Widget build(BuildContext context) {
     final piece = CosmeticCatalog.find(CosmeticKind.banner, id);
-    if (piece == null) return fallback;
-    return ListenableBuilder(
-      listenable: CosmeticArt.instance,
-      builder: (context, _) {
-        if (CosmeticArt.instance.has(piece)) return Image.asset(piece.asset, fit: BoxFit.cover, key: ValueKey('banner-${piece.id}'));
-        return DecoratedBox(
-          key: ValueKey('banner-${piece.id}'),
-          decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [piece.accent, piece.second ?? piece.accent])),
-        );
-      },
-    );
+    final made = piece == null
+        ? fallback
+        : ListenableBuilder(
+            listenable: CosmeticArt.instance,
+            builder: (context, _) {
+              if (CosmeticArt.instance.has(piece)) return Image.asset(piece.asset, fit: BoxFit.cover, key: ValueKey('banner-${piece.id}'));
+              return DecoratedBox(
+                key: ValueKey('banner-${piece.id}'),
+                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [piece.accent, piece.second ?? piece.accent])),
+              );
+            },
+          );
+    final bytes = picture.isEmpty ? null : pictureBytes(picture);
+    if (bytes == null) return made;
+    // A picture that can't be drawn after all (not a picture): the banner chosen, as a build from before draws.
+    return Image.memory(bytes, key: const ValueKey('banner-own'), fit: BoxFit.cover, width: double.infinity, height: double.infinity, gaplessPlayback: true, cacheWidth: fillDecodeWidth(context, 480), errorBuilder: (context, _, _) => made);
   }
 }
 

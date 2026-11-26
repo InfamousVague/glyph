@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/desktop/ui/launch_splash.dart';
 import 'package:ghost_messaging/desktop/updates.dart';
 
 /// Linux's own updates (GMFB-32, lib/desktop/updates.dart LinuxUpdateHost): linux.json read for the file this copy
@@ -157,6 +159,106 @@ void main() {
     expect(u.problem, contains(u.installCommand!));
     expect(LinuxUpdateHost.aptCommand('/home/riley/.cache/x.deb'), 'sudo apt install /home/riley/.cache/x.deb');
     expect(LinuxUpdateHost.aptCommand("/home/o'neil/x.deb"), "sudo apt install '/home/o'\\''neil/x.deb'");
+  });
+
+  group('the .deb where the desktop can ask for a password (pkexec)', () {
+    const pk = '/usr/bin/pkexec';
+    late File deb;
+    late List<List<String>> ran;
+    late List<String> launched;
+    late int quits;
+    setUp(() {
+      deb = File('${dir.path}/ghost-messaging-linux-142.deb')..writeAsStringSync('a newer package');
+      ran = [];
+      launched = [];
+      quits = 0;
+    });
+    LinuxUpdateHost host({int answer = 0, String? pkexec = pk}) => LinuxUpdateHost(
+          env: {'XDG_CACHE_HOME': '${dir.path}/cache'},
+          exe: '/opt/ghost-messaging/ghost-messaging',
+          build: 141,
+          pkexec: () => pkexec,
+          asRoot: (command) async {
+            ran.add(command);
+            return answer;
+          },
+          launch: (p) async => launched.add(p),
+          quit: () => quits++,
+        );
+
+    test('what is run: apt by its whole path, through pkexec, told yes', () {
+      expect(LinuxUpdateHost.installAsRoot(pk, '/home/riley/.cache/ghost-messaging/updates/x 1.deb'), [pk, '/usr/bin/apt-get', 'install', '-y', '/home/riley/.cache/ghost-messaging/updates/x 1.deb']);
+    });
+
+    test('pkexec is looked for along PATH', () {
+      final none = LinuxUpdateHost(env: const {'PATH': '/nowhere/at/all'}, exe: '/opt/ghost-messaging/ghost-messaging', build: 141);
+      expect(none.pkexec, isNull);
+    });
+
+    test('ready as any other; Restart installs it as root, starts the new copy and quits', () async {
+      final h = host();
+      expect(h.asksPassword, isFalse);
+      expect(await h.restart(), isNot('restarting'), reason: 'nothing brought down yet');
+      expect(await h.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync()), 'ready');
+      expect(h.asksPassword, isTrue);
+      expect(ran, isEmpty, reason: 'no password is asked for until Restart');
+      expect(await h.restart(), 'restarting');
+      expect(ran, [
+        [pk, '/usr/bin/apt-get', 'install', '-y', deb.path],
+      ]);
+      expect(launched, ['/opt/ghost-messaging/ghost-messaging']);
+      expect(quits, 1);
+    });
+
+    test('the password window put away: nothing installed, nothing quit, and the command to run instead', () async {
+      final h = host(answer: 126);
+      await h.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync());
+      final said = await h.restart();
+      expect(said, startsWith('manual: The password wasn\'t given'));
+      expect(said, contains('sudo apt install ${deb.path}'));
+      expect(launched, isEmpty);
+      expect(quits, 0);
+      expect(h.asksPassword, isFalse);
+      // Nobody to ask (no polkit agent), or apt refusing: the command too.
+      final h2 = host(answer: 127);
+      await h2.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync());
+      expect(await h2.restart(), startsWith('manual: It couldn\'t be installed from here.'));
+    });
+
+    test('no pkexec: the command, as before', () async {
+      final h = host(pkexec: null);
+      expect(await h.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync()), startsWith('manual: It came from the .deb'));
+      expect(h.asksPassword, isFalse);
+      expect(h.command, 'sudo apt install ${deb.path}');
+    });
+
+    test('a package changed since it was checked is never installed as root', () async {
+      final h = host();
+      await h.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync());
+      deb.writeAsStringSync('something else now');
+      expect(await h.restart(), 'The download is not the one the release describes');
+      expect(ran, isEmpty);
+      expect(quits, 0);
+    });
+
+    test('through the updater: ready and said to ask for a password; refused, it stands at the command', () async {
+      final h = host(answer: 126);
+      await h.install(deb.path, sha256: sha(deb), bytes: deb.lengthSync());
+      final u = MacUpdates.standing(installed: const InstalledMac(version: '0.12.13', build: 141, dir: '/tmp'), phase: MacUpdatePhase.ready, host: h);
+      addTearDown(u.dispose);
+      expect(u.asksPassword, isTrue);
+      expect(u.installCommand, isNull);
+      // Opening the app never brings the password window up: only a press does.
+      final step = ValueNotifier<SplashStep>((words: '', progress: null));
+      await checkAtLaunch(u, step, lookFor: const Duration(milliseconds: 50));
+      expect(ran, isEmpty);
+      expect(u.phase, MacUpdatePhase.ready);
+      await u.restart();
+      expect(u.phase, MacUpdatePhase.manual);
+      expect(u.asksPassword, isFalse);
+      expect(u.installCommand, 'sudo apt install ${deb.path}');
+      expect(u.problem, contains('The password wasn\'t given'));
+    });
   });
 }
 

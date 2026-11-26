@@ -80,6 +80,10 @@ void main() {
       expect(find('confetti'), contains('Effects › Confetti'));
       expect(find('background').first, 'Chat background');
       expect(find('keyboard codes'), contains('Ghost Keyboard › Offer sign-in codes to Ghost Keyboard'));
+      // Matt, 2026-11-25: "if I search css or styles i don't see anything in settings" (GMFB-41).
+      expect(find('css'), contains('Appearance › Custom CSS'));
+      expect(find('styles'), contains('Appearance › Custom CSS'));
+      expect(find('theme'), contains('Appearance › Custom CSS'));
       expect(find('zzzz'), isEmpty);
     });
 

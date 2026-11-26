@@ -168,6 +168,40 @@ void main() {
       if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/week-list.png'));
     });
 
+    // Matt, 2026-11-25: "i'd like to be able to press and hold to drag through the chat map and have it magnify out where
+    // my thumb is like the mac dock does when hovering".
+    test('the lines swell under the finger, most right under it, and are as they were a little way off', () {
+      expect(ChatRail.magnifyAt(0), ChatRail.magnifyMost);
+      expect(ChatRail.magnifyAt(10), lessThan(ChatRail.magnifyMost));
+      expect(ChatRail.magnifyAt(10), greaterThan(ChatRail.magnifyAt(30)));
+      expect(ChatRail.magnifyAt(-30), ChatRail.magnifyAt(30));
+      expect(ChatRail.magnifyAt(120), closeTo(1, 0.01));
+    });
+
+    testWidgets('a finger held on the map and drawn along it takes the chat with it, swollen under it, and lets go', (tester) async {
+      final c = await open(tester, _chat());
+      final rail = find.byKey(const ValueKey('chat-rail'));
+      final box = tester.getRect(rail);
+      final touch = await tester.startGesture(box.bottomCenter - const Offset(0, 6));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing, reason: 'a hold is not a press: no list');
+      for (var i = 1; i <= 10; i++) {
+        await touch.moveTo(Offset(box.center.dx, box.bottom - 6 - (box.height - 12) * i / 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await settle(tester);
+      expect(c.offset, greaterThan(c.position.maxScrollExtent - 60), reason: 'drawn to the top, the chat is at its oldest');
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/held.png'));
+      await touch.moveTo(box.center);
+      await tester.pump(const Duration(milliseconds: 16));
+      await settle(tester);
+      expect(c.offset, lessThan(c.position.maxScrollExtent - 60), reason: 'and back down with it');
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/held-middle.png'));
+      await touch.up();
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a short chat has no map', (tester) async {
       await open(tester, _chat(each: 2));
       expect(find.byKey(const ValueKey('chat-rail')), findsNothing);

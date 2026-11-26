@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/desktop/links.dart';
 import 'package:ghost_messaging/friends/add_link.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/me/me.dart';
@@ -108,6 +109,14 @@ void main() {
     expect((await b.add('sam')).id, mallory.id);
     expect(Buddies.keyMatches((id: maya.id, key: base64Encode(mallory.public)), maya.id.substring(0, 8)), isFalse, reason: 'a name that is not its key\'s');
     b.dispose();
+  });
+
+  test('on a computer an add-me link is known for one, not taken for a circle\'s (GMFB-34)', () {
+    expect(DeskLinks.isAddLink('ghostmsg://add/maya#0123456789abcdef0123456789abcdef'), isTrue);
+    expect(DeskLinks.isAddLink(' https://gogho.st/add/maya '), isTrue);
+    expect(DeskLinks.isAddLink('ghostmsg://join/#c.abc'), isFalse);
+    expect(DeskLinks.isAddLink('ghostmsg://relay?a=x'), isFalse);
+    expect(DeskLinks.isAddLink('ghostmsg://add/'), isFalse);
   });
 
   test('the link and the names it can carry', () {

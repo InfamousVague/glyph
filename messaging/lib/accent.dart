@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 
 import 'app_state.dart';
 import 'backgrounds.dart';
+import 'custom_css.dart';
 import 'custom_theme.dart';
 import 'kit/settings_css.dart';
 import 'looks.dart';
@@ -22,7 +23,10 @@ import 'looks.dart';
 /// Where the bubble colour would not be seen against the page it stands on (white or silver on the light page) the
 /// accent stays the page's ink on that theme: a white Send on white paper is no button.
 class AccentSheets {
-  AccentSheets(this._sources) : base = TokenSheet.parseAll(_sources);
+  AccentSheets(this._sources) : base = TokenSheet.parseAll(_sources) {
+    // The properties there are to set, for Settings › Appearance › Custom CSS's list (lib/custom_css.dart).
+    CustomCss.known = ({for (final rule in base.rules) ...rule.declarations.keys}.toList()..sort());
+  }
 
   /// The kit's stylesheet and the app's, read as [loadTokenSheet] reads them.
   static Future<AccentSheets> load({List<String> more = const ['assets/css/ink.css', 'assets/css/app.css']}) async {
@@ -61,6 +65,36 @@ class AccentSheets {
 
   /// The sheet for the bubble colour chosen everywhere in [app].
   TokenSheet of(AppState app) {
+    final under = _under(app);
+    // CSS of the person's own over all of it (GMFB-41, lib/custom_css.dart): only what can be read, tried against
+    // the sheet under it on the light and dark page of the look in use, and made again only when it, the look or
+    // what is under it changes.
+    final own = CustomCss.used(app);
+    if (own.trim().isEmpty) {
+      CustomCss.last = null;
+      _ownKey = null;
+      return under;
+    }
+    final pages = [
+      for (final platform in const ['mobile', 'desktop'])
+        for (final theme in const ['light', 'dark']) {...ghostAttrs(app, platform), 'theme': theme},
+    ];
+    final key = '${identityHashCode(under)}\n${pages.first}\n$own';
+    if (key != _ownKey) {
+      _ownKey = key;
+      // Settings' own rules go into the copy made below with the rest (added once a sheet, lib/kit/settings_css.dart).
+      installSettingsStyles(under);
+      final result = CustomCss.last = CustomCss.check(own, under, pages);
+      _ownSheet = result.css.isEmpty ? under : TokenSheet.kept([...under.rules, ...TokenSheet.parse(result.css).rules]);
+    }
+    return _ownSheet!;
+  }
+
+  String? _ownKey;
+  TokenSheet? _ownSheet;
+
+  /// The sheet under any CSS of the person's own: the stylesheets with the look of their own and the bubble colour.
+  TokenSheet _under(AppState app) {
     final pages = pagesOf(app.look);
     // A look of the person's own (lib/custom_theme.dart): its rules laid over the stylesheets as a bubble colour's are,
     // under that colour's, which outranks them.

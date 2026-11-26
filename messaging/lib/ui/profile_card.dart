@@ -19,6 +19,7 @@ import '../kit/settings_type.dart';
 import '../me/cosmetics.dart';
 import '../me/identity.dart';
 import '../me/me.dart';
+import '../me/own_links.dart';
 import '../mentions.dart';
 import '../me/pictures.dart';
 import '../net/name_watch.dart';
@@ -36,6 +37,7 @@ import 'thread.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest;
 import 'identity_ui.dart' show theirDidWords, didWords;
+import 'own_links_ui.dart';
 import 'vouches_ui.dart';
 import 'verified_badge.dart';
 import 'name_watch_words.dart';
@@ -330,6 +332,9 @@ class _ProfileCardState extends State<_ProfileCard> {
       for (final e in (g?.buddy?.links ?? const <String, String>{}).entries) (e.key == 'phone' ? 'Phone' : (Inbox.instance.named(e.key)?.name ?? _titled(e.key)), e.value),
       if (n != null && n.number.isNotEmpty) ('Phone', n.number),
     ];
+    // The links they typed for their profile (GMFB-34; lib/me/own_links.dart): theirs by their word alone, so they are
+    // set apart from the accounts above and say so.
+    final own = g == null ? const <OwnLink>[] : (g.me ? Me.instance.ownLinks : (g.buddy?.state == 'yes' ? g.buddy!.own : const <OwnLink>[]));
     // On Ghost, by their id or, for an "@name" written in a message, their username: the verified mark and the badges
     // are asked of the relay either way (lib/me/verified_numbers.dart), so a mention by name shows them too.
     final known = g != null && (g.id.isNotEmpty || g.username.isNotEmpty);
@@ -391,7 +396,7 @@ class _ProfileCardState extends State<_ProfileCard> {
       // How many of the viewer's own friends vouch for them (GMFB-33), their names on a tap.
       if (g != null && (g.me || g.buddy?.state == 'yes')) VouchesLine(buddy: g.me ? null : g.buddy, section: section),
       if (who.detail.isNotEmpty) section(who.room != null ? 'In this space' : 'Here', Text(who.detail, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
-      if (links.isNotEmpty)
+      if (links.isNotEmpty || own.isNotEmpty)
         section(
           'Elsewhere',
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -403,6 +408,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                   Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
                 ]),
               ),
+            if (own.isNotEmpty) OwnLinksList(links: own, name: name.isEmpty ? 'This person' : name, mine: g?.me ?? false),
           ]),
         ),
     ];
@@ -420,6 +426,8 @@ class _ProfileCardState extends State<_ProfileCard> {
             // Their chosen banner (GMFB-34), else a band in their colour.
             child: CosmeticBanner(
               id: dress.banner,
+              // Their own picture as the banner, where they set one (a friend's, or this person's own).
+              picture: g == null ? '' : (g.me ? Me.instance.banner : (g.buddy?.banner ?? '')),
               fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
             ),
           ),
@@ -452,6 +460,9 @@ class _ProfileCardState extends State<_ProfileCard> {
             // The verified-number mark beside the name, as Discord's verified badge is (Matt, 2026-11-19); the special
             // badges are in the tray and the panel, not here twice.
             if (known) VerifiedBadge(id: g.id, username: g.username, me: g.me, size: 20, special: false),
+            // A small check where at least one of the viewer's own friends vouches for them (GMFB-33); the count and
+            // the names are in the panel.
+            if (g != null && (g.me || g.buddy?.state == 'yes')) VouchMark(buddy: g.me ? null : g.buddy),
           ]),
           Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           if (status.isNotEmpty) ...[

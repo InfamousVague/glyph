@@ -14,7 +14,7 @@
 <p>Ghost's relay server (at gogho.st) passes sealed packets between apps: friends, circles, spaces and calls' setup. It can't read them; it sees only which installs are talking, as any server would. It's also where your username, your sealed account backup and a circle's sealed files are kept.</p>
 
 <h2 id="own-relay">Your own relay server</h2>
-<p>Anyone can run the relay on a server of their own and use it in place of ours. Under <ui>Settings › Routes › Relay server</ui>, type its address (<code>relay.example.com</code> is enough) and press <b>Check it and use it</b>. Nothing changes unless a Ghost Messaging relay answers there; when one does, the app tells you what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press.</p>
+<p>Anyone can run the relay on a server of their own and use it in place of ours. Under <ui>Settings › Routes › Relay server</ui>, type its address (<code>relay.example.com</code> is enough) and press <b>Check it and use it</b>. Nothing changes unless a Ghost Messaging relay answers there; when one does, the app tells you what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press. Running the server itself is on <a href="/docs/self-hosting/">Run your own relay</a>.</p>
 
 <m-screen title="Routes" back caption="Settings › Routes on a relay of your own.">
   <m-section title="Relay server" foot="Relays can pass messages to each other. Add a friend on another relay as @name@their.relay. Everything else is still kept on each relay apart.">
@@ -50,7 +50,7 @@
 <p>So a relay of your own suits a group that moves together, for its circles, spaces and calls, and its people can still be friends with people elsewhere.</p>
 </note>
 
-<p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is in the repository: <a href="https://github.com/InfamousVague/ghost-messaging/blob/main/docs/SELF_HOSTING.md">docs/SELF_HOSTING.md</a>, with sample files in <code>relay/deploy/</code>.</p>
+<p>How to run one (Docker, or systemd behind Caddy or nginx, with coturn for calls) is on its own page: <a href="/docs/self-hosting/">Run your own relay</a>. The sample files are in the repository, in <code>relay/deploy/</code>.</p>
 
 <h2 id="direct">Direct</h2>
 <p>A second way between Ghost apps, tried after the relay server: straight from one device to another. The relay stays first, because it is fast and keeps a message for someone who is away. The direct route is the way through when the relay can't carry something, for instance when it can't be reached, and the way your app checks what the relay says (below).</p>

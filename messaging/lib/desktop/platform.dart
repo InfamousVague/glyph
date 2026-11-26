@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'desk_player.dart';
 import 'desk_voice.dart' show m4aMillis, isOgg, oggMillis;
+import 'linux_voice.dart';
 import 'link/link.dart';
 import '../sms.dart' show Sms;
 
@@ -116,6 +117,9 @@ class MacPlatform {
   /// Starts recording a voice message with the Mac's microphone, which stops itself at [bytes]: `ok`, or `denied`
   /// where macOS was told no, or an `error` in words.
   static Future<Map> voiceStart(int bytes) async {
+    // Linux has no recorder in the app: a program the desktop has is run (lib/desktop/linux_voice.dart, GMFB-32),
+    // which answers these four as the Mac's and Windows' own do.
+    if (PlatformInfo.isLinux) return LinuxVoice.instance.start(bytes);
     try {
       return (await _system.invokeMapMethod<Object?, Object?>('voiceStart', {'bytes': bytes})) ?? const {'ok': false};
     } on MissingPluginException {
@@ -125,6 +129,7 @@ class MacPlatform {
 
   /// How loud it is now (`level`, 0 to 1) and whether the recording is as long as it may be (`full`).
   static Future<Map> voiceLevel() async {
+    if (PlatformInfo.isLinux) return LinuxVoice.instance.level();
     try {
       return (await _system.invokeMapMethod<Object?, Object?>('voiceLevel')) ?? const {};
     } catch (_) {
@@ -134,6 +139,7 @@ class MacPlatform {
 
   /// Throws the recording under way away.
   static Future<void> voiceCancel() async {
+    if (PlatformInfo.isLinux) return LinuxVoice.instance.cancel();
     try {
       await _system.invokeMethod('voiceCancel');
     } catch (_) {}
@@ -143,6 +149,7 @@ class MacPlatform {
   /// these four too (windows/runner/desk_sound.cpp, GMFB-32), and says in `voiceStart`'s answer how many `seconds`
   /// fit at its own rate.
   static Future<Uint8List?> voiceStop() async {
+    if (PlatformInfo.isLinux) return LinuxVoice.instance.stop();
     try {
       return await _system.invokeMethod<Uint8List>('voiceStop');
     } catch (_) {
@@ -208,6 +215,8 @@ class MacPlatform {
   static Future<int> voiceLength(Uint8List bytes) async {
     // An Ogg sound says how long it runs in its last page, read here on every computer (no native player reads one).
     if (isOgg(bytes)) return oggMillis(bytes);
+    // A WAV, which a Linux computer with no ffmpeg records (lib/desktop/linux_voice.dart), says so in its header.
+    if (isWav(bytes)) return wavMillis(bytes);
     // Read from the file itself where no native player is asked: an .m4a says how long it runs.
     if (_dartPlayer) return m4aMillis(bytes);
     try {

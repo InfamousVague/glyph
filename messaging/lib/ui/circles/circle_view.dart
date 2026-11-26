@@ -28,6 +28,7 @@ class CircleSpaceView {
     this.here = false,
     this.files,
     this.music,
+    this.listening,
   });
 
   /// Its entry in the circle's list (name, kind, place, section) and itself as a space (rooms, chat, call).
@@ -54,6 +55,10 @@ class CircleSpaceView {
 
   /// This device is in its call.
   final bool here;
+
+  /// Its call is a stage (GMFB-29: "some people speak, many listen, with a listener count"): how many of those in it
+  /// listen, said in a line over their names. Null where it is not a stage.
+  final int? listening;
 
   /// How many files a Files space holds, where its list has been read on this device; null where not (or another kind).
   final int? files;

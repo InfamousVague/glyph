@@ -14,6 +14,7 @@ import 'package:glacier/glacier.dart';
 import '../../circles/circles.dart';
 import '../../files/files_store.dart';
 import '../../me/picture_make.dart';
+import '../../me/pictures.dart';
 import '../../voice/hangout.dart' show OutgoingFile;
 import '../../sms.dart';
 import '../common.dart';
@@ -49,6 +50,27 @@ Future<ProfilePicture?> pickProfilePicture(BuildContext context) async {
     final crop = await showPictureCrop(context, bytes);
     if (crop == null) return null;
     final made = await profilePictureOf(bytes, crop: crop);
+    if (made == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
+    return made;
+  } catch (e) {
+    if (context.mounted) toast(context, 'Couldn\'t use that picture: $e', tone: GlacierToastTone.danger);
+    return null;
+  }
+}
+
+/// Asks for a picture and which band of it, and gives it back as a profile's banner picture (GMFB-34;
+/// lib/me/picture_make.dart, bannerPictureOf): the cropper a profile picture has, with a window three wide to one
+/// high. Null where none was chosen or it couldn't be read (said in a toast).
+Future<String?> pickBannerPicture(BuildContext context) async {
+  try {
+    final picked = await Sms.instance.pickImages();
+    if (picked.isEmpty) return null;
+    final path = await Sms.instance.cacheCopy(picked.first);
+    final bytes = await File(path).readAsBytes();
+    if (!context.mounted) return null;
+    final crop = await showPictureCrop(context, bytes, shape: ProfilePictures.bannerShape);
+    if (crop == null) return null;
+    final made = await bannerPictureOf(bytes, crop: crop);
     if (made == null && context.mounted) toast(context, 'Couldn\'t use that picture.', tone: GlacierToastTone.danger);
     return made;
   } catch (e) {

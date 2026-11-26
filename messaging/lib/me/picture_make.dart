@@ -85,3 +85,53 @@ Future<String?> _square(Uint8List bytes, {required List<int> sizes, required Lis
     image?.dispose();
   }
 }
+
+/// [bytes] (any picture Flutter decodes) as a profile's banner picture (GMFB-34): a band [ProfilePictures.bannerShape]
+/// wide to one high, as base64 JPEG, at the largest of a few widths and qualities that fits [most] characters
+/// ([ProfilePictures.bannerMost] where none is given; less where the profile's packet has less room). Null where it
+/// can't be read or none fits.
+///
+/// [crop] is the band of it to keep, as shares of its width and height (lib/ui/picture_crop.dart, with its wide
+/// window); the middle band where none is given.
+Future<String?> bannerPictureOf(Uint8List bytes, {ui.Rect? crop, int most = ProfilePictures.bannerMost}) async {
+  const shape = ProfilePictures.bannerShape;
+  const widths = [ProfilePictures.bannerWide, 420, 360, 300, 240, 192];
+  ui.Image? image;
+  try {
+    // Decoded near the size wanted, by the platform, as a profile picture is ([_square]).
+    final probe = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final desc = await ui.ImageDescriptor.encoded(probe);
+    final across = crop == null ? desc.width.toDouble() : (crop.width * desc.width).clamp(1.0, desc.width.toDouble());
+    final scale = across > widths.first * 2 ? widths.first * 2 / across : 1.0;
+    final codec = await desc.instantiateCodec(targetWidth: (desc.width * scale).round().clamp(1, desc.width), targetHeight: (desc.height * scale).round().clamp(1, desc.height));
+    image = (await codec.getNextFrame()).image;
+    codec.dispose();
+    desc.dispose();
+    probe.dispose();
+    final iw = image.width.toDouble(), ih = image.height.toDouble();
+    // The part chosen (the whole picture where none was), then the widest band of the shape inside it, about its middle.
+    final part = crop == null ? ui.Rect.fromLTWH(0, 0, iw, ih) : ui.Rect.fromLTWH(crop.left * iw, crop.top * ih, crop.width * iw, crop.height * ih).intersect(ui.Rect.fromLTWH(0, 0, iw, ih));
+    if (part.width < 1 || part.height < 1) return null;
+    final w = part.width / part.height > shape ? part.height * shape : part.width, h = w / shape;
+    final from = ui.Rect.fromLTWH(part.left + (part.width - w) / 2, part.top + (part.height - h) / 2, w, h);
+    for (final width in widths) {
+      final height = (width / shape).round();
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder).drawImageRect(image, from, ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()), ui.Paint()..filterQuality = ui.FilterQuality.high);
+      final band = await recorder.endRecording().toImage(width, height);
+      final rgba = await band.toByteData(format: ui.ImageByteFormat.rawRgba);
+      band.dispose();
+      if (rgba == null) continue;
+      final pixels = img.Image.fromBytes(width: width, height: height, bytes: rgba.buffer, numChannels: 4, order: img.ChannelOrder.rgba);
+      for (final q in const [80, 68, 56]) {
+        final b64 = base64.encode(img.encodeJpg(pixels, quality: q, chroma: img.JpegChroma.yuv420));
+        if (b64.length <= most) return b64;
+      }
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    image?.dispose();
+  }
+}

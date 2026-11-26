@@ -23,7 +23,7 @@ import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'common.dart';
 import '../me/cosmetics.dart';
-import 'cosmetics_picker.dart' show wear;
+import 'cosmetics_picker.dart' show chooseBannerPicture, wearBanner;
 import 'cosmetics_ui.dart';
 import 'special_badges.dart';
 import 'nav_bar.dart' show HoverTip;
@@ -261,6 +261,7 @@ class _PeekState extends State<_Peek> {
                 height: bannerH,
                 child: CosmeticBanner(
                   id: dress.banner,
+                  picture: me.banner,
                   fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
                 ),
               ),
@@ -407,7 +408,9 @@ extension on _PeekState {
   /// The banners there are, None first, each as it would look: a press wears it, and the one worn is ringed.
   Widget _bannerPick(Tokens t) {
     final me = Me.instance;
-    final worn = me.cosmetics.banner;
+    // A picture of your own as the banner (GMFB-34): while it is worn none of the ready-made ones is ringed.
+    final mine = me.banner;
+    final worn = mine.isNotEmpty ? null : me.cosmetics.banner;
     final hues = PluginHues.of(t, hueFor(me.username ?? (me.shownName.isEmpty ? 'me' : me.shownName)));
     return Padding(
       key: const ValueKey('profile-peek-banners'),
@@ -416,10 +419,34 @@ extension on _PeekState {
         final gap = t.space(2);
         final w = (box.maxWidth - gap * 2) / 3;
         return Wrap(spacing: gap, runSpacing: gap, children: [
+          // Not in a browser, which can't choose a picture yet (Sms.browser).
+          if (!Sms.browser)
+            GlacierPressable(
+              key: const ValueKey('profile-peek-banner-own'),
+              onPressed: () {
+                final host = widget.host;
+                widget.close();
+                unawaited(chooseBannerPicture(host));
+              },
+              semanticLabel: mine.isEmpty ? 'A picture of your own as the banner' : 'Change your banner picture',
+              selected: mine.isNotEmpty,
+              builder: (context, state) => Container(
+                width: w.floorToDouble(),
+                height: 34,
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                foregroundDecoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(t.radius('md')),
+                  border: Border.all(color: t.color(mine.isNotEmpty ? 'app-ink' : 'app-rule'), width: mine.isNotEmpty ? 2 : 1),
+                ),
+                decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('md'))),
+                child: mine.isEmpty ? AppIcon(Lucide.image, size: 18, color: t.color('app-ink-2')) : CosmeticBanner(id: '', picture: mine, fallback: const SizedBox.shrink()),
+              ),
+            ),
           for (final id in ['', for (final b in CosmeticCatalog.of(CosmeticKind.banner)) b.id])
             GlacierPressable(
               key: ValueKey('profile-peek-banner-${id.isEmpty ? 'none' : id}'),
-              onPressed: () => wear(me.cosmetics.withKind(CosmeticKind.banner, id)),
+              onPressed: () => wearBanner(id),
               semanticLabel: id.isEmpty ? 'No banner' : '${CosmeticCatalog.find(CosmeticKind.banner, id)?.label ?? id} banner',
               selected: worn == id,
               builder: (context, state) => Container(

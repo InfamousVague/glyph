@@ -3,7 +3,7 @@ import 'package:ghost_messaging/links.dart';
 import 'package:ghost_messaging/message_format.dart';
 
 /// The words as drawn, each formatted stretch in brackets naming how: "[b:bold] and plain". Markers are not drawn;
-/// a quote's bar is "▍".
+/// a quote's bar is "▍", a list item's mark is in braces as it is drawn ("{•}", "{2.}").
 String drawn(String text, {List<(int, int)> keep = const []}) {
   final links = [for (final l in MessageLink.find(text)) (l.start, l.end)];
   final f = MessageFormat.parse(text, keep: keep, links: links);
@@ -15,6 +15,10 @@ String drawn(String text, {List<(int, int)> keep = const []}) {
       continue;
     }
     final words = text.substring(r.start, r.end);
+    if (r.item) {
+      out.write('{${MessageFormat.itemMark(words).$1}}');
+      continue;
+    }
     final kinds = [
       if (r.has(Fmt.bold)) 'b',
       if (r.has(Fmt.italic)) 'i',
@@ -89,6 +93,23 @@ void main() {
       expect(drawn('> **loud** quote'), '▍[b,q:loud][q: quote]');
       expect(drawn('>no space'), '>no space');
       expect(drawn('a > b'), 'a > b');
+    });
+
+    test('lists (GMFB-35)', () {
+      expect(drawn('- milk\n- **two** eggs'), '{•}milk\n{•}[b:two] eggs');
+      expect(drawn('* one\n* *two*'), '{•}one\n{•}[i:two]');
+      expect(drawn('to buy:\n1. milk\n2) eggs\nthanks'), 'to buy:\n{1.}milk\n{2)}eggs\nthanks');
+      expect(MessageFormat.itemMark('    - '), ('•', 2));
+      expect(MessageFormat.itemMark('12. '), ('12.', 0));
+      expect(MessageFormat.parse('- a').hasItems, isTrue);
+      // Everyday words stay as they are.
+      for (final plain in ['-5 outside', 'well - maybe', '2020. What a year', '3.5 stars', '- ', '1.', 'a\n-b']) {
+        expect(MessageFormat.parse(plain).isPlain, isTrue, reason: plain);
+      }
+      // Not in a block of code, nor a quote; and the words go as written.
+      expect(drawn('```\n- a\n```'), '[pre:- a]');
+      expect(drawn('> - said'), '▍[q:- said]');
+      expect(MessageFormat.plain('- **milk**\n1. eggs'), '- milk\n1. eggs');
     });
 
     test('spoilers are counted', () {

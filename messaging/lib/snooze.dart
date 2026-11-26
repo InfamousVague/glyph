@@ -2,8 +2,10 @@
 /// leaves Messages until the time chosen, then comes back at the top with a notification, and stays at the top until
 /// it is opened.
 ///
-/// Kept with the app's choices (AppState), by the conversation's key (`text:<thread>`), and looked at by this app
-/// while it runs: a snooze whose time came while Ghost was closed ends as soon as it opens again.
+/// Kept with the app's choices (AppState), by the conversation's key (`text:<thread>`, or `space:<room>` for a
+/// space's chat in Messages), and looked at by this app while it runs: a snooze whose time came while Ghost was closed
+/// ends as soon as it opens again. Where the device has no notification for it (a computer), the app says it itself
+/// while it is open ([Snoozed.back]).
 library;
 
 import 'dart:async';
@@ -26,6 +28,14 @@ class Snoozed extends ChangeNotifier {
 
   /// Says a snooze is over ([key], what it was called): a notification on the phone. A test puts its own here.
   static void Function(String key, String title) woke = (_, _) {};
+
+  /// Whether this device puts up a notification as a snooze ends; where it doesn't, [back] says it.
+  static bool notifies = false;
+
+  /// Says a snooze is over inside the app, where the device puts up no notification of it: [title] is what the
+  /// conversation was called. Messages sets it while it is on the screen (lib/ui/conversations.dart) and says so in
+  /// a toast; null while there is nowhere to say it.
+  static void Function(String title)? back;
 
   AppState? _app;
   Timer? _timer;
@@ -81,6 +91,9 @@ class Snoozed extends ChangeNotifier {
 
   /// The key of a conversation of texts or with a friend, by its thread.
   static String text(int thread) => 'text:$thread';
+
+  /// The key of a space's chat in Messages, by its room.
+  static String space(String room) => 'space:$room';
 
   /// Whether [key] is out of Messages now.
   bool hides(String key) => _until.containsKey(key);

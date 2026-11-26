@@ -454,4 +454,103 @@ void main() {
       }
     });
   });
+
+  group('the account\'s own devices (GMFB-33)', () {
+    test('a vouch made on one device is known on the others, its taking back too, and a device that was closed is told as it asks', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya');
+      final phone = _Device(w, 'sam'), mac = _Device(w, 'sam', keys: phone.keys);
+      phone.others = [mac];
+      mac.others = [phone];
+      final b = await makeFriends([(maya, phone)]);
+      mac.list = phone.list;
+      final onMac = Buddies(mac, carryAfter: Duration.zero);
+      await onMac.start();
+      // Maya shows nobody her vouches, so nothing comes back to Sam's devices in her profile.
+      await b[maya]!.hideVouches(true);
+      await pumpEventQueue();
+      final mayaOnPhone = b[phone]!.byId(maya.keys.id)!, mayaOnMac = onMac.byId(maya.keys.id)!;
+
+      await b[phone]!.vouch(mayaOnPhone);
+      await pumpEventQueue();
+      expect(onMac.vouchedFor(mayaOnMac), isTrue, reason: 'the Mac knows what the phone gave');
+      expect(onMac.vouchRunsOut(mayaOnMac), b[phone]!.vouchRunsOut(mayaOnPhone));
+      final told = phone.mine.single;
+      expect(told.kind, Buddies.ownKind);
+
+      // Taken back on the Mac: the phone stops saying it vouches.
+      await onMac.vouch(mayaOnMac, on: false);
+      await pumpEventQueue();
+      expect(b[phone]!.vouchedFor(mayaOnPhone), isFalse);
+      // The phone's old telling, come again, does not bring the vouch back.
+      phone.deliver(mac, told);
+      await pumpEventQueue();
+      expect(onMac.vouchedFor(mayaOnMac), isFalse);
+
+      // A tablet that was closed through all of it asks as it starts, and is told.
+      await b[phone]!.vouch(mayaOnPhone);
+      await pumpEventQueue();
+      final tablet = _Device(w, 'sam', keys: phone.keys)..list = phone.list;
+      tablet.others = [phone, mac];
+      phone.others = [mac, tablet];
+      mac.others = [phone, tablet];
+      final onTablet = Buddies(tablet, carryAfter: Duration.zero);
+      await onTablet.start();
+      expect(onTablet.vouchedFor(onTablet.byId(maya.keys.id)!), isFalse);
+      await onTablet.syncVouches(ask: true);
+      await pumpEventQueue();
+      expect(onTablet.vouchedFor(onTablet.byId(maya.keys.id)!), isTrue);
+      // An answer asks nothing, so nobody goes on answering.
+      final before = phone.mine.length + mac.mine.length + tablet.mine.length;
+      await pumpEventQueue();
+      expect(phone.mine.length + mac.mine.length + tablet.mine.length, before);
+      for (final x in [...b.values, onMac, onTablet]) {
+        x.dispose();
+      }
+    });
+
+    test('only this account\'s own signed words are taken, about friends, from its own devices', () async {
+      final w = VouchWorld();
+      final maya = VouchPort(w, 'maya'), theo = VouchPort(w, 'theo'), mallory = VouchPort(w, 'mallory');
+      final phone = _Device(w, 'sam');
+      final b = await makeFriends([(maya, phone), (mallory, phone)]);
+      final sam = b[phone]!;
+      final t = DateTime.now().millisecondsSinceEpoch;
+      Vouch word(NetKeys by, VouchPort about, {String? as}) => Vouch(by: as ?? by.id, forId: about.keys.id, on: true, t: t, sig: NetCrypto.sign(by, Vouch.signedBytes(by: as ?? by.id, forId: about.keys.id, forKey: about.key, on: true, t: t)));
+      // A friend sends the kind with a word of Sam's own making: it isn't from Sam's devices.
+      final real = word(phone.keys, maya);
+      mallory.deliver(phone, Envelope(kind: Buddies.ownKind, body: {'v': [real.toJson()], 'q': 1}));
+      await pumpEventQueue();
+      expect(sam.vouchedFor(sam.byId(maya.keys.id)!), isFalse);
+      expect(phone.mine, isEmpty, reason: 'and nobody else is told what Sam gave');
+      // From Sam's own name, but signed by someone else in Sam's name; and a true word about someone who isn't a friend.
+      phone.deliver(phone, Envelope(kind: Buddies.ownKind, body: {'v': [word(mallory.keys, maya, as: phone.keys.id).toJson(), word(phone.keys, theo).toJson(), 'x', {'b': 1}]}));
+      await pumpEventQueue();
+      expect(sam.vouchedFor(sam.byId(maya.keys.id)!), isFalse);
+      expect(sam.vouches.given, isEmpty);
+      // The true word, from Sam's own devices: taken.
+      phone.deliver(phone, Envelope(kind: Buddies.ownKind, body: {'v': [real.toJson()]}));
+      await pumpEventQueue();
+      expect(sam.vouchedFor(sam.byId(maya.keys.id)!), isTrue);
+      for (final x in b.values) {
+        x.dispose();
+      }
+    });
+  });
+}
+
+/// One device of an account that has others: what it tells them reaches each as from the account itself.
+class _Device extends VouchPort implements BuddiesMine {
+  _Device(super.world, super.name, {super.keys});
+  List<_Device> others = [];
+  final mine = <Envelope>[];
+
+  @override
+  Future<bool> sendMine(Envelope envelope) async {
+    mine.add(envelope);
+    for (final o in others) {
+      deliver(o, envelope);
+    }
+    return true;
+  }
 }

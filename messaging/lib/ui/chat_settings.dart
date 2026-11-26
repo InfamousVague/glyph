@@ -334,11 +334,11 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       if (context.mounted) toast(context, to ? 'Archived' : 'Moved back to Messages');
                     },
                   ),
-                  // Export (GMFB-36): the whole conversation as a Markdown file.
+                  // Export (GMFB-36): the whole conversation as a Markdown or JSON file, with its files if asked.
                   SettingRow(
                     icon: const AppIcon(Lucide.download, size: 18),
                     label: 'Export conversation',
-                    hint: const Text('Every message as a Markdown file, to keep or open in another app.'),
+                    hint: const Text('Every message as Markdown or JSON, with its pictures and files if you like.'),
                     onPress: () => exportTexts(context, thread, c?.title ?? widget.people.map((p) => p.label).join(', '), widget.people),
                   ),
                 ]),

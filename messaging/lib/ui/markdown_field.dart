@@ -8,7 +8,7 @@ import '../mentions.dart';
 /// "**" of **bold** and the "> " of a quote fainter than the words, and the words between markers bold, italic,
 /// struck through or code (Matt, 2026-11-25: "the text should be bold and italic inside the symbols and the code
 /// block should show the code block too"). The words are the words: nothing is put in or taken out, the markers stay
-/// in sight, and they go as written.
+/// in sight, and they go as written. A list's "- " and "1. " are drawn as typed: they are already what they will be.
 ///
 /// MentionController (lib/ui/mention_field.dart) is one, with its mentions drawn in theirs.
 class MarkdownController extends TextEditingController {
@@ -22,7 +22,7 @@ class MarkdownController extends TextEditingController {
   List<Mention> get drawnMentions => const [];
   TextStyle? get mentionLook => null;
 
-  /// [before] and [after] put round the selection (Bold, Italic, Code in the selection's menu), the selection kept on
+  /// [before] and [after] put round the selection (Bold, Italic, Code and the rest in the selection's menu), the selection kept on
   /// the same words; at a cursor, the two with the cursor between them.
   void wrapSelection(String before, [String? after]) {
     final close = after ?? before;
@@ -31,6 +31,35 @@ class MarkdownController extends TextEditingController {
     value = TextEditingValue(
       text: text.replaceRange(s.start, s.end, '$before$words$close'),
       selection: s.isCollapsed ? TextSelection.collapsed(offset: s.start + before.length) : TextSelection(baseOffset: s.start + before.length, extentOffset: s.start + before.length + words.length),
+    );
+  }
+
+  /// "> " put before each line the selection touches, or the line the cursor is on (Quote, GMFB-35); taken off again
+  /// where every one of them has it already. The selection stays on the same words.
+  void quoteSelection() {
+    final s = selection.isValid ? selection : TextSelection.collapsed(offset: text.length);
+    final from = s.start == 0 ? 0 : text.lastIndexOf('\n', s.start - 1) + 1;
+    final lines = text.substring(from, s.end).split('\n');
+    final off = lines.every((l) => l.startsWith('> '));
+    // Where each of those lines starts: a place in the words moves by two for every line that starts at or before it
+    // (taken off: by as much of the "> " as stood before it).
+    final starts = <int>[];
+    var at = from;
+    for (final l in lines) {
+      starts.add(at);
+      at += l.length + 1;
+    }
+    int moved(int p) {
+      var q = p;
+      for (final ls in starts) {
+        if (ls <= p) q += off ? -(p - ls).clamp(0, 2) : 2;
+      }
+      return q;
+    }
+
+    value = TextEditingValue(
+      text: text.replaceRange(from, s.end, [for (final l in lines) off ? l.substring(2) : '> $l'].join('\n')),
+      selection: s.isCollapsed ? TextSelection.collapsed(offset: moved(s.start)) : TextSelection(baseOffset: moved(s.start), extentOffset: moved(s.end)),
     );
   }
 

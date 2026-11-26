@@ -80,13 +80,18 @@ class VoiceScreen extends StatelessWidget {
           // A hangout's, not a group's: a group's channel is its members' alone.
           if (s.channel.group == null) IconTap(icon: Lucide.userPlus, label: 'Invite people', onPressed: () => showSpaceInvite(context, s.channel)),
         ],
-        body: Stack(children: [
-          ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
-            children: [CallPanel(session: s)],
-          ),
-          Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
-        ]),
+        // A screen someone shares, or whoever was pinned, large over the call, as in a space's call (GMFB-27): here it
+        // was only ever a tile among the others.
+        body: StagedCall(
+          session: s,
+          child: Stack(children: [
+            ListView(
+              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
+              children: [CallPanel(session: s)],
+            ),
+            Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
+          ]),
+        ),
       );
     }
     return GhostPage(
@@ -220,7 +225,7 @@ class CallPanel extends StatelessWidget {
               }
 
               return Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, spacing: t.space(2), runSpacing: t.space(2), children: [
-                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: fit(p.video, p.screen).width, height: fit(p.video, p.screen).height, child: _Tile(whole: !Sms.computer, name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen, tools: p.me && !p.screen ? sessionVideoTools(context, session) : const [])),
+                for (final p in withVideo) SizedBox(key: ValueKey('video-${p.id}'), width: fit(p.video, p.screen).width, height: fit(p.video, p.screen).height, child: _Tile(onPressed: () => showPerson(context, session, p.id, p.name), whole: !Sms.computer, name: p.guest ? '${p.name} (guest)' : p.name, muted: p.muted, mark: mutedMark(all: p.all, mine: p.mine), stream: p.video, mirror: p.me && !p.screen && !session.backCamera, screen: p.screen, tools: p.me && !p.screen ? sessionVideoTools(context, session) : const [])),
               ]);
             }),
             SizedBox(height: t.space(3)),
@@ -309,20 +314,22 @@ class CallVideos extends StatelessWidget {
     final v = Voice.instance;
     final media = v.media;
     return ListenableBuilder(
-      listenable: Listenable.merge([session, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
+      listenable: Listenable.merge([session, CallPin.who, ?media?.remote, ?media?.localVideo, ?media?.localScreen]),
       builder: (context, _) {
         final mine = media?.localScreen.value ?? media?.localVideo.value;
-        final all = <({String name, MediaStream stream, bool muted, bool me, bool screen})>[
-          if (mine != null) (name: 'You', stream: mine, muted: session.muted || session.deafened, me: true, screen: media?.localScreen.value != null),
+        final all = <({String id, String name, MediaStream stream, bool muted, bool me, bool screen})>[
+          if (mine != null) (id: 'me', name: 'You', stream: mine, muted: session.muted || session.deafened, me: true, screen: media?.localScreen.value != null),
           for (final m in session.members.values)
-            if (m.video && media?.remote.value[m.id] != null) (name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false, screen: m.screen),
+            if (m.video && media?.remote.value[m.id] != null) (id: m.id, name: m.guest ? '${v.nameOf(m.id)} (guest)' : v.nameOf(m.id), stream: media!.remote.value[m.id]!, muted: m.muted, me: false, screen: m.screen),
         ];
         if (all.isEmpty) return const SizedBox.shrink();
-        // Someone else's shared screen takes the space, the rest in a strip under it (GMFB-27).
-        final shared = [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
+        // Whoever this device pinned takes the space (CallPin; a press on a picture has Pin), else someone else's
+        // shared screen; the rest in a strip under it (GMFB-27).
+        final pin = CallPin.inCall(session);
+        final shared = [for (final x in all) if (x.id == pin) x].firstOrNull ?? [for (final x in all) if (x.screen && !x.me) x].firstOrNull;
         final tiles = shared == null ? all : [for (final x in all) if (!identical(x, shared)) x];
-        Widget tile(({String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
-            _Tile(name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen && !session.backCamera, screen: x.screen, tools: x.me && !x.screen ? sessionVideoTools(context, session) : const []);
+        Widget tile(({String id, String name, MediaStream stream, bool muted, bool me, bool screen}) x) =>
+            _Tile(onPressed: () => showPerson(context, session, x.id, x.me ? 'You' : v.nameOf(x.id)), name: x.screen ? '${x.name}\'s screen' : x.name, muted: x.muted, stream: x.stream, mirror: x.me && !x.screen && !session.backCamera, screen: x.screen, tools: x.me && !x.screen ? sessionVideoTools(context, session) : const []);
         if (shared != null) {
           return Column(children: [
             Expanded(flex: 3, child: tile(shared)),
@@ -421,7 +428,10 @@ class CallDock extends StatelessWidget {
 
 /// Someone's video in a call: their picture with the name along the foot, and a red mic-off mark while muted.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.name, required this.muted, this.mark = LucideMore.micOff, this.stream, this.mirror = false, this.screen = false, this.tools = const [], this.whole = false});
+  const _Tile({required this.name, required this.muted, this.mark = LucideMore.micOff, this.stream, this.mirror = false, this.screen = false, this.tools = const [], this.whole = false, this.onPressed});
+
+  /// A press on the picture: what can be done about them ([showPerson]), Pin among it (GMFB-27).
+  final VoidCallback? onPressed;
 
   /// The camera's picture drawn whole, where the tile has its shape (a phone, GMFB-71).
   final bool whole;
@@ -444,6 +454,9 @@ class _Tile extends StatelessWidget {
     final t = context.tokens;
     return TileTools(
       tools: tools,
+      child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPressed,
       child: ClipRRect(
       borderRadius: BorderRadius.circular(t.radius('lg')),
       child: ColoredBox(
@@ -463,7 +476,7 @@ class _Tile extends StatelessWidget {
           ),
         ]),
       ),
-    ));
+    )));
   }
 }
 
@@ -1236,7 +1249,7 @@ class _PersonSheet extends StatelessWidget {
                 child: ColoredBox(
                   color: t.color('app-paper-2'),
                   child: ListenableBuilder(
-                    listenable: Listenable.merge([v, session]),
+                    listenable: Listenable.merge([v, session, CallPin.who]),
                     builder: (context, _) {
                       final me = id == 'me';
                       final m = session.members[id];
@@ -1259,6 +1272,19 @@ class _PersonSheet extends StatelessWidget {
                             ),
                           ]),
                           SizedBox(height: t.space(3)),
+                          // Their picture kept large on this device until unpinned (GMFB-27: "can pin it"), while
+                          // their camera or screen is on. Nobody else is told.
+                          if (CallPin.canPin(session, id) || CallPin.inCall(session) == id)
+                            SettingRow(
+                              key: const ValueKey('sheet-pin'),
+                              icon: AppIcon(CallPin.inCall(session) == id ? Lucide.pinOff : Lucide.pin, size: 18),
+                              label: CallPin.inCall(session) == id ? 'Unpin' : 'Pin',
+                              hint: Text(CallPin.inCall(session) == id ? 'Back among the others.' : (me ? 'Keep your picture large. Only you see it that way.' : 'Keep their picture large. Only you see it that way.')),
+                              onPress: () {
+                                CallPin.toggle(session, id);
+                                Navigator.of(context).pop();
+                              },
+                            ),
                           if (me) ...[
                             SettingRow(
                               label: 'Mute',

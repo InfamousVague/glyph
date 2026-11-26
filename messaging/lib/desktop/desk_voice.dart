@@ -3,6 +3,7 @@ import '../platform_info.dart';
 import 'dart:typed_data';
 
 import '../sms.dart';
+import 'linux_voice.dart';
 import 'platform.dart';
 
 /// A voice message recorded with this computer's own microphone (GMFB-32, from the Uplink gap review: "voice messages
@@ -34,6 +35,9 @@ class DeskVoice {
   /// said no to the microphone. [carrier] is the phone's `voiceLimit` (`{seconds, bytes}`) for a text; null for a file.
   /// Throws, in words, where the microphone couldn't be started.
   static Future<Map<String, Object?>> start({Map? carrier}) async {
+    // A text's voice message is an .m4a small enough for the carrier, which Linux makes with ffmpeg alone
+    // (lib/desktop/linux_voice.dart): without it only a file's can be recorded there.
+    if (carrier != null && PlatformInfo.isLinux && !LinuxVoice.instance.encodes) throw const VoiceProblem('A voice message in a text needs ffmpeg on this computer. Install it and try again.');
     final seconds = carrier == null ? fileSeconds : (carrier['seconds'] as num).toInt();
     final bytes = carrier == null ? fileBytes : (carrier['bytes'] as num).toInt();
     final began = await MacPlatform.voiceStart(bytes);
@@ -68,9 +72,11 @@ class DeskVoice {
     final sound = await stopBytes();
     final dir = into ?? Directory('${Directory.systemTemp.path}${PlatformInfo.pathSeparator}ghost-voice');
     dir.createSync(recursive: true);
-    final file = File('${dir.path}${PlatformInfo.pathSeparator}voice-${DateTime.now().millisecondsSinceEpoch}.m4a');
+    // An .m4a everywhere but a Linux computer with no ffmpeg, whose recording is a WAV (lib/desktop/linux_voice.dart).
+    final wav = isWav(sound);
+    final file = File('${dir.path}${PlatformInfo.pathSeparator}voice-${DateTime.now().millisecondsSinceEpoch}.${wav ? 'wav' : 'm4a'}');
     await file.writeAsBytes(sound, flush: true);
-    return {'path': file.path, 'millis': m4aMillis(sound)};
+    return {'path': file.path, 'millis': wav ? wavMillis(sound) : m4aMillis(sound)};
   }
 }
 

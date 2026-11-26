@@ -28,6 +28,7 @@ import 'app_state.dart';
 import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
+import 'ui/text_scale.dart';
 import 'backgrounds.dart';
 import 'bubble.dart';
 import 'desktop/main.dart';
@@ -281,7 +282,8 @@ class GhostMessagingApp extends StatelessWidget {
               // lock screen while the app is locked (lib/ui/app_lock_ui.dart, GMFB-46). In Android's picture in picture, the
               // call's picture alone (lib/ui/call_pip.dart, GMFB-64).
               // Under the status bar, the Performance plugin's row while it is on (lib/ui/performance_row.dart).
-              child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: CallPipFrame(child: child!))))))),
+              // The text size chosen in Settings, over every page, sheet and toast (GMFB-41, lib/ui/text_scale.dart).
+              child: AppTextScale(child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: CallPipFrame(child: child!)))))))),
             ),
           ),
           home: home ?? const _Home(),

@@ -200,7 +200,8 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
         final here = voice.session?.channel.room == channel.room;
         final ids = !channel.hasVoice ? const <String>[] : (here ? ['me', ...voice.session!.members.keys] : voice.inChannel(channel));
         final last = voice.lastMessage(channel);
-        final me = voice.hangoutFor(channel)?.me;
+        final room = voice.hangoutFor(channel);
+        final me = room?.me;
         String who(HangoutMessage m) => m.from == me ? 'You' : (m.name.isNotEmpty ? m.name : voice.nameOf(m.from));
         return CircleSpaceView(
           space: s,
@@ -218,6 +219,9 @@ CircleView circleView(BuildContext context, Circle c, {required VoidCallback onB
               }(),
           ],
           here: here,
+          // A stage with people in it: how many of them listen (GMFB-29). The space's roles say who, so it is known
+          // from outside the call too.
+          listening: room != null && room.stage && ids.isNotEmpty ? ids.where((id) => room.listens(id == 'me' ? room.me : id)).length : null,
           music: ids.isEmpty ? null : _musicIn(channel, here: here),
           files: s.kind == SpaceKind.files ? FilesStore.instance.heldCount(channel) : null,
         );

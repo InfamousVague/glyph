@@ -1,6 +1,7 @@
 /// Formatting written into a message's words (GMFB-35, from the Uplink gap review: "Markdown formatting in
 /// messages"): **bold** (or __bold__), *italic* (or _italic_), ~~strike~~, `code`, ```a block of code```, "> " a quote at a line's
-/// start, ||a spoiler|| hidden until pressed, and [words](https://…) for a link under other words.
+/// start, ||a spoiler|| hidden until pressed, [words](https://…) for a link under other words, and lists: a line that
+/// starts "- ", "* " or "1. " is an item, its mark drawn as a bullet or its number with the lines hanging beside it.
 ///
 /// The markers stay in the words as they were written and go out so: a build from before this, a text, Telegram and
 /// the rest show the asterisks, and this app draws them. [MessageFormat.parse] says, for each stretch of the words, how
@@ -33,7 +34,7 @@ abstract final class Fmt {
 
 /// One stretch of the words, [start] to [end] (UTF-16 code units, as a Dart string counts), and how it is drawn.
 class FormatRun {
-  const FormatRun(this.start, this.end, this.flags, {this.marker = false, this.bar = false, this.spoiler = -1, this.link = -1});
+  const FormatRun(this.start, this.end, this.flags, {this.marker = false, this.bar = false, this.item = false, this.spoiler = -1, this.link = -1});
 
   final int start, end;
 
@@ -46,6 +47,11 @@ class FormatRun {
   /// A quote's "> ": drawn as a bar at the line's start in place of its own characters.
   final bool bar;
 
+  /// A list item's mark, the spaces before it and the one after ("- ", "  * ", "12. "): drawn as a bullet or the
+  /// number at the line's start, the rest of the line hanging beside it ([MessageFormat.itemMark]). The line is the
+  /// item: it ends at the line's end.
+  final bool item;
+
   /// Which spoiler it is in (counted from 0 in the order they come), or -1.
   final int spoiler;
 
@@ -56,7 +62,7 @@ class FormatRun {
   bool has(int f) => flags & f != 0;
 
   @override
-  String toString() => 'FormatRun($start-$end ${marker ? 'marker' : bar ? 'bar' : flags}${spoiler >= 0 ? ' s$spoiler' : ''}${link >= 0 ? ' l$link' : ''})';
+  String toString() => 'FormatRun($start-$end ${marker ? 'marker' : bar ? 'bar' : item ? 'item' : flags}${spoiler >= 0 ? ' s$spoiler' : ''}${link >= 0 ? ' l$link' : ''})';
 }
 
 /// A message's words read for formatting.
@@ -72,7 +78,22 @@ class MessageFormat {
   final int spoilers;
 
   /// Nothing in it is formatted: drawn as it was written.
-  bool get isPlain => runs.every((r) => r.flags == 0 && !r.marker && !r.bar);
+  bool get isPlain => runs.every((r) => r.flags == 0 && !r.marker && !r.bar && !r.item);
+
+  /// Whether it has a list in it.
+  bool get hasItems => runs.any((r) => r.item);
+
+  /// A list item's mark as it is drawn, and how far in it stands (0 at the edge, up to 3), from the item run's own
+  /// characters [mark] ("  - ", "3. "): "•" for a "-" or a "*", a number as it was written.
+  static (String, int) itemMark(String mark) {
+    final m = mark.trim();
+    final depth = ((mark.length - mark.trimLeft().length) ~/ 2).clamp(0, 3);
+    return (m == '-' || m == '*' ? '\u2022' : m, depth);
+  }
+
+  /// A list item's mark at the start of a line: up to six spaces, then "-" or "*", or a number of up to three digits
+  /// and a "." or ")", then one space and something after it. A year and a full stop ("2020. What a year") is not one.
+  static final _item = RegExp(r' {0,6}(?:[-*]|\d{1,3}[.)]) (?=\S)');
 
   /// Longer words than this are drawn as written: nobody formats a book, and reading one is not free.
   static const longest = 20000;
@@ -89,12 +110,21 @@ class MessageFormat {
     return _Reader(text, keep, links).read();
   }
 
-  /// Whether [text] has any character that could start formatting: most messages have none, and are not read.
+  /// Whether [text] has any character that could start formatting, or a line that could start a list (a "-" or a
+  /// digit first on it): most messages have none, and are not read.
   static bool _mayHave(String text) {
+    var first = true;
     for (var i = 0; i < text.length; i++) {
-      switch (text.codeUnitAt(i)) {
+      final c = text.codeUnitAt(i);
+      switch (c) {
         case 0x2A || 0x5F || 0x7E || 0x60 || 0x7C || 0x5B || 0x3E || 0x5C:
           return true;
+      }
+      if (first && (c == 0x2D || (c >= 0x30 && c <= 0x39))) return true;
+      if (c == 0x0A) {
+        first = true;
+      } else if (c != 0x20) {
+        first = false;
       }
     }
     return false;
@@ -135,6 +165,7 @@ class _Reader {
         flags = List.filled(text.length, 0),
         marker = List.filled(text.length, false),
         bar = List.filled(text.length, false),
+        item = List.filled(text.length, false),
         spoiler = List.filled(text.length, -1),
         link = List.filled(text.length, -1),
         locked = List.filled(text.length, false),
@@ -149,12 +180,12 @@ class _Reader {
   }
 
   // For each code unit of [text] (n of them): its [Fmt]s; whether it is a marker, a quote's bar, or locked (code, or a
-  // marker: nothing more is read in it); which spoiler and which link it is in (-1 none); and [whole], set above.
+  // marker: nothing more is read in it), or a list item's mark; which spoiler and which link it is in (-1 none); and [whole], set above.
   final String text;
   final int n;
   final List<(int, int)> links;
   final List<int> flags;
-  final List<bool> marker, bar, locked;
+  final List<bool> marker, bar, item, locked;
   final List<int> spoiler, link;
   final List<int> whole;
   var _spoilers = 0;
@@ -175,8 +206,8 @@ class _Reader {
     final runs = <FormatRun>[];
     var start = 0;
     for (var i = 1; i <= n; i++) {
-      if (i == n || flags[i] != flags[start] || marker[i] != marker[start] || bar[i] != bar[start] || spoiler[i] != spoiler[start] || link[i] != link[start]) {
-        runs.add(FormatRun(start, i, flags[start], marker: marker[start], bar: bar[start], spoiler: spoiler[start], link: link[start]));
+      if (i == n || flags[i] != flags[start] || marker[i] != marker[start] || bar[i] != bar[start] || item[i] != item[start] || spoiler[i] != spoiler[start] || link[i] != link[start]) {
+        runs.add(FormatRun(start, i, flags[start], marker: marker[start], bar: bar[start], item: item[start], spoiler: spoiler[start], link: link[start]));
         start = i;
       }
     }
@@ -230,8 +261,8 @@ class _Reader {
     }
   }
 
-  /// One line, [ls] to [le]: a quote where it starts with "> ", then the inline markers in each stretch of it that is
-  /// not locked.
+  /// One line, [ls] to [le]: a quote where it starts with "> " or a list item where it starts with its mark, then the
+  /// inline markers in each stretch of it that is not locked.
   void _line(int ls, int le) {
     var base = 0;
     var a = ls;
@@ -244,6 +275,16 @@ class _Reader {
       for (var i = a; i < le; i++) {
         flags[i] |= Fmt.quote;
       }
+    }
+    // "- ", "* " or "1. " at the start of a line (not inside a block of code, nor a quote) makes it a list item. Nothing
+    // of the mark is inside a mention or a link, and the line has no block of code's fence on it: an item is one line.
+    final mark = base == 0 ? MessageFormat._item.matchAsPrefix(text, ls) : null;
+    if (mark != null && mark.end < le && ![for (var i = ls; i < le; i++) locked[i] || (i < mark.end && _kept(i))].contains(true)) {
+      for (var i = ls; i < mark.end; i++) {
+        item[i] = true;
+        locked[i] = true;
+      }
+      a = mark.end;
     }
     // Each stretch of the line outside a block of code on its own.
     var s = a;

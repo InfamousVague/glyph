@@ -480,14 +480,15 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
         SettingRow(
           icon: _icon(ready ? Lucide.rotateCcw : Lucide.download),
-          label: ready ? 'Restart to update' : 'Look for an update',
-          hint: Text(updateLine(u)),
+          // Linux from the .deb (GMFB-32): putting it in place is root's, so the desktop asks for the password first.
+          label: ready ? (u.asksPassword ? 'Install and restart' : 'Restart to update') : 'Look for an update',
+          hint: Text(u.asksPassword ? '${updateLine(u)}. Your computer asks for your password to install it.' : updateLine(u)),
           disabled: busy,
           onPress: busy ? null : (ready ? u.restart : u.check),
         ),
         if (u.phase == MacUpdatePhase.downloading) SettingRowBox(child: GlacierProgressBar(value: u.progress * 100, ariaLabel: 'Getting the update')),
-        // Linux from the .deb (GMFB-32): the new one is here and checked; installing it is root's, so the command is
-        // offered to paste into a terminal.
+        // Linux from the .deb (GMFB-32) where the desktop couldn't be asked to install it, or the password wasn't
+        // given: the new one is here and checked, and the command is offered to paste into a terminal.
         if (u.installCommand != null)
           SettingRow(
             icon: _icon(Lucide.copy),

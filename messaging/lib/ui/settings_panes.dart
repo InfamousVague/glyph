@@ -29,6 +29,7 @@ import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
 import '../kit/settings_type.dart';
+import '../custom_css.dart';
 import '../custom_theme.dart';
 import '../looks.dart';
 import '../sms.dart';
@@ -44,6 +45,7 @@ import 'market/dev_plugins.dart' show devPluginsPane;
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
 import 'voice_screen.dart' show VolumeSlider;
+import 'text_scale.dart';
 import 'computers.dart';
 import 'conversations.dart';
 import 'encryption.dart';
@@ -51,6 +53,7 @@ import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart';
+import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
@@ -116,13 +119,13 @@ List<SettingsSection> _ownSections() => [
     summary: (m) {
       final look = m.app.look;
       final own = CustomTheme.used(m.app);
-      if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textSize != 'default') '${m.app.textSize} text'].join(' · ');
+      if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textPercent != 100) '${m.app.textPercent}% text'].join(' · ');
       return [
         if (look != Look.ghost) look.label,
         if (look.forced == null) switch (m.app.theme) { 'light' => look.lightName, 'dark' => look.darkName, _ => 'System theme' },
         '${m.app.bubble == 'theme' ? (look == Look.ghost ? 'White' : look.label) : bubbleColor(m.app.bubble).name} bubbles',
         if (m.app.font == 'readable') 'Readable font',
-        if (m.app.textSize != 'default') '${m.app.textSize} text',
+        if (m.app.textPercent != 100) '${m.app.textPercent}% text',
       ].join(' · ');
     },
     page: _appearance,
@@ -416,13 +419,14 @@ List<SettingsSection> _ownSections() => [
     ];
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.35';
+const appVersion = '0.12.36';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
 /// Settings › Appearance: the look, the theme, your bubbles' colour and the size of a message's words.
 List<Widget> _appearance(BuildContext context, SettingsModel m) {
   final app = m.app;
+  final t = context.tokens;
   final palette = PhonePalette.current != null;
   final look = app.look;
   // A look of one's own in use (GMFB-41, lib/custom_theme.dart): it has one brightness, as some of the app's do.
@@ -450,6 +454,15 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           label: 'Paste a look\'s code',
           hint: const Text('One someone shared with you'),
           onPress: () => pasteTheme(context, app),
+        ),
+        // CSS of one's own over the look (GMFB-41; Matt, 2026-11-25: "if I search css or styles i don't see anything
+        // in settings"): the label and hint carry the words a search would be made with.
+        SettingRow(
+          key: const ValueKey('custom-css'),
+          icon: _icon(Lucide.braces),
+          label: 'Custom CSS',
+          hint: Text(CustomCss.on(app) ? 'Your own styles are in use over this theme' : 'Write your own styles over this theme'),
+          onPress: () => push<void>(context, (_) => CustomCssEditor(app: app)),
         ),
       ],
     ),
@@ -498,7 +511,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
-    PaneSection(title: 'Text', footer: Text('${Sms.remote ? 'The size of the words in a message.' : 'The size of the words in a message. Everything else follows Android\'s own font size.'} Readable draws everything in Atkinson Hyperlegible Next, made so that no two letters look alike: easier for many people with dyslexia or low vision.'), children: [
+    PaneSection(title: 'Text', footer: Text('${Sms.remote || Sms.browser ? 'The size of every word in the app.' : 'The size of every word in the app, on top of the phone\'s own font size.'} Readable draws everything in Atkinson Hyperlegible Next, made so that no two letters look alike: easier for many people with dyslexia or low vision.'), children: [
       // A face for reading (GMFB-41, from the Uplink gap review: "dyslexia font"), over any look's own.
       SettingRow(
         icon: _icon(LucideMore.type),
@@ -515,21 +528,18 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           ],
         ),
       ),
+      // Every word in the app, 80% to 150% (GMFB-41: "a text-size slider"; lib/ui/text_scale.dart). A size chosen
+      // from the four there were before stands until this is moved.
       SettingRow(
         icon: _icon(LucideMore.type),
         label: 'Text size',
         layout: SettingRowLayout.stacked,
-        control: GlacierSegmentedControl(
-          fullWidth: true,
-          value: app.textSize,
-          onValueChange: (v) => app.set('text_size', v),
-          options: const [
-            GlacierSegmentedOption(value: 'small', label: Text('Small')),
-            GlacierSegmentedOption(value: 'default', label: Text('Default')),
-            GlacierSegmentedOption(value: 'large', label: Text('Large')),
-            GlacierSegmentedOption(value: 'larger', label: Text('Larger')),
-          ],
-        ),
+        control: Row(children: [
+          Expanded(child: TextSizeSlider(key: const ValueKey('text-size'), percent: app.textPercent, onChanged: app.setTextPercent)),
+          SizedBox(width: t.space(3)),
+          // Its own width, whatever the size chosen: the track must not move under the finger that drags it.
+          SizedBox(width: 48, child: Text('${app.textPercent}%', textAlign: TextAlign.right, textScaler: TextScaler.noScaling, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+        ]),
       ),
       SettingRowBox(child: BackgroundPreview(background: ChatBackground.everyChat(app))),
     ]),

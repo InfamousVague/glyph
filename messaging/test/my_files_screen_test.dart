@@ -12,6 +12,8 @@ import 'package:ghost_messaging/account/account_crypto.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/files/drive.dart';
 import 'package:ghost_messaging/files/files_store.dart';
+import 'package:ghost_messaging/friends/buddies.dart';
+import 'package:ghost_messaging/friends/file_card.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
@@ -145,6 +147,48 @@ void main() {
       expect(why, contains('Can\'t reach the files server.'));
       expect(why, contains('It waits in Lounge\'s chat, with Try again.'));
       expect(room.outgoing, hasLength(1));
+    });
+  });
+
+  // GMFB-37, "Send a file from the drive into any chat": a friend's chat carries files too.
+  group('a file sent to a friend', () {
+    Buddy friend(String username, {String name = '', String state = 'yes', int at = 0}) => Buddy(username: username, id: 'id-$username-$at', key: '', name: name, state: state, at: at);
+
+    test('friends on this relay are offered, one of each, by the name shown; none where the phone does the sending', () {
+      final all = [friend('zed'), friend('maya', name: 'Maya'), friend('away'), friend('asked', state: 'asked'), friend('maya', name: 'Maya', at: 5)];
+      bool elsewhere(Buddy b) => b.username == 'away';
+      expect([for (final b in friendsForFiles(from: all, elsewhere: elsewhere, ownNetwork: true)) b.shown], ['Maya', 'zed']);
+      expect(friendsForFiles(from: all, elsewhere: elsewhere, ownNetwork: false), isEmpty);
+    });
+
+    test('it goes up into the account\'s "sent to friends" space and the friend is sent its card; a stop says why', () async {
+      final up = _Uploads();
+      final f = File('${Directory.systemTemp.createTempSync('ghost-send-friend').path}/lease.pdf')..writeAsBytesSync(List.filled(3000, 7));
+      addTearDown(() => f.parent.deleteSync(recursive: true));
+      final mineKey = Me.mineKeyOf(AccountCrypto.newWords());
+      final sent = <(String, String)>[];
+      var taken = true;
+      Future<String?> go() => sendPathToFriend(friend('maya'), f.path, up, byName: 'matt', mineKey: () async => mineKey, send: (to, words) async {
+            if (taken) sent.add((to, words));
+            return taken;
+          }, refusal: () => null);
+
+      expect(await go(), isNull);
+      expect(up.into, FileCard.seedOf(mineKey), reason: 'sealed again for the friend, never the drive\'s own seed');
+      expect(up.into, isNot(drive.seed));
+      expect(sent.single.$1, '@maya');
+      final card = FileCard.of(sent.single.$2)!;
+      expect(card.seed, FileCard.seedOf(mineKey));
+      expect(card.files.single.name, 'lease.pdf');
+      expect(card.files.single.size, 3000);
+      expect(card.line, startsWith('📎 lease.pdf'));
+
+      taken = false;
+      expect(await go(), contains('No connection'));
+      up.failing = true;
+      expect(await go(), 'Can\'t reach the files server.');
+      expect(await sendPathToFriend(friend('maya'), f.path, up, mineKey: () async => null, send: (_, _) async => true, byName: 'matt'), contains('need a Ghost account'));
+      expect(sent, hasLength(1));
     });
   });
 }

@@ -18,6 +18,7 @@ import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'add_me.dart';
 import 'identity_ui.dart';
+import 'own_links_ui.dart';
 import 'vouches_ui.dart';
 import 'common.dart';
 import 'cosmetics_picker.dart';
@@ -200,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               SizedBox(height: t.space(6)),
-              // What the profile wears (GMFB-34): a banner and a name effect.
+              // What the profile wears (GMFB-34): a banner, ready-made or a picture of your own, and a name effect.
               const CosmeticsSection(),
               SizedBox(height: t.space(6)),
               const BadgeSection(),
@@ -228,6 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   SettingRow(icon: AppIcon(Lucide.check, size: 18), label: 'Save', onPress: _saveProfile),
                 ],
               ),
+              SizedBox(height: t.space(6)),
+              // Links of your own, shown on your card to friends as what you say (GMFB-34).
+              const OwnLinksSection(),
               SizedBox(height: t.space(6)),
               // The account's key as a did:key, and statements signed with it (GMFB-33).
               const AccountKeySection(),

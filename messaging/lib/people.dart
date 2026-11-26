@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'account/account.dart';
 import 'app_state.dart';
+import 'platform_info.dart';
 import 'snooze.dart';
 import 'sms.dart' show Sms;
 import 'circles/circles.dart';
@@ -185,8 +186,18 @@ void _checkRelay(AppState app) {
   follow();
 }
 
-/// Snoozes (lib/snooze.dart), each said when it ends: a notification on the phone that opens the app.
+/// Snoozes (lib/snooze.dart), each said when it ends: a notification on the phone that opens the app; on a computer,
+/// which has none of its own, in the app while it is open (GMFB-36).
 void startSnoozed(AppState app) {
-  Snoozed.woke = (key, title) => unawaited(Sms.instance.notifyInbox('snooze:$key', network: 'Snoozed', title: title.isEmpty ? 'A conversation' : title, body: 'Back from snooze'));
+  // Sms.notifyInbox puts one up on an Android phone's own app, and nowhere else.
+  Snoozed.notifies = !Sms.remote && PlatformInfo.isAndroid;
+  Snoozed.woke = (key, title) {
+    final name = title.isEmpty ? 'A conversation' : title;
+    if (Snoozed.notifies) {
+      unawaited(Sms.instance.notifyInbox('snooze:$key', network: 'Snoozed', title: name, body: 'Back from snooze'));
+    } else {
+      Snoozed.back?.call(name);
+    }
+  };
   Snoozed.instance.start(app);
 }

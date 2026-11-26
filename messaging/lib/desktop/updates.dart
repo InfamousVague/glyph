@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pointycastle/digests/sha256.dart';
 
+import 'linux_voice.dart' show findProgram;
+
 /// The Mac app's own updates, so a copy that is installed is never installed again by hand (Matt, 2026-11-13:
 /// "install the app on my mac and make sure it has OTA updates so we don't need to reinstall again").
 ///
@@ -238,6 +240,10 @@ class MacUpdates extends ChangeNotifier {
   /// The command that installs the update this copy brought down and can't put in place itself (a .deb, which
   /// needs root), for Settings to offer to copy; null otherwise.
   String? get installCommand => _phase == MacUpdatePhase.manual && _host is LinuxUpdateHost ? _host.command : null;
+
+  /// Whether putting the update in place will have the computer ask for an administrator's password (Linux from the
+  /// .deb, installed through polkit: [LinuxUpdateHost.asksPassword]), for Settings to say so on the button.
+  bool get asksPassword => _phase == MacUpdatePhase.ready && _host is LinuxUpdateHost && _host.asksPassword;
   final Duration every;
 
   /// Restart into an update as soon as it is in place, with nobody asked (`GHOST_DESK_UPDATE_RESTART=now`).
@@ -325,7 +331,8 @@ class MacUpdates extends ChangeNotifier {
       final answer = await _host.install(zip.path, sha256: found.sha256, bytes: found.bytes);
       if (answer == 'ready') {
         _set(MacUpdatePhase.ready);
-        if (restartWhenReady) unawaited(restart());
+        // Never where that asks for a password, which only a press may bring up.
+        if (restartWhenReady && !asksPassword) unawaited(restart());
       } else if (answer.startsWith('manual: ')) {
         _set(MacUpdatePhase.manual, problem: answer.substring('manual: '.length));
       } else {
@@ -343,7 +350,13 @@ class MacUpdates extends ChangeNotifier {
     if (_phase != MacUpdatePhase.ready) return;
     _set(MacUpdatePhase.restarting);
     final answer = await _host.restart();
-    if (answer != 'restarting') _set(MacUpdatePhase.failed, problem: answer);
+    if (answer == 'restarting') return;
+    // Linux from the .deb, where the password wasn't given or there was nothing to ask for it: the command instead.
+    if (answer.startsWith('manual: ')) {
+      _set(MacUpdatePhase.manual, problem: answer.substring('manual: '.length));
+    } else {
+      _set(MacUpdatePhase.failed, problem: answer);
+    }
   }
 
   /// The release's description; null where nothing has been published there (the server has no such file).
@@ -522,8 +535,9 @@ Future<String> fileSha256(File file) async {
 
 /// How this Linux copy was put on the computer, which decides how it updates (GMFB-32).
 enum LinuxInstall {
-  /// From the .deb: the app's folder is /opt/ghost-messaging, root's. It can't replace itself; the new .deb is brought
-  /// down and checked, and the person is given the one command that installs it.
+  /// From the .deb: the app's folder is /opt/ghost-messaging, root's. The new .deb is brought down and checked, and
+  /// installed with the desktop's own password prompt (polkit's pkexec); where there is none, or the password isn't
+  /// given, the person is given the one command that installs it.
   deb,
 
   /// From the .tar.gz, unpacked where the person chose: the folder is theirs, so the new one is unpacked beside it
@@ -541,15 +555,18 @@ enum LinuxInstall {
 /// - **A folder** ([LinuxInstall.folder], the .tar.gz): the archive is unpacked beside the app's folder
 ///   (`.ghost-messaging-update`), checked to hold the app, and on Restart to update the running folder is moved aside
 ///   (`<folder>.old`, removed at the next start), the new one moved into its place and started, and this copy quits.
-/// - **The .deb** ([LinuxInstall.deb]): brought down into `~/.cache/ghost-messaging/updates`, checked, and given to
-///   the person as `sudo apt install <path>` ([command]): installing a package is root's, and nothing here asks for a
-///   password.
+/// - **The .deb** ([LinuxInstall.deb]): brought down into `~/.cache/ghost-messaging/updates` and checked. Installing a
+///   package is root's, so on Restart to update the desktop is asked to: `pkexec apt-get install -y <path>`
+///   ([installAsRoot]), polkit's own window asking for the password, never this app; then the new copy is started and
+///   this one quits, as on the Mac and Windows. Where there is no pkexec, the password isn't given or apt refuses, the
+///   person is given `sudo apt install <path>` ([command]) to run in a terminal, as before there was this.
 ///
 /// Only a copy made with a build number ([windowsBuild], the same `GHOST_BUILD` define) looks for updates: one run from
 /// a build folder never does.
 class LinuxUpdateHost implements UpdateHost {
-  LinuxUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, LinuxInstall? install, this.launch = _launch, this.quit = _quit, this.unpack = _unpack})
-      : _env = env ?? PlatformInfo.environment,
+  LinuxUpdateHost({Map<String, String>? env, String? exe, int? build, String? version, LinuxInstall? install, this.launch = _launch, this.quit = _quit, this.unpack = _unpack, String? Function()? pkexec, this.asRoot = _asRoot})
+      : _findPkexec = pkexec,
+        _env = env ?? PlatformInfo.environment,
         _exe = exe ?? PlatformInfo.resolvedExecutable,
         _build = build ?? windowsBuild,
         _version = version ?? const String.fromEnvironment('GHOST_VERSION') {
@@ -587,6 +604,27 @@ class LinuxUpdateHost implements UpdateHost {
 
   /// For the .deb, once it is here and checked: the command that installs it.
   String? command;
+
+  /// Runs [command] (pkexec and what it is to run as root) and answers how it ended: 0 for done, 126 where the
+  /// password window was put away, 127 where nobody could be asked.
+  final Future<int> Function(List<String> command) asRoot;
+
+  /// Where polkit's pkexec is, which asks for an administrator's password in a window of the desktop's own; null
+  /// where it isn't installed. Looked for along PATH once (a test says).
+  late final String? pkexec = _findPkexec != null ? _findPkexec() : findProgram('pkexec', env: _env);
+  final String? Function()? _findPkexec;
+
+  /// The .deb waiting to be installed with a password, and the SHA-256 it was checked to have.
+  String? _deb, _debSha;
+
+  /// Whether Restart to update will have the desktop ask for a password: a .deb is here and pkexec is.
+  bool get asksPassword => kind == LinuxInstall.deb && _deb != null;
+
+  /// What installs the .deb at [deb] as root through [pkexec]: apt, by its whole path (pkexec gives what it runs a
+  /// bare PATH), told yes to its one question.
+  static List<String> installAsRoot(String pkexec, String deb) => [pkexec, '/usr/bin/apt-get', 'install', '-y', deb];
+
+  static Future<int> _asRoot(List<String> command) async => (await Process.run(command.first, command.sublist(1))).exitCode;
 
   /// The new app's folder, unpacked and checked, waiting for Restart to update.
   String? _staged;
@@ -662,6 +700,12 @@ class LinuxUpdateHost implements UpdateHost {
     switch (kind) {
       case LinuxInstall.deb:
         command = aptCommand(path);
+        // With pkexec it is ready as any other: Restart to update asks for the password and installs it ([restart]).
+        if (pkexec != null) {
+          _deb = path;
+          _debSha = sha256.toLowerCase();
+          return 'ready';
+        }
         return 'manual: It came from the .deb, which only an administrator can replace. To install it, run $command in a terminal, then open Ghost Messaging again.';
       case LinuxInstall.readOnly:
         return 'manual: Its folder ($_folder) isn\'t yours to change. Download the new one from gogho.st and unpack it where you can write.';
@@ -692,6 +736,7 @@ class LinuxUpdateHost implements UpdateHost {
 
   @override
   Future<String> restart() async {
+    if (kind == LinuxInstall.deb) return _installDeb();
     final staged = _staged;
     if (staged == null || !Directory(staged).existsSync()) return 'The update is gone; it is fetched again later';
     final here = _folder;
@@ -719,6 +764,38 @@ class LinuxUpdateHost implements UpdateHost {
       await launch('$here/$program');
     } catch (e) {
       return 'The new version is in place but would not start ($e). Open Ghost Messaging again.';
+    }
+    quit();
+    return 'restarting';
+  }
+
+  /// The .deb's Restart to update: installed as root through pkexec, whose window asks for the password, then the new
+  /// copy started and this one ended. `manual: …` with the command to run in a terminal where that didn't happen.
+  Future<String> _installDeb() async {
+    final deb = _deb, tool = pkexec;
+    if (deb == null || tool == null || !File(deb).existsSync()) return 'The update is gone; it is fetched again later';
+    // Checked again: it has lain in a folder of the person's since it was, and is about to be installed as root.
+    if (await fileSha256(File(deb)) != _debSha) {
+      _deb = null;
+      return 'The download is not the one the release describes';
+    }
+    int code;
+    try {
+      code = await asRoot(installAsRoot(tool, deb));
+    } catch (_) {
+      code = -1;
+    }
+    if (code != 0) {
+      _deb = null;
+      // 126 is pkexec's for a password window put away.
+      final why = code == 126 ? 'The password wasn\'t given, so it isn\'t installed yet.' : 'It couldn\'t be installed from here.';
+      return 'manual: $why To install it, run $command in a terminal, then open Ghost Messaging again.';
+    }
+    _deb = null;
+    try {
+      await launch('$debFolder/$program');
+    } catch (e) {
+      return 'The new version is installed but would not start ($e). Open Ghost Messaging again.';
     }
     quit();
     return 'restarting';

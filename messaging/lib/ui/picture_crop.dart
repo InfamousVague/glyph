@@ -17,16 +17,19 @@ import '../kit/settings_type.dart';
 import 'common.dart';
 
 /// The square of a picture a window shows: the window is [side] across over a picture drawn [drawn] large and moved
-/// and scaled by [transform]. As shares of the picture, each 0 to 1, kept inside it.
-Rect cropShares(Matrix4 transform, double side, Size drawn) {
+/// and scaled by [transform]. As shares of the picture, each 0 to 1, kept inside it. A window that is not square (a
+/// banner's, GMFB-34) is [side] across and [height] high.
+Rect cropShares(Matrix4 transform, double side, Size drawn, {double? height}) {
   final inverse = Matrix4.inverted(transform);
-  final a = MatrixUtils.transformPoint(inverse, Offset.zero), b = MatrixUtils.transformPoint(inverse, Offset(side, side));
+  final a = MatrixUtils.transformPoint(inverse, Offset.zero), b = MatrixUtils.transformPoint(inverse, Offset(side, height ?? side));
   final w = ((b.dx - a.dx) / drawn.width).clamp(0.0, 1.0), h = ((b.dy - a.dy) / drawn.height).clamp(0.0, 1.0);
   return Rect.fromLTWH((a.dx / drawn.width).clamp(0.0, 1.0 - w), (a.dy / drawn.height).clamp(0.0, 1.0 - h), w, h);
 }
 
-/// Asks which square of [bytes] to keep; null where the person thought better of it or it can't be read.
-Future<Rect?> showPictureCrop(BuildContext context, Uint8List bytes) async {
+/// Asks which square of [bytes] to keep; null where the person thought better of it or it can't be read. With
+/// [shape] (the window's width over its height) other than 1 the window is a band of that shape, with square corners:
+/// a profile's banner (GMFB-34).
+Future<Rect?> showPictureCrop(BuildContext context, Uint8List bytes, {double shape = 1}) async {
   Size? size;
   try {
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
@@ -44,7 +47,7 @@ Future<Rect?> showPictureCrop(BuildContext context, Uint8List bytes) async {
     barrierColor: context.tokens.sheetScrim,
     transitionDuration: const Duration(milliseconds: 160),
     reverseTransitionDuration: const Duration(milliseconds: 120),
-    pageBuilder: (context, _, _) => PictureCrop(image: MemoryImage(bytes), size: size!),
+    pageBuilder: (context, _, _) => PictureCrop(image: MemoryImage(bytes), size: size!, shape: shape),
     transitionsBuilder: (context, a, _, child) => FadeTransition(opacity: a, child: child),
   ));
 }
@@ -52,9 +55,12 @@ Future<Rect?> showPictureCrop(BuildContext context, Uint8List bytes) async {
 /// The card [showPictureCrop] shows: [image], which is [size] in its own pixels, under the window. Pops with the square
 /// chosen.
 class PictureCrop extends StatefulWidget {
-  const PictureCrop({super.key, required this.image, required this.size});
+  const PictureCrop({super.key, required this.image, required this.size, this.shape = 1});
   final ImageProvider image;
   final Size size;
+
+  /// The window's width over its height: 1 for a profile picture's round one, 3 for a banner's band.
+  final double shape;
 
   @override
   State<PictureCrop> createState() => _PictureCropState();
@@ -72,9 +78,12 @@ class _PictureCropState extends State<PictureCrop> {
     super.dispose();
   }
 
-  /// The picture as drawn before any zoom: its short side the window's.
+  /// The window's height, [side] across.
+  double _high(double side) => side / widget.shape;
+
+  /// The picture as drawn before any zoom: just covering the window (its short side the window's, for a square one).
   Size _drawn(double side) {
-    final s = side / math.min(widget.size.width, widget.size.height);
+    final s = math.max(side / widget.size.width, _high(side) / widget.size.height);
     return Size(widget.size.width * s, widget.size.height * s);
   }
 
@@ -83,7 +92,7 @@ class _PictureCropState extends State<PictureCrop> {
     if (_side == side) return;
     _side = side;
     final d = _drawn(side);
-    _move.value = Matrix4.translationValues(-(d.width - side) / 2, -(d.height - side) / 2, 0);
+    _move.value = Matrix4.translationValues(-(d.width - side) / 2, -(d.height - _high(side)) / 2, 0);
   }
 
   /// Larger or smaller about the window's middle, kept over the picture.
@@ -93,8 +102,9 @@ class _PictureCropState extends State<PictureCrop> {
     final d = _drawn(side);
     final now = _move.value.getMaxScaleOnAxis();
     final next = (now * by).clamp(1.0, _most);
-    final middle = _move.toScene(Offset(side / 2, side / 2));
-    final left = (side / 2 - middle.dx * next).clamp(side - d.width * next, 0.0), top = (side / 2 - middle.dy * next).clamp(side - d.height * next, 0.0);
+    final high = _high(side);
+    final middle = _move.toScene(Offset(side / 2, high / 2));
+    final left = (side / 2 - middle.dx * next).clamp(side - d.width * next, 0.0), top = (high / 2 - middle.dy * next).clamp(high - d.height * next, 0.0);
     _move.value = Matrix4.translationValues(left, top, 0)..scaleByDouble(next, next, 1, 1);
   }
 
@@ -105,6 +115,7 @@ class _PictureCropState extends State<PictureCrop> {
     final side = math.max(160.0, math.min(340.0, math.min(screen.width - t.space(4) * 4, screen.height - 300))).floorToDouble();
     _centre(side);
     final drawn = _drawn(side);
+    final high = _high(side), round = widget.shape == 1;
     return Center(
       child: Container(
         key: const ValueKey('picture-crop'),
@@ -117,14 +128,15 @@ class _PictureCropState extends State<PictureCrop> {
           boxShadow: t.shadowOf('0 16px 48px rgba(0,0,0,0.3)'),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Position your picture', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+          Text(round ? 'Position your picture' : 'Position your banner', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
           SizedBox(height: t.space(1)),
           Text('Drag it, and pinch or scroll to make it larger.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           SizedBox(height: t.space(3)),
           ClipRRect(
             borderRadius: BorderRadius.circular(t.radius('lg')),
-            child: SizedBox.square(
-              dimension: side,
+            child: SizedBox(
+              width: side,
+              height: high,
               child: Stack(children: [
                 InteractiveViewer(
                   key: const ValueKey('picture-crop-view'),
@@ -135,7 +147,7 @@ class _PictureCropState extends State<PictureCrop> {
                   child: SizedBox(width: drawn.width, height: drawn.height, child: Image(image: widget.image, fit: BoxFit.fill, filterQuality: FilterQuality.medium, gaplessPlayback: true)),
                 ),
                 // What is outside the round picture, dimmed; never in the way of a touch.
-                Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Window(t.color('app-paper').withValues(alpha: 0.62), t.color('app-ink').withValues(alpha: 0.5))))),
+                if (round) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Window(t.color('app-paper').withValues(alpha: 0.62), t.color('app-ink').withValues(alpha: 0.5))))),
               ]),
             ),
           ),
@@ -148,7 +160,7 @@ class _PictureCropState extends State<PictureCrop> {
           Row(children: [
             Expanded(child: _Button(key: const ValueKey('picture-crop-cancel'), label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
             SizedBox(width: t.space(2)),
-            Expanded(child: _Button(key: const ValueKey('picture-crop-use'), label: 'Use picture', filled: true, onPressed: () => Navigator.of(context).pop(cropShares(_move.value, side, drawn)))),
+            Expanded(child: _Button(key: const ValueKey('picture-crop-use'), label: 'Use picture', filled: true, onPressed: () => Navigator.of(context).pop(cropShares(_move.value, side, drawn, height: high)))),
           ]),
         ]),
       ),

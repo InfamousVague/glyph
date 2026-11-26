@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'desktop/linux_voice.dart' show LinuxVoice;
 import 'files/file_kinds.dart';
 import 'kept_lists.dart';
 import 'package:flutter/services.dart';
@@ -780,8 +781,9 @@ class Sms {
 
   /// Whether a voice message can be recorded here to go as a file (a network's chat, a space, a friend): the phone
   /// itself, and the computers and the iPhone with a recorder of their own (DeskSound.swift on the Mac and the iPhone,
-  /// windows/runner/desk_sound.cpp on Windows; GMFB-32). Not Linux yet, which has none.
-  static bool get canRecordVoice => !remote || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isIOS;
+  /// windows/runner/desk_sound.cpp on Windows; GMFB-32). Linux where the desktop has a program that records
+  /// (pw-record, parecord, arecord or ffmpeg: lib/desktop/linux_voice.dart); with none, no microphone is offered.
+  static bool get canRecordVoice => !remote || PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isIOS || (PlatformInfo.isLinux && LinuxVoice.instance.available);
 
   /// A computer's window rather than a phone's screen: the sizes a window is read at (smaller bubbles and dock).
   static bool get computer => remote && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux || browserWide);
