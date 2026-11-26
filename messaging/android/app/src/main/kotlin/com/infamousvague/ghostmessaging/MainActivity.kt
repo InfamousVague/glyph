@@ -255,6 +255,8 @@ open class MainActivity : FlutterActivity() {
             fun bg(work: () -> Any?) = on(io, work)
             when (call.method) {
                 "status" -> result.success(status())
+                // Android's own question whether the app may run while the phone sleeps (Reach.kt, GMFB-28).
+                "askBattery" -> result.success(Reach.ask(this))
                 "requestDefault" -> requestDefault(result)
                 // Beside Google Messages (GmBridge): Android's page for notification access, and the SMS permissions.
                 "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
@@ -553,7 +555,7 @@ open class MainActivity : FlutterActivity() {
                     null
                 }
                 "cancelInbox" -> bg { Notifier.cancelInbox(applicationContext, call.argument<String>("key")!!); null }
-                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty()); result.success(null) }
+                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty(), call.argument<Boolean>("calls") ?: false); result.success(null) }
                 // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
                 "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
                 "addHiddenLists" -> bg {
@@ -735,6 +737,8 @@ open class MainActivity : FlutterActivity() {
         // front, and what it does as it comes forward, are the app's.
         if (bubble) { if (bubbleThread >= 0) Bubbles.showing.add(bubbleThread); return }
         inFront = true
+        // Open: what was said after a restart about opening it has been done (Reach.kt).
+        Reach.opened(this)
         // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
         io.execute { AccentSync.pull(this) }
         // A look every fifteen minutes for what friends by username wrote while closed; open now, so any "New
@@ -1012,6 +1016,8 @@ open class MainActivity : FlutterActivity() {
             "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
             // Android's own bubble setting for the app (Bubbles.systemState): all, selected, none, or null before 11.
             "bubbles" to Bubbles.systemState(this),
+            // Whether Android lets the app run while the phone sleeps (Reach.kt): a call can ring then.
+            "battery" to Reach.exempt(this),
         )
     }
 
