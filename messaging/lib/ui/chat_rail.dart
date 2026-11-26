@@ -23,7 +23,7 @@
 /// It swells where a finger is on it as it scrolls the chat, or a mouse is over it, as the Mac's Dock does (Matt,
 /// 2026-11-26: "Bring back the magnifying effect when scrolling through the chat map"). The swell follows the pointer
 /// with a little lag and comes and goes gently, and the lines move smoothly as it moves, not a line at a time; the map
-/// shows a smaller stretch of the chat, larger, and moves with it as a frame on what is on the screen (Matt, the same
+/// moves with the chat as a frame on what is on the screen, its lines the size they were (Matt, the same
 /// day: "add some smoothing on the desktop to the chat map it's too jittery when it picks up every little mouse
 /// movement, additionally make it zoomed in on a smaller chunk of chat and have it scroll up and down like there is a
 /// frame of chat history we're viewing instead of a huge chunk of it").
@@ -135,17 +135,17 @@ class ChatRail extends StatefulWidget {
   /// little bit of space for a gutter on the right hand side of the chats in order to render this").
   static const double gutter = width + edge * 2;
 
-  /// The space from one line to the next, always (Matt, 2026-11-25: "dont change the main size of the chatmap"): ten,
-  /// where it was six, so the map shows a smaller stretch of the chat, larger (Matt, 2026-11-26: "make it zoomed in on
-  /// a smaller chunk of chat").
-  static const double pitch = 10;
+  /// The space from one line to the next, always (Matt, 2026-11-25: "dont change the main size of the chatmap"; and
+  /// 2026-11-26, after they were drawn larger for a day: "i don't want the actual chat map to be physically larger
+  /// from what it was before the actual size was good").
+  static const double pitch = 6;
 
   /// How thick a line is.
-  static const double thick = 3.6;
+  static const double thick = 3.2;
 
   /// How much a line is magnified [d] away from the finger or pointer: [magnifyMost] times under it, falling away over
   /// about [magnifyReach], as the Dock's icons do.
-  static const double magnifyMost = 2.4, magnifyReach = 60;
+  static const double magnifyMost = 2.4, magnifyReach = 44;
   static double magnifyAt(double d, [double amount = 1]) => 1 + (magnifyMost - 1) * amount * math.exp(-(d * d) / (2 * _sigma * _sigma));
   static const double _sigma = magnifyReach / 2;
 
