@@ -68,7 +68,7 @@ class Mp4Merge {
     if (pictureMoov != null) {
       final its = _mvhdTimes(_children(pictureMoov, 8).firstWhere((b) => _type(b) == 'mvhd'));
       final trak = _children(pictureMoov, 8).firstWhere((b) => _type(b) == 'trak' && _handler(b) == 'vide');
-      final made = _trak(trak, id: inputs.length + 1, shift: at, from: its.scale, to: scale);
+      final made = _trak(trak, id: inputs.length + 1, shift: at, from: its.scale, to: scale, picture: true);
       traks.add(made.box);
       if (made.duration > longest) longest = made.duration;
     }
@@ -162,7 +162,7 @@ class Mp4Merge {
 
   /// [trak] as track [id], its chunk offsets moved by [shift] and its length (in the movie's time, [from] a second)
   /// said in [to] a second.
-  static ({Uint8List box, int duration}) _trak(Uint8List trak, {required int id, required int shift, required int from, required int to}) {
+  static ({Uint8List box, int duration}) _trak(Uint8List trak, {required int id, required int shift, required int from, required int to, bool picture = false}) {
     var duration = 0;
     int scaled(int v) => from == to || from == 0 ? v : (v * to / from).round();
     // Rebuilds the track box by box: the header takes the new number, the edit list the new time, the chunk offsets
@@ -216,6 +216,8 @@ class Mp4Merge {
             d.setUint64(16 + i * 8, d.getUint64(16 + i * 8) + shift);
           }
           return out;
+        case 'stsd' when picture:
+          return _coloured(box);
         case 'trak' || 'mdia' || 'minf' || 'stbl' || 'edts':
           return _box(type, [for (final c in _children(box, 8)) walk(c, [...path, type])]);
         default:
@@ -225,6 +227,39 @@ class Mp4Merge {
 
     final box = walk(trak, const []);
     return (box: box, duration: duration);
+  }
+
+  /// A video track's sample description with its colours said: BT.709, the narrow range, which is how the picture is
+  /// made (windows/runner/call_video.cpp). Media Foundation's H.264 writer says nothing of them in the file, and a
+  /// player then guesses: some take a 720-line video for BT.709 and some for BT.601, and with the wrong guess a green
+  /// or a pink is plainly another colour. Said here in a `colr` box at the end of each entry that has none; anything
+  /// that is not as expected is left as it is.
+  static Uint8List _coloured(Uint8List stsd) {
+    if (stsd.length < 16) return stsd;
+    final d = ByteData.sublistView(stsd);
+    final entries = <Uint8List>[];
+    var at = 16;
+    while (at + 8 <= stsd.length) {
+      final size = d.getUint32(at);
+      if (size < 8 || at + size > stsd.length) return stsd;
+      final entry = Uint8List.sublistView(stsd, at, at + size);
+      // A picture's entry: 8 bytes of box, 78 of what every picture's entry has, then boxes.
+      final said = size < 86 || _children(entry, 86).any((b) => _type(b) == 'colr');
+      if (said) {
+        entries.add(entry);
+      } else {
+        // nclx: primaries 1, transfer 1 and matrix 1 (BT.709), then a byte whose top bit would say the full range.
+        final colr = _box('colr', [latin1.encode('nclx'), const [0, 1, 0, 1, 0, 1, 0]]);
+        final made = Uint8List(size + colr.length)
+          ..setRange(0, size, entry)
+          ..setRange(size, size + colr.length, colr);
+        ByteData.sublistView(made).setUint32(0, made.length);
+        entries.add(made);
+      }
+      at += size;
+    }
+    if (at != stsd.length) return stsd;
+    return _box('stsd', [stsd.sublist(8, 16), ...entries]);
   }
 
   /// [v] as four bytes, big-endian, as every number in an MP4 is.

@@ -120,6 +120,9 @@ void main() {
     expect(lines[0], contains('aac'));
     expect(lines[1], contains('aac'));
     expect(lines[2], allOf(contains('h264'), contains('video'), contains('1280'), contains('720')), reason: lines[2]);
+    // Its colours are said in the file (BT.709, the narrow range), which the file put in did not say.
+    final colours = Process.runSync(ffprobe, ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=color_range,color_space,color_transfer,color_primaries', '-of', 'csv=p=0', out]);
+    expect('${colours.stdout}'.trim(), 'tv,bt709,bt709,bt709');
     // Every one of its 45 frames is read back, and the whole track decodes with no error.
     expect(lines[2].split(','), contains('45'), reason: lines[2]);
     final dec = Process.runSync(ffmpeg, ['-v', 'error', '-xerror', '-i', out, '-map', '0:v', '-f', 'null', '-']);
