@@ -207,10 +207,13 @@ void main() {
   });
 
   group('the choice at the start, and which devices have it', () {
-    test('video is a Mac\'s: not a phone\'s, a browser\'s, nor yet Windows\' or Linux\'s', () {
+    test('video is a Mac\'s and a Windows PC\'s: not a phone\'s, a browser\'s or Linux\'s', () {
       expect(RecordingVideo.supportedOn(web: false, macOS: true), isTrue);
       expect(RecordingVideo.supportedOn(web: false, macOS: false), isFalse);
       expect(RecordingVideo.supportedOn(web: true, macOS: true), isFalse);
+      // A Windows PC too (Matt, 2026-11-26: "Build Windows too"); never in a browser.
+      expect(RecordingVideo.supportedOn(web: false, macOS: false, windows: true), isTrue);
+      expect(RecordingVideo.supportedOn(web: true, macOS: false, windows: true), isFalse);
       expect(CallRecorder.videoSupported, !kIsWeb && Platform.isMacOS);
     });
 

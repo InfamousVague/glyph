@@ -90,6 +90,57 @@ void main() {
     }
   }, skip: skip);
 
+  test('a file of video is put in after the voices, every frame of it still read, and one that is not video is left out', () async {
+    final dir = Directory.systemTemp.createTempSync('merge');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final parts = <String>[];
+    for (final (i, hz) in [440.0, 880.0].indexed) {
+      final pcm = '${dir.path}/$i.pcm';
+      File(pcm).writeAsBytesSync(tone(hz, 3));
+      final out = '${dir.path}/$i.m4a';
+      expect(Process.runSync(ffmpeg!, ['-v', 'error', '-f', 's16le', '-ar', '48000', '-ac', '1', '-i', pcm, '-c:a', 'aac', '-b:a', '128k', out]).exitCode, 0);
+      parts.add(out);
+    }
+    // Three seconds of a moving pattern, 1280 by 720 at fifteen a second, H.264 with no frames out of order, in an
+    // MP4 with its movie box last: what the Windows half writes (windows/runner/call_video.cpp).
+    final video = '${dir.path}/video.mp4';
+    final made = Process.runSync(ffmpeg!, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=15', '-t', '3', '-c:v', 'libx264', '-bf', '0', '-pix_fmt', 'yuv420p', video]);
+    if (made.exitCode != 0) {
+      markTestSkipped('this ffmpeg has no H.264 encoder: ${made.stderr}');
+      return;
+    }
+    final out = '${dir.path}/call.mp4';
+    expect(await Mp4Merge.merge(parts, out, video: video), isTrue);
+    await Mp4Names.apply(out, ['Everyone', 'Maya']);
+    final probe = Process.runSync(ffprobe!, ['-v', 'error', '-count_frames', '-show_entries', 'stream=index,codec_type,codec_name,width,height,nb_read_frames,duration', '-of', 'csv=p=0', out]);
+    expect(probe.exitCode, 0, reason: '${probe.stderr}');
+    expect('${probe.stderr}', isEmpty);
+    final lines = '${probe.stdout}'.trim().split('\n');
+    expect(lines, hasLength(3), reason: '${probe.stdout}');
+    expect(lines[0], contains('aac'));
+    expect(lines[1], contains('aac'));
+    expect(lines[2], allOf(contains('h264'), contains('video'), contains('1280'), contains('720')), reason: lines[2]);
+    // Every one of its 45 frames is read back, and the whole track decodes with no error.
+    expect(lines[2].split(','), contains('45'), reason: lines[2]);
+    final dec = Process.runSync(ffmpeg, ['-v', 'error', '-xerror', '-i', out, '-map', '0:v', '-f', 'null', '-']);
+    expect(dec.exitCode, 0, reason: '${dec.stderr}');
+    expect('${dec.stderr}', isEmpty);
+    // The voices are still their own tones.
+    for (final (i, hz) in [440.0, 880.0].indexed) {
+      final back = '${dir.path}/back$i.pcm';
+      expect(Process.runSync(ffmpeg, ['-v', 'error', '-xerror', '-i', out, '-map', '0:$i', '-f', 's16le', '-ar', '48000', '-ac', '1', back]).exitCode, 0);
+      expect(pitch(File(back).readAsBytesSync()), closeTo(hz, hz * 0.02));
+    }
+
+    // A "video" that is a voice's file, junk, or not there: left out, the voices made as before.
+    for (final not in [parts[0], (File('${dir.path}/junk.mp4')..writeAsBytesSync(List.filled(64, 7))).path, '${dir.path}/none.mp4']) {
+      final plain = '${dir.path}/plain.mp4';
+      expect(await Mp4Merge.merge(parts, plain, video: not), isFalse);
+      final p = Process.runSync(ffprobe, ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', plain]);
+      expect('${p.stdout}'.trim().split('\n'), ['audio', 'audio']);
+    }
+  }, skip: skip);
+
   test('a file with no sound, or none at all, is said so and nothing is half made', () async {
     final dir = Directory.systemTemp.createTempSync('merge');
     addTearDown(() => dir.deleteSync(recursive: true));

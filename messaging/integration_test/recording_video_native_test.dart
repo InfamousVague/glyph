@@ -5,23 +5,28 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:ghost_messaging/platform_info.dart';
 import 'package:ghost_messaging/voice/recorder.dart';
 import 'package:ghost_messaging/voice/recording_video.dart';
 import 'package:integration_test/integration_test.dart';
 
-/// A recording with video made by the Mac app itself from a real connection (GMFB-42: "Stays In progress until a Mac
+/// A recording with video made by the app itself, on a Mac or on Windows, from a real connection (GMFB-42: "Stays In progress until a Mac
 /// has recorded a real call"): a browser sends this app a voice, a camera and a second picture standing in for a
-/// shared screen over WebRTC, and the recorder's native half (macos/Runner/CallRecorder.swift, CallVideo.swift) is
+/// shared screen over WebRTC, and the recorder's native half (macos/Runner/CallRecorder.swift and CallVideo.swift, or
+/// windows/runner/call_recorder.cpp and call_video.cpp) is
 /// told what lib/voice/recorder.dart tells it in a call: the voice tapped, the picture begun, laid out three ways
 /// (a grid, a screen large, a grid of three), ended and put into the MP4 after the voices.
 ///
-/// Nothing of the person's is used: no camera or microphone of this Mac (it only receives), no account, no relay, and
+/// On Windows it is run by GitHub (.github/workflows/messaging-windows-video-check.yml: push the branch
+/// `windows-video-check`), which keeps the recording to be looked at.
+///
+/// Nothing of the person's is used: no camera or microphone of this computer (it only receives), no account, no relay, and
 /// the files go where REC_DIR says. It is half of a run; the other half is tool/voicebench/video_peer.mjs, a
 /// Chromium with stand-in devices, which opens the page this serves:
 ///
 ///     node tool/voicebench/video_peer.mjs 47931 &
 ///     flutter test integration_test/recording_video_native_test.dart -d macos \
-///       --dart-define=REC_DIR=<a scratch folder> --dart-define=REC_PORT=47931
+///       --dart-define=REC_DIR=<a scratch folder> --dart-define=REC_PORT=47931        (-d windows on a PC)
 ///
 /// It prints `REC-VIDEO-FILE <path>`: read it with ffprobe, and look at frames of it
 /// (`ffmpeg -ss 2 -i <path> -frames:v 1 a.png`, and at 6 and 10 seconds for the other two layouts).
@@ -139,7 +144,9 @@ void main() {
     await Future<void>.delayed(const Duration(seconds: 2));
 
     // The recording, told as lib/voice/recorder.dart tells it.
-    final mine = '${dir.path}/me.pcm', hers = '${dir.path}/maya.pcm', picture = '${dir.path}/video.mov';
+    final mine = '${dir.path}/me.pcm', hers = '${dir.path}/maya.pcm';
+    // As lib/voice/recorder.dart names it: an MP4 on Windows, whose writer goes by the name's ending.
+    final picture = PlatformInfo.isWindows ? '${dir.path}/video.mp4' : '${dir.path}/video.mov';
     expect(await channel.invokeMethod('start', {'mic': mine, 'muted': true}), isTrue);
     expect(await channel.invokeMethod('add', {'key': 'maya', 'track': voice, 'path': hers}), isTrue);
     expect(

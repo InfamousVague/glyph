@@ -16,18 +16,16 @@
 /// (macos/Runner/CallVideo.swift) is handed the plate and, for each picture, a track and a place: it lays the newest
 /// frame of each over the plate fifteen times a second and encodes what it gets.
 ///
-/// **Computers, the Mac first.** [supported] is the Mac alone. A phone records the voices as before. Windows and Linux
-/// record the voices as before too, and are not offered video; what Windows would need:
+/// **Computers: a Mac and a Windows PC.** [supported] is those two. A phone records the voices as before, and so does
+/// Linux, which is not offered video. Each has a native half of its own that is handed the same plate and tiles and
+/// makes a file of video beside the voices' files:
 ///
-/// - windows/runner/call_recorder.cpp takes `video.start`, `video.layout` and `video.stop` as CallVideo.swift does.
-/// - Frames: a `libwebrtc::RTCVideoRenderer<scoped_refptr<RTCVideoFrame>>` added to each `RTCVideoTrack`, found by id
-///   through flutter_webrtc's `MediaTrackForId` as the voices' tracks already are; `RTCVideoFrame::ConvertToARGB`
-///   gives a frame as BGRA, scaled into its place over the plate (StretchBlt with HALFTONE, or Direct2D).
-/// - Encoding: a Media Foundation sink writer with an H.264 video stream (`MFVideoFormat_H264`, 1280 by 720, 15 a
-///   second, 1.6 Mb/s) fed the composed frames as RGB32, into an MP4 of its own beside the voices' files.
-/// - Putting it in the file: lib/voice/mp4_merge.dart takes the first sound track of each input; it would take that
-///   video file's `vide` track as well, last, with its `vmhd` and `stss` carried as they are.
-/// - Then [supportedOn] says yes for Windows, and nothing else here changes.
+/// - A Mac: macos/Runner/CallVideo.swift (Core Image over the plate, AVAssetWriter's H.264), and CallRecorder's mux
+///   copies the track into the MP4.
+/// - Windows (Matt, 2026-11-26: "Build Windows too"): windows/runner/call_video.cpp (a renderer on each track through
+///   flutter_webrtc's `MediaTrackForId`, frames scaled over the plate there, Media Foundation's H.264 writer fed NV12),
+///   and lib/voice/mp4_merge.dart puts the track in after the voices. Where that Windows has no H.264 encoder the
+///   picture's file can't be begun, and the recording is the voices, as it is said to be when it starts.
 library;
 
 import 'dart:math' as math;
@@ -129,12 +127,12 @@ abstract final class RecordingVideo {
   /// How wide the cameras beside a shared screen are.
   static const side = 256.0;
 
-  /// Whether a device records video: a Mac. Not a phone (it records the voices, as before), not a browser, and not
-  /// Windows or Linux until they have what the library's words above list.
-  static bool supportedOn({required bool web, required bool macOS}) => !web && macOS;
+  /// Whether a device records video: a Mac or a Windows PC. Not a phone (it records the voices, as before), not a
+  /// browser, and not Linux.
+  static bool supportedOn({required bool web, required bool macOS, bool windows = false}) => !web && (macOS || windows);
 
   /// Whether this device records video.
-  static bool get supported => supportedOn(web: kIsWeb, macOS: !kIsWeb && PlatformInfo.isMacOS);
+  static bool get supported => supportedOn(web: kIsWeb, macOS: !kIsWeb && PlatformInfo.isMacOS, windows: !kIsWeb && PlatformInfo.isWindows);
 
   /// Who has a tile in the recording [recording], this device's person first, and whether a picture may be drawn in
   /// it. [own] is this device's picture while its camera is on or its screen shared; [pictures] is each other

@@ -6,6 +6,10 @@
 /// encoded again: each input's sound track is taken as it is, given the next track number, and every chunk offset in
 /// it moved by where its file now begins. An input's own movie box rides along inside the media, unread: a few
 /// hundred bytes a track.
+///
+/// A recording with video (GMFB-42, lib/voice/recording_video.dart): the picture is a file of its own too, one video
+/// track made by Media Foundation's H.264 writer (windows/runner/call_video.cpp), and it is put in the same way, as
+/// the last track, after the voices.
 library;
 
 import 'dart:convert';
@@ -14,10 +18,26 @@ import 'dart:typed_data';
 
 /// Puts one-track MP4s together into one file of many tracks, by moving their boxes about: [merge] is all of it.
 class Mp4Merge {
-  /// Writes [out] with the first sound track of each of [inputs], in their order.
-  static Future<void> merge(List<String> inputs, String out) async {
+  /// Writes [out] with the first sound track of each of [inputs], in their order, and after them the first video
+  /// track of [video] where one is named. True where the file has that picture: a [video] that can't be read (no
+  /// file, no movie box, no video in it) is left out and the voices are made as they would be without it.
+  static Future<bool> merge(List<String> inputs, String out, {String? video}) async {
     if (inputs.isEmpty) throw const FormatException('nothing to put together');
-    final lengths = [for (final p in inputs) File(p).lengthSync()];
+    // The picture's movie box, read before anything is written: null where it can't be used.
+    Uint8List? pictureMoov;
+    if (video != null) {
+      try {
+        final moov = await _moovOf(video, File(video).lengthSync());
+        final has = _children(moov, 8).any((b) => _type(b) == 'trak' && _handler(b) == 'vide') && _children(moov, 8).any((b) => _type(b) == 'mvhd');
+        if (has) pictureMoov = moov;
+      } on FormatException {
+        // Left out.
+      } on FileSystemException {
+        // Left out.
+      }
+    }
+    final files = [...inputs, if (pictureMoov != null) video!];
+    final lengths = [for (final p in files) File(p).lengthSync()];
     final media = lengths.fold<int>(0, (a, b) => a + b);
     final ftyp = _box('ftyp', [latin1.encode('isom'), _u32(0x200), latin1.encode('isomiso2mp41')]);
     // A 64-bit length for the media always: a long call of many voices is past four gigabytes only rarely, and a
@@ -45,12 +65,19 @@ class Mp4Merge {
       if (made.duration > longest) longest = made.duration;
       at += lengths[i];
     }
-    final moov = _box('moov', [_mvhd(mvhd!, duration: longest, next: inputs.length + 1), ...traks]);
+    if (pictureMoov != null) {
+      final its = _mvhdTimes(_children(pictureMoov, 8).firstWhere((b) => _type(b) == 'mvhd'));
+      final trak = _children(pictureMoov, 8).firstWhere((b) => _type(b) == 'trak' && _handler(b) == 'vide');
+      final made = _trak(trak, id: inputs.length + 1, shift: at, from: its.scale, to: scale);
+      traks.add(made.box);
+      if (made.duration > longest) longest = made.duration;
+    }
+    final moov = _box('moov', [_mvhd(mvhd!, duration: longest, next: files.length + 1), ...traks]);
     final sink = await File(out).open(mode: FileMode.write);
     try {
       await sink.writeFrom(ftyp);
       await sink.writeFrom(mdatHead);
-      for (final p in inputs) {
+      for (final p in files) {
         final raf = await File(p).open();
         try {
           while (true) {
@@ -66,6 +93,7 @@ class Mp4Merge {
     } finally {
       await sink.close();
     }
+    return pictureMoov != null;
   }
 
   /// The movie box (`moov`) of the file at [path], found by stepping over its top-level boxes. Throws a
@@ -101,12 +129,15 @@ class Mp4Merge {
     throw FormatException('no movie box in $path');
   }
 
-  /// Whether a track is sound: its handler (`mdia` › `hdlr`) says `soun`.
-  static bool _isSound(Uint8List trak) {
+  /// Whether a track is sound: its handler says `soun`.
+  static bool _isSound(Uint8List trak) => _handler(trak) == 'soun';
+
+  /// What a track is, by its handler (`mdia` › `hdlr`): `soun`, `vide`; empty where it has none.
+  static String _handler(Uint8List trak) {
     final mdia = _children(trak, 8).where((b) => _type(b) == 'mdia').firstOrNull;
-    if (mdia == null) return false;
+    if (mdia == null) return '';
     final hdlr = _children(mdia, 8).where((b) => _type(b) == 'hdlr').firstOrNull;
-    return hdlr != null && hdlr.length >= 20 && latin1.decode(hdlr.sublist(16, 20)) == 'soun';
+    return hdlr != null && hdlr.length >= 20 ? latin1.decode(hdlr.sublist(16, 20)) : '';
   }
 
   /// A movie header's units a second and its length in them; version 1 keeps its times in 64 bits, so they sit
