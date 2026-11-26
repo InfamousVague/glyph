@@ -21,6 +21,7 @@ import '../sms.dart';
 import 'common.dart';
 import 'handover_screens.dart' show HandoverApproveScreen;
 import 'settings.dart';
+import '../l10n/words.dart';
 
 /// One of the three ways a phone and a computer reach each other.
 class ConnectionMode {
@@ -129,7 +130,7 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Paired computers',
-      footer: m.computers.isEmpty ? const Text('None yet. Ghost Messaging on a computer shows this phone\'s conversations and sends texts through it. The phone stays the only thing that texts.') : null,
+      footer: m.computers.isEmpty ? const Tr('None yet. Ghost Messaging on a computer shows this phone\'s conversations and sends texts through it. The phone stays the only thing that texts.') : null,
       children: [
         for (final c in m.computers)
           SettingRow(
@@ -141,7 +142,7 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: icon(LucideMore.qrCode),
           label: 'Pair a computer',
-          hint: const Text('Scan the code Ghost Messaging shows on the computer.'),
+          hint: const Tr('Scan the code Ghost Messaging shows on the computer.'),
           onPress: () async {
             await push<void>(context, (_) => const PairComputerScreen());
             m.refresh();
@@ -155,24 +156,24 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: icon(Lucide.lock),
           label: 'Sealed between the two',
-          hint: const Text('Everything the phone and a paired computer say to each other is sealed with a key only they hold, made when they pair. On the local network it goes straight from one to the other. A relay only ever carries the sealed data: it learns that the two are paired, and nothing they say.'),
+          hint: const Tr('Everything the phone and a paired computer say to each other is sealed with a key only they hold, made when they pair. On the local network it goes straight from one to the other. A relay only ever carries the sealed data: it learns that the two are paired, and nothing they say.'),
         ),
         SettingRow(
           icon: icon(Lucide.info),
           label: 'What a computer can do',
-          hint: const Text('Read your conversations and pictures, send texts through this phone, mark as read, pin, mute and archive. It cannot delete, block, or change encryption. Texts are not kept on the computer\'s disk.'),
+          hint: const Tr('Read your conversations and pictures, send texts through this phone, mark as read, pin, mute and archive. It cannot delete, block, or change encryption. Texts are not kept on the computer\'s disk.'),
         ),
       ],
     ),
     if (m.computers.isNotEmpty)
       PaneSection(
         title: 'Staying reachable',
-        footer: const Text('In deep sleep (still, unplugged, screen off for a long while) Android cuts every app\'s network. New texts still reach the computer, since Android lets them through. What you type on the computer waits there until the phone wakes, unless battery use is Unrestricted.'),
+        footer: const Tr('In deep sleep (still, unplugged, screen off for a long while) Android cuts every app\'s network. New texts still reach the computer, since Android lets them through. What you type on the computer waits there until the phone wakes, unless battery use is Unrestricted.'),
         children: [
           SettingRow(
             icon: icon(Lucide.bell),
             label: 'The "Paired with…" notification',
-            hint: const Text('Android stops an app minutes after the screen goes off unless it shows a notification, and won\'t let the app hide it. It is as quiet as Android allows: one line at the foot of the shade, no icon, no sound. Press to turn it off on Android\'s page; the computer still reaches the phone.'),
+            hint: const Tr('Android stops an app minutes after the screen goes off unless it shows a notification, and won\'t let the app hide it. It is as quiet as Android allows: one line at the foot of the shade, no icon, no sound. Press to turn it off on Android\'s page; the computer still reaches the phone.'),
             onPress: () => Sms.instance.deskNotificationSettings(),
           ),
           if (m.phoneAddresses.isNotEmpty)
@@ -384,7 +385,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
         if (_pasting) ...[
           GlacierInput(
             controller: _code,
-            placeholder: 'GHOSTPAIR1:…',
+            placeholder: 'GHOSTPAIR1:…'.t,
             ariaLabel: 'The pairing code',
             autoCorrect: false,
             autoCapitalize: TextCapitalization.none,

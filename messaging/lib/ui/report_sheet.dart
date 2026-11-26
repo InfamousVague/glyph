@@ -36,6 +36,7 @@ import 'common.dart';
 import 'composer_box.dart' show composerSemantics;
 import 'drawer_head.dart' show DrawerHead;
 import 'settings_panes.dart' show appVersion;
+import '../l10n/words.dart';
 
 /// Who or what is reported, from where it was opened.
 class ReportTarget {
@@ -225,7 +226,7 @@ class _ReportFormState extends State<ReportForm> {
                 key: const ValueKey('report-block-only'),
                 icon: AppIcon(Lucide.ban, size: 18),
                 label: 'Block ${_t.shown}',
-                hint: const Text('Ends being friends; their friend requests and messages to you are dropped.'),
+                hint: const Tr('Ends being friends; their friend requests and messages to you are dropped.'),
                 disabled: _sending,
                 onPress: _sending ? null : () => unawaited(_blockOnly()),
               ),
@@ -270,7 +271,7 @@ class _ReportFormState extends State<ReportForm> {
                   padding: EdgeInsets.all(t.space(3)),
                   decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                   child: Stack(children: [
-                    if (_note.text.isEmpty) IgnorePointer(child: Text('A note for the reviewer (optional)', style: ink.copyWith(color: t.color('app-ink-3')))),
+                    if (_note.text.isEmpty) IgnorePointer(child: Tr('A note for the reviewer (optional)', style: ink.copyWith(color: t.color('app-ink-3')))),
                     // In a browser, named and focused as a composer's words are there (composerSemantics), or it could be
                     // read and never written in with the page's tree for screen readers on. Elsewhere as it was.
                     _noteSemantics(
@@ -301,7 +302,7 @@ class _ReportFormState extends State<ReportForm> {
             gap,
             PaneSection(
               title: 'What goes with it',
-              description: const Text('The relay can\'t read your chats, so the message and a few either side go with the report, sealed for the reviewer alone.'),
+              description: const Tr('The relay can\'t read your chats, so the message and a few either side go with the report, sealed for the reviewer alone.'),
               children: [
                 for (final m in _t.messages)
                   SettingRow(
@@ -317,7 +318,7 @@ class _ReportFormState extends State<ReportForm> {
             PaneSection(children: [
               SettingRow(
                 label: 'Also block ${_t.shown}',
-                hint: const Text('Ends being friends; their friend requests and messages to you are dropped.'),
+                hint: const Tr('Ends being friends; their friend requests and messages to you are dropped.'),
                 control: GlacierSwitch(
                   key: const ValueKey('report-block'),
                   checked: _block,
@@ -330,7 +331,7 @@ class _ReportFormState extends State<ReportForm> {
           ],
           gap,
           PaneSection(
-            footer: const Text('Sealed on this device to the reviewer\'s key: nobody else, the relay included, can open it. The person isn\'t told who reported them.'),
+            footer: const Tr('Sealed on this device to the reviewer\'s key: nobody else, the relay included, can open it. The person isn\'t told who reported them.'),
             children: [
               SettingRow(
                 key: const ValueKey('report-send'),
@@ -384,7 +385,7 @@ class ReportsMadeList extends StatelessWidget {
     final list = MadeReport.readAll(AppState.of(context).choice(reportsMadeKey, '[]'));
     return PaneSection(
       title: 'Reports you\'ve made',
-      description: const Text('Kept on this device alone. Each went sealed to the Ghost Messaging reviewer; the person wasn\'t told who reported them.'),
+      description: const Tr('Kept on this device alone. Each went sealed to the Ghost Messaging reviewer; the person wasn\'t told who reported them.'),
       children: [
         if (list.isEmpty) const SettingRow(key: ValueKey('reports-made-none'), label: 'You haven\'t reported anyone'),
         for (final r in list.take(math.min(list.length, MadeReport.most)))

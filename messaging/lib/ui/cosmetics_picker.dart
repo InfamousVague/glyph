@@ -14,6 +14,7 @@ import 'common.dart';
 import 'circles/circle_picture.dart' show pickBannerPicture;
 import 'cosmetics_ui.dart';
 import 'profile_card.dart' show ProfileFace;
+import '../l10n/words.dart';
 
 /// Profile › Look (GMFB-34): what your profile wears, each kind a row opening its pieces, with how you look now at the
 /// top: your face dressed, your name in its effect, over your banner.
@@ -29,7 +30,7 @@ class CosmeticsSection extends StatelessWidget {
         final c = me.cosmetics;
         return PaneSection(
           title: 'Look',
-          description: const Text('Dress your profile. Friends and people in your spaces see it on your profile card.'),
+          description: const Tr('Dress your profile. Friends and people in your spaces see it on your profile card.'),
           children: [
             SettingRowBox(child: _Preview(cosmetics: c, name: me.shownName, picture: me.pictureOwn, banner: me.banner)),
             for (final kind in CosmeticKind.worn)

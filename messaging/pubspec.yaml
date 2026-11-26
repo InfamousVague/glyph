@@ -69,6 +69,8 @@ flutter:
     - assets/onboarding/
     # The app's own mark, cut from its icon (tool/app_icon.py).
     - assets/art/
+    # The app's words in each language but English, which is in the code (lib/l10n/words.dart, tool/l10n.dart).
+    - assets/l10n/
     # The interface sounds, made by tool/ui_sounds.py (lib/sounds.dart).
     - assets/sounds/
     # The Soundboard plugin's own sounds (tool/soundboard_sounds.py; lib/voice/soundboard.dart).

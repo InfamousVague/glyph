@@ -42,6 +42,7 @@ import 'dialup/bevel.dart';
 import 'drawer_head.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
+import '../l10n/words.dart';
 
 /// What people are being added to: a space or a circle, and how each kind of invite reaches them.
 class InviteTarget {
@@ -459,7 +460,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
                         padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(1)),
                         child: GlacierSearchField(
                           key: const ValueKey('invite-search'),
-                          placeholder: 'Search friends and contacts',
+                          placeholder: 'Search friends and contacts'.t,
                           size: GlacierFieldSize.md,
                           onValueChange: (v) => setState(() => _query = v),
                         ),

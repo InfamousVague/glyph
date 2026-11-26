@@ -36,6 +36,7 @@ import '../shell.dart';
 import 'market_flows.dart';
 import 'market_forms.dart' show issueLines;
 import 'try_pack.dart';
+import '../../l10n/words.dart';
 
 /// How a dev pack came, in the row's words.
 String _fromWords(DevSource s) => switch (s.kind) {
@@ -84,13 +85,13 @@ List<Widget> devPluginsPane(BuildContext context, AppState app, {PluginRegistry?
       description: Text('Load a plugin you\'re making to try it on this ${pluginsHere()}. It isn\'t reviewed, and runs only while Developer mode is on.'),
       children: [
         if (canPickPluginFile)
-          SettingRow(key: const ValueKey('dev-plugin-file'), icon: icon(Lucide.folderOpen), label: 'Load a plugin from a file', hint: const Text('A .ghostplugin file.'), onPress: () => unawaited(_fromFile(context))),
-        SettingRow(key: const ValueKey('dev-plugin-paste'), icon: icon(Lucide.clipboardPaste), label: 'Paste a plugin', hint: const Text('Its words, copied from anywhere.'), onPress: () => unawaited(_pasted(context))),
+          SettingRow(key: const ValueKey('dev-plugin-file'), icon: icon(Lucide.folderOpen), label: 'Load a plugin from a file', hint: const Tr('A .ghostplugin file.'), onPress: () => unawaited(_fromFile(context))),
+        SettingRow(key: const ValueKey('dev-plugin-paste'), icon: icon(Lucide.clipboardPaste), label: 'Paste a plugin', hint: const Tr('Its words, copied from anywhere.'), onPress: () => unawaited(_pasted(context))),
         SettingRow(
           key: const ValueKey('dev-plugin-link'),
           icon: icon(Lucide.link),
           label: 'Load a plugin from a link',
-          hint: const Text('https, or http://127.0.0.1 with adb reverse. Reload fetches it again.'),
+          hint: const Tr('https, or http://127.0.0.1 with adb reverse. Reload fetches it again.'),
           onPress: () => askCircleWords(context, title: 'Load a plugin from a link', hint: 'Its address: https, or http://127.0.0.1 with adb reverse.', then: (words) {
             final url = Uri.tryParse(words.trim());
             if (words.trim().isEmpty) return;
@@ -271,15 +272,15 @@ class DevPluginScreen extends StatelessWidget {
                       ]),
                       PaneSection(key: ValueKey('dev-plugin-issues-$packId'), title: 'Problems', children: [
                         if (d.issues.isEmpty)
-                          SettingRowBox(child: Text('None: it checks out.', style: mono))
+                          SettingRowBox(child: Tr('None: it checks out.', style: mono))
                         else
                           SettingRowBox(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             for (final line in issueLines(d.issues, (i) => '${i.isError ? '' : 'warning '}${i.code}${i.path.isEmpty ? '' : ' at ${i.path}'}: ${i.message}')) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: Text(line, style: mono)),
                           ])),
                       ]),
-                      PaneSection(key: ValueKey('dev-plugin-errors-$packId'), title: 'Lately', footer: const Text('What it threw, or was refused, while it ran: the newest first.'), children: [
+                      PaneSection(key: ValueKey('dev-plugin-errors-$packId'), title: 'Lately', footer: const Tr('What it threw, or was refused, while it ran: the newest first.'), children: [
                         if (d.errors.isEmpty)
-                          SettingRowBox(child: Text('Nothing has gone wrong yet.', style: mono))
+                          SettingRowBox(child: Tr('Nothing has gone wrong yet.', style: mono))
                         else
                           SettingRowBox(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             for (final e in d.errors) Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: Text('${when(e.at)} ${e.line}', style: mono)),
@@ -299,7 +300,7 @@ class DevPluginScreen extends StatelessWidget {
                       // Paused for slowing the app down, as a store pack is: the pause is kept for this copy across a
                       // reload of the same file and a restart, so it is turned back on here, or on its page (D.4).
                       if (d.problem == 'paused')
-                        SettingRow(key: ValueKey('dev-plugin-unpause-$packId'), icon: icon(Lucide.play), label: 'Turn it back on', hint: const Text('Paused: it was slowing the app down.'), onPress: () => here.unpause(packId)),
+                        SettingRow(key: ValueKey('dev-plugin-unpause-$packId'), icon: icon(Lucide.play), label: 'Turn it back on', hint: const Tr('Paused: it was slowing the app down.'), onPress: () => here.unpause(packId)),
                       if (d.source.reloadable)
                         SettingRow(key: ValueKey('dev-plugin-reload-$packId'), icon: icon(Lucide.refreshCw), label: 'Reload', hint: Text(d.source.kind == 'link' ? 'Fetches it again from ${d.source.url}.' : 'Reads the file again.'), onPress: () => unawaited(loadDevPlugin(context, () => here.reloadDev(packId)))),
                       if (shell != null)
@@ -307,13 +308,13 @@ class DevPluginScreen extends StatelessWidget {
                       // Its newest copy is what would be sent: one that doesn't load can't be, and the form opened on
                       // it held another plugin (review, 2026-11-20).
                       if (shell != null && !marketOnIphone)
-                        SettingRow(key: ValueKey('dev-plugin-submit-$packId'), icon: icon(Lucide.send), label: 'Submit it to the Marketplace', hint: d.pack == null ? const Text('Put its problems right first.') : null, disabled: d.pack == null, onPress: d.pack == null ? null : () => shell.marketplace(section: 'submit', arg: packId)),
+                        SettingRow(key: ValueKey('dev-plugin-submit-$packId'), icon: icon(Lucide.send), label: 'Submit it to the Marketplace', hint: d.pack == null ? const Tr('Put its problems right first.') : null, disabled: d.pack == null, onPress: d.pack == null ? null : () => shell.marketplace(section: 'submit', arg: packId)),
                       SettingRow(
                         key: ValueKey('dev-plugin-remove-$packId'),
                         icon: icon(Lucide.trash2),
                         label: 'Remove',
                         labelColor: t.color('app-danger'),
-                        hint: const Text('Its copy goes from this device. Your choices for it are kept for when you load it again.'),
+                        hint: const Tr('Its copy goes from this device. Your choices for it are kept for when you load it again.'),
                         onPress: () async {
                           final out = await here.removeDev(packId);
                           if (!context.mounted) return;

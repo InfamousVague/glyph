@@ -27,6 +27,7 @@ import 'sign_up_from.dart';
 import 'special_badges.dart';
 import 'username_friends.dart' show acceptRequest, requestLine;
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 /// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
 /// username and add friends on the platform"): a username people find you by, held on the relay server's directory
@@ -165,7 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Not in a browser, which can't choose a picture yet (Sms.browser).
               if (!Sms.browser) PaneSection(
                 title: 'Picture',
-                description: const Text('Shown to your friends, and to people in your spaces and circles who open your profile.'),
+                description: const Tr('Shown to your friends, and to people in your spaces and circles who open your profile.'),
                 children: [
                   SettingRow(
                     icon: ProfileFace(key: const ValueKey('profile-picture'), name: me.shownName, picture: me.pictureOwn, size: 40),
@@ -182,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // How you are shown (GMFB-34): Online, Away, Busy or Invisible, as Discord has them.
               PaneSection(
                 title: 'Show me as',
-                description: const Text('What friends and contacts see on your picture. Invisible looks offline; you can still send and get messages.'),
+                description: const Tr('What friends and contacts see on your picture. Invisible looks offline; you can still send and get messages.'),
                 children: [
                   for (final (mode, label, hint) in const [
                     ('online', 'Online', 'Green while you use the app, away when you put it away'),
@@ -208,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'What friends see',
-                description: const Text('Sent to your friends only, never to the relay server. Your status shows in spaces and circles too.'),
+                description: const Tr('Sent to your friends only, never to the relay server. Your status shows in spaces and circles too.'),
                 children: [
                   field(_name, 'Your name', 'Name'),
                   field(_status, 'A status: what you\'re up to', 'Status'),
@@ -249,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   SettingRow(
                     icon: AppIcon(Lucide.trash2, size: 18),
                     label: 'Give up @${me.username}',
-                    hint: const Text('Anyone can take it after. Your friends stay your friends.'),
+                    hint: const Tr('Anyone can take it after. Your friends stay your friends.'),
                     onPress: () => showChoices(context, title: 'Give up @${me.username}?', choices: [
                       Choice('Give it up', Lucide.trash2, () async {
                         try {
@@ -327,7 +328,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               if (Me.instance.username == null)
-                SettingsCallout(child: const Text('Choose a username first (Settings › Me › Profile), so friends know it\'s you.'))
+                SettingsCallout(child: const Tr('Choose a username first (Settings › Me › Profile), so friends know it\'s you.'))
               else
                 PaneSection(
                   title: 'Add a friend',
@@ -336,7 +337,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
                     SettingRowBox(
                       child: GlacierInput(
                         controller: _who,
-                        placeholder: '@username',
+                        placeholder: '@username'.t,
                         ariaLabel: 'Their username',
                         autoCorrect: false,
                         autoCapitalize: TextCapitalization.none,
@@ -383,7 +384,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
                     SettingRow(
                       icon: AppIcon(Lucide.clock, size: 18),
                       label: a.shown,
-                      hint: const Text('Asked'),
+                      hint: const Tr('Asked'),
                       onPress: () => showChoices(context, title: 'Take back your request to @${a.username}?', choices: [
                         Choice('Take it back', Lucide.x, () => b.remove(a), danger: true),
                       ]),

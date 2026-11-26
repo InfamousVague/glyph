@@ -19,6 +19,7 @@ import '../voice/channels.dart';
 import 'common.dart';
 import 'computers.dart' show PairButton;
 import 'window_chrome.dart';
+import '../l10n/words.dart';
 
 /// The app's lock on the screens (GMFB-46; lib/app_lock/app_lock.dart): [AppLockGate] stands over every page and draws
 /// [AppLockScreen] in their place while the app is locked; [AppLockPane] is Settings › Lock the app.
@@ -617,7 +618,7 @@ class _AppLockPaneState extends State<AppLockPane> {
   Widget build(BuildContext context) {
     final lock = _lock;
     Widget icon(LucideIcon i) => AppIcon(i, size: 18);
-    const limits = Text(
+    const limits = Tr(
         'The lock keeps people out of the app on this device. It does not scramble what the app keeps: someone who can read this device\'s files is not stopped by it. Notifications still arrive. The PIN is kept only as a scrambled check that can\'t be read back, so a forgotten one can\'t be reset: the way back in is to delete what the app keeps on this device.');
     return ListenableBuilder(
       listenable: lock,
@@ -631,7 +632,7 @@ class _AppLockPaneState extends State<AppLockPane> {
                 key: const ValueKey('lock-set'),
                 icon: icon(Lucide.lock),
                 label: 'Set a PIN',
-                hint: const Text('4 to 8 digits, asked for when you open the app and when you come back to it.'),
+                hint: const Tr('4 to 8 digits, asked for when you open the app and when you come back to it.'),
                 onPress: () => push(context, (_) => PinSetScreen(lock: lock, mode: PinSetMode.set)),
               ),
             ],
@@ -659,7 +660,7 @@ class _AppLockPaneState extends State<AppLockPane> {
                 key: const ValueKey('lock-change'),
                 icon: icon(Lucide.keyRound),
                 label: 'Change PIN',
-                hint: const Text('After your PIN now'),
+                hint: const Tr('After your PIN now'),
                 onPress: () => push(context, (_) => PinSetScreen(lock: lock, mode: PinSetMode.change)),
               ),
               SettingRow(
@@ -674,10 +675,10 @@ class _AppLockPaneState extends State<AppLockPane> {
                   onValueChange: (v) => unawaited(lock.setAfter(int.tryParse(v) ?? 60)),
                   ariaLabel: 'Lock after',
                   options: const [
-                    GlacierSegmentedOption(value: '0', label: Text('At once')),
-                    GlacierSegmentedOption(value: '60', label: Text('1 minute')),
-                    GlacierSegmentedOption(value: '300', label: Text('5 minutes')),
-                    GlacierSegmentedOption(value: '3600', label: Text('1 hour')),
+                    GlacierSegmentedOption(value: '0', label: Tr('At once')),
+                    GlacierSegmentedOption(value: '60', label: Tr('1 minute')),
+                    GlacierSegmentedOption(value: '300', label: Tr('5 minutes')),
+                    GlacierSegmentedOption(value: '3600', label: Tr('1 hour')),
                   ],
                 ),
               ),
@@ -685,7 +686,7 @@ class _AppLockPaneState extends State<AppLockPane> {
                 SettingRow(
                   icon: icon(Lucide.shieldCheck),
                   label: 'Unlock with fingerprint or face',
-                  hint: const Text('The one this device already knows. Your PIN always works too.'),
+                  hint: const Tr('The one this device already knows. Your PIN always works too.'),
                   control: GlacierSwitch(checked: lock.biometric, onCheckedChange: (v) => unawaited(_setBiometric(v)), ariaLabel: 'Unlock with fingerprint or face'),
                 ),
               SettingRow(

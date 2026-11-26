@@ -33,6 +33,7 @@ import 'profile.dart' show ModeMark;
 import 'profile_card.dart' show ProfileFace;
 import 'souls.dart' show showSouls;
 import 'verified_badge.dart';
+import '../l10n/words.dart';
 
 /// What each way of being shown is called, in the order they are offered.
 const profileModes = [('online', 'Online'), ('away', 'Away'), ('busy', 'Busy'), ('invisible', 'Invisible')];
@@ -318,7 +319,7 @@ class _PeekState extends State<_Peek> {
               GlacierInput(
                 key: const ValueKey('profile-peek-status'),
                 controller: _status,
-                placeholder: 'What are you up to?',
+                placeholder: 'What are you up to?'.t,
                 ariaLabel: 'Status',
                 size: GlacierFieldSize.md,
                 maxLength: Me.statusMost,

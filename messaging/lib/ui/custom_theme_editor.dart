@@ -25,6 +25,7 @@ import '../look_file.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -313,7 +314,7 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
                 child: GlacierInput(
                   key: const ValueKey('custom-theme-name'),
                   controller: _name,
-                  placeholder: 'What to call it',
+                  placeholder: 'What to call it'.t,
                   ariaLabel: 'Name',
                   autoCapitalize: TextCapitalization.words,
                   maxLength: CustomTheme.nameMost,
@@ -334,8 +335,8 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
                     value: theme.dark ? 'dark' : 'light',
                     onValueChange: (v) => setState(() => _theme = theme.copyWith(dark: v == 'dark')),
                     options: const [
-                      GlacierSegmentedOption(value: 'light', label: Text('Light')),
-                      GlacierSegmentedOption(value: 'dark', label: Text('Dark')),
+                      GlacierSegmentedOption(value: 'light', label: Tr('Light')),
+                      GlacierSegmentedOption(value: 'dark', label: Tr('Dark')),
                     ],
                   ),
                 ),
@@ -350,7 +351,7 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
                     value: theme.font ?? 'app',
                     onValueChange: (v) => setState(() => _theme = theme.copyWith(font: v == 'app' ? null : v)),
                     options: [
-                      const GlacierSegmentedOption(value: 'app', label: Text('Standard')),
+                      const GlacierSegmentedOption(value: 'app', label: Tr('Standard')),
                       for (final f in CustomTheme.fonts.entries) GlacierSegmentedOption(value: f.key, label: Text(f.value)),
                     ],
                   ),

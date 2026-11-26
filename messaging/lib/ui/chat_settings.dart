@@ -18,6 +18,7 @@ import 'background_picker.dart';
 import 'common.dart';
 import 'encryption.dart';
 import 'export_ui.dart';
+import '../l10n/words.dart';
 
 /// One conversation's own settings, from the cog at its top (Matt, 2026-11-13: "we should have chat backgrounds be on
 /// a per chat setting, each chat should get it's own settings cog"): who is in it, its background and the colour of
@@ -190,7 +191,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 // (Matt: "create, name and manage groups like telegram"). Anyone can leave.
                 if (ghost != null) ...[
                   if (ghost.amAdmin) ...[
-                    PaneSection(title: 'Group name', footer: const Text('Everyone in the group sees this name.'), children: [
+                    PaneSection(title: 'Group name', footer: const Tr('Everyone in the group sees this name.'), children: [
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
                         child: _GroupName(
@@ -214,7 +215,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                           icon: AppIcon(m.admin ? Lucide.shieldCheck : Lucide.userRound, size: 18),
                           // As this phone knows them (GroupMember.shown), never the address the group's admin wrote.
                           label: m.label,
-                          value: m.admin ? const Text('Admin') : null,
+                          value: m.admin ? const Tr('Admin') : null,
                           hint: m.name != null && !m.me && !m.standIn ? Text(m.shown) : null,
                           onPress: ghost.amAdmin && !m.me ? () => _member(ghost, m) : null,
                         ),
@@ -338,7 +339,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   SettingRow(
                     icon: const AppIcon(Lucide.download, size: 18),
                     label: 'Export conversation',
-                    hint: const Text('Every message as Markdown or JSON, with its pictures and files if you like.'),
+                    hint: const Tr('Every message as Markdown or JSON, with its pictures and files if you like.'),
                     onPress: () => exportTexts(context, thread, c?.title ?? widget.people.map((p) => p.label).join(', '), widget.people),
                   ),
                 ]),

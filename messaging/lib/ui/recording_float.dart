@@ -38,6 +38,7 @@ import '../voice/channels.dart' show Voice;
 import 'common.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import 'recording_ui.dart' show RecordingsScreen;
+import '../l10n/words.dart';
 
 part 'recording_mixer.dart';
 
@@ -497,7 +498,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                             alignment: Alignment.centerLeft,
                             padding: EdgeInsets.symmetric(horizontal: t.space(3)),
                             color: _Studio.bar,
-                            child: Text('TRACKS', style: small),
+                            child: Tr('TRACKS', style: small),
                           ),
                           for (var i = 0; i < rows; i++)
                             _TrackHeader(

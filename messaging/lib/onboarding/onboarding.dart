@@ -25,6 +25,7 @@ import '../sms.dart';
 import '../ui/setup.dart';
 import 'band.dart';
 import 'narration.dart';
+import '../l10n/words.dart';
 
 /// How one page looks: its wash, its sign and the tiles round it.
 @immutable
@@ -345,9 +346,9 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
         return [
           GlacierSegmentedControl(
             options: const [
-              GlacierSegmentedOption(value: 'system', label: Text('System')),
-              GlacierSegmentedOption(value: 'light', label: Text('Light')),
-              GlacierSegmentedOption(value: 'dark', label: Text('Dark')),
+              GlacierSegmentedOption(value: 'system', label: Tr('System')),
+              GlacierSegmentedOption(value: 'light', label: Tr('Light')),
+              GlacierSegmentedOption(value: 'dark', label: Tr('Dark')),
             ],
             value: app.theme,
             onValueChange: app.setTheme,

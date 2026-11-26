@@ -27,6 +27,7 @@ import 'composer_box.dart' show composerSemantics;
 import 'drawer_head.dart' show DrawerHead;
 import 'dialup/bevel.dart' show isBevelChrome;
 import 'settings_panes.dart' show appVersion;
+import '../l10n/words.dart';
 
 /// Share feedback (Matt, 2026-11-19: "add a "share feedback" button hovering in the topbar of the app it should be a
 /// simple form which allows the user to upload screenshots and explain a bug, suggest a feature or a few other options
@@ -323,7 +324,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   child: GlacierInput(
                     key: const ValueKey('feedback-title'),
                     controller: _title,
-                    placeholder: 'A few words (optional)',
+                    placeholder: 'A few words (optional)'.t,
                     ariaLabel: 'Title',
                     autoCapitalize: TextCapitalization.sentences,
                     maxLength: FeedbackReport.titleMost,
@@ -350,7 +351,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         padding: EdgeInsets.all(t.space(3)),
                         decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(t.radius('md'))),
                         child: Stack(children: [
-                          if (_text.text.isEmpty) IgnorePointer(child: Text('Describe it here', style: ink.copyWith(color: t.color('app-ink-3')))),
+                          if (_text.text.isEmpty) IgnorePointer(child: Tr('Describe it here', style: ink.copyWith(color: t.color('app-ink-3')))),
                           // In a browser, named and focused as a composer's words are there (composerSemantics): a bare
                           // EditableText under a label could be read and never written in with the page's tree for
                           // screen readers on. Elsewhere as it was.
@@ -396,7 +397,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                       key: const ValueKey('feedback-no-shots'),
                       icon: AppIcon(Lucide.image, size: 18),
                       label: 'Not from a browser yet',
-                      hint: const Text('Say what you saw in words, or send screenshots from the app on your phone or computer.'),
+                      hint: const Tr('Say what you saw in words, or send screenshots from the app on your phone or computer.'),
                     )
                   else if (_shots.length < FeedbackReport.mostShots)
                     SettingRow(
@@ -414,7 +415,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 PaneSection(children: [
                   SettingRow(
                     label: 'Include my username (@$name)',
-                    hint: const Text('For bug bounties'),
+                    hint: const Tr('For bug bounties'),
                     control: GlacierSwitch(
                       key: const ValueKey('feedback-username'),
                       checked: _withName,

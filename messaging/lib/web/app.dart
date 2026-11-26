@@ -31,6 +31,7 @@ import 'browser.dart';
 import 'emoji.dart';
 import 'settings.dart';
 import 'store.dart';
+import '../l10n/words.dart';
 
 /// Ghost Messaging in a web page (Matt: "the full web client"; docs/OPEN_NETWORK.md, part 6): one more device of an
 /// account, running as a computer with no phone linked does ([Sms.standalone], lib/standalone), on the same calls
@@ -195,6 +196,8 @@ Future<void> _start(Browser b) async {
 
   final state = AppState();
   final loaded = await Future.wait<Object?>([AccentSheets.load(), state.load()]);
+  // The language chosen, loaded before the first page is drawn (lib/l10n/words.dart, GMFB-32).
+  await Words.instance.follow(state);
   final accents = loaded[0]! as AccentSheets;
   installSettingsStyles(accents.base);
   // The emoji set in use is fetched now, and another when it is chosen (emoji.dart). Waited for a moment, so a

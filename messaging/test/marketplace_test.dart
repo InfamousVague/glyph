@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/l10n/words.dart' show Tr;
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart' show SettingRow, SettingsFindableMark;
 import 'package:ghost_messaging/looks.dart';
@@ -396,7 +397,7 @@ void main() {
     // Its own screen can't send it for review until it loads: the form opened on it held another plugin.
     final submit = tester.widget<SettingRow>(_key('dev-plugin-submit-mybills'));
     expect([submit.disabled, submit.onPress], [true, null]);
-    expect((submit.hint as Text).data, 'Put its problems right first.');
+    expect(switch (submit.hint) { Tr(:final words) => words, Text(:final data) => data, _ => null }, 'Put its problems right first.');
     // One that loads beside it: counted and listed apart.
     await addDev(here, billsPack(id: 'mytickets', name: 'Tickets mine'));
     shell().marketplace(section: 'added');

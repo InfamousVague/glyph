@@ -30,6 +30,7 @@ import 'common.dart';
 import 'tile_grid.dart' show VideoShapes;
 import 'voice_screen.dart' show StreamView;
 import 'whole_window.dart';
+import '../l10n/words.dart';
 
 /// What the button says: "Share screen", or "Stop sharing" while this device shares.
 String screenShareLabel(VoiceSession s) => s.screen ? 'Stop sharing' : 'Share screen';
@@ -67,7 +68,7 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
   }
   final started = await s.setScreen(true, source: source, sound: sound);
   if (!started) {
-    toasts.toast(message: const Text('Your screen wasn\'t shared'));
+    toasts.toast(message: const Tr('Your screen wasn\'t shared'));
   } else if (sound && !s.screenSound) {
     toasts.toast(message: Text(shareSoundFailedWords(mac: PlatformInfo.isMacOS)));
   }

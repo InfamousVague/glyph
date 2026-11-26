@@ -39,6 +39,7 @@ import 'screen_share.dart';
 import 'tile_grid.dart';
 import '../kit/semantic_colors.dart';
 import '../backgrounds.dart' show strongFill;
+import '../l10n/words.dart';
 
 /// Voice channels (Matt, 2026-11-14: "always open voice channels that you can jump in and out at any time and you can
 /// see who's connected and also toggle video on and off"): each channel with who is in it, a press to hop in, and,
@@ -103,7 +104,7 @@ class VoiceScreen extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           if (v.channels.isEmpty)
-            SettingsCallout(child: const Text('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
+            SettingsCallout(child: const Tr('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
           else
             // A circle's spaces are listed in their circle, not here.
             PaneSection(title: 'Spaces', children: [for (final c in v.channels) if (c.circle == null) _ChannelRow(channel: c)]),
@@ -855,7 +856,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               PaneSection(title: 'Name', children: [
-                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name', ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name'.t, ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
               ]),
               SizedBox(height: t.space(6)),
               SpaceKindCards(value: _kind, onChanged: (k) => setState(() => _kind = k)),
@@ -1297,12 +1298,12 @@ class _PersonSheet extends StatelessWidget {
                               hint: session.locked ? Text(v.hangoutFor(session.channel)?.micLockedWhy ?? 'You can\'t unmute in this space.') : null,
                               control: GlacierSwitch(checked: session.muted, onCheckedChange: session.setMuted, ariaLabel: 'Mute'),
                             ),
-                            SettingRow(label: 'Deafen', hint: const Text('Hear nobody, and say nothing.'), control: GlacierSwitch(checked: session.deafened, onCheckedChange: session.setDeafened, ariaLabel: 'Deafen')),
+                            SettingRow(label: 'Deafen', hint: const Tr('Hear nobody, and say nothing.'), control: GlacierSwitch(checked: session.deafened, onCheckedChange: session.setDeafened, ariaLabel: 'Deafen')),
                             // The camera, in what a press on one's own video opens (GMFB-70, Matt: "add it to the menu
                             // that pops up when tapping on a video"): the other side of a phone, or another of a
                             // computer's (GMFB-68).
                             if (session.canFlipCamera)
-                              SettingRow(key: const ValueKey('sheet-flip'), icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Flip camera', hint: const Text('Front or back'), onPress: () => unawaited(session.flipCamera()))
+                              SettingRow(key: const ValueKey('sheet-flip'), icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Flip camera', hint: const Tr('Front or back'), onPress: () => unawaited(session.flipCamera()))
                             else if (session.video && !session.screen && RtcMedia.choosesCamera)
                               SettingRow(
                                 key: const ValueKey('sheet-camera'),
@@ -1318,7 +1319,7 @@ class _PersonSheet extends StatelessWidget {
                             SettingRow(
                               icon: AppIcon(LucideMore.volumeX, size: 18),
                               label: 'Mute for me',
-                              hint: const Text('Only you stop hearing them. They aren\'t told.'),
+                              hint: const Tr('Only you stop hearing them. They aren\'t told.'),
                               control: GlacierSwitch(checked: v.silenced(id), onCheckedChange: (on) => v.setSilenced(id, on), ariaLabel: 'Mute $name for me'),
                             ),
                             // Muted for everyone, for whoever can't change it (a moderator has the switch below).
@@ -1327,7 +1328,7 @@ class _PersonSheet extends StatelessWidget {
                                 key: const ValueKey('muted-for-everyone'),
                                 icon: AppIcon(Lucide.lock, size: 18),
                                 label: 'Muted for everyone',
-                                hint: const Text('A moderator muted them. Only a moderator can unmute them.'),
+                                hint: const Tr('A moderator muted them. Only a moderator can unmute them.'),
                               ),
                             Padding(
                               padding: EdgeInsets.symmetric(vertical: t.space(2)),
@@ -1560,7 +1561,7 @@ class _DevicePillState extends State<DevicePill> {
                 final shell = AppShell.maybeOf(context);
                 if (shell != null) shell.settings('voice');
               },
-              child: const Text('Voice settings…'),
+              child: const Tr('Voice settings…'),
             ),
           ],
         ),

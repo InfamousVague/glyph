@@ -16,6 +16,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Where to get the browser extension that signs these services in across every device automatically.
 const _extensionPage = 'https://gogho.st/docs/browser-extension/';
@@ -131,7 +132,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
   List<Widget> _warning(Tokens t) => [
         PaneSection(
           title: '${_s.name} doesn\'t support this',
-          description: const Text('Read this before signing in.'),
+          description: const Tr('Read this before signing in.'),
           children: [
             SettingRowBox(
               child: Padding(

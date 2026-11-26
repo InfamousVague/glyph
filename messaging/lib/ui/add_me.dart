@@ -17,6 +17,7 @@ import '../net/net.dart';
 import '../net/relay_choice.dart';
 import '../sms.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Profile › Your add-me link (GMFB-34: "A gogho.st/add/USERNAME link and QR code that opens a friend request"):
 /// the link, copied or shared, and its QR code to show someone in person. It carries the start of this account's name
@@ -30,13 +31,13 @@ class AddMeSection extends StatelessWidget {
     final link = addMeLink(username, id: Net.instance.id, relay: relayHostForLinks(Net.instance.hubUrl));
     return PaneSection(
       title: 'Your add-me link',
-      description: const Text('Anyone who opens it, or scans the code, can send you a friend request. You still choose whether to accept.'),
+      description: const Tr('Anyone who opens it, or scans the code, can send you a friend request. You still choose whether to accept.'),
       children: [
         SettingRow(
           key: const ValueKey('add-me-copy'),
           icon: AppIcon(Lucide.link, size: 18),
           label: link.replaceFirst('https://', ''),
-          hint: const Text('Copy'),
+          hint: const Tr('Copy'),
           onPress: () {
             unawaited(Clipboard.setData(ClipboardData(text: link)));
             toast(context, 'Copied your add-me link');

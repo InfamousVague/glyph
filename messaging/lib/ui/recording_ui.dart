@@ -26,6 +26,7 @@ import '../voice/voice.dart';
 import 'common.dart';
 import 'recording_float.dart' show showRecordingMixer, showRecordingPlayback;
 import 'video_screen.dart';
+import '../l10n/words.dart';
 
 /// The red line over a call that is being recorded: who records, whose voices are in it, and this device's answer.
 class RecordingBanner extends StatefulWidget {
@@ -185,7 +186,7 @@ class RecordingsScreen extends StatelessWidget {
                   SettingsEmpty(
                     icon: AppIcon(Lucide.circleDot, size: 28, color: t.color('app-ink-3')),
                     title: 'No recordings yet',
-                    body: const Text('Record a call from its menu. Each voice is a track of its own, named, and only the voices of people who say yes are in it.'),
+                    body: const Tr('Record a call from its menu. Each voice is a track of its own, named, and only the voices of people who say yes are in it.'),
                   ),
                 ])
               : ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
@@ -292,10 +293,10 @@ class TranscriptScreen extends StatelessWidget {
           ),
       ],
       body: words == null
-          ? const Center(child: Text('No words written out yet.'))
+          ? const Center(child: Tr('No words written out yet.'))
           : ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
               if (words.summary != null) ...[SettingsCallout(child: Text(words.summary!)), SizedBox(height: t.space(4))],
-              if (words.lines.isEmpty) const Text('Nobody\'s words could be made out.'),
+              if (words.lines.isEmpty) const Tr('Nobody\'s words could be made out.'),
               for (final l in words.lines)
                 Padding(
                   padding: EdgeInsets.only(bottom: t.space(3)),

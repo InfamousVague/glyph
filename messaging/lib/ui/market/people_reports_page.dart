@@ -28,6 +28,7 @@ import '../common.dart';
 import '../skeleton.dart';
 import '../plugins_page/market_parts.dart' show MarketButton, MarketButtonLook;
 import 'market_forms.dart';
+import '../../l10n/words.dart';
 
 /// One row: as the relay keeps it, and as it opened here (null where it isn't sealed to this device's key, or was
 /// changed on the way).
@@ -182,7 +183,7 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
           if (reports != null) ...[
             PaneSection(
               title: 'Open',
-              description: const Text('Opened here with this device\'s review key: the relay keeps them sealed and never sees what they say.'),
+              description: const Tr('Opened here with this device\'s review key: the relay keeps them sealed and never sees what they say.'),
               children: [
                 if (open.isEmpty) const SettingRow(key: ValueKey('people-reports-none'), icon: AppIcon(Lucide.circleCheck, size: 18), label: 'No reports to read.'),
                 for (final r in open) _row(r),
@@ -244,7 +245,7 @@ class PeopleReportScreen extends StatelessWidget {
             gap,
             PaneSection(
               title: 'What came with it',
-              description: const Text('Handed over by the reporter: the message reported is flagged, the rest were said round it.'),
+              description: const Tr('Handed over by the reporter: the message reported is flagged, the rest were said round it.'),
               children: [
                 for (final m in r.messages)
                   SettingRow(

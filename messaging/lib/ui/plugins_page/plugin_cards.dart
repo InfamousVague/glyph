@@ -22,6 +22,7 @@ import '../dialup/bevel.dart';
 import '../dialup/title_bar.dart';
 import 'market_parts.dart';
 import 'plugin_art.dart';
+import '../../l10n/words.dart';
 
 /// Add, or that it is added: the end of a plugin's card. [onColour] is on the plugin's own colour (the featured card).
 /// [onAdd] null draws Add that can't be pressed (a listing this device can't take, its page says why); [adding] says
@@ -65,7 +66,7 @@ Widget? pluginSourceLine(BuildContext context, GhostPlugin plugin, {bool labels 
         children: [
           AppIcon(LucideMore.badgeCheck, size: 13, strokeWidth: 2.2, color: soft, wash: false),
           SizedBox(width: t.lenOf('0.2rem')),
-          Text('Reviewed', style: style),
+          Tr('Reviewed', style: style),
         ],
       ),
   };

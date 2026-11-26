@@ -17,6 +17,7 @@ import '../keys.dart';
 import '../sms.dart' show Sms;
 import 'common.dart';
 import 'settings.dart';
+import '../l10n/words.dart';
 
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
 
@@ -44,7 +45,7 @@ List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.mic),
           label: 'Push to talk',
-          hint: const Text('Hold a key to talk in calls'),
+          hint: const Tr('Hold a key to talk in calls'),
           control: GlacierSwitch(checked: keys.pushToTalk, onCheckedChange: keys.setPushToTalk, ariaLabel: 'Push to talk'),
         ),
       ],
@@ -53,14 +54,14 @@ List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: group.key,
         footer: group.key == 'Writing'
-            ? const Text('In a chat with a friend, a group or a space: the markers go round the words chosen. A text message shows them as written, so they are not added there.')
+            ? const Tr('In a chat with a friend, a group or a space: the markers go round the words chosen. A text message shows them as written, so they are not added there.')
             : group.key == 'Conversations'
-                ? const Text('Next and previous go down and up the list as it is shown. Jump finds any conversation by name or number, and the app\'s places.')
+                ? const Tr('Next and previous go down and up the list as it is shown. Jump finds any conversation by name or number, and the app\'s places.')
                 : null,
         children: [for (final c in group.value) _ShortcutRow(command: c)],
       ),
     PaneSection(
-      footer: const Text('A command on a key alone, such as push to talk on `, waits while you are typing, so the key still types. One with Cmd, Ctrl or Alt works anywhere.'),
+      footer: const Tr('A command on a key alone, such as push to talk on `, waits while you are typing, so the key still types. One with Cmd, Ctrl or Alt works anywhere.'),
       children: [
         SettingRow(icon: _icon(Lucide.rotateCcw), label: 'Put every shortcut back', disabled: !KeyCommand.values.any(keys.changed), onPress: () {
           keys.resetAll();

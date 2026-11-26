@@ -60,6 +60,7 @@ import 'settings_panes.dart' show settingsGroupLabel, settingsSections;
 import 'thread.dart';
 import '../keys.dart';
 import '../inbox/inbox.dart';
+import '../l10n/words.dart';
 
 /// The app's one frame, on the phone and on a computer alike (Matt, 2026-11-14: "Unify the UI experience to match on
 /// desktop and mac as well the desktop app should get all featues its missing from mobile and thr mobile app should
@@ -1193,9 +1194,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
     final n = archived.value;
     return [
       GlacierMenuLabel(child: Text(n == 0 ? 'Archive · nothing archived' : 'Archive · $n ${n == 1 ? 'conversation' : 'conversations'}')),
-      GlacierMenuItem(icon: const AppIcon(Lucide.checkCheck, size: 16), onSelect: _archiveRead, child: const Text('Mark all as read')),
+      GlacierMenuItem(icon: const AppIcon(Lucide.checkCheck, size: 16), onSelect: _archiveRead, child: const Tr('Mark all as read')),
       // Every archived conversation chosen at once, for the bar at the top to take back out or delete.
-      if (n > 0) GlacierMenuItem(icon: const AppIcon(Lucide.listChecks, size: 16), onSelect: () => go('archive', selectAll: true), child: const Text('Select all')),
+      if (n > 0) GlacierMenuItem(icon: const AppIcon(Lucide.listChecks, size: 16), onSelect: () => go('archive', selectAll: true), child: const Tr('Select all')),
     ];
   }
 
@@ -1225,7 +1226,7 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   List<Widget> _marketRows(BuildContext context) {
     final app = AppState.of(this.context);
     return [
-      const GlacierMenuLabel(child: Text('Marketplace')),
+      const GlacierMenuLabel(child: Tr('Marketplace')),
       for (final s in marketSectionsNow(app, current: marketSection.value)) GlacierMenuItem(icon: AppIcon(s.icon, size: 16), onSelect: () => marketplace(section: s.id), child: Text(s.label)),
     ];
   }
@@ -1574,8 +1575,8 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                   onOpenChange: (v) => setState(() => _switcher = v),
                   // Its keys are Settings' to change (lib/keys.dart), not the kit's own Cmd+K.
                   shortcut: false,
-                  placeholder: 'Jump to a conversation or a place…',
-                  emptyLabel: const Text('Nothing by that name'),
+                  placeholder: 'Jump to a conversation or a place…'.t,
+                  emptyLabel: const Tr('Nothing by that name'),
                   commands: _switcher ? _switchCommands() : const [],
                   onRun: _runSwitch,
                 ),

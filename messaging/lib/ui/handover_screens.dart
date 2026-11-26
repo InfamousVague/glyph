@@ -26,6 +26,7 @@ import '../sms.dart';
 import 'app_lock_ui.dart' show PinPad;
 import 'common.dart';
 import 'computers.dart' show PairButton, PairingCode, relayHost;
+import '../l10n/words.dart';
 
 /// A step's heading: an icon (or the spinner while something is waited for), what is happening, a sentence under it.
 class _Lead extends StatelessWidget {
@@ -405,7 +406,7 @@ class _HandoverApproveScreenState extends State<HandoverApproveScreen> {
               footer: problem == null ? const SizedBox.shrink() : Text(problem, style: TextStyle(color: t.danger)),
               children: [
                 SettingRowBox(
-                  child: GlacierInput(controller: _password, placeholder: 'Password', ariaLabel: 'Password', type: GlacierInputType.password, autoCorrect: false, autoCapitalize: TextCapitalization.none, autoComplete: 'current-password', size: GlacierFieldSize.md, onSubmitted: (_) => _withPassword()),
+                  child: GlacierInput(controller: _password, placeholder: 'Password'.t, ariaLabel: 'Password', type: GlacierInputType.password, autoCorrect: false, autoCapitalize: TextCapitalization.none, autoComplete: 'current-password', size: GlacierFieldSize.md, onSubmitted: (_) => _withPassword()),
                 ),
               ],
             ),
@@ -417,7 +418,7 @@ class _HandoverApproveScreenState extends State<HandoverApproveScreen> {
             PairingCode(code: end.digits ?? ''),
             SettingsCallout(
               icon: const AppIcon(Lucide.triangleAlert, size: 18),
-              child: const Text('Saying yes signs that device in as you, with everything of your account. Only do it for a device in front of you that you are setting up yourself. Never for a code someone else shows you or sends you, whoever they say they are.'),
+              child: const Tr('Saying yes signs that device in as you, with everything of your account. Only do it for a device in front of you that you are setting up yourself. Never for a code someone else shows you or sends you, whoever they say they are.'),
             ),
             if (problem != null) Text(problem, style: TextStyle(color: t.danger)),
             PairButton(key: const ValueKey('handover-yes'), label: 'They match, sign it in', icon: Lucide.check, onPressed: _busy ? null : _yes),

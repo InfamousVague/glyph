@@ -5,6 +5,7 @@ import '../art/app_icon.dart';
 import '../art/lucide_more.dart';
 import '../voice/channels.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Over every page, at the top, while a call this device was in has gone to another of the person's devices (GMFB-50,
 /// Kevin: "If you are on your pc talking in a call and switch to your phone a "would you like to reconnect"
@@ -40,7 +41,7 @@ class CallMovedNote extends StatelessWidget {
                 child: GlacierToast(
                   key: const ValueKey('call-moved-note'),
                   icon: const AppIcon(LucideMore.phoneCall, size: 16, wash: false),
-                  message: const Text('This call moved to another of your devices'),
+                  message: const Tr('This call moved to another of your devices'),
                   action: GlacierToastAction(
                     label: 'Bring it back here',
                     onPress: () async {

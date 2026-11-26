@@ -35,6 +35,7 @@ import 'settings.dart';
 import 'souls.dart';
 import 'plugins_page/plugin_art.dart' show PluginHues;
 import 'special_badges.dart';
+import '../l10n/words.dart';
 
 /// Whether the admin page is offered: developer mode on, and this is Matt's account.
 bool adminOffered(SettingsModel m) => adminOfferedFor(m.app);
@@ -141,17 +142,17 @@ class _AdminSignInState extends State<AdminSignIn> {
     final t = context.tokens;
     return PaneSection(
       title: 'Admin sign-in',
-      description: const Text('The admin username and password. Only your account (@matt) can sign in, and only while this device is connected.'),
+      description: const Tr('The admin username and password. Only your account (@matt) can sign in, and only while this device is connected.'),
       footer: _problem == null ? null : Text(_problem!, style: TextStyle(color: t.danger)),
       children: [
         SettingRowBox(
-          child: GlacierInput(key: const ValueKey('admin-user'), controller: _user, placeholder: 'Admin username', ariaLabel: 'Admin username', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md),
+          child: GlacierInput(key: const ValueKey('admin-user'), controller: _user, placeholder: 'Admin username'.t, ariaLabel: 'Admin username', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md),
         ),
         SettingRowBox(
           child: GlacierInput(
             key: const ValueKey('admin-pass'),
             controller: _pass,
-            placeholder: 'Password',
+            placeholder: 'Password'.t,
             ariaLabel: 'Admin password',
             type: GlacierInputType.password,
             autoCorrect: false,
@@ -355,7 +356,7 @@ class _AdminPanelState extends State<AdminPanel> {
             },
           ),
           SettingRow(key: const ValueKey('admin-market-key'), icon: AppIcon(Lucide.keyRound, size: 18), label: 'This device\'s review key', hint: Text(_keyHint()), onPress: signer == null ? null : () => unawaited(_copyKey())),
-          if (signer != null) SettingRow(key: const ValueKey('admin-market-retire'), icon: AppIcon(Lucide.archive, size: 18), label: 'Make a retirement for this key', hint: const Text('Signed by this key, copied to keep offline. Nothing is sent.'), onPress: () => unawaited(_retire())),
+          if (signer != null) SettingRow(key: const ValueKey('admin-market-retire'), icon: AppIcon(Lucide.archive, size: 18), label: 'Make a retirement for this key', hint: const Tr('Signed by this key, copied to keep offline. Nothing is sent.'), onPress: () => unawaited(_retire())),
         ],
       ),
       SizedBox(height: t.space(6)),
@@ -365,7 +366,7 @@ class _AdminPanelState extends State<AdminPanel> {
             ? 'Asking the relay…'
             : '${users.length} ${users.length == 1 ? 'person' : 'people'} · ${users.where((u) => u.here).length} connected now · ${soulsCount(total)} souls given out'),
         children: [
-          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username, old username, Ghost id or account', ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
+          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username, old username, Ghost id or account'.t, ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
           SettingRow(icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Refresh', onPress: _refresh),
           if (shown != null)
             for (final u in shown.take(300))
@@ -507,7 +508,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
                   icon: AppIcon(Lucide.keyRound, size: 18),
                   label: 'Ghost id',
                   hint: Text(u.id),
-                  value: const Text('Copy'),
+                  value: const Tr('Copy'),
                   onPress: () {
                     Clipboard.setData(ClipboardData(text: u.id));
                     toast(context, 'Ghost id copied');
@@ -518,7 +519,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
                   icon: AppIcon(Lucide.userCheck, size: 18),
                   label: 'Account',
                   hint: Text(u.account ?? 'None: a new install without signing in would be someone new.'),
-                  value: u.account == null ? null : const Text('Copy'),
+                  value: u.account == null ? null : const Tr('Copy'),
                   onPress: u.account == null
                       ? null
                       : () {
@@ -532,10 +533,10 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
             SizedBox(height: t.space(6)),
             PaneSection(
               title: 'Souls',
-              description: const Text('Told to them as soon as they are given, with why, if they are connected; otherwise the next time they are.'),
+              description: const Tr('Told to them as soon as they are given, with why, if they are connected; otherwise the next time they are.'),
               children: [
-                SettingRowBox(child: GlacierInput(key: const ValueKey('admin-amount'), controller: _amount, placeholder: 'How many', ariaLabel: 'How many souls', autoCorrect: false, size: GlacierFieldSize.md)),
-                SettingRowBox(child: GlacierInput(key: const ValueKey('admin-why'), controller: _why, placeholder: 'Why (they see it): "Found the Windows crash"', ariaLabel: 'Why', size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(key: const ValueKey('admin-amount'), controller: _amount, placeholder: 'How many'.t, ariaLabel: 'How many souls', autoCorrect: false, size: GlacierFieldSize.md)),
+                SettingRowBox(child: GlacierInput(key: const ValueKey('admin-why'), controller: _why, placeholder: 'Why (they see it): "Found the Windows crash"'.t, ariaLabel: 'Why', size: GlacierFieldSize.md)),
                 SettingRow(key: const ValueKey('admin-give'), icon: const SoulFlame(size: 18), label: 'Give souls', disabled: _busy, onPress: () => _give(1)),
                 SettingRow(key: const ValueKey('admin-take'), icon: AppIcon(Lucide.minus, size: 18), label: 'Take souls back', disabled: _busy, onPress: () => _give(-1)),
               ],
@@ -543,7 +544,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
             SizedBox(height: t.space(6)),
             PaneSection(
               title: 'Badges',
-              description: const Text('Shown beside their name in spaces, circles and on their profile.'),
+              description: const Tr('Shown beside their name in spaces, circles and on their profile.'),
               children: [
                 for (final b in specialBadges)
                   SettingRow(

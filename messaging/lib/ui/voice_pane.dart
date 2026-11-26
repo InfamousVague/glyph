@@ -21,6 +21,7 @@ import '../voice/ducking.dart';
 import '../voice/voice_settings.dart';
 import 'voice_screen.dart' show VolumeSlider;
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Settings › Voice and video (Matt, 2026-11-15: "voice settings to change all kinds of things like bitrates and sound
 /// input devices etc etc"): the microphone and the speaker, the sound's bit rate and stereo, what is done to the
@@ -126,7 +127,7 @@ class _VoicePaneState extends State<VoicePane> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       PaneSection(
         title: 'Devices',
-        description: const Text('Used in a call at once. The system\'s own follows whatever the device uses.'),
+        description: const Tr('Used in a call at once. The system\'s own follows whatever the device uses.'),
         children: [
           SettingRow(icon: icon(Lucide.mic), label: 'Microphone', value: Text(_name(_inputs, v.input, v.inputName)), onPress: () => _pick('Microphone', _inputs, v.input, _useInput)),
           // A browser that can't send a page's sound to a speaker of its choosing (Safari) plays through the computer's.
@@ -156,12 +157,12 @@ class _VoicePaneState extends State<VoicePane> {
       gap,
       PaneSection(
         title: 'Sound',
-        description: const Text('Opus, the codec calls use. 510 kb/s stereo is the most it carries: past what an ear can tell from the microphone itself. FLAC is not something a live call can carry.'),
+        description: const Tr('Opus, the codec calls use. 510 kb/s stereo is the most it carries: past what an ear can tell from the microphone itself. FLAC is not something a live call can carry.'),
         children: [
           SettingRow(
             icon: icon(LucideMore.music),
             label: 'Music mode',
-            hint: const Text('The microphone as it is, for music: no echo cancellation, noise suppression or gain, 510 kb/s stereo at a constant rate. Use headphones.'),
+            hint: const Tr('The microphone as it is, for music: no echo cancellation, noise suppression or gain, 510 kb/s stereo at a constant rate. Use headphones.'),
             control: GlacierSwitch(checked: v.music, onCheckedChange: (on) => flag('voice_music', on), ariaLabel: 'Music mode'),
           ),
           SettingRow(
@@ -184,9 +185,9 @@ class _VoicePaneState extends State<VoicePane> {
               for (final k in VoiceSettings.kbpsChoices) Choice('${k == v.audioKbps ? '✓  ' : ''}${VoiceSettings.kbpsLabel(k)}', Lucide.audioLines, () => set('voice_kbps', '$k')),
             ]),
           ),
-          SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Text('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
-          SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Text('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
-          SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Text('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
+          SettingRow(icon: icon(LucideMore.headphones), label: 'Stereo', hint: const Tr('Two channels; off sends one.'), disabled: v.music, control: GlacierSwitch(checked: v.sendStereo, disabled: v.music, onCheckedChange: (on) => flag('voice_stereo', on), ariaLabel: 'Stereo')),
+          SettingRow(icon: icon(Lucide.volume2), label: 'Echo cancellation', hint: const Tr('Keeps your speaker out of your microphone. Off for headphones only.'), disabled: v.music, control: GlacierSwitch(checked: v.useEcho, disabled: v.music, onCheckedChange: (on) => flag('voice_echo', on), ariaLabel: 'Echo cancellation')),
+          SettingRow(icon: icon(Lucide.slidersHorizontal), label: 'Automatic gain', hint: const Tr('Evens out how loud you are. Off keeps your own level.'), disabled: v.music, control: GlacierSwitch(checked: v.useGain, disabled: v.music, onCheckedChange: (on) => flag('voice_gain', on), ariaLabel: 'Automatic gain')),
           if (Ducking.here)
             SettingRow(
               icon: icon(LucideMore.volumeX),
@@ -206,7 +207,7 @@ class _VoicePaneState extends State<VoicePane> {
       gap,
       PaneSection(
         title: 'Video',
-        description: const Text('The most a picture is sent at. With more people in a call each copy is smaller, so it keeps moving. 4K needs a camera that films it, and a fast connection.'),
+        description: const Tr('The most a picture is sent at. With more people in a call each copy is smaller, so it keeps moving. 4K needs a camera that films it, and a fast connection.'),
         children: [
           SettingRow(
             icon: icon(Lucide.video),
@@ -219,7 +220,7 @@ class _VoicePaneState extends State<VoicePane> {
           ),
         ],
       ),
-      if (voice.session != null) ...[gap, SettingsCallout(child: const Text('Volume, noise suppression and devices change now; the rest from the next call you join.'))],
+      if (voice.session != null) ...[gap, SettingsCallout(child: const Tr('Volume, noise suppression and devices change now; the rest from the next call you join.'))],
     ]);
   }
 }
@@ -359,7 +360,7 @@ class _AudioTestState extends State<AudioTest> {
           if (!Sms.browser) SettingRow(
             icon: icon(LucideMore.headphones),
             label: 'Hear yourself',
-            hint: const Text('Your microphone through the speaker chosen. Use headphones, or the speaker feeds back into the microphone.'),
+            hint: const Tr('Your microphone through the speaker chosen. Use headphones, or the speaker feeds back into the microphone.'),
             control: GlacierSwitch(
               checked: _hear,
               ariaLabel: 'Hear yourself',

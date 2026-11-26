@@ -12,6 +12,7 @@ import '../me/me.dart';
 import '../sms.dart';
 import 'common.dart';
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 /// Adding a friend by username, in a drawer from the Add button beside Contacts' search (Matt, 2026-11-16: "move the
 /// Add button to the side of search and have it open a drawer to search and add users as well as setup username if
@@ -220,7 +221,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
             child: GlacierInput(
               key: const ValueKey('username-field'),
               controller: _field,
-              placeholder: '@yourname',
+              placeholder: '@yourname'.t,
               ariaLabel: 'Your username',
               autoFocus: true,
               autoCorrect: false,
@@ -278,7 +279,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
       GlacierSearchField(
         key: const ValueKey('find-friend-field'),
         controller: _field,
-        placeholder: 'Search by @username',
+        placeholder: 'Search by @username'.t,
         size: GlacierFieldSize.md,
         autoFocus: true,
         autoCorrect: false,

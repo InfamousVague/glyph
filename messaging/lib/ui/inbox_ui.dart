@@ -76,6 +76,7 @@ import 'schedule_ui.dart';
 import '../scheduled.dart' show ScheduleTarget;
 import '../kit/picture_decode.dart';
 import '../plugins/plugin_sync.dart';
+import '../l10n/words.dart';
 
 /// The screens of the inbox of other networks (lib/inbox): a chat's row in the list, the chat itself, signing in, and
 /// the sections of Settings for each network.
@@ -1158,21 +1159,21 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
               children: [
                 PaneSection(
                   title: 'Your account',
-                  description: const Text(
+                  description: const Tr(
                       'Use an app password, not your account\'s password. Make one in Bluesky: Settings › Privacy and security › App passwords › Add, with "Allow access to your direct messages" ticked. It can be taken back there at any time.'),
                   footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
-                      child: GlacierInput(controller: _handle, placeholder: 'you.bsky.social', ariaLabel: 'Your handle', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md),
+                      child: GlacierInput(controller: _handle, placeholder: 'you.bsky.social'.t, ariaLabel: 'Your handle', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md),
                     ),
                     SettingRowBox(
-                      child: GlacierInput(controller: _password, type: GlacierInputType.password, placeholder: 'xxxx-xxxx-xxxx-xxxx', ariaLabel: 'App password', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _go()),
+                      child: GlacierInput(controller: _password, type: GlacierInputType.password, placeholder: 'xxxx-xxxx-xxxx-xxxx'.t, ariaLabel: 'App password', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _go()),
                     ),
                     SettingRow(icon: _icon(Lucide.arrowRight), label: busy ? 'Signing in…' : 'Sign in', disabled: busy, onPress: _go),
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Text('Your messages go between this device and Bluesky. Ghost\'s own server never sees them, and the app password itself isn\'t kept: only the session Bluesky gives back.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and Bluesky. Ghost\'s own server never sees them, and the app password itself isn\'t kept: only the session Bluesky gives back.')),
               ],
             ),
           ),
@@ -1254,7 +1255,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
               children: [
                 PaneSection(
                   title: 'Scan this with Signal',
-                  description: const Text('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Ghost becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
+                  description: const Tr('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Ghost becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
                   footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
@@ -1280,7 +1281,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Text('Signal has no API for other apps: Ghost links the way Signal Desktop does, through the open-source mautrix-signal (GNU AGPL). Your messages go between this device and Signal only, never through Ghost\'s servers.')),
+                const SettingsFootnote(child: Tr('Signal has no API for other apps: Ghost links the way Signal Desktop does, through the open-source mautrix-signal (GNU AGPL). Your messages go between this device and Signal only, never through Ghost\'s servers.')),
               ],
             ),
           ),
@@ -1349,17 +1350,17 @@ class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
                 footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                 children: [
                   if (_page == null) ...[
-                    SettingRowBox(child: GlacierInput(controller: _server, placeholder: 'mastodon.social', ariaLabel: 'Your server', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _begin())),
+                    SettingRowBox(child: GlacierInput(controller: _server, placeholder: 'mastodon.social'.t, ariaLabel: 'Your server', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _begin())),
                     SettingRow(icon: _icon(Lucide.arrowRight), label: n.state == InboxState.signingIn ? 'Opening…' : 'Continue', onPress: _begin),
                   ] else ...[
-                    SettingRowBox(child: GlacierInput(controller: _code, placeholder: 'The code from the page', ariaLabel: 'The code', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _finish())),
+                    SettingRowBox(child: GlacierInput(controller: _code, placeholder: 'The code from the page'.t, ariaLabel: 'The code', autoCorrect: false, autoFocus: true, size: GlacierFieldSize.md, onSubmitted: (_) => _finish())),
                     SettingRow(icon: _icon(Lucide.arrowRight), label: 'Sign in', onPress: _finish),
                     SettingRow(icon: _icon(Lucide.externalLink), label: 'Open the page again', onPress: () => Sms.instance.openLink(_page!)),
                   ],
                 ],
               ),
               SizedBox(height: t.space(4)),
-              const SettingsFootnote(child: Text('Your messages go between this device and your Mastodon server. Ghost\'s own server never sees them; only the token your server gives back is kept.')),
+              const SettingsFootnote(child: Tr('Your messages go between this device and your Mastodon server. Ghost\'s own server never sees them; only the token your server gives back is kept.')),
             ],
           ),
         ),
@@ -1530,7 +1531,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
                   ),
                 ],
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Text('Ghost signs in as a Telegram app of its own, on this device. Your chats go between it and Telegram; Ghost\'s own server never sees them. Sign out here, or end the session in Telegram › Settings › Devices.')),
+                const SettingsFootnote(child: Tr('Ghost signs in as a Telegram app of its own, on this device. Your chats go between it and Telegram; Ghost\'s own server never sees them. Sign out here, or end the session in Telegram › Settings › Devices.')),
               ],
             ),
           ),
@@ -1599,8 +1600,8 @@ List<Widget> _connectionsBody(BuildContext context) {
         hint: Text(hint ?? _summary(n)),
         onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
       );
-  const intro = Text('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats.');
-  const pluginIntro = Text('Beyond Telegram and Signal, Ghost can bring in other networks as plugins. These aren\'t official Ghost connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
+  const intro = Tr('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats.');
+  const pluginIntro = Tr('Beyond Telegram and Signal, Ghost can bring in other networks as plugins. These aren\'t official Ghost connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
   return [
     if (on.isNotEmpty) PaneSection(title: 'Connected', description: intro, children: [for (final n in on) row(n)]),
     if (off.isNotEmpty) PaneSection(title: on.isEmpty ? 'Official networks' : 'Add a connection', description: on.isEmpty ? intro : null, children: [for (final n in off) row(n)]),

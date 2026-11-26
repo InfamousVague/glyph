@@ -18,6 +18,7 @@ import '../kit/settings_type.dart' show pageText;
 import '../sms.dart';
 import 'common.dart';
 import 'skeleton.dart';
+import '../l10n/words.dart';
 
 /// Opens the drawer of the group [chatId] on [network].
 Future<void> showGroupDrawer(BuildContext context, InboxNetwork network, String chatId) {
@@ -258,7 +259,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
       SizedBox(height: t.space(3)),
       PaneSection(
         title: 'Group',
-        footer: edit ? null : Text('Only admins can change this group\'s details.'),
+        footer: edit ? null : Tr('Only admins can change this group\'s details.'),
         children: [
           if (g.can(GroupFeature.title))
             SettingRow(
@@ -273,7 +274,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
               label: 'Description',
               layout: SettingRowLayout.stacked,
               control: edit
-                  ? GlacierInput(controller: _about, placeholder: 'What the group is for', ariaLabel: 'Group description', size: GlacierFieldSize.md, autoCapitalize: TextCapitalization.sentences, onSubmitted: (_) => _saveAbout(), onBlur: _saveAbout)
+                  ? GlacierInput(controller: _about, placeholder: 'What the group is for'.t, ariaLabel: 'Group description', size: GlacierFieldSize.md, autoCapitalize: TextCapitalization.sentences, onSubmitted: (_) => _saveAbout(), onBlur: _saveAbout)
                   : Text(g.description.isEmpty ? 'None' : g.description, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             ),
           if (g.can(GroupFeature.timer))
@@ -297,7 +298,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
       if (g.can(GroupFeature.announcementsOnly) || g.can(GroupFeature.editInfoRule) || g.can(GroupFeature.addPeopleRule))
         PaneSection(
           title: 'Who can',
-          footer: g.canChangeRules ? null : const Text('Only admins can change these.'),
+          footer: g.canChangeRules ? null : const Tr('Only admins can change these.'),
           children: [
             if (g.can(GroupFeature.announcementsOnly))
               _rule('Only admins can send messages', g.announcementsOnly, g.canChangeRules, (on) => _change(GroupChange(announcementsOnly: on), on ? 'Only admins can send messages' : 'Everyone can send messages')),

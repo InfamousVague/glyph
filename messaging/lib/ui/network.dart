@@ -27,6 +27,7 @@ import 'relay_host_section.dart';
 import '../relay_host/words.dart' show joinHostedWords;
 import 'settings.dart';
 import 'shell.dart';
+import '../l10n/words.dart';
 
 /// What one of the people the routes reach is called in Settings › Network: their name, else their address, else (no
 /// address of theirs being known here: a member of a group, say, or someone who asked to be a friend) the group they are
@@ -267,7 +268,7 @@ PaneSection lanSection(BuildContext context, LanCarrier lan, {required String Fu
   final links = lan.links;
   return PaneSection(
     title: 'Local network',
-    description: const Text('Straight between devices on the network this one is on, with no server and no internet. Used when the relay server can\'t carry something, and by itself where there is no internet at all.'),
+    description: const Tr('Straight between devices on the network this one is on, with no server and no internet. Used when the relay server can\'t carry something, and by itself where there is no internet at all.'),
     footer: const Text(lanSaysWords),
     children: [
       SettingRow(key: const ValueKey('lan-seen'), icon: icon(Lucide.wifi), label: lanFoundWords(lan.seen), hint: const Text(lanFoundHint)),
@@ -350,7 +351,7 @@ PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, 
   rows.sort((a, b) => b.$1.compareTo(a.$1));
   return PaneSection(
     title: 'Which route each conversation is on',
-    description: const Text('The route that last carried something to each person, and the one that last brought something from them. A group goes person by person: each of its people is reached by a route of their own.'),
+    description: const Tr('The route that last carried something to each person, and the one that last brought something from them. A group goes person by person: each of its people is reached by a route of their own.'),
     footer: Text(
         '${rows.length > routesUsedShown ? 'The $routesUsedShown used last. ' : ''}Circles and spaces always go by the relay server they were made on, and texts by the phone\'s carrier. Kept on this device only, out of any backup, for a week, and deleted when you sign out.'),
     children: [for (final (_, row) in rows.take(routesUsedShown)) row],
@@ -550,12 +551,12 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
 
   return [
     PaneSection(
-      footer: const Text('It works with the people encryption is on with: exchanging keys by text is what introduces two phones. Nothing is sent anywhere until there is one. Everything that crosses is sealed between the two phones.'),
+      footer: const Tr('It works with the people encryption is on with: exchanging keys by text is what introduces two phones. Nothing is sent anywhere until there is one. Everything that crosses is sealed between the two phones.'),
       children: [
         SettingRow(
           icon: icon(Lucide.network),
           label: 'Reach other phones with the app directly',
-          hint: const Text('For calls, and for what a text cannot carry.'),
+          hint: const Tr('For calls, and for what a text cannot carry.'),
           control: GlacierSwitch(checked: net.on, onCheckedChange: net.setOn, ariaLabel: 'Reach other phones with the app directly'),
         ),
       ],
@@ -567,7 +568,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (board != null)
       PaneSection(
         title: 'Routes',
-        description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
+        description: const Tr('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
         footer: routesNote == null ? null : Text(routesNote),
         children: [
           // Direct among them wherever the build offers it: its route's own row once it is made, else the same row
@@ -601,7 +602,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (board != null && net.hub != null)
       PaneSection(
         title: 'Relay server',
-        description: const Text('It sees which installs talk and when, never what they say. You can run your own and use it here instead of ours.'),
+        description: const Tr('It sees which installs talk and when, never what they say. You can run your own and use it here instead of ours.'),
         footer: const Text(relayLimitsWords),
         children: [
           SettingRow(
@@ -639,7 +640,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
               key: const ValueKey('relay-use-default'),
               icon: icon(Lucide.undo2),
               label: 'Go back to Ghost Messaging\'s relay',
-              hint: const Text('gogho.st, where everyone else is.'),
+              hint: const Tr('gogho.st, where everyone else is.'),
               onPress: () async {
                 await net.useRelay('');
                 if (context.mounted) toast(context, 'Using Ghost Messaging\'s relay again');
@@ -652,12 +653,12 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (board != null) ...relayHostSections(context, net),
     PaneSection(
       title: 'Invite',
-      footer: const Text('Once they have the app and you text each other, it offers to turn encryption on between you. From then they are someone the routes reach.'),
+      footer: const Tr('Once they have the app and you text each other, it offers to turn encryption on between you. From then they are someone the routes reach.'),
       children: [
         SettingRow(
           icon: icon(Lucide.userPlus),
           label: 'Invite someone by text',
-          hint: const Text('Opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text.'),
+          hint: const Tr('Opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text.'),
           onPress: () {
             // In the app's frame a new chat opens in the pane, the invitation already in its message field.
             final shell = AppShell.maybeOf(context);
@@ -673,7 +674,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (anyone)
       PaneSection(
         title: 'People you can reach',
-        description: const Text('Press one to send a test and see which route carries it.'),
+        description: const Tr('Press one to send a test and see which route carries it.'),
         children: [
           for (final p in net.people)
             SettingRow(
@@ -707,7 +708,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
     if (net.id != null)
       PaneSection(
         title: 'This phone',
-        footer: const Text('A name made from this phone\'s encryption key. A relay server and the other phones know this phone by it, and learn no number or name from it.'),
+        footer: const Tr('A name made from this phone\'s encryption key. A relay server and the other phones know this phone by it, and learn no number or name from it.'),
         children: [
           SettingRow(icon: icon(Lucide.keyRound), label: '${net.id!.substring(0, 8)} ${net.id!.substring(8, 16)}'),
         ],
@@ -843,7 +844,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
       GlacierInput(
         key: const ValueKey('relay-address'),
         controller: _address,
-        placeholder: 'relay.example.com',
+        placeholder: 'relay.example.com'.t,
         ariaLabel: 'Another relay server\'s address',
         inputMode: TextInputType.url,
         size: GlacierFieldSize.md,
@@ -859,7 +860,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
         key: const ValueKey('relay-check-and-use'),
         icon: _checking ? const GhostSpinner(size: 18) : const AppIcon(Lucide.check, size: 18),
         label: _checking ? 'Checking it answers…' : 'Check it and use it',
-        hint: const Text('Nothing changes unless a Ghost Messaging relay answers there.'),
+        hint: const Tr('Nothing changes unless a Ghost Messaging relay answers there.'),
         onPress: _checking ? null : _use,
       ),
     ]);
@@ -902,7 +903,7 @@ class _RelayPassBoxState extends State<RelayPassBox> {
         style: pageText(t, t.fontSize('sm'), color: t.color(wrong || busy ? 'app-danger' : 'app-ink-2')),
       ),
       SizedBox(height: t.space(2)),
-      GlacierInput(key: const ValueKey('relay-pass-field'), controller: _pass, type: GlacierInputType.password, placeholder: 'Its pass phrase', ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _try()),
+      GlacierInput(key: const ValueKey('relay-pass-field'), controller: _pass, type: GlacierInputType.password, placeholder: 'Its pass phrase'.t, ariaLabel: 'The relay\'s pass phrase', autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _try()),
       SizedBox(height: t.space(2)),
       SettingRow(key: const ValueKey('relay-pass-try'), icon: const AppIcon(Lucide.keyRound, size: 18), label: 'Use this pass phrase', onPress: _try),
     ]);

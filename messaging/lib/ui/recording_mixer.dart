@@ -465,7 +465,7 @@ class _Strip extends StatelessWidget {
         ),
         SizedBox(height: t.space(2)),
         if (isMix)
-          SizedBox(height: 22, child: Center(child: Text('OUT', style: pageText(t, 10, weight: 'bold', color: _Studio.ink3, mono: true, tracking: 1))))
+          SizedBox(height: 22, child: Center(child: Tr('OUT', style: pageText(t, 10, weight: 'bold', color: _Studio.ink3, mono: true, tracking: 1))))
         else
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             _StripButton(key: ValueKey('recording-mute-$key'), letter: 'M', label: mix.muted(key) ? 'Unmute ${track.name} in the mix' : 'Mute ${track.name} in the mix', on: mix.muted(key), lit: _muteLit, onPressed: () => rec.setMuted(key, !mix.muted(key))),

@@ -14,6 +14,7 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../plugins/pack/pack.dart';
 import '../../plugins/registry.dart' show PluginStore;
+import '../../l10n/words.dart';
 
 /// Where a pack's button is offered, in words.
 String _slotWords(String slot) => switch (slot) {
@@ -118,14 +119,14 @@ class _TryPackSectionState extends State<TryPackSection> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       PaneSection(
         title: 'Try it',
-        description: const Text('A text as if a number not in your contacts sent it, run through the plugin as the app would run it.'),
+        description: const Tr('A text as if a number not in your contacts sent it, run through the plugin as the app would run it.'),
         children: [
-          SettingRowBox(child: GlacierInput(key: _k('try-text'), controller: _text, placeholder: 'A text to try it on', ariaLabel: 'A text to try it on', size: GlacierFieldSize.md, onSubmitted: (_) => _try())),
+          SettingRowBox(child: GlacierInput(key: _k('try-text'), controller: _text, placeholder: 'A text to try it on'.t, ariaLabel: 'A text to try it on', size: GlacierFieldSize.md, onSubmitted: (_) => _try())),
           SettingRow(icon: const AppIcon(Lucide.phone, size: 18), label: 'From', control: SizedBox(width: t.lenOf('8rem'), child: GlacierInput(key: _k('try-from'), controller: _from, ariaLabel: 'From', size: GlacierFieldSize.sm))),
           SettingRow(
             icon: const AppIcon(Lucide.slidersHorizontal, size: 18),
             label: 'Every switch on',
-            hint: const Text('Its settings\' switches all on, as if you had turned them on.'),
+            hint: const Tr('Its settings\' switches all on, as if you had turned them on.'),
             control: GlacierSwitch(key: _k('try-on'), checked: _on, onCheckedChange: (on) => setState(() => _on = on), ariaLabel: 'Every switch on'),
           ),
           SettingRow(key: _k('try'), icon: const AppIcon(Lucide.play, size: 18), label: 'Try it', onPress: _try),
@@ -139,7 +140,7 @@ class _TryPackSectionState extends State<TryPackSection> {
       SizedBox(height: t.space(4)),
       PaneSection(
         title: 'Try the samples',
-        description: const Text('Bills, receipts and parcels, and texts no plugin like these should touch: a sign-in code, a friend\'s question, an appointment, a prize scam, a political text.'),
+        description: const Tr('Bills, receipts and parcels, and texts no plugin like these should touch: a sign-in code, a friend\'s question, an appointment, a prize scam, a political text.'),
         children: [
           SettingRow(icon: const AppIcon(Lucide.listChecks, size: 18), label: _samples == null ? 'Try the samples' : 'Try them again', onPress: _trySamples),
           if (_samples != null)

@@ -22,6 +22,7 @@ import '../me/me.dart';
 import '../souls/souls_send.dart';
 import 'common.dart';
 import 'souls.dart' show SoulFlame, soulsCount;
+import '../l10n/words.dart';
 
 /// The page souls are sent from: how many, a few words to go with them if wanted, and Send, which asks once more
 /// before anything goes. [to] is the friend's Ghost id and [name] what they are called here; [write] sends the card's
@@ -179,7 +180,7 @@ class _SendSoulsScreenState extends State<SendSoulsScreen> {
                 child: GlacierInput(
                   key: const ValueKey('send-souls-note'),
                   controller: _note,
-                  placeholder: 'Thanks for the help',
+                  placeholder: 'Thanks for the help'.t,
                   ariaLabel: 'A note',
                   autoCapitalize: TextCapitalization.sentences,
                   maxLength: soulsNoteMost,

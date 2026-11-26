@@ -9,6 +9,7 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 import '../kit/semantic_colors.dart';
+import '../l10n/words.dart';
 
 /// Setting up RCS, step by step (Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an
 /// android phone and walk the user through how to enable the rcs sidecar"; and "we should have a way to make the app
@@ -194,7 +195,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
                   ]),
                 )),
       if (s.beside)
-        SettingsCallout(child: const Text('RCS is set up. Ghost shows every conversation, RCS and texts, and replies go through Google Messages.')),
+        SettingsCallout(child: const Tr('RCS is set up. Ghost shows every conversation, RCS and texts, and replies go through Google Messages.')),
       SizedBox(height: t.space(4)),
       Text('On your computer', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
       SizedBox(height: t.space(1)),

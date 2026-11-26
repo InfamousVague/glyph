@@ -11,6 +11,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../voice/hangout.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 // Polls in a space's chat (Matt, 2026-11-19: "add Polls as a default feature"; lib/voice/polls.dart): the card a poll
 // is shown as, and the page one is asked from.
@@ -235,7 +236,7 @@ class _NewPollScreenState extends State<NewPollScreen> {
                 child: GlacierInput(
                   key: const ValueKey('poll-question'),
                   controller: _question,
-                  placeholder: 'Ask something',
+                  placeholder: 'Ask something'.t,
                   ariaLabel: 'Question',
                   autoFocus: true,
                   autoCapitalize: TextCapitalization.sentences,

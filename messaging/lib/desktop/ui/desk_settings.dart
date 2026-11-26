@@ -28,6 +28,7 @@ import '../updates.dart';
 import 'qr.dart';
 import 'update_bar.dart';
 import 'wizard.dart';
+import '../../l10n/words.dart';
 
 /// What a computer adds to Settings. A computer has the phone's Settings and its pages (Matt, 2026-11-14: "desktop
 /// and mobile should also share the same settings pages", and "a full features settings page like the ghost
@@ -211,7 +212,7 @@ class _GmPageState extends State<_GmPage> {
           if (qr != null)
             PaneSection(
               title: 'Scan this in Google Messages',
-              description: const Text('On your phone, open Google Messages, tap your profile picture, then Device pairing, then QR code scanner, and point it at this code.'),
+              description: const Tr('On your phone, open Google Messages, tap your profile picture, then Device pairing, then QR code scanner, and point it at this code.'),
               children: [
                 SettingRowBox(child: Center(child: Padding(padding: EdgeInsets.all(t.space(3)), child: QrView(data: qr, size: 240)))),
               ],
@@ -219,24 +220,24 @@ class _GmPageState extends State<_GmPage> {
           else if (gm.paired)
             PaneSection(
               title: 'Paired with Google Messages',
-              footer: const Text('Every conversation in Google Messages shows here, RCS and texts, with their history and pictures. Your phone needs to be on and online: the messages go through it.'),
+              footer: const Tr('Every conversation in Google Messages shows here, RCS and texts, with their history and pictures. Your phone needs to be on and online: the messages go through it.'),
               children: [
                 if (gm.inactive)
                   SettingRow(
                     icon: _icon(LucideMore.smartphone),
                     label: 'Your phone has Google Messages for now',
-                    hint: const Text('Google Messages keeps one web session at a time, and Ghost on your phone holds it. This computer shows the same conversations through your phone.'),
+                    hint: const Tr('Google Messages keeps one web session at a time, and Ghost on your phone holds it. This computer shows the same conversations through your phone.'),
                   ),
                 SettingRow(
                   icon: _icon(gm.connected ? Lucide.circleCheck : Lucide.triangleAlert),
                   label: gm.connected ? 'Connected' : 'Connecting…',
                   hint: Text([if (gm.phone.isNotEmpty) gm.phone, ?gm.problem].join(' · ').ifEmpty('Google Messages answers this computer directly')),
                 ),
-                SettingRow(icon: _icon(Lucide.bookOpen), label: 'Keep it running', hint: const Text('Open at login, and staying awake: the guide.'), onPress: () => push(context, (_) => const GmGuideScreen())),
+                SettingRow(icon: _icon(Lucide.bookOpen), label: 'Keep it running', hint: const Tr('Open at login, and staying awake: the guide.'), onPress: () => push(context, (_) => const GmGuideScreen())),
                 SettingRow(
                   icon: _icon(Lucide.unlink),
                   label: 'Unpair Google Messages',
-                  hint: const Text('This computer stops showing Google Messages\' conversations. Google Messages lists it under Device pairing until then.'),
+                  hint: const Tr('This computer stops showing Google Messages\' conversations. Google Messages lists it under Device pairing until then.'),
                   onPress: () => showChoices(context, title: 'Unpair Google Messages from this computer?', choices: [
                     // Where each conversation was left goes too (lib/ui/jump_to_latest.dart): paired again, perhaps with another phone,
                     // the same thread numbers name other conversations.
@@ -253,8 +254,8 @@ class _GmPageState extends State<_GmPage> {
             // would be really cool"): said, rather than asking for this computer to be set up again.
             PaneSection(
               title: 'RCS through your phone',
-              description: const Text('Your phone has Google Messages set up in Ghost, so every conversation there, RCS and texts, already shows on this computer through it.'),
-              footer: const Text('Your phone needs to be on and online for them to arrive. Set up this computer as well if you want it to reach Google Messages without your phone being on.'),
+              description: const Tr('Your phone has Google Messages set up in Ghost, so every conversation there, RCS and texts, already shows on this computer through it.'),
+              footer: const Tr('Your phone needs to be on and online for them to arrive. Set up this computer as well if you want it to reach Google Messages without your phone being on.'),
               children: [
                 SettingRow(
                   key: const ValueKey('rcs-through-phone'),
@@ -272,8 +273,8 @@ class _GmPageState extends State<_GmPage> {
             // Messages signed in to an account.
             PaneSection(
               title: 'Set up Google Messages on this computer',
-              description: const Text('Every conversation in Google Messages shows here, RCS and texts, with their history, pictures and reactions. It takes a couple of minutes, once.'),
-              footer: const Text('The connection is this computer\'s alone: messages go between it and Google, never through Ghost\'s servers. The helper is open source, built on mautrix-gmessages (GNU AGPL).'),
+              description: const Tr('Every conversation in Google Messages shows here, RCS and texts, with their history, pictures and reactions. It takes a couple of minutes, once.'),
+              footer: const Tr('The connection is this computer\'s alone: messages go between it and Google, never through Ghost\'s servers. The helper is open source, built on mautrix-gmessages (GNU AGPL).'),
               children: [
                 SettingRowBox(child: Padding(
                   padding: EdgeInsets.symmetric(vertical: t.space(2)),
@@ -282,8 +283,8 @@ class _GmPageState extends State<_GmPage> {
               ],
             ),
             PaneSection(children: [
-              SettingRow(icon: _icon(Lucide.bookOpen), label: 'Keep it running', hint: const Text('Open at login, staying awake, and using it with your phone.'), onPress: () => push(context, (_) => const GmGuideScreen())),
-              SettingRow(icon: _icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Text('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner.'), onPress: () async {
+              SettingRow(icon: _icon(Lucide.bookOpen), label: 'Keep it running', hint: const Tr('Open at login, staying awake, and using it with your phone.'), onPress: () => push(context, (_) => const GmGuideScreen())),
+              SettingRow(icon: _icon(LucideMore.qrCode), label: 'Pair with a QR code instead', hint: const Tr('For Google Messages not signed in to a Google account, where Device pairing still has a QR code scanner.'), onPress: () async {
                 try {
                   await gm.pair();
                 } catch (e) {
@@ -320,7 +321,7 @@ List<Widget> _phonePage(BuildContext context, DeskSettings d) {
             key: const ValueKey('link-phone'),
             icon: _icon(LucideMore.qrCode),
             label: 'Link an Android phone',
-            hint: const Text('Scan a code with the phone. Ghost Messaging opens again once it is linked.'),
+            hint: const Tr('Scan a code with the phone. Ghost Messaging opens again once it is linked.'),
             onPress: () => push<void>(context, (_) => const GhostPage(title: 'Link an Android phone', body: PairWizard())),
           ),
         ],
@@ -413,7 +414,7 @@ class _AddressFieldState extends State<_AddressField> {
   Widget build(BuildContext context) {
     return GlacierInput(
       controller: _address,
-      placeholder: '192.168.1.20:47811',
+      placeholder: '192.168.1.20:47811'.t,
       ariaLabel: 'The phone\'s address and port',
       autoCorrect: false,
       autoCapitalize: TextCapitalization.none,
@@ -442,7 +443,7 @@ List<Widget> _keptPage(BuildContext context, DeskSettings d) {
       ],
     ),
     PaneSection(
-      footer: const Text('They are read from your phone again as you open them. Unpairing clears them too.'),
+      footer: const Tr('They are read from your phone again as you open them. Unpairing clears them too.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.trash2),
@@ -475,7 +476,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
   return [
     PaneSection(
       title: 'Ghost Messaging for $desktopName',
-      footer: const Text('It updates itself from gogho.st: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
+      footer: const Tr('It updates itself from gogho.st: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
         SettingRow(
@@ -511,8 +512,8 @@ List<Widget> _aboutPage(BuildContext context, DeskSettings d, AppState app) {
     PaneSection(title: 'Ghost Messaging for $desktopName', children: [
       SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app), onPress: () => versionTapped(context, app)),
       // The release notes again (lib/ui/whats_new.dart).
-      SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Text('What the last update brought.'), onPress: () => showWhatsNew(context)),
-      SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Text('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
+      SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Tr('What the last update brought.'), onPress: () => showWhatsNew(context)),
+      SettingRow(icon: _icon(Lucide.bookOpen), label: 'Help and docs', hint: const Tr('How everything works, step by step, at gogho.st/docs.'), onPress: openDocs),
       SettingRow(
         icon: _icon(LucideMore.smartphone),
         label: 'Your phone sends and receives',

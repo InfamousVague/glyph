@@ -16,6 +16,7 @@ import '../emoji_data.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
+import '../l10n/words.dart';
 
 /// Puts [emoji] into [c] where its cursor is (in place of what is selected), the cursor after it.
 void insertEmoji(TextEditingController c, String emoji) {
@@ -197,7 +198,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
                             key: const ValueKey('emoji-search'),
                             controller: _search,
                             focusNode: _focus,
-                            placeholder: 'Search emoji',
+                            placeholder: 'Search emoji'.t,
                             ariaLabel: 'Search emoji',
                             autoCorrect: false,
                             size: GlacierFieldSize.sm,

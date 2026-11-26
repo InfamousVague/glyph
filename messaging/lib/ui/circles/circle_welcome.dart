@@ -16,6 +16,7 @@ import '../../kit/settings_kit.dart';
 import '../../kit/settings_type.dart';
 import '../../voice/voice.dart' show SpaceKind, VoiceChannel;
 import '../common.dart';
+import '../../l10n/words.dart';
 
 /// Circle settings › Welcome: the welcome's words, the space newcomers land in, the system space, and which spaces are
 /// read-only. [onOpenSpace] opens a space's own settings (where it is made read-only).
@@ -38,7 +39,7 @@ List<Widget> circleWelcomeSection(BuildContext context, Circle c, {required Valu
     if (!edit) ...[SettingsCallout(child: Text('Whoever has Change the circle sets ${c.name}\'s welcome.')), SizedBox(height: t.space(4))],
     PaneSection(
       title: 'Welcome message',
-      description: const Text('Shown to each new member at the top of the welcome space, which the circle opens on for them. Write {name} where their name goes.'),
+      description: const Tr('Shown to each new member at the top of the welcome space, which the circle opens on for them. Write {name} where their name goes.'),
       children: [
         SettingRow(
           key: const ValueKey('circle-welcome-text'),
@@ -59,7 +60,7 @@ List<Widget> circleWelcomeSection(BuildContext context, Circle c, {required Valu
           key: const ValueKey('circle-welcome-space'),
           icon: AppIcon(Lucide.messageSquare, size: 18),
           label: 'Welcome space',
-          hint: const Text('Where new members land, and where the welcome is shown'),
+          hint: const Tr('Where new members land, and where the welcome is shown'),
           value: Text(spaceName(welcome)),
           onPress: edit
               ? () => showChoices(context, title: 'Where do new members land?', choices: [
@@ -73,7 +74,7 @@ List<Widget> circleWelcomeSection(BuildContext context, Circle c, {required Valu
     gap,
     PaneSection(
       title: 'System messages',
-      description: const Text('A read-only space where each member\'s app writes who joined, who was kicked or banned and who became or stopped being an admin. Only the owner and admins post there, so it suits announcements too.'),
+      description: const Tr('A read-only space where each member\'s app writes who joined, who was kicked or banned and who became or stopped being an admin. Only the owner and admins post there, so it suits announcements too.'),
       children: [
         SettingRow(
           key: const ValueKey('circle-system-space'),
@@ -93,15 +94,15 @@ List<Widget> circleWelcomeSection(BuildContext context, Circle c, {required Valu
     gap,
     PaneSection(
       title: 'Read-only spaces · ${readOnly.length}',
-      description: const Text('Only the owner and admins can post in these: announcements, rules, system messages. The relay holds everyone else to it too. Make a space read-only in its settings.'),
+      description: const Tr('Only the owner and admins can post in these: announcements, rules, system messages. The relay holds everyone else to it too. Make a space read-only in its settings.'),
       children: [
-        if (readOnly.isEmpty) const SettingRowBox(child: Text('None yet.')),
+        if (readOnly.isEmpty) const SettingRowBox(child: Tr('None yet.')),
         for (final s in readOnly)
           SettingRow(
             key: ValueKey('circle-readonly-${s.seed}'),
             icon: AppIcon(Lucide.lock, size: 18),
             label: '# ${s.name}',
-            hint: s.seed == system ? const Text('System messages') : (s.seed == welcome ? const Text('Welcome space') : null),
+            hint: s.seed == system ? const Tr('System messages') : (s.seed == welcome ? const Tr('Welcome space') : null),
             onPress: editSpaces ? () => onOpenSpace(s.seed) : null,
           ),
       ],
@@ -146,7 +147,7 @@ class _CircleWelcomeWordsState extends State<CircleWelcomeWords> {
         padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           PaneSection(
-            description: const Text('Each new member sees this at the top of the welcome space. {name} is their name. Leave it empty for none.'),
+            description: const Tr('Each new member sees this at the top of the welcome space. {name} is their name. Leave it empty for none.'),
             children: [
               SettingRowBox(
                 child: GestureDetector(
@@ -159,7 +160,7 @@ class _CircleWelcomeWordsState extends State<CircleWelcomeWords> {
                       ListenableBuilder(
                         listenable: _words,
                         builder: (context, _) => _words.text.isEmpty
-                            ? IgnorePointer(child: Text('Welcome, {name}! Say hello in # general, and read # rules first.', style: ink.copyWith(color: t.color('app-ink-3'))))
+                            ? IgnorePointer(child: Tr('Welcome, {name}! Say hello in # general, and read # rules first.', style: ink.copyWith(color: t.color('app-ink-3'))))
                             : const SizedBox.shrink(),
                       ),
                       EditableText(
