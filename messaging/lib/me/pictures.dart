@@ -33,6 +33,18 @@ class ProfilePictures extends ChangeNotifier {
   static const fullSide = 640;
   static const fullMost = 280000;
 
+  /// A profile's banner picture (GMFB-34: a banner of your own, where there were ten ready-made ones): three wide to
+  /// one high, [bannerWide] pixels across at its largest, a base64 JPEG of at most [bannerMost] characters. It rides in
+  /// the same packet as the pictures above where there is room (lib/friends/buddies.dart), so it is kept small: drawn
+  /// some 90 points high under a face and a name, it needs no more.
+  static const bannerWide = 480;
+  static const bannerShape = 3.0;
+  static const bannerMost = 12000;
+
+  /// Whether [picture] can be a banner as sent or kept: base64, and no longer than [bannerMost].
+  static bool goodBanner(String picture) => picture.isNotEmpty && picture.length <= bannerMost && _b64.hasMatch(picture);
+  static final _b64 = RegExp(r'^[A-Za-z0-9+/=]+$');
+
   // Each person's picture here, by their id, with the mark a greeting would name it by.
   final Map<String, ({String hash, String picture})> _by = {};
 

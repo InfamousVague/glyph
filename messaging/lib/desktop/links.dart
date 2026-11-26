@@ -12,6 +12,8 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import '../circles/pending_link.dart';
+import '../friends/add_link.dart' show addLinkUsername;
+import '../ui/add_me.dart' show askToAdd;
 import '../ui/circles/circle_invite_card.dart' show openCircleLink;
 import '../ui/common.dart' show toast;
 import '../ui/relay_host_section.dart' show askToUseRelay;
@@ -34,6 +36,9 @@ class DeskLinks {
     if (u.toLowerCase().startsWith('ghostmsg://join')) return 'https://gogho.st/join/${u.substring('ghostmsg://join'.length)}';
     return u;
   }
+
+  /// Whether [url] is someone's add-me link (lib/friends/add_link.dart), in the app's own scheme or the site's.
+  static bool isAddLink(String url) => !url.trim().toLowerCase().startsWith('ghostmsg://join') && addLinkUsername(url) != null;
 
   /// Listens for links, and takes any the app was started with.
   static Future<void> start() async {
@@ -60,6 +65,14 @@ class DeskLinks {
     if (url.trim().toLowerCase().startsWith('ghostmsg://relay')) {
       final shell = AppShellState.live;
       if (shell != null && shell.mounted) await askToUseRelay(shell.context, url.trim());
+      return;
+    }
+    // Someone's add-me link (`ghostmsg://add/NAME#KEY`, from the page's Open in Ghost Messaging, site/add; GMFB-34):
+    // asked first, then the friend request, as on a phone. It was taken for a circle's link here, and answered "That
+    // circle link isn't complete". Before the app is set up there is nobody to ask as, and it is let go.
+    if (isAddLink(url)) {
+      final shell = AppShellState.live;
+      if (shell != null && shell.mounted) askToAdd(shell.context, url.trim());
       return;
     }
     final link = normalise(url);

@@ -460,6 +460,41 @@ class Vouches extends ChangeNotifier {
     ];
   }
 
+  /// The most of this account's own words one telling of its other devices carries ([own]) or takes ([tookOwn]).
+  static const ownMost = 2 * most;
+
+  /// This account's own words about its friends, said and taken back, the newest first: what its other devices are
+  /// told (GMFB-33: a vouch made on the phone was not known to the Mac, which then offered Vouch for again and never
+  /// Take back). Each is signed, so a device takes one only where it checks.
+  List<Map<String, Object>> own() {
+    final now = _now();
+    final all = given.values.where((v) => v.goodAt(now)).toList()..sort((a, b) => b.t.compareTo(a.t));
+    return [for (final v in all.take(ownMost)) v.toJson()];
+  }
+
+  /// What another device of this account ([me], key [myKey]) said it has given ([list], as [own] makes it): each word
+  /// kept where it is this account's by its signature, about a friend [keyOf] names a key for, good now, and newer
+  /// than the word held here about them. A taking back is a word too, so it travels the same way. True where anything
+  /// changed.
+  bool tookOwn(Object? list, {required String me, required String myKey, required String? Function(String id) keyOf}) {
+    if (list is! List) return false;
+    load(me);
+    final now = _now();
+    var changed = false;
+    for (final j in list.take(ownMost)) {
+      final v = Vouch.fromJson(j);
+      if (v == null || v.by != me || v.forId == me || !v.goodAt(now)) continue;
+      final had = given[v.forId];
+      if (had != null && had.t >= v.t) continue;
+      final key = keyOf(v.forId);
+      if (key == null || !v.checks(byKey: myKey, forKey: key)) continue;
+      given[v.forId] = v;
+      changed = true;
+    }
+    if (changed) _save();
+    return changed;
+  }
+
   /// This account's newest word about [forId] (key [forKey]), from this device or as their profile carried back
   /// another device's ([myKey] checks it is this account's), where it is a vouch good now; null otherwise.
   Vouch? givenFor(String forId, {String? forKey, String? myKey}) {

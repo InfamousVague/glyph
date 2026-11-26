@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'cosmetics.dart';
+import 'own_links.dart';
 import 'picture_make.dart';
 import 'pictures.dart';
 
@@ -810,6 +811,37 @@ class Me extends ChangeNotifier {
   bool get shareLinks => _app?.flag('me_share_links', fallback: false) ?? false;
   void setShareLinks(bool on) {
     _app?.setFlag('me_share_links', on);
+    notifyListeners();
+  }
+
+  /// Links this person typed for their profile (GMFB-34; lib/me/own_links.dart): a name and an https address each,
+  /// [OwnLink.most] at most. Sent to friends with the profile, whose cards say "says" beside each: nothing checks them.
+  List<OwnLink> get ownLinks {
+    final kept = _app?.choice('me_own_links', '') ?? '';
+    if (kept.isEmpty) return const [];
+    try {
+      return OwnLink.listOf(jsonDecode(kept)) ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Keeps [links] as this person's own, those that can be one ([OwnLink.listOf]).
+  void setOwnLinks(List<OwnLink> links) {
+    final good = OwnLink.listOf([for (final l in links) l.toJson()]) ?? const <OwnLink>[];
+    _app?.set('me_own_links', good.isEmpty ? '' : jsonEncode([for (final l in good) l.toJson()]));
+    notifyListeners();
+  }
+
+  /// This person's own picture as their profile's banner (GMFB-34; lib/me/picture_make.dart, bannerPictureOf): a wide
+  /// base64 JPEG of at most [ProfilePictures.bannerMost] characters, sent to friends with the profile; '' for none.
+  /// The banner chosen among the ready-made ones ([cosmetics]) stays beside it: what a build from before draws, and
+  /// what a space is told.
+  String get banner => _app?.choice('me_banner', '') ?? '';
+
+  /// Sets the banner picture, or takes it away (null, or one too long to send).
+  void setBanner(String? picture) {
+    _app?.set('me_banner', picture == null || picture.length > ProfilePictures.bannerMost ? '' : picture);
     notifyListeners();
   }
 

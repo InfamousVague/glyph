@@ -9,6 +9,7 @@ import '../invites/pending_invites.dart';
 import '../me/me.dart';
 import '../me/cosmetics.dart';
 import '../me/lookup_budget.dart';
+import '../me/own_links.dart';
 import '../me/pictures.dart';
 import '../net/carrier.dart';
 import '../net/crypto.dart';
@@ -26,7 +27,7 @@ import 'vouches.dart';
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
-  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}, this.cosmetics = Cosmetics.none, this.home, this.check = ''});
+  const Buddy({required this.username, required this.id, required this.key, this.name = '', this.bio = '', this.state = 'yes', this.at = 0, this.picture = '', this.status = '', this.links = const {}, this.cosmetics = Cosmetics.none, this.home, this.check = '', this.banner = '', this.own = const []});
 
   /// Their username, as the relay server's directory has it: `maya`, or `maya@relay.example` for someone who was
   /// added on another relay (lib/net/home_record.dart, splitUsername).
@@ -77,6 +78,13 @@ class Buddy {
   /// What their profile wears, as they last said (lib/me/cosmetics.dart).
   final Cosmetics cosmetics;
 
+  /// Their own picture as their banner (GMFB-34; ProfilePictures.goodBanner), as they last said; '' for none, where
+  /// the banner [cosmetics] names is drawn.
+  final String banner;
+
+  /// The links they typed for their profile (lib/me/own_links.dart), as they last said: theirs by their word alone.
+  final List<OwnLink> own;
+
   /// What the relay's directory last said of [username], for a request (found in review, 2026-11-23): `ok`, it gives
   /// [id] for it; `other`, it gives it to another install; `nobody`, it knows no such name (it may be another relay's);
   /// '' not asked yet, or the relay couldn't be asked. A request names its own username, and anyone can send one: an
@@ -88,7 +96,7 @@ class Buddy {
   /// The directory gives [username] for this install ([check]).
   bool get checked => check == 'ok';
 
-  Buddy copyWith({String? username, String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, Map<String, Object?>? home, String? check}) => Buddy(
+  Buddy copyWith({String? username, String? name, String? bio, String? state, String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, Map<String, Object?>? home, String? check, String? banner, List<OwnLink>? own}) => Buddy(
       username: username ?? this.username,
       id: id,
       key: key,
@@ -101,9 +109,11 @@ class Buddy {
       links: links ?? this.links,
       cosmetics: cosmetics ?? this.cosmetics,
       home: home ?? this.home,
-      check: check ?? this.check);
+      check: check ?? this.check,
+      banner: banner ?? this.banner,
+      own: own ?? this.own);
 
-  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links, if (!cosmetics.isEmpty) 'cx': cosmetics.toJson(), 'h': ?home, if (check.isNotEmpty) 'ck': check};
+  Map<String, Object> toJson() => {'u': username, 'i': id, 'k': key, 'n': name, 'b': bio, 's': state, 'a': at, if (picture.isNotEmpty) 'p': picture, if (status.isNotEmpty) 'st': status, if (links.isNotEmpty) 'l': links, if (!cosmetics.isEmpty) 'cx': cosmetics.toJson(), 'h': ?home, if (check.isNotEmpty) 'ck': check, if (banner.isNotEmpty) 'bp': banner, if (own.isNotEmpty) 'ol': [for (final l in own) l.toJson()]};
 
   /// Links as sent or kept: network to handle, short strings only; null where none were said.
   static Map<String, String>? _linksOf(Object? l) {
@@ -118,8 +128,11 @@ class Buddy {
     if (u is! String || i is! String || k is! String) return null;
     final p = j['p'] is String && (j['p'] as String).length <= ProfilePictures.most ? j['p'] as String : '';
     final ck = j['ck'];
-    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {}, cosmetics: Cosmetics.fromJson(j['cx']) ?? Cosmetics.none, home: j['h'] is Map ? (j['h'] as Map).cast<String, Object?>() : null, check: ck == true ? 'ok' : (const {'ok', 'other', 'nobody'}.contains(ck) ? ck as String : ''));
+    return Buddy(username: u, id: i, key: k, name: '${j['n'] ?? ''}', bio: '${j['b'] ?? ''}', state: '${j['s'] ?? 'yes'}', at: (j['a'] as num?)?.toInt() ?? 0, picture: p, status: '${j['st'] ?? ''}', links: _linksOf(j['l']) ?? const {}, cosmetics: Cosmetics.fromJson(j['cx']) ?? Cosmetics.none, home: j['h'] is Map ? (j['h'] as Map).cast<String, Object?>() : null, check: ck == true ? 'ok' : (const {'ok', 'other', 'nobody'}.contains(ck) ? ck as String : ''), banner: _bannerOf(j['bp']) ?? '', own: OwnLink.listOf(j['ol']) ?? const []);
   }
+
+  /// A banner picture as sent or kept: '' for none or one that can't be one; null where nothing was said.
+  static String? _bannerOf(Object? bp) => bp is! String ? null : (ProfilePictures.goodBanner(bp) ? bp : '');
 }
 
 /// What [Buddies] stands on: the directory, the routes, the phone. The app's is [_AppBuddiesPort]; a test gives
@@ -152,6 +165,14 @@ abstract class BuddiesPort {
 abstract class BuddiesSigner {
   /// The account's signature over [message]: r then s, 64 bytes.
   Future<Uint8List> sign(List<int> message);
+}
+
+/// What a [BuddiesPort] adds where the account has other devices of its own (GMFB-33): a sealed envelope to them, by
+/// the way a message's copy goes (lib/friends/friends.dart, Friends.copyKind). What they send comes in [BuddiesPort.received]
+/// under this account's own name. A port without it tells no other device anything, as every port did before.
+abstract class BuddiesMine {
+  /// Sends [envelope] to this account's other devices; false where nothing took it.
+  Future<bool> sendMine(Envelope envelope);
 }
 
 /// What a [BuddiesPort] adds where relays talk to each other (docs/OPEN_NETWORK.md, section 4): this account's home
@@ -466,9 +487,15 @@ class Buddies extends ChangeNotifier {
     // it didn't go out"; the relay restarted five times that evening, one deploy each). Each unanswered request is
     // asked again: a little after starting, once the hub is reached, and every few minutes, for two weeks. The other
     // side takes a request it holds already as the same one, and answers one it has said yes to again.
-    Timer(const Duration(seconds: 15), () => unawaited(askAgain().then((_) => checkRequests())));
+    Timer(const Duration(seconds: 15), () {
+      unawaited(askAgain().then((_) => checkRequests()));
+      // The account's other devices are asked what they vouched for, and told what this one did (GMFB-33).
+      unawaited(syncVouches(ask: true));
+    });
     _again = Timer.periodic(askEvery, (_) {
       unawaited(askAgain().then((_) => checkRequests()));
+      // Asked again until the routes took it once.
+      if (!_ownAsked) unawaited(syncVouches(ask: true));
       // And whoever has not heard this account's home record yet (the relay was away when they were to be told).
       _tellSoon();
     });
@@ -690,7 +717,7 @@ class Buddies extends ChangeNotifier {
       if (had.username.contains('@') || elsewhere(b)) {
         final bare = splitUsername(had.username).name;
         final host = elsewhere(b) ? b.homeHost : '';
-        b = Buddy(username: host.isEmpty ? bare : '$bare@$host', id: b.id, key: b.key, name: b.name, bio: b.bio, state: b.state, at: b.at, picture: b.picture, status: b.status, links: b.links, cosmetics: b.cosmetics, home: b.home);
+        b = Buddy(username: host.isEmpty ? bare : '$bare@$host', id: b.id, key: b.key, name: b.name, bio: b.bio, state: b.state, at: b.at, picture: b.picture, status: b.status, links: b.links, cosmetics: b.cosmetics, home: b.home, banner: b.banner, own: b.own);
       }
       _put(b);
       if (_routed(b)) _homes?.give(rec.toJson());
@@ -902,7 +929,59 @@ class Buddies extends ChangeNotifier {
     if (byId(b.id)?.state != 'yes') throw MeError('You can vouch only for a friend.');
     final v = await vouches.make(me: me.id, forId: b.id, forKey: b.key, on: on, sign: signer.sign);
     notifyListeners();
+    // This account's other devices are told too, so each says the same of who it vouches for.
+    unawaited(syncVouches());
     await _port.send(b.id, Envelope(kind: 'vouch', body: v.toJson()));
+  }
+
+  /// What this account's devices tell each other of the vouches it gave (GMFB-33: each device kept its own, so a vouch
+  /// made on the phone was not known to the Mac): a sealed envelope to the account's own devices, `{"v": [...]}`, every
+  /// word this device holds as it was signed ([Vouches.own]), takings back among them; `q` 1 where it asks to be told
+  /// what the others hold. Builds from before pass the kind over.
+  static const ownKind = 'vouch-mine';
+
+  /// Whether this run has asked the account's other devices what they gave, and when one was last answered.
+  bool _ownAsked = false;
+  DateTime? _ownAnswered;
+
+  /// Tells this account's other devices the vouches this one gave; with [ask], asks for theirs too (once a run, a
+  /// little after starting: a device that was closed heard nothing of what was given meanwhile). The timers call it; a
+  /// test calls it itself.
+  @visibleForTesting
+  Future<void> syncVouches({bool ask = false}) async {
+    final port = _port;
+    if (_remote || port is! BuddiesMine || _me == null) return;
+    final own = vouches.own();
+    if (own.isEmpty && !ask) return;
+    try {
+      final sent = await (port as BuddiesMine).sendMine(Envelope(kind: ownKind, body: {'v': own, if (ask) 'q': 1}));
+      if (ask && sent) _ownAsked = true;
+    } catch (_) {}
+  }
+
+  /// Another device of this account said what it gave: taken where each word is this account's own by its signature
+  /// and newer than the one here ([Vouches.tookOwn]). Where it asked and this device holds a word it did not say, or a
+  /// newer one, it is told this device's, at most once in thirty seconds; an answer asks nothing, so two devices never
+  /// go on answering each other.
+  void _heardOwn(String from, Map body) {
+    final me = _me;
+    if (_remote || me == null || from != me.id) return;
+    final said = body['v'];
+    final took = vouches.tookOwn(said, me: me.id, myKey: me.key, keyOf: (id) {
+      final f = byId(id);
+      return f?.state == 'yes' ? f!.key : null;
+    });
+    if (took) notifyListeners();
+    if (body['q'] != 1) return;
+    final theirs = <String, int>{
+      for (final j in said is List ? said.take(Vouches.ownMost) : const <Object?>[])
+        if (j is Map && j['f'] is String && j['t'] is int) j['f'] as String: j['t'] as int,
+    };
+    if (!vouches.own().any((v) => (theirs[v['f']] ?? 0) < (v['t'] as int))) return;
+    final now = DateTime.now();
+    if (_ownAnswered != null && now.difference(_ownAnswered!) < const Duration(seconds: 30)) return;
+    _ownAnswered = now;
+    unawaited(syncVouches());
   }
 
   /// Whether this account carries the vouches it holds to its friends. Friends are told with the next carrying
@@ -1005,8 +1084,34 @@ class Buddies extends ChangeNotifier {
     if (held) _carrySoon();
   }
 
-  /// What friends are told of this person in a sealed envelope: [_profile], and the vouches it holds.
-  Map<String, Object> _sealedProfile(String friend) => {..._profile(), ..._carryBody(friend)};
+  /// What friends are told of this person in a sealed envelope: [_profile], the links they typed for their profile
+  /// (`ol`, GMFB-34; never in a request, which goes in the clear), and the vouches it holds.
+  Map<String, Object> _sealedProfile(String friend) => {..._profile(), 'ol': [for (final l in Me.instance.ownLinks) l.toJson()], ..._carryBody(friend)};
+
+  /// The most a sealed profile may be, as the JSON that goes, with the banner picture in it: the hub takes a packet of
+  /// 60 KB (HubCarrier.maxPacket), and the envelope, its sealing and forward secrecy's keys need room besides.
+  static const profileRoom = 54 * 1024;
+
+  /// A sealed profile for [friend], as step [s] (`yes` or `me`), with this person's banner picture (`bp`, GMFB-34; ''
+  /// for none, so a friend lets go of the one before). The two profile pictures can fill most of a packet, so where
+  /// the banner would not fit beside them it is left out and named as [after], to go in an envelope of its own
+  /// (`buddy` `bn`). A build from before passes over both and draws the ready-made banner chosen.
+  ({Map<String, Object> body, String? after}) _toldProfile(String friend, String s) {
+    final body = <String, Object>{'s': s, ..._sealedProfile(friend)};
+    final banner = Me.instance.banner;
+    if (!ProfilePictures.goodBanner(banner)) return (body: {...body, 'bp': ''}, after: null);
+    if (jsonEncode(body).length + banner.length + 8 <= profileRoom) return (body: {...body, 'bp': banner}, after: null);
+    return (body: body, after: banner);
+  }
+
+  /// Tells the friend [id] this person's profile as step [s]; true where the routes took it.
+  Future<bool> _tellProfile(String id, String s) async {
+    final told = _toldProfile(id, s);
+    if (!await _port.send(id, Envelope(kind: 'buddy', body: told.body))) return false;
+    vouches.carriedTo(id);
+    if (told.after != null) await _port.send(id, Envelope(kind: 'buddy', body: {'s': 'bn', 'bp': told.after!}));
+    return true;
+  }
 
   /// What friends are told of this person. The picture and status since 2026-11-19 (`p`, `st`); a build from before
   /// passes over them.
@@ -1019,12 +1124,12 @@ class Buddies extends ChangeNotifier {
 
   /// A picture and status said in [body], where it says them: null for each it does not (a build from before).
   @visibleForTesting
-  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics}) saidOf(Map body) => _said(body);
+  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, String? banner, List<OwnLink>? own}) saidOf(Map body) => _said(body);
 
-  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics}) _said(Map body) {
+  static ({String? picture, String? status, Map<String, String>? links, Cosmetics? cosmetics, String? banner, List<OwnLink>? own}) _said(Map body) {
     final pp = body['pp'], p = body['p'];
     final picture = pp is String && pp.isNotEmpty && pp.length <= ProfilePictures.most ? pp : p;
-    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']), cosmetics: Cosmetics.fromJson(body['cx']));
+    return (picture: picture is String && picture.length <= ProfilePictures.most ? picture : (body.containsKey('st') ? '' : null), status: body['st'] is String ? body['st'] as String : null, links: Buddy._linksOf(body['l']), cosmetics: Cosmetics.fromJson(body['cx']), banner: Buddy._bannerOf(body['bp']), own: OwnLink.listOf(body['ol']));
   }
 
   /// Who [username] is, as the add-friend drawer shows it while it is typed: nobody, this install itself, or someone
@@ -1176,7 +1281,7 @@ class Buddies extends ChangeNotifier {
     await _save();
     // Their record is given the relay now, just before the yes, so the yes is passed on to theirs.
     if (yes.home != null) _homes?.give(yes.home!);
-    if (await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'yes', ..._sealedProfile(b.id)}))) vouches.carriedTo(b.id);
+    await _tellProfile(b.id, 'yes');
     // Friends now: they are told where this account lives.
     await _tellHome(b.id);
     return yes;
@@ -1224,7 +1329,7 @@ class Buddies extends ChangeNotifier {
       return;
     }
     for (final b in friends) {
-      if (await _port.send(b.id, Envelope(kind: 'buddy', body: {'s': 'me', ..._sealedProfile(b.id)}))) vouches.carriedTo(b.id);
+      await _tellProfile(b.id, 'me');
     }
   }
 
@@ -1268,7 +1373,7 @@ class Buddies extends ChangeNotifier {
         _put(had!.copyWith(home: home));
         unawaited(_save());
       }
-      unawaited(_port.send(from, Envelope(kind: 'buddy', body: {'s': 'yes', ..._sealedProfile(from)})));
+      unawaited(_tellProfile(from, 'yes').then((_) {}, onError: (_) {}));
       return;
     }
     if (had?.state == 'asked') {
@@ -1312,6 +1417,8 @@ class Buddies extends ChangeNotifier {
     if (e.kind == 'home') return _heardHome(from, e.body['rec'], e.body['has']);
     // A friend's vouch for this account, or its taking back (lib/friends/vouches.dart).
     if (e.kind == 'vouch') return _heardVouch(from, e.body);
+    // What another device of this account gave (GMFB-33).
+    if (e.kind == ownKind) return _heardOwn(from, e.body);
     if (e.kind != 'buddy') return;
     final had = byId(from);
     if (had == null || had.state == 'blocked') return;
@@ -1326,7 +1433,7 @@ class Buddies extends ChangeNotifier {
       case 'yes':
         if (had.state == 'asked') Sounds.instance.play(UiSound.friendAccepted);
         if (had.state == 'asked' || had.state == 'yes') {
-          _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+          _put(had.copyWith(state: 'yes', name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics, banner: said.banner, own: said.own));
           _heardCarried(had, e.body);
         }
         // Friends now: they are told where this account lives (they heard it with the request; again costs little).
@@ -1336,9 +1443,13 @@ class Buddies extends ChangeNotifier {
         }
       case 'me':
         if (had.state == 'yes') {
-          _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics));
+          _put(had.copyWith(name: name, bio: bio, picture: said.picture, status: said.status, links: said.links, cosmetics: said.cosmetics, banner: said.banner, own: said.own));
           _heardCarried(had, e.body);
         }
+      case 'bn':
+        // A friend's banner picture, where it had no room beside their pictures in the profile (GMFB-34).
+        if (had.state != 'yes' || said.banner == null) return;
+        _put(had.copyWith(banner: said.banner));
       case 'vo':
         // The vouches a friend holds, changed: kept apart from the list, which the phone reads its keys from.
         if (had.state == 'yes') _heardCarried(had, e.body);
@@ -1375,7 +1486,7 @@ class Buddies extends ChangeNotifier {
 }
 
 /// The port in the app: the routes ([Net]) and their hub, followed as they start again.
-class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner {
+class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner, BuddiesMine {
   _AppBuddiesPort() {
     Net.instance.listen((r) => _in.add((from: r.peer.id, envelope: r.envelope)));
     Net.instance.addListener(_follow);
@@ -1455,6 +1566,16 @@ class _AppBuddiesPort implements BuddiesPort, BuddiesAcross, BuddiesSigner {
     final peer = Net.instance.byId(id) ?? Peer(id: id);
     final d = await board.send(peer, envelope, sealed: sealed, only: const {'hub'});
     return d.sent;
+  }
+
+  /// To the account's own other devices, as a message's copy goes to them (lib/friends/friends.dart, sendMine): by the
+  /// relay, and straight to one that is linked.
+  @override
+  Future<bool> sendMine(Envelope envelope) async {
+    final board = Net.instance.board;
+    final me = await Net.instance.mine();
+    if (board == null || me == null) return false;
+    return (await board.send(me, envelope, only: const {'hub', 'p2p'})).sent;
   }
 
   @override

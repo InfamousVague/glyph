@@ -9,6 +9,7 @@ import '../friends/buddies.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import 'common.dart';
+import 'nav_bar.dart' show HoverTip;
 
 // Vouches on screen (GMFB-33; lib/friends/vouches.dart): how many of the viewer's own friends vouch for someone, with
 // their names on a tap; vouching for a friend and taking it back; and hiding the vouches one holds.
@@ -101,6 +102,35 @@ class _VouchesLineState extends State<VouchesLine> {
             if (_names && who.isNotEmpty) Text(namesOf(who), key: const ValueKey('profile-vouches-names'), style: ink.copyWith(color: t.color('app-ink-2'))),
             if (mine) Text(yourVouchWords(until), key: const ValueKey('profile-vouches-mine'), style: ink.copyWith(color: t.color('app-ink-2'))),
           ]),
+        );
+      },
+    );
+  }
+}
+
+/// A small check beside the name on a card (GMFB-33: "shown as 'verified by 3 friends'"): there where at least one of
+/// the viewer's own friends vouches for [buddy] (or for this account, where it is null), and nothing otherwise. The
+/// card's Vouches says how many and who.
+class VouchMark extends StatelessWidget {
+  const VouchMark({super.key, this.buddy, this.buddies, this.size = 18});
+  final Buddy? buddy;
+  final Buddies? buddies;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = buddies ?? Buddies.instance;
+    return ListenableBuilder(
+      listenable: all,
+      builder: (context, _) {
+        final n = all.vouchersOf(buddy).length;
+        if (n == 0) return const SizedBox.shrink();
+        final t = context.tokens;
+        final words = vouchedWords(n, mine: buddy == null);
+        return Padding(
+          key: const ValueKey('profile-vouch-mark'),
+          padding: EdgeInsets.only(left: t.space(1)),
+          child: HoverTip(message: words, child: Semantics(label: words, child: AppIcon(Lucide.userCheck, size: size, color: t.color('app-ink-2')))),
         );
       },
     );
