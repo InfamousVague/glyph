@@ -102,7 +102,9 @@ Future<void> checkAtLaunch(MacUpdates updates, ValueNotifier<SplashStep> step, {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     unawaited(first.catchError((_) {}));
-    if (updates.phase == MacUpdatePhase.ready) {
+    // Not where restarting would have the computer ask for a password (Linux from the .deb, GMFB-32): that window
+    // comes only of a press, on the update's banner or in Settings, never of opening the app.
+    if (updates.phase == MacUpdatePhase.ready && !updates.asksPassword) {
       await updates.restart();
       // The app quits as it restarts; still here, it couldn't, and opens as it is.
       if (updates.phase == MacUpdatePhase.restarting) await Future<void>.delayed(restartWait);

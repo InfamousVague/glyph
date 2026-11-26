@@ -11,6 +11,7 @@ import '../files/files_store.dart' show FilesStore;
 import '../keys.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
+import '../ui/text_scale.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../me/me.dart';
 import '../net/carrier.dart' show CarrierState;
@@ -292,7 +293,8 @@ class WebApp extends StatelessWidget {
                 sheet: accents.of(state),
                 attrs: ghostAttrs(state, wide ? 'desktop' : 'mobile'),
                 typography: ghostTypography(state.emoji),
-                child: InkOverrides(child: GlacierToastProvider(child: child!)),
+                // The text size chosen in Settings, over every page, sheet and toast (GMFB-41, lib/ui/text_scale.dart).
+                child: AppTextScale(child: InkOverrides(child: GlacierToastProvider(child: child!))),
               );
             },
             home: const WebHome(),

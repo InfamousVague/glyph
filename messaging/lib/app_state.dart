@@ -107,10 +107,28 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// The size of a message's words: small, default, large, larger.
+  /// The size of a message's words as it was chosen before there was a slider: small, default, large, larger. Still
+  /// read where no percent has been chosen ([textPercent]), so a size chosen in an older version stays as it was.
   String get textSize => choice('text_size', 'default');
-  /// What a message's words are multiplied by for that size.
-  double get textScale => switch (textSize) { 'small' => 0.9, 'large' => 1.15, 'larger' => 1.3, _ => 1.0 };
+
+  /// The ends of the text size slider, in percent, and [percent] brought to a step of five between them. 150% is
+  /// where the dense screens (the list of conversations, a conversation, Settings) still fit a phone.
+  static const textSmallest = 80, textLargest = 150;
+  static int textStep(num percent) => ((percent / 5).round() * 5).clamp(textSmallest, textLargest);
+
+  /// The size of all the app's words, in percent of the device's own (GMFB-41: "a text-size slider"): the number
+  /// kept under `text_scale`, or, where none has been, what the old four sizes were (90, 100, 115, 130). Laid over
+  /// the whole app at its root (lib/ui/text_scale.dart), where the old sizes changed a message's words only.
+  int get textPercent {
+    final kept = num.tryParse(choice('text_scale', ''));
+    return textStep(kept ?? switch (textSize) { 'small' => 90, 'large' => 115, 'larger' => 130, _ => 100 });
+  }
+
+  void setTextPercent(int percent) => set('text_scale', '${textStep(percent)}');
+
+  /// What a message's words are multiplied by over the rest: nothing now, since [textPercent] sizes every word in the
+  /// app, a message's among them, and a message multiplied here too would grow twice.
+  double get textScale => 1.0;
 
   /// The face everything is drawn in: 'default', each look's own, or 'readable', Atkinson Hyperlegible Next, for
   /// anyone who finds letters hard to tell apart (GMFB-41; lib/looks.dart stamps it).

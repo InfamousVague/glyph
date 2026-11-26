@@ -15,6 +15,7 @@ import '../app_lock/app_lock.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
+import '../ui/text_scale.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
 import '../keys.dart';
@@ -392,7 +393,8 @@ class _DesktopAppState extends State<DesktopApp> {
               // On the Mac, the window's own title strip over everything (lib/desktop/ui/desk_title_bar.dart).
               // Over all of it, the title strip and toasts too, the lock screen while the app is locked
               // (lib/ui/app_lock_ui.dart, GMFB-46), with a strip of its own to move the window by.
-              child: InkOverrides(
+              // The text size chosen in Settings, over every page, sheet and toast (GMFB-41, lib/ui/text_scale.dart).
+              child: AppTextScale(child: InkOverrides(
                 child: AppLockGate(
                   dragStrip: true,
                   child: GlacierToastProvider(
@@ -403,7 +405,7 @@ class _DesktopAppState extends State<DesktopApp> {
                         : PerformanceUnder(navigator: _navigator, child: _recorded(child!)),
                   ),
                 ),
-              ),
+              )),
             ),
             home: const DeskHome(),
           ),
