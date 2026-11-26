@@ -6,13 +6,23 @@
 ///
 /// What a pass does, and what it never does. This touches people's own folders, so the rules are few and one-way safe:
 ///
-/// - **Adds and changes only.** A file new or changed in the folder goes up to the drive under the same path; a file
-///   new or changed in the drive comes down into the folder. Which side changed is told from a small state file kept
-///   in the app's own folder ([SyncState]): for each path, the local size and modified time and the drive's file id
-///   and SHA-256 when the two were last in step.
-/// - **Nothing is deleted, on either side.** A file removed on one side is still on the other, so the next pass brings
-///   it back. The drive has no "replace": a changed file goes up as a newer file of the same name and the older one
-///   stays in the drive; the newest of a name is the one the folder follows.
+/// - **Adds, changes and removals.** A file new or changed in the folder goes up to the drive under the same path; a
+///   file new or changed in the drive comes down into the folder. Which side changed is told from a small state file
+///   kept in the app's own folder ([SyncState]): for each path, the local size and modified time and the drive's file
+///   id, SHA-256 and time when the two were last in step.
+/// - **A changed file replaces the older one** (GMFB-38, "the files log has no replace"): the newer goes up, and then
+///   the drive's file the sync last had at that path is removed with the log's own `del` entry, which every build
+///   reads. So a build from before sees the newer file alone, or both for the moment between the two entries; never a
+///   broken list, and the relay is not changed. Where the older one can't be removed (someone else's, in a space), both
+///   stay. A copy of the same path older than the one the sync last had (left by a build from before) is never brought
+///   down over what is newer.
+/// - **A removal is followed only for a file the sync itself had in step** (it has a record of it): removed from the
+///   folder, its file in the drive is removed, where the drive's is still the one recorded; removed from the drive, the
+///   local file is moved into the hidden folder ".ghost-deleted" inside the synced folder (never deleted), where its
+///   size, time and SHA-256 are still the ones recorded. A file on one side the sync never had in step is never
+///   removed, and one changed meanwhile goes the other way instead. More than [FolderSyncEngine.holdOver] files gone
+///   at once, or more than half of those in step, wait for the person to say ([SyncReport.heldHere], a drive unplugged
+///   or a folder moved), and nothing is done to them meanwhile.
 /// - **A local file is replaced only where its content is one the sync itself recorded**: its size and time are as
 ///   recorded AND its SHA-256 is the recorded one. Anything else (both sides changed, or no record) keeps both: the
 ///   drive's is written beside it as "name (from My files).ext" and the local one goes up.
@@ -80,23 +90,31 @@ abstract class SyncDrive {
 
   /// [f] whole and checked, at a path on this device the pass copies from. Throws [SyncSkip] or [SyncStop].
   Future<String> fetch(DriveFile f);
+
+  /// Removes [f] from the drive: true where it is gone (or already was), false where this device may not remove it.
+  /// Throws [SyncSkip] or [SyncStop].
+  Future<bool> delete(DriveFile f);
 }
 
 /// What one path was when the folder and the drive were last in step.
 class SyncEntry {
-  SyncEntry({this.size = -1, this.modified = -1, this.id = '', this.sha = '', this.kept});
+  SyncEntry({this.size = -1, this.modified = -1, this.id = '', this.sha = '', this.kept, this.at = -1});
 
   /// The local file's size and modified time (ms), and the drive's file id and SHA-256 of that content.
   int size, modified;
   String id, sha;
 
+  /// When the drive's file was added ([DriveFile.at]); -1 where not known. An entry with no [id] and a time is a path
+  /// removed by the sync: a copy of it in the drive no newer is one left from before, never brought down.
+  int at;
+
   /// A drive file already written beside this path as a second copy, so it is not written again.
   String? kept;
 
-  Map<String, Object?> toJson() => {'z': size, 'm': modified, 'id': id, 'h': sha, 'k': ?kept};
+  Map<String, Object?> toJson() => {'z': size, 'm': modified, 'id': id, 'h': sha, 'k': ?kept, if (at >= 0) 'a': at};
   static SyncEntry? fromJson(Object? j) {
     if (j is! Map) return null;
-    return SyncEntry(size: (j['z'] as num?)?.toInt() ?? -1, modified: (j['m'] as num?)?.toInt() ?? -1, id: '${j['id'] ?? ''}', sha: '${j['h'] ?? ''}', kept: j['k'] as String?);
+    return SyncEntry(size: (j['z'] as num?)?.toInt() ?? -1, modified: (j['m'] as num?)?.toInt() ?? -1, id: '${j['id'] ?? ''}', sha: '${j['h'] ?? ''}', kept: j['k'] as String?, at: (j['a'] as num?)?.toInt() ?? -1);
   }
 }
 
@@ -134,6 +152,14 @@ class SyncState {
 class SyncReport {
   int up = 0, down = 0, both = 0;
 
+  /// Files removed from the drive because they were removed from the folder, and moved aside here because they were
+  /// removed from the drive.
+  int deletedThere = 0, removedHere = 0;
+
+  /// Paths gone from the folder whose removal from the drive waits for the person to say, and paths gone from the drive
+  /// whose removal here waits: too many at once ([FolderSyncEngine.holdOver]).
+  final List<String> heldHere = [], heldThere = [];
+
   /// Why files were left out, and how many of each.
   final Map<String, int> skipped = {};
 
@@ -143,12 +169,14 @@ class SyncReport {
   /// Why the pass did not finish; null where it did.
   String? stopped;
 
-  int get moved => up + down;
+  int get moved => up + down + deletedThere + removedHere;
   void skip(String why) => skipped[why] = (skipped[why] ?? 0) + 1;
 
   /// The state line once a pass is done.
   String get line {
     if (stopped != null) return 'Stopped: $stopped';
+    final held = heldHere.length + heldThere.length;
+    if (held > 0) return 'Waiting for you: $held ${held == 1 ? 'file is' : 'files are'} gone.';
     final left = [for (final e in skipped.entries) '${e.value} ${e.key}'].join(', ');
     final more = capped ? ' More next time.' : '';
     if (left.isEmpty) return 'In step.$more';
@@ -159,7 +187,19 @@ class SyncReport {
 
 /// One pass over one folder ([run]); and what may be synced at all ([whyNot]).
 class FolderSyncEngine {
-  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress, this.driveName = Drive.name}) : now = now ?? DateTime.now;
+  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress, this.driveName = Drive.name, this.allow = const {}, this.forget = const {}, this.holdOver = 20}) : now = now ?? DateTime.now;
+
+  /// Paths whose removal the person said yes to: followed however many there are.
+  final Set<String> allow;
+
+  /// Paths whose record is dropped before the pass (the person said keep them): they go up, or come down, again.
+  final Set<String> forget;
+
+  /// More removals than this in one pass (or more than half the files in step, past three) wait for the person.
+  final int holdOver;
+
+  /// The hidden folder, inside the synced one, where a file removed from the drive is moved: never deleted.
+  static const binName = '.ghost-deleted';
 
   /// What the drive is called in what a pass says, and in a second copy's name: My files, or a Files space's name.
   final String driveName;
@@ -389,6 +429,33 @@ class FolderSyncEngine {
     return null;
   }
 
+  /// A path in [binName] for [path] not taken: "Trip/plan.md", then "Trip/plan (2).md".
+  String? _binPath(String path) {
+    final slash = path.lastIndexOf('/');
+    final dir = slash < 0 ? '' : path.substring(0, slash + 1), name = path.substring(slash + 1);
+    final dot = name.lastIndexOf('.');
+    final stem = dot > 0 ? name.substring(0, dot) : name, end = dot > 0 ? name.substring(dot) : '';
+    for (var n = 1; n <= 100; n++) {
+      final p = '$binName/$dir$stem${n == 1 ? '' : ' ($n)'}$end';
+      if (FileSystemEntity.typeSync(_local(p), followLinks: false) == FileSystemEntityType.notFound) return p;
+    }
+    return null;
+  }
+
+  /// Moves the local file at [path] into [binName], where it is still exactly [l]. Never deletes it.
+  void _setAside(String path, ({int size, int modified}) l) {
+    final there = _stat(_local(path));
+    if (there == null || there.size != l.size || there.modified != l.modified) throw const SyncSkip('changed while syncing');
+    final to = _binPath(path);
+    if (to == null) throw const SyncSkip('with too many removed copies kept');
+    if (!_makeParents(to)) throw const SyncSkip('under a link');
+    try {
+      File(_local(path)).renameSync(_local(to));
+    } on FileSystemException {
+      throw const SyncSkip('in use');
+    }
+  }
+
   /// One pass. Never throws.
   Future<SyncReport> run() async {
     final r = SyncReport();
@@ -407,16 +474,36 @@ class FolderSyncEngine {
     final listed = await drive.list();
     if (listed == null) throw SyncStop('$driveName can\'t be reached right now.');
     state.load();
+    // Kept, as the person said: as never synced, so each goes up or comes down again.
+    for (final p in forget) {
+      state.entries.remove(p);
+    }
     final local = _walk(r);
+    // A folder in it that couldn't be read: its files look gone, so nothing is removed from the drive this pass.
+    final unread = r.skipped.containsKey('can\'t be read');
     final lower = {for (final p in local.keys) p.toLowerCase(): p};
 
+    // Each record learns when its drive file was added, where it was kept by a build from before that time was kept.
+    final byId = {for (final f in listed) f.id: f};
+    for (final e in state.entries.entries) {
+      final f = byId[e.value.id];
+      if (f != null && f.path == e.key) e.value.at = f.at;
+    }
+
     // The drive's newest file of each path; a path the folder can't hold, or that differs from another only by
-    // capitals, is left out.
+    // capitals, is left out. So is a copy no newer than the one the sync last had at the path, and not it: one an
+    // older build sent beside it, or one left when the newer was removed ([stale]).
     final remote = <String, DriveFile>{};
     final refused = <String>{};
+    final stale = <String>{};
     for (final f in listed) {
       if (!_safe(f.path)) {
         if (refused.add(f.path)) r.skip('with a name this computer can\'t hold');
+        continue;
+      }
+      final s = state.entries[f.path];
+      if (s != null && s.at >= 0 && f.id != s.id && f.at <= s.at) {
+        stale.add(f.path);
         continue;
       }
       final had = remote[f.path];
@@ -438,19 +525,34 @@ class FolderSyncEngine {
     // What to do with each path, before anything moves.
     final paths = {...local.keys, ...remote.keys}.toList()..sort();
     final todo = <(String, String)>[];
+    // Removed from the folder, with the drive's still the one recorded; and removed from the drive, with the local one
+    // as recorded (its content is checked when it is moved).
+    final goneHere = <String>[], goneThere = <String>[];
     for (final p in paths) {
       if (clash.contains(p)) continue;
       final l = local[p], d = remote[p], s = state.entries[p];
       if (l != null && d == null && remote.keys.any((k) => k != p && k.toLowerCase() == p.toLowerCase())) continue;
+      final synced = s != null && s.id.isNotEmpty;
       final localChanged = l != null && (s == null || s.size != l.size || s.modified != l.modified);
       final driveChanged = d != null && (s == null || s.id != d.id);
       if (l != null && d == null) {
-        // New here, or gone from the drive: it goes up (nothing is deleted here).
-        todo.add((p, 'up'));
+        // Gone from the drive and unchanged here: moved aside here. New here, or changed since: it goes up.
+        if (synced && !localChanged) {
+          goneThere.add(p);
+        } else {
+          todo.add((p, 'up'));
+        }
       } else if (l == null && d != null) {
-        // New in the drive, or gone from here: it comes down. Never onto a folder of the same name.
         // Something there the walk left out (still being written, a folder, a link) is left alone.
-        if (FileSystemEntity.typeSync(_local(p), followLinks: false) == FileSystemEntityType.notFound) todo.add((p, 'down'));
+        if (FileSystemEntity.typeSync(_local(p), followLinks: false) != FileSystemEntityType.notFound) continue;
+        if (synced && !driveChanged) {
+          // Gone from here and unchanged in the drive: removed there too; never where part of the folder couldn't be
+          // read.
+          if (!unread) goneHere.add(p);
+        } else {
+          // New in the drive, or changed there since it went from here: it comes down. Never onto a folder of the name.
+          todo.add((p, 'down'));
+        }
       } else if (l != null && d != null) {
         if (!localChanged && !driveChanged) continue;
         if (localChanged && !driveChanged) {
@@ -462,15 +564,46 @@ class FolderSyncEngine {
         }
       }
     }
-    // Paths gone from both sides are forgotten.
-    state.entries.removeWhere((p, _) => !local.containsKey(p) && !remote.containsKey(p) && FileSystemEntity.typeSync(_local(p), followLinks: false) == FileSystemEntityType.notFound);
+    // Too many gone at once (a drive unplugged, a folder moved or emptied): held, and nothing done to them, until the
+    // person says. Those they said yes to go whatever the count.
+    final inStep = state.entries.values.where((e) => e.id.isNotEmpty).length;
+    bool tooMany(int n) => n > holdOver || (n > 3 && n * 2 > inStep);
+    for (final (gone, held) in [(goneHere, r.heldHere), (goneThere, r.heldThere)]) {
+      final asked = [for (final p in gone) if (!allow.contains(p)) p];
+      if (tooMany(asked.length)) {
+        held.addAll(asked);
+        gone.removeWhere((p) => !allow.contains(p));
+      }
+    }
+    todo.addAll([for (final p in goneHere) (p, 'delete there'), for (final p in goneThere) (p, 'remove here')]);
+    // Paths gone from both sides are forgotten; but a record that keeps an older copy in the drive from coming down
+    // stays while that copy is there.
+    state.entries.removeWhere((p, _) => !local.containsKey(p) && !remote.containsKey(p) && !stale.contains(p) && FileSystemEntity.typeSync(_local(p), followLinks: false) == FileSystemEntityType.notFound);
 
     var free = drive.free;
     var left = todo.length;
     progress?.call(left);
     var moved = 0;
 
-    Future<void> up(String p, ({int size, int modified}) l, {String? kept}) async {
+    // The drive's [old] removed now that the newer of its path is up; where it can't be, both stay and the pass goes on.
+    Future<void> replaced(DriveFile old) async {
+      try {
+        if (!await drive.delete(old)) r.skip('whose older copy in $driveName isn\'t yours to remove');
+      } on SyncSkip catch (e) {
+        r.skip(e.why);
+      } on SyncStop {
+        r.skip('whose older copy in $driveName couldn\'t be removed yet');
+      }
+    }
+
+    // The drive's file the sync last had at [p] ([oldId]), where a newer one of the path has taken its place and it is
+    // still there (sent beside it by a build from before the replace): removed too, as the sync had it in step.
+    Future<void> retire(String p, String? oldId, String newId) async {
+      final old = oldId == null || oldId.isEmpty || oldId == newId ? null : byId[oldId];
+      if (old != null && old.path == p) await replaced(old);
+    }
+
+    Future<void> up(String p, ({int size, int modified}) l, {String? kept, DriveFile? replaces}) async {
       if (drive.maxFile > 0 && l.size > drive.maxFile) throw SyncSkip('too big (over ${fileSize(drive.maxFile)})');
       if (free != null && l.size > free!) throw SyncSkip('with no room left in $driveName');
       final slash = p.lastIndexOf('/');
@@ -481,8 +614,13 @@ class FolderSyncEngine {
       final after = _stat(_local(p));
       if (after == null || after.size != l.size || after.modified != l.modified) throw const SyncSkip('changed while syncing');
       if (free != null) free = free! - l.size;
-      state.entries[p] = SyncEntry(size: l.size, modified: l.modified, id: f?.id ?? '', sha: (f != null && f.sha.isNotEmpty) ? f.sha.toLowerCase() : await shaOf(_local(p)), kept: kept);
+      state.entries[p] = SyncEntry(size: l.size, modified: l.modified, id: f?.id ?? '', sha: (f != null && f.sha.isNotEmpty) ? f.sha.toLowerCase() : await shaOf(_local(p)), kept: kept, at: f?.at ?? -1);
       r.up++;
+      // Only once the newer is known to be there.
+      if (replaces != null && f != null && f.id != replaces.id) {
+        state.save(root);
+        await replaced(replaces);
+      }
     }
 
     for (final (p, what) in todo) {
@@ -495,29 +633,38 @@ class FolderSyncEngine {
       try {
         switch (what) {
           case 'up':
-            await up(p, l!);
+            // Its time changed but not what is in it: in step, with nothing sent.
+            if (d != null && s != null && s.id == d.id && s.sha.isNotEmpty && l!.size == s.size && (await shaOf(_local(p))) == s.sha) {
+              state.entries[p] = SyncEntry(size: l.size, modified: l.modified, id: s.id, sha: s.sha, kept: s.kept, at: d.at);
+              break;
+            }
+            // Changed here, with the drive's the one recorded: the newer replaces it.
+            await up(p, l!, replaces: d != null && s != null && s.id == d.id ? d : null);
             moved++;
           case 'down':
             if (!_makeParents(p)) throw const SyncSkip('under a link');
             final got = await _bring(d!, _local(p));
-            state.entries[p] = SyncEntry(size: got.size, modified: got.modified, id: d.id, sha: d.sha.isNotEmpty ? d.sha.toLowerCase() : await shaOf(_local(p)));
+            state.entries[p] = SyncEntry(size: got.size, modified: got.modified, id: d.id, sha: d.sha.isNotEmpty ? d.sha.toLowerCase() : await shaOf(_local(p)), at: d.at);
             r.down++;
             moved++;
+            await retire(p, s?.id, d.id);
           case 'replace':
             // The local file is replaced only where its content is the one recorded; else both are kept.
             if ((await shaOf(_local(p))) != s!.sha) continue both;
             final got = await _bring(d!, _local(p), replacing: l);
-            state.entries[p] = SyncEntry(size: got.size, modified: got.modified, id: d.id, sha: d.sha.isNotEmpty ? d.sha.toLowerCase() : await shaOf(_local(p)));
+            state.entries[p] = SyncEntry(size: got.size, modified: got.modified, id: d.id, sha: d.sha.isNotEmpty ? d.sha.toLowerCase() : await shaOf(_local(p)), at: d.at);
             r.down++;
             moved++;
+            await retire(p, s.id, d.id);
           both:
           case 'both':
             // The same content on both sides is in step, with nothing moved.
             if (l!.size == d!.size && d.sha.isNotEmpty && (await shaOf(_local(p))) == d.sha.toLowerCase()) {
-              state.entries[p] = SyncEntry(size: l.size, modified: l.modified, id: d.id, sha: d.sha.toLowerCase());
+              state.entries[p] = SyncEntry(size: l.size, modified: l.modified, id: d.id, sha: d.sha.toLowerCase(), at: d.at);
               break;
             }
             // Both are kept: the drive's beside the local one (once), and the local one goes up as the newest.
+            final wasSynced = s != null && s.id.isNotEmpty, oldId = s?.id;
             if (s?.kept != d.id) {
               final beside = _beside(p);
               if (beside == null) throw const SyncSkip('with too many copies beside it');
@@ -527,7 +674,32 @@ class FolderSyncEngine {
               r.both++;
               r.down++;
             }
-            await up(p, l, kept: d.id);
+            // Where the path was in step before, the drive's (kept beside here, and up from there next pass) is
+            // replaced; one the sync never had is left in the drive.
+            await up(p, l, kept: d.id, replaces: wasSynced ? d : null);
+            moved++;
+            if (wasSynced) await retire(p, oldId, d.id);
+          case 'delete there':
+            if (await drive.delete(d!)) {
+              // Remembered as removed, so an older copy of it in the drive never comes down.
+              state.entries[p] = SyncEntry(at: math.max(d.at, s?.at ?? -1));
+              r.deletedThere++;
+            } else {
+              // Not this device's to remove (someone else's, in a space): as never synced, so it comes down again.
+              state.entries.remove(p);
+              r.skip('that aren\'t yours to remove from $driveName, so they come back');
+            }
+            moved++;
+          case 'remove here':
+            // Its content is checked first: changed without its size or time showing it, it goes up instead.
+            if (s!.sha.isEmpty || (await shaOf(_local(p))) != s.sha) {
+              await up(p, l!);
+              moved++;
+              break;
+            }
+            _setAside(p, l!);
+            state.entries[p] = SyncEntry(at: s.at);
+            r.removedHere++;
             moved++;
         }
         state.save(root);
@@ -633,6 +805,17 @@ class StoreDrive implements SyncDrive {
     } catch (_) {
       throw const SyncSkip('that didn\'t come down');
     }
+  }
+
+  /// With the log's own `del` entry (FilesStore.delete), which every build reads, and the blob let go.
+  @override
+  Future<bool> delete(DriveFile f) async {
+    final file = store.of(channel).files[f.id] ?? _files[f.id];
+    // Gone already (removed elsewhere meanwhile): what was wanted.
+    if (file == null || !store.of(channel).files.containsKey(f.id)) return true;
+    if (!store.canChange(channel, file)) return false;
+    if (await store.delete(channel, file)) return true;
+    throw SyncSkip('that couldn\'t be removed from $name right now');
   }
 }
 
@@ -760,6 +943,40 @@ class FolderSync extends ChangeNotifier {
   /// The last pass's report, for a test.
   SyncReport? last;
 
+  /// Files gone from the folder whose removal from the drive waits for the person, and files gone from the drive whose
+  /// removal here waits ([FolderSyncEngine.holdOver]): asked in the entry, answered with [removeHeld] or [keepHeld].
+  List<String> get heldHere => _heldHere;
+  List<String> get heldThere => _heldThere;
+  List<String> _heldHere = const [], _heldThere = const [];
+
+  /// What the person said, for the next pass: paths to remove however many, and paths to keep (sent or brought again).
+  final Set<String> _allow = {}, _forget = {};
+
+  void _clearHeld() {
+    _heldHere = const [];
+    _heldThere = const [];
+    _allow.clear();
+    _forget.clear();
+  }
+
+  /// Yes to the removals held: each is removed on the other side too (a local file into the hidden ".ghost-deleted").
+  Future<void> removeHeld() {
+    _allow.addAll([..._heldHere, ..._heldThere]);
+    _heldHere = const [];
+    _heldThere = const [];
+    notifyListeners();
+    return pass();
+  }
+
+  /// No to the removals held: each is put back from the other side, as if never synced.
+  Future<void> keepHeld() {
+    _forget.addAll([..._heldHere, ..._heldThere]);
+    _heldHere = const [];
+    _heldThere = const [];
+    notifyListeners();
+    return pass();
+  }
+
   void load() {
     if (_loaded) return;
     _loaded = true;
@@ -803,6 +1020,7 @@ class FolderSync extends ChangeNotifier {
     _gen++;
     _root = at;
     _line = '';
+    _clearHeld();
     _save();
     notifyListeners();
     unawaited(pass());
@@ -814,6 +1032,7 @@ class FolderSync extends ChangeNotifier {
     _gen++;
     _root = null;
     _line = '';
+    _clearHeld();
     _save();
     notifyListeners();
   }
@@ -848,12 +1067,16 @@ class FolderSync extends ChangeNotifier {
       }
       if (drive == null) return _say(space == null ? 'Stopped: sign in to your Ghost account on this computer.' : 'Stopped: this space isn\'t on this computer any more.');
       final key = crypto.sha256.convert(utf8.encode('${drive.id}\n$root')).toString().substring(0, 32);
+      // What the person said is for this pass alone; anything gone since is asked again.
+      final allow = {..._allow}, forget = {..._forget};
       final engine = FolderSyncEngine(
         root: root,
         drive: drive,
         state: SyncState(File('${_data().path}${PlatformInfo.pathSeparator}$key.json')),
         quiet: quiet,
         driveName: driveName,
+        allow: allow,
+        forget: forget,
         stopped: () => _gen != gen,
         progress: (left) {
           if (_gen == gen && left > 0) _say('Syncing $left ${left == 1 ? 'file' : 'files'}');
@@ -861,7 +1084,15 @@ class FolderSync extends ChangeNotifier {
       );
       final r = await engine.run();
       last = r;
-      if (_gen == gen) _say(r.line);
+      if (_gen == gen) {
+        _allow.removeAll(allow);
+        _forget.removeAll(forget);
+        if (r.stopped == null) {
+          _heldHere = List.unmodifiable(r.heldHere);
+          _heldThere = List.unmodifiable(r.heldThere);
+        }
+        _say(r.line);
+      }
     } finally {
       _running = false;
       notifyListeners();

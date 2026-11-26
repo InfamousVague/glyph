@@ -14,7 +14,7 @@ import 'package:ghost_relay/files.dart';
 import 'package:ghost_relay/relay.dart';
 
 void main() {
-  test('a folder on one computer goes up to My files and comes down into a folder on another; a change follows; nothing is removed', () async {
+  test('a folder on one computer goes up to My files and comes down into a folder on another; a change replaces the older; a removal follows', () async {
     final dir = Directory(Directory.systemTemp.createTempSync('ghost-folder-sync-store').resolveSymbolicLinksSync());
     final relay = Relay(files: Files(dir: Directory('${dir.path}/relay')));
     final base = Uri.parse('http://127.0.0.1:${await relay.start(port: 0)}/files');
@@ -60,6 +60,26 @@ void main() {
       expect(r.both, 0);
       expect(File('${a.root}/top.txt').readAsStringSync(), 'top, changed on b');
       expect(Directory(a.root).listSync(recursive: true).whereType<File>().length, 2);
+      expect((await a.run()).moved, 0);
+      expect((await b.run()).moved, 0);
+      // The change replaced the older in the log itself (an add, then the older's `del`, which every build reads):
+      // My files lists one top.txt on both devices, not two.
+      final drive = Drive.channelOf(Me.mineKeyOf(words));
+      for (final s in stores) {
+        await s.of(drive).refresh();
+        expect([for (final f in s.of(drive).files.values) if (f.name == 'top.txt') f].length, 1);
+      }
+
+      // Removed on a: removed from My files, and moved aside on b into its hidden folder, never deleted.
+      File('${a.root}/top.txt').deleteSync();
+      r = await a.run();
+      expect(r.deletedThere, 1, reason: '${r.skipped}');
+      r = await b.run();
+      expect(r.removedHere, 1, reason: '${r.skipped}');
+      expect(File('${b.root}/top.txt').existsSync(), isFalse);
+      expect(File('${b.root}/${FolderSyncEngine.binName}/top.txt').readAsStringSync(), 'top, changed on b');
+      await stores[0].of(drive).refresh();
+      expect([for (final f in stores[0].of(drive).files.values) f.name], ['lease.txt']);
       expect((await a.run()).moved, 0);
       expect((await b.run()).moved, 0);
     } finally {
