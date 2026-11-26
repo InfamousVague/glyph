@@ -803,14 +803,14 @@ class Sms {
   /// build has them ([browserCalls]), through the page's own WebRTC (lib/voice/call_sound.dart plays what arrives).
   static bool get callsHere => !browser || browserCalls;
 
-  /// Calls in a browser (GMFB-30, GMFB-51): off unless the build turns them on (`tool/build-web.mjs --calls`, which
-  /// says `--dart-define=GHOST_WEB_CALLS=true`; lib/web/app.dart sets this as the page starts). Off, a browser offers
-  /// no way into a call, as before.
+  /// Calls in a browser (GMFB-30, GMFB-51): lib/web/app.dart sets this as the page starts, on in every build unless it
+  /// left them out (`tool/build-web.mjs --no-calls`, which says `--dart-define=GHOST_WEB_CALLS=false`). Off, a browser
+  /// offers no way into a call.
   static bool browserCalls = false;
 
-  /// Files spaces in a browser (GMFB-30; docs/OPEN_NETWORK.md part 6): off unless the build turns them on
-  /// (`tool/build-web.mjs --files`, which says `--dart-define=GHOST_WEB_FILES=true`; lib/web/app.dart sets this as the
-  /// page starts). Off, a browser offers no Files space, as before.
+  /// Files spaces in a browser (GMFB-30; docs/OPEN_NETWORK.md part 6): lib/web/app.dart sets this as the page starts,
+  /// on in every build unless it left them out (`tool/build-web.mjs --no-files`, which says
+  /// `--dart-define=GHOST_WEB_FILES=false`). Off, a browser offers no Files space.
   static bool browserFiles = false;
 
   /// Whether a circle's Files spaces open here: on every phone and computer, and in a browser whose build has them.

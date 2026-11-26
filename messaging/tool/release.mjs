@@ -5,7 +5,10 @@
  * tool/release.mjs, for this app (Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the
  * domain to the same server ghost kbd uses").
  *
- *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection] [--again] [--no-p2p]
+ *   node tool/release.mjs [--glyph ~/path/to/glyph] [--version 0.4.0] [--no-deploy] [--keep-connection] [--again] [--no-p2p] [--no-web]
+ *
+ * Once the release is live, the web client is built and published at gogho.st/app with it (tool/release-web.mjs;
+ * GMFB-30), so it follows the app's releases; --no-web leaves it as it is.
  *
  * Put in /opt/ghost-sms-release, which ghost-sms.com's Caddy block (tool/deploy-site.mjs --caddy) serves at:
  *
@@ -339,4 +342,15 @@ if (!process.argv.includes('--no-source')) {
   say('> Publishing the source (github.com/InfamousVague/ghost-messaging)');
   const published = spawnSync('node', [join(ROOT, 'tool/publish-source.mjs')], { stdio: 'inherit' });
   if (published.status !== 0) say('x The source was not published; run node tool/publish-source.mjs');
+}
+
+// The web client at gogho.st/app, built from this checkout and shipped with the site (tool/release-web.mjs; GMFB-30:
+// it followed no release while it was deployed by hand). The release is live either way: a failure here is said, not
+// fatal. --no-web leaves it out.
+if (!args.includes('--no-web')) {
+  say('> The web client (gogho.st/app)');
+  const web = spawnSync('node', [join(ROOT, 'tool/release-web.mjs'), '--glyph', glyph, ...(keepConnection ? ['--keep-connection'] : [])], { cwd: ROOT, stdio: 'inherit' });
+  if (web.status !== 0) say('x The web client was not published; run node tool/release-web.mjs');
+} else {
+  say('  (the web client not published: --no-web)');
 }

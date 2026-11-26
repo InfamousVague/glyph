@@ -376,8 +376,8 @@ arrive; silenced as muting and deafening say; through the speaker chosen where t
 which Safari doesn't). Settings › Voice and video there has the microphone, the browser's own noise suppression, the
 sound's bit rate, stereo, echo cancellation and automatic gain, and the camera's quality, and says what a browser's call leaves out: recording, the voice changer, noise
 removal beyond the browser's own (RNNoise, DeepFilterNet), boosting past 100% and screen sharing, all of which need the
-app's native halves. Off unless the build has them (`node tool/build-web.mjs --calls`, `Sms.browserCalls`): the build
-on app.gogho.st and gogho.st/app has none until it is built so and deployed. Tried by `tool/web/e2e.mjs --calls`: two
+app's native halves. In every build since 2026-11-25 unless left out (`node tool/build-web.mjs --no-calls`,
+`Sms.browserCalls`; before, only with `--calls`). Tried by `tool/web/e2e.mjs`: two
 browsers ring each other and hear each other (WebRTC's own count of the sound's bytes and energy received, and the
 element playing it), muted is silence, both join a circle's voice space and hear each other, a camera's picture is
 decoded on the other side, and someone muted for one person alone is not played there. A browser remembers a
@@ -399,8 +399,8 @@ do what (`FilesStore`). The split, smallest first:
 | The part file and the cache folder | What comes down goes into a `Blob` a chunk at a time (`lib/files/file_sink.dart`), checked against its SHA-256 as it comes, then saved with the browser's own download or shown in the page (pictures, videos and sounds where the app shows them) |
 | The lists, the queue and the cache kept on disk | Nothing kept: a space's list is read from the relay each time the page opens it, an upload stops with the tab (the relay lets its part go a day later, or Remove does), and what came down lasts until the tab closes |
 
-Off unless the build has them (`node tool/build-web.mjs --files`, `--dart-define=GHOST_WEB_FILES=true`,
-`Sms.browserFiles`). Nothing is opened in a tab of its own: a file someone put in a space could be a page with a
+In every build since 2026-11-25 unless left out (`node tool/build-web.mjs --no-files`,
+`--dart-define=GHOST_WEB_FILES=false`, `Sms.browserFiles`; before, only with `--files`). Nothing is opened in a tab of its own: a file someone put in a space could be a page with a
 script in it, and at the app's address it could read the store. So a browser shows pictures, videos and sounds in
 the app's own page (Flutter draws a picture; the `<video>` element plays the others) and saves everything else to
 the downloads, as `application/octet-stream`. The relay lets app.gogho.st read its files routes' answers
@@ -414,7 +414,7 @@ words of 16 MB, a sound or a video of 512 MB), and only the first 256 KB of word
 else, or bigger, is downloaded when the person asks. What a browser keeps of
 a file that came down is in the tab's memory: Chromium and Firefox put a big `Blob` on disk among the profile's
 temporary files and delete it when the tab closes; Safari holds it in memory, so a very large file is better brought
-down by the app. Tried by `tool/web/e2e.mjs --files`: one browser uploads a file to a circle's Files space, by the
+down by the app. Tried by `tool/web/e2e.mjs`: one browser uploads a file to a circle's Files space, by the
 picker and by a drop, the other sees it and downloads it, byte for byte, in Chromium and WebKit.
 
 **A device's conversations** (GMFB-53): the account's backup carries friends and circles, never conversations, and the

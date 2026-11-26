@@ -2,7 +2,7 @@
 // store in its browser's way (FilesStore.browser) over the page's fetch (FetchFilesHttp), the fetch here a stand-in
 // that does what a browser's does (says the length itself, streams the answer), against the relay's own files
 // service on this machine. What only a browser can run (the fetch itself, WebCrypto, Blobs, the picker) is tried by
-// tool/web/e2e.mjs --files.
+// tool/web/e2e.mjs.
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';

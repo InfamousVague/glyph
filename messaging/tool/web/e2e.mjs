@@ -7,10 +7,13 @@
  *   node tool/web/e2e.mjs                   Chromium, then WebKit
  *   node tool/web/e2e.mjs --engine webkit   one of them
  *   node tool/web/e2e.mjs --web <folder> --shots <folder> --headed
- *   node tool/build-web.mjs --calls --out build/web-calls && node tool/web/e2e.mjs --web build/web-calls --calls
- *                                           a build with calls, and the steps marked (calls) in place of "no calls"
- *   node tool/build-web.mjs --files --out build/web-files && node tool/web/e2e.mjs --web build/web-files --files
- *                                           a build with Files spaces, and the steps marked (files)
+ *                                           every build has calls and Files spaces (GMFB-30), and so the steps
+ *                                           marked (calls) and (files) are run unless left out as the build was:
+ *   node tool/build-web.mjs --no-calls --out build/web-nocalls && node tool/web/e2e.mjs --web build/web-nocalls --no-calls
+ *                                           a build without calls, and the "no calls" checks in place of (calls)
+ *   node tool/build-web.mjs --no-files --out build/web-nofiles && node tool/web/e2e.mjs --web build/web-nofiles --no-files
+ *                                           a build without Files spaces, and no (files) steps
+ *                                           (--calls and --files are still taken, and change nothing)
  *
  * WHAT IT DOES, in each engine
  *   1. Starts the relay (relay/bin/relay.dart, with Flutter's own Dart) on a free port of this machine, with a new
@@ -98,10 +101,10 @@ const engines = option('engine', 'both') === 'both' ? ['chromium', 'webkit'] : [
 const hubPort = option('hub-port', null);
 // The people's first steps only: signing up, a friend, a message each way.
 const quick = args.includes('--quick');
-// A build with calls (tool/build-web.mjs --calls): the calls' steps, and none of the "no calls" checks.
-const calls = args.includes('--calls');
-// A build with Files spaces (tool/build-web.mjs --files): the files' steps.
-const withFiles = args.includes('--files');
+// A build with calls (every one but tool/build-web.mjs --no-calls): the calls' steps, and none of the "no calls" checks.
+const calls = !args.includes('--no-calls');
+// A build with Files spaces (every one but tool/build-web.mjs --no-files): the files' steps.
+const withFiles = !args.includes('--no-files');
 
 if (!existsSync(join(webDir, 'index.html'))) {
   console.error(`e2e: no built app at ${webDir}: run node tool/build-web.mjs first.`);
@@ -199,6 +202,13 @@ class Seat {
     this.unavailable = [];
     page.on('response', (r) => {
       if (r.status() === 503 && new URL(r.url()).pathname === '/feedback') this.feedbackRefused++;
+    });
+    // A Files space's list asked for before this relay has the space (a circle's Files space, or the person's own My
+    // files, the first time this page opens it): the relay answers 404, the app opens the space and reads it again
+    // (FilesStore), and the browser logs the 404. Counted as the fonts are, and weighed at the end the same way.
+    this.filesUnmade = 0;
+    page.on('response', (r) => {
+      if (r.status() === 404 && r.request().method() === 'GET' && /^\/files\/[0-9a-f]{32}$/.test(new URL(r.url()).pathname)) this.filesUnmade++;
     });
     page.on('response', (r) => {
       if (r.status() !== 404 || !new URL(r.url()).pathname.includes('/fallback-fonts/')) return;
@@ -889,17 +899,26 @@ async function run(engine) {
       await s.sees(back);
       await s.sees(inSpace);
       await m.sees(back, { within: 20000 });
-      // The other space is chat and voice: in a browser without calls, its chat alone.
+      // The other space is chat and voice: in a browser without calls, its chat alone. With calls, a press on it in
+      // the circle's list joins its call at once in a window this wide (GMFB-72, pressCircleSpace), as on a computer:
+      // no Join voice to press, and Leave there from the start.
       await s.press('Lounge, Chat & voice');
       await s.sees('Message Lounge');
-      await (calls ? s.sees('Join voice') : s.lacks('Join', 'Join voice', 'Start the call'));
+      if (calls) {
+        await s.sees('^Leave( call)?$', { like: true });
+        await s.lacks('Join voice');
+      } else {
+        await s.lacks('Join', 'Join voice', 'Start the call');
+      }
       await s.shot(`${engine}-Sam-12-voice-space`);
+      // Where the engine can't be given a microphone the call never comes up: Leave stops the join where it is.
+      if (calls && !talking) await s.press('^Leave( call)?$', { like: true });
     });
     if (talking) {
       await step('(calls) both join Lounge\'s call and hear each other; Maya\'s camera reaches Sam; Sam mutes her for himself alone; both leave', async () => {
-        await s.press('Join voice');
-        await m.press('Lounge, Chat & voice');
-        await m.press('Join voice');
+        // Sam is in it already, from his press on it (above); Maya's press on it joins her as well. Its row says who
+        // is talking once his call is up ("Lounge, Chat & voice, 1 talking"), and may not yet.
+        await m.press('^Lounge, Chat & voice(, .*)?$', { like: true });
         await m.hears('Sam');
         await s.hears('Maya');
         await s.shot(`${engine}-Sam-12b-in-lounge`);
@@ -925,7 +944,8 @@ async function run(engine) {
         // Her row in the list under the picture: in a window this tall the picture (4:3) leaves it under the call's
         // buttons, so the window is made taller for the press, and put back after.
         await s.page.setViewportSize({ width: 1180, height: 1100 });
-        await s.press(maya.username, { last: true });
+        // Her picture, since she has her camera on: a press on a video opens what can be done about its person (GMFB-70).
+        await s.press(`${maya.username}, video`);
         await s.press(`Mute ${maya.username} for me`);
         const until2 = Date.now() + 15000;
         for (;;) {
@@ -1381,7 +1401,7 @@ async function run(engine) {
     if (missing.size) say(`  ${engine}: the engine asked for ${missing.size} fallback font${missing.size === 1 ? '' : 's'} this build hasn't got (${[...missing].map((p) => p.split('/')[0]).join(', ')}): letters outside the app's own fonts were drawn as boxes. node tool/web/fallback-fonts.mjs --fetch, then build again.`);
     const outside = new Set(seats.flatMap((x) => [...x.outside]));
     // A 404 logged that no missing fallback font accounts for is the page's own error.
-    for (const x of seats) x.errors.push(...x.notFound.slice(x.fontMisses).map((e) => `${e} (no missing fallback font to account for it)`));
+    for (const x of seats) x.errors.push(...x.notFound.slice(x.fontMisses + x.filesUnmade).map((e) => `${e} (no missing fallback font or unmade Files space to account for it)`));
     for (const x of seats) x.errors.push(...x.unavailable.slice(x.feedbackRefused).map((e) => `${e} (no feedback the relay had no board for, to account for it)`));
     const errors = seats.flatMap((x) => x.errors.map((e) => `${x.name}: ${e}`));
     if (outside.size) throw new Problem(`something was asked of ${[...outside].join(', ')}`);
