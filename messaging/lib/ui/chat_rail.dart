@@ -14,15 +14,19 @@
 /// together or several messages to a line.
 ///
 /// A wheel, two fingers on a trackpad or a finger drawn over it scroll the chat as they do over the chat itself, and
-/// a press on it goes to the message pressed. It no longer opens into a list of the chat's stretches, and no longer
-/// swells under a finger held on it or a mouse over it (Matt, the same day: "Lets remove the popover for the
-/// summarized messages on the chat map for now and remove the tap and hold just allow scrolling normally"). The list
-/// and the hold are in this file as of commit 5cf3f3780, to be brought back from there; what the list was made from,
+/// a press on it goes to the message pressed. It no longer opens into a list of the chat's stretches, and a finger
+/// held on it no longer drags the chat along (Matt, the same day: "Lets remove the popover for the summarized messages
+/// on the chat map for now and remove the tap and hold just allow scrolling normally"). The list and the hold are in
+/// this file as of commit 5cf3f3780, to be brought back from there; what the list was made from,
 /// [ChatRail.stretchesOf], is kept here with its tests for when it comes back.
+///
+/// It swells where a finger is on it as it scrolls the chat, or a mouse is over it, as the Mac's Dock does (Matt,
+/// 2026-11-26: "Bring back the magnifying effect when scrolling through the chat map").
 library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show Drag, GestureBinding, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
 import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
 import 'package:flutter/widgets.dart';
@@ -131,6 +135,11 @@ class ChatRail extends StatefulWidget {
 
   /// How thick a line is.
   static const double thick = 3.2;
+
+  /// How much a line is magnified [d] away from the finger or pointer: [magnifyMost] times under it, falling away over
+  /// about [magnifyReach], as the Dock's icons do.
+  static const double magnifyMost = 2.4, magnifyReach = 44;
+  static double magnifyAt(double d) => 1 + (magnifyMost - 1) * math.exp(-(d * d) / (2 * (magnifyReach / 2) * (magnifyReach / 2)));
 
   /// How much of the chat's height the map may take, and its most.
   static const double share = 0.9, tallest = 680;
@@ -275,6 +284,7 @@ class _ChatRailState extends State<ChatRail> {
   void dispose() {
     _hold?.cancel();
     _pan?.cancel();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -440,10 +450,31 @@ class _ChatRailState extends State<ChatRail> {
   Drag? _pan;
   ScrollHoldController? _hold;
 
+  /// Where down the map a finger is on it or a mouse over it, if one is: the lines round it are drawn larger and
+  /// further apart, as the Dock swells under the pointer. A finger's goes with it as it scrolls the chat, and goes when
+  /// it is lifted; a mouse's when it leaves.
+  final ValueNotifier<double?> _focus = ValueNotifier(null);
+
+  /// The fingers on the map now, by pointer: the swell is under the last one put down.
+  final Set<int> _touching = {};
+
   Widget _scrollsChat(Widget child) => Listener(
         onPointerSignal: (e) {
           if (e is PointerScrollEvent) _wheel(e);
         },
+        onPointerHover: (e) {
+          if (_touching.isEmpty) _focus.value = e.localPosition.dy;
+        },
+        onPointerDown: (e) {
+          if (e.kind == PointerDeviceKind.mouse) return;
+          _touching.add(e.pointer);
+          _focus.value = e.localPosition.dy;
+        },
+        onPointerMove: (e) {
+          if (_touching.contains(e.pointer)) _focus.value = e.localPosition.dy;
+        },
+        onPointerUp: (e) => _lift(e.pointer),
+        onPointerCancel: (e) => _lift(e.pointer),
         child: RawGestureDetector(
           gestures: {
             VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
@@ -468,6 +499,10 @@ class _ChatRailState extends State<ChatRail> {
           child: child,
         ),
       );
+
+  void _lift(int pointer) {
+    if (_touching.remove(pointer) && _touching.isEmpty) _focus.value = null;
+  }
 
   /// The message whose line is [y] down a map [tall] high.
   int _markAt(double y, double tall) => ((_at + tall - y) / ChatRail.pitch).floor().clamp(0, math.max(0, widget.marks.length - 1));
@@ -496,7 +531,11 @@ class _ChatRailState extends State<ChatRail> {
               final height = (math.min(box.maxHeight * ChatRail.share, ChatRail.tallest) / ChatRail.pitch).floor() * ChatRail.pitch;
               return Center(
                 widthFactor: 1,
-                child: _scrollsChat(Semantics(
+                child: MouseRegion(
+                  onExit: (_) {
+                    if (_touching.isEmpty) _focus.value = null;
+                  },
+                  child: _scrollsChat(Semantics(
                   label: 'Map of this chat',
                   container: true,
                   child: GestureDetector(
@@ -514,7 +553,8 @@ class _ChatRailState extends State<ChatRail> {
                             ticks: ticks,
                             tall: height,
                             place: _place,
-                            repaint: _c,
+                            focus: _focus,
+                            repaint: Listenable.merge([_c, _focus]),
                             mine: t.color('app-accent'),
                             theirs: t.color('app-ink-2'),
                             hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
@@ -524,7 +564,8 @@ class _ChatRailState extends State<ChatRail> {
                       ),
                     ),
                   ),
-                )),
+                  )),
+                ),
               );
             }),
           ),
@@ -539,7 +580,7 @@ class _ChatRailState extends State<ChatRail> {
 /// Draws the map's lines. Open to tests, which ask it where a message's line is.
 @visibleForTesting
 class RailPainter extends CustomPainter {
-  RailPainter({required this.ticks, required this.tall, required this.place, required Listenable repaint, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
+  RailPainter({required this.ticks, required this.tall, required this.place, required this.focus, required Listenable repaint, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
 
   /// A line a message, the newest first.
   final List<RailTick> ticks;
@@ -550,27 +591,65 @@ class RailPainter extends CustomPainter {
   /// Which messages are on the screen and how far the map is scrolled, asked at each paint: the chat's scroll moves
   /// the map without a build.
   final ({double lo, double hi, double at}) Function(double tall) place;
+
+  /// Where down the map the swell is, if anywhere.
+  final ValueListenable<double?> focus;
   final Color mine, theirs, quiet;
   final Map<String, Color> hues;
 
-  /// How far down the map the line of message [mark] is now (the newest is 0); off the map where it is under 0 or
-  /// over [tall].
-  double yOf(int mark) => tall - (mark + 0.5) * ChatRail.pitch + place(tall).at;
+  /// How many lines past either end of the map are placed too: lines swollen near an end push lines in from past it.
+  static const _spare = 24;
+
+  /// Where lines [from] to [to] (the newest is 0) are drawn and how much each is magnified, with the map scrolled
+  /// [at] and swollen round [f]: each line takes as much room as it is magnified, counted out from the line nearest
+  /// [f], which stays where it is.
+  ({List<double> ys, List<double> grow}) _lay(int from, int to, double at, double? f) {
+    const pitch = ChatRail.pitch;
+    double base(int i) => tall - (i + 0.5) * pitch + at;
+    final n = to - from + 1;
+    final ys = [for (var i = from; i <= to; i++) base(i)];
+    if (f == null || n <= 0) return (ys: ys, grow: List<double>.filled(math.max(0, n), 1));
+    final grow = [for (final y in ys) ChatRail.magnifyAt(y - f)];
+    final anchor = (((tall + at - f) / pitch - 0.5).round()).clamp(from, to) - from;
+    for (var k = anchor - 1; k >= 0; k--) {
+      ys[k] = ys[k + 1] + pitch * (grow[k + 1] + grow[k]) / 2;
+    }
+    for (var k = anchor + 1; k < n; k++) {
+      ys[k] = ys[k - 1] - pitch * (grow[k - 1] + grow[k]) / 2;
+    }
+    return (ys: ys, grow: grow);
+  }
+
+  /// How far down the map the line of message [mark] is now (the newest is 0), swollen or not; off the map where it
+  /// is under 0 or over [tall].
+  double yOf(int mark) => _one(mark).y;
+
+  /// How much the line of message [mark] is magnified now: 1 where nothing is near it.
+  double growOf(int mark) => _one(mark).grow;
+
+  ({double y, double grow}) _one(int mark) {
+    final at = place(tall).at;
+    final first = math.max(0, (at / ChatRail.pitch).floor() - _spare), last = math.max(first, ((at + tall) / ChatRail.pitch).ceil() + _spare);
+    final from = math.min(first, mark), to = math.max(last, mark);
+    final l = _lay(from, to, at, focus.value);
+    return (y: l.ys[mark - from], grow: l.grow[mark - from]);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final n = ticks.length;
     if (n == 0) return;
     final (:lo, :hi, :at) = place(tall);
-    final paint = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = ChatRail.thick;
-    // Only the lines in the map now: a long chat has many more.
-    final first = math.max(0, (at / ChatRail.pitch).floor()), last = math.min(n - 1, ((at + tall) / ChatRail.pitch).ceil());
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    // Only the lines in the map now, and those a swell could push into it: a long chat has many more.
+    final first = math.max(0, (at / ChatRail.pitch).floor() - _spare), last = math.min(n - 1, ((at + tall) / ChatRail.pitch).ceil() + _spare);
+    if (last < first) return;
+    final laid = _lay(first, last, at, focus.value);
     for (var i = first; i <= last; i++) {
       // The newest at the foot.
-      final y = tall - (i + 0.5) * ChatRail.pitch + at;
+      final y = laid.ys[i - first], m = laid.grow[i - first];
       if (y < 0 || y > tall) continue;
+      paint.strokeWidth = ChatRail.thick * (1 + (m - 1) * 0.6);
       final k = ticks[i];
       final seen = i + 1 > lo && i < hi;
       final colour = k.quiet ? quiet : (k.mine ? mine : (hues[k.who] ?? theirs));
@@ -578,10 +657,12 @@ class RailPainter extends CustomPainter {
       paint.color = colour.withValues(alpha: seen ? 1 : (k.quiet ? 0.28 : 0.42));
       // One's own from the right edge and everyone else's from the left, as their bubbles are, so the two are told
       // apart in a look whose accent is its ink.
+      // Swollen, a line grows toward the chat, out of the map's left side, as the Dock's icons grow up out of it.
+      final more = length * (m - 1);
       if (k.mine && !k.quiet) {
-        canvas.drawLine(Offset(size.width - 2 - length, y), Offset(size.width - 2, y), paint);
+        canvas.drawLine(Offset(size.width - 2 - length - more, y), Offset(size.width - 2, y), paint);
       } else {
-        canvas.drawLine(Offset(2, y), Offset(2 + length, y), paint);
+        canvas.drawLine(Offset(2 - more, y), Offset(2 + length, y), paint);
       }
     }
   }
