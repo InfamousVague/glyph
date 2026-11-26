@@ -534,6 +534,8 @@ void main() {
     // switcher, however it is asked for; everywhere else every command is as it was.
     test('the Marketplace and the calls\' commands are on no key, and in no list, in a browser', () {
       for (final c in KeyCommand.values) {
+        // The call's mini window is only a Mac's and a PC's app's (lib/desktop/mini_window.dart, test/call_mini_test.dart).
+        if (c == KeyCommand.miniWindow) continue;
         expect(Keys.offered(c), isTrue, reason: '${c.name} elsewhere');
       }
       final keys = Keys.forTest();

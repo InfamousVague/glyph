@@ -82,6 +82,16 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
         // smaller"): a small window of its own, as Discord's sign-in is; false gives the window its own size back.
         if (call.arguments as? Bool) == true { self.enterCompact() } else { self.leaveSplash() }
         result(nil)
+      case "mini":
+        // The call's mini window (lib/desktop/mini_window.dart): `on` with its size, or the window as it was.
+        let a = call.arguments as? [String: Any] ?? [:]
+        if (a["on"] as? Bool) == true {
+          let w = (a["width"] as? NSNumber)?.doubleValue ?? 340, h = (a["height"] as? NSNumber)?.doubleValue ?? 236
+          result(self.enterMini(width: CGFloat(w), height: CGFloat(h)))
+        } else {
+          self.leaveMini()
+          result(true)
+        }
       case "title":
         // What the app's title strip names (lib/ui/window_title.dart: the circle or conversation that is open): the
         // window's own title too, which is not drawn but is what the Window menu and Mission Control call it.
@@ -194,6 +204,42 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
   /// The window's own frame and least size, kept while the splash is shown.
   private var fullFrame: NSRect?
   private var fullMin = NSSize(width: 760, height: 520)
+
+  /// The window as it was before it was made the call's mini window (lib/desktop/mini_window.dart, GMFB-41: "An
+  /// always-on-top call overlay for games on desktop"): its frame, least size, level and how it is on Spaces.
+  private var miniWas: (frame: NSRect, min: NSSize, level: NSWindow.Level, spaces: NSWindow.CollectionBehavior, resizable: Bool)?
+
+  /// The call's mini window: [width] by [height] in the screen's top right corner, above every other window (the
+  /// floating level), on every Space and beside an app at full screen, the three buttons hidden, moved by its top
+  /// strip (the app's WindowDragArea asks with "drag"). False where it can't be: at full screen, or while the splash
+  /// or the sign-in's small window is up.
+  private func enterMini(width: CGFloat, height: CGFloat) -> Bool {
+    if miniWas != nil { return true }
+    guard !styleMask.contains(.fullScreen), fullFrame == nil else { return false }
+    miniWas = (frame: frame, min: minSize, level: level, spaces: collectionBehavior, resizable: styleMask.contains(.resizable))
+    let size = NSSize(width: width, height: height)
+    minSize = size
+    styleMask.remove(.resizable)
+    for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { standardWindowButton(b)?.isHidden = true }
+    level = .floating
+    collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
+    let screen = (self.screen ?? NSScreen.main)?.visibleFrame ?? frame
+    setFrame(NSRect(x: screen.maxX - size.width - 16, y: screen.maxY - size.height - 16, width: size.width, height: size.height), display: true, animate: true)
+    return true
+  }
+
+  /// The window as it was before the mini window: where it was, its size, level and buttons.
+  private func leaveMini() {
+    guard let was = miniWas else { return }
+    miniWas = nil
+    level = was.level
+    collectionBehavior = was.spaces
+    if was.resizable { styleMask.insert(.resizable) }
+    minSize = was.min
+    for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { standardWindowButton(b)?.isHidden = false }
+    setFrame(was.frame, display: true, animate: true)
+    placeLights()
+  }
 
   /// Small, centred, without the three buttons or a resize edge, and moved by any part of it, as Discord's splash is.
   private func enterSplash() {

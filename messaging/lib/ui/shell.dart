@@ -35,6 +35,8 @@ import 'common.dart';
 import 'new_group.dart';
 import '../art/lucide_more.dart';
 import 'call_float.dart' show CallFloatLayer;
+import 'call_mini.dart' show toggleCallMini;
+import '../desktop/mini_window.dart' show CallMini;
 import 'voice_screen.dart';
 import 'space_designs/space_design.dart';
 import 'space_groups_ui.dart';
@@ -408,6 +410,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
       case KeyCommand.leaveCall:
         if (session == null) return false;
         unawaited(Voice.instance.leave());
+      case KeyCommand.miniWindow:
+        // In a call (or back out of the mini window, the call still on): lib/ui/call_mini.dart.
+        if (session == null || !CallMini.here) return false;
+        unawaited(toggleCallMini(context));
       case KeyCommand.newChat:
         go('new');
       case KeyCommand.search:

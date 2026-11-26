@@ -63,9 +63,75 @@ void Compact() {
   Centre(g_window, kCompactWidth, kCompactHeight);
 }
 
+// The window as it was before it was made the call's mini window (lib/desktop/mini_window.dart, GMFB-41: "An
+// always-on-top call overlay for games on desktop"): where it was and how (maximised or not), and its style.
+WINDOWPLACEMENT g_mini_place{};
+LONG_PTR g_mini_style = 0;
+bool g_mini = false;
+
+// The call's mini window: a client area [width] by [height] (96-DPI pixels, scaled to its screen) in the work area's
+// top right corner, above every other window that is not itself topmost, with no maximise button; its title bar still
+// moves it. False while the splash or the sign-in's small window is up.
+bool EnterMini(int width, int height) {
+  if (g_window == nullptr) return false;
+  if (g_mini) return true;
+  if (g_splash) return false;
+  g_mini_place.length = sizeof(WINDOWPLACEMENT);
+  if (!GetWindowPlacement(g_window, &g_mini_place)) return false;
+  g_mini_style = GetWindowLongPtr(g_window, GWL_STYLE);
+  if (IsZoomed(g_window) || IsIconic(g_window)) ShowWindow(g_window, SW_RESTORE);
+  const LONG_PTR style = g_mini_style & ~WS_MAXIMIZEBOX;
+  SetWindowLongPtr(g_window, GWL_STYLE, style);
+  const UINT dpi = GetDpiForWindow(g_window);
+  RECT outer{0, 0, MulDiv(width, dpi, 96), MulDiv(height, dpi, 96)};
+  AdjustWindowRectExForDpi(&outer, static_cast<DWORD>(style), FALSE, static_cast<DWORD>(GetWindowLongPtr(g_window, GWL_EXSTYLE)), dpi);
+  const int w = outer.right - outer.left, h = outer.bottom - outer.top;
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  GetMonitorInfo(MonitorFromWindow(g_window, MONITOR_DEFAULTTONEAREST), &info);
+  const RECT& work = info.rcWork;
+  const int margin = MulDiv(16, dpi, 96);
+  SetWindowPos(g_window, HWND_TOPMOST, work.right - w - margin, work.top + margin, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+  g_mini = true;
+  return true;
+}
+
+// The window as it was before the mini window: not topmost, its style, its place and size, maximised again if it was.
+void LeaveMini() {
+  if (!g_mini || g_window == nullptr) return;
+  g_mini = false;
+  SetWindowLongPtr(g_window, GWL_STYLE, g_mini_style);
+  SetWindowPos(g_window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+  SetWindowPlacement(g_window, &g_mini_place);
+}
+
+// An int argument [name] of a call's map; [fallback] where it is not said.
+int IntOf(const flutter::EncodableValue* args, const char* name, int fallback) {
+  if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
+    auto it = map->find(flutter::EncodableValue(name));
+    if (it != map->end()) {
+      if (const auto* n = std::get_if<int32_t>(&it->second)) return *n;
+      if (const auto* n = std::get_if<int64_t>(&it->second)) return static_cast<int>(*n);
+    }
+  }
+  return fallback;
+}
+
+// Whether a call's map says `on` true.
+bool OnOf(const flutter::EncodableValue* args) {
+  if (const auto* map = std::get_if<flutter::EncodableMap>(args)) {
+    auto it = map->find(flutter::EncodableValue("on"));
+    if (it != map->end()) {
+      if (const auto* b = std::get_if<bool>(&it->second)) return *b;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
-// Makes the window the splash at once, before it is shown, and answers "ghost_desktop/window": `splash` and `compact`.
+// Makes the window the splash at once, before it is shown, and answers "ghost_desktop/window": `splash`, `compact` and
+// `mini`.
 void RegisterSplash(flutter::BinaryMessenger* messenger, HWND window) {
   g_window = window;
   g_style = GetWindowLongPtr(window, GWL_STYLE);
@@ -87,6 +153,14 @@ void RegisterSplash(flutter::BinaryMessenger* messenger, HWND window) {
         Leave();
       }
       result->Success();
+    } else if (call.method_name() == "mini") {
+      // The call's mini window (lib/desktop/mini_window.dart): `on` with its size, or the window as it was.
+      if (OnOf(call.arguments())) {
+        result->Success(flutter::EncodableValue(EnterMini(IntOf(call.arguments(), "width", 340), IntOf(call.arguments(), "height", 236))));
+      } else {
+        LeaveMini();
+        result->Success(flutter::EncodableValue(true));
+      }
     } else {
       result->NotImplemented();
     }
