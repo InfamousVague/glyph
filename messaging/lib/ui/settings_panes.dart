@@ -29,6 +29,7 @@ import '../kit/settings_kit.dart';
 import '../plugins/settings.dart';
 import '../onboarding/onboarding.dart';
 import '../kit/settings_type.dart';
+import '../custom_css.dart';
 import '../custom_theme.dart';
 import '../looks.dart';
 import '../sms.dart';
@@ -51,6 +52,7 @@ import 'me.dart';
 import 'network.dart';
 import 'settings.dart';
 import 'settings_shortcuts.dart';
+import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
@@ -450,6 +452,15 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           label: 'Paste a look\'s code',
           hint: const Text('One someone shared with you'),
           onPress: () => pasteTheme(context, app),
+        ),
+        // CSS of one's own over the look (GMFB-41; Matt, 2026-11-25: "if I search css or styles i don't see anything
+        // in settings"): the label and hint carry the words a search would be made with.
+        SettingRow(
+          key: const ValueKey('custom-css'),
+          icon: _icon(Lucide.braces),
+          label: 'Custom CSS',
+          hint: Text(CustomCss.on(app) ? 'Your own styles are in use over this theme' : 'Write your own styles over this theme'),
+          onPress: () => push<void>(context, (_) => CustomCssEditor(app: app)),
         ),
       ],
     ),
