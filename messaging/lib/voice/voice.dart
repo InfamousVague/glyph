@@ -9,6 +9,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import '../net/crypto.dart';
 import '../net/hub_carrier.dart';
 import '../sounds.dart';
+import '../invites/link_relay.dart';
 
 /// What a space is for (Matt, 2026-11-17: "each space should be able to act as a chat and a voice chat, or just a
 /// texting space. Additionally add full functionality for filesharing in a space when the space is designated a Files
@@ -147,12 +148,16 @@ class VoiceChannel {
   ///
   /// The owner's key follows the name, so the browser knows whose roles to believe; a texting or Files space ends with
   /// its kind (`.text`, `.files`), which can't be taken for a name or a key, so the page knows not to offer voice.
-  String get link => 'https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}';
+  ///
+  /// Made while the app uses a relay other than Ghost Messaging's own, it ends with that relay's host after an `@`
+  /// (lib/invites/link_relay.dart; GMFB-25).
+  String get link => LinkRelay.mark('https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}');
 
   /// The space a [link] (or just its part after the #) is; null where it is not one, a circle's among them. An open
   /// space's ends `.open` ([link]) and is read as one; before 0.12.21 it was refused as no link at all, as builds from
   /// then still refuse it.
   static VoiceChannel? fromLink(String link) {
+    link = LinkRelay.split(link).link;
     final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
     final m = RegExp(r'^([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?(?:\.(voice|text|files|open))?$').firstMatch(hash);
     if (m == null) return null;

@@ -38,6 +38,7 @@ import 'circle_keys.dart';
 import 'invite_word.dart';
 import 'slow_mode.dart';
 import 'welcome.dart';
+import '../invites/link_relay.dart';
 
 export 'slow_mode.dart';
 export 'welcome.dart';
@@ -836,7 +837,8 @@ class Circles extends ChangeNotifier {
   /// them); null where there is none.
   static String? linkIn(String? text) {
     if (text == null) return null;
-    final m = RegExp(r'https://gogho\.st/join/#c\.[0-9a-f]{64}(?:\.[A-Za-z0-9_-]*)?(?:\.0[23][0-9a-f]{64})?').firstMatch(text);
+    // With the relay it names, where it names one (lib/invites/link_relay.dart).
+    final m = RegExp('https://gogho\\.st/join/#c\\.[0-9a-f]{64}(?:\\.[A-Za-z0-9_-]*)?(?:\\.0[23][0-9a-f]{64})?${LinkRelay.pattern}').firstMatch(text);
     return m == null || Circle.fromLink(m.group(0)!) == null ? null : m.group(0);
   }
 

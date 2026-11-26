@@ -5,7 +5,7 @@ import 'add_me.dart' show askToAdd;
 import '../circles/invite_word.dart';
 import '../invites/invite_relay.dart' show InviteRelayError;
 import 'whats_new.dart' show showWhatsNewIfUpdated;
-import 'circles/circle_invite_card.dart' show CircleInviteBanner;
+import 'circles/circle_invite_card.dart' show CircleInviteBanner, circleLinkElsewhere;
 import 'circles/circle_dock.dart';
 import 'circles/circle_screen.dart';
 import 'circles/members_drawer.dart' show showCircleMembers;
@@ -593,6 +593,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
   Future<void> _takeHeldLink() async {
     final link = await PendingCircleLink.take(fresh: Circles.instance.all.isEmpty);
     if (link == null || !mounted) return;
+    // On another relay than this app's: said, not joined (GMFB-25).
+    final away = circleLinkElsewhere(link);
+    if (away != null) return toast(context, away, tone: GlacierToastTone.danger);
     final c = Circles.instance.joinLink(link);
     if (c == null || !mounted) return;
     openCircle(c, land: true);
@@ -1102,6 +1105,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             return;
           }
         }
+        // On another relay than this app's (the link says which, GMFB-25): said, in place of joining rooms nobody is in.
+        final away = circleLinkElsewhere(link);
+        if (away != null) return toast(context, away, tone: GlacierToastTone.danger);
         final c = Circles.instance.joinLink(link);
         if (c == null) {
           toast(context, 'That isn\'t a circle\'s invite link.', tone: GlacierToastTone.danger);

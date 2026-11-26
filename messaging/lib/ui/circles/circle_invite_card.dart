@@ -14,6 +14,9 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/lucide.g.dart';
 import '../../circles/circles.dart';
+import '../../invites/link_relay.dart';
+import '../../net/net.dart' show Net;
+import '../../net/relay_choice.dart' show relayHostForLinks, relayInUseWords;
 import '../../circles/invite_word.dart';
 import '../../invites/invite_relay.dart' show InviteRelayError;
 import '../../kit/settings_kit.dart' show settingsHue;
@@ -49,6 +52,14 @@ void joinCircleInvite(BuildContext context, CircleInvite i) {
   }
 }
 
+/// Where the circle [link] is an invite to is on another relay than this app's (it names one, and it is not the one in
+/// use), what to say in place of joining; null where it names none or this one (lib/invites/link_relay.dart).
+String? circleLinkElsewhere(String link, {bool space = false}) {
+  final net = Net.instance;
+  final theirs = LinkRelay.elsewhere(link, mine: relayHostForLinks(net.hubUrl), isHere: (host) => net.homes?.isHere(host) ?? false);
+  return theirs == null ? null : LinkRelay.elsewhereWords(theirs, mine: relayInUseWords(net.hubUrl).replaceFirst('Your own relay: ', 'your own relay, '), space: space);
+}
+
 /// A circle's link that came from outside the app, as [text] (the link alone, or words with it, as an invite's text or
 /// a share has them): the circle opened where it is held already, else its invite raised, as a friend's is, and the
 /// Circles tab shown where its card is. False where [text] holds no circle's link.
@@ -59,6 +70,12 @@ bool openCircleLink(AppShellState shell, String text) {
     final word = inviteWordIn(text);
     if (word == null) return false;
     unawaited(_openWord(shell, word));
+    return true;
+  }
+  // On another relay than this app's (the link says which, GMFB-25): said, in place of an invite to rooms nobody is in.
+  final away = circleLinkElsewhere(link);
+  if (away != null && Circles.instance.bySeed(Circle.fromLink(link)?.seed ?? '') == null) {
+    toast(shell.context, away, tone: GlacierToastTone.danger);
     return true;
   }
   final got = Circles.instance.offerLink(link);

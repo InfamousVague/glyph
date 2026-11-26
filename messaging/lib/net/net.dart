@@ -17,6 +17,7 @@ import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'homes.dart';
 import 'hub_carrier.dart';
+import '../invites/link_relay.dart';
 import 'hub_link.dart';
 import 'kept_files.dart';
 import 'lan/lan_carrier.dart';
@@ -545,6 +546,8 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
+    // The relay the invite links made here name, where it is not Ghost Messaging's own (lib/invites/link_relay.dart).
+    LinkRelay.here = () => relayHostForLinks(hubUrl);
     final wantDirect = directOn;
     // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
     // from another device (a backup restored here), a new one: they bring the name with them, so two devices would be

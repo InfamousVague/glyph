@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 
 import '../net/crypto.dart';
 import '../voice/voice.dart';
+import '../invites/link_relay.dart';
 
 /// The colours a circle may wear: the app's own hues (lib/kit/settings_css.dart `data-hue`), which every look in
 /// lib/looks.dart settles into its own page.
@@ -833,11 +834,17 @@ class Circle {
   /// A link to the circle, for anyone to open in the app (site/join explains it in a browser). The `c.` tells it from a
   /// space's link; the seed is after the #, which a browser never sends to any server. The owner's key follows the
   /// name, so whoever opens it knows whose list of spaces to believe.
-  String get link => 'https://gogho.st/join/#c.$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}';
+  ///
+  /// Made while the app uses a relay other than Ghost Messaging's own, it ends with that relay's host after an `@`
+  /// (lib/invites/link_relay.dart; GMFB-25): a circle is rooms on one relay, and whoever opens the link has to know which.
+  String get link => LinkRelay.mark('https://gogho.st/join/#c.$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}');
 
   /// The circle a [link] (or its part after the #) is, with a manifest of just its name until the real one comes; null
   /// where it is not a circle's.
   static Circle? fromLink(String link) {
+    // The relay it names, where it names one, is whoever opens it to look at ([LinkRelay.elsewhere]): not part of what
+    // the circle is.
+    link = LinkRelay.split(link).link;
     final hash = link.contains('#') ? link.substring(link.indexOf('#') + 1) : link;
     final m = RegExp(r'^c\.([0-9a-f]{64})(?:\.([A-Za-z0-9_-]*))?(?:\.(0[23][0-9a-f]{64}))?$').firstMatch(hash);
     if (m == null) return null;
