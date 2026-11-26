@@ -214,9 +214,8 @@ void main() {
 
     // Matt, 2026-11-25: "Lets remove the popover for the summarized messages on the chat map for now and remove the tap
     // and hold".
-    testWidgets('no list of stretches opens from it, under a mouse or a press, and nothing swells under a finger held on it', (tester) async {
+    testWidgets('no list of stretches opens from it, under a mouse or a press, and a finger held on it moves nothing', (tester) async {
       final c = await open(tester, _chat());
-      final was = [for (var i = 0; i < 60; i += 7) painter(tester).yOf(i)];
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: tester.getCenter(rail));
       addTearDown(mouse.removePointer);
@@ -226,7 +225,7 @@ void main() {
       expect(find.textContaining('20 messages'), findsNothing);
       await mouse.moveTo(const Offset(100, 300));
       await tester.pump();
-      // Held at its foot, where the chat is already: nothing moves, nothing opens, the lines are where they were.
+      // Held at its foot, where the chat is already: nothing moves, nothing opens.
       final size = tester.getSize(rail);
       final touch = await tester.startGesture(tester.getRect(rail).bottomCenter - const Offset(0, 2));
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
@@ -234,10 +233,52 @@ void main() {
       expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
       expect(c.offset, 0);
       expect(tester.getSize(rail), size);
-      expect([for (var i = 0; i < 60; i += 7) painter(tester).yOf(i)], was);
       await touch.up();
       await settle(tester);
       expect(find.byKey(const ValueKey('chat-rail-list')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    // Matt, 2026-11-26: "Bring back the magnifying effect when scrolling through the chat map".
+    testWidgets('the map swells under a mouse over it and under a finger scrolling over it, and settles once they go', (tester) async {
+      final c = await open(tester, long(300));
+      final box = tester.getRect(rail);
+      final rest = [for (var i = 0; i < 80; i++) painter(tester).yOf(i)];
+      expect([for (var i = 0; i < 80; i++) painter(tester).growOf(i)], everyElement(1.0));
+      // A mouse over the middle: the line under it is the largest, those far off are as they were.
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(100, 300));
+      addTearDown(mouse.removePointer);
+      const under = 30;
+      await mouse.moveTo(Offset(box.center.dx, box.top + rest[under]));
+      await tester.pump();
+      final p = painter(tester);
+      expect(p.growOf(under), closeTo(ChatRail.magnifyMost, 0.05));
+      expect(p.yOf(under), closeTo(rest[under], 0.01), reason: 'the line under the pointer stays where it is');
+      expect(p.growOf(under + 20), lessThan(p.growOf(under + 4)));
+      expect(p.growOf(under + 40), closeTo(1, 0.01));
+      expect(p.yOf(under) - p.yOf(under + 1), greaterThan(ChatRail.pitch * 1.8), reason: 'further apart under it');
+      expect(p.yOf(under + 1) - p.yOf(under + 2), greaterThan(p.yOf(under + 15) - p.yOf(under + 16)));
+      expect(c.offset, 0, reason: 'a mouse over it scrolls nothing');
+      if (autoUpdateGoldenFiles) await expectLater(find.byType(WidgetsApp), matchesGoldenFile('../build/chat-rail/swell.png'));
+      await mouse.moveTo(const Offset(100, 300));
+      await tester.pump();
+      expect(painter(tester).growOf(under), 1);
+      // A finger drawn over it scrolls the chat, and the swell goes with the finger.
+      final touch = await tester.startGesture(Offset(box.center.dx, box.top + 200));
+      await tester.pump();
+      expect(painter(tester).growOf(_nearest(painter(tester), 200)), greaterThan(2));
+      for (var k = 0; k < 6; k++) {
+        await touch.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(c.offset, greaterThan(60), reason: 'still scrolls the chat');
+      final q = painter(tester), at = _nearest(q, 320);
+      expect(q.yOf(at), closeTo(320, ChatRail.pitch * ChatRail.magnifyMost), reason: 'under the finger where it is now');
+      expect(q.growOf(at), greaterThan(2));
+      await touch.up();
+      await settle(tester);
+      expect([for (var i = 0; i < 300; i += 9) painter(tester).growOf(i)], everyElement(1.0));
       expect(tester.takeException(), isNull);
     });
 
@@ -390,4 +431,13 @@ void main() {
       await settle(tester);
     });
   });
+}
+
+/// The message whose line is drawn nearest [y] down the map.
+int _nearest(RailPainter p, double y) {
+  var best = 0;
+  for (var i = 1; i < p.ticks.length; i++) {
+    if ((p.yOf(i) - y).abs() < (p.yOf(best) - y).abs()) best = i;
+  }
+  return best;
 }

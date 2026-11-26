@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.39', '2026-11-26', [
+    'The chat map keeps one size and scrolls along with the chat, and it magnifies like the Dock under your finger as you scroll over it, or under the mouse.',
+  ]),
   ReleaseNotes('0.12.38', '2026-11-25', [
     'Threads open beside the chat on a wide window, and a single message can be snoozed: it comes back with a notification and a pin at the top of the chat.',
     'Make your own look: pick a font, save the look to a .ghostlook file and open one from a file, with its custom CSS if you like.',

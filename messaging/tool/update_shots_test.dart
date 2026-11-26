@@ -29,6 +29,7 @@ import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
 import 'package:ghost_messaging/sms.dart';
+import 'package:ghost_messaging/ui/chat_rail.dart';
 import 'package:ghost_messaging/ui/custom_css_editor.dart';
 import 'package:ghost_messaging/ui/export_ui.dart';
 import 'package:ghost_messaging/ui/files_space/files_screen.dart';
@@ -190,6 +191,39 @@ final _now = DateTime.now().millisecondsSinceEpoch;
 Map<String, Object?> _text(int id, String body, {bool mine = false, int minutes = 1, List<Map<String, Object?>> parts = const []}) =>
     {'id': id, 'kind': parts.isEmpty ? 'sms' : 'mms', 'address': mine ? '' : '+15550100001', 'body': body, 'date': _now - minutes * 60000, 'outgoing': mine, 'state': mine ? 'sent' : 'received', 'read': true, if (parts.isNotEmpty) 'parts': parts};
 
+/// A long chat with Maya, newest first: [n] short messages over a few weeks, in bursts with pauses between, so the
+/// chat's map has long lines and short ones, and more of them than it has room for.
+List<Map<String, Object?>> _longChat(int n) {
+  const said = [
+    'Did you find the keys?', 'They were in my coat the whole time', 'Of course they were', 'Lunch on Thursday?',
+    'Yes, the noodle place', 'I\'ll book for one o\'clock', 'Train is late again', 'How late?', 'Twenty minutes, they say',
+    'I\'ll save you a seat', 'The garden looks great', 'Thanks, the tomatoes finally came in', 'Bring some over!',
+    'Already bagged a few for you', 'Have you seen the forecast?', 'Rain all weekend', 'Board games then',
+    'I\'ll bring the long one', 'Not the six hour one', 'The six hour one', 'Fine, but I pick the snacks',
+    'Did the parcel come?', 'Yes, this morning', 'And?', 'It fits perfectly', 'Send a picture later',
+    'How was the dentist?', 'Quick, for once', 'Lucky', 'Are you up?', 'Barely', 'Coffee at the corner in ten?',
+    'Make it fifteen', 'Deal', 'That film was so long', 'But the ending!', 'I did not see it coming', 'Nobody did',
+    'Can you water the plants next week?', 'Sure, same as last time?', 'Yes, the fern is the fussy one',
+    'I remember the fern', 'It remembers you too', 'What was the name of that bakery?', 'The one by the bridge?',
+    'Yes, with the green door', 'Fenwick\'s, I think', 'That\'s it, thank you', 'Home safe', 'Good, sleep well',
+    'You too', 'Morning!', 'Is it though', 'It is after eleven', 'Then no', 'The cat is on the shelf again',
+    'Which shelf?', 'The top one, somehow', 'Impressive, honestly', 'Did you send the form?', 'Doing it now',
+    'It closes at five', 'Sent, with a minute to spare', 'Classic', 'Want anything from the market?',
+    'Lemons, if they have them', 'They have a mountain of them', 'Two then', 'Walk after dinner?', 'Yes, the long way',
+    'I\'ll bring the torch', 'New haircut?', 'Is it that obvious?', 'It looks good', 'Thank you, I was nervous',
+  ];
+  final out = <Map<String, Object?>>[];
+  var minutes = 1;
+  for (var i = 0; i < n; i++) {
+    // Who wrote it: a few in a row from one, then the other, never the same pattern for long.
+    final mine = (i * 5 + i ~/ 4 + i ~/ 9) % 3 == 0;
+    out.add(_text(1000 + n - i, said[(n - 1 - i) % said.length], mine: mine, minutes: minutes));
+    // A burst of quick answers, a slower stretch, and now and then hours or days of nothing.
+    minutes += switch (i % 23) { 22 => 2 * 24 * 60 + 35, 11 => 7 * 60, 5 || 16 => 26, _ => i % 4 == 3 ? 6 : 1 };
+  }
+  return out;
+}
+
 Future<void> _me(Map<String, String> kept) async {
   final store = MemoryMeStore();
   kept.forEach(store.set);
@@ -209,6 +243,8 @@ class _NoDrive implements SyncDrive {
   Future<DriveFile?> upload(String local, String? folder, String name) async => null;
   @override
   Future<String> fetch(DriveFile f) async => throw const SyncSkip('none');
+  @override
+  Future<bool> delete(DriveFile f) async => false;
 }
 
 /// What stands in for a shared screen's picture: a slide.
@@ -303,6 +339,24 @@ void main() {
     await _pump(tester, accents, const ThreadScreen(thread: 1, people: _maya), _dark());
     expect(find.textContaining('projector', findRichText: true), findsWidgets);
     await _snap(tester, 'lists');
+  });
+
+  // 3b. The chat's map down the right of a long chat, read part of the way back (test/chat_rail_test.dart;
+  // lib/ui/chat_rail.dart).
+  testWidgets('chat-map', (tester) async {
+    _phoneWith(_longChat(150));
+    final accents = await _sheets(tester);
+    await _pump(tester, accents, const ThreadScreen(thread: 1, people: _maya), _dark());
+    expect(find.byType(ChatRail), findsOneWidget);
+    // Back through the chat, far enough that the bright lines of what is on the screen are in the map's middle.
+    final position = tester.state<ScrollableState>(find.descendant(of: find.byType(ChatRail), matching: find.byType(Scrollable)).first).position;
+    for (var i = 0; i < 6; i++) {
+      position.jumpTo((position.pixels + 600).clamp(0, position.maxScrollExtent));
+      await _settle(tester, 4);
+    }
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await _settle(tester, 20);
+    await _snap(tester, 'chat-map');
   });
 
   // 4. Export a conversation: Markdown or JSON, alone or with its pictures and files (lib/ui/export_ui.dart).

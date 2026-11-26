@@ -79,6 +79,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   // The Marketplace and plugins from other developers (Matt, 2026-11-20): before developer mode, which loads them too.
   (['marketplace', 'make your own'], Lucide.store),
   (['custom css'], Lucide.palette),
+  (['chat map'], Lucide.zoomIn),
   (['developer mode'], Lucide.braces),
   (['icons', 'phosphor'], Lucide.shapes),
   (['sign up', 'sign-up', 'signing in'], Lucide.userPlus),
