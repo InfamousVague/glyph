@@ -25,6 +25,10 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.40', '2026-11-26', [
+    'The chat map follows the mouse smoothly, scrolls with the chat as a frame on what is on screen, and sits centred on the right when a chat is short.',
+    'Hold on the chat map, with a finger or the mouse button, then move along it to go through the chat a message at a time.',
+  ]),
   ReleaseNotes('0.12.39', '2026-11-26', [
     'The chat map keeps one size and scrolls along with the chat, and it magnifies like the Dock under your finger as you scroll over it, or under the mouse.',
   ]),
