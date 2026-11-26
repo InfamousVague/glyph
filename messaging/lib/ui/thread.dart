@@ -2313,7 +2313,9 @@ class _Bubble extends StatelessWidget {
     ];
     // A message with nothing in it to draw (a picture message whose picture this phone was never told of) is still a
     // message: a pill says what it was, where only its "Delivered" stood (Matt, 2026-11-19).
-    if (content.isEmpty) content.add(_Pill(text: m.outgoing ? 'Picture or file, not kept on this phone' : 'Attachment', ground: ground, ink: ink));
+    // One of Google Messages' whose picture only its notification told of says what it was, and where it is (Matt,
+    // 2026-11-26: "some RCS images are just displaying as "attachment"").
+    if (content.isEmpty) content.add(_Pill(text: m.missing != null ? missingPill(m.missing!) : m.outgoing ? 'Picture or file, not kept on this phone' : 'Attachment', ground: ground, ink: ink));
 
     Widget bubble = Column(crossAxisAlignment: out ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: content);
     final ink0 = sent.bubble == BubbleEffect.invisibleInk && concealed;
@@ -2502,6 +2504,9 @@ class _FootGround extends StatelessWidget {
 }
 
 /// An attachment that is not drawn (a file, or one this phone no longer has): a file mark and its name or kind.
+/// The pill of a message of Google Messages' whose [kind] ("Picture", "Video", …) this phone could not get.
+String missingPill(String kind) => '$kind: open it in Google Messages to see it';
+
 class _Pill extends StatelessWidget {
   const _Pill({required this.text, required this.ground, required this.ink});
   final String text;
