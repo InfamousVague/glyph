@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.41', '2026-11-26', [
+    'Recording a call on a Windows PC can include video, as on a Mac: everyone\'s cameras in a grid, or a shared screen shown large with cameras beside it. Only people who agreed to voice and video are shown.',
+    'A recording\'s video keeps its true colours in every player: before, some players showed greens and pinks a different shade.',
+    'Local network route, to try (Settings › Routes, off until you switch it on): devices on the same Wi-Fi or wired network find each other and send messages straight to each other, with no server and no internet. On Android, Mac, Windows and Linux.',
+  ]),
   ReleaseNotes('0.12.40', '2026-11-26', [
     'The chat map follows the mouse smoothly, scrolls with the chat as a frame on what is on screen, and sits centred on the right when a chat is short.',
     'Hold on the chat map, with a finger or the mouse button, then move along it to go through the chat a message at a time.',
