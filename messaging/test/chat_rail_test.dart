@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/ui/chat_rail.dart';
+import 'package:ghost_messaging/ui/chat_rows.dart';
 
 import 'support/list_harness.dart';
 
@@ -13,7 +15,11 @@ import 'support/list_harness.dart';
 // messages and who differently sent messages etc". Then, the same day: "Lets remove the popover for the summarized
 // messages on the chat map for now and remove the tap and hold just allow scrolling normally it's a bit glitchy though
 // when getting to the top or bottom dont change the main size of the chatmap scroll it up and down as we go back
-// through history". lib/ui/chat_rail.dart. Run with --update-goldens, the pictures are build/chat-rail/*.png.
+// through history". Then, 2026-11-26: "when clicking something far up it doesn't go all the way to the message because
+// it's still loading i assume and it's overall still kind of glitchy and i can't click and drag through it, please keep
+// the same looks but do a revamp to make it far more performant and smooth", and of the held drag: "it scrolls in
+// reverse when touching holding and scrolling". lib/ui/chat_rail.dart, over lib/ui/chat_rows.dart. Run with
+// --update-goldens, the pictures are build/chat-rail/*.png.
 
 const _minute = 60 * 1000;
 final _now = DateTime(2026, 11, 25, 15).millisecondsSinceEpoch;
@@ -125,9 +131,10 @@ void main() {
   });
 
   group('in a chat', () {
-    /// A chat's list with its map, 700 by 600 with rows 48 tall unless [tall] says. [marks] can be given again, as
-    /// when older messages are loaded.
-    Future<ScrollController> openOn(WidgetTester tester, ValueNotifier<List<RailMark>> marks, {double Function(int i)? tall, ScrollPhysics? physics}) async {
+    /// A chat's list with its map, 700 by 600 with rows 48 tall unless [tall] says, or [row] makes them. [marks] can
+    /// be given again, as when older messages are loaded or a new one comes. Every row built is noted in [built]. A
+    /// row is keyed by its message's place from the oldest (`row-1` the oldest), which no newer message changes.
+    Future<ScrollController> openOn(WidgetTester tester, ValueNotifier<List<RailMark>> marks, {double Function(int i)? tall, Widget Function(int fromOldest)? row, ScrollPhysics? physics, List<int>? built}) async {
       final sheet = await loadSheet(tester);
       final c = ScrollController();
       addTearDown(c.dispose);
@@ -140,12 +147,18 @@ void main() {
             controller: c,
             marks: m,
             chat: 'test',
-            child: ListView.builder(
+            child: ChatListView.builder(
               controller: c,
               reverse: true,
               physics: physics,
               itemCount: m.length,
-              itemBuilder: (context, i) => SizedBox(key: ValueKey('row-${m.length - i}'), height: tall?.call(i) ?? 48, child: Text(m[i].text)),
+              // A message by its place from the oldest, as its row is keyed.
+              idOf: (i) => m.length - i,
+              itemBuilder: (context, i) {
+                built?.add(i);
+                final made = row?.call(m.length - i);
+                return made != null ? KeyedSubtree(key: ValueKey('row-${m.length - i}'), child: made) : SizedBox(key: ValueKey('row-${m.length - i}'), height: tall?.call(i) ?? 48, child: Text(m[i].text));
+              },
             ),
           ),
         ),
@@ -158,7 +171,7 @@ void main() {
       return c;
     }
 
-    Future<ScrollController> open(WidgetTester tester, List<RailMark> marks, {double Function(int i)? tall}) => openOn(tester, ValueNotifier(marks), tall: tall);
+    Future<ScrollController> open(WidgetTester tester, List<RailMark> marks, {double Function(int i)? tall, List<int>? built}) => openOn(tester, ValueNotifier(marks), tall: tall, built: built);
 
     final rail = find.byKey(const ValueKey('chat-rail'));
     RailPainter painter(WidgetTester tester) => tester.widget<CustomPaint>(find.descendant(of: rail, matching: find.byType(CustomPaint))).painter! as RailPainter;
@@ -287,42 +300,269 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    // Matt, 2026-11-26: "i'd like to be able to tap and hold to initate the scrolling mechanic and click and hold as well".
+    // Matt, 2026-11-26: "i'd like to be able to tap and hold to initate the scrolling mechanic and click and hold as well";
+    // then: "i can't click and drag through it", and "in the current chat map it scrolls in reverse when touching
+    // holding and scrolling".
     for (final kind in [PointerDeviceKind.touch, PointerDeviceKind.mouse]) {
-      testWidgets('held with a ${kind.name}, then drawn along: the chat goes with the map, a message a line, the line under it staying under it', (tester) async {
+      testWidgets('taken hold of with a ${kind.name} and drawn along: the chat is at the message under the pointer, UP the map OLDER, the map itself still', (tester) async {
         final c = await open(tester, long(300));
         c.jumpTo(48.0 * 100);
         await settle(tester);
         final box = tester.getRect(rail);
         final p0 = painter(tester);
-        final at = Offset(box.center.dx, box.top + p0.tall / 2);
-        final under = _nearest(p0, p0.tall / 2);
+        final at0 = p0.place(p0.tall).at;
+        final y0 = p0.tall / 2;
+        final under = _nearest(p0, y0);
+        Finder row(int mark) => find.byKey(ValueKey('row-${300 - mark}'));
         final g = await tester.createGesture(kind: kind);
-        if (kind == PointerDeviceKind.mouse) await g.addPointer(location: at);
-        await g.down(at);
-        await tester.pump(const Duration(milliseconds: 400));
-        expect(c.offset, closeTo(48.0 * 100, 1), reason: 'held still, nothing moves');
-        // Down the map by ten lines: ten messages older, the same message's line still under the pointer.
-        for (var k = 0; k < 10; k++) {
-          await g.moveBy(const Offset(0, ChatRail.pitch));
-          await tester.pump(const Duration(milliseconds: 16));
+        if (kind == PointerDeviceKind.mouse) await g.addPointer(location: Offset(box.center.dx, box.top + y0));
+        await g.down(Offset(box.center.dx, box.top + y0));
+        if (kind == PointerDeviceKind.touch) {
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(c.offset, closeTo(48.0 * 100, 0.01), reason: 'a finger not yet held long enough moves nothing');
+          await tester.pump(ChatRail.holdFor);
         }
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(c.offset, closeTo(48.0 * 110, 48), reason: 'ten messages older');
-        expect(painter(tester).yOf(under), closeTo(p0.tall / 2 + 10 * ChatRail.pitch, ChatRail.pitch * 1.5), reason: 'still under the pointer');
-        // And back up past where it began.
-        for (var k = 0; k < 20; k++) {
+        await settle(tester);
+        expect(tester.getRect(row(under)).center.dy, closeTo(300, 1), reason: 'held: the message whose line is under the pointer is in the middle');
+        final held = c.offset;
+        // Up the map by ten lines: ten messages OLDER, and further up the chat.
+        for (var k = 0; k < 10; k++) {
           await g.moveBy(const Offset(0, -ChatRail.pitch));
           await tester.pump(const Duration(milliseconds: 16));
         }
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(c.offset, closeTo(48.0 * 90, 48), reason: 'ten messages newer than where it began');
+        await settle(tester);
+        expect(tester.getRect(row(under + 10)).center.dy, closeTo(300, 1), reason: 'ten lines up the map is ten messages older');
+        expect(c.offset, closeTo(held + 480, 1));
+        expect(painter(tester).place(p0.tall).at, closeTo(at0, 0.01), reason: 'the map itself has not moved under the pointer');
+        // (Taken hold of at its middle, so no further from the pointer than half a line, swollen as lines there are.)
+        expect(painter(tester).yOf(under + 10), closeTo(y0 - 10 * ChatRail.pitch, ChatRail.pitch / 2 * ChatRail.magnifyMost + 0.5), reason: 'that message\'s line is the one under the pointer');
+        expect(painter(tester).seen.lo, lessThan(under + 10));
+        expect(painter(tester).seen.hi, greaterThan(under + 10), reason: 'and it is one of the bright ones');
+        // Half a line more is half a message more: the chat goes with the pointer, not a message at a time.
+        await g.moveBy(const Offset(0, -ChatRail.pitch / 2));
+        await settle(tester);
+        expect(c.offset, closeTo(held + 480 + 24, 1));
+        await g.moveBy(const Offset(0, ChatRail.pitch / 2));
+        // Down the map past where it began: newer.
+        for (var k = 0; k < 25; k++) {
+          await g.moveBy(const Offset(0, ChatRail.pitch));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await settle(tester);
+        expect(tester.getRect(row(under - 15)).center.dy, closeTo(300, 1), reason: 'fifteen lines under where it began is fifteen messages newer');
+        expect(painter(tester).place(p0.tall).at, closeTo(at0, 0.01));
+        // Let go: the chat stays, and the map glides back to its frame on what is on the screen.
+        final left = c.offset;
         await g.up();
         if (kind == PointerDeviceKind.mouse) await g.removePointer();
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 100));
+        final gliding = painter(tester).place(p0.tall).at;
+        expect(gliding, lessThan(at0));
         await settle(tester);
+        expect(c.offset, left);
+        final p1 = painter(tester);
+        expect(p1.place(p1.tall).at, lessThan(gliding), reason: 'it glided, it did not jump');
+        expect(p1.yOf(under - 15), closeTo(p1.tall / 2, ChatRail.pitch), reason: 'what is on the screen is in the map\'s middle again');
         expect(tester.takeException(), isNull);
       });
     }
+
+    // Matt, 2026-11-26: "i can't click and drag through it". A mouse's button had to be held still for 300 ms first,
+    // within 18 px: pressed and drawn at once, as anyone does, nothing happened at all.
+    testWidgets('a mouse pressed and drawn along at once, with no wait, takes the chat with it', (tester) async {
+      final c = await open(tester, long(300));
+      c.jumpTo(48.0 * 100);
+      await settle(tester);
+      final box = tester.getRect(rail);
+      final y0 = painter(tester).tall / 2;
+      final under = _nearest(painter(tester), y0);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset(box.center.dx, box.top + y0));
+      addTearDown(mouse.removePointer);
+      await mouse.down(Offset(box.center.dx, box.top + y0));
+      await tester.pump(const Duration(milliseconds: 8));
+      await mouse.moveBy(const Offset(0, -40), timeStamp: const Duration(milliseconds: 30));
+      await tester.pump(const Duration(milliseconds: 16));
+      await mouse.moveBy(const Offset(3, -80), timeStamp: const Duration(milliseconds: 60));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(c.offset, greaterThan(48.0 * 100 + 600), reason: 'already well on the way, 60 ms after the press');
+      await settle(tester);
+      expect(tester.getRect(find.byKey(ValueKey('row-${300 - (under + 20)}'))).center.dy, closeTo(300, 1), reason: '120 up the map is twenty messages older');
+      await mouse.up();
+      await settle(tester);
+      expect(c.offset, closeTo(48.0 * (under + 20) + 24 - 300, 1), reason: 'and it stays there');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('held near the map\'s top or foot, or past it, the map rolls on: one hold goes through the whole chat', (tester) async {
+      final c = await open(tester, long(900));
+      c.jumpTo(48.0 * 300);
+      await settle(tester);
+      final box = tester.getRect(rail);
+      final p0 = painter(tester);
+      final at0 = p0.place(p0.tall).at;
+      final topLine = _nearest(p0, 0);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: box.center);
+      addTearDown(mouse.removePointer);
+      await mouse.down(box.center);
+      await settle(tester);
+      // To just under the map's top: inside the zone that rolls it.
+      await mouse.moveTo(Offset(box.center.dx, box.top + 6));
+      for (var f = 0; f < 60; f++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final rolled = painter(tester).place(p0.tall).at;
+      expect(rolled, greaterThan(at0 + 20 * ChatRail.pitch), reason: 'the map has rolled toward older messages under a pointer that is still');
+      expect(painter(tester).seen.lo, greaterThan(topLine), reason: 'and the chat with it, past what the map showed when it was taken hold of');
+      // Past the top it rolls faster.
+      await mouse.moveTo(Offset(box.center.dx, box.top - 40));
+      final before = painter(tester).place(p0.tall).at;
+      for (var f = 0; f < 60; f++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(painter(tester).place(p0.tall).at - before, greaterThan(rolled - at0));
+      // Held there, it comes to the oldest message and rests.
+      for (var f = 0; f < 600 && c.offset < c.position.maxScrollExtent; f++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await settle(tester);
+      expect(c.offset, closeTo(c.position.maxScrollExtent, 1), reason: 'the oldest end');
+      expect(find.byKey(const ValueKey('row-1')), findsOneWidget);
+      // Back in the middle it rolls no more; at the foot it rolls back toward the newest.
+      await mouse.moveTo(box.center);
+      await settle(tester);
+      final rested = painter(tester).place(p0.tall).at;
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(painter(tester).place(p0.tall).at, rested);
+      await mouse.moveTo(Offset(box.center.dx, box.bottom - 4));
+      for (var f = 0; f < 60; f++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(painter(tester).place(p0.tall).at, lessThan(rested - 20 * ChatRail.pitch));
+      await mouse.up();
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    // Matt, 2026-11-26: "when clicking something far up it doesn't go all the way to the message because it's still
+    // loading i assume". Among rows of very different heights (a few lines of talk among pictures) the map's guesses at
+    // where an unbuilt row was went back and forth, fourteen times, and ended hundreds of pixels from the message with
+    // hundreds of rows built on the way.
+    testWidgets('a press among rows of very different heights ends on the message, with only what is near it built', (tester) async {
+      for (final tall in <double Function(int)>[
+        (i) => i % 9 == 8 ? 28.0 : 320.0,
+        (i) => (i ~/ 40).isEven ? 28.0 : 320.0,
+        (i) => (i ~/ 25).isEven ? 320.0 : 28.0,
+        (i) => i < 26 ? 28.0 : 240.0 + (i * 37 % 80),
+      ]) {
+        final built = <int>[];
+        final c = await open(tester, long(420), tall: tall, built: built);
+        for (final to in [0.02, 0.3, 0.97, 0.5, 0.0]) {
+          final box = tester.getRect(rail);
+          final p = painter(tester);
+          final y = (p.tall * to).clamp(1.0, p.tall - 1);
+          final mark = _nearest(p, y);
+          built.clear();
+          await tester.tapAt(Offset(box.center.dx, box.top + p.yOf(mark)));
+          await settle(tester);
+          final row = find.byKey(ValueKey('row-${420 - mark}'));
+          expect(row, findsOneWidget, reason: 'message $mark is built');
+          final r = tester.getRect(row);
+          final atEnd = c.offset <= 0.5 || c.offset >= c.position.maxScrollExtent - 0.5;
+          if (!atEnd) expect(r.center.dy, closeTo(300, 1), reason: 'message $mark in the middle of the screen');
+          expect(r.bottom > 0 && r.top < 600, isTrue, reason: 'message $mark on the screen');
+          expect(built.length, lessThan(90), reason: 'only what is near it and on the short run in to it');
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a press ends on the message though what is under it grows after, as a picture that loads does', (tester) async {
+      final marks = ValueNotifier(long(420));
+      // Every third message is 40 tall when first built and 240 a moment later.
+      final c = await openOn(tester, marks, row: (k) => k % 3 == 0 ? const _Grows(from: 40, to: 240) : SizedBox(height: 30.0 + k % 50));
+      await tester.pump(const Duration(milliseconds: 300));
+      final box = tester.getRect(rail);
+      final p = painter(tester);
+      final mark = _nearest(p, 12);
+      await tester.tapAt(Offset(box.center.dx, box.top + p.yOf(mark)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      // On its way; then everything round it loads.
+      await settle(tester);
+      await tester.pump(const Duration(milliseconds: 400));
+      await settle(tester);
+      final r = tester.getRect(find.byKey(ValueKey('row-${420 - mark}')));
+      expect(r.center.dy, closeTo(300, 1), reason: 'still in the middle after what is under it grew');
+      // And it is let go once the chat is scrolled by hand.
+      await tester.drag(find.byType(ChatListView), const Offset(0, 60));
+      await settle(tester);
+      expect(tester.getRect(find.byKey(ValueKey('row-${420 - mark}'))).center.dy, greaterThan(340));
+      expect(c.offset, greaterThan(0));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a press runs the chat in to the message: near at once, then the last of the way', (tester) async {
+      final c = await open(tester, long(300));
+      final box = tester.getRect(rail);
+      final p = painter(tester);
+      final mark = _nearest(p, 20);
+      expect(mark, greaterThan(70), reason: 'far: some eighty messages up');
+      final to = 48.0 * mark + 24 - 300;
+      await tester.tapAt(Offset(box.center.dx, box.top + p.yOf(mark)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(c.offset, greaterThan(to - ChatRail.runway - 1), reason: 'put near at once: no further off than the runway');
+      expect(c.offset, lessThan(to - 100), reason: 'and not yet there');
+      final seen = <double>[c.offset];
+      for (var f = 0; f < 20; f++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        seen.add(c.offset);
+      }
+      for (var i = 1; i < seen.length; i++) {
+        expect(seen[i], greaterThanOrEqualTo(seen[i - 1]), reason: 'only ever toward it');
+      }
+      expect(c.offset, closeTo(to, 0.5), reason: 'there, in a quarter of a second');
+      // Scrolled by a wheel on the way, the run is given up: the chat is the person's.
+      await tester.tapAt(Offset(box.center.dx, tester.getRect(rail).bottom - 10));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 32));
+      final mid = c.offset;
+      c.position.pointerScroll(120);
+      await settle(tester);
+      expect(c.offset, closeTo(mid + 120, 40), reason: 'left where the wheel put it, not run on to the foot');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a new message while one is held: the map does not move, and the chat stays on the message held', (tester) async {
+      final marks = ValueNotifier(long(300));
+      await openOn(tester, marks);
+      final box = tester.getRect(rail);
+      final p = painter(tester);
+      final mark = _nearest(p, p.tall * 0.3);
+      await tester.tapAt(Offset(box.center.dx, box.top + p.yOf(mark)));
+      await settle(tester);
+      final key = ValueKey('row-${300 - mark}');
+      final was = tester.getRect(find.byKey(key));
+      expect(was.center.dy, closeTo(300, 1));
+      final lines = [for (final i in [mark - 20, mark, mark + 20]) painter(tester).yOf(i)];
+      // Two more at the foot: every message is two further up the list.
+      marks.value = [
+        RailMark(at: _now + 2 * _minute, who: 'maya', mine: false, name: 'Maya Chen', text: 'line 302'),
+        RailMark(at: _now + _minute, who: 'me', mine: true, name: 'You', text: 'line 301'),
+        ...marks.value,
+      ];
+      await tester.pump();
+      expect(tester.getRect(find.byKey(ValueKey('row-${300 - mark}'))), was, reason: 'the message held has not moved on the screen');
+      expect([for (final i in [mark - 20, mark, mark + 20]) painter(tester).yOf(i + 2)], lines, reason: 'nor has any line of the map');
+      await settle(tester);
+      expect(tester.getRect(find.byKey(ValueKey('row-${300 - mark}'))), was);
+      expect([for (final i in [mark - 20, mark, mark + 20]) painter(tester).yOf(i + 2)], lines);
+      expect(tester.takeException(), isNull);
+    });
 
     // Matt, 2026-11-25: "just allow scrolling normally".
     testWidgets('a wheel turned over the map scrolls the chat', (tester) async {
@@ -482,6 +722,35 @@ void main() {
       await settle(tester);
     });
   });
+}
+
+/// A row that is [from] tall when first built and [to] tall 150 ms later, as one whose picture loads.
+class _Grows extends StatefulWidget {
+  const _Grows({required this.from, required this.to});
+  final double from, to;
+
+  @override
+  State<_Grows> createState() => _GrowsState();
+}
+
+class _GrowsState extends State<_Grows> {
+  late double _tall = widget.from;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 150), () => setState(() => _tall = widget.to));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(height: _tall);
 }
 
 /// The message whose line is drawn nearest [y] down the map.

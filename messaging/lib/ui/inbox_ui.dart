@@ -39,6 +39,7 @@ import '../plugins/embeds.dart' show EmbedCard, EmbedsPlugin;
 import '../plugins/plugin.dart' show MessageFacts;
 import '../plugins/registry.dart' show AppStore, PluginRegistry;
 import 'chat_rail.dart';
+import 'chat_rows.dart';
 import 'common.dart';
 import 'skeleton.dart';
 import 'window_title.dart';
@@ -670,7 +671,9 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   controller: _scroll,
                   chat: _spot,
                   incoming: list.where((m) => !m.mine).map((m) => m.id),
-                  inset: isDialup(context) ? const EdgeInsets.only(right: 14, bottom: 12) : EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+                  // Left of the map's gutter, level with the bubbles' edge: at the list's own edge it stood over the
+                  // map's foot and took the presses meant for its lowest lines.
+                  inset: isDialup(context) ? const EdgeInsets.only(right: 14, bottom: 12) : EdgeInsets.only(right: ChatRail.gutter, bottom: t.space(3)),
                   child: isDialup(context)
               ? _transcript(chat, list)
               // The chat's map in the gutter at its right (lib/ui/chat_rail.dart).
@@ -690,10 +693,13 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   ],
                   // In a group everyone's own face, as by their lines.
                   face: group ? (who, name, mine, size) => InboxFace(network: _n, id: mine ? myId : (list.any((m) => m.senderId == who) ? who : ''), name: name, mine: mine, size: size) : null,
-                  child: ListView.builder(
+                  // The list that can go straight to a row (lib/ui/chat_rows.dart).
+                  child: ChatListView.builder(
                   controller: _scroll,
                   reverse: true,
                   padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+                  chat: _spot,
+                  idOf: (i) => list[i].id,
                   itemCount: list.length,
                   itemBuilder: (context, i) {
                     final m = list[i];

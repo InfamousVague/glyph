@@ -460,7 +460,7 @@ void main() {
         await _show(tester, InboxChatScreen(network: _slack()..faces['U2'] = _picture, chatId: 'c'), size: size, dark: dark);
         await _keep('slack-$label-${dark ? 'dark' : 'light'}');
         // And its beginning.
-        await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
+        await tester.drag(find.bySubtype<ListView>().first, const Offset(0, 2000));
         await _settle(tester);
         await _keep('slack-$label-top-${dark ? 'dark' : 'light'}');
         await _show(tester, InboxChatScreen(network: telegram, chatId: 'c'), size: size, dark: dark);
