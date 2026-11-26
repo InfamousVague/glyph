@@ -94,6 +94,80 @@ void main() {
       expect(wednesdayEvening.length, 4, reason: 'no "this evening" after five');
       expect(wednesdayEvening.last.at, DateTime(2026, 11, 30, 9));
     });
+
+    group('one message (GMFB-36)', () {
+      late List<String> toldMessages;
+      setUp(() {
+        toldMessages = [];
+        Snoozed.wokeMessage = (chat, id, title, words) => toldMessages.add('$chat $id $title $words');
+      });
+      tearDown(() => Snoozed.wokeMessage = (_, _, _, _) {});
+
+      test('back at its time with a notification, pinned in its conversation, which comes to the top of Messages', () {
+        Snoozed.instance.start(AppState());
+        final chat = Snoozed.text(42);
+        Snoozed.instance.snoozeMessage(chat, 'sms:7', now.add(const Duration(hours: 1)), title: 'Maya', words: 'Dinner at 8?');
+        expect(Snoozed.instance.messageUntil(chat, 'sms:7'), now.add(const Duration(hours: 1)));
+        expect(Snoozed.instance.hides(chat), isFalse, reason: 'the conversation stays in Messages');
+        expect(Snoozed.instance.remindersIn(chat), isEmpty);
+
+        now = now.add(const Duration(minutes: 30));
+        Snoozed.instance.wakeDue();
+        expect(toldMessages, isEmpty);
+
+        now = now.add(const Duration(minutes: 31));
+        Snoozed.instance.wakeDue();
+        expect(toldMessages, ['text:42 sms:7 Maya Dinner at 8?']);
+        expect(told, isEmpty, reason: 'a message\'s, not a conversation\'s');
+        expect(Snoozed.instance.messageUntil(chat, 'sms:7'), isNull);
+        expect(Snoozed.instance.remindersIn(chat).map((r) => (r.id, r.words)), [('sms:7', 'Dinner at 8?')]);
+        expect(Snoozed.instance.woken(chat), isTrue, reason: 'its conversation at the top of Messages');
+        expect(Snoozed.instance.remindersIn(Snoozed.text(4)), isEmpty, reason: 'only in its own conversation');
+
+        Snoozed.instance.opened(chat);
+        expect(Snoozed.instance.remindersIn(chat).length, 1, reason: 'pinned until shown or put away, not only opened');
+        Snoozed.instance.dismiss(chat, 'sms:7');
+        expect(Snoozed.instance.remindersIn(chat), isEmpty);
+      });
+
+      test('kept on this device: one due while the app was closed is back as it opens; reminders stay', () {
+        final app = AppState();
+        Snoozed.instance.start(app);
+        final chat = Snoozed.space('room-1');
+        Snoozed.instance.snoozeMessage(chat, 'm1', now.add(const Duration(hours: 3)), title: 'Weekend', words: 'Tickets');
+        Snoozed.instance.snoozeMessage(chat, 'm2', now.add(const Duration(days: 2)), title: 'Weekend', words: 'Later');
+        Snoozed.instance.reset();
+        now = now.add(const Duration(hours: 4));
+        Snoozed.instance.start(app);
+        expect(toldMessages, ['space:room-1 m1 Weekend Tickets']);
+        expect(Snoozed.instance.messageUntil(chat, 'm2'), isNotNull);
+        Snoozed.instance.reset();
+        Snoozed.instance.start(app);
+        expect(Snoozed.instance.remindersIn(chat).map((r) => r.id), ['m1'], reason: 'the reminder is kept too');
+        expect(toldMessages.length, 1);
+      });
+
+      test('unsnoozed: nothing comes back', () {
+        Snoozed.instance.start(AppState());
+        final chat = Snoozed.text(3);
+        Snoozed.instance.snoozeMessage(chat, 'a', now.add(const Duration(hours: 1)));
+        Snoozed.instance.unsnoozeMessage(chat, 'a');
+        now = now.add(const Duration(hours: 2));
+        Snoozed.instance.wakeDue();
+        expect(toldMessages, isEmpty);
+        expect(Snoozed.instance.remindersIn(chat), isEmpty);
+      });
+
+      test('a notification pressed: its message is shown once as its conversation opens', () {
+        expect(Snoozed.message(Snoozed.text(9), 'sms:1'), 'text:9#sms:1');
+        expect(Snoozed.chatOf('text:9#sms:1'), 'text:9');
+        expect(Snoozed.chatOf('space:r'), 'space:r');
+        Snoozed.instance.showOnOpen(Snoozed.text(9), 'sms:1');
+        expect(Snoozed.instance.takeShow(Snoozed.text(8)), isNull, reason: 'another conversation');
+        expect(Snoozed.instance.takeShow(Snoozed.text(9)), 'sms:1');
+        expect(Snoozed.instance.takeShow(Snoozed.text(9)), isNull, reason: 'once');
+      });
+    });
   });
 
   group('export', () {

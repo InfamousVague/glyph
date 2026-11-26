@@ -199,5 +199,15 @@ void startSnoozed(AppState app) {
       Snoozed.back?.call(name);
     }
   };
+  // One message's (GMFB-36): its words in the notification, which opens its conversation at it (lib/main.dart).
+  Snoozed.wokeMessage = (chat, id, title, words) {
+    final name = title.isEmpty ? 'A conversation' : title;
+    if (Snoozed.notifies) {
+      final said = words.length > 120 ? '${words.substring(0, 120)}…' : words;
+      unawaited(Sms.instance.notifyInbox('snooze:${Snoozed.message(chat, id)}', network: 'Snoozed', title: name, body: said.isEmpty ? 'A snoozed message is back' : 'Snoozed: $said'));
+    } else {
+      Snoozed.back?.call('A message in $name');
+    }
+  };
   Snoozed.instance.start(app);
 }

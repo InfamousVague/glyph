@@ -51,6 +51,7 @@ import 'voice/channels.dart';
 import 'voice/mention_alerts.dart';
 import 'voice/discord.dart';
 import 'voice/space_groups.dart';
+import 'snooze.dart';
 import 'sounds.dart';
 import 'keys.dart';
 import 'gm/rcs_share.dart';
@@ -482,6 +483,24 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Someone joined a circle (above): the circle.
       final c = Circles.instance.bySeed(req.inbox!.substring('circle:'.length));
       if (c != null) shell.openCircle(c);
+    } else if (req.inbox != null && req.inbox!.startsWith('snooze:')) {
+      // A snooze's notification (lib/snooze.dart, GMFB-36): its conversation, or its space's chat, and a message's
+      // shown in it as it opens.
+      final key = req.inbox!.substring('snooze:'.length);
+      final chat = Snoozed.chatOf(key);
+      if (key != chat) Snoozed.instance.showOnOpen(chat, key.substring(chat.length + 1));
+      if (chat.startsWith('text:')) {
+        final thread = int.tryParse(chat.substring('text:'.length));
+        if (thread != null) {
+          unawaited(Sms.instance.people(thread).then((people) {
+            if (shell.mounted) shell.openThread(thread, people);
+          }));
+        }
+      } else if (chat.startsWith('space:')) {
+        final room = chat.substring('space:'.length);
+        final c = Voice.instance.channels.where((x) => x.room == room).firstOrNull;
+        if (c != null) shell.openSpace(c);
+      }
     } else if (req.inbox != null && req.inbox!.startsWith('space:')) {
       // A mention's notification (lib/voice/mention_alerts.dart): the space it was in, where it is listed.
       final seed = req.inbox!.substring('space:'.length);

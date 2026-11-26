@@ -1,6 +1,6 @@
 /// A thread in a space's chat (GMFB-36, from the Uplink gap review: forums and threads were promised in Uplink #1434):
-/// replies to one message kept off the chat, in a page of their own, with a line under the message saying how many
-/// and who wrote last.
+/// replies to one message kept off the chat, in a page of their own on a phone and in a panel beside the chat in a
+/// wide window, with a line under the message saying how many and who wrote last.
 ///
 /// A reply in a thread is a message like any other, with `th` naming the message it hangs from (lib/voice/hangout.dart)
 /// and that message quoted, so a build from before shows it in the chat as a reply.
@@ -13,6 +13,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../kit/settings_type.dart';
+import '../snooze.dart';
 import '../voice/channels.dart';
 import '../voice/hangout.dart';
 import 'common.dart';
@@ -20,6 +21,7 @@ import 'composer_box.dart';
 import 'mention_field.dart' show mentionStyle;
 import 'plugin_note_card.dart';
 import 'ripple_avatar.dart';
+import 'snooze_ui.dart';
 import 'thread.dart' show LinkedText;
 
 /// Opens [root]'s thread in [room].
@@ -77,17 +79,66 @@ String ago(DateTime d, [DateTime? now]) {
   return dayHeading(d, n);
 }
 
-/// A thread's page: the message it hangs from, its replies, and a box to reply in.
-class SpaceThreadScreen extends StatefulWidget {
+/// A thread's page, on a phone: the message it hangs from, its replies, and a box to reply in ([SpaceThreadView]).
+class SpaceThreadScreen extends StatelessWidget {
   const SpaceThreadScreen({super.key, required this.room, required this.root});
   final HangoutRoom room;
   final HangoutMessage root;
 
   @override
-  State<SpaceThreadScreen> createState() => _SpaceThreadScreenState();
+  Widget build(BuildContext context) => GhostPage(title: 'Thread', subtitle: room.channel.name, body: SpaceThreadView(room: room, root: root));
 }
 
-class _SpaceThreadScreenState extends State<SpaceThreadScreen> {
+/// A thread beside its chat, in a wide window (GMFB-36: "threads show as a side panel with a reply count on the
+/// message"): a head with its name and a cross that closes it, over what its page has ([SpaceThreadView]).
+class SpaceThreadPanel extends StatelessWidget {
+  const SpaceThreadPanel({super.key, required this.room, required this.root, required this.onClose});
+  final HangoutRoom room;
+  final HangoutMessage root;
+  final VoidCallback onClose;
+
+  /// How wide a chat must be for the panel to stand beside it; in a narrower one (the pane of a folding phone
+  /// opened out) it takes the chat's place, with the same cross back to it.
+  static const besideAt = 600.0;
+
+  /// How wide it is beside a chat [width] wide.
+  static double widthIn(double width) => (width * 0.4).clamp(300.0, 420.0);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ColoredBox(
+      color: t.color('glacier-bg'),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(1), t.space(2)),
+          child: Row(children: [
+            AppIcon(Lucide.messageSquare, size: 16, color: t.color('app-ink-3')),
+            SizedBox(width: t.space(2)),
+            Text('Thread', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+            SizedBox(width: t.space(2)),
+            Expanded(child: Text(room.channel.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+            IconTap(key: const ValueKey('thread-panel-close'), icon: Lucide.x, label: 'Close the thread', onPressed: onClose),
+          ]),
+        ),
+        Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
+        Expanded(child: SpaceThreadView(key: ValueKey('thread-${root.id}'), room: room, root: root)),
+      ]),
+    );
+  }
+}
+
+/// What a thread shows, on its page or in its panel: the message it hangs from, its replies, and a box to reply in.
+class SpaceThreadView extends StatefulWidget {
+  const SpaceThreadView({super.key, required this.room, required this.root});
+  final HangoutRoom room;
+  final HangoutMessage root;
+
+  @override
+  State<SpaceThreadView> createState() => _SpaceThreadViewState();
+}
+
+class _SpaceThreadViewState extends State<SpaceThreadView> {
   final _text = TextEditingController();
   final _focus = FocusNode();
   bool _typing = false;
@@ -124,45 +175,41 @@ class _SpaceThreadScreenState extends State<SpaceThreadScreen> {
         final root = room.messages.where((m) => m.id == widget.root.id).firstOrNull ?? widget.root;
         final replies = room.threadOf(root.id);
         final pad = MediaQuery.paddingOf(context);
-        return GhostPage(
-          title: 'Thread',
-          subtitle: room.channel.name,
-          body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(3)),
-                children: [
-                  _ThreadMessage(room: room, message: root, big: true),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: t.space(3)),
-                    child: Row(children: [
-                      Text(replies.isEmpty ? 'No replies yet' : (replies.length == 1 ? '1 reply' : '${replies.length} replies'),
-                          style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
-                      SizedBox(width: t.space(2)),
-                      Expanded(child: Container(height: t.len('glacier-hairline'), color: t.color('app-rule'))),
-                    ]),
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(3)),
+              children: [
+                _ThreadMessage(room: room, message: root, big: true),
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: t.space(3)),
+                  child: Row(children: [
+                    Text(replies.isEmpty ? 'No replies yet' : (replies.length == 1 ? '1 reply' : '${replies.length} replies'),
+                        style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
+                    SizedBox(width: t.space(2)),
+                    Expanded(child: Container(height: t.len('glacier-hairline'), color: t.color('app-rule'))),
+                  ]),
+                ),
+                for (final m in replies) _ThreadMessage(key: ValueKey(m.id), room: room, message: m),
+              ],
+            ),
+          ),
+          if (room.mayWrite)
+            Padding(
+              padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), pad.bottom + t.space(3)),
+              child: ComposerBox(
+                typing: _typing,
+                field: ComposerField(controller: _text, focusNode: _focus, hint: 'Reply in thread', onSubmitted: _send, enterSends: true),
+                below: [
+                  GlacierPressable(
+                    onPressed: _send,
+                    semanticLabel: 'Send',
+                    builder: (context, state) => AppIcon(Lucide.send, size: 22, color: t.color('app-accent')),
                   ),
-                  for (final m in replies) _ThreadMessage(key: ValueKey(m.id), room: room, message: m),
                 ],
               ),
             ),
-            if (room.mayWrite)
-              Padding(
-                padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), pad.bottom + t.space(3)),
-                child: ComposerBox(
-                  typing: _typing,
-                  field: ComposerField(controller: _text, focusNode: _focus, hint: 'Reply in thread', onSubmitted: _send, enterSends: true),
-                  below: [
-                    GlacierPressable(
-                      onPressed: _send,
-                      semanticLabel: 'Send',
-                      builder: (context, state) => AppIcon(Lucide.send, size: 22, color: t.color('app-accent')),
-                    ),
-                  ],
-                ),
-              ),
-          ]),
-        );
+        ]);
       },
     );
   }
@@ -222,6 +269,8 @@ class _ThreadMessage extends StatelessWidget {
     final m = message;
     showChoices(context, choices: [
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      // Snoozed as a message in the chat is (GMFB-36): its reminder, back in the chat, opens this thread.
+      snoozeMessageChoice(context, chat: Snoozed.space(room.channel.room), id: m.id, title: room.channel.name, words: m.text.isEmpty ? m.what : m.text),
       if (m.thread != null && room.canDelete(m)) Choice('Delete for everyone', Lucide.trash2, () => room.delete(m), danger: true),
     ]);
   }

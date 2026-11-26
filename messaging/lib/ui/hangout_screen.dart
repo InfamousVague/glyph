@@ -55,6 +55,7 @@ import 'nav_bar.dart';
 import 'open_space_view.dart';
 import 'ripple_avatar.dart';
 import 'shell.dart';
+import '../snooze.dart';
 import 'window_title.dart';
 import 'skeleton.dart';
 import 'space_designs/space_design.dart';
@@ -64,6 +65,7 @@ import 'recording_ui.dart' show RecordingBanner;
 import 'space_designs/call_plugins.dart' show CallPlugins;
 import '../voice/recorder.dart' show CallRecorder;
 import 'space_invite.dart';
+import 'snooze_ui.dart';
 import 'space_thread.dart';
 import 'export_ui.dart';
 import 'flat_line.dart';
@@ -718,6 +720,50 @@ class _HangoutChatState extends State<HangoutChat> {
   /// Dial-Up's "People Here" opened out under its strip, on a phone.
   bool _peopleOpen = false;
 
+  /// The thread open beside the chat in a wide window (GMFB-36): the message it hangs from, or null.
+  HangoutMessage? _threadRoot;
+
+  /// The message a snooze's reminder asked to be shown, and the key its row is built under while it is looked for.
+  String? _shownId;
+  final _shownKey = GlobalKey();
+
+  /// This chat's key among snoozes (lib/snooze.dart): a space's chat in Messages is snoozed under the same.
+  String get _snoozeKey => Snoozed.space(widget.room.channel.room);
+
+  /// Whether a thread opens beside the chat: in a wide window, the list and the pane side by side (AppShell.wideAt),
+  /// or one as wide where there is no shell (the web's own frame, a test). On a phone it opens as its page.
+  bool get _threadsBeside {
+    if (AppShell.maybeOf(context) != null) return AppShell.wideOf(context);
+    return MediaQuery.sizeOf(context).width >= AppShell.wideAt;
+  }
+
+  /// Opens [m]'s thread: beside the chat in a wide window, as its page on a phone.
+  void _openThread(HangoutMessage m) {
+    if (_threadsBeside) {
+      setState(() => _threadRoot = m);
+    } else {
+      openThread(context, widget.room, m);
+    }
+  }
+
+  /// Shows message [id], a snooze's reminder pressed: a reply in a thread opens its thread; any other is scrolled to.
+  void _showMessage(String id) {
+    final room = widget.room;
+    final m = room.messages.where((x) => x.id == id).firstOrNull;
+    if (m == null) {
+      toast(context, 'That message isn\'t here any more');
+      return;
+    }
+    final root = m.thread == null ? null : room.messages.where((x) => x.id == m.thread).firstOrNull;
+    if (root != null) return _openThread(root);
+    setState(() => _shownId = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final found = await scrollToShown(_scroll, _shownKey);
+      if (!found && mounted) toast(context, 'That message is too far back to find');
+    });
+  }
+
   /// What is shown here is read: its unread mark in the list goes (Voice.markRead), and a mention in it is not
   /// notified while it is on the screen.
   void _read() {
@@ -772,6 +818,8 @@ class _HangoutChatState extends State<HangoutChat> {
       old.room.removeListener(_roomChanged);
       _comings.clear();
       _here = null;
+      _threadRoot = null;
+      _shownId = null;
       widget.room.addListener(_roomChanged);
       _roomChanged(first: true);
     }
@@ -782,6 +830,9 @@ class _HangoutChatState extends State<HangoutChat> {
     super.initState();
     widget.room.addListener(_roomChanged);
     _roomChanged(first: true);
+    // Opened from a snoozed message's notification (lib/main.dart): that message, once the chat is drawn.
+    final show = Snoozed.instance.takeShow(_snoozeKey);
+    if (show != null) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _showMessage(show) : null);
     _shortcodes = EmojiShortcodeSuggester(_text, app: () => mounted ? AppState.maybeOf(context) : null);
     // The composer lays itself out by whether there are words (lib/ui/composer_box.dart).
     _text.addListener(() {
@@ -1139,9 +1190,11 @@ class _HangoutChatState extends State<HangoutChat> {
     HapticFeedback.mediumImpact();
     showChoices(context, choices: [
       if (widget.room.mayWrite) Choice('Reply', LucideMore.reply, () => _startReply(m)),
-      if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, widget.room, m)),
+      if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => _openThread(m)),
       if (widget.room.canEdit(m)) Choice('Edit', Lucide.penLine, () => _startEdit(m)),
       if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+      // Snooze one message (GMFB-36): back pinned at the top of this chat at its time.
+      snoozeMessageChoice(context, chat: _snoozeKey, id: m.id, title: widget.room.channel.name, words: m.text.isEmpty ? m.what : m.text),
       ...translateChoices(context, spaceFacts(m, mine: m.from == widget.room.me)),
       // Report (GMFB-40): someone else's message.
       if (m.from != widget.room.me) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, widget.room, m)),
@@ -1313,7 +1366,9 @@ class _HangoutChatState extends State<HangoutChat> {
         final mayWrite = spaceMayWrite(room, circles: widget.circles);
         final readOnly = circles.isReadOnly(room.channel);
         final (mineBg, mineInk) = myBubble(t, AppState.of(context));
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        final chat = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Messages back from a snooze, pinned at the top until shown (GMFB-36).
+          SnoozedReminders(chat: _snoozeKey, onShow: _showMessage),
           Expanded(
             // Dial-Up writes the space as a chat room: its transcript, and who is here beside it or over it.
             child: isDialup(context)
@@ -1397,7 +1452,7 @@ class _HangoutChatState extends State<HangoutChat> {
                           _poofing.remove(m.id);
                           room.delete(m);
                         },
-                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onReply: () => _startReply(m), onMention: _mentionPressed, onPerson: _openPerson),
+                        child: _Message(key: ValueKey(m.id), room: room, message: m, first: first, last: last, mineBg: mineBg, mineInk: mineInk, flat: flat, onDelete: () => setState(() => _poofing.add(m.id)), onEdit: () => _startEdit(m), onReply: () => _startReply(m), onThread: () => _openThread(m), onMention: _mentionPressed, onPerson: _openPerson),
                       );
                       // Its thread's line under it, where it has one (GMFB-36): on the left under the words.
                       final thread = threads[m.id];
@@ -1405,12 +1460,14 @@ class _HangoutChatState extends State<HangoutChat> {
                           ? message
                           : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                               message,
-                              ThreadLine(count: thread.count, last: thread.last, indent: t.lenOf('1.75rem') + t.space(2) + t.space(3), onOpen: () => openThread(context, room, m)),
+                              ThreadLine(count: thread.count, last: thread.last, indent: t.lenOf('1.75rem') + t.space(2) + t.space(3), onOpen: () => _openThread(m)),
                             ]);
-                      if (!newDay) return shown;
+                      // A snooze's reminder asked for it: its row is found under this key (scrollToShown).
+                      final found = m.id == _shownId ? KeyedSubtree(key: _shownKey, child: shown) : shown;
+                      if (!newDay) return found;
                       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         DayTurn(dayHeading(at)),
-                        shown,
+                        found,
                       ]);
                     },
                   ),
@@ -1510,6 +1567,19 @@ class _HangoutChatState extends State<HangoutChat> {
             ),
           ),
         ]);
+        // A thread open beside the chat (GMFB-36): its panel at the right, or in the chat's place where the chat is
+        // too narrow for both, with its cross back. Not on a phone, where threads open as their page.
+        final root = _threadRoot;
+        if (root == null || !_threadsBeside) return chat;
+        return LayoutBuilder(builder: (context, box) {
+          final panel = SpaceThreadPanel(key: const ValueKey('thread-panel'), room: room, root: root, onClose: () => setState(() => _threadRoot = null));
+          if (box.maxWidth < SpaceThreadPanel.besideAt) return panel;
+          return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: chat),
+            Container(width: t.len('glacier-hairline'), color: t.color('app-rule')),
+            SizedBox(width: SpaceThreadPanel.widthIn(box.maxWidth), child: panel),
+          ]);
+        });
       },
     );
   }
@@ -1804,7 +1874,7 @@ MessageFacts? spaceFacts(HangoutMessage m, {required bool mine}) =>
 
 /// One message of a space's chat: a bubble, as in a conversation, or a channel's line ([flat]) in a circle.
 class _Message extends StatelessWidget {
-  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.onReply, this.flat = false, this.onMention, this.onPerson});
+  const _Message({super.key, required this.room, required this.message, required this.first, required this.last, required this.mineBg, required this.mineInk, this.onDelete, this.onEdit, this.onReply, this.onThread, this.flat = false, this.onMention, this.onPerson});
   final HangoutRoom room;
   final HangoutMessage message;
 
@@ -1827,6 +1897,9 @@ class _Message extends StatelessWidget {
 
   /// Answered: the next message quotes it (GMFB-13).
   final VoidCallback? onReply;
+
+  /// Its thread opened: beside the chat in a wide window (GMFB-36). Its page where not given.
+  final VoidCallback? onThread;
 
   /// A mention in it pressed.
   final ValueChanged<Mention>? onMention;
@@ -1878,9 +1951,11 @@ class _Message extends StatelessWidget {
         react(emoji);
       }) : null, choices: [
         if (room.mayWrite && onReply != null) Choice('Reply', LucideMore.reply, () => onReply!.call()),
-        if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => openThread(context, room, m)),
+        if (m.thread == null) Choice('Reply in thread', Lucide.messageSquare, () => onThread != null ? onThread!() : openThread(context, room, m)),
         if (room.canEdit(m) && onEdit != null) Choice('Edit', Lucide.penLine, () => onEdit!.call()),
         if (m.text.isNotEmpty) Choice('Copy', Lucide.copy, () => Clipboard.setData(ClipboardData(text: m.text))),
+        // Snooze one message (GMFB-36): back pinned at the top of this chat at its time.
+        snoozeMessageChoice(context, chat: Snoozed.space(room.channel.room), id: m.id, title: room.channel.name, words: m.text.isEmpty ? m.what : m.text),
         ...translateChoices(context, spaceFacts(m, mine: mine)),
         // Report (GMFB-40): someone else's message.
         if (!mine) Choice('Report', Lucide.flag, () => reportSpaceMessage(context, room, m)),

@@ -41,6 +41,8 @@ import '../files/files_store.dart';
 import 'space_chat_files.dart';
 import 'text_attachment.dart';
 import 'common.dart';
+import 'snooze_ui.dart';
+import '../snooze.dart';
 import 'emoji_picker.dart';
 import 'emoji_suggestions.dart';
 import 'markdown_field.dart';
@@ -231,6 +233,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Sms.instance.setOpenThread(widget.thread);
+    // Opened from a snoozed message's notification (lib/main.dart): that message, once the messages are read.
+    _showOnLoad = Snoozed.instance.takeShow(Snoozed.text(widget.thread));
     _load(markRead: true);
     _loadMms();
     if (_people.isEmpty) {
@@ -444,6 +448,33 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// 2026-11-17: "remember the scroll position when switching between chats").
   String get _spot => 'sms:${widget.thread}';
   late final ScrollController _scroll = ScrollMemory.controllerFor(() => _spot);
+
+  /// A message a snooze's reminder asked to be shown (GMFB-36), by its key: lit while it is, and its row built under
+  /// [_shownRow] so the list can be scrolled to it (scrollToShown). [_showOnLoad]: one asked for by a notification,
+  /// shown once the messages are read.
+  String? _shown;
+  final _shownRow = GlobalKey();
+  String? _showOnLoad;
+
+  /// What the conversation is called, as last drawn: what a snoozed message's reminder says it was in.
+  String _titleNow = '';
+
+  /// Shows the message under [key] (lib/snooze.dart): scrolled to, and lit for a moment.
+  void _showMessage(String key) {
+    if (!_folded.messages.any((m) => m.key == key)) {
+      toast(context, 'That message isn\'t here any more');
+      return;
+    }
+    setState(() => _shown = key);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final found = await scrollToShown(_scroll, _shownRow);
+      if (!mounted) return;
+      if (!found) toast(context, 'That message is too far back to find');
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (mounted && _shown == key) setState(() => _shown = null);
+    });
+  }
 
   /// The messages from others, newest first, for the down arrow to count what came while the person was reading back.
   Iterable<Object> get _incoming => _folded.messages.where((m) => !m.outgoing && !_isLine(m)).map((m) => m.key);
@@ -854,6 +885,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (effectFor(m.body) != null) Choice('Play effect', Lucide.sparkles, () => _effects.currentState?.play(effectFor(m.body)!, text: sentWith(m.body).text)),
       // The plugins' own lines (remind me about this, and the like).
       if (m.notice == null) ..._plugins.message(context, m),
+      // Snooze this one message (GMFB-36): back pinned at the top of this conversation at its time.
+      if (m.notice == null) snoozeMessageChoice(context, chat: Snoozed.text(widget.thread), id: m.key, title: _titleNow, words: m.body.isEmpty ? 'A picture or a file' : FileCard.preview(m.body)),
       // Report (GMFB-40): someone else's message, in a chat by username or a group of friends.
       if (_reportable && !m.outgoing && m.notice == null) Choice('Report', Lucide.flag, () => _report(m)),
       if (Sms.can('deleteMessage'))
@@ -1158,6 +1191,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final background = ChatBackground.of(AppState.of(context), widget.thread);
     final ghost = _ghost;
     final title = ghost != null ? ghost.title : (_people.isEmpty ? (_name ?? '') : (_group ? (_name ?? Conversation.peopleTitle(_people)) : _people.first.label));
+    _titleNow = title;
+    // A snoozed message's notification opened this conversation: that message, now the messages are here.
+    if (_showOnLoad != null && _messages != null) {
+      final key = _showOnLoad!;
+      _showOnLoad = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showMessage(key);
+      });
+    }
     final subtitle = _isGhost
         ? (ghost == null ? 'Group' : '${ghost.members.length} ${ghost.members.length == 1 ? 'member' : 'members'}')
         : _group
@@ -1233,9 +1275,21 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         // its bubbles, untouched.
         Positioned.fill(child: _messages == null ? SkeletonChat(label: 'Loading messages…', faces: _group) : (isDialup(context) ? _lines(t, background, title) : _list(t, background))),
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
-        // The group's call while others are in it: who, and Join.
-        if (_ghost != null && !_ghost!.gone && Sms.callsHere)
-          Positioned(left: t.space(3), right: t.space(3), top: t.space(2), child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name)))),
+        // At the top: the group's call while others are in it (who, and Join), and messages back from a snooze, pinned
+        // until shown (GMFB-36).
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (_ghost != null && !_ghost!.gone && Sms.callsHere)
+              Padding(
+                padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+                child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name))),
+              ),
+            SnoozedReminders(chat: Snoozed.text(widget.thread), onShow: _showMessage),
+          ]),
+        ),
       ]),
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
       footer: _closed != null
@@ -1328,7 +1382,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             if (i >= msgs.length) return tail[i - msgs.length];
             final parts = _row(t, background, msgs, i, lastOutgoingKey);
             // Bottom up in the list, so the first part made is the lowest on the page.
-            return Column(key: ValueKey('row-${msgs[i].key}'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: parts.reversed.toList());
+            final row = Column(key: ValueKey('row-${msgs[i].key}'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: parts.reversed.toList());
+            // A snooze's reminder asked for it: found under this key (scrollToShown).
+            return msgs[i].key == _shown ? KeyedSubtree(key: _shownRow, child: row) : row;
           },
         ),
         ),
@@ -1435,7 +1491,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         onReactionsTap: () => _showReactions(_folded.reactions[m.key] ?? const []),
         edited: m.edited ? (_corrected.contains(m.key) ? 'Edited · correction sent' : 'Edited') : null,
         onEditedTap: m.edited ? () => _showOriginal(m) : null,
-        highlighted: _editing?.key == m.key,
+        highlighted: _editing?.key == m.key || _shown == m.key,
         playEntrance: _freshKey == m.key && AppState.of(context).effects,
         concealed: !_revealed.contains(m.key),
         onReveal: () => setState(() => _revealed.add(m.key)),
