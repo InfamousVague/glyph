@@ -25,6 +25,9 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.37', '2026-11-25', [
+    'Your profile picture, banner, name, status and links now reach your other devices when you change them, and a device that was closed catches up when it opens. Both devices need this version; set a picture you already changed once more.',
+  ]),
   ReleaseNotes('0.12.36', '2026-11-25', [
     'Custom CSS: Settings › Appearance › Custom CSS takes styles of your own over the look you use. Anything that would stop the app being drawn or read is left out and listed.',
     'Text size is a slider from 80% to 150% and changes every word in the app, not only messages.',

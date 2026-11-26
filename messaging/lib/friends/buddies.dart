@@ -475,6 +475,8 @@ class Buddies extends ChangeNotifier {
     } catch (_) {}
     _subs.add(_port.greetings.listen((g) => unawaited(_greeting(g.from, g.envelope))));
     _subs.add(_port.received.listen((r) => _sealed(r.from, r.envelope)));
+    // A part of the profile changed here: the account's other devices are told, a little after (Me.ownChanged).
+    _subs.add(Me.instance.ownChanged.listen(_ownProfileSoon));
     // Home records: friends' are given to the relay, and friends are told this account's when they need it.
     final across = _across;
     if (across != null) {
@@ -491,11 +493,14 @@ class Buddies extends ChangeNotifier {
       unawaited(askAgain().then((_) => checkRequests()));
       // The account's other devices are asked what they vouched for, and told what this one did (GMFB-33).
       unawaited(syncVouches(ask: true));
+      // And what they have of the profile that is newer than this one's (a picture changed while this was closed).
+      unawaited(askOwnProfile());
     });
     _again = Timer.periodic(askEvery, (_) {
       unawaited(askAgain().then((_) => checkRequests()));
       // Asked again until the routes took it once.
       if (!_ownAsked) unawaited(syncVouches(ask: true));
+      if (!_profileAsked) unawaited(askOwnProfile());
       // And whoever has not heard this account's home record yet (the relay was away when they were to be told).
       _tellSoon();
     });
@@ -939,6 +944,104 @@ class Buddies extends ChangeNotifier {
   /// word this device holds as it was signed ([Vouches.own]), takings back among them; `q` 1 where it asks to be told
   /// what the others hold. Builds from before pass the kind over.
   static const ownKind = 'vouch-mine';
+
+  /// What this account's devices tell each other of its profile (Matt, 2026-11-25: "on my mac i updated my profile
+  /// picture and the banner but it didn't sync to my phone"): a part changed ([Me.ownParts]) as `{"m": part, "t":
+  /// when, "i": piece, "of": pieces, ...}`, each piece within a packet ([Me.ownPieces]), taken in once all its pieces
+  /// are here and newer than this device's ([Me.takeOwn]); or `{"q": {part: when}}`, asking for any part newer than
+  /// those. Builds from before pass the kind over.
+  static const profileKind = 'profile-mine';
+
+  bool _profileAsked = false;
+  final Map<String, Timer> _profileTimers = {};
+  final Map<String, DateTime> _profileTold = {};
+  DateTime? _profileAskedBack;
+  final Map<String, Map<String, Object?>> _profilePieces = {};
+
+  void _ownProfileSoon(String part) {
+    _profileTimers[part]?.cancel();
+    _profileTimers[part] = Timer(const Duration(seconds: 2), () {
+      _profileTimers.remove(part);
+      unawaited(tellOwnProfile(part));
+    });
+  }
+
+  /// Tells this account's other devices [part] of the profile as it is here; true where the routes took every piece.
+  @visibleForTesting
+  Future<bool> tellOwnProfile(String part) async {
+    final port = _port;
+    if (_remote || port is! BuddiesMine || _me == null) return false;
+    final me = Me.instance, at = me.ownAt(part);
+    if (at == 0) return false;
+    final pieces = me.ownPieces(part);
+    _profileTold[part] = DateTime.now();
+    var all = true;
+    for (var i = 0; i < pieces.length; i++) {
+      try {
+        if (!await (port as BuddiesMine).sendMine(Envelope(kind: profileKind, body: {'m': part, 't': at, 'i': i, 'of': pieces.length, ...pieces[i]}))) all = false;
+      } catch (_) {
+        all = false;
+      }
+    }
+    return all;
+  }
+
+  /// Asks this account's other devices for any part of the profile newer than this one's (once a run, a little after
+  /// starting, until the routes take it).
+  @visibleForTesting
+  Future<void> askOwnProfile() async {
+    final port = _port;
+    if (_remote || port is! BuddiesMine || _me == null) return;
+    final me = Me.instance;
+    try {
+      if (await (port as BuddiesMine).sendMine(Envelope(kind: profileKind, body: {'q': {for (final p in Me.ownParts) p: me.ownAt(p)}}))) _profileAsked = true;
+    } catch (_) {}
+  }
+
+  void _heardOwnProfile(String from, Map body) {
+    final me = _me;
+    if (_remote || me == null || from != me.id) return;
+    final q = body['q'];
+    if (q is Map) {
+      var askBack = false;
+      for (final part in Me.ownParts) {
+        final theirs = q[part] is int ? q[part] as int : 0, mine = Me.instance.ownAt(part);
+        if (mine > theirs) {
+          // At most once in thirty seconds a part, so two devices never go on answering each other.
+          final last = _profileTold[part];
+          if (last == null || DateTime.now().difference(last) >= const Duration(seconds: 30)) unawaited(tellOwnProfile(part));
+        } else if (theirs > mine) {
+          askBack = true;
+        }
+      }
+      // They have something newer and only answer an asking: asked, as rarely.
+      final now = DateTime.now();
+      if (askBack && (_profileAskedBack == null || now.difference(_profileAskedBack!) >= const Duration(seconds: 30))) {
+        _profileAskedBack = now;
+        unawaited(askOwnProfile());
+      }
+      return;
+    }
+    final part = body['m'], at = body['t'], i = body['i'], of = body['of'];
+    if (part is! String || !Me.ownParts.contains(part) || at is! int || i is! int || of is! int || of < 1 || of > 4 || i < 0 || i >= of) return;
+    if (at <= Me.instance.ownAt(part)) return;
+    final key = '$part/$at';
+    final held = _profilePieces[key] ??= <String, Object?>{'_got': <int>{}};
+    (held['_got'] as Set<int>).add(i);
+    for (final e in body.entries) {
+      if (e.key is String && !const {'m', 't', 'i', 'of'}.contains(e.key)) held[e.key as String] = e.value;
+    }
+    if ((held['_got'] as Set<int>).length < of) {
+      // Only the newest few are waited for.
+      while (_profilePieces.length > 6) {
+        _profilePieces.remove(_profilePieces.keys.first);
+      }
+      return;
+    }
+    _profilePieces.remove(key);
+    _profilePieces.removeWhere((k, _) => k.startsWith('$part/'));
+    Me.instance.takeOwn(part, at, held);
+  }
 
   /// Whether this run has asked the account's other devices what they gave, and when one was last answered.
   bool _ownAsked = false;
@@ -1419,6 +1522,8 @@ class Buddies extends ChangeNotifier {
     if (e.kind == 'vouch') return _heardVouch(from, e.body);
     // What another device of this account gave (GMFB-33).
     if (e.kind == ownKind) return _heardOwn(from, e.body);
+    // This account's profile as another of its devices has it.
+    if (e.kind == profileKind) return _heardOwnProfile(from, e.body);
     if (e.kind != 'buddy') return;
     final had = byId(from);
     if (had == null || had.state == 'blocked') return;

@@ -2,38 +2,33 @@
 /// at the top to the newest at the foot (Matt, 2026-11-25: "in the right hand of the chat gutter add this same style of
 /// chat scrolling to show frequency of messages and who differently sent messages etc", with a picture of a document's
 /// outline drawn as a column of ticks). A line's colour and side are who sent it (one's own in the accent from the
-/// right, each other person's in their own colour from the left, as their bubbles are), its length how fast the chat was going there (a long line is one of many within a few minutes, a short
-/// one stands alone), and the lines of what is on the screen now are the bright ones. A press on it goes there, and a
-/// mouse can drag along it.
+/// right, each other person's in their own colour from the left, as their bubbles are), its length how fast the chat
+/// was going there (a long line is one of many within a few minutes, a short one stands alone), and the lines of what
+/// is on the screen now are the bright ones.
 ///
-/// With the mouse over it (a press, on a phone) the map opens into a list of the chat's stretches, a stretch being
-/// what was said without a long pause: who wrote in it, by their faces, and a line about it (Matt, 2026-11-25:
-/// "hovering over it should show profile pictures and a brief summary of the messages if a local AI is enabled").
-/// The line is the phone's own model's summary where it has one (lib/summaries.dart: nothing leaves the phone), and
-/// otherwise how the stretch began, in its first words.
+/// The map has one size and one spacing: a line a message, [ChatRail.pitch] apart, standing up from its foot,
+/// whatever the chat's length. Where the chat has more lines than the map has room for, the map shows a part of it
+/// and is itself scrolled, kept on the part of the chat that is on the screen (Matt, 2026-11-25: "it's a bit glitchy though when getting to the top or bottom dont
+/// change the main size of the chatmap scroll it up and down as we go back through history"). It used to fit every
+/// message held into its height, so each older page loaded at the top drew every line again somewhere else, closer
+/// together or several messages to a line.
 ///
-/// The list under it is built a row at a time, so where a message is on the page is not known until it is drawn: the
-/// map takes the list's scroll as a share of its whole length and the messages as evenly spread over it. Near
-/// enough to read and to steer by; a press lands within a screen of what was pressed.
+/// A wheel, two fingers on a trackpad or a finger drawn over it scroll the chat as they do over the chat itself, and
+/// a press on it goes to the message pressed. It no longer opens into a list of the chat's stretches, and no longer
+/// swells under a finger held on it or a mouse over it (Matt, the same day: "Lets remove the popover for the
+/// summarized messages on the chat map for now and remove the tap and hold just allow scrolling normally"). The list
+/// and the hold are in this file as of commit 5cf3f3780, to be brought back from there; what the list was made from,
+/// [ChatRail.stretchesOf], is kept here with its tests for when it comes back.
 library;
 
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show Drag, GestureBinding, PointerDeviceKind, PointerScrollEvent, VerticalDragGestureRecognizer;
 import 'package:flutter/rendering.dart' show RenderSliverMultiBoxAdaptor, SliverMultiBoxAdaptorParentData;
-import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../app_state.dart';
-import '../art/app_icon.dart';
-import '../art/lucide.g.dart';
-import '../kit/settings_type.dart';
-import '../sms.dart';
 import '../summaries.dart';
-import 'common.dart';
 import 'dialup/bevel.dart' show isBevelChrome;
 
 /// One message, as the map needs it.
@@ -106,14 +101,12 @@ class ChatRail extends StatefulWidget {
   /// The chat's messages, newest first, as its list has them.
   final List<RailMark> marks;
 
-  /// The chat, by anything that tells it from another: summaries are kept against it.
+  /// The chat, by anything that tells it from another: another chat's map starts at its foot.
   final String chat;
 
-  /// Someone's face at a size; their initials where none is given.
+  /// Someone's face at a size, and what sums a stretch up ([RailStretch.lines]): for the list of stretches, which is
+  /// put away for now, so neither is asked for. Kept so the chats that give them need not change when it is back.
   final Widget Function(String who, String name, bool mine, double size)? face;
-
-  /// Sums a stretch up ([RailStretch.lines]); null from it where it cannot. The phone's own model where none is
-  /// given ([own]). Given by a test.
   final Future<String?> Function(String lines)? summarize;
   final Widget child;
 
@@ -132,8 +125,9 @@ class ChatRail extends StatefulWidget {
   /// little bit of space for a gutter on the right hand side of the chats in order to render this").
   static const double gutter = width + edge * 2;
 
-  /// The space from one line to the next: as much as there is room for, between these.
-  static const double tightest = 6, loosest = 12;
+  /// The space from one line to the next, always: what a long chat's map had (Matt, 2026-11-25: "dont change the main
+  /// size of the chatmap").
+  static const double pitch = 6;
 
   /// How thick a line is.
   static const double thick = 3.2;
@@ -144,18 +138,13 @@ class ChatRail extends StatefulWidget {
   /// A line's length, from one message alone to the busiest.
   static const double shortest = 8, longest = 18;
 
-  /// How much a line is magnified [d] away from the finger or pointer: [magnifyMost] times under it, falling away over
-  /// about [magnifyReach], as the Dock's icons do.
-  static const double magnifyMost = 2.4, magnifyReach = 44;
-  static double magnifyAt(double d) => 1 + (magnifyMost - 1) * math.exp(-(d * d) / (2 * (magnifyReach / 2) * (magnifyReach / 2)));
-
   /// Messages this near in time count toward how fast the chat was going.
   static const int near = 5 * 60 * 1000;
 
   /// This many near a message is as fast as the map shows.
   static const int busiest = 8;
 
-  /// The most stretches listed.
+  /// The most stretches a chat is cut into.
   static const int mostStretches = 12;
 
   /// The lines for [marks] (newest first) in [rows] rows, the newest first.
@@ -256,103 +245,52 @@ class ChatRail extends StatefulWidget {
     );
   }
 
-  /// The phone's own model, where it has one and the person has not turned summaries off; null otherwise (a
-  /// computer, a phone without one): then a stretch's line is its first words.
-  static Future<String?> Function(String lines)? own(BuildContext context) {
-    final app = AppState.maybeOf(context);
-    if (app == null || !Summaries.chosen(app) || Summaries.instance.status != 'available') return null;
-    return Sms.instance.summarize;
-  }
-
-  /// Summaries made, by chat and stretch, so a stretch is summed up once; a null is one tried that came to nothing.
-  static final Map<String, String?> _made = {};
-
   @override
   State<ChatRail> createState() => _ChatRailState();
 }
 
 class _ChatRailState extends State<ChatRail> {
-  bool _live = false, _hover = false, _open = false;
-  List<RailStretch>? _stretches;
-  bool _summing = false;
+  bool _live = false;
 
   ScrollController get _c => widget.controller;
 
   @override
   void initState() {
     super.initState();
-    _c.addListener(_moved);
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
   }
 
   @override
   void didUpdateWidget(ChatRail old) {
     super.didUpdateWidget(old);
-    if (!identical(old.controller, _c)) {
-      old.controller.removeListener(_moved);
-      _c.addListener(_moved);
+    if (!identical(old.controller, _c)) _list = null;
+    if (old.chat != widget.chat) {
       _list = null;
-    }
-    if (old.chat != widget.chat) _list = null;
-    if (old.marks.length != widget.marks.length || old.chat != widget.chat || (widget.marks.isNotEmpty && old.marks.isNotEmpty && old.marks.first.at != widget.marks.first.at)) {
-      _stretches = null;
-      if (_shown) _sum();
+      _at = 0;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
   }
 
   @override
   void dispose() {
-    _focus.dispose();
-    _c.removeListener(_moved);
+    _hold?.cancel();
+    _pan?.cancel();
     super.dispose();
   }
 
-  bool get _shown => _hover || _open;
-
-  /// While the list is open the row of what is on the screen follows the scroll. Built again only when that row
-  /// becomes another: the map's own lines are painted from the scroll without a build (Matt, 2026-11-25: "using the
-  /// chat map is still pretty laggy"; every frame of a scroll built the whole list of stretches and worked the lines
-  /// out again).
-  void _moved() {
-    if (!mounted || !_shown || _looks) return;
-    // Looked at once the list is laid out where it was scrolled to: until then its rows are where they were.
-    _looks = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _looks = false;
-      if (mounted && _shown && _hereNow()?.oldest != _hereShown) setState(() {});
-    });
-  }
-
-  bool _looks = false;
-
-  /// The stretch in the middle of the screen now.
-  RailStretch? _hereNow() {
-    final n = widget.marks.length;
-    if (n == 0) return null;
-    final (from, to) = _view();
-    final middle = ((from + to) / 2 * n).floor().clamp(0, n - 1);
-    for (final s in _all) {
-      if (middle >= s.newest && middle <= s.oldest) return s;
-    }
-    return null;
-  }
-
-  /// The stretch the list was last built with as the one on the screen, by its oldest message.
-  int? _hereShown;
-
-  /// The map's lines and the people's colours, kept until the messages or the room change: a build asks for them
-  /// each time, and they are a pass over every message.
-  (int, int, int, int)? _ticksOf;
+  /// The map's lines and the people's colours, kept until the messages change: a build asks for them each time, and
+  /// they are a pass over every message.
+  (int, int, int)? _ticksOf;
   List<RailTick> _ticks = const [];
   List<String> _others = const [];
 
-  void _lines(int rows) {
+  void _lines() {
     final m = widget.marks;
-    final now = (m.length, m.isEmpty ? 0 : m.first.at, m.isEmpty ? 0 : m.last.at, rows);
+    final now = (m.length, m.isEmpty ? 0 : m.first.at, m.isEmpty ? 0 : m.last.at);
     if (_ticksOf == now) return;
     _ticksOf = now;
-    _ticks = ChatRail.ticksOf(m, rows);
+    // A line a message, however many.
+    _ticks = ChatRail.ticksOf(m, m.length);
     _others = {for (final x in m) if (!x.mine && !x.quiet) x.who}.toList()..sort();
   }
 
@@ -362,8 +300,6 @@ class _ChatRailState extends State<ChatRail> {
     final live = widget.marks.length >= ChatRail.fewest && _c.hasClients && _c.position.hasContentDimensions && _c.position.maxScrollExtent > 40;
     if (live != _live) setState(() => _live = live);
   }
-
-  List<RailStretch> get _all => _stretches ??= ChatRail.stretchesOf(widget.marks);
 
   /// The list's own rows as they are laid out now: for each one built, where it starts (from the newest end) and how
   /// tall it is. Only the rows near the screen are built, and only these are known exactly.
@@ -400,27 +336,47 @@ class _ChatRailState extends State<ChatRail> {
   double _before = 0;
   RenderSliverMultiBoxAdaptor? _list;
 
-  /// Which of the messages are on the screen: (from, to) as shares of them all from the newest end, each 0 to 1.
-  /// Exactly, from the rows on the screen; by the scroll's share of its whole length until the list is laid out.
+  /// Which of the messages are on the screen: from how many messages up from the newest to how many, parts of a
+  /// message counted (2.5 is half way up the third), so the map moves with the chat and not a line at a time. Exactly,
+  /// from the rows on the screen; by the scroll's share of its whole length until the list is laid out. Pulled past
+  /// an end, as a phone's list can be, the chat is still at that end here.
   (double, double) _view() {
-    if (!_c.hasClients || !_c.position.hasContentDimensions) return (0, 1);
-    final p = _c.position;
     final n = widget.marks.length;
-    if (n > 0) {
-      int? first, last;
-      _laid().forEach((index, row) {
-        if (row.at + row.tall <= p.pixels || row.at >= p.pixels + p.viewportDimension) return;
-        final mark = index - widget.lead;
-        if (mark < 0 || mark >= n) return;
-        if (first == null || mark < first!) first = mark;
-        if (last == null || mark > last!) last = mark;
-      });
-      if (first != null) return (first! / n, (last! + 1) / n);
-    }
+    if (n == 0 || !_c.hasClients || !_c.position.hasContentDimensions) return (0, n.toDouble());
+    final p = _c.position;
+    final foot = p.pixels, top = p.pixels + p.viewportDimension;
+    double? lo, hi;
+    _laid().forEach((index, row) {
+      if (row.tall <= 0 || row.at + row.tall <= foot || row.at >= top) return;
+      final mark = index - widget.lead;
+      if (mark < 0 || mark >= n) return;
+      final a = mark + ((foot - row.at) / row.tall).clamp(0.0, 1.0), b = mark + ((top - row.at) / row.tall).clamp(0.0, 1.0);
+      if (lo == null || a < lo!) lo = a;
+      if (hi == null || b > hi!) hi = b;
+    });
+    if (lo != null) return (lo!, hi!);
     final whole = p.maxScrollExtent + p.viewportDimension;
-    if (whole <= 0) return (0, 1);
+    if (whole <= 0) return (0, n.toDouble());
     final at = p.pixels.clamp(0.0, p.maxScrollExtent);
-    return (at / whole, (at + p.viewportDimension) / whole);
+    return (at / whole * n, (at + p.viewportDimension) / whole * n);
+  }
+
+  /// How far the map itself is scrolled: how much of its lines is below its foot, nothing with the newest message's
+  /// line at the foot. Counted from the newest end, as the chat's own scroll is, so older messages loaded in at the
+  /// top move no line.
+  double _at = 0;
+
+  /// Where the map is now, [tall] high, and what of the chat is on the screen ([_view]). The map stays where it is
+  /// while the lines of what is on the screen are in it, and is taken along by them, no further than it must be, as
+  /// they reach its top or its foot: so it moves as smoothly as the chat does, never past its own ends, and nothing
+  /// in it moves when the chat grows at either end. Asked at every paint.
+  ({double lo, double hi, double at}) _place(double tall) {
+    final (lo, hi) = _view();
+    final most = math.max(0.0, widget.marks.length * ChatRail.pitch - tall);
+    var at = _at;
+    if (hi * ChatRail.pitch > at + tall) at = hi * ChatRail.pitch - tall;
+    if (lo * ChatRail.pitch < at) at = lo * ChatRail.pitch;
+    return (lo: lo, hi: hi, at: _at = at.clamp(0.0, most));
   }
 
   /// Counts the goings, so a newer one stops an older one still finding its row.
@@ -468,51 +424,8 @@ class _ChatRailState extends State<ChatRail> {
     }
   }
 
-  /// Where a finger held on the map, or a mouse over it, is now, from the map's top; null while neither is. The lines
-  /// round it are drawn larger and further apart, as the Mac's Dock swells under the pointer (Matt, 2026-11-25: "i'd
-  /// like to be able to press and hold to drag through the chat map and have it magnify out where my thumb is like the
-  /// mac dock does when hovering").
-  final ValueNotifier<double?> _focus = ValueNotifier(null);
-
-  /// A finger held on the map and drawn along it: the chat follows it, a light tick at each new message.
-  bool _scrubbing = false;
-  int? _scrubbed;
-
-  void _scrubTo(double y, double Function(Offset) shareAt) {
-    _focus.value = y;
-    final mark = _markAt(shareAt(Offset(0, y)));
-    if (mark == _scrubbed) return;
-    _scrubbed = mark;
-    unawaited(HapticFeedback.selectionClick());
-    _dragGo(mark);
-  }
-
-  void _scrubEnd() {
-    _scrubbing = false;
-    _scrubbed = null;
-    _focus.value = null;
-  }
-
-  /// A drag along the map: the newest place asked for is gone to once a frame, not once for every move of the mouse
-  /// (several come in a frame, and each began a going of its own).
-  int? _dragTo;
-  bool _dragWaits = false;
-
-  void _dragGo(int mark) {
-    _dragTo = mark;
-    if (_dragWaits) return;
-    _dragWaits = true;
-    WidgetsBinding.instance.scheduleFrameCallback((_) {
-      _dragWaits = false;
-      final to = _dragTo;
-      _dragTo = null;
-      if (mounted && to != null) _goTo(to);
-    });
-  }
-
-  /// A wheel turned over the map or its list scrolls the chat, as it would over the chat itself (Matt, 2026-11-25:
-  /// "i can't scroll up and down in the popup menu to scroll up and down either"): the two stand over the chat's list,
-  /// which never heard the wheel there. The list of stretches follows, the one on the screen in its middle.
+  /// A wheel turned over the map scrolls the chat, as it would over the chat itself: the map stands over the chat's
+  /// list, which never hears the wheel there.
   void _wheel(PointerScrollEvent e) {
     if (!_c.hasClients || e.scrollDelta.dy == 0) return;
     GestureBinding.instance.pointerSignalResolver.register(e, (e) {
@@ -521,8 +434,11 @@ class _ChatRailState extends State<ChatRail> {
     });
   }
 
-  /// Two fingers on a trackpad, over the map or its list: the chat's own drag, with its glide after.
+  /// Two fingers on a trackpad or a finger drawn over the map: the chat's own drag, with its glide after, and a
+  /// finger put down stops a glide as it does on the chat (Matt, 2026-11-25: "just allow scrolling normally"). Not a
+  /// mouse, which does not drag the chat either.
   Drag? _pan;
+  ScrollHoldController? _hold;
 
   Widget _scrollsChat(Widget child) => Listener(
         onPointerSignal: (e) {
@@ -531,74 +447,30 @@ class _ChatRailState extends State<ChatRail> {
         child: RawGestureDetector(
           gestures: {
             VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-              () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad}),
+              () => VerticalDragGestureRecognizer(supportedDevices: const {PointerDeviceKind.trackpad, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown}),
               (r) => r
+                ..onDown = (d) {
+                  _hold = _c.hasClients ? _c.position.hold(() => _hold = null) : null;
+                }
                 ..onStart = (d) {
                   _pan?.cancel();
+                  // Beginning the drag ends the hold.
                   _pan = _c.hasClients ? _c.position.drag(d, () => _pan = null) : null;
                 }
                 ..onUpdate = ((d) => _pan?.update(d))
                 ..onEnd = ((d) => _pan?.end(d))
-                ..onCancel = (() => _pan?.cancel()),
+                ..onCancel = () {
+                  _hold?.cancel();
+                  _pan?.cancel();
+                },
             ),
           },
           child: child,
         ),
       );
 
-  /// The message a point of the map stands for: [share] of the way up it from the newest.
-  int _markAt(double share) => (share.clamp(0.0, 1.0) * widget.marks.length).floor().clamp(0, math.max(0, widget.marks.length - 1));
-
-  /// The row of the list of stretches that is the one on the screen, kept in the middle of the list as the chat is
-  /// scrolled (Matt, 2026-11-25: "when scrolling up and down the chat map the popover doesn't center what we're on").
-  final GlobalKey _here = GlobalKey();
-  int? _hereWas;
-
-  void _follow(int oldest) {
-    if (_hereWas == oldest) return;
-    _hereWas = oldest;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final at = _here.currentContext;
-      if (!mounted || at == null) return;
-      Scrollable.ensureVisible(at, alignment: 0.5, duration: context.tokens.reducedMotion ? Duration.zero : const Duration(milliseconds: 160), curve: Curves.easeOut);
-    });
-  }
-
-  String _key(RailStretch s) => '${widget.chat}\t${widget.marks[s.oldest].at}\t${widget.marks[s.newest].at}\t${s.count}';
-
-  /// Has each stretch worth it summed up, one after another, the newest first.
-  Future<void> _sum() async {
-    final make = widget.summarize ?? ChatRail.own(context);
-    if (make == null || _summing) return;
-    _summing = true;
-    try {
-      while (mounted && _shown) {
-        final marks = widget.marks;
-        final next = _all.where((s) => s.lines.isNotEmpty && !ChatRail._made.containsKey(_key(s))).firstOrNull;
-        if (next == null) break;
-        final key = _key(next);
-        String? text;
-        try {
-          text = (await make(next.lines))?.trim();
-        } catch (_) {
-          text = null;
-        }
-        ChatRail._made[key] = text == null || text.isEmpty ? null : text;
-        if (mounted && identical(marks, widget.marks)) setState(() {});
-      }
-    } finally {
-      _summing = false;
-    }
-  }
-
-  void _show({bool? hover, bool? open}) {
-    final was = _shown;
-    setState(() {
-      _hover = hover ?? _hover;
-      _open = open ?? _open;
-    });
-    if (_shown && !was) _sum();
-  }
+  /// The message whose line is [y] down a map [tall] high.
+  int _markAt(double y, double tall) => ((_at + tall - y) / ChatRail.pitch).floor().clamp(0, math.max(0, widget.marks.length - 1));
 
   @override
   Widget build(BuildContext context) {
@@ -610,85 +482,49 @@ class _ChatRailState extends State<ChatRail> {
       },
       child: Stack(children: [
         widget.child,
-        // Opened by a press (a phone): a press anywhere else puts the list away (Matt, 2026-11-25: "you can't tap
-        // outside of the map popup to close the map").
-        if (_live && _open && !isBevelChrome(t))
-          Positioned.fill(
-            child: GestureDetector(key: const ValueKey('chat-rail-away'), behavior: HitTestBehavior.opaque, onTap: () => _show(open: false)),
-          ),
         if (_live && !isBevelChrome(t))
           Positioned(
             top: 0,
             bottom: 0,
             right: 0,
             child: LayoutBuilder(builder: (context, box) {
-              final room = math.min(box.maxHeight * ChatRail.share, ChatRail.tallest);
-              final rows = math.max(1, math.min(widget.marks.length, room ~/ ChatRail.tightest));
-              final pitch = (room / rows).clamp(ChatRail.tightest, ChatRail.loosest);
-              _lines(rows);
+              _lines();
               final ticks = _ticks, others = _others;
-              final height = ticks.length * pitch;
-              double shareAt(Offset local) => (1 - local.dy / height).clamp(0.0, 1.0);
-              final rail = Semantics(
-                label: 'Map of this chat',
-                container: true,
-                child: MouseRegion(
-                  onHover: (e) => _focus.value = e.localPosition.dy,
-                  onExit: (_) {
-                    if (!_scrubbing) _focus.value = null;
-                  },
+              // Its one size, a whole number of lines, however few the messages: their lines stand up from its foot, as
+              // the chat's rows do from the chat's, so a line stays where it is as older messages come in over it, and
+              // once there are more lines than room the map is scrolled.
+              final height = (math.min(box.maxHeight * ChatRail.share, ChatRail.tallest) / ChatRail.pitch).floor() * ChatRail.pitch;
+              return Center(
+                widthFactor: 1,
+                child: _scrollsChat(Semantics(
+                  label: 'Map of this chat',
+                  container: true,
                   child: GestureDetector(
-                  key: const ValueKey('chat-rail'),
-                  behavior: HitTestBehavior.opaque,
-                  // Not a trackpad's two fingers, which scroll the chat (_scrollsChat).
-                  supportedDevices: const {PointerDeviceKind.mouse, PointerDeviceKind.touch, PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus, PointerDeviceKind.unknown},
-                  // A press goes there with a mouse over it; on a phone it opens the list of stretches, and again
-                  // puts it away.
-                  onTapUp: (d) => d.kind == PointerDeviceKind.mouse || d.kind == PointerDeviceKind.trackpad ? _goTo(_markAt(shareAt(d.localPosition)), run: true) : _show(open: !_open),
-                  onVerticalDragUpdate: _hover ? (d) => _dragGo(_markAt(shareAt(d.localPosition))) : null,
-                  // Held, then drawn along: the chat goes with the finger, and the map swells under it. The list of
-                  // stretches is put away while it does, so the finger sees where it is.
-                  onLongPressStart: (d) {
-                    _scrubbing = true;
-                    if (_open) _show(open: false);
-                    _scrubTo(d.localPosition.dy, shareAt);
-                  },
-                  onLongPressMoveUpdate: (d) => _scrubTo(d.localPosition.dy.clamp(0.0, height), shareAt),
-                  onLongPressEnd: (_) => _scrubEnd(),
-                  onLongPressCancel: _scrubEnd,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
-                    child: SizedBox(
-                    width: ChatRail.width,
-                    height: height,
-                    child: CustomPaint(
-                      painter: _RailPainter(
-                        ticks: ticks,
-                        pitch: pitch,
-                        view: _view,
-                        repaint: Listenable.merge([_c, _focus]),
-                        focus: _focus,
-                        mine: t.color('app-accent'),
-                        theirs: t.color('app-ink-2'),
-                        hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
-                        quiet: t.color('app-ink-3'),
+                    key: const ValueKey('chat-rail'),
+                    behavior: HitTestBehavior.opaque,
+                    // A press goes to the message pressed.
+                    onTapUp: (d) => _goTo(_markAt(d.localPosition.dy, height), run: true),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: ChatRail.edge),
+                      child: SizedBox(
+                        width: ChatRail.width,
+                        height: height,
+                        child: CustomPaint(
+                          painter: RailPainter(
+                            ticks: ticks,
+                            tall: height,
+                            place: _place,
+                            repaint: _c,
+                            mine: t.color('app-accent'),
+                            theirs: t.color('app-ink-2'),
+                            hues: others.length < 2 ? const {} : {for (var i = 0; i < others.length; i++) others[i]: t.colorOf(_hues[i % _hues.length])},
+                            quiet: t.color('app-ink-3'),
+                          ),
+                        ),
                       ),
                     ),
-                    ),
                   ),
-                  ),
-                ),
-              );
-              return MouseRegion(
-                onEnter: (_) => _show(hover: true),
-                onExit: (_) {
-                  _show(hover: false);
-                  if (!_scrubbing) _focus.value = null;
-                },
-                child: _scrollsChat(Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  if (_shown) _panel(t, box.maxHeight),
-                  rail,
-                ])),
+                )),
               );
             }),
           ),
@@ -698,166 +534,58 @@ class _ChatRailState extends State<ChatRail> {
 
   /// A few colours far apart, for telling the people of a group from one another; one's own is the accent.
   static const _hues = ['#e08a1e', '#3aa675', '#c45bd6', '#2aa7b8', '#d9534f', '#8a7be8'];
-
-  /// The list of the chat's stretches, the oldest at the top as the map has them.
-  Widget _panel(Tokens t, double room) {
-    final list = _all.reversed.toList();
-    final here = _hereNow();
-    _hereShown = here?.oldest;
-    if (here != null) _follow(here.oldest);
-    return Container(
-      key: const ValueKey('chat-rail-list'),
-      width: 300,
-      constraints: BoxConstraints(maxHeight: math.max(120, room - t.space(6))),
-      margin: EdgeInsets.only(left: t.space(3), right: 2),
-      padding: EdgeInsets.symmetric(vertical: t.space(1)),
-      decoration: BoxDecoration(
-        color: t.color('app-paper'),
-        borderRadius: BorderRadius.circular(t.radius('lg')),
-        border: Border.all(color: t.color('app-rule'), width: 1),
-        boxShadow: t.shadowOf('0 8px 28px rgba(0,0,0,0.22)'),
-      ),
-      child: SingleChildScrollView(
-        // Under a mouse the list is not scrolled by itself: a wheel over it scrolls the chat, and it follows. Opened by
-        // a press (a phone) it is dragged as any list is.
-        physics: _open ? null : const NeverScrollableScrollPhysics(),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final s in list)
-            if (identical(s, here)) KeyedSubtree(key: _here, child: _row(t, s, here: true)) else _row(t, s, here: false),
-        ]),
-      ),
-    );
-  }
-
-  Widget _row(Tokens t, RailStretch s, {required bool here}) {
-    final summary = s.lines.isEmpty ? null : ChatRail._made[_key(s)];
-    final when = DateTime.fromMillisecondsSinceEpoch(widget.marks[s.oldest].at);
-    final faces = s.people.take(3).toList();
-    const face = 20.0;
-    Widget faceOf(({String who, String name, bool mine}) p) =>
-        widget.face?.call(p.who, p.name, p.mine, face) ?? Avatar(people: [Person(address: p.mine ? '' : p.who, name: p.mine ? 'You' : (p.name.isEmpty ? null : p.name))], size: face, presence: false);
-    return GlacierPressable(
-      key: ValueKey('chat-rail-stretch-${s.oldest}'),
-      onPressed: () {
-        // To where the stretch begins, its first message at the top, to be read on from.
-        _goTo(s.oldest, top: true, run: true);
-        if (_open) _show(open: false);
-      },
-      semanticLabel: '${dayHeading(when)}, ${s.count} ${s.count == 1 ? 'message' : 'messages'}. ${summary ?? s.opening}',
-      builder: (context, state) => Container(
-        margin: EdgeInsets.symmetric(horizontal: t.space(1), vertical: 1),
-        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1) + 2),
-        decoration: BoxDecoration(
-          color: here ? t.color('app-paper-3') : (state.hovered || state.pressed ? t.color('app-paper-2') : null),
-          borderRadius: BorderRadius.circular(t.radius('md')),
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Their faces, each a little over the last.
-          SizedBox(
-            width: face + (faces.length - 1).clamp(0, 2) * 15.0,
-            height: face,
-            child: Stack(children: [
-              for (var i = faces.length - 1; i >= 0; i--)
-                Positioned(
-                  left: i * 15.0,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.color('app-paper'), width: 1.5)),
-                    position: DecorationPosition.foreground,
-                    child: SizedBox.square(dimension: face, child: faceOf(faces[i])),
-                  ),
-                ),
-            ]),
-          ),
-          SizedBox(width: t.space(2)),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(
-                summary ?? (s.opening.isEmpty ? 'No words' : s.opening),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: pageText(t, t.fontSize('sm'), weight: here ? 'semibold' : 'regular', color: t.color(here ? 'app-ink' : 'app-ink-2')),
-              ),
-              const SizedBox(height: 1),
-              Row(children: [
-                // A summary is marked as one: these are a model's words, not anyone's in the chat.
-                if (summary != null) ...[
-                  AppIcon(Lucide.sparkles, size: 11, color: t.color('app-ink-3'), wash: false),
-                  SizedBox(width: t.space(1)),
-                ],
-                Flexible(
-                  child: Text(
-                    '${dayHeading(when)}, ${clock(when)} · ${s.count} ${s.count == 1 ? 'message' : 'messages'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')),
-                  ),
-                ),
-              ]),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
 }
 
-class _RailPainter extends CustomPainter {
-  _RailPainter({required this.ticks, required this.pitch, required this.view, required Listenable repaint, required this.focus, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
-  final ValueListenable<double?> focus;
+/// Draws the map's lines. Open to tests, which ask it where a message's line is.
+@visibleForTesting
+class RailPainter extends CustomPainter {
+  RailPainter({required this.ticks, required this.tall, required this.place, required Listenable repaint, required this.mine, required this.theirs, required this.hues, required this.quiet}) : super(repaint: repaint);
+
+  /// A line a message, the newest first.
   final List<RailTick> ticks;
-  final double pitch;
-  final (double, double) Function() view;
+
+  /// How tall the map is.
+  final double tall;
+
+  /// Which messages are on the screen and how far the map is scrolled, asked at each paint: the chat's scroll moves
+  /// the map without a build.
+  final ({double lo, double hi, double at}) Function(double tall) place;
   final Color mine, theirs, quiet;
   final Map<String, Color> hues;
+
+  /// How far down the map the line of message [mark] is now (the newest is 0); off the map where it is under 0 or
+  /// over [tall].
+  double yOf(int mark) => tall - (mark + 0.5) * ChatRail.pitch + place(tall).at;
 
   @override
   void paint(Canvas canvas, Size size) {
     final n = ticks.length;
     if (n == 0) return;
-    final (from, to) = view();
-    final paint = Paint()..strokeCap = StrokeCap.round;
-    final f = focus.value;
-    // Where each line goes with the map swollen round [f]: each line takes as much room as it is magnified, counted out
-    // from the line under the finger, which stays where it is.
-    final ys = List<double>.filled(n, 0), grow = List<double>.filled(n, 1);
-    for (var i = 0; i < n; i++) {
-      final y = size.height - (i + 0.5) * pitch;
-      grow[i] = f == null ? 1 : ChatRail.magnifyAt(y - f);
-      ys[i] = y;
-    }
-    if (f != null) {
-      var at = n - 1;
-      for (var i = 0; i < n; i++) {
-        if ((ys[i] - f).abs() < (ys[at] - f).abs()) at = i;
-      }
-      for (var i = at + 1; i < n; i++) {
-        ys[i] = ys[i - 1] - pitch * (grow[i - 1] + grow[i]) / 2;
-      }
-      for (var i = at - 1; i >= 0; i--) {
-        ys[i] = ys[i + 1] + pitch * (grow[i + 1] + grow[i]) / 2;
-      }
-    }
-    for (var i = 0; i < n; i++) {
-      final k = ticks[i];
+    final (:lo, :hi, :at) = place(tall);
+    final paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = ChatRail.thick;
+    // Only the lines in the map now: a long chat has many more.
+    final first = math.max(0, (at / ChatRail.pitch).floor()), last = math.min(n - 1, ((at + tall) / ChatRail.pitch).ceil());
+    for (var i = first; i <= last; i++) {
       // The newest at the foot.
-      final y = ys[i], m = grow[i];
-      paint.strokeWidth = ChatRail.thick * (1 + (m - 1) * 0.6);
-      final seen = (i + 1) / n > from && i / n < to;
+      final y = tall - (i + 0.5) * ChatRail.pitch + at;
+      if (y < 0 || y > tall) continue;
+      final k = ticks[i];
+      final seen = i + 1 > lo && i < hi;
       final colour = k.quiet ? quiet : (k.mine ? mine : (hues[k.who] ?? theirs));
       final length = k.quiet ? ChatRail.shortest : ChatRail.shortest + (ChatRail.longest - ChatRail.shortest) * k.rate;
       paint.color = colour.withValues(alpha: seen ? 1 : (k.quiet ? 0.28 : 0.42));
       // One's own from the right edge and everyone else's from the left, as their bubbles are, so the two are told
       // apart in a look whose accent is its ink.
-      // Swollen, a line grows toward the chat, out of the map's left side, as the Dock's icons grow up out of it.
-      final more = length * (m - 1);
       if (k.mine && !k.quiet) {
-        canvas.drawLine(Offset(size.width - 2 - length - more, y), Offset(size.width - 2, y), paint);
+        canvas.drawLine(Offset(size.width - 2 - length, y), Offset(size.width - 2, y), paint);
       } else {
-        canvas.drawLine(Offset(2 - more, y), Offset(2 + length, y), paint);
+        canvas.drawLine(Offset(2, y), Offset(2 + length, y), paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(_RailPainter old) => !identical(old.ticks, ticks) || old.pitch != pitch || old.mine != mine || old.theirs != theirs || old.quiet != quiet;
+  bool shouldRepaint(RailPainter old) => !identical(old.ticks, ticks) || old.tall != tall || old.mine != mine || old.theirs != theirs || old.quiet != quiet;
 }
