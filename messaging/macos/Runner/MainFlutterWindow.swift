@@ -156,6 +156,8 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     CallRecorder.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // Words from a recorded call (Scribe.swift, lib/voice/scribe.dart).
     Scribe.shared.register(messenger: flutterViewController.engine.binaryMessenger)
+    // Replies and summaries by the device's own model (LocalAi.swift, lib/local_ai.dart).
+    LocalAi.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     // A call's captions (LiveCaptions.swift, lib/voice/captions.dart).
     LiveCaptions.shared.register(messenger: flutterViewController.engine.binaryMessenger)
     Sounds.shared.register(messenger: flutterViewController.engine.binaryMessenger)
