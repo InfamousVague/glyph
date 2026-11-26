@@ -33,6 +33,7 @@ import '../../files/browser_files.dart';
 import '../../files/drive.dart';
 import '../../files/file_platform.dart';
 import '../../files/files_store.dart';
+import '../../files/folder_sync.dart';
 import '../../plugins/watch_together.dart';
 import '../../voice/watch_together.dart';
 import '../../kit/semantic_colors.dart';
@@ -52,6 +53,7 @@ import '../hangout_screen.dart' show HangoutChat, RolesScreen;
 import '../space_invite.dart';
 import 'file_badge.dart';
 import 'file_preview.dart';
+import 'folder_sync_entry.dart';
 import 'send_to_chat.dart';
 
 /// The page of the Files space [channel]. It holds the space's room open while it shows, for its chat.
@@ -78,6 +80,15 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
 
   /// An account's own drive: no room is held or made for it.
   bool get _mine => Drive.isDrive(_c);
+
+  /// "Sync a folder" for a Files space on a computer, as My files has (GMFB-38: "a Files space or the personal
+  /// drive"): for someone who may add files here, or who chose a folder before and may want to stop. The app's own
+  /// store only (a test's shows none), and never a chat's files.
+  Widget? _spaceSync(bool canUpload) {
+    if (_mine || widget.store != null || !FolderSync.here || _c.kind != SpaceKind.files) return null;
+    final sync = FolderSync.forSpace(_c)..load();
+    return canUpload || sync.root != null ? FolderSyncEntry(sync: sync) : null;
+  }
 
   HangoutRoom? _room;
   bool _chat = false;
@@ -519,7 +530,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (!empty) d == null ? toolbar : ColoredBox(color: d.chrome, child: toolbar),
       if (chips != null) d == null ? chips : ColoredBox(color: d.chrome, child: Padding(padding: EdgeInsets.only(bottom: t.space(1)), child: chips)),
-      ?widget.above,
+      ?(widget.above ?? _spaceSync(canUpload)),
       if (err != null)
         Padding(
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),

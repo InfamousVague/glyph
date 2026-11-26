@@ -1,6 +1,6 @@
-/// "Sync a folder" in My files on a computer (GMFB-38: "Sync a folder on your computer with a drive"): the folder
-/// chosen with its path, what the sync is doing, and Stop syncing. The rules are lib/files/folder_sync.dart's; this
-/// is the way in and the words.
+/// "Sync a folder" in My files and in a Files space on a computer (GMFB-38: "Sync a folder on your computer with a
+/// drive"): the folder chosen with its path, what the sync is doing, and Stop syncing. The rules are
+/// lib/files/folder_sync.dart's; this is the way in and the words.
 library;
 
 import 'dart:async';
@@ -21,8 +21,10 @@ import '../common.dart';
 /// The computer's own "choose a folder", asked of the system with nothing new built into the app: the Mac's
 /// (`choose folder` through osascript), Windows' folder dialog (through PowerShell), and GNOME's zenity or KDE's
 /// kdialog on Linux. The path chosen; null where it was put away or there is no chooser.
-Future<String?> pickSyncFolder() async {
-  const words = 'Choose a folder to sync with My files';
+Future<String?> pickSyncFolder([String drive = 'My files']) async {
+  // Into a script's and a command's quoted words, and a space's name is whatever its owner wrote: letters, digits
+  // and a few marks only, so nothing in it can end the quoted words.
+  final words = 'Choose a folder to sync with ${drive.replaceAll(RegExp(r'[^\p{L}\p{N} ._-]', unicode: true), ' ').trim()}';
   final tries = <(String, List<String>)>[
     if (PlatformInfo.isMacOS) ('osascript', ['-e', 'POSIX path of (choose folder with prompt "$words")']),
     if (PlatformInfo.isWindows)
@@ -56,8 +58,8 @@ Future<String?> pickSyncFolder() async {
   return null;
 }
 
-/// The entry at the top of My files: "Sync a folder" where none is chosen; else its path, its state line and Stop
-/// syncing.
+/// The entry at the top of My files, and of a Files space this device may add files to: "Sync a folder" where none
+/// is chosen; else its path, its state line and Stop syncing.
 class FolderSyncEntry extends StatefulWidget {
   const FolderSyncEntry({super.key, required this.sync, this.pick});
   final FolderSync sync;
@@ -84,7 +86,8 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
     if (_choosing) return;
     setState(() => _choosing = true);
     try {
-      final path = await (widget.pick ?? pickSyncFolder)();
+      final pick = widget.pick;
+      final path = await (pick == null ? pickSyncFolder(widget.sync.driveName) : pick());
       if (path == null || !mounted) return;
       final why = widget.sync.choose(path);
       if (why != null && mounted) toast(context, why);
@@ -100,6 +103,9 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
       listenable: widget.sync,
       builder: (context, _) {
         final root = widget.sync.root;
+        final name = widget.sync.driveName;
+        // A space's folder is everyone's in the space: said before a folder is chosen (GMFB-38).
+        final shared = widget.sync.space != null;
         final quiet = pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'));
         return Padding(
           key: const ValueKey('folder-sync'),
@@ -110,11 +116,11 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
                 ? RowAction(key: const ValueKey('folder-sync-choose'), onPress: _choose, disabled: _choosing, child: const Text('Sync a folder'))
                 : RowAction(key: const ValueKey('folder-sync-stop'), onPress: widget.sync.stop, child: const Text('Stop syncing')),
             child: root == null
-                ? const Text('Keep a folder on this computer in step with My files.', key: ValueKey('folder-sync-words'))
+                ? Text('Keep a folder on this computer in step with $name.${shared ? ' Everyone in the space gets what is in it.' : ''}', key: const ValueKey('folder-sync-words'))
                 : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(root, key: const ValueKey('folder-sync-path'), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(widget.sync.line.isEmpty ? (widget.sync.running ? 'Looking for changes' : 'Waiting to sync') : widget.sync.line, key: const ValueKey('folder-sync-line'), style: quiet),
-                    Text('New and changed files go both ways. Removing a file here doesn\'t remove it from My files yet, so it comes back.', style: quiet),
+                    Text('New and changed files go both ways. Removing a file here doesn\'t remove it from $name yet, so it comes back. A changed file goes up as a newer one, and the older stays in $name.', key: const ValueKey('folder-sync-rules'), style: quiet),
                   ]),
           ),
         );

@@ -13,6 +13,7 @@ import 'package:ghost_messaging/files/folder_sync.dart';
 import 'package:ghost_messaging/me/me.dart';
 import 'package:ghost_messaging/net/crypto.dart';
 import 'package:ghost_messaging/net/hub_carrier.dart';
+import 'package:ghost_messaging/ui/files_space/folder_sync_entry.dart';
 import 'package:ghost_messaging/ui/files_space/my_files.dart';
 
 import 'support/list_harness.dart';
@@ -96,5 +97,24 @@ void main() {
     // Let the toast go before the test ends.
     await tester.pump(const Duration(seconds: 10));
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  // GMFB-38, "a Files space or the personal drive": the same entry in a Files space, in the space's name.
+  testWidgets('a Files space\'s entry names the space, says who gets the files, and what a sync never does', (tester) async {
+    final sheet = await loadSheet(tester);
+    final picked = Directory('${dir.path}/Team')..createSync();
+    final s = FolderSync(data: () => Directory('${dir.path}/app/folder-sync'), drive: () async => _NoDrive(), home: () => '${dir.path}/home', own: () => ['${dir.path}/app'], quiet: Duration.zero, space: 'abc123', driveName: 'Team files');
+    await pumpScreen(tester, sheet, FolderSyncEntry(sync: s, pick: () async => picked.path), AppState(), size: const Size(1100, 800), platform: 'desktop');
+    expect(find.text('Keep a folder on this computer in step with Team files. Everyone in the space gets what is in it.'), findsOneWidget);
+    await tester.tap(_key('folder-sync-choose'));
+    await tester.runAsync(() async {
+      for (var i = 0; i < 100 && (s.root == null || s.running); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    });
+    await tester.pump();
+    expect(find.text(picked.path), findsOneWidget);
+    expect(tester.widget<Text>(_key('folder-sync-rules')).data, allOf(contains('doesn\'t remove it from Team files'), contains('the older stays in Team files')));
+    expect(tester.takeException(), isNull);
   });
 }

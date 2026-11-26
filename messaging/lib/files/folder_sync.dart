@@ -1,4 +1,8 @@
-/// A folder on a computer kept in step with My files (GMFB-38: "Sync a folder on your computer with a drive").
+/// A folder on a computer kept in step with My files, or with a Files space (GMFB-38: "Sync a folder on your computer
+/// with a drive"; done looks like "Pick a local folder on desktop to keep in two-way sync with a Files space or the
+/// personal drive"). One folder for My files and one for each Files space this device may add files to, each with a
+/// choice and a state file of its own, and no folder in, around or the same as another's: what is in My files would
+/// else go up into a space for everyone in it.
 ///
 /// What a pass does, and what it never does. This touches people's own folders, so the rules are few and one-way safe:
 ///
@@ -34,7 +38,8 @@ import 'package:flutter/foundation.dart';
 import '../desktop/store.dart' show DeskStore;
 import '../net/file_seal.dart';
 import '../platform_info.dart';
-import '../voice/voice.dart' show VoiceChannel;
+import '../voice/channels.dart' show Voice;
+import '../voice/voice.dart' show SpaceKind, VoiceChannel;
 import 'drive.dart';
 import 'files_store.dart';
 
@@ -154,7 +159,10 @@ class SyncReport {
 
 /// One pass over one folder ([run]); and what may be synced at all ([whyNot]).
 class FolderSyncEngine {
-  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress}) : now = now ?? DateTime.now;
+  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress, this.driveName = Drive.name}) : now = now ?? DateTime.now;
+
+  /// What the drive is called in what a pass says, and in a second copy's name: My files, or a Files space's name.
+  final String driveName;
 
   /// The folder, as [resolve] gave it.
   final String root;
@@ -176,8 +184,12 @@ class FolderSyncEngine {
 
   static final String _sep = PlatformInfo.pathSeparator;
 
-  /// What a second copy's name is given.
+  /// What a second copy's name is given, for My files; [mark] is any drive's.
   static const fromDrive = ' (from My files)';
+
+  /// What a second copy's name is given: " (from My files)", " (from Team files)"; " (from the space)" where the
+  /// space's name is one a file's name can't hold, or is long.
+  String get mark => driveName == Drive.name ? fromDrive : ' (from ${holdable(driveName) && driveName.length <= 40 ? driveName : 'the space'})';
 
   /// The start of a temporary file's name: hidden, so no pass takes one for a file.
   static const partStart = '.ghost-sync-';
@@ -264,13 +276,13 @@ class FolderSyncEngine {
         final path = rel == null ? name : '$rel/$name';
         if (type == FileSystemEntityType.directory) {
           if (!holdable(name) || name.length > 80 || depth >= SpaceFile.maxDepth) {
-            r.skip(depth >= SpaceFile.maxDepth ? 'too deep in folders' : 'with a name My files can\'t hold');
+            r.skip(depth >= SpaceFile.maxDepth ? 'too deep in folders' : 'with a name $driveName can\'t hold');
             continue;
           }
           into(Directory(e.path), path, depth + 1);
         } else if (type == FileSystemEntityType.file) {
           if (!holdable(name)) {
-            r.skip('with a name My files can\'t hold');
+            r.skip('with a name $driveName can\'t hold');
             continue;
           }
           try {
@@ -370,7 +382,7 @@ class FolderSyncEngine {
     final dot = name.lastIndexOf('.');
     final stem = dot > 0 ? name.substring(0, dot) : name, end = dot > 0 ? name.substring(dot) : '';
     for (var n = 1; n <= 50; n++) {
-      final mark = n == 1 ? fromDrive : '${fromDrive.substring(0, fromDrive.length - 1)} $n)';
+      final mark = n == 1 ? this.mark : '${this.mark.substring(0, this.mark.length - 1)} $n)';
       final p = '$dir$stem$mark$end';
       if (holdable('$stem$mark$end') && FileSystemEntity.typeSync(_local(p), followLinks: false) == FileSystemEntityType.notFound) return p;
     }
@@ -393,7 +405,7 @@ class FolderSyncEngine {
   Future<void> _run(SyncReport r) async {
     if (FileSystemEntity.typeSync(root, followLinks: false) != FileSystemEntityType.directory) throw const SyncStop('the folder isn\'t there any more.');
     final listed = await drive.list();
-    if (listed == null) throw const SyncStop('My files can\'t be reached right now.');
+    if (listed == null) throw SyncStop('$driveName can\'t be reached right now.');
     state.load();
     final local = _walk(r);
     final lower = {for (final p in local.keys) p.toLowerCase(): p};
@@ -460,10 +472,10 @@ class FolderSyncEngine {
 
     Future<void> up(String p, ({int size, int modified}) l, {String? kept}) async {
       if (drive.maxFile > 0 && l.size > drive.maxFile) throw SyncSkip('too big (over ${fileSize(drive.maxFile)})');
-      if (free != null && l.size > free!) throw const SyncSkip('with no room left in My files');
+      if (free != null && l.size > free!) throw SyncSkip('with no room left in $driveName');
       final slash = p.lastIndexOf('/');
       final folder = slash < 0 ? null : p.substring(0, slash);
-      if (!holdableFolder(folder)) throw const SyncSkip('with a name My files can\'t hold');
+      if (!holdableFolder(folder)) throw SyncSkip('with a name $driveName can\'t hold');
       final f = await drive.upload(_local(p), folder, p.substring(slash + 1));
       // The same file as when it was looked at, or it is not recorded and the next pass looks again.
       final after = _stat(_local(p));
@@ -530,11 +542,12 @@ class FolderSyncEngine {
   }
 }
 
-/// The app's drive behind [SyncDrive]: My files in the files store.
+/// The app's drive behind [SyncDrive]: My files in the files store, or a Files space in it ([name] says which).
 class StoreDrive implements SyncDrive {
-  StoreDrive(this.store, this.channel, {this.tick = const Duration(milliseconds: 250)});
+  StoreDrive(this.store, this.channel, {this.tick = const Duration(milliseconds: 250), this.name = Drive.name});
   final FilesStore store;
   final VoiceChannel channel;
+  final String name;
   final Duration tick;
   final Map<String, SpaceFile> _files = {};
 
@@ -591,9 +604,9 @@ class StoreDrive implements SyncDrive {
       final waiting = t.state == TransferState.waiting;
       // Not left in the page's list as a failure to try again by hand: the next pass tries it.
       await store.cancel(t);
-      if (waiting) throw const SyncStop('My files can\'t be reached right now.');
+      if (waiting) throw SyncStop('$name can\'t be reached right now.');
       if (why.startsWith('Too big')) throw const SyncSkip('too big');
-      if (why.startsWith('Not enough room')) throw const SyncSkip('with no room left in My files');
+      if (why.startsWith('Not enough room')) throw SyncSkip('with no room left in $name');
       throw const SyncSkip('that didn\'t go up');
     }
     SpaceFile? find() {
@@ -623,12 +636,13 @@ class StoreDrive implements SyncDrive {
   }
 }
 
-/// This computer's synced folder: which it is, what its state line says, and when a pass runs (on choosing, when My
-/// files is opened, and every few minutes while the app is open).
+/// One of this computer's synced folders, My files' or a Files space's: which it is, what its state line says, and
+/// when a pass runs (on choosing, when its page is opened, and every few minutes while the app is open).
 class FolderSync extends ChangeNotifier {
-  FolderSync({Directory Function()? data, Future<SyncDrive?> Function()? drive, String? Function()? home, List<String> Function()? own, this.every = const Duration(minutes: 4), this.quiet = const Duration(seconds: 5)})
-      : _data = data ?? (() => Directory('${DeskStore.defaultDir().path}${PlatformInfo.pathSeparator}folder-sync')),
-        _drive = drive ?? _appDrive,
+  FolderSync({Directory Function()? data, Future<SyncDrive?> Function()? drive, String? Function()? home, List<String> Function()? own, this.every = const Duration(minutes: 4), this.quiet = const Duration(seconds: 5), this.space, this.driveName = Drive.name})
+      : assert(space == null || RegExp(r'^[0-9A-Za-z_-]{1,128}$').hasMatch(space)),
+        _data = data ?? (() => Directory('${DeskStore.defaultDir().path}${PlatformInfo.pathSeparator}folder-sync')),
+        _drive = drive ?? (space == null ? _appDrive : () => _spaceDrive(space)),
         _home = home ?? (() => PlatformInfo.environment['USERPROFILE'] ?? PlatformInfo.environment['HOME']),
         _own = own;
 
@@ -638,11 +652,52 @@ class FolderSync extends ChangeNotifier {
   /// Whether folders are synced here at all: a computer's app, never a phone or a browser.
   static bool get here => enabled && !kIsWeb && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux);
 
+  /// My files' own.
   static final FolderSync instance = FolderSync();
+
+  /// Which Files space this is the folder of, as the relay names its files' room (never its seed: this is a file's
+  /// name, [_choice]); null for My files, whose choice stays where it was before spaces had folders.
+  final String? space;
+
+  /// What the drive is called in the words: My files, or the space's name.
+  final String driveName;
+
+  static final Map<String, FolderSync> _spaces = {};
+
+  /// The folder of the Files space [c] (GMFB-38: "a Files space or the personal drive"): one for each space, kept
+  /// apart from My files' and from every other space's.
+  static FolderSync forSpace(VoiceChannel c) => _spaces.putIfAbsent(FileSeal.filesRoom(c.seed), () => FolderSync(space: FileSeal.filesRoom(c.seed), driveName: c.name));
 
   static Future<SyncDrive?> _appDrive() async {
     final c = await Drive.mine();
     return c == null ? null : StoreDrive(FilesStore.instance, c);
+  }
+
+  /// The Files space the relay calls [space], where this device still has it; and only while it may add files there,
+  /// since a pass sends up what is new in the folder.
+  static Future<SyncDrive?> _spaceDrive(String space) async {
+    final c = Voice.instance.channels.where((c) => c.kind == SpaceKind.files && FileSeal.filesRoom(c.seed) == space).firstOrNull;
+    if (c == null) return null;
+    if (!FilesStore.instance.canUpload(c)) throw const SyncStop('your role in this space can\'t add files.');
+    return StoreDrive(FilesStore.instance, c, name: c.name);
+  }
+
+  /// Every space's folder chosen on this computer before this run, from the choices kept ([_choice]).
+  void _loadSpaces() {
+    try {
+      final dir = _data();
+      if (!dir.existsSync()) return;
+      for (final e in dir.listSync(followLinks: false)) {
+        final m = RegExp(r'^space-([0-9A-Za-z_-]{1,128})\.json$').firstMatch(e.path.substring(e.path.lastIndexOf(PlatformInfo.pathSeparator) + 1));
+        if (m == null || e is! File) continue;
+        String name = 'the space';
+        try {
+          final j = jsonDecode(e.readAsStringSync());
+          if (j is Map && j['name'] is String && (j['name'] as String).isNotEmpty) name = j['name'] as String;
+        } catch (_) {}
+        _spaces.putIfAbsent(m.group(1)!, () => FolderSync(space: m.group(1), driveName: name)).load();
+      }
+    } catch (_) {}
   }
 
   final Directory Function() _data;
@@ -659,7 +714,34 @@ class FolderSync extends ChangeNotifier {
     return [DeskStore.defaultDir().path, _data().path, if (PlatformInfo.isMacOS && home != null) '$home/Library/Caches/Ghost Messaging'];
   }
 
-  File get _choice => File('${_data().path}${PlatformInfo.pathSeparator}choice.json');
+  File get _choice => File('${_data().path}${PlatformInfo.pathSeparator}${space == null ? 'choice' : 'space-$space'}.json');
+
+  /// The folders the other drives are synced with on this computer (My files' and each space's), from their choices.
+  List<String> _others() {
+    final out = <String>[];
+    try {
+      final dir = _data();
+      if (!dir.existsSync()) return out;
+      final mine = _choice.path;
+      for (final e in dir.listSync(followLinks: false)) {
+        final name = e.path.substring(e.path.lastIndexOf(PlatformInfo.pathSeparator) + 1);
+        if (e is! File || e.path == mine || !(name == 'choice.json' || (name.startsWith('space-') && name.endsWith('.json')))) continue;
+        try {
+          final j = jsonDecode(e.readAsStringSync());
+          if (j is Map && j['root'] is String && (j['root'] as String).isNotEmpty) out.add(j['root'] as String);
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  /// Why the folder at [at] can't be this drive's because of another's; null where it can.
+  String? _taken(String at) {
+    for (final o in _others()) {
+      if (FolderSyncEngine._within(at, o) || FolderSyncEngine._within(o, at)) return 'That folder, or one in or around it, is already synced with My files or another space. Choose another folder.';
+    }
+    return null;
+  }
 
   /// The folder synced; null where none is.
   String? get root => _root;
@@ -690,15 +772,23 @@ class FolderSync extends ChangeNotifier {
   void _save() {
     try {
       _choice.parent.createSync(recursive: true);
-      _choice.writeAsStringSync(jsonEncode({'root': _root ?? ''}), flush: true);
+      _choice.writeAsStringSync(jsonEncode({'root': _root ?? '', if (space != null) 'name': driveName}), flush: true);
     } catch (_) {}
   }
 
-  /// Reads the choice and runs a pass every few minutes while the app is open.
+  /// Reads the choice and runs a pass every few minutes while the app is open. Asked of My files' own, it does the
+  /// same for every space's folder, one after another.
   void start() {
     if (!here) return;
     load();
-    _timer ??= Timer.periodic(every, (_) => unawaited(pass()));
+    if (identical(this, instance)) _loadSpaces();
+    _timer ??= Timer.periodic(every, (_) => unawaited(() async {
+          await pass();
+          if (!identical(this, instance)) return;
+          for (final s in _spaces.values.toList()) {
+            await s.pass();
+          }
+        }()));
   }
 
   /// Syncs the folder at [path] from now on: why not, in words, or null where it is taken (and a pass begins).
@@ -708,6 +798,8 @@ class FolderSync extends ChangeNotifier {
     if (at == null) return 'That folder isn\'t there.';
     final why = FolderSyncEngine.whyNot(at, home: _home(), own: _ownFolders());
     if (why != null) return why;
+    final taken = _taken(at);
+    if (taken != null) return taken;
     _gen++;
     _root = at;
     _line = '';
@@ -717,7 +809,7 @@ class FolderSync extends ChangeNotifier {
     return null;
   }
 
-  /// Stops syncing. Nothing is removed from the folder or from My files.
+  /// Stops syncing. Nothing is removed from the folder or from the drive.
   void stop() {
     _gen++;
     _root = null;
@@ -744,19 +836,24 @@ class FolderSync extends ChangeNotifier {
       // Looked at again each pass: what was fine to sync when chosen may have been moved or become the home folder.
       if (FolderSyncEngine.resolve(root) != root) return _say('Stopped: the folder isn\'t there any more.');
       if (FolderSyncEngine.whyNot(root, home: _home(), own: _ownFolders()) != null) return _say('Stopped: this folder can\'t be synced.');
+      // Two drives never share a folder, however the choices came to be (a file put there by hand).
+      if (_taken(root) != null) return _say('Stopped: this folder is synced with My files or another space too.');
       final SyncDrive? drive;
       try {
         drive = await _drive();
+      } on SyncStop catch (e) {
+        return _say('Stopped: ${e.why}');
       } catch (_) {
-        return _say('Stopped: My files can\'t be reached right now.');
+        return _say('Stopped: $driveName can\'t be reached right now.');
       }
-      if (drive == null) return _say('Stopped: sign in to your Ghost account on this computer.');
+      if (drive == null) return _say(space == null ? 'Stopped: sign in to your Ghost account on this computer.' : 'Stopped: this space isn\'t on this computer any more.');
       final key = crypto.sha256.convert(utf8.encode('${drive.id}\n$root')).toString().substring(0, 32);
       final engine = FolderSyncEngine(
         root: root,
         drive: drive,
         state: SyncState(File('${_data().path}${PlatformInfo.pathSeparator}$key.json')),
         quiet: quiet,
+        driveName: driveName,
         stopped: () => _gen != gen,
         progress: (left) {
           if (_gen == gen && left > 0) _say('Syncing $left ${left == 1 ? 'file' : 'files'}');
