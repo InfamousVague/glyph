@@ -419,8 +419,11 @@ class _ChatRailState extends State<ChatRail> with TickerProviderStateMixin {
   /// messages come in at the top. Asked at every paint.
   ({double lo, double hi, double at}) _place(double tall) {
     final (lo, hi) = _view();
-    final most = math.max(0.0, widget.marks.length * ChatRail.pitch - tall);
-    var at = ((lo + hi) / 2 * ChatRail.pitch - tall / 2).clamp(0.0, most);
+    final whole = widget.marks.length * ChatRail.pitch;
+    // A chat whose lines don't fill the map: they are in its middle, not at its foot (Matt, 2026-11-26: "center the
+    // chat map on right side").
+    final double least = whole < tall ? -(tall - whole) / 2 : 0.0, most = math.max(least, whole - tall);
+    var at = ((lo + hi) / 2 * ChatRail.pitch - tall / 2).clamp(least, most);
     if (_glide.isAnimating) at = _glideFrom + (at - _glideFrom) * Curves.easeOutCubic.transform(_glide.value);
     return (lo: lo, hi: hi, at: _at = at);
   }

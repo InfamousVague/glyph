@@ -348,7 +348,10 @@ void main() {
       c.jumpTo(c.position.maxScrollExtent);
       await settle(tester);
       final box = tester.getRect(rail);
-      expect(painter(tester).yOf(0), painter(tester).tall - ChatRail.pitch / 2, reason: 'all of it fits: the newest at the map\'s foot');
+      // All of it fits: in the map's middle, not at its foot (Matt, 2026-11-26: "center the chat map on right side").
+      final tall = painter(tester).tall;
+      expect(painter(tester).yOf(0), tall / 2 + 50 * ChatRail.pitch / 2 - ChatRail.pitch / 2);
+      expect(painter(tester).yOf(49), tall / 2 - 50 * ChatRail.pitch / 2 + ChatRail.pitch / 2);
       for (final n in [200, 500]) {
         final was = [for (final i in [0, 30, 49]) painter(tester).yOf(i)];
         marks.value = long(n);
