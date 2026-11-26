@@ -31,6 +31,7 @@ import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../stickers.dart';
 import 'chat_rail.dart';
+import 'chat_rows.dart';
 import 'chat_settings.dart';
 import 'dart:io' show File;
 import '../platform_info.dart';
@@ -1352,7 +1353,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         controller: _scroll,
         chat: _spot,
         incoming: _incoming,
-        inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+        // Left of the map's gutter, level with the bubbles' edge: at the list's own edge it stood over the map's foot
+        // and took the presses meant for its lowest lines.
+        inset: EdgeInsets.only(right: ChatRail.gutter, bottom: t.space(3)),
         // Built a row at a time, as each comes near the screen: every message held was made a widget at every build
         // (120 at first, 300 more a page), with what the plugins find in each one's words
         // (docs/performance-audit.md, finding 3).
@@ -1372,11 +1375,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               ),
           ],
           face: (who, name, mine, size) => Avatar(people: [mine ? const Person(address: '', name: 'You') : (_senders[who] ?? _people.where((p) => p.address == who).firstOrNull ?? (_people.length == 1 ? _people.first : Person(address: who)))], size: size, presence: false),
-          child: ListView.builder(
+          // The list that can go straight to a row (lib/ui/chat_rows.dart): the map sends it to a message in one frame,
+          // and it keeps someone reading far back where they are when a message comes.
+          child: ChatListView.builder(
           controller: _scroll,
           reverse: true,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+          chat: _spot,
+          idOf: (i) => i < msgs.length ? msgs[i].key : null,
           itemCount: msgs.length + tail.length,
           findChildIndexCallback: (key) => key is ValueKey<String> && key.value.startsWith('row-') ? places[key.value.substring(4)] : null,
           itemBuilder: (context, i) {

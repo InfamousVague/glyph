@@ -140,24 +140,30 @@ Caddy gets and renews the certificate by itself once your domain's DNS points at
 published on any port of its own; only Caddy reaches it. What it keeps is in the `relay-data` volume. Needs Docker
 Compose 2.24 or later (for the optional `env_file`).
 
-The image alone, without Compose:
+Compose pulls the image every release publishes for x64 and arm64 (`.github/workflows/relay.yml`):
+`ghcr.io/infamousvague/ghost-relay`, tagged with the version and `latest`. The image alone, without Compose:
 
 ```sh
-docker build -t ghost-relay messaging/relay
 docker run -d --name ghost-relay --restart unless-stopped -p 127.0.0.1:8787:8787 \
-  -v ghost-relay-data:/data --env-file relay.env ghost-relay
+  -v ghost-relay-data:/data --env-file relay.env ghcr.io/infamousvague/ghost-relay:latest
 ```
+
+Built yourself instead: `docker build -t ghost-relay messaging/relay`, and `ghost-relay` in place of the published name.
 
 It runs as an unprivileged user in an image with nothing but the program, the C library and certificates.
 
 ### With systemd (no containers)
 
-Build the program (on the server with Dart 3.11 or later installed, or on another machine with
-`--target-os linux --target-arch x64`), then follow the steps at the top of `relay/deploy/ghost-relay.service`:
+Each release publishes the program for Linux on x64 and arm64, with `deploy/` beside it, as `relay-<version>` on the
+public repository's releases page. Download, check and install it (or build it yourself with Dart 3.11 or later:
+`dart compile exe bin/relay.dart -o ghost-relay` in `messaging/relay`), then follow the steps at the top of
+`deploy/ghost-relay.service`:
 
 ```sh
-cd messaging/relay
-dart compile exe bin/relay.dart -o ghost-relay
+V=0.12.42 A=x64   # or arm64
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz.sha256
+sha256sum -c ghost-relay-$V-linux-$A.tar.gz.sha256 && tar xzf ghost-relay-$V-linux-$A.tar.gz && cd ghost-relay-$V-linux-$A
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin ghost-relay
 sudo install -d -m 755 /opt/ghost-relay && sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay
 sudo install -d -o ghost-relay -g ghost-relay -m 700 /var/lib/ghost-relay
@@ -176,7 +182,7 @@ server in front of it for TLS:
 Whichever you use, it must pass WebSockets on, let a 10 MiB request body through (Files' pieces are up to 8 MiB),
 and not cut an open WebSocket off after a minute.
 
-To update: build again, `sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay`, `sudo systemctl restart
+To update: download the newer release (or build again), `sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay`, `sudo systemctl restart
 ghost-relay`. A restart drops whoever is connected (the apps reconnect by themselves) and loses held packets and
 presence, which are only in memory.
 

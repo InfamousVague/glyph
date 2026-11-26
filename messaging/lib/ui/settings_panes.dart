@@ -57,6 +57,7 @@ import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
+import '../keep_running.dart';
 import '../net/net.dart' show Net;
 
 /// A row's icon at the size every settings row uses.
@@ -428,7 +429,7 @@ String sealedWords(String hubUrl) {
 }
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.42';
+const appVersion = '0.12.43';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -846,6 +847,42 @@ String bubbleSettingHint(String? system, {required bool on}) {
   };
 }
 
+/// Settings › Notifications › While the app is closed (GMFB-28; lib/keep_running.dart): the switch that keeps the app
+/// connected after its screen is closed, so a friend's call rings, and beside it, once it is on, whether Android lets
+/// the app run while the phone sleeps ([battery]; null where that can't be told), with a press that asks.
+PaneSection reachSection(AppState app, {required bool? battery, required void Function() askBattery}) {
+  final on = KeepRunning.wanted(app);
+  return PaneSection(
+    title: 'While the app is closed',
+    children: [
+      SettingRow(
+        key: const ValueKey('stay-reachable'),
+        icon: _icon(LucideMore.phoneCall),
+        label: KeepRunning.reachLabel,
+        hint: const Text(KeepRunning.reachHint),
+        control: GlacierSwitch(
+          checked: on,
+          ariaLabel: KeepRunning.reachLabel,
+          onCheckedChange: (v) {
+            app.setFlag(KeepRunning.key, v);
+            // Asked at once where Android would hold the app back: without its leave a call can't ring on a sleeping phone.
+            if (v && battery == false) askBattery();
+          },
+        ),
+      ),
+      if (on && battery != null)
+        SettingRow(
+          key: const ValueKey('stay-reachable-sleep'),
+          icon: _icon(Lucide.sunMoon),
+          label: KeepRunning.sleepLabel,
+          hint: Text(battery ? KeepRunning.sleepAllowedHint : KeepRunning.sleepHint),
+          value: Text(battery ? 'Allowed' : 'Not allowed'),
+          onPress: battery ? null : askBattery,
+        ),
+    ],
+  );
+}
+
 List<Widget> _notifications(BuildContext context, SettingsModel m) {
   final app = m.app;
   final s = m.status;
@@ -870,6 +907,9 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         onPress: () => Sms.instance.notificationSettings(),
       ),
     ]),
+    // A friend's call ringing while the app is closed (GMFB-28): an Android phone's own choice. Asked again as the app
+    // comes back from Android's question (SettingsScreen.didChangeAppLifecycleState).
+    if (s != null && !Sms.remote && PlatformInfo.isAndroid) reachSection(app, battery: s.battery, askBattery: () => Sms.instance.askBattery()),
     PaneSection(
       title: 'What a notification shows',
       footer: const Text('A conversation you muted arrives without a notification (long press it in the list).'),

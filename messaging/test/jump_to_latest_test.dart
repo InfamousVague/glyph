@@ -1,4 +1,6 @@
 
+import 'dart:async' show unawaited;
+
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -8,6 +10,7 @@ import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/net/crypto.dart' show NetKeys, NetCrypto;
 import 'package:ghost_messaging/net/hub_carrier.dart' show RoomEvent, KeysSigner;
 import 'package:ghost_messaging/sms.dart' show Person;
+import 'package:ghost_messaging/ui/chat_rows.dart';
 import 'package:ghost_messaging/ui/hangout_screen.dart';
 import 'package:ghost_messaging/ui/inbox_ui.dart';
 import 'package:ghost_messaging/ui/jump_to_latest.dart';
@@ -115,7 +118,7 @@ void _phone({int count = 60}) {
 
 /// The message list's own scroll position (the composer has one too).
 ScrollPosition _list(WidgetTester tester) {
-  final scrollable = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
+  final scrollable = find.descendant(of: find.bySubtype<ListView>(), matching: find.byType(Scrollable)).first;
   return tester.state<ScrollableState>(scrollable).position;
 }
 
@@ -252,16 +255,26 @@ void main() {
     expect(_list(tester).pixels, closeTo(most, 24), reason: 'as far back as it goes');
 
     // The wheel, down toward the newest (a mouse on the Mac).
-    tester.binding.handlePointerEvent(PointerScrollEvent(position: tester.getCenter(find.byType(ListView)), scrollDelta: const Offset(0, 200)));
+    tester.binding.handlePointerEvent(PointerScrollEvent(position: tester.getCenter(find.bySubtype<ListView>()), scrollDelta: const Offset(0, 200)));
     await settle(tester);
     final read = _list(tester).pixels;
     expect(read, lessThan(most));
+    // What the person is reading: the first of the chat's messages on the screen, and where.
+    final reading = [for (var i = 0; i < 24; i++) find.textContaining('Message $i in a')].firstWhere((f) => f.evaluate().isNotEmpty);
+    final was = tester.getTopLeft(reading).dy;
 
     n.arrive('a', 'are you there?');
     await settle(tester);
+    // Read this far back, a message that comes moves nothing on the screen (lib/ui/chat_rows.dart): the chat is one
+    // message further from its newest, and that is all.
+    expect(tester.getTopLeft(reading).dy, closeTo(was, 0.5), reason: 'what was being read is where it was');
+    final after = _list(tester).pixels;
+    expect(after, greaterThan(read + 20));
+    expect(after, lessThan(read + 400), reason: 'further from the newest by the message that came, not taken back up to 5000');
     n.older('a', 60);
     await settle(tester);
-    expect(_list(tester).pixels, read, reason: 'the person moved it: it stays where they put it');
+    expect(tester.getTopLeft(reading).dy, closeTo(was, 0.5), reason: 'the person moved it: it stays where they put it');
+    expect(_list(tester).pixels, after);
   });
 
   testWidgets('a spot past the end of everything the chat holds is given up once the list stops growing', (tester) async {
@@ -407,6 +420,142 @@ void main() {
     await settle(tester);
     expect(find.textContaining('Text 0 in thread 3'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // The chat's list reads where its rows are from how tall they are, measured or taken to be (lib/ui/chat_rows.dart),
+  // and corrects the scroll offset under what is on the screen as rows turn out taller or shorter. Nothing that
+  // listens to the controller heard of a correction, and a run to somewhere wrote over it a frame later.
+  group('the list corrects the offset under what is on the screen', () {
+    /// A chat's list as the screens nest it, the arrow round it: messages by number (the newest is [newest], which
+    /// can be given more), each a row of its own height, 28 to 320, keyed 'bare-<message>'.
+    Widget chat(ScrollController c, String name, {ValueNotifier<int>? newest}) => ValueListenableBuilder<int>(
+          valueListenable: newest ?? ValueNotifier(899),
+          builder: (context, top, _) => JumpToLatest(
+            controller: c,
+            chat: name,
+            child: ChatListView.builder(
+              controller: c,
+              reverse: true,
+              chat: name,
+              idOf: (i) => top - i,
+              itemCount: top + 1,
+              itemBuilder: (context, i) => SizedBox(key: ValueKey('bare-${top - i}'), height: 28.0 + ((top - i) * 7919 % 293)),
+            ),
+          ),
+        );
+
+    /// Where the rows on the screen are, by message.
+    Map<int, double> tops(WidgetTester tester) => {
+          for (var m = 0; m < 920; m++)
+            if (find.byKey(ValueKey('bare-$m')).evaluate().isNotEmpty) m: tester.getTopLeft(find.byKey(ValueKey('bare-$m'))).dy,
+        };
+
+    testWidgets('where the chat is left is kept through them: sent far and read down over rows never measured, it opens again on the same message', (tester) async {
+      sheet = await loadSheet(tester);
+      final c = ScrollMemory.controllerFor(() => 'sms:rows');
+      addTearDown(c.dispose);
+      await pumpScreen(tester, sheet, chat(c, 'sms:rows'), AppState());
+      var heard = 0;
+      c.addListener(() => heard++);
+      // Straight to a row far up: nothing under it has been laid out.
+      RenderChatRows.under(c.position)!
+        ..hold(c.position, 700)
+        ..release();
+      await tester.pump();
+      final from = c.offset;
+      heard = 0;
+      for (var k = 0; k < 6; k++) {
+        c.jumpTo(c.offset - 250);
+        await tester.pump();
+      }
+      await tester.pump();
+      final left = c.offset;
+      expect((left - (from - 6 * 250)).abs(), greaterThan(1), reason: 'the rows that came in were not as tall as they were taken to be: the offset was corrected under them');
+      expect(heard, greaterThan(6), reason: 'and those who listen were told');
+      expect(ScrollMemory.of('sms:rows')?.offset, left, reason: 'what is kept is where the chat stands, not where it stood before the list corrected it');
+      final was = tops(tester);
+      await tester.pumpWidget(const SizedBox());
+      final again = ScrollMemory.controllerFor(() => 'sms:rows');
+      addTearDown(again.dispose);
+      await pumpScreen(tester, sheet, chat(again, 'sms:rows'), AppState());
+      expect(again.offset, left);
+      final now = tops(tester);
+      expect(was.keys.where((m) => was[m]! > 0 && was[m]! < 700), isNotEmpty);
+      for (final m in was.keys.where((m) => was[m]! > 0 && was[m]! < 700)) {
+        expect(now[m], closeTo(was[m]!, 0.01), reason: 'message $m where it was left');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a run to the newest goes on through them: nothing on the screen jolts, and it ends at the newest', (tester) async {
+      sheet = await loadSheet(tester);
+      final c = ScrollMemory.controllerFor(() => 'sms:run');
+      addTearDown(c.dispose);
+      final newest = ValueNotifier(899);
+      await pumpScreen(tester, sheet, chat(c, 'sms:run', newest: newest), AppState());
+      RenderChatRows.under(c.position)!
+        ..hold(c.position, 700)
+        ..release();
+      await tester.pump();
+      // Eight messages come while the person reads far back: nothing has laid them out, and each is taken to be as
+      // tall as the others on the whole. Then the arrow's own way down: a screen over the newest at once, and a run
+      // from there.
+      newest.value = 907;
+      await tester.pump();
+      c.jumpTo(600);
+      await tester.pump();
+      unawaited(c.animateTo(0, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic));
+      var before = tops(tester), at = c.offset, corrected = 0;
+      final moved = <double>[];
+      for (var f = 0; f < 60 && (c.offset > 0 || f < 3); f++) {
+        final set = <double>[];
+        void note() => set.add(c.offset);
+        c.addListener(note);
+        await tester.pump(const Duration(milliseconds: 16));
+        c.removeListener(note);
+        final now = tops(tester);
+        // How far what is on the screen moved in this frame, by a row that was there before and after.
+        final shared = now.keys.where(before.containsKey);
+        if (shared.isNotEmpty) moved.add(now[shared.first]! - before[shared.first]!);
+        // Corrected in this frame's layout: the offset is not where the run set it.
+        if (set.isNotEmpty && (c.offset - set.first).abs() > 0.5) corrected++;
+        before = now;
+        at = c.offset;
+      }
+      // ignore: avoid_print
+      if (const bool.fromEnvironment('RUN_SAYS')) print('RUN moved $moved');
+      expect(corrected, greaterThan(0), reason: 'rows came in that were not as tall as they were taken to be');
+      expect(at, 0, reason: 'at the newest');
+      expect(tester.getRect(find.byKey(const ValueKey('bare-907'))).bottom, closeTo(tester.getRect(find.bySubtype<ListView>()).bottom, 0.01));
+      // Toward the newest the page goes up the screen, each frame a little less than the last as the run eases out:
+      // never back down, and never a jolt of the size of a correction.
+      // (Its first frame is its start: nothing moves in that one.)
+      final run = moved.skipWhile((m) => m == 0).toList();
+      expect(run.length, greaterThan(8));
+      for (var k = 0; k < run.length; k++) {
+        expect(run[k], lessThan(0.5), reason: 'frame $k went back: $run');
+        if (k == 0) continue;
+        // (A correction written over by the run's next frame is a step half as long again as the one before it. One
+        // carried through is a step a little longer at most: there is that much further to go in the time left.)
+        expect(run[k].abs(), lessThan(run[k - 1].abs() * 1.15 + 3), reason: 'frame $k jolted: $run');
+        expect(run[k].abs(), greaterThan(run[k - 1].abs() * 0.4 - 6), reason: 'frame $k stood still: $run');
+      }
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // The arrow stood at the list's right edge, over the map's lowest lines, and took the presses meant for them.
+  testWidgets('the arrow stands clear of the chat\'s map', (tester) async {
+    sheet = await loadSheet(tester);
+    _phone();
+    final n = _Network(['a']);
+    await _open(tester, sheet, InboxChatScreen(network: n, chatId: 'a'), AppState());
+    await _up(tester, _list(tester).viewportDimension * 1.5);
+    expect(_arrow(), isTrue);
+    final map = tester.getRect(find.byKey(const ValueKey('chat-rail')));
+    final arrow = tester.getRect(find.byKey(const ValueKey('jump-to-latest')));
+    expect(arrow.right, lessThanOrEqualTo(map.left + 0.01), reason: 'left of the map\'s gutter');
+    expect(arrow.overlaps(map), isFalse);
   });
 }
 

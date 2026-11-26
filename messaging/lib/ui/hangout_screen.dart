@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 import '../sms.dart' show Sms;
 import '../art/app_icon.dart';
 import 'chat_rail.dart';
+import 'chat_rows.dart';
 import 'notion_card.dart';
 import 'link_cards.dart';
 import '../notion/notion.dart' show NotionLink;
@@ -1386,7 +1387,9 @@ class _HangoutChatState extends State<HangoutChat> {
                   controller: _scroll,
                   chat: _spot,
                   incoming: _incoming(room),
-                  inset: EdgeInsets.only(right: t.space(3), bottom: t.space(3)),
+                  // Left of the map's gutter, level with the bubbles' edge: at the list's own edge it stood over the
+                  // map's foot and took the presses meant for its lowest lines.
+                  inset: EdgeInsets.only(right: ChatRail.gutter, bottom: t.space(3)),
                   // The chat's map in the gutter at its right (lib/ui/chat_rail.dart).
                   child: ChatRail(
                     controller: _scroll,
@@ -1400,10 +1403,18 @@ class _HangoutChatState extends State<HangoutChat> {
                     ],
                     face: (who, name, mine, size) => SpaceFace(room: room, id: mine ? room.me : who, name: name, size: size),
                     lead: going.length,
-                    child: ListView.builder(
+                    // The list that can go straight to a row (lib/ui/chat_rows.dart).
+                    child: ChatListView.builder(
                     controller: _scroll,
                     reverse: true,
                     padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+                    chat: _spot,
+                    // A message by its id, a note by what it says of whom and when, one still going up by itself.
+                    idOf: (i) {
+                      if (i < going.length) return going[i];
+                      final row = rows[i - going.length];
+                      return row is HangoutMessage ? row.id : (row is CircleSystemNote ? (row.kind, row.id, row.at) : row);
+                    },
                     itemCount: going.length + rows.length,
                     itemBuilder: (context, i) {
                       if (i < going.length) return _outgoing(room, going[i], mineBg, mineInk);
