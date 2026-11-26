@@ -17,8 +17,12 @@ import 'crypto.dart';
 import 'forward_secrecy.dart';
 import 'homes.dart';
 import 'hub_carrier.dart';
+import '../invites/link_relay.dart';
 import 'hub_link.dart';
 import 'kept_files.dart';
+import 'lan/lan_carrier.dart';
+import 'lan/lan_ground.dart';
+import 'lan/lan_wire.dart';
 import 'ledger.dart';
 import 'p2p/node.dart';
 import 'p2p/node_factory.dart' show letP2pNodeGo;
@@ -26,6 +30,7 @@ import 'p2p/p2p.dart';
 import 'p2p/p2p_carrier.dart' show P2pCarrier;
 import 'packet.dart';
 import 'relay_choice.dart';
+import 'routes_kept.dart';
 import 'sms_carrier.dart';
 import 'switchboard.dart';
 
@@ -163,11 +168,145 @@ class Net extends ChangeNotifier implements PeerBook {
   /// Heard from the direct network, the ledger and its check: [direct] goes up.
   void _directChanged() => direct.value++;
 
+  // --- the local network route (lib/net/lan; GMFB-24) -----------------------------------------------------------------
+
+  /// What the local network route stands on (lan_wire.dart): sockets on a phone or a computer, nothing in a browser or
+  /// on an iPhone, and nothing under a test unless it hands in a network of its own (it would open ports on the
+  /// machine the tests run on).
+  static LanGround? Function() lanGround = defaultLanGround;
+  static LanGround? defaultLanGround() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? null : makeLanGround();
+
+  /// Whether the local network route is on where the person has not chosen ([lanName]): off in the first release that
+  /// carries it, as Direct was, so each person switches it on themselves (it makes the Mac and Windows ask whether the
+  /// app may use the local network).
+  static const lanByDefault = false;
+
+  /// The person's choice of the local network route: 'on' or 'off', nothing where they have not chosen. Its own, never
+  /// in `net_off`, for the reason Direct's is ([directName]).
+  static const lanName = 'net_lan';
+
+  LanGround? _lanGround;
+  LanCarrier? _lan;
+
+  /// The local network route; null where this build has none (a browser, an iPhone), or the routes are not set up.
+  LanCarrier? get lan => _lan;
+
+  /// Whether the local network route is switched on: the person's choice, or where they have not chosen,
+  /// [lanByDefault]. Never in a build that has none.
+  bool get lanOn {
+    if (_lanGround == null) return false;
+    final chosen = _app?.choice(lanName, '') ?? '';
+    return chosen == 'on' || (chosen != 'off' && lanByDefault);
+  }
+
+  /// Whom the local network route says it is here to and links with: friends, and this account's own other devices
+  /// (as one peer, by this account's name and its own key). Never the other members of a group.
+  List<Peer> _lanPeople() {
+    final me = id, mine = _mineKey;
+    return [...friends, if (me != null && mine != null) Peer(id: me, key: mine)];
+  }
+
+  /// The accounts the local network route was linked to when it last said anything changed, and when the routes were
+  /// last said to have changed for it.
+  Set<String> _lanAccounts = {};
+  DateTime? _lanSaid;
+  Timer? _lanSayLater;
+
+  /// The least time between two sayings that the routes changed for the local network's links (a test says another).
+  @visibleForTesting
+  static Duration lanSayEvery = const Duration(seconds: 20);
+
+  /// Who is seen or linked on the local network changed: Settings › Routes draws it again. Where an account is linked
+  /// that was not before, the routes are said to have changed, so what friends were sent and have not answered goes
+  /// again (Friends) and what a group's members are owed goes (Groups): but no oftener than [lanSayEvery], and never
+  /// for a link lost. One made sooner after the last is said when that time is up, not lost. Every change of the count
+  /// said so before, and each time Friends sent again everything unanswered, which whoever could make a link come and
+  /// go could have it do at will (found in review, 2026-11-26).
+  void _lanChanged() {
+    direct.value++;
+    final now = _lan?.linkedAccounts ?? const <String>{};
+    final someoneNew = now.any((a) => !_lanAccounts.contains(a));
+    _lanAccounts = now;
+    if (!someoneNew || _lanSayLater != null) return;
+    final at = DateTime.now(), last = _lanSaid;
+    final wait = last == null ? Duration.zero : lanSayEvery - at.difference(last);
+    if (wait > Duration.zero) {
+      _lanSayLater = Timer(wait, () {
+        _lanSayLater = null;
+        _lanSaid = DateTime.now();
+        notifyListeners();
+      });
+      return;
+    }
+    _lanSaid = at;
+    notifyListeners();
+  }
+
+  /// Switches the local network route on or off (Settings › Routes), kept as the person's choice ([lanName]). On: who
+  /// is a friend is read (only this route and Direct ask), and the route started where there is anyone to reach. Off:
+  /// every link closed and nothing said or heard on the network.
+  Future<void> setLan(bool on) async {
+    if (_lanGround == null) return;
+    _app?.set(lanName, on ? 'on' : 'off');
+    final board = _board;
+    if (board == null) return notifyListeners();
+    if (on) {
+      board.off.remove(LanCarrier.routeId);
+      try {
+        await _readPeers();
+      } catch (_) {}
+      if (!identical(board, _board)) return;
+      _lan?.refresh();
+    } else {
+      board.off.add(LanCarrier.routeId);
+      await board.setOn(LanCarrier.routeId, false);
+    }
+    if (!identical(board, _board)) return;
+    await _apply();
+    notifyListeners();
+  }
+
   /// Goes up whenever the route that last carried something to or from someone changes (Switchboard.used): Settings ›
   /// Routes draws which route each person is on from it.
   final ValueNotifier<int> routesUsed = ValueNotifier(0);
 
-  void _routesUsedChanged() => routesUsed.value++;
+  void _routesUsedChanged() {
+    routesUsed.value++;
+    final board = _board;
+    if (board != null) _routesKept?.changed(() => board.used);
+  }
+
+  /// Where which route each person was last on is kept from one run to the next (routes_kept.dart): a file of its own,
+  /// out of any backup; under a test, memory; null where there is nowhere (a browser), and then nothing is kept.
+  static FsStore? Function() routesStore = defaultRoutesStore;
+  static FsStore? defaultRoutesStore() => PlatformInfo.environment.containsKey('FLUTTER_TEST') ? MemoryFsStore() : routesFiles();
+
+  RoutesKept? _routesKept;
+
+  /// Reads what was kept of which route each person was on, for this account, into [board], and keeps what it sees
+  /// from now on. Whatever goes wrong there costs only that.
+  void _keepRoutes(Switchboard board, String me) {
+    try {
+      final store = routesStore();
+      if (store == null) return;
+      final kept = _routesKept = RoutesKept(store: store, me: me);
+      unawaited(kept.read().then((was) {
+        if (identical(board, _board) && identical(kept, _routesKept)) board.seedUsed(was);
+      }).catchError((Object _) {}));
+    } catch (_) {
+      _routesKept = null;
+    }
+  }
+
+  /// Deletes which route each person was on, here and where it is kept: signing out.
+  Future<void> forgetRoutesUsed() async {
+    final kept = _routesKept;
+    _routesKept = null;
+    _board?.clearUsed();
+    if (kept != null) return kept.wipe();
+    final store = routesStore();
+    if (store != null) await RoutesKept.forget(store);
+  }
 
   // --- checking the relay (lib/net/ledger.dart; docs/OPEN_NETWORK.md, section 3) -------------------------------------
 
@@ -334,6 +473,7 @@ class Net extends ChangeNotifier implements PeerBook {
     _mode = mode;
     _hub?.mode = mode;
     _p2p?.setMode(mode);
+    _lan?.setMode(mode);
   }
 
   /// This app put away or in use (main.dart, as it goes to the background and comes back): friends see it (Matt,
@@ -345,10 +485,12 @@ class Net extends ChangeNotifier implements PeerBook {
     _away = away;
     _hub?.awayNow = away;
     _p2p?.setAway(away);
+    _lan?.setAway(away);
     // A phone's relay runs only while the app is in use (lib/relay_host).
     _host?.appAway(hostAway ?? away);
-    // Put away, the app may not come back: what the ledger listed is written now.
+    // Put away, the app may not come back: what the ledger listed is written now, and which route each person is on.
     if (away) unawaited(_ledger?.flush());
+    if (away) unawaited(_routesKept?.flush());
   }
 
   /// Watches these names too (friends by username, lib/friends/buddies.dart), beside those the phone has keys with.
@@ -427,6 +569,8 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
+    // The relay the invite links made here name, where it is not Ghost Messaging's own (lib/invites/link_relay.dart).
+    LinkRelay.here = () => relayHostForLinks(hubUrl);
     final wantDirect = directOn;
     // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
     // from another device (a backup restored here), a new one: they bring the name with them, so two devices would be
@@ -454,6 +598,8 @@ class Net extends ChangeNotifier implements PeerBook {
       // opened dropped every copy the relay had kept for it (Matt, 2026-11-23: "messages are not in sync across mobile
       // and desktop").
       await mine();
+      // The local network route's ground, before the people are read: with the route on, who is a friend is asked.
+      _lanGround = lanGround();
       await _readPeers(direct: wantDirect);
       final signer = _signer = _PhoneSigner(me.id, me.key);
       final List<Carrier> routes;
@@ -486,12 +632,27 @@ class Net extends ChangeNotifier implements PeerBook {
       final madeDirect = wantDirect && directOn;
       final p2p = _p2p = madeDirect ? _makeDirect(signer, device, app) : null;
       if (p2p != null) routes.add(p2p.carrier);
+      // The local network route (lib/net/lan), where this build has the ground for one: made with the others and left
+      // off, opening nothing, until the person switches it on ([lanOn]). A computer's runs whenever it is on, a phone's
+      // while the app is in use.
+      final ground = _lanGround;
+      final lan = _lan = ground == null ? null : LanCarrier(me: me.id, ground: ground, people: _lanPeople, policy: Sms.computer ? const LanPolicy.computer() : const LanPolicy());
+      if (lan != null) {
+        lan
+          ..setMode(_mode)
+          ..setAway(_away)
+          ..changed.addListener(_lanChanged);
+        routes.add(lan);
+      }
       final board = _board = Switchboard(me: me.id, peers: this, carriers: routes, fs: fs);
-      // The routes the person switched off; Direct by its own choice, whatever `net_off` says of it.
-      board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty && s != P2pCarrier.routeId));
+      // The routes the person switched off; Direct and the local network by their own choices, whatever `net_off` says
+      // of them.
+      board.off.addAll(app.choice('net_off', '').split(',').where((s) => s.isNotEmpty && s != P2pCarrier.routeId && s != LanCarrier.routeId));
       if (!madeDirect) board.off.add(P2pCarrier.routeId);
+      if (lan != null && !lanOn) board.off.add(LanCarrier.routeId);
       board.changed.addListener(notifyListeners);
       board.usedChanged.addListener(_routesUsedChanged);
+      _keepRoutes(board, me.id);
       _subs.add(board.received.listen(_received));
       if (p2p != null) _holdDirect(board, p2p, me.id, device);
       // A relay hosted from this device (lib/relay_host), where it can host one: started now where the person has it
@@ -741,7 +902,9 @@ class Net extends ChangeNotifier implements PeerBook {
     _hub?.nudge(away: away);
     final fs = _board?.fs;
     if (fs != null && !fs.loaded) unawaited(fs.tryLoad());
-    // The network may be another than when the app was put away: the direct route's node looks at its paths again.
+    // The network may be another than when the app was put away: the local network route says it is here again, and the
+    // direct route's node looks at its paths again.
+    _lan?.networkChanged();
     final p2p = _p2p;
     if (p2p != null) {
       if (p2p.loaded) {
@@ -775,12 +938,13 @@ class Net extends ChangeNotifier implements PeerBook {
       } catch (_) {}
       found[p.id] = Peer(id: p.id, key: p.key, address: p.address, name: name);
     }
-    // Who of them is a friend, which is the direct route's question, asked only where Direct is switched on: whom the
+    // Who of them is a friend, which is the direct route's question and the local network route's, asked only where one
+    // of them is switched on: whom the
     // records that say so name, by the id their key makes, and never by an address. On Android the people come from
     // those encryption is on with, the members of this phone's groups and friends by username together (MainActivity's
     // netPeers), and a group member's address is whatever the group's admin wrote: "@anything", or a real friend's
     // number (second review, M1).
-    final friends = (direct ?? directOn) ? await _friendsAmong(found) : <String>{};
+    final friends = (direct ?? directOn) || lanOn ? await _friendsAmong(found) : <String>{};
     _peers
       ..clear()
       ..addAll(found);
@@ -823,13 +987,25 @@ class Net extends ChangeNotifier implements PeerBook {
     _fsTimer = null;
     _p2pTimer?.cancel();
     _p2pTimer = null;
-    final board = _board, p2p = _p2p, ledger = _ledger, check = _check;
+    final board = _board, p2p = _p2p, ledger = _ledger, check = _check, lan = _lan;
     _board = null;
     _hub = null;
     _sms = null;
     _p2p = null;
     _ledger = null;
     _check = null;
+    _lan = null;
+    _lanGround = null;
+    _lanAccounts = {};
+    _lanSaid = null;
+    _lanSayLater?.cancel();
+    _lanSayLater = null;
+    lan?.changed.removeListener(_lanChanged);
+    // The local network route goes first, whatever goes wrong with the rest after: left running, it would go on saying
+    // this account's marks to the network with nothing holding it (found in review, 2026-11-26).
+    try {
+      await lan?.dispose();
+    } catch (_) {}
     _followHelpers(null);
     _homes?.dispose();
     _homes = null;
@@ -855,6 +1031,15 @@ class Net extends ChangeNotifier implements PeerBook {
       board.changed.removeListener(notifyListeners);
       board.usedChanged.removeListener(_routesUsedChanged);
       await board.stop();
+    }
+    // Which route each person was on is written as the routes go, for the next run.
+    final routesKept = _routesKept;
+    _routesKept = null;
+    if (routesKept != null) {
+      try {
+        await routesKept.flush();
+      } catch (_) {}
+      routesKept.dispose();
     }
     if (p2p != null) {
       p2p.removeListener(_directChanged);
@@ -890,8 +1075,10 @@ class Net extends ChangeNotifier implements PeerBook {
       await _readPeers();
     } catch (_) {}
     await _apply();
-    // Someone became a friend, or is one no longer: the direct route tells the one its card and forgets the other's.
+    // Someone became a friend, or is one no longer: the direct route tells the one its card and forgets the other's,
+    // and the local network route links with the one and lets go of the other.
     unawaited(_p2p?.refresh());
+    _lan?.refresh();
     notifyListeners();
   }
 
@@ -958,6 +1145,8 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> setRoute(String id, bool value) async {
     // Direct starts off, and its choice is its own ([setDirect], [directName]).
     if (id == P2pCarrier.routeId) return setDirect(value);
+    // So does the local network route, and its choice is its own too ([setLan], [lanName]).
+    if (id == LanCarrier.routeId) return setLan(value);
     final board = _board;
     if (board == null) return;
     // The person's choice is kept whatever happens to be running; then the routes are started or stopped to suit.
@@ -969,7 +1158,7 @@ class Net extends ChangeNotifier implements PeerBook {
     } else {
       board.off.add(id);
     }
-    _app?.set('net_off', board.off.where((r) => r != P2pCarrier.routeId).join(','));
+    _app?.set('net_off', board.off.where((r) => r != P2pCarrier.routeId && r != LanCarrier.routeId).join(','));
     if (!value) await board.setOn(id, false);
     await _apply();
     notifyListeners();

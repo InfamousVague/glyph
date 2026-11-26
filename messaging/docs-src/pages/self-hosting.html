@@ -9,23 +9,24 @@
 <table>
   <tr><th>What</th><th>On a relay of your own</th></tr>
   <tr><td>Friends by username: requests, messages, reactions, edits, read marks</td><td><b>Yes</b>, between people on your relay. With people on another relay too, where both relays talk to each other: add them as <code>@maya@their.relay</code>.</td></tr>
-  <tr><td>Circles and spaces</td><td>Only between people on the same relay. A circle's link works anywhere, but members on different relays don't see each other's messages or who is in a space.</td></tr>
+  <tr><td>Circles and spaces</td><td>Only between people on the same relay. A link made on your relay names it at its end (<code>…@relay.example.com</code>): opened by someone on another relay, the app says which relay the circle is on instead of joining an empty room there, and a browser guest opening a space's link is connected to the relay it names.</td></tr>
   <tr><td>Calls</td><td>Only between people on the same relay: a call is a room on one relay. The app says so instead of ringing a friend on another relay. Calls that can't go straight between two devices need <a href="#turn">your own TURN server</a>.</td></tr>
   <tr><td>Who is online, away, last seen</td><td>Not shown for a friend on another relay.</td></tr>
-  <tr><td>Your account (username and password, the sealed backup)</td><td>Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay.</td></tr>
-  <tr><td>Your username</td><td>Kept on each relay apart. <code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people.</td></tr>
-  <tr><td>Add-me links (<code>gogho.st/add/…</code>)</td><td>The link always says gogho.st, but the app looks the name up on the relay it uses. On yours that may be someone else, or nobody. The app says so before it sends a friend request.</td></tr>
+  <tr><td>Your account (username and password, the sealed backup)</td><td>Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay, and the sign-in screen says which relay it asks. An app moved to a relay that doesn't hold its account keeps everything and offers <b>List this device again</b>, which puts the account on that relay from the device.</td></tr>
+  <tr><td>Your username</td><td>Kept on each relay apart. <code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people. When the app moves to another relay your username is claimed there too where it is free; where someone else holds it, your profile asks you to choose one for that relay. The one on the relay you left is yours again when you go back.</td></tr>
+  <tr><td>Add-me links (<code>gogho.st/add/…</code>)</td><td>A link made on your relay names it after the key (<code>#KEY@relay.example.com</code>). Whoever opens it is asked for on that relay, from whichever relay they use; a link that names none is someone on gogho.st. The link's key makes sure it is only ever the person who shared it.</td></tr>
   <tr><td>Circle invite words (<code>gogho.st/c/…</code>)</td><td>Kept on each relay apart. A word made on your relay works typed into <b>Join a circle</b> by people on your relay; the gogho.st page only knows gogho.st's words.</td></tr>
   <tr><td>Files spaces</td><td>Kept on your relay's disk, for people on your relay.</td></tr>
   <tr><td>Texts (SMS), encrypted ones included</td><td>Unchanged. They go over the phone network, not through any relay.</td></tr>
   <tr><td>The Marketplace</td><td>Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay.</td></tr>
   <tr><td>Verifying your number; linking Discord, X, Telegram</td><td>Off unless you set up your own Twilio Verify service and your own apps with those networks.</td></tr>
   <tr><td>Waking a closed iPhone</td><td>Not possible. It needs Apple's push key for the app, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened.</td></tr>
-  <tr><td>Share feedback</td><td>Goes to the relay in use, so to yours, where it isn't filed anywhere.</td></tr>
-  <tr><td>A computer paired to the phone</td><td>Messages go through the phone, so through your relay. The computer's own key for voice spaces still uses gogho.st.</td></tr>
+  <tr><td>Share feedback</td><td>Goes to your relay where you set up a board for it; where you didn't, the app sends it to gogho.st instead, since it is about the app.</td></tr>
+  <tr><td>A computer paired to the phone</td><td>Messages go through the phone, so through your relay, and the computer's own connection for spaces goes to the relay the phone uses.</td></tr>
+  <tr><td>Souls</td><td>Counted by each relay apart. The Souls page says whose count it shows; bug bounties are given on gogho.st.</td></tr>
   <tr><td>App updates, these docs, the website</td><td>From gogho.st, as before.</td></tr>
 </table>
-<p><b>Not done yet:</b> circles, spaces and calls across relays; who is online across relays; add-me links and invite links that name a relay; and an account signing in on another relay than its own.</p>
+<p><b>Not done yet:</b> circles, spaces and calls across relays (the app uses one relay at a time, and an invite to a circle elsewhere says which relay to use first); who is online across relays; and signing in by username on another relay than the account's own, until a device that holds the account lists itself there.</p>
 
 <h2 id="serves">What it is</h2>
 <p>One program on one port (8787 unless told otherwise), speaking plain HTTP and WebSockets. It has no dependencies beyond Dart's own library. You put a web server in front of it for TLS.</p>
@@ -59,23 +60,25 @@ cp Caddyfile.example Caddyfile               # put your domain in place of relay
 docker compose up -d
 curl https://relay.example.com/              # Ghost Messaging relay</code></pre>
 <p>The relay isn't published on any port of its own; only Caddy reaches it. What it keeps is in the <code>relay-data</code> volume.</p>
-<p>The image alone, without Compose, from the repository's folder:</p>
-<pre><code>docker build -t ghost-relay relay
-docker run -d --name ghost-relay --restart unless-stopped -p 127.0.0.1:8787:8787 \
-  -v ghost-relay-data:/data --env-file relay.env ghost-relay</code></pre>
+<p>Compose pulls the relay's image, which every release publishes for x64 and arm64 machines: <code>ghcr.io/infamousvague/ghost-relay</code>, tagged with the version and <code>latest</code>. The image alone, without Compose:</p>
+<pre><code>docker run -d --name ghost-relay --restart unless-stopped -p 127.0.0.1:8787:8787 \
+  -v ghost-relay-data:/data --env-file relay.env ghcr.io/infamousvague/ghost-relay:latest</code></pre>
+<p>To build it yourself instead, from the source's folder: <code>docker build -t ghost-relay relay</code>, and use <code>ghost-relay</code> in place of the published name.</p>
 <p>It runs as an unprivileged user, in an image with nothing but the program, the C library and certificates. Put a web server in front of it for TLS, as in the next section.</p>
 
 <h2 id="systemd">As a single program, with systemd</h2>
-<p>Build the program on the server with Dart 3.11 or later installed, or on another machine with <code>--target-os linux --target-arch x64</code>. Then install it as a service:</p>
-<pre><code>cd relay
-dart compile exe bin/relay.dart -o ghost-relay
+<p>Each release publishes the program for Linux on x64 and arm64, with the service file beside it, on the <a href="https://github.com/InfamousVague/ghost-messaging/releases">releases page</a> (<code>relay-</code> and the version). Download the one for your machine, check it, and install it as a service:</p>
+<pre><code>V=0.12.42 A=x64                              # or arm64
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz.sha256
+sha256sum -c ghost-relay-$V-linux-$A.tar.gz.sha256 &amp;&amp; tar xzf ghost-relay-$V-linux-$A.tar.gz &amp;&amp; cd ghost-relay-$V-linux-$A
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin ghost-relay
 sudo install -d -m 755 /opt/ghost-relay &amp;&amp; sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay
 sudo install -d -o ghost-relay -g ghost-relay -m 700 /var/lib/ghost-relay
 sudo install -o root -g ghost-relay -m 640 relay.env /etc/ghost-relay.env
 sudo cp deploy/ghost-relay.service /etc/systemd/system/
 sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now ghost-relay</code></pre>
-<p>It listens on <code>127.0.0.1:8787</code> only, writes only to <code>/var/lib/ghost-relay</code>, and restarts if it stops. The settings file is optional: the service starts without one.</p>
+<p>It listens on <code>127.0.0.1:8787</code> only, writes only to <code>/var/lib/ghost-relay</code>, and restarts if it stops. The settings file is optional: the service starts without one. To build the program yourself instead, with Dart 3.11 or later: <code>dart compile exe bin/relay.dart -o ghost-relay</code> in the source's <code>relay</code> folder.</p>
 <p>Then put a web server in front of it for TLS:</p>
 <ul>
   <li><b>Caddy:</b> <code>relay/deploy/Caddyfile.example</code>, with <code>relay:8787</code> changed to <code>127.0.0.1:8787</code>.</li>
@@ -214,8 +217,8 @@ journalctl -u ghost-relay -f                    # or: docker compose logs -f rel
 
 <h2 id="update">Keep it updated</h2>
 <ul>
-  <li><b>With Docker Compose:</b> get the newer source, then run <code>docker compose up -d --build</code> in <code>relay/deploy</code>.</li>
-  <li><b>With systemd:</b> build again, then <code>sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay</code> and <code>sudo systemctl restart ghost-relay</code>.</li>
+  <li><b>With Docker Compose:</b> <code>docker compose pull &amp;&amp; docker compose up -d</code> in <code>relay/deploy</code>.</li>
+  <li><b>With systemd:</b> download the newer release (or build again), then <code>sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay</code> and <code>sudo systemctl restart ghost-relay</code>.</li>
   <li><b>The link helper:</b> build again, install the program over the old one, and <code>sudo systemctl restart ghost-link</code>.</li>
 </ul>
 <p>A restart drops whoever is connected, and the apps reconnect by themselves. It also loses held packets and presence, which are only in memory unless you set <code>GHOST_HUB_KEEP_HELD=1</code>.</p>

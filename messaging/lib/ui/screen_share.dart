@@ -1,6 +1,7 @@
 /// Sharing a screen in a call (GMFB-27, from the Uplink gap review: UplinkWeb shipped screen sharing in v2.0.3): the
 /// button's work, the computer's choice of screen or window, the large view of someone's screen, and the line saying
-/// who is sharing.
+/// who is sharing. And its sound (GMFB-63; lib/voice/screen_sound.dart): a switch where the screen is chosen, on a PC
+/// and a Mac, and the viewer's loudness on the large view of a screen shared with it.
 ///
 /// The screen goes out in the camera's place (lib/voice/rtc.dart, RtcMedia.setScreen), so it reaches everyone already
 /// connected with nothing worked out again; each member's 'me' says it is a screen ('s'), and it is drawn whole, never
@@ -21,7 +22,9 @@ import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../platform_info.dart';
 import '../sms.dart';
+import '../app_state.dart';
 import '../voice/channels.dart';
+import '../voice/screen_sound.dart';
 import '../voice/voice.dart';
 import 'common.dart';
 import 'tile_grid.dart' show VideoShapes;
@@ -48,16 +51,41 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
   }
   // Taken now: the menu this was pressed in may be gone by the time there is something to say.
   final toasts = GlacierToast.of(context);
+  final app = AppState.maybeOf(context);
   String? source;
+  var sound = false;
   if (Sms.computer) {
     final media = s.media;
     if (media is! ScreenMedia) return;
-    source = await pickScreen(context, (media as ScreenMedia).screenSources);
+    // The computer's sound with it, where this one can take it: asked for with the screen, and kept as it was last.
+    final can = media is ScreenSoundMedia ? (media as ScreenSoundMedia).screenSoundSupported() : Future.value(false);
+    final wanted = ValueNotifier(app?.choice(shareSoundKey, '1') != '0');
+    source = await pickScreen(context, (media as ScreenMedia).screenSources, sound: wanted, canSound: can);
     if (source == null) return;
+    sound = wanted.value && await can;
+    app?.keep(shareSoundKey, wanted.value ? '1' : '0');
   }
-  final started = await s.setScreen(true, source: source);
-  if (!started) toasts.toast(message: const Text('Your screen wasn\'t shared'));
+  final started = await s.setScreen(true, source: source, sound: sound);
+  if (!started) {
+    toasts.toast(message: const Text('Your screen wasn\'t shared'));
+  } else if (sound && !s.screenSound) {
+    toasts.toast(message: Text(shareSoundFailedWords(mac: PlatformInfo.isMacOS)));
+  }
 }
+
+/// Where the choice of sharing the computer's sound with its screen is kept: '0' for not, anything else for yes.
+const shareSoundKey = 'share_sound';
+
+/// The switch over the screens and windows, and what it says under it on a PC and on a Mac.
+const shareSoundLabel = 'Share sound too';
+String shareSoundHint({required bool mac}) => mac
+    ? 'What your Mac plays goes with your screen, apart from this call. Your Mac asks once whether Ghost Messaging may record system audio.'
+    : 'A window\'s own sound goes with it; with a whole screen, everything your PC plays apart from this call.';
+
+/// Said where the screen is shared and its sound could not be taken.
+String shareSoundFailedWords({required bool mac}) => mac
+    ? 'Your screen is shared without its sound. To send sound, allow Ghost Messaging under System Settings › Privacy & Security › Screen & System Audio Recording, then share again.'
+    : 'Your screen is shared without its sound: this PC didn\'t give any to send.';
 
 /// Asks which screen or window to share, from [sources]: each with a picture of it. The chosen one's id; null if
 /// none was chosen.
@@ -66,12 +94,15 @@ Future<void> toggleScreenShare(BuildContext context, VoiceSession s) async {
 /// show anything to select"). It used to ask [sources] first and open afterwards, and by then the menu the press
 /// came from (the call page closes its menu as it runs a row) had gone, its context with it, so
 /// nothing opened and nothing was said. [mac] is for the tests: the words for an empty list on a Mac.
-Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Function() sources, {bool? mac}) async {
+///
+/// [sound] is whether the computer's sound is to go with it, switched in the sheet where [canSound] says this device
+/// can send it; with neither, there is no switch.
+Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Function() sources, {bool? mac, ValueNotifier<bool>? sound, Future<bool>? canSound}) async {
   String? chosen;
   await showChoices(
     context,
     title: 'Share your screen',
-    header: ScreenChoices(sources: sources, mac: mac, onPick: (id) => chosen = id),
+    header: ScreenChoices(sources: sources, mac: mac, sound: sound, canSound: canSound, onPick: (id) => chosen = id),
     choices: [Choice('Cancel', Lucide.x, () {})],
   );
   return chosen;
@@ -80,8 +111,13 @@ Future<String?> pickScreen(BuildContext context, Future<List<ScreenSource>> Func
 /// The inside of [pickScreen]'s sheet: looks for the screens and windows, says so while it does, shows them, and
 /// keeps looking while it is open. Never blank: with nothing found it says why and what to do, with Try again.
 class ScreenChoices extends StatefulWidget {
-  const ScreenChoices({super.key, required this.sources, required this.onPick, this.mac});
+  const ScreenChoices({super.key, required this.sources, required this.onPick, this.mac, this.sound, this.canSound});
   final Future<List<ScreenSource>> Function() sources;
+
+  /// Whether the computer's sound goes with the screen, switched here; shown once [canSound] has said this device can
+  /// send it. Null: no switch.
+  final ValueNotifier<bool>? sound;
+  final Future<bool>? canSound;
 
   /// Told the chosen one's id; the sheet is closed here.
   final void Function(String id) onPick;
@@ -109,10 +145,15 @@ class _ScreenChoicesState extends State<ScreenChoices> {
   Timer? _next;
   bool _asking = false;
 
+  bool _canSound = false;
+
   @override
   void initState() {
     super.initState();
     unawaited(_look());
+    unawaited(widget.canSound?.then((can) {
+      if (mounted && can) setState(() => _canSound = true);
+    }).catchError((_) {}));
   }
 
   @override
@@ -183,7 +224,7 @@ class _ScreenChoicesState extends State<ScreenChoices> {
         ),
       ]);
     }
-    return ScreenPicker(
+    final picker = ScreenPicker(
       sources: found,
       onPick: (id) {
         widget.onPick(id);
@@ -191,6 +232,29 @@ class _ScreenChoicesState extends State<ScreenChoices> {
         Navigator.of(context).pop();
       },
     );
+    final sound = widget.sound;
+    if (sound == null || !_canSound) return picker;
+    final mac = widget.mac ?? PlatformInfo.isMacOS;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Padding(
+        padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(1)),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: sound,
+          builder: (context, on, _) => Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(shareSoundLabel, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))),
+                SizedBox(height: t.space(1) / 2),
+                Text(shareSoundHint(mac: mac), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.35)),
+              ]),
+            ),
+            SizedBox(width: t.space(3)),
+            GlacierSwitch(key: const ValueKey('share-sound'), checked: on, ariaLabel: shareSoundLabel, onCheckedChange: (v) => sound.value = v),
+          ]),
+        ),
+      ),
+      picker,
+    ]);
   }
 }
 
@@ -323,8 +387,15 @@ abstract final class CallPin {
 /// window full screen on a computer, the bars hidden on a phone; Esc, the button again or the phone's back leaves it.
 /// It goes in and out as a played video does (lib/ui/whole_window.dart). With [onPin], a button that pins or unpins.
 class ScreenStage extends StatefulWidget {
-  const ScreenStage({super.key, required this.name, required this.stream, required this.onBack, this.screen = true, this.mirror = false, this.pinned = false, this.onPin, this.desk, this.picture});
+  const ScreenStage({super.key, required this.name, required this.stream, required this.onBack, this.screen = true, this.mirror = false, this.pinned = false, this.onPin, this.desk, this.picture, this.who, this.sound});
   final String name;
+
+  /// Whose screen it is, by their id in the call: where they share its sound too (GMFB-63), the stage has a button
+  /// for how loud that is on this device. Null for this device's own, and for a camera.
+  final String? who;
+
+  /// The sound's loudness as a test gives it; null: as the call has it ([ScreenSound]).
+  final ({int volume, bool hearing, ValueChanged<int> onVolume})? sound;
 
   /// Null until their picture arrives.
   final MediaStream? stream;
@@ -352,6 +423,9 @@ class ScreenStage extends StatefulWidget {
 
 class _ScreenStageState extends State<ScreenStage> {
   bool _full = false;
+
+  /// Whether the loudness of the share's sound is open under the buttons.
+  bool _soundOpen = false;
   final _over = OverlayPortalController(debugLabel: 'shared screen full screen');
   final _stage = GlobalKey(debugLabel: 'shared screen');
   final _focus = FocusNode(debugLabel: 'shared screen');
@@ -403,13 +477,44 @@ class _ScreenStageState extends State<ScreenStage> {
         ),
       );
 
+  /// The share's sound on this device: what a test gave, else what the call has where [ScreenStage.who] shares it.
+  ({int volume, bool hearing, ValueChanged<int> onVolume})? get _sound {
+    if (widget.sound != null) return widget.sound;
+    final who = widget.who, sounds = ScreenSound.instance;
+    if (who == null || !widget.screen || !sounds.sounds(who)) return null;
+    return (volume: sounds.volume, hearing: sounds.hearing(who), onVolume: sounds.setVolume);
+  }
+
+  /// How loud the share's sound is here: a button to silence it or bring it back, and its loudness.
+  Widget _loudness(Tokens t, ({int volume, bool hearing, ValueChanged<int> onVolume}) sound) => Container(
+        key: const ValueKey('stage-sound-strip'),
+        constraints: const BoxConstraints(maxWidth: 340),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+        decoration: BoxDecoration(color: const Color(0xCC000000), borderRadius: BorderRadius.circular(999)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          GlacierPressable(
+            key: const ValueKey('stage-sound-mute'),
+            onPressed: () => sound.onVolume(sound.volume == 0 ? 100 : 0),
+            semanticLabel: sound.volume == 0 ? 'Hear this screen\'s sound' : 'Silence this screen\'s sound',
+            builder: (context, state) => AppIcon(sound.volume == 0 ? LucideMore.volumeX : Lucide.volume2, size: 16, wash: false, color: const Color(0xFFFFFFFF)),
+          ),
+          SizedBox(width: t.space(2)),
+          Expanded(child: _StageSlider(key: const ValueKey('stage-sound-volume'), value: sound.volume / 100, label: 'Loudness of this screen\'s sound', onChanged: (x) => sound.onVolume((x * 100).round()))),
+          SizedBox(width: t.space(2)),
+          SizedBox(width: t.lenOf('2.6rem'), child: Text('${sound.volume}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('xs'), color: const Color(0xFFFFFFFF)))),
+        ]),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(listenable: ScreenSound.instance, builder: (context, _) => _build(context));
+
+  Widget _build(BuildContext context) {
     final t = context.tokens;
     final top = MediaQuery.paddingOf(context).top;
     final s = widget.stream;
     final name = widget.name;
     final here = s != null || widget.picture != null;
+    final sound = _sound;
     final stage = KeyedSubtree(
       key: _stage,
       // A phone's back gesture leaves full screen first, as Esc does on a computer.
@@ -436,18 +541,24 @@ class _ScreenStageState extends State<ScreenStage> {
                 left: t.space(3),
                 right: t.space(3),
                 child: Row(children: [
-                  Flexible(
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-                      decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(999)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        AppIcon(widget.screen ? LucideMore.screenShare : Lucide.video, size: 16, wash: false, color: const Color(0xFFFFFFFF)),
-                        SizedBox(width: t.space(2)),
-                        Flexible(child: Text(widget.screen ? (name == 'You' ? 'Your screen' : '$name\'s screen') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
-                      ]),
+                  // The name has the room the buttons leave, so they stand at the edge, over the loudness they open.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+                        decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(999)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          AppIcon(widget.screen ? LucideMore.screenShare : Lucide.video, size: 16, wash: false, color: const Color(0xFFFFFFFF)),
+                          SizedBox(width: t.space(2)),
+                          Flexible(child: Text(widget.screen ? (name == 'You' ? 'Your screen' : '$name\'s screen') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
+                        ]),
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  SizedBox(width: t.space(2)),
+                  if (sound != null)
+                    _tool(t, sound.volume == 0 ? LucideMore.volumeX : Lucide.volume2, 'Sound of this screen', () => setState(() => _soundOpen = !_soundOpen), on: _soundOpen, key: const ValueKey('stage-sound')),
                   if (widget.onPin != null)
                     _tool(t, widget.pinned ? Lucide.pinOff : Lucide.pin, widget.pinned ? 'Unpin' : 'Pin', widget.onPin!, on: widget.pinned, key: const ValueKey('stage-pin')),
                   if (here)
@@ -463,6 +574,8 @@ class _ScreenStageState extends State<ScreenStage> {
                   ),
                 ]),
               ),
+              if (sound != null && _soundOpen)
+                Positioned(top: top + t.space(2) + 44, right: t.space(3), left: t.space(3), child: Align(alignment: Alignment.centerRight, child: _loudness(t, sound))),
             ]),
           ),
         ),
@@ -479,6 +592,43 @@ class _ScreenStageState extends State<ScreenStage> {
       child: whole ? const ColoredBox(color: Color(0xFF000000), child: SizedBox.expand()) : stage,
     );
   }
+}
+
+/// A loudness from nothing to all of it, dragged or pressed along its track, in white on the dark of a shared screen
+/// (the app's own slider is drawn in the theme's ink, which is not seen there).
+class _StageSlider extends StatelessWidget {
+  const _StageSlider({super.key, required this.value, required this.onChanged, required this.label});
+  final double value;
+  final ValueChanged<double> onChanged;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: label,
+        value: '${(value * 100).round()}%',
+        increasedValue: '${((value + 0.1).clamp(0.0, 1.0) * 100).round()}%',
+        decreasedValue: '${((value - 0.1).clamp(0.0, 1.0) * 100).round()}%',
+        onIncrease: () => onChanged((value + 0.1).clamp(0.0, 1.0)),
+        onDecrease: () => onChanged((value - 0.1).clamp(0.0, 1.0)),
+        child: LayoutBuilder(builder: (context, box) {
+          final w = box.maxWidth;
+          void at(double x) => onChanged((x / w).clamp(0.0, 1.0));
+          final frac = value.clamp(0.0, 1.0);
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (d) => at(d.localPosition.dx),
+            onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
+            child: SizedBox(
+              height: 28,
+              child: Stack(alignment: Alignment.centerLeft, children: [
+                Container(height: 4, decoration: BoxDecoration(color: const Color(0x55FFFFFF), borderRadius: BorderRadius.circular(2))),
+                Container(width: w * frac, height: 4, decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(2))),
+                Positioned(left: (w * frac - 8).clamp(0.0, w - 16), child: Container(width: 16, height: 16, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFFFFF)))),
+              ]),
+            ),
+          );
+        }),
+      );
 }
 
 /// A call's page with what is shown large over it (GMFB-27): a friend's call and a group's get the stage a space's
@@ -527,6 +677,7 @@ class _StagedCallState extends State<StagedCall> {
                 screen: staged.screen,
                 mirror: staged.mirror,
                 pinned: staged.pinned,
+                who: staged.id == 'me' ? null : staged.id,
                 onPin: () => CallPin.toggle(s, staged.id),
                 onBack: () => leaveStage(s, staged.id, pinned: staged.pinned, putAway: (id) => setState(() => _putAway = id)),
               ),
@@ -570,7 +721,7 @@ class ScreenShareBanner extends StatelessWidget {
         const AppIcon(LucideMore.screenShare, size: 16, wash: false, color: Color(0xFFFFFFFF)),
         SizedBox(width: t.space(2)),
         Expanded(
-          child: Text(mine ? 'You\'re sharing your screen' : '${other!.name} is sharing their screen',
+          child: Text(mine ? (s.screenSound ? 'You\'re sharing your screen and its sound' : 'You\'re sharing your screen') : '${other!.name} is sharing their screen',
               maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF))),
         ),
         GlacierPressable(

@@ -107,6 +107,9 @@ dependencies {
     // which can automatically translate texts when detected from another language"): ML Kit's on-device Translation, a
     // model of about 30 MB per language fetched once, and its Language Identification with the model inside the app (not
     // Play's), so nothing of a text leaves the phone.
+    // Replies to choose from that read the conversation (SmartReplies.kt; Matt, 2026-11-26: "add more intelligent auto
+    // replies using a very lightweight local AI"): ML Kit's Smart Reply, its small model inside the app, on every phone.
+    implementation("com.google.mlkit:smart-reply:17.0.4")
     implementation("com.google.mlkit:translate:17.0.3")
     implementation("com.google.mlkit:language-id:17.0.6")
     testImplementation("junit:junit:4.13.2")

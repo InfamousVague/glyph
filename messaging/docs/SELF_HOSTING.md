@@ -21,18 +21,19 @@ relay in use whether it passes messages to other relays, as that relay says itse
 | Friends by username: friend requests, what friends write each other (messages, reactions, edits, read marks), and a group of friends' messages between members who are friends | **Yes**, where both relays talk to each other. Add someone as `@maya@their.relay`; each of you goes on using your own relay, and the two relays pass the sealed packets. Each keeps what is for its own person while they are away. |
 | Calls between friends, and a group's voice channel | **Not yet.** A call is a room on one relay. The app says so instead of ringing a friend on another relay. |
 | Who is online, away, last seen | Not shown for a friend on another relay. |
-| Circles and spaces | **No.** A circle's link works anywhere, but each member's app joins the circle's rooms on its own relay: members on different relays don't see each other's messages or who is in a space. |
-| Your username | Kept on each relay apart. `@maya` is a name on the relay you use; `@maya@relay.example` is the `maya` on that relay, and can be someone else than `@maya` on yours. A name is looked up on the relay it names: by your relay where the two talk, by the app itself where they don't. |
-| Add-me links (`gogho.st/add/<name>`) | The link always says gogho.st, but the app looks the name up on **the relay it uses**. On your relay that may be someone else, or nobody: the app says so before it sends a friend request, and says how to add someone on another relay instead. |
-| Your account (username and password, the sealed backup) | Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay. |
+| Circles and spaces | **No.** A circle and its spaces are rooms on the relay they were made on, and everyone in them has to use that relay. A link made on a relay of your own names it at its end (`…@relay.example.com`): opened by someone whose app uses another relay, the app says which relay the circle is on and joins nothing, where it used to join the same rooms on its own relay, alone, and say nothing. A browser guest opening a space's link at gogho.st/join is connected to the relay the link names. A link made on gogho.st names none, as before. |
+| Your username | Kept on each relay apart. `@maya` is a name on the relay you use; `@maya@relay.example` is the `maya` on that relay, and can be someone else than `@maya` on yours. A name is looked up on the relay it names: by your relay where the two talk, by the app itself where they don't. When the app moves to another relay your username is settled there: claimed there too where it is free; none where someone else holds it (your profile says so and asks you to choose one for that relay); and the one you had on the relay you left is yours again when you go back. A name you gave up on a relay is never claimed there again by itself. |
+| Add-me links (`gogho.st/add/<name>`) | A link made on a relay of your own names it after the key (`gogho.st/add/maya#KEY@relay.example.com`; after the `#`, so no server is told). Whoever opens it on the same relay finds the person there; on another relay the app asks the named relay, as `@maya@relay.example.com`, and the request goes from relay to relay where both talk. A link that names none is someone on gogho.st; opened on a relay of your own it is looked for there first and then on gogho.st. Whichever relay answers, the link's key holds the answer to the person who shared it. |
+| Your account (username and password, the sealed backup) | Kept on the relay you made it on. Signing in on a new device works only with that device on the same relay, and on a relay other than gogho.st the sign-in screen says which relay it is asking. An app moved to a relay that doesn't hold its account keeps everything and offers **List this device again**, which puts the account on that relay from the device (an Android phone used to forget the account instead). |
 | Circle invite words (`gogho.st/c/<word>`) | Kept on each relay apart. A word made on your relay works typed into **Join a circle** by people on your relay; the gogho.st/c/ page only knows gogho.st's words. |
 | Files spaces | Kept on your relay's disk, for people on your relay. |
 | Texts (SMS, including encrypted texts and data texts) | Unchanged: they go over the phone network, not through any relay. |
 | The Marketplace (browsing, installing, reporting a plugin or a person) | Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay. |
 | Verifying your number, linking Discord, X, Telegram | Off unless you set up your own Twilio Verify service and your own apps with those networks (the env file below). |
 | Waking a closed iPhone | Not possible: it needs Apple's push key for the app's bundle id, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened. |
-| Share feedback | Goes to the relay in use, so to yours, where it isn't filed anywhere unless you set up a Notion board for it. |
-| A computer paired to the phone | Messages go through the phone, so through your relay; but the computer's own key for voice spaces still uses gogho.st. |
+| Share feedback | Goes to your relay where you set up a Notion board for it. Where you didn't, the app sends it to gogho.st instead, since it is about the app (the browser client can't: it speaks only to the relay it came from). |
+| A computer paired to the phone | Messages go through the phone, so through your relay, and the computer's own connection for spaces goes to the relay the phone says it uses (both on a current version; with an older phone it is gogho.st). |
+| Souls | Counted by each relay apart, and sent only between people on one relay. The Souls page says whose count it shows. Bug bounties are given on gogho.st. |
 | App updates, docs, the website | From gogho.st, as before. |
 
 So a relay of your own still suits a group that moves together (a family, a team: circles, spaces and calls need
@@ -70,7 +71,10 @@ The protocol itself, every message of it, is in [relay/README.md](../relay/READM
 
 - **Rooms across relays**: circles, spaces and calls. A circle stays on the relay it was made on.
 - **Who is online** across relays.
-- **Add-me links and invite links that name a relay**, and an account signing in on another relay than its own.
+- **One relay at a time**: the app can't be in a circle on another relay while it uses yours. An invite to one says
+  which relay to use first.
+- **An account signing in on another relay than its own** by its username: the account is on the relay it was made on
+  until a device that holds it lists itself on the other (List this device again).
 
 ## What it serves
 
@@ -136,24 +140,30 @@ Caddy gets and renews the certificate by itself once your domain's DNS points at
 published on any port of its own; only Caddy reaches it. What it keeps is in the `relay-data` volume. Needs Docker
 Compose 2.24 or later (for the optional `env_file`).
 
-The image alone, without Compose:
+Compose pulls the image every release publishes for x64 and arm64 (`.github/workflows/relay.yml`):
+`ghcr.io/infamousvague/ghost-relay`, tagged with the version and `latest`. The image alone, without Compose:
 
 ```sh
-docker build -t ghost-relay messaging/relay
 docker run -d --name ghost-relay --restart unless-stopped -p 127.0.0.1:8787:8787 \
-  -v ghost-relay-data:/data --env-file relay.env ghost-relay
+  -v ghost-relay-data:/data --env-file relay.env ghcr.io/infamousvague/ghost-relay:latest
 ```
+
+Built yourself instead: `docker build -t ghost-relay messaging/relay`, and `ghost-relay` in place of the published name.
 
 It runs as an unprivileged user in an image with nothing but the program, the C library and certificates.
 
 ### With systemd (no containers)
 
-Build the program (on the server with Dart 3.11 or later installed, or on another machine with
-`--target-os linux --target-arch x64`), then follow the steps at the top of `relay/deploy/ghost-relay.service`:
+Each release publishes the program for Linux on x64 and arm64, with `deploy/` beside it, as `relay-<version>` on the
+public repository's releases page. Download, check and install it (or build it yourself with Dart 3.11 or later:
+`dart compile exe bin/relay.dart -o ghost-relay` in `messaging/relay`), then follow the steps at the top of
+`deploy/ghost-relay.service`:
 
 ```sh
-cd messaging/relay
-dart compile exe bin/relay.dart -o ghost-relay
+V=0.12.42 A=x64   # or arm64
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz
+curl -LO https://github.com/InfamousVague/ghost-messaging/releases/download/relay-$V/ghost-relay-$V-linux-$A.tar.gz.sha256
+sha256sum -c ghost-relay-$V-linux-$A.tar.gz.sha256 && tar xzf ghost-relay-$V-linux-$A.tar.gz && cd ghost-relay-$V-linux-$A
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin ghost-relay
 sudo install -d -m 755 /opt/ghost-relay && sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay
 sudo install -d -o ghost-relay -g ghost-relay -m 700 /var/lib/ghost-relay
@@ -172,7 +182,7 @@ server in front of it for TLS:
 Whichever you use, it must pass WebSockets on, let a 10 MiB request body through (Files' pieces are up to 8 MiB),
 and not cut an open WebSocket off after a minute.
 
-To update: build again, `sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay`, `sudo systemctl restart
+To update: download the newer release (or build again), `sudo install -m 755 ghost-relay /opt/ghost-relay/ghost-relay`, `sudo systemctl restart
 ghost-relay`. A restart drops whoever is connected (the apps reconnect by themselves) and loses held packets and
 presence, which are only in memory.
 

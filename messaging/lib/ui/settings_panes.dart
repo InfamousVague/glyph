@@ -57,6 +57,8 @@ import 'custom_css_editor.dart';
 import 'custom_theme_editor.dart';
 import 'nav_style.dart';
 import '../summaries.dart';
+import '../keep_running.dart';
+import '../net/net.dart' show Net;
 
 /// A row's icon at the size every settings row uses.
 Widget _icon(LucideIcon icon) => AppIcon(icon, size: 18);
@@ -418,8 +420,16 @@ List<SettingsSection> _ownSections() => [
   ),
     ];
 
+/// Settings › About › Sealed, end to end: where texts stay and which relay the rest goes through. It named gogho.st's
+/// whatever relay the app used (GMFB-25).
+String sealedWords(String hubUrl) {
+  final u = Uri.tryParse(hubUrl);
+  final host = hubUrl == Net.defaultHub || u == null || u.host.isEmpty ? 'gogho.st' : u.host;
+  return 'Your texts stay on this phone. Friends, circles and spaces go through ${hubUrl == Net.defaultHub ? 'gogho.st\'s relay' : 'the relay you chose ($host)'}, sealed so it can\'t read them.';
+}
+
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.40';
+const appVersion = '0.12.42';
 
 // --- Appearance -------------------------------------------------------------------------------------------------------
 
@@ -752,16 +762,17 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
     PaneSection(
       title: 'Summaries',
       footer: Text(switch (Summaries.instance.status) {
-        'available' => 'Several unread texts in a row, or one long one, are summed up in a line in the list, marked with a sparkle. They are made on this phone by Android\'s own model; nothing is sent anywhere.',
-        'downloading' || 'downloadable' => 'Android is fetching its on-phone model for this, over Wi-Fi. Summaries begin once it is here; nothing is sent anywhere.',
-        'unknown' => 'Looking for Android\'s on-phone model.',
-        _ => Sms.remote ? 'Summaries are made on your phone, where Android\'s own model is.' : 'This phone has no on-phone model for summaries (Android\'s Gemini Nano, on newer phones). The list shows the texts as they came.',
+        // A Mac's or an iPhone's are Apple Intelligence's (lib/local_ai.dart, macos/Runner/LocalAi.swift).
+        'available' => 'Several unread texts in a row, or one long one, are summed up in a line in the list, marked with a sparkle. They are made on this ${Sms.remote ? 'device by Apple Intelligence' : 'phone by Android\'s own model'}; nothing is sent anywhere.',
+        'downloading' || 'downloadable' => Sms.remote ? 'Apple Intelligence is still fetching its model. Summaries begin once it is here; nothing is sent anywhere.' : 'Android is fetching its on-phone model for this, over Wi-Fi. Summaries begin once it is here; nothing is sent anywhere.',
+        'unknown' => 'Looking for this device\'s own model.',
+        _ => Sms.remote ? 'Summaries are made by Apple Intelligence on a Mac or an iPhone that has it switched on, or by Android\'s own model on your phone.' : 'This phone has no on-phone model for summaries (Android\'s Gemini Nano, on newer phones). The list shows the texts as they came.',
       }),
       children: [
         SettingRow(
           icon: _icon(Lucide.sparkles),
           label: 'Summarize unread conversations',
-          disabledReason: const {'available', 'downloading', 'downloadable', 'unknown'}.contains(Summaries.instance.status) ? null : 'Not on this phone',
+          disabledReason: const {'available', 'downloading', 'downloadable', 'unknown'}.contains(Summaries.instance.status) ? null : Sms.remote ? 'Not on this device' : 'Not on this phone',
           control: GlacierSwitch(checked: Summaries.chosen(app), onCheckedChange: (v) => app.setFlag('summaries', v), ariaLabel: 'Summarize unread conversations'),
         ),
       ],
@@ -836,6 +847,42 @@ String bubbleSettingHint(String? system, {required bool on}) {
   };
 }
 
+/// Settings › Notifications › While the app is closed (GMFB-28; lib/keep_running.dart): the switch that keeps the app
+/// connected after its screen is closed, so a friend's call rings, and beside it, once it is on, whether Android lets
+/// the app run while the phone sleeps ([battery]; null where that can't be told), with a press that asks.
+PaneSection reachSection(AppState app, {required bool? battery, required void Function() askBattery}) {
+  final on = KeepRunning.wanted(app);
+  return PaneSection(
+    title: 'While the app is closed',
+    children: [
+      SettingRow(
+        key: const ValueKey('stay-reachable'),
+        icon: _icon(LucideMore.phoneCall),
+        label: KeepRunning.reachLabel,
+        hint: const Text(KeepRunning.reachHint),
+        control: GlacierSwitch(
+          checked: on,
+          ariaLabel: KeepRunning.reachLabel,
+          onCheckedChange: (v) {
+            app.setFlag(KeepRunning.key, v);
+            // Asked at once where Android would hold the app back: without its leave a call can't ring on a sleeping phone.
+            if (v && battery == false) askBattery();
+          },
+        ),
+      ),
+      if (on && battery != null)
+        SettingRow(
+          key: const ValueKey('stay-reachable-sleep'),
+          icon: _icon(Lucide.sunMoon),
+          label: KeepRunning.sleepLabel,
+          hint: Text(battery ? KeepRunning.sleepAllowedHint : KeepRunning.sleepHint),
+          value: Text(battery ? 'Allowed' : 'Not allowed'),
+          onPress: battery ? null : askBattery,
+        ),
+    ],
+  );
+}
+
 List<Widget> _notifications(BuildContext context, SettingsModel m) {
   final app = m.app;
   final s = m.status;
@@ -860,6 +907,9 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
         onPress: () => Sms.instance.notificationSettings(),
       ),
     ]),
+    // A friend's call ringing while the app is closed (GMFB-28): an Android phone's own choice. Asked again as the app
+    // comes back from Android's question (SettingsScreen.didChangeAppLifecycleState).
+    if (s != null && !Sms.remote && PlatformInfo.isAndroid) reachSection(app, battery: s.battery, askBattery: () => Sms.instance.askBattery()),
     PaneSection(
       title: 'What a notification shows',
       footer: const Text('A conversation you muted arrives without a notification (long press it in the list).'),
@@ -1498,7 +1548,7 @@ List<Widget> _about(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.lock),
           // Since accounts, friends and circles, the relay at gogho.st carries sealed messages: said as it is.
           label: 'Sealed, end to end',
-          hint: const Text('Your texts stay on this phone. Friends, circles and spaces go through gogho.st\'s relay, sealed so it can\'t read them.'),
+          hint: Text(sealedWords(Net.instance.hubUrl)),
         ),
       ],
     ),

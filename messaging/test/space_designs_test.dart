@@ -161,6 +161,83 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  // GMFB-63 (Matt, 2026-11-25): "Screen shares should include audio controls but there are none and users can't hear
+  // any audio from the share".
+  testWidgets('the computer\'s sound with its screen: a switch where the device can send it, left as it is set, and none where it can\'t', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    final sound = ValueNotifier(true);
+    Widget choices({required bool can, required bool mac}) => Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(width: 480, child: ScreenChoices(key: ValueKey('$can-$mac'), sources: () async => shareable, sound: sound, canSound: Future.value(can), mac: mac, onPick: (_) {})),
+        );
+    await h.shoot(tester, choices(can: true, mac: false), 'share-picker-sound', size: SpaceHarness.computer);
+    expect(find.text('Share sound too'), findsOneWidget);
+    expect(find.textContaining('everything your PC plays apart from this call'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Share sound too')).dy, lessThan(tester.getTopLeft(find.text('Screens')).dy), reason: 'said before anything is picked');
+    await tester.tap(find.byKey(const ValueKey('share-sound')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(sound.value, isFalse);
+    await tester.tap(find.byKey(const ValueKey('share-sound')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(sound.value, isTrue);
+    // A Mac says what a Mac does: everything it plays, and its own question.
+    await h.shoot(tester, choices(can: true, mac: true), 'share-picker-sound-mac', size: SpaceHarness.computer);
+    expect(find.textContaining('What your Mac plays goes with your screen, apart from this call'), findsOneWidget);
+    // Where the device can't send it (Linux, a Mac before 14.4, a phone): no switch, and the screens as ever.
+    await h.shoot(tester, choices(can: false, mac: false), 'share-picker-no-sound', size: SpaceHarness.computer);
+    expect(find.text('Share sound too'), findsNothing);
+    expect(find.text('Entire screen'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a screen shared with its sound: a button on it opens how loud it is on this device, and silences it', (tester) async {
+    final h = await SpaceHarness.load(tester);
+    addTearDown(tester.view.reset);
+    var volume = 100;
+    await h.shoot(
+      tester,
+      StatefulBuilder(
+        builder: (context, set) => ScreenStage(
+          name: 'Maya Chen',
+          stream: null,
+          picture: const ColoredBox(color: Color(0xFF1D2B3A)),
+          desk: true,
+          onBack: () {},
+          sound: (volume: volume, hearing: true, onVolume: (v) => set(() => volume = v)),
+        ),
+      ),
+      'share-stage-sound',
+      size: SpaceHarness.computer,
+    );
+    expect(find.byKey(const ValueKey('stage-sound')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage-sound-strip')), findsNothing, reason: 'out of the way until asked for');
+    await tester.tap(find.byKey(const ValueKey('stage-sound')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('stage-sound-strip')), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    await h.again(tester, 'share-stage-sound-open');
+    // Silenced, and back.
+    await tester.tap(find.byKey(const ValueKey('stage-sound-mute')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect([volume, find.text('0%').evaluate().length], [0, 1]);
+    await tester.tap(find.byKey(const ValueKey('stage-sound-mute')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(volume, 100);
+    // Its loudness, pressed half way along.
+    await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('stage-sound-volume'))));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(volume, inInclusiveRange(45, 55));
+    // The button again puts it away.
+    await tester.tap(find.byKey(const ValueKey('stage-sound')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('stage-sound-strip')), findsNothing);
+    // A screen shared without its sound has no button for it.
+    await h.shoot(tester, ScreenStage(name: 'Maya Chen', stream: null, picture: const ColoredBox(color: Color(0xFF1D2B3A)), desk: true, onBack: () {}), 'share-stage-silent', size: SpaceHarness.computer);
+    expect(find.byKey(const ValueKey('stage-sound')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   // Nothing is left of the other ways a space's call could look, nor of the switch between them.
   test('there is one way a space\'s call is drawn, and no switch', () {
     final here = Directory('lib/ui/space_designs').listSync().map((f) => f.uri.pathSegments.last).toList()..sort();

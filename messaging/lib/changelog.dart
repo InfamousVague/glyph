@@ -25,6 +25,19 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.42', '2026-11-26', [
+    'Smarter replies: where your device has a small AI model of its own (Smart Reply on Android, Apple Intelligence on a Mac or an iPhone), the replies over the composer read the conversation, not just the last message. Nothing leaves the device.',
+    'Summarize: when a lot came in at once, a tap over the composer sums it up in a sentence, by the same on-device AI model.',
+    'Summaries of unread conversations in the list now work on a Mac with Apple Intelligence too.',
+    'A shared screen carries the computer\'s sound on a Windows PC or a Mac, and whoever watches can set how loud it is.',
+    'On a relay server of your own: invite and add-me links say which relay they are on, a paired computer follows the phone\'s relay, and Settings › Routes says which route each conversation is on.',
+    'Fixes to the local network route (still off until you switch it on in Settings › Routes), so a misbehaving device on the same network can\'t confuse it.',
+  ]),
+  ReleaseNotes('0.12.41', '2026-11-26', [
+    'Recording a call on a Windows PC can include video, as on a Mac: everyone\'s cameras in a grid, or a shared screen shown large with cameras beside it. Only people who agreed to voice and video are shown.',
+    'A recording\'s video keeps its true colours in every player: before, some players showed greens and pinks a different shade.',
+    'Local network route, to try (Settings › Routes, off until you switch it on): devices on the same Wi-Fi or wired network find each other and send messages straight to each other, with no server and no internet. On Android, Mac, Windows and Linux.',
+  ]),
   ReleaseNotes('0.12.40', '2026-11-26', [
     'The chat map follows the mouse smoothly, scrolls with the chat as a frame on what is on screen, and sits centred on the right when a chat is short.',
     'Hold on the chat map, with a finger or the mouse button, then move along it to go through the chat a message at a time.',

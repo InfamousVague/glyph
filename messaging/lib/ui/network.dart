@@ -9,6 +9,8 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../net/carrier.dart';
 import '../net/hub_link.dart';
+import '../net/lan/lan_carrier.dart';
+import '../net/lan/lan_ground.dart' show lanGroundMissing;
 import '../net/ledger.dart';
 import '../net/name_watch.dart';
 import '../net/net.dart';
@@ -225,7 +227,61 @@ String _ago(DateTime at) {
   return '${s ~/ 3600} h ago';
 }
 
-// --- Which route each person is on (GMFB-24) ------------------------------------------------------------------------
+// --- The local network route (GMFB-24; lib/net/lan) -----------------------------------------------------------------
+
+/// Under the list of routes: what this build has no route for, and why; null where there is nothing to say.
+String? routesFooter({required bool directOffered, required bool lanOffered, String? lanMissing}) {
+  final parts = [
+    if (!directOffered) 'A direct route between devices, with no server, isn\'t in this build yet.',
+    if (!lanOffered) 'No local network route here: ${lanMissing ?? 'this build has none.'}',
+  ];
+  return parts.isEmpty ? null : parts.join(' ');
+}
+
+/// How many of the people's devices are heard on this network, and how many are linked, in words.
+String lanFoundWords(int seen) => switch (seen) {
+      0 => 'Nobody\'s device found on this network yet',
+      1 => 'Found 1 device on this network',
+      _ => 'Found $seen devices on this network',
+    };
+String lanLinkedWords(int linked) => switch (linked) {
+      0 => 'Not linked to any now',
+      1 => 'Linked to 1 device now',
+      _ => 'Linked to $linked devices now',
+    };
+
+/// Under the Local network section: what the device says to the network, who can tell whose it is, and what Invisible
+/// changes and doesn't (found in review, 2026-11-26: it said "Nothing is said while you are shown as Invisible", and
+/// the device went on saying it was here under the same name, from the same address).
+const lanSaysWords =
+    'Every few seconds this device says it is here in a way only your own devices and your friends\' can recognise. Anyone else on the network sees that a copy of the app is at this address, never who you are. While you are shown as Invisible only your own devices can tell it is yours: it starts over under a new name, so your friends\' devices lose the one they knew, but a copy of the app is still seen at this address.';
+
+/// Under [lanFoundWords]: whose devices are looked for, and when they are found.
+const lanFoundHint =
+    'Your own devices and your friends\', while they have Ghost Messaging open on the same Wi-Fi or wired network with this route switched on. A device is found within a few seconds of joining the network.';
+
+/// Settings › Routes › Local network (GMFB-24): what the route finds and holds on this network now. Its own row, with
+/// its switch, is with the other routes above. [nameOf] names a person by their install's name.
+PaneSection lanSection(BuildContext context, LanCarrier lan, {required String Function(String id) nameOf}) {
+  Widget icon(LucideIcon i) => AppIcon(i, size: 18);
+  final links = lan.links;
+  return PaneSection(
+    title: 'Local network',
+    description: const Text('Straight between devices on the network this one is on, with no server and no internet. Used when the relay server can\'t carry something, and by itself where there is no internet at all.'),
+    footer: const Text(lanSaysWords),
+    children: [
+      SettingRow(key: const ValueKey('lan-seen'), icon: icon(Lucide.wifi), label: lanFoundWords(lan.seen), hint: const Text(lanFoundHint)),
+      SettingRow(
+        key: const ValueKey('lan-linked'),
+        icon: icon(Lucide.link2),
+        label: lanLinkedWords(links.length),
+        hint: links.isEmpty ? null : Text([for (final l in links) '${nameOf(l.peer)} at ${l.address}'].join('\n')),
+      ),
+    ],
+  );
+}
+
+// --- Which route each conversation is on (GMFB-24) -------------------------------------------------------------------
 
 /// A route's name as Settings › Routes says which one carried something: the names the routes go by, whether or not
 /// the route is still there (Direct switched off since, say).
@@ -233,35 +289,71 @@ String routeName(String id) => switch (id) { 'hub' => 'Relay server', P2pCarrier
 
 /// What went to someone and came from them, and by which route, as the line under their name says it.
 String routeUseWords(RouteUse u, {required int now}) {
-  final sent = u.sentBy == null ? 'Nothing sent since the app started' : 'Last sent by ${routeName(u.sentBy!)}, ${agoWords(u.sentAt!.millisecondsSinceEpoch, now)}';
-  final came = u.cameBy == null ? 'nothing has come since the app started' : 'last came by ${routeName(u.cameBy!)}, ${agoWords(u.cameAt!.millisecondsSinceEpoch, now)}';
+  final sent = u.sentBy == null ? 'Nothing sent lately' : 'Last sent by ${routeName(u.sentBy!)}, ${agoWords(u.sentAt!.millisecondsSinceEpoch, now)}';
+  final came = u.cameBy == null ? 'nothing has come lately' : 'last came by ${routeName(u.cameBy!)}, ${agoWords(u.cameAt!.millisecondsSinceEpoch, now)}';
   return '$sent; $came.';
 }
 
-/// The most people "Which route each person is on" lists: those heard from or sent to last.
+/// The route [u] was on last, whichever way: the one that brought something where that was later than what was sent.
+String routeLastOf(RouteUse u) => u.cameBy != null && (u.sentAt == null || u.cameAt!.isAfter(u.sentAt!)) ? u.cameBy! : u.sentBy ?? '';
+
+/// A group's line: each of its people who has been sent to or heard from with the route they were last on, in the
+/// group's own order, then how many of the rest there are. [members] is each one's name with what is known of them.
+String groupRouteWords(List<(String name, RouteUse? use)> members) {
+  final known = [for (final (name, use) in members) if (use != null) '$name by ${routeName(routeLastOf(use))}'];
+  final rest = members.length - known.length;
+  final others = rest == 0 ? '' : known.isEmpty ? '' : '; nothing lately to or from ${rest == 1 ? '1 other' : '$rest others'}';
+  return '${known.join(', ')}$others.';
+}
+
+/// The most conversations "Which route each conversation is on" lists: those used last.
 const routesUsedShown = 20;
 
-/// Settings › Routes › Which route each person is on (GMFB-24): each person this app has sent to or heard from since it
-/// started, newest first, with the route that last carried something each way and when. From what the switchboard saw
-/// ([Switchboard.used]), held in memory only: nothing is written or sent for it. [nameOf] names a person by their
-/// install's name.
-PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, {required String Function(String id) nameOf, int? now}) {
+/// Settings › Routes › Which route each conversation is on (GMFB-24: "Settings › Network shows which route each
+/// conversation is using"): each conversation with someone the routes reach, newest first, with the route that last
+/// carried something each way and when. A person's own conversation is their row; a group of friends goes person by
+/// person, since each of its people is reached by a route of their own ([groups], those this phone is in). From what
+/// the switchboard saw ([Switchboard.used]), which the app keeps on this device from one run to the next
+/// (lib/net/routes_kept.dart). [nameOf] names a person by their install's name.
+PaneSection routesUsedSection(BuildContext context, Map<String, RouteUse> used, {required String Function(String id) nameOf, Iterable<Group> groups = const [], int? now}) {
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final at = now ?? DateTime.now().millisecondsSinceEpoch;
-  final people = used.entries.toList()..sort((a, b) => b.value.last.compareTo(a.value.last));
-  return PaneSection(
-    title: 'Which route each person is on',
-    description: const Text('The route that last carried something to each person, and the one that last brought something from them, since the app started.'),
-    footer: Text('${people.length > routesUsedShown ? 'The $routesUsedShown heard from or sent to last. ' : ''}Kept on this device only, and forgotten when the app closes.'),
-    children: [
-      for (final e in people.take(routesUsedShown))
+  // Each row with when anything last went or came in it, to put the newest first.
+  final rows = <(DateTime, Widget)>[
+    for (final e in used.entries)
+      (
+        e.value.last,
         SettingRow(
           key: ValueKey('used-${e.key}'),
-          icon: icon(_routeIcon(e.value.cameBy != null && (e.value.sentAt == null || e.value.cameAt!.isAfter(e.value.sentAt!)) ? e.value.cameBy! : e.value.sentBy ?? '')),
+          icon: icon(_routeIcon(routeLastOf(e.value))),
           label: nameOf(e.key),
           hint: Text(routeUseWords(e.value, now: at)),
         ),
-    ],
+      ),
+  ];
+  for (final g in groups) {
+    if (g.gone) continue;
+    final members = [for (final m in g.others) (m.label, used[m.id])];
+    final uses = [for (final (_, u) in members) ?u];
+    if (uses.isEmpty) continue;
+    final last = uses.reduce((a, b) => a.last.isAfter(b.last) ? a : b);
+    rows.add((
+      last.last,
+      SettingRow(
+        key: ValueKey('used-group-${g.id}'),
+        icon: icon(Lucide.users),
+        label: g.title,
+        hint: Text(groupRouteWords(members)),
+      ),
+    ));
+  }
+  rows.sort((a, b) => b.$1.compareTo(a.$1));
+  return PaneSection(
+    title: 'Which route each conversation is on',
+    description: const Text('The route that last carried something to each person, and the one that last brought something from them. A group goes person by person: each of its people is reached by a route of their own.'),
+    footer: Text(
+        '${rows.length > routesUsedShown ? 'The $routesUsedShown used last. ' : ''}Circles and spaces always go by the relay server they were made on, and texts by the phone\'s carrier. Kept on this device only, out of any backup, for a week, and deleted when you sign out.'),
+    children: [for (final (_, row) in rows.take(routesUsedShown)) row],
   );
 }
 
@@ -434,6 +526,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
   final board = net.board;
   Widget icon(LucideIcon i) => AppIcon(i, size: 18);
   final anyone = net.people.isNotEmpty;
+  // What this build has no route for, under the list of routes.
+  final routesNote = routesFooter(directOffered: net.directOffered, lanOffered: net.lan != null, lanMissing: lanGroundMissing());
 
   // Sends a test to one person (by the route [only], where named) and says how it went.
   Future<void> test(Peer p, {String? only}) async {
@@ -474,9 +568,7 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(
         title: 'Routes',
         description: const Text('The ways this phone reaches another, tried from the top. One that fails or gets no answer gives way to the next.'),
-        footer: Text(!net.directOffered
-            ? 'A route over the local network and a peer-to-peer one, with no server, are being made: they will be listed here, and the relay server can then be switched off.'
-            : 'A route over the local network is being made: it will be listed here.'),
+        footer: routesNote == null ? null : Text(routesNote),
         children: [
           // Direct among them wherever the build offers it: its route's own row once it is made, else the same row
           // drawn from nothing, switched off (or on and not working), until the person switches it on.
@@ -502,6 +594,8 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
       PaneSection(title: 'Direct', children: [
         SettingRow(key: const ValueKey('direct-problem'), icon: icon(Lucide.circleAlert), label: 'Direct isn\'t working on this device', hint: Text(net.directProblem!)),
       ]),
+    // The local network route, while it is on: who is seen and linked on this network now (GMFB-24).
+    if (board != null && net.lan != null && net.lanOn) lanSection(context, net.lan!, nameOf: _usedName),
     // Checking the relay: what comparing over direct links found, and the name watch, which needs no direct route.
     if (board != null) relayCheckSection(context, ledger: net.ledger, check: net.check, watch: NameWatch.instance, relay: net.hubUrl, directOn: net.p2p?.on ?? false, directOffered: net.directOffered && net.directProblem == null, nameOf: _friendName),
     if (board != null && net.hub != null)
@@ -590,13 +684,14 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
                 Choice('Send a test', Lucide.send, () => test(p)),
                 if (board?.carrier('hub') != null) Choice('By the relay server only', Lucide.globe, () => test(p, only: 'hub')),
                 if (board?.carrier('p2p') != null) Choice('By a direct link only', Lucide.link2, () => test(p, only: 'p2p')),
+                if (board?.carrier('lan') != null && net.lanOn) Choice('By the local network only', Lucide.wifi, () => test(p, only: 'lan')),
                 if (board?.carrier('sms') != null) Choice('By SMS only (one text on your plan)', Lucide.messageSquare, () => test(p, only: 'sms')),
               ]),
             ),
         ],
       ),
-    // Which route each person is on: what the switchboard saw this run (GMFB-24).
-    if (board != null && board.used.isNotEmpty) routesUsedSection(context, board.used, nameOf: _usedName),
+    // Which route each conversation is on: what the switchboard saw, this run and the week before it (GMFB-24).
+    if (board != null && board.used.isNotEmpty) routesUsedSection(context, board.used, nameOf: _usedName, groups: Groups.instance.all),
     if (net.recent.isNotEmpty)
       PaneSection(
         title: 'Lately',

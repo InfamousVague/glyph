@@ -188,6 +188,112 @@ void main() {
   // The review's follow-up (2026-11-23): in the group's own conversation a stranger listed under Mom's number was shown as
   // Mom. A member is shown as this phone knows them (android Groups.shownAddress: Groups.view says it as `shown`), and the
   // record keeps the address the admin wrote, for what this phone tells the others when it changes the group.
+  group('what a member was not handed (a route that is up need not reach everyone)', () {
+    /// What [from] wrote in the group, as [at]'s conversation has it.
+    List<String> said(String at, String id, String from) => [
+          for (final l in port[at]!.lines[id] ?? const <String>[])
+            if (l.startsWith('$from: ')) l.substring(from.length + 2),
+        ];
+
+    /// The routes changed on [who]'s phone, and what is owed has had its moment to go.
+    Future<void> changed(String who) async {
+      port[who]!.routesChanged();
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+    }
+
+    test('is owed to them, and goes once a route reaches them: in the order it was written, once, under the name it first had', () async {
+      final id = await crew();
+      // No relay, and the local network linked to Ben's phone alone: no route takes what is for Cat.
+      port[ann]!.unreached.add(port[cat]!.me);
+      expect(await phone[ann]!.sendText(id, 'one'), isTrue);
+      expect(await phone[ann]!.sendText(id, 'two'), isTrue);
+      await settle();
+      expect([said(ben, id, ann), said(cat, id, ann)], [['one', 'two'], isEmpty]);
+      expect(port[ann]!.rows.values.map((r) => r.state), ['sent', 'sent'], reason: 'handed to someone');
+      expect(phone[ann]!.owedCount, 2, reason: 'it said sent, and Cat never had it');
+      // The routes change, and she still can't be reached: it waits.
+      await changed(ann);
+      expect([said(cat, id, ann), phone[ann]!.owedCount], [isEmpty, 2]);
+      // Her phone comes onto the network.
+      port[ann]!.unreached.clear();
+      await changed(ann);
+      expect([said(cat, id, ann), said(ben, id, ann), phone[ann]!.owedCount], [['one', 'two'], ['one', 'two'], 0]);
+      // Each went again as the very thing it was: the same name and the same time, so a phone that had it after all
+      // keeps it once.
+      final toCat = [for (final x in port[ann]!.sent) if (x.to == port[cat]!.me && x.envelope.body['do'] == 'text') x.envelope];
+      // (While she could not be reached the first was tried again and the second waited behind it.)
+      expect(toCat.map((e) => e.body['t']), ['one', 'two', 'one', 'one', 'two']);
+      expect([toCat[0].id == toCat[2].id, toCat[2].id == toCat[3].id, toCat[0].at == toCat[3].at, toCat[1].id == toCat[4].id, toCat[1].at == toCat[4].at, toCat[0].id == toCat[1].id], [true, true, true, true, true, false]);
+      // And nothing more of it after.
+      await changed(ann);
+      expect(said(cat, id, ann), ['one', 'two']);
+    });
+
+    test('is still owed after the app is closed and opened again', () async {
+      final id = await crew();
+      port[ann]!.unreached.add(port[cat]!.me);
+      await phone[ann]!.sendText(id, 'kept');
+      await settle();
+      await phone[ann]!.shutdown();
+      expect(port[ann]!.keptOwed, contains('kept'));
+      port[ann]!.unreached.clear();
+      phone[ann] = Groups(port[ann]!);
+      await phone[ann]!.start();
+      await settle();
+      expect([said(cat, id, ann), phone[ann]!.owedCount], [['kept'], 0], reason: 'tried as the app starts');
+      expect(port[ann]!.keptOwed, '[]');
+    });
+
+    test('handed to nobody, it failed and nothing is owed: it is the person\'s to send again', () async {
+      final id = await crew();
+      port[ann]!.unreached.addAll([port[ben]!.me, port[cat]!.me]);
+      expect(await phone[ann]!.sendText(id, 'anyone?'), isTrue);
+      await settle();
+      expect([port[ann]!.rows.values.single.state, phone[ann]!.owedCount], ['failed', 0]);
+      port[ann]!.unreached.clear();
+      await changed(ann);
+      expect([said(ben, id, ann), said(cat, id, ann)], [isEmpty, isEmpty]);
+    });
+
+    test('is let go after a week, and words are not sent to someone no longer in the group', () async {
+      final id = await crew();
+      port[ann]!.unreached.add(port[cat]!.me);
+      await phone[ann]!.sendText(id, 'stale');
+      await settle();
+      expect(phone[ann]!.owedCount, 1);
+      phone[ann]!.clock = () => DateTime.now().add(Groups.owedFor + const Duration(hours: 1));
+      port[ann]!.unreached.clear();
+      await changed(ann);
+      expect([said(cat, id, ann), phone[ann]!.owedCount], [isEmpty, 0]);
+
+      // Words for Cat, who is then taken out of the group before a route reaches her: she is told she is out (that is
+      // owed too), and never has the words.
+      phone[ann]!.clock = DateTime.now;
+      port[ann]!.unreached.add(port[cat]!.me);
+      await phone[ann]!.sendText(id, 'not for her');
+      await phone[ann]!.remove(id, port[cat]!.me);
+      await settle();
+      expect(phone[ann]!.owedCount, 2);
+      port[ann]!.unreached.clear();
+      await changed(ann);
+      expect([said(cat, id, ann), phone[ann]!.owedCount, said(ben, id, ann)], [isEmpty, 0, ['stale', 'not for her']]);
+      expect(phone[cat]!.of(id)!.gone, isTrue, reason: 'her phone learned she was taken out, late');
+    });
+
+    test('a change to the group is owed as the group then is', () async {
+      final id = await crew();
+      port[ann]!.unreached.add(port[cat]!.me);
+      await phone[ann]!.rename(id, 'Crew 2');
+      await phone[ann]!.rename(id, 'Crew 3');
+      await settle();
+      expect([phone[ben]!.of(id)!.name, phone[cat]!.of(id)!.name, phone[ann]!.owedCount], ['Crew 3', 'Crew', 1], reason: 'one change owed, not two');
+      final before = port[ann]!.sent.length;
+      port[ann]!.unreached.clear();
+      await changed(ann);
+      expect([phone[cat]!.of(id)!.name, phone[ann]!.owedCount, port[ann]!.sent.length - before], ['Crew 3', 0, 1]);
+    });
+  });
+
   test('a member is shown as this phone knows them, and the group\'s record keeps what its admin wrote', () {
     final g = Group.from({
       'id': 'f' * 32,

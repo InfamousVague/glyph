@@ -72,6 +72,7 @@ import 'ui/computers.dart';
 import 'ui/files_space/share_in.dart';
 import 'onboarding/onboarding.dart';
 import 'inbox/alerts.dart';
+import 'keep_running.dart';
 import 'plugins/human_check.dart' show startHumanCheck;
 import 'files/files_store.dart';
 import 'inbox/inbox.dart';
@@ -410,10 +411,13 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Inbox.instance.start(app);
       // Their new messages notified, and the phone kept connected to them while Ghost is out of sight
       // (lib/inbox/alerts.dart).
+      // Why Android keeps the app running after its screen is closed: networks signed in, and a friend's call to ring
+      // where the person chose that (lib/keep_running.dart, GMFB-28).
+      final running = KeepRunning.instance ??= (KeepRunning(keep: (names, {required calls}) => unawaited(Sms.instance.keepNetworks(names, calls: calls)))..follow(app));
       InboxAlerts.instance ??= InboxAlerts(
         notify: (a) => Sms.instance.notifyInbox(a.key, network: a.network, title: a.title, body: a.body, group: a.group),
         cancel: Sms.instance.cancelInbox,
-        keepAlive: Sms.instance.keepNetworks,
+        keepAlive: running.networks,
         inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
       )..watch(Inbox.instance);
       // First messages from someone new on the networks the Human check guards, held until they answer its question

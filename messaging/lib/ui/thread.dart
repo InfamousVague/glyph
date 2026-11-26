@@ -1312,6 +1312,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         lastOut: newest != null && newest.outgoing ? newest.body : null,
                         title: title,
                         count: _folded.messages.length,
+                        newestFirst: _folded.messages.where((m) => !_isLine(m)),
                       );
                 if (above.isEmpty) return _composer(t);
                 return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...above, _composer(t)]);

@@ -38,13 +38,17 @@ import 'settings_panes.dart' show appVersion;
 typedef FeedbackSend = Future<String> Function(FeedbackReport report);
 
 /// The app's: signed with the hub key the username is claimed by (Me's hub, Net.instance.hub), else the key spaces
-/// are signed with, to the relay the app is on.
+/// are signed with, to the relay the app is on; and where that is a relay of someone's own that takes no feedback, to
+/// Ghost Messaging's instead ([sendFeedbackOrOurs]).
 Future<String> sendFeedbackLive(FeedbackReport report) {
   final hub = Net.instance.hub;
   final signer = hub?.signer ?? Voice.instance.signer;
   if (signer == null) return Future.error(FeedbackError('Couldn\'t reach the server. Try again in a moment.'));
-  return sendFeedback(report, signer: signer, hubUrl: hub?.url ?? Net.instance.hubUrl);
+  return sendFeedbackOrOurs(hubUrl: hub?.url ?? Net.instance.hubUrl, ours: Net.defaultHub, mayLeave: !PlatformInfo.isWeb, send: (url) => sendFeedback(report, signer: signer, hubUrl: url));
 }
+
+/// Under Send: who the feedback goes to. On a relay of someone's own it goes to that relay's own board where it has one.
+String feedbackGoesWords(String hubUrl) => hubUrl == Net.defaultHub || PlatformInfo.isWeb ? 'It goes to the Ghost Messaging team.' : 'It goes to your relay\'s own feedback board where it has one, and to the Ghost Messaging team where it doesn\'t.';
 
 /// The Share feedback button: a small round button like Mark all read beside it, its words in a tip while a pointer
 /// rests on it; under Dial-Up one of the bar's tool buttons.
@@ -427,7 +431,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   key: const ValueKey('feedback-send'),
                   icon: AppIcon(Lucide.send, size: 18),
                   label: _sending ? 'Sending…' : 'Send',
-                  hint: Text(_sending ? 'One moment.' : (_text.text.trim().isEmpty ? 'Say what happened first.' : 'It goes to the Ghost Messaging team.')),
+                  hint: Text(_sending ? 'One moment.' : (_text.text.trim().isEmpty ? 'Say what happened first.' : feedbackGoesWords(Net.instance.hubUrl))),
                   disabled: !_ready,
                   onPress: _ready ? _send : null,
                 ),

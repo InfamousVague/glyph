@@ -408,6 +408,10 @@ class DeskService : Service() {
 /** After a restart, and after the app is updated, the service starts again if a computer is paired. */
 class DeskBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) DeskService.sync(context)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            DeskService.sync(context)
+            // Calls that are to ring while the app is closed can't until it has been opened again (Reach.kt).
+            Reach.afterBoot(context)
+        }
     }
 }

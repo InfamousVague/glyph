@@ -128,6 +128,13 @@ abstract class GroupsPort {
   Future<Map<String, dynamic>> member(String address);
   Future<Group> save(Map<String, dynamic> state);
 
+  /// Told whenever the routes change: one came up, or a link to someone's device was made.
+  Listenable get changed;
+
+  /// What members are still owed ([Groups], "What a member was not handed"), as it was last kept; and keeping it.
+  Future<String?> owed();
+  Future<void> keepOwed(String owed);
+
   /// What is written in a group, kept in its conversation.
   Future<int> storeOut(String id, String words);
   Future<void> rowState(int row, String state);
@@ -154,6 +161,15 @@ abstract class GroupsPort {
 /// from it (android Groups.peers), so the routes reach them.
 ///
 /// With no route that costs nothing up, nothing is sent ([sendText] says so): a group has no text to fall back to.
+///
+/// **What a member was not handed.** A route that is up need not reach everyone: with no relay and the local network
+/// route linked to two of five members (lib/net/lan), what is written goes to those two and no route takes it for the
+/// other three, and with nothing more done they never had it, though the conversation said "sent" (found in the
+/// review of the local network route, 2026-11-26). So what a member was not handed is owed to them: kept with the
+/// app's choices, and sent, in the order it was written and under the name it first had (so one that did arrive after
+/// all is not kept twice), once a route reaches them, for [owedFor]. The same of a change to the group: what is owed
+/// is the group as it then is. Nothing is owed where no member at all was handed it: the conversation says it failed,
+/// and the person sends it again.
 class Groups extends ChangeNotifier {
   Groups(this._port);
 
@@ -172,19 +188,117 @@ class Groups extends ChangeNotifier {
   /// The most members a group can have: what one change of state can tell in a packet with room to spare.
   static const most = 50;
 
+  /// What members were not handed, oldest first ("What a member was not handed"): how long it is owed, and the most
+  /// kept (the oldest give way).
+  final List<_Owed> _owed = [];
+  static const owedFor = Duration(days: 7);
+  static const mostOwed = 300;
+  Timer? _owedSoon;
+  bool _settling = false;
+
+  /// The time, for a test to say.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  /// How many things are owed to members now.
+  @visibleForTesting
+  int get owedCount => _owed.length;
+
   /// Starts listening to the routes and reads the groups from the phone. Once.
   Future<void> start() async {
     if (_started) return;
     _started = true;
     _sub = _port.received.listen(_received);
     await refresh();
+    try {
+      final kept = await _port.owed();
+      if (kept != null && kept.isNotEmpty) {
+        _owed
+          ..clear()
+          ..addAll([for (final m in jsonDecode(kept) as List) ?_Owed.from(m)]);
+      }
+    } catch (_) {}
+    _port.changed.addListener(_routesChanged);
+    unawaited(settleOwed());
   }
 
   Future<void> shutdown() async {
+    if (_started) _port.changed.removeListener(_routesChanged);
+    _owedSoon?.cancel();
+    _owedSoon = null;
     await _sub?.cancel();
     _sub = null;
     _started = false;
     _by.clear();
+    _owed.clear();
+  }
+
+  /// The routes changed: what is owed is tried a moment later, so many changes at once are one try.
+  void _routesChanged() {
+    if (_owed.isEmpty) return;
+    _owedSoon?.cancel();
+    _owedSoon = Timer(const Duration(milliseconds: 300), () => unawaited(settleOwed()));
+  }
+
+  /// [missed] were not handed something: it is owed to them. One change of a group owed to a member takes the place
+  /// of an earlier one (what is sent is the group as it then is).
+  void _owe(Iterable<_Owed> missed) {
+    for (final o in missed) {
+      if (o.words == null) _owed.removeWhere((x) => x.words == null && x.group == o.group && x.to == o.to);
+      _owed.add(o);
+    }
+    if (_owed.length > mostOwed) _owed.removeRange(0, _owed.length - mostOwed);
+    unawaited(_keepOwed());
+  }
+
+  Future<void> _keepOwed() async {
+    try {
+      await _port.keepOwed(jsonEncode([for (final o in _owed) o.toJson()]));
+    } catch (_) {}
+  }
+
+  /// Sends what is owed to whoever a route now takes it for, each member's in the order it was written (what comes
+  /// after one that still can't go waits behind it). Lets go of what is older than [owedFor], what was for a group
+  /// this phone has left or no longer holds, and words for someone no longer in the group.
+  Future<void> settleOwed() async {
+    if (_settling || !_started || _owed.isEmpty || !_port.internet) return;
+    _settling = true;
+    final before = _owed.length;
+    try {
+      final now = clock().millisecondsSinceEpoch;
+      final waiting = <String>{};
+      for (final o in _owed.toList()) {
+        if (!_started) return;
+        if (!_owed.contains(o)) continue;
+        final g = _by[o.group];
+        if (now - o.at > owedFor.inMilliseconds || g == null || g.gone || (o.words != null && g.member(o.to) == null) || (o.words == null && !g.amAdmin)) {
+          _owed.remove(o);
+          continue;
+        }
+        final peer = _port.peer(o.to);
+        if (peer == null || waiting.contains(o.to)) {
+          waiting.add(o.to);
+          continue;
+        }
+        final words = o.words;
+        final envelope = words != null ? Envelope(id: o.id, kind: 'group', body: {'g': g.id, 'do': 'text', 't': words}, at: o.at) : Envelope(kind: 'group', body: {'g': g.id, 'do': 'state', 's': g.state()..remove('id')});
+        Delivery d;
+        try {
+          d = await _port.send(peer, envelope);
+        } catch (_) {
+          d = Delivery(envelope.id);
+        }
+        if (!d.sent) {
+          waiting.add(o.to);
+          continue;
+        }
+        _owed.remove(o);
+        if (!d.acked && d.handed == Handed.held) _port.wake(peer);
+      }
+    } finally {
+      _settling = false;
+      if (_owed.length != before) await _keepOwed();
+    }
   }
 
   /// Reads the groups from the phone again.
@@ -230,16 +344,29 @@ class Groups extends ChangeNotifier {
     return group;
   }
 
-  /// Tells [to] the group as it now is.
+  /// Tells [to] the group as it now is. Whoever no route takes it for is owed it.
   Future<void> _tell(Group group, Iterable<String> to) async {
     final wire = group.state()..remove('id');
+    final missed = <_Owed>[];
     await Future.wait([
       for (final id in to.toSet())
         if (_port.peer(id) case final peer?)
-          _port.send(peer, Envelope(kind: 'group', body: {'g': group.id, 'do': 'state', 's': wire})).then((d) {
-            if (d.sent && !d.acked && d.handed == Handed.held) _port.wake(peer);
-          }).catchError((_) {}),
+          () async {
+            final envelope = Envelope(kind: 'group', body: {'g': group.id, 'do': 'state', 's': wire});
+            Delivery d;
+            try {
+              d = await _port.send(peer, envelope);
+            } catch (_) {
+              d = Delivery(envelope.id);
+            }
+            if (!d.sent) {
+              missed.add(_Owed(group: group.id, to: id, id: envelope.id, at: envelope.at));
+            } else if (!d.acked && d.handed == Handed.held) {
+              _port.wake(peer);
+            }
+          }(),
     ]);
+    if (missed.isNotEmpty) _owe(missed);
   }
 
   /// The group with [id], which this phone must still be in: throws where it isn't.
@@ -323,15 +450,30 @@ class Groups extends ChangeNotifier {
     if (!_started || g == null || g.gone || !_port.internet) return false;
     final row = await _port.storeOut(id, words);
     var took = g.others.isEmpty;
+    final missed = <_Owed>[];
     await Future.wait([
       for (final m in g.others)
         if (_port.peer(m.id) case final peer?)
-          _port.send(peer, Envelope(kind: 'group', body: {'g': id, 'do': 'text', 't': words})).then((d) {
-            if (d.sent) took = true;
-            if (d.sent && !d.acked && d.handed == Handed.held) _port.wake(peer);
-          }).catchError((_) {}),
+          () async {
+            final envelope = Envelope(kind: 'group', body: {'g': id, 'do': 'text', 't': words});
+            Delivery d;
+            try {
+              d = await _port.send(peer, envelope);
+            } catch (_) {
+              d = Delivery(envelope.id);
+            }
+            if (!d.sent) {
+              missed.add(_Owed(group: id, to: m.id, id: envelope.id, at: envelope.at, words: words));
+              return;
+            }
+            took = true;
+            if (!d.acked && d.handed == Handed.held) _port.wake(peer);
+          }(),
     ]);
     await _port.rowState(row, took ? 'sent' : 'failed');
+    // Handed to some and not to others: the others are owed it, and have it once a route reaches them. Handed to
+    // nobody, it failed, and is the person's to send again.
+    if (took && missed.isNotEmpty) _owe(missed);
     return true;
   }
 
@@ -436,6 +578,24 @@ class Groups extends ChangeNotifier {
 }
 
 /// The app's own: the routes as the app holds them and the phone.
+/// Something a member of a group was not handed: words ([words]), or a change to the group (null: what is sent is the
+/// group as it is when a route takes it), under the name ([id]) and the time ([at]) it first had.
+class _Owed {
+  const _Owed({required this.group, required this.to, required this.id, required this.at, this.words});
+  final String group, to, id;
+  final int at;
+  final String? words;
+
+  Map<String, dynamic> toJson() => {'g': group, 'to': to, 'i': id, 'at': at, if (words != null) 't': words};
+
+  static _Owed? from(Object? m) {
+    if (m is! Map) return null;
+    final g = m['g'], to = m['to'], id = m['i'], at = m['at'], t = m['t'];
+    if (g is! String || to is! String || id is! String || at is! num || (t != null && t is! String)) return null;
+    return _Owed(group: g, to: to, id: id, at: at.toInt(), words: t as String?);
+  }
+}
+
 class _AppPort implements GroupsPort {
   _AppPort() {
     Net.instance.listen(_in.add);
@@ -480,6 +640,13 @@ class _AppPort implements GroupsPort {
     await Net.instance.refresh();
     return group;
   }
+
+  @override
+  Listenable get changed => Net.instance;
+  @override
+  Future<String?> owed() async => (await Sms.instance.prefs())['groups_owed'];
+  @override
+  Future<void> keepOwed(String owed) => Sms.instance.setPref('groups_owed', owed);
 
   @override
   Future<int> storeOut(String id, String words) => Sms.instance.groupTextOut(id, words);

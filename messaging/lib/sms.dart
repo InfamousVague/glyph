@@ -367,7 +367,11 @@ class GmChannel {
 /// What the phone lets the app do: whether it is the default texting app, and the permissions it has been given
 /// (the contacts, notifications, the phone).
 class SmsStatus {
-  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false, this.bubbles});
+  const SmsStatus({required this.isDefault, required this.contacts, required this.notifications, required this.phone, this.gmInstalled = false, this.bridge = false, this.sms = false, this.gmDefault = false, this.bubbles, this.battery});
+
+  /// Whether Android lets the app run while the phone sleeps (android Reach.kt, GMFB-28): a friend's call can ring
+  /// then. Null where that is not known or not a question (a build from before it, a computer).
+  final bool? battery;
   final bool isDefault;
   final bool contacts;
   final bool notifications;
@@ -402,6 +406,7 @@ class SmsStatus {
         sms: m['sms'] == true,
         gmDefault: m['gmDefault'] == true,
         bubbles: m['bubbles'] is String ? m['bubbles'] as String : null,
+        battery: m['battery'] is bool ? m['battery'] as bool : null,
       );
 }
 
@@ -900,12 +905,21 @@ class Sms {
     } catch (_) {}
   }
 
-  /// The networks signed in ([names]; none to stop): Android keeps Ghost running, connected to them, while there are
-  /// any (android NetworksService.kt).
-  Future<void> keepNetworks(List<String> names) async {
+  /// The networks signed in ([names]), and whether a friend's call is to ring while the app is closed ([calls]): Android
+  /// keeps Ghost running while there is either, and stops when there is neither (android NetworksService.kt;
+  /// lib/keep_running.dart).
+  Future<void> keepNetworks(List<String> names, {bool calls = false}) async {
     if (remote || !PlatformInfo.isAndroid) return;
     try {
-      await _calls.invokeMethod('keepNetworks', {'names': names});
+      await _calls.invokeMethod('keepNetworks', {'names': names, 'calls': calls});
+    } catch (_) {}
+  }
+
+  /// Android's own question whether the app may run while the phone sleeps (android Reach.kt, GMFB-28).
+  Future<void> askBattery() async {
+    if (remote || !PlatformInfo.isAndroid) return;
+    try {
+      await _calls.invokeMethod('askBattery');
     } catch (_) {}
   }
 
@@ -1337,6 +1351,17 @@ class Sms {
       return await _calls.invokeMethod<String>('summarize', {'text': conversation});
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Up to three replies to the newest of [messages] (`{mine, who, text, at}`, oldest first) by the small model inside
+  /// the app (android/.../SmartReplies.kt); empty where it has none.
+  Future<List<String>> smartReplies(List<Object?> messages) async {
+    if (remote) return const [];
+    try {
+      return ((await _calls.invokeMethod<List<Object?>>('smartReplies', {'messages': messages})) ?? const []).whereType<String>().toList();
+    } catch (_) {
+      return const [];
     }
   }
 

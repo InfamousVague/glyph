@@ -74,7 +74,9 @@
 <li><b>Crosses:</b> friend requests and everything friends write each other, where both relays talk. Messages for someone who is away wait at their own relay.</li>
 <li><b>Doesn't yet:</b> calls, circles and spaces (each is a room on one relay), and who's online. The app says so instead of ringing a friend on another relay, keeps their ring as a missed call, and leaves them out of circles and spaces.</li>
 <li><b>Kept on each relay apart:</b> usernames (<code>@maya</code> on yours and <code>@maya@relay.example</code> can be two people), your account and its backup, invite words and Files spaces.</li>
-<li><b>Add-me links</b> look the name up on the relay you use, so on a relay of your own they may find someone else, or nobody. The app warns you before it sends a request.</li>
+<li><b>Add-me links</b> made on a relay of your own name it, so whoever opens one is asked for on that relay, from whichever relay they use. A link that names none is someone on gogho.st.</li>
+<li><b>Invite links</b> to a circle or a space made on a relay of your own name it too. Opened by someone on another relay, the app says which relay the circle is on and which to use first, instead of joining it where nobody is.</li>
+<li><b>Your username</b> follows you: moved to another relay, the app claims it there too where it is free, and your profile asks for one where someone else has it. Back on the relay you left, you have the one you had.</li>
 <li><b>Still works with anyone:</b> texts (SMS), including encrypted ones. The Marketplace always comes from gogho.st.</li>
 <li><b>Off on a relay of your own unless you set them up:</b> calls through a TURN server, verifying numbers by text, linking Discord, X or Telegram. Closed iPhones can't be woken by your relay.</li>
 <li><b>Someone on an older version</b> of the app can't be reached from another relay: the app tells you they need a newer one. Where it is their relay that doesn't pass messages on, it says that instead.</li>
@@ -118,6 +120,35 @@
 <li><b>If it can't start</b> on your device, <span class="ui-path">Settings › Routes</span> says why under <b>Direct</b>, and every other route works as before.</li>
 </ul>
 
+<h2 id="local">Local network</h2>
+<p>A third way between Ghost apps: straight between devices on the same Wi-Fi or wired network, with no server and no internet at all. It comes after the relay server and Direct, as the way through when neither can carry something, and by itself it keeps you talking where there is a network and no internet: a cabin, a plane's Wi-Fi with nothing behind it, an office whose line is down.</p>
+<p><b>It starts off.</b> Switch it on under <span class="ui-path">Settings › Routes</span> on an Android phone or a computer (the Mac, Windows or Linux); it isn't in the iPhone app or the browser. The first time, a Mac asks whether Ghost Messaging may find devices on your local network, and Windows asks whether it may be reached on private networks: say yes, or the route stays down and Settings says so.</p>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Routes</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg></span><span class="m-txt"><b>Relay server</b><small>Through a server on the internet. The server sees who talks to whom, never what is said.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#wifi"/></svg></span><span class="m-txt"><b>Local network</b><small>Ready. Straight between your devices and your friends' while they are on the same Wi-Fi or wired network as this one, with no server and no internet.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="green"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#message-square"/></svg></span><span class="m-txt"><b>SMS</b><small>As data texts over the phone network. Each counts as a text on your plan.</small></span><span class="m-end"><span class="m-switch on"></span></span></div>
+  </div><p class="m-foot">The ways this phone reaches another, tried from the top.</p></div>
+  <div class="m-section"><div class="m-section-title">Local network</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#wifi"/></svg></span><span class="m-txt"><b>Found 2 devices on this network</b><small>Your own devices and your friends', while they have Ghost Messaging open on the same network with this route switched on.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#link-2"/></svg></span><span class="m-txt"><b>Linked to 2 devices now</b><small>Maya Chen at 192.168.1.20. Your other devices at 192.168.1.14.</small></span></div>
+  </div><p class="m-foot">Anyone else on the network sees that a copy of the app is at this address, never who you are.</p></div>
+</div></div><figcaption>Settings › Routes, with the local network switched on.</figcaption></figure>
+
+<ul>
+<li><b>How devices find each other:</b> every few seconds your device says it is here to the whole network, in a way only your own devices and your friends' can recognise: a mark for each of them, made from the key the two of you already seal messages with, good for ten minutes and for the one address it is said from, and mixed with noise that looks the same. It names nobody. Anyone else on the network can tell that some copy of Ghost Messaging is at that address, and roughly how many people it could have at most (under 8, under 16, under 32 and so on): not who you are, not who your friends are, not how many you have. Someone who says your device's words again from their own address is recognised by nobody.</li>
+<li><b>Who it links with:</b> your own other devices and your friends' devices, as Direct does. Never people you only share a group with, and never someone who has only asked to be a friend. Both devices need the route switched on and the app open.</li>
+<li><b>What a link is:</b> each device proves to the other that it holds your shared key before anything is sent, and everything after is sealed for that link, on top of the sealing every message already has. Someone else on the Wi-Fi sees sealed bytes between two addresses.</li>
+<li><b>What a friend's device learns:</b> your device's address on that network (something like 192.168.1.20), which anything on the same network could see anyway.</li>
+<li><b>Only the network you are on:</b> the route speaks and listens only at the private addresses a home, office or café network gives out, and only on a network this device itself has such an address on. It never says anything to the open internet, and a friend's device can't send yours connecting anywhere else.</li>
+<li><b>On a phone</b> it runs only while the app is in use, and closes everything when the app is put away. On a computer it stays up while the route is on.</li>
+<li><b>Invisible:</b> while you're shown as Invisible, only your own devices can tell the device is yours. It lets go of every link to a friend's device and starts over under a new name, so your friends' devices lose the one they knew. It still says it is here, for your own devices to find: a copy of the app is still seen at that address by the network, as before.</li>
+<li><b>Groups:</b> with no internet, what you write in a group reaches the members who are on this network with you. The others are owed it, and have it as soon as any route reaches them, for a week.</li>
+<li><b>What it holds itself to:</b> however much anyone on the network says to it, it reads and looks at only so much a second, makes only a few connections at a time, and closes a link that says more than a link may. A stranger who floods the network can slow the finding of a device that has just arrived; they can't make yours link with anyone, read anything, or stop the app.</li>
+<li><b>Some networks keep devices apart</b> (many guest and hotel networks do): there the devices never hear each other, nothing is found, and the other routes carry everything as before. The same on a phone joined to a Wi-Fi that has no internet while its mobile data is on: Android sends everything by mobile data then, the relay carries, and this route finds nothing until mobile data is off.</li>
+</ul>
+
 <h2 id="checked">How the relay is checked</h2>
 <p>The relay is fast and keeps messages for people who are away, so it comes first. Your app also checks what it says, so a relay that drops something, keeps it back, or gives someone's username to another key doesn't go unnoticed.</p>
 <ul>
@@ -142,8 +173,21 @@
 <h2 id="texts">SMS as a route</h2>
 <p>When the relay can't be reached, a message to a friend can go as a data text over the phone network instead: still sealed, needing no internet, and reaching a phone whose app is closed. Each one counts as a text on your plan, so only small messages go this way.</p>
 
+<h2 id="which">Which route each conversation is on</h2>
+<p><span class="ui-path">Settings › Routes</span> lists each conversation with someone the routes reach, the one used last first, with the route that last carried something to them, the one that last brought something from them, and when. A group of friends goes person by person, because each of its people is reached by a route of their own: one may be on the relay server while another, sitting beside you, is on the local network.</p>
+
+<figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-iconbtn"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg></span><span class="m-title">Routes</span></div><div class="m-body">
+  <div class="m-section"><div class="m-section-title">Which route each conversation is on</div><div class="m-card">
+    <div class="m-row"><span class="m-ico" data-hue="teal"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#wifi"/></svg></span><span class="m-txt"><b>Maya Chen</b><small>Last sent by Local network, 2 min ago; last came by Local network, 1 min ago.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="violet"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#users"/></svg></span><span class="m-txt"><b>Weekend</b><small>Maya by Local network, Sam by Relay server; nothing lately to or from 1 other.</small></span></div>
+    <div class="m-row"><span class="m-ico" data-hue="blue"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg></span><span class="m-txt"><b>Sam Okafor</b><small>Last sent by Relay server, 3 h ago; last came by Relay server, 2 days ago.</small></span></div>
+  </div><p class="m-foot">Circles and spaces always go by the relay server they were made on, and texts by the phone's carrier. Kept on this device only, out of any backup, for a week, and deleted when you sign out.</p></div>
+</div></div><figcaption>Settings › Routes, Which route each conversation is on.</figcaption></figure>
+
+<p>The list is kept on your device from one time you open the app to the next, for a week, in a file that no backup takes, and it is deleted when you sign out. It holds which route and when, never anything that was said. A circle or a space is a room on its relay, so it always goes by the relay server; texts go by the phone's carrier.</p>
+
 <h2 id="test">Test a route</h2>
-<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
+<p>Under <b>People you can reach</b>, press someone and choose <b>Send a test</b>, <b>By the relay server only</b>, <b>By a direct link only</b>, <b>By the local network only</b> (each where that route is on), or <b>By SMS only (one text on your plan)</b>. <b>Lately</b> shows how recent messages went.</p>
 
 <h2 id="invite">Invite someone by text</h2>
 <p><b>Invite someone by text</b> opens a new chat with an invitation written. Choose who, change the words if you like, and send it as any text. Once they have the app and you text each other, it offers to turn encryption on between you.</p>
@@ -151,7 +195,7 @@
     <nav class="prevnext"><a class="prev" href="/docs/keyboard-shortcuts/"><small>Previous</small>Keyboard shortcuts</a><a class="next" href="/docs/self-hosting/"><small>Next</small>Run your own relay</a></nav>
     <footer class="foot">Something wrong or missing here? Tell us in the Alpha testers circle, or at <a href="https://github.com/InfamousVague/ghost-messaging/issues">the app's GitHub</a>.</footer>
   </main>
-  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#across">Friends on another relay</a><a href="#direct">Direct</a><a href="#checked">How the relay is checked</a><a href="#texts">SMS as a route</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
+  <nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div><a href="#relay">The relay server</a><a href="#own-relay">Your own relay server</a><a href="#across">Friends on another relay</a><a href="#direct">Direct</a><a href="#local">Local network</a><a href="#checked">How the relay is checked</a><a href="#texts">SMS as a route</a><a href="#which">Which route each conversation is on</a><a href="#test">Test a route</a><a href="#invite">Invite someone by text</a></nav>
 </div>
 <script src="/docs/docs.js" defer></script>
 </body>

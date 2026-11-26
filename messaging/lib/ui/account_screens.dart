@@ -24,6 +24,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart' show Me, tidyHandle;
 import '../net/net.dart' show Net;
+import '../net/relay_choice.dart' show relayInUseWords;
 import '../platform_info.dart';
 import '../relay_host/words.dart' show signOutHostWords;
 import '../sms.dart';
@@ -572,6 +573,28 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
 /// Signing in on this device: username and password (and the code texted to the account's number, where it has a
 /// verified one), or the recovery words. What is found replaces this install's identity and the app starts again.
+/// The relay's host as a line names it: `relay.example.com`, with its port where it has one of its own.
+String _relayHost(String hubUrl) {
+  final u = Uri.tryParse(hubUrl);
+  return u == null || u.host.isEmpty ? hubUrl : '${u.host}${u.hasPort ? ':${u.port}' : ''}';
+}
+
+/// On the sign-in screen while the app uses a relay other than Ghost Messaging's own (GMFB-25: "Sign-in works only on
+/// the relay the account was made on", and nothing said which relay was asked): which relay is asked, and where an
+/// account made elsewhere is signed in to. Null on Ghost Messaging's relay, where there is nothing to say.
+String? signInRelayWords(String hubUrl) => hubUrl == Net.defaultHub
+    ? null
+    : 'You are signing in on ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. An account is kept on the relay it was made on: to sign in to one made on Ghost Messaging\'s relay, go back to it first in Settings › Routes.';
+
+/// "No account has that username", saying which relay was asked where it is not Ghost Messaging's own.
+String noAccountWords(String hubUrl) => hubUrl == Net.defaultHub
+    ? 'No account has that username.'
+    : 'No account has that username on ${_relayHost(hubUrl)}. If yours was made on Ghost Messaging\'s relay or another, sign in there: go back to it first in Settings › Routes.';
+
+/// What follows "no backup of it was found on the server" where the server is a relay other than Ghost Messaging's:
+/// which one, and that the account may be on another.
+String noBackupHereWords(String hubUrl) => hubUrl == Net.defaultHub ? '' : ' (${_relayHost(hubUrl)}; if your account was made on another relay, go back and change the relay in Settings › Routes first, or it is made anew here without its friends and circles)';
+
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, this.words = false, this.phone = false, this.needsCode = false, this.needsPassword = false, this.username = ''});
 
@@ -629,7 +652,7 @@ class _SignInScreenState extends State<SignInScreen> {
     } on AccountNeedsCode {
       if (mounted) setState(() => _needsCode = true);
     } catch (e) {
-      if (mounted) setState(() => _problem = e is AccountError ? e.message : 'That did not work. Try again.');
+      if (mounted) setState(() => _problem = e is AccountNotFound ? noAccountWords(Net.instance.hubUrl) : e is AccountError ? e.message : 'That did not work. Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -727,11 +750,14 @@ class _SignInScreenState extends State<SignInScreen> {
           ? 'Signing in makes this browser one of your account\'s devices, listed under it until you sign out here or remove it from another. A private window is a new device each time, and keeps nothing once it is closed: sign out before closing it, or remove it later.'
           : 'Signing in makes this device your account. Anything on it from before, as someone else, is replaced, and the app starts again.'),
     );
+    // On a relay of one's own: which relay is asked, since an account is found only on the relay it was made on.
+    final elsewhere = signInRelayWords(Net.instance.hubUrl);
+    final relay = elsewhere == null ? const <Widget>[] : [SettingsCallout(key: const ValueKey('sign-in-relay'), icon: _icon(Lucide.globe), child: Text(elsewhere)), _gap(context)];
     if (_needsPassword) {
       return _AccountPage(title: 'Sign in', children: [
         PaneSection(
           title: 'Choose a password',
-          description: const Text('Your words opened your account, but no backup of it was found on the server. Choose a password to keep one again, so you can sign in with your username next time.'),
+          description: Text('Your words opened your account, but no backup of it was found on the server${noBackupHereWords(Net.instance.hubUrl)}. Choose a password to keep one again, so you can sign in with your username next time.'),
           footer: _problemText(context, _problem),
           children: [_field(_newPassword, 'New password', 'New password', secret: true, autofill: 'new-password', onSubmitted: (_) => _withNewPassword())],
         ),
@@ -763,6 +789,7 @@ class _SignInScreenState extends State<SignInScreen> {
           ],
         ),
         _gap(context),
+        ...relay,
         warning,
         _gap(context, 8),
         PairButton(label: busy ? 'Opening your account…' : 'Sign in', icon: Lucide.arrowRight, onPressed: busy ? null : _withWords),
@@ -792,6 +819,7 @@ class _SignInScreenState extends State<SignInScreen> {
         ),
       ],
       _gap(context),
+      ...relay,
       warning,
       _gap(context, 8),
       PairButton(label: busy ? 'Signing in…' : 'Sign in', icon: Lucide.arrowRight, onPressed: busy || (_needsCode && !_sent) ? null : _withPassword),

@@ -50,7 +50,11 @@ typedef MakeEar = MusicEar Function({
 });
 
 class RtcMusicEar implements MusicEar {
-  RtcMusicEar({required this.servers, required this.relayOnly, required this.onCandidate, required this.onState, required this.onLossless});
+  RtcMusicEar({required this.servers, required this.relayOnly, required this.onCandidate, required this.onState, required this.onLossless, this.who = 'ghost-music'});
+
+  /// What its sound is played as, where the page plays it (a browser): the music's, or one sharer's screen's
+  /// (lib/voice/screen_sound.dart), so two of them are two sounds.
+  final String who;
   final List<Map<String, Object>> servers;
   final bool relayOnly;
   final void Function(Map<String, dynamic>) onCandidate;
@@ -73,7 +77,6 @@ class RtcMusicEar implements MusicEar {
   /// Not through this long after it began, or lost for this long: given up on, and asked for again.
   static const connectWithin = Duration(seconds: 15), lostFor = Duration(seconds: 6);
 
-  static const _who = 'ghost-music';
   Future<RTCPeerConnection>? _pc;
   final List<RTCIceCandidate> _early = [];
   final List<MediaStreamTrack> _tracks = [];
@@ -94,7 +97,7 @@ class RtcMusicEar implements MusicEar {
       RtcMedia.note(pc, e.track);
       if (_closed || e.track.kind != 'audio') return;
       if (!_tracks.any((t) => t.id == e.track.id)) _tracks.add(e.track);
-      _out.play(_who, e.track);
+      _out.play(who, e.track);
       _apply();
     };
     pc.onDataChannel = _opened;
@@ -162,7 +165,7 @@ class RtcMusicEar implements MusicEar {
 
   void _apply() {
     if (CallSound.playsItself) {
-      _out.set(_who, volume: _volume, silent: _silent);
+      _out.set(who, volume: _volume, silent: _silent);
       return;
     }
     final ear = _lossless;

@@ -188,6 +188,9 @@ open class MainActivity : FlutterActivity() {
         // The direct network's core is handed the app's context when Dart starts its first node, and not before
         // (P2pCore.kt): registering the channel it asks through loads nothing.
         P2pCore.register(applicationContext, messenger)
+        // The local network route hears what is said to a whole Wi-Fi network only while Android is told it listens
+        // (LanEar.kt): asked for by Dart as the route opens, and held no longer than it is open.
+        LanEar.register(applicationContext, messenger)
 
         val calls = MethodChannel(messenger, "ghost_messaging/sms")
         // What a paired computer asks that only Dart knows (DartAsk.kt) goes down the same channel.
@@ -252,6 +255,8 @@ open class MainActivity : FlutterActivity() {
             fun bg(work: () -> Any?) = on(io, work)
             when (call.method) {
                 "status" -> result.success(status())
+                // Android's own question whether the app may run while the phone sleeps (Reach.kt, GMFB-28).
+                "askBattery" -> result.success(Reach.ask(this))
                 "requestDefault" -> requestDefault(result)
                 // Beside Google Messages (GmBridge): Android's page for notification access, and the SMS permissions.
                 "bridgeAccess" -> { startActivity(GmBridge.accessIntent(this)); result.success(true) }
@@ -550,7 +555,7 @@ open class MainActivity : FlutterActivity() {
                     null
                 }
                 "cancelInbox" -> bg { Notifier.cancelInbox(applicationContext, call.argument<String>("key")!!); null }
-                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty()); result.success(null) }
+                "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty(), call.argument<Boolean>("calls") ?: false); result.success(null) }
                 // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
                 "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
                 "addHiddenLists" -> bg {
@@ -635,6 +640,9 @@ open class MainActivity : FlutterActivity() {
                 "summaryStatus" -> bg { Summaries.status(this) }
                 "summaryPrepare" -> bg { Summaries.prepare(this) }
                 "summarize" -> bg { Summaries.summarize(this, call.argument<String>("text") ?: "") }
+                // Replies to choose from, by a small model inside the app that reads the conversation (SmartReplies.kt).
+                @Suppress("UNCHECKED_CAST")
+                "smartReplies" -> bg { SmartReplies.suggest(this, (call.argument<List<Map<String, Any?>>>("messages") ?: emptyList())) }
                 // Texts in another language, translated on the phone (Translate.kt, lib/plugins/translate.dart).
                 "translate" -> on(translating) { Translate.call(applicationContext, "text", argsOf(call.arguments)) }
                 "translateLanguages" -> on(translating) { Translate.call(applicationContext, "languages", emptyMap()) }
@@ -729,6 +737,8 @@ open class MainActivity : FlutterActivity() {
         // front, and what it does as it comes forward, are the app's.
         if (bubble) { if (bubbleThread >= 0) Bubbles.showing.add(bubbleThread); return }
         inFront = true
+        // Open: what was said after a restart about opening it has been done (Reach.kt).
+        Reach.opened(this)
         // Ghost Keyboard's colour, if chosen there since, and watched while in front (AccentSync.kt).
         io.execute { AccentSync.pull(this) }
         // A look every fifteen minutes for what friends by username wrote while closed; open now, so any "New
@@ -1006,6 +1016,8 @@ open class MainActivity : FlutterActivity() {
             "sms" to (granted(Manifest.permission.READ_SMS) && granted(Manifest.permission.SEND_SMS)),
             // Android's own bubble setting for the app (Bubbles.systemState): all, selected, none, or null before 11.
             "bubbles" to Bubbles.systemState(this),
+            // Whether Android lets the app run while the phone sleeps (Reach.kt): a call can ring then.
+            "battery" to Reach.exempt(this),
         )
     }
 
