@@ -4,11 +4,11 @@ From the Uplink gap review: "Forward secrecy and key rotation for friends and ci
 2026-11-22. This file is the design: what was built, what it protects, what it does not, the wire format, and how it
 works with one account on several devices and with builds from before it.
 
-> **Status.** The friends half (friends and an account's own devices) is on. The circle half is built but **switched
-> off** (`CircleKeys.enabled = false`). With it off, circles behave exactly as before this ticket: they are sealed with
-> their seeds' keys, nothing about epochs, inboxes or `k?` is said in their rooms, and banning someone doesn't change
-> a circle's key. Forward secrecy does not cover circles yet. The circle sections below describe the design that is
-> still being finished, behind that switch.
+> **Status.** The friends half (friends and an account's own devices) is on. The circle half is in two switches.
+> `CircleKeys.enabled` (taking part) is **on** since 2026-11-26: every device holds an inbox and says it, takes a key
+> handed to it, asks for one it lacks, and opens and seals under a circle's newest key. `CircleKeys.makes` (making a
+> new key at a ban or kick) is **off**: no device makes one, so in practice circles are still sealed with their
+> seeds' keys and banning someone doesn't change a circle's key yet. See "Switching it on" below.
 
 Code: `lib/net/forward_secrecy.dart` (friends and an account's own devices), `lib/circles/circle_keys.dart` (circles),
 with the switchboard (`lib/net/switchboard.dart`), the circle's room (`CircleRoom` in `lib/circles/circles.dart`) and a
@@ -188,9 +188,26 @@ step.
 - Device sync of history (GMFB-21) keeps working. Copies go to the account's own id, sealed to the siblings'
   prekeys, or the old way while a sibling without forward secrecy has been heard from.
 
-## Circles: a new key when someone is put out (switched off)
+## Circles: a new key when someone is put out
 
-Everything in this section is behind `CircleKeys.enabled`, which is off. With it off, none of it happens.
+Taking part (`CircleKeys.enabled`) is on; making a new key (`CircleKeys.makes`, checked in `Circles.rotateKey`) is
+off. With making off, nothing below that starts at a ban happens; everything a device does with a key it is handed
+does.
+
+### Switching it on
+
+Making a key locks every build from before taking part out of that circle at its first removal, and that can't be
+undone for a circle. So, in steps:
+
+1. **Every device takes part, none makes a key** (2026-11-26, `enabled` on, `makes` off). Devices that update hold
+   inboxes and can take and read a key the day one is made. Nothing changes for anyone meanwhile. Tested:
+   `test/circle_keys_test.dart`, "a device that doesn't make keys changes nothing at a ban, and still takes and reads a
+   key a device that does made".
+2. **Close the gaps for chat and calls** below ("Not built yet"): a brand-new device sealing with the old key, call
+   setup, packets under an old key taken forever.
+3. **Switch `makes` on** once nearly every device has updated past step 1 (Matt's call: it is the moment older builds
+   stop reading a circle that bans someone).
+4. **Files spaces** under epochs.
 
 ### Epochs
 

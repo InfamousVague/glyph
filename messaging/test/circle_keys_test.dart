@@ -109,6 +109,7 @@ bool _opensWithSeedsOnly(Circle c, Uint8List bytes, {CircleKeys? keys}) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   CircleKeys.enabled = true;
+  CircleKeys.makes = true;
   CircleKeys.offThread = false;
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 
@@ -407,6 +408,32 @@ void main() {
       // isn't stuck (B5); its spaces' words never.
       expect(opened.map((m) => m['t']).toSet().difference({'ik', 'k?', 'kb', 'rk', 'circle', 'sync?', 'joined'}), isEmpty, reason: 'no message: only the circle\'s own business');
       expect(opened.any((m) => jsonEncode(m).contains('after the ban')), isFalse);
+    });
+
+    // GMFB-26, step 1 of "Switching it on" (docs/FORWARD_SECRECY.md): every device takes part, none makes a key yet.
+    test('a device that doesn\'t make keys changes nothing at a ban, and still takes and reads a key a device that does made', () async {
+      final ownerSpace = await space(mine, owner, 'Owner'), hersSpace = await space(hers, maya, 'Maya');
+      CircleKeys.makes = false;
+      addTearDown(() => CircleKeys.makes = true);
+      expect(await mine.rotateKey(mine.bySeed(c.seed)!), isFalse, reason: 'not made by this build');
+      expect(await mine.removeMember(mine.bySeed(c.seed)!, sam.id), isTrue);
+      await _until(() => his.bySeed(c.seed) == null);
+      await _settle();
+      expect([mine.keys!.current(c.seed), hers.keys!.current(c.seed)], [isNull, isNull], reason: 'no new key at the ban');
+      expect(ownerSpace.send('sealed as before'), isTrue);
+      await _until(() => hersSpace.messages.any((m) => m.text == 'sealed as before'));
+      // A device of a later build, which makes keys, changes it: this one, which doesn't, takes it and reads under it.
+      CircleKeys.makes = true;
+      expect(await mine.rotateKey(mine.bySeed(c.seed)!), isTrue);
+      CircleKeys.makes = false;
+      await _until(() => hers.keys!.current(c.seed) != null);
+      expect(hers.keys!.current(c.seed)!.epoch, 1);
+      expect(ownerSpace.send('under the new key'), isTrue);
+      await _until(() => hersSpace.messages.any((m) => m.text == 'under the new key'));
+      expect(hersSpace.messages.map((m) => m.text), contains('under the new key'));
+      // And what she says goes under it too, which the owner reads.
+      expect(hersSpace.send('her answer'), isTrue);
+      await _until(() => ownerSpace.messages.any((m) => m.text == 'her answer'));
     });
 
     test('a banned member asking for the key is not answered; a second device of a member is', () async {
