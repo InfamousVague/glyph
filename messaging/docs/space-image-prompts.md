@@ -32,6 +32,13 @@ which side.
 | `site/art/space/effects.webp` | 1600×1000 | Landing: effects, reactions, stickers |
 | `site/art/space/join.webp` | 1600×1000 | Behind the invite and join pages |
 
+**On the site since 2026-11-27: Set B, the miniature tilt-shift set** (below; Matt: "update the new assets from the
+new assets folder on the desktop"). His nine pictures were 2048 across (the join one 1152 by 2048), so the files are
+those sizes or smaller, never made larger: `hero.webp` 2048×1152, `og.jpg` 1200×630 (cut to the card's shape about its
+middle), `join.webp` 1152×2048, and the other six 1600×1000, each `cwebp -q 82`. Every slot on the page fills itself
+from whatever shape it is given (`.u-slot-img`, `object-fit: cover`). `networks.webp` is kept up to date with the set
+though no section shows it now. Four pictures of Set A came in the same folder and are not used.
+
 **hero.webp**: the uplink itself.
 > A lone satellite dish on a dark rocky ridge at night, sending a single thin, bright white beam of light straight up
 > into a vast starfield, the beam sharp as a needle and slightly angled forward, a faint arc of a planet's horizon
