@@ -14,6 +14,7 @@ import '../circles/circles.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_kit.dart' show settingsHue;
 import 'circles/circle_face.dart';
+import 'dialup/dialup.dart';
 import 'nav_bar.dart';
 import 'profile_bubble.dart';
 
@@ -75,7 +76,8 @@ class NavRail extends StatelessWidget {
       label: 'Navigation',
       explicitChildNodes: true,
       child: ColoredBox(
-        color: t.color('glacier-bg'),
+        // The window's own face under the bevelled chrome, as every strip of buttons stands on there.
+        color: isBevelChrome(t) ? DialupColors.of(t).chrome : t.color('glacier-bg'),
         child: Padding(
           padding: EdgeInsetsDirectional.only(start: pad.left, top: pad.top + t.space(3), bottom: pad.bottom + t.space(3)),
           child: Column(children: [
@@ -148,6 +150,43 @@ class _CircleRing extends StatelessWidget {
     final mentions = circles.mentions(circle);
     final fast = t.duration('glacier-duration-fast');
     final ease = t.curve('glacier-ease-out');
+    // Under the bevelled chrome (Dial-Up, Runestone; Matt, 2026-11-27: "make sure all parts of the app are themed
+    // including the circles in the navigation rail"): a square push button with the circle's face on it, as the
+    // rail's own rings are there (lib/ui/nav_bar.dart), held in while it is the one open, its count a small square.
+    if (isBevelChrome(t)) {
+      final c = DialupColors.of(t);
+      final n = mentions > 0 ? mentions : (open ? 0 : unread);
+      final tab = RetroButton(
+        onPressed: onPress,
+        onLongPress: onMenu,
+        semanticLabel: '${circle.name}${unread > 0 ? ', $unread unread' : ''}${open ? ', open' : ''}',
+        toggled: open,
+        face: open && !c.afterHours ? c.lo : null,
+        faceHeight: ring,
+        minFaceWidth: ring,
+        padding: EdgeInsets.zero,
+        child: CircleFace.of(circle, size: ring * 0.62, ringed: false),
+      );
+      return HoverTip(
+        message: circle.name,
+        beside: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onSecondaryTapUp: (_) => onMenu(),
+          child: SizedBox(
+            width: NavRail.width(t),
+            child: Center(
+              child: n <= 0
+                  ? tab
+                  : Stack(clipBehavior: Clip.none, children: [
+                      tab,
+                      PositionedDirectional(end: -2, top: -2, child: IgnorePointer(child: ExcludeSemantics(child: DialupCount(key: ValueKey(mentions > 0 ? 'rail-mentions-${circle.seed}' : 'rail-unread-${circle.seed}'), count: n)))),
+                    ]),
+            ),
+          ),
+        ),
+      );
+    }
     return HoverTip(
       message: circle.name,
       beside: true,

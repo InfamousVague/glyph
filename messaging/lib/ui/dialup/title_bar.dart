@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../kit/settings_type.dart';
+import '../../packs/pack_paint.dart';
 import 'bevel.dart';
 import 'parts.dart' show DialupBand;
 
@@ -78,8 +81,12 @@ class TitleBar extends StatelessWidget {
       final paint = gradient && buttons.isNotEmpty && end != band
           ? BoxDecoration(gradient: LinearGradient(colors: [band, band, end], stops: [0, hold, 1]))
           : BoxDecoration(color: band);
-      return DecoratedBox(
-        decoration: paint,
+      // A pack's strip of stone under the band's colour, where the look draws with one (lib/packs/).
+      final strip = packOf(t)?['chatbox/buttons_background_stones'];
+      return CustomPaint(
+        painter: strip == null ? null : _StripPainter(strip),
+        child: DecoratedBox(
+        decoration: strip == null ? paint : const BoxDecoration(),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: heightOf(t, withClose: buttons.isNotEmpty)),
           child: Padding(
@@ -94,9 +101,22 @@ class TitleBar extends StatelessWidget {
             ),
           ),
         ),
+        ),
       );
     });
   }
+}
+
+/// A pack's strip of stone as a title bar's band: as high as the band, its pixels square, laid end to end.
+class _StripPainter extends CustomPainter {
+  const _StripPainter(this.strip);
+  final ui.Image strip;
+
+  @override
+  void paint(Canvas canvas, Size size) => paintTiled(canvas, strip, Offset.zero & size, scale: size.height / strip.height);
+
+  @override
+  bool shouldRepaint(_StripPainter old) => old.strip != strip;
 }
 
 /// The glyphs a [TitleBarButton] draws, as paths: the era's bitmaps are not copied, and paths stay sharp at 3x.
@@ -120,11 +140,22 @@ class TitleBarButton extends StatelessWidget {
     final c = DialupColors.of(t);
     final desk = t.attrs['platform'] == 'desktop';
     final face = desk ? 16.0 : 22.0;
+    // A pack's own close button, where the look draws with one: the picture whole, lit while held or under the pointer.
+    final pack = glyph == TitleGlyph.close ? packOf(t) : null;
+    final closed = pack?['other/window_close_button'];
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,
       builder: (context, state) {
         final held = state.pressed && onPressed != null;
+        if (closed != null) {
+          final lit = (held || state.hovered ? pack!['other/window_close_button_hovered'] : null) ?? closed;
+          return SizedBox(
+            width: desk ? deskTarget : target,
+            height: desk ? deskTarget : target,
+            child: Opacity(opacity: onPressed == null ? 0.4 : 1, child: CustomPaint(painter: _WholePainter(lit, desk ? 20 : 30))),
+          );
+        }
         return SizedBox(
           width: desk ? deskTarget : target,
           height: desk ? deskTarget : target,
@@ -136,7 +167,7 @@ class TitleBarButton extends StatelessWidget {
                 style: held ? BevelStyle.pressed : BevelStyle.raised,
                 child: Transform.translate(
                   offset: held ? const Offset(1, 1) : Offset.zero,
-                  child: CustomPaint(painter: _GlyphPainter(glyph, onPressed == null ? c.disabled : c.onChrome)),
+                  child: CustomPaint(painter: _GlyphPainter(glyph, onPressed == null ? c.disabled : (glyph == TitleGlyph.close ? c.close : c.onChrome))),
                 ),
               ),
             ),
@@ -145,6 +176,22 @@ class TitleBarButton extends StatelessWidget {
       },
     );
   }
+}
+
+/// A pack's picture whole at the middle of its box, at most [most] logical pixels high, its pixels square.
+class _WholePainter extends CustomPainter {
+  const _WholePainter(this.image, this.most);
+  final ui.Image image;
+  final double most;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = most.clamp(0, size.height).toDouble(), w = (size.width).toDouble();
+    paintWhole(canvas, image, Rect.fromLTWH(0, (size.height - h) / 2, w, h));
+  }
+
+  @override
+  bool shouldRepaint(_WholePainter old) => old.image != image || old.most != most;
 }
 
 /// Draws one [TitleGlyph] in [ink] at the middle of its box: an X for close, a question mark and its dot for help.

@@ -8,6 +8,7 @@ import 'custom_css.dart';
 import 'custom_theme.dart';
 import 'kit/settings_css.dart';
 import 'looks.dart';
+import 'packs/resource_pack.dart';
 
 /// The app's accent: the colour of your bubbles everywhere, worn by what is pressed and chosen across the app too
 /// (Matt, 2026-11-14: "make the bubble color the accent color for the app so the send button, segmented toggles,
@@ -100,7 +101,10 @@ class AccentSheets {
     // under that colour's, which outranks them.
     final custom = CustomTheme.used(app)?.css;
     final accent = accentCss(app.bubble, lightPage: pages.light, darkPage: pages.dark);
-    final css = custom == null && accent == null ? null : '${custom ?? ''}${accent ?? ''}';
+    // The colours of the resource pack the look draws with (Runestone, lib/packs/resource_pack.dart): over the look's
+    // own, under a bubble colour's.
+    final pack = custom == null ? ResourcePacks.instance.usedBy(app)?.css : null;
+    final css = custom == null && accent == null && pack == null ? null : '${custom ?? ''}${pack ?? ''}${accent ?? ''}';
     if (css == null) return base;
     if (css != _css) {
       _css = css;

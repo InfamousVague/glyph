@@ -1245,6 +1245,8 @@ class _HangoutChatState extends State<HangoutChat> {
         padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: going.length + list.length + 1,
         itemBuilder: (context, at) {
+          // The well's own colours (a look may write its chat on another ground than its pages': `.parchment`).
+          final c = DialupColors.of(context.tokens);
           // Messages with files on their way, at the foot (the era drew none: the same as the other looks').
           if (at < going.length) {
             final o = going[at];

@@ -155,9 +155,15 @@ extension on _ComposerBoxState {
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
-                child: Sunken(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Align(alignment: AlignmentDirectional.centerStart, child: widget.field),
+                // Where the look writes its chat on a ground of its own (Runestone's parchment, `.parchment` in
+                // assets/css/app.css), what is typed is written on it too, as the game's own line is.
+                child: GlacierScope(
+                  classes: const {'parchment'},
+                  child: Sunken(
+                    small: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Align(alignment: AlignmentDirectional.centerStart, child: widget.field),
+                  ),
                 ),
               ),
             ),
@@ -193,9 +199,19 @@ class _RenderMeasure extends RenderProxyBox {
   }
 }
 
+/// The tokens what is typed in a [ComposerBox]'s field is written in, for a page that makes the field's words itself
+/// from its own ([t]): the page's, but under the bevelled chrome the field's own ground's, which a look may set apart
+/// from its pages' (`.parchment`, as the box wraps its field in: Runestone types in dark ink on parchment). Made
+/// once for each page's tokens.
+Tokens composerTokens(Tokens t) => !isBevelChrome(t) || t.classes.contains('parchment') ? t : (_fieldTokens[t] ??= t.child(classes: const {'parchment'}));
+final _fieldTokens = Expando<Tokens>('a composer field\'s tokens');
+
 /// What the words' line of a [ComposerBox] is set in (type, strut, leading), shared by every field put in one, so the
 /// words sit centred on the buttons' middle.
-TextStyle composerTextStyle(Tokens t) => pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
+TextStyle composerTextStyle(Tokens page) {
+  final t = composerTokens(page);
+  return pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
+}
 StrutStyle composerStrutStyle(Tokens t) => StrutStyle.fromTextStyle(composerTextStyle(t), forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
 const composerLeading = TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even);
 

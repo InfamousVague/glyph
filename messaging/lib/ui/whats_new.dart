@@ -68,6 +68,8 @@ LucideIcon noteIcon(String note) {
 final List<(List<String>, LucideIcon)> _noteIcons = [
   // Before the plainer words below: an open space is not any space, and a line of fixes names many things.
   (['open space'], Lucide.compass),
+  // The look Runestone and its textures (Matt, 2026-11-27): a quest's scroll, as the look's own mark is.
+  (['runestone'], Lucide.scrollText),
   (['ai model'], Lucide.wandSparkles),
   (['language'], LucideMore.languages),
   (['fixes'], Lucide.listChecks),

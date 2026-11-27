@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.48', '2026-11-27', [
+    'A new look, Runestone: dark stone windows, an old adventure game\'s square letters, pixel icons and emoji, and chats written on parchment. Choose it in Settings › Appearance.',
+    'Runestone\'s textures: it can draw its buttons, windows and parchment from a resource pack, pixel art that players of the game it is modelled on have made. Choose one in Settings › Appearance › Textures and it is fetched to this device; with none the look is plain stone. Not in a browser.',
+    'In the Dial-Up look the rail of circles is drawn, each circle a square button, where the rail used to be empty.',
+  ]),
   ReleaseNotes('0.12.47', '2026-11-27', [
     'Eight more languages: Hebrew, Persian, Italian, Dutch, Polish, Ukrainian, Thai and Greek. Twenty-eight in all, in Settings › Language.',
     'In Arabic, Hebrew, Persian and Urdu the whole app is mirrored, right to left. A message written in another language keeps its own direction.',

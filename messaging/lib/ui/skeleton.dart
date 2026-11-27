@@ -101,7 +101,9 @@ class Bone extends LeafRenderObjectWidget {
   /// page, on a card and on a chat's own background alike. The light is brighter than the shape on a dark page and
   /// paler on a light one, so it is light passing on both.
   static (Color, Color) colours(Tokens t) {
-    final ink = t.color('app-ink');
+    // The page's ink, or the grey a look names where its ink is a colour (`--app-skeleton`: Runestone's yellow made
+    // every shape olive).
+    final ink = t.colorOf('var(--app-skeleton, var(--app-ink))');
     final dark = t.color('app-paper').computeLuminance() < 0.4;
     return (ink.withValues(alpha: dark ? 0.10 : 0.09), ink.withValues(alpha: dark ? 0.19 : 0.035));
   }

@@ -143,8 +143,9 @@ class AppShell extends StatefulWidget {
   static double pillRoom(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_ShellScope>();
     final t = context.tokens;
-    // Dial-Up's taskbar stands under the list rather than floating over it: the list's own well ends above it.
-    if (isBevelChrome(t)) return NavPill.taskbarHeight;
+    // Dial-Up's taskbar stands under the list rather than floating over it: the list's own well ends above it. With
+    // the rail there is no taskbar, and the well runs to the window's foot as the pane beside it does.
+    if (isBevelChrome(t)) return (scope?.rail ?? false) ? 0 : NavPill.taskbarHeight;
     if (scope?.rail ?? false) return t.space(4);
     // Stood up in the list's corner: the list's last rows scroll clear of the whole column, as Ghost.md's pages
     // keep room for its dock.
@@ -1408,7 +1409,10 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                       // banner) is as wide as the list, not laid across list and pane both.
                       // Dial-Up beside a pane: the whole list in the era's raised window border, as its other windows
                       // are (_SideFrame).
-                      child: _column(wide, side, _SideFrame(on: dialup && wide, child: _sized(Stack(children: [
+                      // Not where the look's windows have no border of their own (`--app-chrome-frames: none`,
+                      // Runestone): the list and the pane beside it are then two panels of one frame, their headings
+                      // on one line (Matt, 2026-11-27: "two panels next to each other don't line up").
+                      child: _column(wide, side, _SideFrame(on: dialup && wide && t.raw('app-chrome-frames')?.trim() != 'none', child: _sized(Stack(children: [
                         Positioned.fill(
                           child: NotificationListener<NavigationNotification>(
                             onNotification: (n) {

@@ -456,6 +456,30 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
+- **Look: Runestone, and resource packs** (0.12.48; `lib/looks.dart`, `lib/packs/`, `lib/ui/resource_packs_ui.dart`,
+  `lib/art/pixel_emoji.dart`, `lib/art/pixel_icons.g.dart`, Runestone's block in `assets/css/app.css`; Matt, 2026-11-27: "make a
+  theme in Ghost that fits this with the runescape font and everything", of the Dark Vanilla resource pack for an old
+  adventure game's interface, then "let's try the duckscape theme instead and bring in the pixelated looks"). A dark look
+  drawn by Dial-Up's chrome (`lib/ui/dialup/`): stone windows, the game's lettering colours (yellow words, orange
+  headings, white on what is pressed, each over a hard black shadow, through the kit's new `--glacier-text-shadow`), and
+  chats and every text field on parchment (`.parchment`: dark inks, what you say in blue and what is said to you in dark
+  red, six dark inks for a room). Its face is Runestone, the game's own letters as RuneStar/fonts traced them (CC0;
+  `tool/runestone_font.py`, `assets/fonts/CC0-Runestone.txt`), with the curly quotes, "…" and "›" the app writes added.
+  Every icon is in square pixels: Pixelarticons (MIT, `lib/art/PIXELARTICONS_LICENSE`) where it has the icon and the app's
+  own redrawn in pixels where not (`tool/pixel_icons.py`, `tool/pixel-map.json`); emoji that are read (messages,
+  reactions, the list's last line, buttons) are drawn sixteen pixels to the em. **Resource packs**: the look draws its
+  buttons, windows, wells, headings, close button, parchment and the round frames of profile pictures from a pack of
+  the game's players' own hub (github.com/melkypie/resource-packs), nine-patched with hard pixels. A pack is its
+  artist's work and is never in the app or its source: Settings › Appearance › Textures lists the hub and fetches the
+  one chosen to the device, at the commit the hub lists, kept as its archive and read as pictures only (not in a
+  browser). With none, the look is flat stone. The look's flat colours are read off the pack's pictures and laid over the
+  stylesheet (`ResourcePack.css`). Also for both bevelled looks: the rail of circles is drawn there now (it laid
+  nothing out under Dial-Up), each ring and each circle a square push button; the list beside a pane has no border of
+  its own under Runestone, so two panels' headings line up; the wide action button of the account pages and a reply to
+  choose are push buttons. Tests: resource_pack_test (a pack made in the test and a stand-in hub on this machine),
+  pixel_emoji_test, themes_test (Runestone's contrast on stone and on parchment, and every screen in it;
+  `THEME_NAV=rail THEME_PACK=<a pack's archive> THEME_SHOTS=1` draws them with a pack). Looked at in the tests' pictures
+  with Duckscape, Dark Vanilla and no pack; not tried on a phone, and fetching from the real hub was not run.
 - **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (0.8.4; `lib/looks.dart`, `lib/ui/look_picker.dart`,
   `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
   some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). Settings › Appearance has

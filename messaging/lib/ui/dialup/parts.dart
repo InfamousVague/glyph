@@ -1,9 +1,12 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart' show AppIcon, LucideIcon;
 import '../../art/lucide.g.dart' show Lucide;
 import '../../kit/settings_type.dart';
+import '../../packs/pack_paint.dart';
 import 'bevel.dart';
 import 'retro_button.dart';
 
@@ -39,7 +42,9 @@ class DialupWell extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Sunken(child: GlacierScope(classes: const {'dialup-well'}, child: child));
+  // The scope round the frame too, so a look whose fields are another ground than its pages' (Runestone's parchment)
+  // has the frame's own face in it; Dial-Up's rule says nothing of the paper, so its frame is the page's white still.
+  Widget build(BuildContext context) => GlacierScope(classes: const {'dialup-well'}, child: Sunken(small: true, child: child));
 }
 
 /// Round buttons that are to stand up off the panel as raised [RetroButton]s (the composer's +, stickers,
@@ -109,11 +114,61 @@ class DialupFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ring = Bevel.ringOf(context);
+    // Where the look draws with a resource pack (lib/packs/): round, inside the pack's own orb, as the game frames
+    // what stands by its map (Matt, 2026-11-27: "find a different look for the profile pictures make them inside a
+    // circle like shown", with a picture of one). The orb's ring is 4 of its 34 pixels each side.
+    final orb = packOf(context.tokens)?['other/minimap_orb_frame_small'];
+    if (orb != null) {
+      final inner = (size * 26 / 34).floorToDouble();
+      return SizedBox.square(
+        dimension: size,
+        child: Stack(alignment: Alignment.center, children: [
+          Positioned.fill(child: CustomPaint(painter: OrbPainter(orb))),
+          ClipOval(child: SizedBox.square(dimension: inner, child: FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox.square(dimension: size - ring * 2, child: child)))),
+        ]),
+      );
+    }
     return SizedBox.square(
       dimension: size,
       child: Bevel(style: BevelStyle.sunken, rings: 1, color: context.tokens.color('app-paper'), child: ClipRect(child: SizedBox.square(dimension: size - ring * 2, child: child))),
     );
   }
+}
+
+/// A round face inside the pack's own orb where the look draws with a pack (lib/packs/), and [child] as it is
+/// otherwise: a profile's picture wherever it is shown (lib/ui/profile_card.dart's ProfileFace), as [DialupFace]
+/// frames a conversation's.
+class PackOrb extends StatelessWidget {
+  const PackOrb({super.key, required this.size, required this.child});
+  final double size;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final orb = packOf(context.tokens)?['other/minimap_orb_frame_small'];
+    if (orb == null) return child;
+    final inner = (size * 26 / 34).floorToDouble();
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(alignment: Alignment.center, children: [
+        Positioned.fill(child: CustomPaint(painter: OrbPainter(orb))),
+        ClipOval(child: SizedBox.square(dimension: inner, child: FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox.square(dimension: size, child: child)))),
+      ]),
+    );
+  }
+}
+
+/// A pack's round frame over the whole of its box, its pixels kept square.
+class OrbPainter extends CustomPainter {
+  const OrbPainter(this.orb);
+  final ui.Image orb;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      canvas.drawImageRect(orb, Rect.fromLTWH(0, 0, orb.width.toDouble(), orb.height.toDouble()), Offset.zero & size, Paint()..filterQuality = FilterQuality.none);
+
+  @override
+  bool shouldRepaint(OrbPainter old) => old.orb != orb;
 }
 
 /// A count on a button's corner (the taskbar's Archive, Contacts, Settings): a small red square with white figures in

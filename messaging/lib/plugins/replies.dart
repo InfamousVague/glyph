@@ -30,6 +30,7 @@ import '../art/lucide_more.dart';
 import '../kit/settings_type.dart';
 import '../local_ai.dart';
 import '../sms.dart';
+import '../ui/dialup/dialup.dart';
 import '../ui/common.dart';
 import 'actions.dart' show whenIn, whenLabel;
 import 'conversation.dart' show PluginThread;
@@ -221,6 +222,10 @@ class RepliesPlugin extends GhostPlugin {
 /// One of the rounded chips over the composer.
 Widget replyChip(BuildContext context, String label, VoidCallback? onPressed, {LucideIcon? icon, String? semantic}) {
   final t = context.tokens;
+  // Under the bevelled chrome (Dial-Up, Runestone) a reply is a push button like the rest of its window's, and so is
+  // drawn from a resource pack's own button where the look has one (Matt, 2026-11-27, with a picture of three flat
+  // ones: "these responses are not themed pixelated").
+  if (isBevelChrome(t)) return RetroButton(onPressed: onPressed, label: label, icon: icon, semanticLabel: semantic ?? 'Reply: $label', faceHeight: 36);
   return GlacierPressable(
     onPressed: onPressed,
     semanticLabel: semantic ?? 'Reply: $label',

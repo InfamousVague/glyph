@@ -624,7 +624,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                           padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                           child: Stack(children: [
                             if (_text.text.isEmpty)
-                              IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: t.color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
+                              IgnorePointer(child: Text('Message on ${_n.name}', style: style.copyWith(color: composerTokens(t).color('app-ink-3')), strutStyle: strut, textHeightBehavior: composerLeading)),
                             // A picture pasted on a computer goes with the message, as one added with + does
                             // (lib/ui/paste_images.dart; Matt, 2026-11-20: "pasting a screenshot into the compose bar
                             // isn't adding attachements").
@@ -639,8 +639,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                               style: style,
                               strutStyle: strut,
                               textHeightBehavior: composerLeading,
-                              cursorColor: t.color('app-ink'),
-                              backgroundCursorColor: t.color('app-ink-3'),
+                              cursorColor: composerTokens(t).color('app-ink'),
+                              backgroundCursorColor: composerTokens(t).color('app-ink-3'),
                               minLines: 1,
                               maxLines: 6,
                               keyboardType: enterSends ? TextInputType.text : TextInputType.multiline,
@@ -757,7 +757,6 @@ extension on _InboxChatScreenState {
   /// The chat as Dial-Up writes it: "Name: words" lines in one white well, the day's turn and where the chat starts
   /// said by the room's Host, and pictures, files and link cards under the line they came with (lib/ui/message_line.dart).
   Widget _transcript(InboxChat? chat, List<InboxMessage> list) {
-    final c = DialupColors.of(context.tokens);
     final group = chat?.group ?? false;
     final more = switch (_n) { Bluesky b => b.hasOlder(widget.chatId), Telegram t => t.hasOlder(widget.chatId), AccountHelper h => h.hasOlder(widget.chatId), _ => false };
     return Transcript(
@@ -767,6 +766,8 @@ extension on _InboxChatScreenState {
         padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: list.length,
         itemBuilder: (context, i) {
+          // The well's own colours (a look may write its chat on another ground than its pages': `.parchment`).
+          final c = DialupColors.of(context.tokens);
           final m = list[i];
           final older = i + 1 < list.length ? list[i + 1] : null;
           final newer = i > 0 ? list[i - 1] : null;

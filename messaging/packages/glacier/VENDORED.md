@@ -18,3 +18,9 @@ Local addition (2026-11-23), in a browser only: the field core's semantics take 
 by focusing the field's element and saying so as the focus action; without it, a field the app had not focused itself
 took what was typed into its element and the app heard nothing (Ghost Messaging's browser build). Copy it upstream
 with the next sync.
+
+Local addition (2026-11-27), optional and off unless a sheet sets it: `--glacier-text-shadow`, a `text-shadow` as CSS
+writes one, which `Tokens.textAt` (and so `Tokens.text`) draws every word over (`Tokens.textShadows`). No sheet of the
+kit's sets it, so nothing changes without one (Ghost Messaging's Runestone look: an old game's letters, each on a hard
+black shadow one pixel down and right). Dark words (a luminance under 0.18) are drawn without it, since a dark shadow
+only smudges them. A scope can take it off again with `none`. Copy it upstream with the next sync.

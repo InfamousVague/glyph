@@ -372,6 +372,37 @@ extension on _RingState {
     final shown = widget.shown;
     final c = DialupColors.of(t);
     final onMenu = item.menu == null ? null : _showMenu;
+    // In the rail (lib/ui/nav_rail.dart): a square push button of the ring's own size, its picture alone, as a side
+    // panel's tabs are; its name is its tip, beside it. A strip's button, as wide as its share, has no width to take
+    // in a column, and laid nothing out there.
+    if (widget.beside) {
+      final side = t.len(widget.ringToken);
+      final tab = RetroButton(
+        onPressed: widget.onPressed,
+        onLongPress: onMenu,
+        semanticLabel: item.count > 0 ? '${item.label}, ${item.count}' : item.label,
+        toggled: shown,
+        face: shown && !c.afterHours ? c.lo : null,
+        faceHeight: side,
+        minFaceWidth: side,
+        padding: EdgeInsets.zero,
+        child: AppIcon(item.icon, size: 18, strokeWidth: shown ? 2.2 : 2, color: c.onChrome, wash: false),
+      );
+      return HoverTip(
+        message: item.label,
+        beside: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onSecondaryTapUp: onMenu == null ? null : (_) => onMenu(),
+          child: item.count <= 0
+              ? tab
+              : Stack(clipBehavior: Clip.none, children: [
+                  tab,
+                  PositionedDirectional(end: -2, top: -2, child: IgnorePointer(child: ExcludeSemantics(child: DialupCount(count: item.count)))),
+                ]),
+        ),
+      );
+    }
     final button = RetroButton(
       onPressed: widget.onPressed,
       onLongPress: onMenu,

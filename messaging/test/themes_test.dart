@@ -18,6 +18,7 @@ import 'package:ghost_messaging/circles/circles.dart';
 import 'package:ghost_messaging/friends/buddies.dart';
 import 'package:ghost_messaging/friends/friends.dart';
 import 'package:ghost_messaging/net/packet.dart' show Envelope;
+import 'package:ghost_messaging/packs/resource_pack.dart';
 import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/kit/semantic_colors.dart';
 import 'package:ghost_messaging/kit/settings_css.dart';
@@ -215,13 +216,66 @@ void main() {
       });
     }
 
-    test('no other look is drawn as a chat room', () {
-      for (final look in Look.values.where((l) => l != Look.dialup)) {
+    test('no other look is drawn as a chat room, but Runestone, which draws its stone with the same chrome', () {
+      expect(isBevelChrome(Tokens.root(sheet, attrs: Look.runestone.attrs(platform: 'mobile', theme: 'dark'))), isTrue);
+      for (final look in Look.values.where((l) => l != Look.dialup && l != Look.runestone)) {
         for (final b in brightnessesOf(look)) {
           expect(isBevelChrome(Tokens.root(sheet, attrs: look.attrs(platform: 'mobile', theme: b))), isFalse, reason: '${look.name} $b');
         }
       }
       expect(isBevelChrome(Tokens.root(sheet, attrs: const {'platform': 'mobile'})), isFalse);
+    });
+
+    // Runestone (Matt, 2026-11-27: "make a theme in Ghost that fits this with the runescape font and everything", then
+    // "use the light background for chats like dark vanilla uses"): the same chrome in dark stone, its own letters, and
+    // a chat written on parchment in inks that read there.
+    test('Runestone: its stone, its lettering and its parchment read', () {
+      final t = Tokens.root(sheet, attrs: Look.runestone.attrs(platform: 'mobile', theme: 'light'));
+      expect(t.isDark, isTrue, reason: 'dark whatever Theme says');
+      for (final name in dialupTokens) {
+        expect(() => t.color(name), returnsNormally, reason: '--$name under Runestone');
+      }
+      double on(String a, String b) => _contrast(t.color(a), t.color(b));
+      expect(on('app-titlebar-ink', 'app-titlebar'), greaterThanOrEqualTo(4.5), reason: 'a heading on its band');
+      expect(on('app-on-chrome', 'app-chrome'), greaterThanOrEqualTo(4.5), reason: 'a button\'s words on stone');
+      expect(on('app-ink-2', 'app-paper'), greaterThanOrEqualTo(4.5), reason: 'secondary words on a panel');
+      expect(on('app-ink-3', 'app-paper'), greaterThanOrEqualTo(4.5), reason: 'a row\'s second line on a panel');
+      expect(on('app-ink-3', 'app-chrome'), greaterThanOrEqualTo(4.5), reason: 'small words on stone');
+      expect(_contrast(t.danger, t.color('app-paper')), greaterThanOrEqualTo(4.5), reason: 'a failure on a panel');
+      expect(_contrast(t.danger, t.color('app-chrome')), greaterThanOrEqualTo(4.5), reason: 'a failure on stone');
+      expect(on('app-on-tooltip', 'app-tooltip'), greaterThanOrEqualTo(4.5));
+      expect(on('app-on-highlight', 'app-highlight'), greaterThanOrEqualTo(4.5), reason: 'a chosen row');
+      // Its face, a regular and a bold and nothing between, each word over the game's hard shadow.
+      expect(t.attrs['font'], 'runestone');
+      expect(t.families('glacier-font-sans').first, 'Runestone');
+      expect(t.weight('medium'), FontWeight.w400);
+      expect(t.weight('semibold'), FontWeight.w700);
+      final words = t.textAt(16, color: t.color('app-ink'));
+      expect(words.shadows, [const Shadow(color: Color(0xFF000000), offset: Offset(1, 1))], reason: 'light words stand on the shadow');
+      expect(t.textAt(16, color: const Color(0xFF000000)).shadows, isNull, reason: 'dark words are not smudged by it');
+      // Square, and nothing moves, as Dial-Up.
+      expect(t.radius('md'), 0);
+      expect(t.duration('glacier-duration-normal').inMilliseconds, 0);
+      // The chat and every field: parchment, dark inks, no shadow; everyone's name black, six dark inks for a room.
+      for (final scope in ['parchment', 'dialup-well']) {
+        final p = t.child(classes: {scope});
+        final paper = p.color('app-paper');
+        expect(paper.computeLuminance(), greaterThan(0.4), reason: '$scope is light');
+        expect(p.raw('app-well')?.trim(), 'parchment');
+        expect(p.textShadows, isNull, reason: 'no shadow on $scope');
+        final c = DialupColors.of(p);
+        for (final ink in [c.ink, c.inkSoft, c.nameMine, c.nameTheirs, ...c.names, c.wordsMine, c.wordsTheirs, p.danger, p.color('app-ink-2')]) {
+          expect(_contrast(ink, paper), greaterThanOrEqualTo(4.5), reason: '$ink on $scope');
+        }
+        expect(c.wordsMine, isNot(c.wordsTheirs), reason: 'what you say and what is said to you are two inks');
+        // The stone a button on the parchment is drawn in is still the page's.
+        expect(c.chrome, DialupColors.of(t).chrome);
+      }
+      // Dial-Up says nothing of either colour: its words are the page's ink on both sides, as they were.
+      final dial = DialupColors.of(Tokens.root(sheet, attrs: Look.dialup.attrs(platform: 'mobile', theme: 'light')));
+      expect(dial.wordsMine, dial.ink);
+      expect(dial.wordsTheirs, dial.ink);
+      expect(dial.close, dial.onChrome);
     });
 
     testWidgets('its pieces draw', (tester) async {
@@ -313,7 +367,16 @@ void main() {
         Inbox.instance = Inbox.of([_telegram()]);
         Voice.instance.own = [_space().channel];
         Voice.instance.putHangout(_space());
-        final sheet = (await tester.runAsync(_loadSheet))!;
+        var sheet = (await tester.runAsync(_loadSheet))!;
+        // THEME_PACK=<a resource pack's archive on this disk> draws Runestone with that pack's pictures and colours, as
+        // the app does once the person has fetched one (lib/packs/). Nothing is fetched here; without it Runestone is
+        // drawn as it is with no pack, in flat stone.
+        final pack = Platform.environment['THEME_PACK'];
+        if (look == Look.runestone && pack != null) {
+          await tester.runAsync(() => ResourcePacks.instance.debugUse(PackEntry(id: 'pack-shown', name: 'Shown', author: '', commit: '0' * 40), File(pack).readAsBytesSync()));
+          addTearDown(() => ResourcePacks.instance.current = null);
+          sheet = TokenSheet.kept([...sheet.rules, ...TokenSheet.parse(ResourcePacks.instance.current!.css).rules]);
+        }
         for (final b in brightnessesOf(look)) {
           for (final screen in themeScreens) {
             // THEME_SCREENS=plugins,plugin-detail draws those alone, for working on one screen.
@@ -901,7 +964,9 @@ Future<void> shootLook(WidgetTester tester, TokenSheet sheet, Look look, String 
   final state = AppState()
     ..setTheme(brightness)
     ..setLook(look)
-    ..set(NavStyle.pref, NavStyle.classic.name);
+    // The changing dock, which every picture here was first drawn with; THEME_NAV=rail draws the rail with circles,
+    // which a device that never chose has (lib/ui/nav_style.dart), for looking a look over in it.
+    ..set(NavStyle.pref, Platform.environment['THEME_NAV'] ?? NavStyle.classic.name);
   screen.choices?.call(state);
   if (screen.after != null) addTearDown(screen.after!);
   final name = '${look.name}-$brightness-${screen.name}';
@@ -979,6 +1044,12 @@ Future<void> _fonts() async {
   await family('Inter Variable', 'assets/fonts/InterVariable-latin.ttf');
   await family('JetBrains Mono Variable', 'assets/fonts/JetBrainsMonoVariable-latin.ttf');
   await family('Arimo', 'assets/fonts/ArimoVariable.ttf');
+  // Runestone's regular and bold are one family of two files.
+  final runestone = FontLoader('Runestone');
+  for (final file in ['assets/fonts/Runestone-Regular.ttf', 'assets/fonts/Runestone-Bold.ttf']) {
+    runestone.addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+  }
+  await runestone.load();
   await family('Ghost Emoji Noto', 'assets/emoji/NotoColor.ttf');
 }
 

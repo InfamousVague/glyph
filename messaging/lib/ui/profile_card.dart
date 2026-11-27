@@ -28,6 +28,7 @@ import '../sms.dart';
 import '../standalone/chats.dart' show UsernameChats;
 import '../voice/hangout.dart';
 import 'common.dart';
+import 'dialup/parts.dart' show PackOrb;
 import 'report_sheet.dart' show ReportTarget, showReportSheet;
 import 'emoji_suggestions.dart';
 import 'inbox_ui.dart' show openInboxChat, inboxMark;
@@ -607,15 +608,16 @@ class ProfileFace extends StatelessWidget {
     }
     final f = file;
     if (image == null && f != null && f.isNotEmpty && File(f).existsSync()) image = Image.file(File(f), width: size, height: size, fit: BoxFit.cover, cacheWidth: faceDecodeWidth(context, size));
-    if (image != null) return ClipOval(child: SizedBox(width: size, height: size, child: image));
+    // Inside a resource pack's orb where the look draws with one (lib/ui/dialup/parts.dart's PackOrb).
+    if (image != null) return PackOrb(size: size, child: ClipOval(child: SizedBox(width: size, height: size, child: image)));
     final letter = name.trim().isEmpty ? '?' : String.fromCharCodes(name.trim().runes.take(1)).toUpperCase();
-    return Container(
+    return PackOrb(size: size, child: Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-paper-2'), border: Border.all(color: t.color('app-rule'))),
       child: name.trim().isEmpty ? AppIcon(Lucide.circleUser, size: size * 0.45, color: t.color('app-ink-3')) : Text(letter, style: pageText(t, size * 0.4, weight: 'bold', color: t.color('app-ink-2'))),
-    );
+    ));
   }
 }
 
