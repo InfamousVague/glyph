@@ -899,7 +899,9 @@ body:has(.app-headerPane) .app-statusScrim {
  *
  * Settings › Appearance › Look (Matt, 2026-11-16: "spend some time making a few themes for ghost"). Each is stamped
  * on the page as `data-theme-preset` by ghostAttrs, with its fixed `data-theme` where it has only one brightness;
- * Ghost, the app's own, stamps none and none of this applies to it.
+ * Ghost, the app's own, stamps none and none of this applies to it. Mist and Lamplight are Ghost's packs since
+ * 2026-11-27 (chosen under it, in Settings › Appearance › Textures) and are written here as any look is: a pack that
+ * is part of the app is a preset of its own.
  *
  * How each is written, and why:
  * - its twelve greys at `:root[data-theme-preset='x']` (with `[data-theme='dark']` for a dark half): all twelve, always,
@@ -1082,59 +1084,12 @@ body:has(.app-headerPane) .app-statusScrim {
   --app-bubble-theirs: var(--app-gray-5);
 }
 
-/* Phosphor: a green-screen terminal. Glowing green monospace on a black tube, square corners, a lit green block for
-   your own messages. Dark. */
-:root[data-theme-preset='phosphor'] {
-  --glacier-gray-1: #020703;
-  --glacier-gray-2: #030F05;
-  --glacier-gray-3: #041608;
-  --glacier-gray-4: #06210D;
-  --glacier-gray-5: #092C13;
-  --glacier-gray-6: #063B19;
-  --glacier-gray-7: #0B5022;
-  --glacier-gray-8: #13702F;
-  --glacier-gray-9: #33A64B;
-  --glacier-gray-10: #3BBB56;
-  --glacier-gray-11: #4EDF6B;
-  --glacier-gray-12: #70FF83;
-}
-:root:root:root:root[data-theme-preset='phosphor'] {
-  --glacier-glass-thin: oklch(0.14 0.03 150 / 0.60);
-  --glacier-glass-regular: oklch(0.14 0.03 150 / 0.72);
-  --glacier-glass-thick: oklch(0.14 0.03 150 / 0.88);
-  --glacier-glass-border: oklch(0.80 0.20 147 / 0.18);
-  --glacier-glass-highlight: oklch(0.90 0.21 146 / 0.08);
-  --glacier-surface-raised: #041608;
-  --glacier-overlay: oklch(0 0 0 / 0.70);
-  --glacier-segment-track: #06210D;
-  --glacier-slider-thumb: #70FF83;
-  --app-ink-level: 0.86;
-  --app-raised: var(--app-gray-3);
-  --app-scrim: oklch(0 0 0 / 0.70);
-  --app-mark: color-mix(in oklch, #33FF66 28%, transparent);
-  --app-accent: #33FF66;
-  --app-on-accent: #001A08;
-  --app-bubble-mine: #33FF66;
-  --app-on-bubble-mine: #001A08;
-  --app-bubble-rim: var(--app-gray-7);
-  --glacier-selection: color-mix(in oklch, #33FF66 28%, transparent);
-  --glacier-focus-ring: #33FF66;
-  --app-unread: #33FF66;
-  --app-chosen: #33FF66;
-  --app-info: #70FF83;
-  /* The app's own mono, already bundled; ghostTypography hangs the emoji set on it too (lib/main.dart). */
-  --glacier-font-sans: 'JetBrains Mono Variable', ui-monospace, monospace;
-  --app-tracking-display: 0;
-  --app-tracking-title: 0;
-  --glacier-radius-scale: 0;
-  --glacier-radius-full: 0.25rem;
-}
-
 /* Dial-Up: a late-90s online service's chat room. Silver bevelled windows with navy title bars, a white page where
-   each line is a name and what they said, a teal desktop in the wide window's gutters. Two halves: Daytime (the
-   authentic one) and After Hours, a black high-contrast scheme of the same era (purple bars, cyan names, white
-   frames). Drawn by lib/ui/dialup/ (Bevel, Sunken, RetroButton, TitleBar), which read the tokens below; the layout
-   asks `--app-chrome-style` (`bevel` only here), so it goes by these rules rather than by the look's name.
+   each line is a name and what they said, a teal desktop in the wide window's gutters. Light only: its dark half
+   (After Hours, a black high-contrast scheme of the same era) was taken out on 2026-11-27, at Matt's word ("remove
+   the dark dial uptheme"). Drawn by lib/ui/dialup/ (Bevel, Sunken, RetroButton, TitleBar), which read the tokens
+   below; the layout asks `--app-chrome-style` (`bevel` here and in Runestone, the chrome's dark look), so it goes by
+   these rules rather than by the look's name.
    Grey on silver fails (#808080 on #C0C0C0 is 2.2:1), so readable secondary words are #404040 (5.7:1) and #808080 is
    kept for bevels and what is disabled; pure red on white is 4:1, so your own name and failures are #B00000. */
 :root[data-theme-preset='dialup'] {
@@ -1150,20 +1105,6 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-gray-10: #303030;
   --glacier-gray-11: #202020;
   --glacier-gray-12: #000000;
-}
-:root[data-theme-preset='dialup'][data-theme='dark'] {
-  --glacier-gray-1: #000000;
-  --glacier-gray-2: #101010;
-  --glacier-gray-3: #202020;
-  --glacier-gray-4: #404040;
-  --glacier-gray-5: #404040;
-  --glacier-gray-6: #606060;
-  --glacier-gray-7: #808080;
-  --glacier-gray-8: #A0A0A0;
-  --glacier-gray-9: #C0C0C0;
-  --glacier-gray-10: #D0D0D0;
-  --glacier-gray-11: #E0E0E0;
-  --glacier-gray-12: #FFFFFF;
 }
 :root:root:root:root[data-theme-preset='dialup'] {
   /* What lib/ui/dialup/'s isDialup asks: the chat-room chrome, bevels and title bars, instead of the app's glass. */
@@ -1255,65 +1196,6 @@ body:has(.app-headerPane) .app-statusScrim {
   --app-turn: 0.01ms linear;
   --app-settle: 0.01ms linear;
 }
-/* After Hours: black chrome and wells outlined in white, as the era's high-contrast black scheme drew them. The same
-   specificity as Daytime and later, so it wins the tie; what is not repeated (the shape, the motion) carries over. */
-:root:root:root[data-theme-preset='dialup'][data-theme='dark'] {
-  --app-chrome: #000000;
-  --app-on-chrome: #FFFFFF;
-  --app-bevel-hi: #FFFFFF;
-  --app-bevel-lo: #808080;
-  --app-bevel-shadow: #808080;
-  --app-bevel-dark: #FFFFFF;
-  --app-titlebar: #800080;
-  --app-titlebar-end: #800080;
-  --app-titlebar-ink: #FFFFFF;
-  --app-titlebar-inactive: #000000;
-  --app-titlebar-inactive-ink: #C0C0C0;
-  --app-name-mine: #FF6060;
-  --app-name-theirs: #00FFFF;
-  --app-name-1: #00FFFF;
-  --app-name-2: #FFFF00;
-  --app-name-3: #00FF00;
-  --app-name-4: #FF80FF;
-  --app-name-5: #80C0FF;
-  --app-name-6: #FFC080;
-  --app-desktop: #000000;
-  --app-tooltip: #000000;
-  --app-on-tooltip: #FFFFFF;
-  --app-highlight: #800080;
-  --app-on-highlight: #FFFFFF;
-  --app-danger: #FF6060;
-  --app-unread: #FFFF00;
-  --app-chosen: #00FFFF;
-  --app-info: #00FFFF;
-  --app-online: #00FF00;
-  --app-warn: #FFFF00;
-  --app-pinned: #FFFF00;
-  --app-text-selection: color-mix(in srgb, #800080 70%, transparent);
-  --app-ink-level: 1;
-  --app-scrim: oklch(0 0 0 / 0.70);
-  --app-mark: color-mix(in oklch, #FFFF00 35%, transparent);
-  --app-accent: #800080;
-  --app-on-accent: #FFFFFF;
-  --app-bubble-mine: #800080;
-  --app-on-bubble-mine: #FFFFFF;
-  --app-bubble-theirs: var(--app-gray-3);
-  --app-bubble-rim: var(--app-gray-8);
-  --glacier-glass-thin: #000000;
-  --glacier-glass-regular: #000000;
-  --glacier-glass-thick: #000000;
-  --glacier-glass-border: #FFFFFF;
-  --glacier-surface-raised: #000000;
-  --glacier-overlay: oklch(0 0 0 / 0.70);
-  --glacier-segment-track: var(--app-gray-3);
-  --glacier-slider-thumb: #FFFFFF;
-  --glacier-border: var(--app-gray-10);
-  --glacier-border-subtle: var(--app-gray-6);
-  --glacier-border-strong: var(--app-gray-12);
-  --glacier-focus-ring: #FFFFFF;
-  --glacier-selection: color-mix(in oklch, #800080 70%, transparent);
-}
-
 /* Runestone: an old adventure game's interface as its players' dark stone packs draw it (Matt, 2026-11-27: "make a
    theme in Ghost that fits this with the runescape font and everything", of the Dark Vanilla resource pack for Old
    School RuneScape's interface, by Nichy, in melkypie/resource-packs; then "use the light background for chats like
@@ -1537,13 +1419,13 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-bg: var(--app-chrome);
 }
 
-/* The count on a taskbar button stays red in both halves, as the design asks, where --app-unread is navy or yellow. */
+/* The count on a taskbar button is red, as the design asks, where --app-unread is navy. */
 :root:root:root:root[data-theme-preset='dialup'] {
   --app-count: #B00000;
   --app-on-count: #FFFFFF;
 }
 /* What stands on a title bar (lib/ui/dialup/parts.dart DialupBand): the page's ink is the band's white there, so a
-   page's own header and its icon buttons read on navy (or After Hours' purple) without knowing they are on it. */
+   page's own header and its icon buttons read on navy without knowing they are on it. */
 [data-theme-preset='dialup'] .dialup-band {
   --app-ink: var(--app-titlebar-ink);
   --app-ink-2: var(--app-titlebar-ink);
@@ -1566,9 +1448,8 @@ body:has(.app-headerPane) .app-statusScrim {
 
 /* The section colours of Settings' row icons and the avatars' colours (`data-hue`, lib/kit/settings_css.dart, which
    is laid over this sheet with lower specificity), settled into each look: Ghost's indigo was the one cold patch on
-   Mist's, Lamplight's and Sharp's pages (the review of the looks, 2026-11-16). Phosphor is one phosphor, so every hue
-   is its green; Dial-Up draws its icons in plain ink. Both --hue and --hue-dark, since settings.css makes the dark
-   page's --hue its --hue-dark. */
+   Mist's, Lamplight's and Sharp's pages (the review of the looks, 2026-11-16). Dial-Up draws its icons in plain ink.
+   Both --hue and --hue-dark, since settings.css makes the dark page's --hue its --hue-dark. */
 :root:root:root:root[data-theme-preset='mist'] [data-hue='indigo'] {
   --hue: #0C7F7A;
   --hue-dark: #0C7F7A;
@@ -1595,10 +1476,6 @@ body:has(.app-headerPane) .app-statusScrim {
   --hue: var(--app-accent);
   --hue-dark: var(--app-accent);
 }
-:root:root:root:root[data-theme-preset='phosphor'] [data-hue] {
-  --hue: #70FF83;
-  --hue-dark: #70FF83;
-}
 :root:root:root:root[data-theme-preset='dialup'] [data-hue] {
   --hue: var(--app-ink);
   --hue-dark: var(--app-ink);
@@ -1620,13 +1497,13 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-font-sans: 'Runestone', 'Inter Variable', sans-serif;
 }
 
-/* A look of one's own in the terminal's face (lib/custom_theme.dart's fonts, GMFB-41): the mono Phosphor draws in. */
+/* A look of one's own in the terminal's face (lib/custom_theme.dart's fonts, GMFB-41): the app's own mono. */
 [data-font='mono'] {
   --glacier-font-sans: 'JetBrains Mono Variable', ui-monospace, monospace;
 }
 
 /* The Readable font (Settings › Appearance; GMFB-41, from the Uplink gap review: "dyslexia font"): Atkinson
-   Hyperlegible Next, bundled, in place of every look's own face, Dial-Up's and Phosphor's too. Above the looks' rules
+   Hyperlegible Next, bundled, in place of every look's own face, Dial-Up's and Runestone's too. Above the looks' rules
    (specificity 5), since a face chosen for reading must win. Code stays in the mono. */
 :root:root:root:root:root:root[data-font='readable'] {
   --glacier-font-sans: 'Atkinson Hyperlegible Next Variable', 'Inter Variable', sans-serif;

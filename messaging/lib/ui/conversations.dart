@@ -1799,8 +1799,8 @@ class ConversationRow extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
-              // Its corners under the look's radius scale (square in Phosphor), and in a look that rules its shapes
-              // (Sharp, Phosphor) a line round the card where Ghost keeps the room for one clear.
+              // Its corners under the look's radius scale (square in Dial-Up), and in a look that rules its shapes
+              // (Sharp) a line round the card where Ghost keeps the room for one clear.
               borderRadius: BorderRadius.circular(lookCorner(t, '1rem')),
               border: Border.all(color: selected ? t.color('app-ink') : (lookRim(t) == null ? const Color(0x00000000) : t.color('glacier-border-subtle')), width: 2),
             ),

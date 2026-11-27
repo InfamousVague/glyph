@@ -1,7 +1,7 @@
 /// The Plugins page's colour (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
 /// marketplace like look how ghostmd has"): each plugin's tile, card head and page wear its hue, read from the tokens
 /// as Settings' own section colours are (`[data-hue]`, lib/kit/settings_css.dart), so every look settles them as it
-/// settles those (assets/css/app.css: Mist's teal, Lamplight's amber, Phosphor's one green, Dial-Up's ink). Ghost.md's
+/// settles those (assets/css/app.css: Mist's teal, Lamplight's amber, Dial-Up's ink). Ghost.md's
 /// Market (its lib/market/) wrote its gradients and its white glass in hex; here nothing is: the words on a colour
 /// are the page's own paper or ink, whichever reads better on it.
 library;
@@ -58,7 +58,7 @@ class PluginHues {
   final Color start, end;
 
   /// Words and marks on the colour: the page's lighter one (white paper, a dark page's ink) where it reads at 3:1 on
-  /// all of it, else its darker (Phosphor's black on its green, a dark ink on Lamplight's amber).
+  /// all of it, else its darker (a dark ink on Lamplight's amber).
   final Color on;
 
   /// The hue on the page itself, where it marks something: deep on the light page, bright on the dark.
@@ -87,8 +87,8 @@ class PluginHues {
 }
 
 /// Of [light] and [dark], the one that reads on every colour in [on]: the light one where it reaches [least] on all of
-/// them (3:1 for large, bold words; 4.5:1 for a line of small ones), else whichever reads better: Phosphor's black on
-/// its green.
+/// them (3:1 for large, bold words; 4.5:1 for a line of small ones), else whichever reads better: a dark ink on
+/// Lamplight's amber.
 Color onColour(Color light, Color dark, List<Color> on, {double least = 3}) {
   double worst(Color ink) => on.map((c) => _contrast(ink, c)).reduce(math.min);
   final l = worst(light);
@@ -102,7 +102,7 @@ double _contrast(Color a, Color b) {
   return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
 }
 
-/// A corner of [px] under the look's radius scale (as lib/backgrounds.dart's lookCorner): Phosphor and Dial-Up square.
+/// A corner of [px] under the look's radius scale (as lib/backgrounds.dart's lookCorner): Dial-Up and Runestone square.
 double pluginCorner(Tokens t, double px) => px * t.number('glacier-radius-scale').clamp(0.0, 1.0);
 
 /// The light laid over a coloured surface: a glow from its top start corner, in the page's lighter colour.

@@ -33,8 +33,8 @@ String fileHue(FileKind kind) => switch (kind) {
       FileKind.other => 'slate',
     };
 
-/// Each kind's ink under Dial-Up, from the era's sixteen colours (deep on the white well, bright on After Hours'
-/// black): Dial-Up settles every app hue into plain ink, which left every file a black mark in a white box, and the
+/// Each kind's ink under Dial-Up, from the era's sixteen colours (deep on the white well, bright on the dark chrome
+/// Runestone draws with): Dial-Up settles every app hue into plain ink, which left every file a black mark in a white box, and the
 /// kinds are told apart by their colour as much as their icon.
 Color fileRetroInk(Tokens t, FileKind kind) {
   final (light, dark) = switch (kind) {

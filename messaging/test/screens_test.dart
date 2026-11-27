@@ -2259,7 +2259,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-settings-appearance', dark: dark);
       // Its first section is the looks (lib/ui/look_picker.dart), which pushed Text size below the window's foot.
-      expect(seen(find.text('Lamplight')), findsOneWidget);
+      expect(seen(find.text('Runestone')), findsOneWidget);
       expect(find.byType(SectionPage), findsOneWidget);
       expect(tester.state<AppShellState>(find.byType(AppShell)).settingsSection.value, 'appearance');
       // Only Settings' own back arrow, none on the section's page beside it.
@@ -2269,13 +2269,13 @@ void main() {
       tester.view.physicalSize = cover;
       await _settle(tester);
       await _shootAgain(tester, '11-frame-narrow-settings-section', dark: dark);
-      expect(seen(find.text('Lamplight')), findsOneWidget);
+      expect(seen(find.text('Runestone')), findsOneWidget);
       expect(seen(icon('Back')), findsOneWidget);
       await tester.tap(seen(icon('Back')));
       await _settle(tester);
       await _shootAgain(tester, '11-frame-narrow-settings', dark: dark);
       expect(seen(row('Appearance')), findsOneWidget);
-      expect(seen(find.text('Lamplight')), findsNothing);
+      expect(seen(find.text('Runestone')), findsNothing);
       expect(seen(ring('settings')), findsNothing, reason: 'on a phone Settings is a page with its own way back');
       await tester.tap(seen(icon('Back')));
       await _settle(tester);
@@ -2289,10 +2289,10 @@ void main() {
       expect(find.byType(SectionPage), findsNothing);
       await tester.tap(row('Appearance'));
       await _settle(tester);
-      expect(seen(find.text('Lamplight')), findsOneWidget);
+      expect(seen(find.text('Runestone')), findsOneWidget);
       tester.view.physicalSize = open;
       await _settle(tester);
-      expect(seen(find.text('Lamplight')), findsOneWidget);
+      expect(seen(find.text('Runestone')), findsOneWidget);
       expect(seen(row('Appearance')), findsOneWidget);
       // The Messages ring puts Settings away, list and page both.
       await tester.tap(ring('messages'));

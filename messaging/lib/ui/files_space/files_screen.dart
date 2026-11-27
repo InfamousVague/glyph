@@ -1097,8 +1097,8 @@ class _FolderChip extends StatelessWidget {
         child: RetroButton(onPressed: onPressed, onLongPress: onLongPress, icon: icon, label: words, toggled: chosen, faceHeight: 32),
       );
     }
-    // The chosen chip in the strong fill Upload and the list-or-grid toggle wear (black in Ghost, teal in Mist, green
-    // in Phosphor), so a screen has one kind of chosen, not the accent beside a near-black.
+    // The chosen chip in the strong fill Upload and the list-or-grid toggle wear (black in Ghost, teal in Mist, amber
+    // in Lamplight), so a screen has one kind of chosen, not the accent beside a near-black.
     final (strong, onStrong) = strongFill(t);
     return Padding(
       padding: EdgeInsetsDirectional.only(end: t.space(2), top: t.space(1), bottom: t.space(1)),

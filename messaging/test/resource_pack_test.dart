@@ -147,6 +147,148 @@ void main() {
     expect(app.choice(ResourcePacks.pref, 'x'), '');
   });
 
+  // Matt, 2026-11-27, of the look in flat stone on his phone: "I see the runestone theme but I wanted it to use the
+  // duckscape look". The look's usual pack is the one chosen until another is, and is fetched by itself the first
+  // time the look is used. Here the hub is a stand-in on this machine, and its "Duckscape" a pack made in the test.
+  group('the usual pack', () {
+    const usual = PackEntry(id: ResourcePacks.usual, name: 'Duckscape', author: 'An artist', commit: 'abcdef0123456789abcdef0123456789abcdef01');
+    late HttpServer hub;
+    late Directory root;
+    late List<String> asked;
+    late bool up;
+    late ResourcePacks packs;
+    ResourcePacks holder() => ResourcePacks(root: root, listUrl: 'http://127.0.0.1:${hub.port}/manifest.js', archiveUrl: (e) => 'http://127.0.0.1:${hub.port}/archive/${e.commit}.zip');
+
+    setUp(() async {
+      // The test binding answers every request itself (400); the stand-in below is asked for real, on this machine.
+      final overrides = HttpOverrides.current;
+      HttpOverrides.global = null;
+      addTearDown(() => HttpOverrides.global = overrides);
+      final zip = madePack();
+      asked = [];
+      up = true;
+      hub = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => hub.close(force: true));
+      hub.listen((request) async {
+        asked.add(request.uri.path);
+        if (!up) {
+          request.response.statusCode = 503;
+        } else if (request.uri.path == '/manifest.js') {
+          request.response.write(jsonEncode([good.toJson(), usual.toJson()]));
+        } else if (request.uri.path == '/archive/${usual.commit}.zip' || request.uri.path == '/archive/${good.commit}.zip') {
+          request.response.add(zip);
+        } else {
+          request.response.statusCode = 404;
+        }
+        await request.response.close();
+      });
+      root = Directory.systemTemp.createTempSync('ghost-packs-usual-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      packs = holder();
+    });
+
+    // Until [done], or two seconds, which fails the test that asked.
+    Future<void> until(bool Function() done) async {
+      final end = DateTime.now().add(const Duration(seconds: 2));
+      while (!done() && DateTime.now().isBefore(end)) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(done(), isTrue, reason: 'still waiting after two seconds');
+    }
+
+    test('nothing is fetched until Runestone is the look; then its usual pack is, once, and it is drawn with', () async {
+      final app = AppState();
+      expect(ResourcePacks.chosen(app), ResourcePacks.usual, reason: 'the pack chosen where none ever was');
+      await packs.start(app);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect([asked, packs.current, packs.fetching, packs.failed], [isEmpty, isNull, isNull, isNull], reason: 'Ghost is the look: the hub is not asked');
+
+      app.setLook(Look.runestone);
+      expect(packs.usedBy(app), isNull, reason: 'flat stone until it is here');
+      await until(() => packs.current != null && packs.fetching == null);
+      expect(asked, ['/manifest.js', '/archive/${usual.commit}.zip'], reason: 'the commit the hub\'s list names');
+      expect(packs.usedBy(app)!.entry.id, ResourcePacks.usual);
+      expect([for (final e in packs.installed()) (e.id, e.name)], [(ResourcePacks.usual, 'Duckscape')]);
+      expect(app.choice(ResourcePacks.pref, 'never'), 'never', reason: 'nothing is written as chosen: it is still the usual one');
+      expect(packs.failed, isNull);
+
+      // Another look and back, and the app started again: it is on this device now, and the hub is not asked.
+      app.setLook(Look.ghost);
+      app.setLook(Look.runestone);
+      final again = holder();
+      await again.start(app);
+      expect(again.current!.entry.id, ResourcePacks.usual);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(asked, hasLength(2));
+    });
+
+    test('the app starting in Runestone fetches it without waiting for it', () async {
+      final app = AppState()..setLook(Look.runestone);
+      await packs.start(app);
+      expect(packs.current, isNull, reason: 'the first page is not kept waiting on the hub');
+      expect(packs.fetching, ResourcePacks.usual);
+      await until(() => packs.current != null && packs.fetching == null);
+      expect(packs.usedBy(app)!.entry.id, ResourcePacks.usual);
+    });
+
+    test('with no connection the look stays flat stone and says so; it is fetched when asked again', () async {
+      up = false;
+      final app = AppState()..setLook(Look.runestone);
+      await packs.start(app);
+      await until(() => packs.failed != null);
+      expect([packs.current, packs.fetching, packs.failed], [isNull, isNull, ResourcePacks.usual]);
+      expect(packs.installed(), isEmpty);
+      expect(ResourcePacks.chosen(app), ResourcePacks.usual, reason: 'the choice stays for when it can be fetched');
+      // The hub has no pack by the name: the same.
+      up = true;
+      await packs.fetch(app, 'pack-nobody-made');
+      expect(packs.failed, 'pack-nobody-made');
+      // Tried again, from Settings: fetched and drawn with.
+      await packs.fetch(app, ResourcePacks.usual);
+      expect([packs.failed, packs.fetching, packs.usedBy(app)?.entry.id], [isNull, isNull, ResourcePacks.usual]);
+    });
+
+    test('plain stone, once chosen, stays: the usual pack is not fetched behind it, and is a press away', () async {
+      final app = AppState()..setLook(Look.runestone);
+      await packs.start(app);
+      await until(() => packs.current != null && packs.fetching == null);
+      // Taken off this device while in use: plain stone, said outright.
+      await packs.remove(app, ResourcePacks.usual);
+      expect([packs.current, packs.installed(), app.choice(ResourcePacks.pref, 'never')], [isNull, isEmpty, '']);
+      final count = asked.length;
+      app.setLook(Look.ghost);
+      app.setLook(Look.runestone);
+      final again = holder();
+      await again.start(app);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect([asked.length, again.current, again.fetching], [count, isNull, isNull], reason: 'plain stone is a choice, and nothing is fetched');
+      // Chosen again, as its row in Settings does: fetched, and drawn with.
+      await packs.use(app, ResourcePacks.usual);
+      await until(() => packs.current != null && packs.fetching == null);
+      expect(packs.usedBy(app)!.entry.id, ResourcePacks.usual);
+    });
+
+    test('plain stone pressed while the pack is on its way: it is kept, and not drawn with', () async {
+      final app = AppState()..setLook(Look.runestone);
+      await packs.start(app);
+      expect(packs.fetching, ResourcePacks.usual);
+      await packs.use(app, '');
+      await until(() => packs.fetching == null);
+      expect([packs.current, ResourcePacks.chosen(app)], [isNull, '']);
+      expect([for (final e in packs.installed()) e.id], [ResourcePacks.usual], reason: 'on this device, for when it is chosen');
+    });
+
+    test('another pack chosen is the one drawn with, and the usual one is not fetched over it', () async {
+      final app = AppState()..setLook(Look.runestone);
+      await packs.install(app, good);
+      final count = asked.length;
+      final again = holder();
+      await again.start(app);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect([again.current!.entry.id, asked.length], [good.id, count]);
+    });
+  });
+
   testWidgets('Runestone draws its buttons, wells and headings from the pack; Dial-Up and a look without one draw as they did', (tester) async {
     final accents = (await tester.runAsync(AccentSheets.load))!;
     final app = AppState()..setLook(Look.runestone);

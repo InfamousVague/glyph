@@ -21,10 +21,16 @@ import '../platform_info.dart';
 /// branch. The look draws its windows, buttons, wells and chat parchment from a pack's own pictures where one is
 /// here (lib/packs/pack_paint.dart), pixel for pixel, and from flat stone where none is.
 ///
-/// A pack is its artist's own work, and behind most is the game's: none is in the app or its source. The person
-/// chooses one in Settings › Appearance and this device fetches it from the hub, as the game's own client does: the
-/// archive of the commit the hub lists, kept whole in the app's folder ([packsRoot]) and read as data (pictures and
-/// nothing else are taken from it; nothing in it is run). Not in a browser, which speaks to its own address alone.
+/// A pack is its artist's own work, and behind most is the game's: none is in the app or its source. This device
+/// fetches one from the hub, as the game's own client does: the archive of the commit the hub lists, kept whole in
+/// the app's folder ([packsRoot]) and read as data (pictures and nothing else are taken from it; nothing in it is
+/// run). Not in a browser, which speaks to its own address alone.
+///
+/// **The look has a usual pack** ([ResourcePacks.usual], Duckscape; Matt, 2026-11-27, of the look in flat stone on his
+/// phone: "I see the runestone theme but I wanted it to use the duckscape look"). Until the person chooses another, or
+/// plain stone, that is the pack chosen, and it is fetched by itself the first time Runestone is the look: as the app
+/// starts in it, or as it is chosen. Nobody who never uses the look fetches anything, and Settings › Appearance ›
+/// Textures says where it comes from, shows it arriving, and has plain stone a press away.
 class PackEntry {
   const PackEntry({required this.id, required this.name, required this.author, required this.commit, this.tags = const []});
 
@@ -310,8 +316,20 @@ class ResourcePacks extends ChangeNotifier {
 
   static ResourcePacks instance = ResourcePacks();
 
-  /// The choice the pack in use is kept under, by its id; none where empty.
+  /// The choice the pack in use is kept under, by its id; plain stone where empty, and [usual] where nothing was ever
+  /// chosen ([chosen]).
   static const pref = 'resource_pack';
+
+  /// The pack Runestone is drawn with unless another is chosen: its branch in the hub, and its name for a row in
+  /// Settings before the hub has been asked.
+  static const usual = 'pack-duckscape', usualName = 'Duckscape';
+
+  /// The pack [app] has chosen, by its id: [usual] until something is chosen, empty for plain stone.
+  static String chosen(AppState app) => app.choice(pref, usual);
+
+  /// What [entry] is called where the app names it: the hub's own name for it, and [usualName] for the usual pack,
+  /// which the app has named before the hub was ever asked (the hub writes it "duckscape").
+  static String nameOf(PackEntry entry) => entry.id == usual ? usualName : entry.name;
 
   /// The hub: its list, and a pack's archive at the commit the list names.
   static const hubList = 'https://raw.githubusercontent.com/melkypie/resource-packs/github-actions/manifest.js';
@@ -328,6 +346,14 @@ class ResourcePacks extends ChangeNotifier {
   /// The pack read into memory, drawn with while the look is Runestone; null where none is chosen or it is not read
   /// yet (the look is flat stone until it is).
   ResourcePack? current;
+
+  /// The pack being fetched for the look by itself ([fetch]), by its id, and the one whose fetching last failed: what
+  /// Settings › Appearance › Textures says of the pack chosen while it is not on this device.
+  String? fetching, failed;
+
+  /// The choices followed ([start]), and whether Runestone was their look when last looked at.
+  AppState? _app;
+  bool _runestone = false;
 
   /// The pack whose pictures [app]'s look draws with now, and whose colours are laid over its stylesheet.
   ResourcePack? usedBy(AppState app) => app.look == Look.runestone ? current : null;
@@ -355,9 +381,30 @@ class ResourcePacks extends ChangeNotifier {
   }
 
   /// Reads the pack [app] chose, as the app starts and whenever the choice changes; tells [app] once it is drawn with.
+  /// One that is not on this device is fetched for the look ([fetch]), which this does not wait for: the look is flat
+  /// stone until it is here. From here on [app]'s look is followed, so the same is done as Runestone is chosen.
   Future<void> start(AppState app) async {
     if (!here) return;
-    final id = app.choice(pref, '');
+    if (!identical(_app, app)) {
+      _app?.removeListener(_looked);
+      _app = app..addListener(_looked);
+    }
+    _runestone = app.look == Look.runestone;
+    await _read(app);
+  }
+
+  /// [_app]'s choices changed: where Runestone has just become the look, its pack is read, and fetched if need be.
+  void _looked() {
+    final app = _app;
+    if (app == null) return;
+    final now = app.look == Look.runestone;
+    if (now == _runestone) return;
+    _runestone = now;
+    if (now) unawaited(_read(app));
+  }
+
+  Future<void> _read(AppState app) async {
+    final id = chosen(app);
     if (id == current?.entry.id) return;
     if (id.isEmpty) {
       current = null;
@@ -365,14 +412,51 @@ class ResourcePacks extends ChangeNotifier {
       app.changed();
       return;
     }
+    ResourcePack? pack;
     try {
       final entry = PackEntry.from(jsonDecode(await _about(id).readAsString()));
-      if (entry == null) return;
-      current = await ResourcePack.read(entry, await _zip(id).readAsBytes());
+      if (entry != null) pack = await ResourcePack.read(entry, await _zip(id).readAsBytes());
+    } catch (_) {
+      // Never fetched, gone from the disk, or not a pack any more.
+    }
+    // Another was chosen while this one was being read: that one is the one drawn with.
+    if (chosen(app) != id) return;
+    if (pack != null) {
+      current = pack;
       notifyListeners();
       app.changed();
+    } else if (app.look == Look.runestone) {
+      // Not on this device: the choice stays, and where Runestone is the look in use it is fetched, and drawn with
+      // once it is here. Until then the look is drawn as it was (flat stone, as the app starts).
+      unawaited(fetch(app, id));
+    }
+  }
+
+  /// Fetches the pack [id] for the look by itself: the hub's list, for the commit it stands at, then its archive,
+  /// kept as [install] keeps one. One at a time. Where it can't be fetched (no connection, the hub away, no such
+  /// pack) nothing throws: [failed] says so, the look stays flat stone, and it is tried again as the app next starts
+  /// in the look, as the look is next chosen, or from Settings.
+  Future<void> fetch(AppState app, String id) async {
+    if (!here || id.isEmpty || fetching != null) return;
+    fetching = id;
+    failed = null;
+    notifyListeners();
+    app.changed();
+    try {
+      PackEntry? entry;
+      for (final e in await hub()) {
+        if (e.id == id) entry = e;
+      }
+      if (entry == null) throw const FormatException('The hub has no pack by that name.');
+      final pack = await _keep(entry);
+      // Still the one chosen: plain stone, or another pack, may have been pressed while it was on its way.
+      if (chosen(app) == id) current = pack;
     } catch (_) {
-      // Gone from the disk, or not a pack any more: the look is flat stone, and the choice stays for when it is back.
+      failed = id;
+    } finally {
+      fetching = null;
+      notifyListeners();
+      app.changed();
     }
   }
 
@@ -386,20 +470,30 @@ class ResourcePacks extends ChangeNotifier {
   /// Fetches [entry] from the hub, keeps it, and makes it the pack [app] draws with. Throws where it can't be fetched
   /// or is not a pack; what was in use stays in use then.
   Future<void> install(AppState app, PackEntry entry) async {
+    final pack = await _keep(entry);
+    current = pack;
+    failed = null;
+    app.set(pref, entry.id);
+    notifyListeners();
+  }
+
+  /// [entry]'s archive from the hub, read and, being a pack, kept on this device: the archive whole and what it is.
+  Future<ResourcePack> _keep(PackEntry entry) async {
     final zip = await _get(_archiveUrl(entry), most: ResourcePack.mostArchive);
     final pack = await ResourcePack.read(entry, zip);
     root.createSync(recursive: true);
     await _zip(entry.id).writeAsBytes(zip, flush: true);
     await _about(entry.id).writeAsString(jsonEncode(entry.toJson()), flush: true);
-    current = pack;
-    app.set(pref, entry.id);
-    notifyListeners();
+    return pack;
   }
 
-  /// Draws with the pack [id] of those kept here, or with none where it is empty.
+  /// Draws with the pack [id], or with none where it is empty (plain stone, which then stays until another is
+  /// chosen). One of those kept here is read; one that is not here is fetched ([fetch]).
   Future<void> use(AppState app, String id) async {
+    if (!here) return;
+    failed = null;
     app.set(pref, id);
-    await start(app);
+    await _read(app);
   }
 
   /// Takes the pack [id] off this device; the look is flat stone again where it was the one in use.
@@ -409,7 +503,8 @@ class ResourcePacks extends ChangeNotifier {
         if (f.existsSync()) f.deleteSync();
       } catch (_) {}
     }
-    if (app.choice(pref, '') == id) await use(app, '');
+    // Plain stone, said outright: the usual pack taken off is not fetched again behind the person's back.
+    if (chosen(app) == id) await use(app, '');
     notifyListeners();
   }
 

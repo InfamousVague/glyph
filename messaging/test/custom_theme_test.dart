@@ -192,8 +192,8 @@ void main() {
       app.setFont('readable');
       expect(ghostAttrs(app, 'mobile')['font'], 'readable');
       expect(face(), 'Atkinson Hyperlegible Next Variable');
-      // Over a look's own face: Dial-Up's Arimo, Phosphor's mono.
-      for (final look in [Look.dialup, Look.phosphor, Look.mist]) {
+      // Over a look's own face: Dial-Up's Arimo, Runestone's own letters.
+      for (final look in [Look.dialup, Look.runestone, Look.mist]) {
         app.setLook(look);
         expect(face(), 'Atkinson Hyperlegible Next Variable', reason: look.name);
       }

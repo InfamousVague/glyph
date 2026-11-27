@@ -409,7 +409,7 @@ class PaneSection extends StatelessWidget {
         if (description != null) ...[Padding(padding: side, child: DefaultTextStyle(style: small, child: ExactLines(lineHeight: small.fontSize! * small.height!, child: description!))), SizedBox(height: gap)],
         GlacierScope(
           classes: const {'setk__card'},
-          // In a look that rules its shapes (Sharp, Phosphor: `--app-bubble-rim`) the card wears a line, where its
+          // In a look that rules its shapes (Sharp: `--app-bubble-rim`) the card wears a line, where its
           // paper-2 on Sharp's black was 1.1:1 and the card all but vanished.
           child: DecoratedBox(
             position: DecorationPosition.foreground,
@@ -549,7 +549,7 @@ class SettingRow extends StatelessWidget implements PaneRow {
           ? Container(
               width: t.lenOf('1.85rem'),
               height: t.lenOf('1.85rem'),
-              // Its corners under the look's radius scale, as the kit's own radii are (square in Phosphor, Dial-Up).
+              // Its corners under the look's radius scale, as the kit's own radii are (square in Dial-Up and Runestone).
               decoration: BoxDecoration(color: settingsHueWash(t), borderRadius: BorderRadius.circular(t.lenOf('0.55rem') * t.number('glacier-radius-scale'))),
               alignment: Alignment.center,
               child: SizedBox.square(dimension: t.lenOf('1.05rem'), child: FittedBox(child: IconTheme.merge(data: IconThemeData(color: settingsHue(t)), child: icon!))),

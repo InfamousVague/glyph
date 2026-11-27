@@ -125,9 +125,14 @@ List<SettingsSection> _ownSections() => [
       final look = m.app.look;
       final own = CustomTheme.used(m.app);
       if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textPercent != 100) '${m.app.textPercent}% text'].join(' · ');
+      // The look, then the pack it is drawn with: one of its own (Ghost's Mist), or a resource pack's name.
+      final used = ResourcePacks.instance.usedBy(m.app)?.entry;
+      final pictures = used == null ? null : ResourcePacks.nameOf(used);
       return [
-        if (look != Look.ghost) look.label,
-        if (look.forced == null) switch (m.app.theme) { 'light' => look.lightName, 'dark' => look.darkName, _ => 'System theme' },
+        if (look.family != Look.ghost) look.family.label,
+        if (look.isPack) look.label,
+        ?pictures,
+        if (look.forced == null) switch (m.app.theme) { 'light' => 'Light', 'dark' => 'Dark', _ => 'System theme' },
         '${m.app.bubble == 'theme' ? (look == Look.ghost ? 'White' : look.label) : bubbleColor(m.app.bubble).name} bubbles',
         if (m.app.font == 'readable') 'Readable font',
         if (m.app.textPercent != 100) '${m.app.textPercent}% text',
@@ -443,7 +448,7 @@ String sealedWords(String hubUrl) {
 }
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.49';
+const appVersion = '0.12.50';
 
 // --- Language ---------------------------------------------------------------------------------------------------------
 
@@ -526,8 +531,9 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
-    // The resource pack Runestone draws with (lib/ui/resource_packs_ui.dart), where that is the look.
-    if (look == Look.runestone && own == null && ResourcePacks.here) resourcePackSection(context, app),
+    // What the look in use is drawn with (lib/ui/resource_packs_ui.dart): its own, or one of its packs. A look of
+    // one's own has none.
+    if (own == null) texturesSection(context, app),
     PaneSection(title: 'Theme', children: [
       if (own != null)
         SettingRow(
@@ -546,8 +552,8 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
             onValueChange: app.setTheme,
             options: [
               const GlacierSegmentedOption(value: 'system', label: Tr('System')),
-              GlacierSegmentedOption(value: 'light', label: Text(look.lightName)),
-              GlacierSegmentedOption(value: 'dark', label: Text(look.darkName)),
+              const GlacierSegmentedOption(value: 'light', label: Tr('Light')),
+              const GlacierSegmentedOption(value: 'dark', label: Tr('Dark')),
             ],
           ),
         )

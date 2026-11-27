@@ -121,7 +121,7 @@ void _copy(BuildContext context, String text) {
 ///
 /// It sits on the bubble as a tab does, not as a second message (Matt, 2026-11-17: "show the original text dimmed in a
 /// card with the translated text for the actual message bubble"): set in from the bubble's edge, its corners small
-/// where it meets the bubble and a hair's gap between them, none in the looks that rim their bubbles (Sharp, Phosphor),
+/// where it meets the bubble and a hair's gap between them, none in a look that rims its bubbles (Sharp),
 /// so the two rims run together. Its icon and its word are the plugin's own colour, the one cue in the chat that
 /// Translate did this; the words stay dimmed in the page's quiet ink.
 class OriginalCard extends StatelessWidget {
@@ -178,7 +178,7 @@ class OriginalCard extends StatelessWidget {
         // is still a card on a chat background.
         color: t.color('glacier-bg'),
         borderRadius: radius,
-        // The look's own rim where it rims its bubbles (Sharp, Phosphor); else the page's rule.
+        // The look's own rim where it rims its bubbles (Sharp); else the page's rule.
         border: rim ?? Border.all(color: t.color('app-rule')),
       ),
       // As wide as its widest line wants, so the word goes to the trailing edge when the words under it are wider.

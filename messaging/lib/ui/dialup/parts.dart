@@ -241,7 +241,7 @@ class DialupCount extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
       padding: const EdgeInsets.symmetric(horizontal: 3),
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: t.colorOf('var(--app-count, var(--app-danger))'), border: Border.all(color: c.afterHours ? c.hi : c.dark)),
+      decoration: BoxDecoration(color: t.colorOf('var(--app-count, var(--app-danger))'), border: Border.all(color: c.night ? c.hi : c.dark)),
       child: Text(count > 99 ? '99+' : '$count', style: pageText(t, 11, weight: 'bold', height: 1.2, color: t.colorOf('var(--app-on-count, #FFFFFF)'))),
     );
   }

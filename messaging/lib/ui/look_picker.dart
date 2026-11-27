@@ -35,13 +35,13 @@ class LookPreview extends StatelessWidget {
         final theirs = theirBubble(t, onBackground: false);
         final page = t.color('glacier-bg');
         final words = t.textAt(t.fontSize('xs'), color: t.color('app-ink'));
-        // One line box for every face, so a look in a taller one (Phosphor's mono) is no taller than the rest and the
-        // names under the tiles share a baseline.
+        // One line box for every face, so a look in a taller one (a look of one's own in the mono) is no taller than
+        // the rest and the names under the tiles share a baseline.
         final strut = StrutStyle(fontSize: t.fontSize('xs'), height: 1.25, forceStrutHeight: true);
         Widget line(String text, {required bool out}) => Align(
               alignment: out ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
               child: Container(
-                // Tight sides, so the words fit the smallest tile even in Phosphor's mono.
+                // Tight sides, so the words fit the smallest tile even in the widest face (the mono).
                 padding: EdgeInsets.symmetric(horizontal: t.space(1) + 2, vertical: t.space(1)),
                 decoration: BoxDecoration(
                   color: out ? mine : theirs,
@@ -58,7 +58,7 @@ class LookPreview extends StatelessWidget {
           padding: EdgeInsets.all(t.space(1) + 2),
           color: page,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // Words short enough for the smallest tile in the widest face (Phosphor's mono cut "Free at 7?" to "Free at").
+            // Words short enough for the smallest tile in the widest face (the mono cut "Free at 7?" to "Free at").
             line('Free?', out: false),
             SizedBox(height: t.space(1)),
             line('Yes!', out: true),
@@ -69,7 +69,9 @@ class LookPreview extends StatelessWidget {
   }
 }
 
-/// Every look offered, each as a small preview with its name under it; the one chosen ringed. Settings › Appearance.
+/// Every look offered ([Look.offered]), each as a small preview with its name under it; the one chosen ringed.
+/// Settings › Appearance. A look's packs are not tiles of their own: they are chosen under it, in Textures
+/// (lib/ui/resource_packs_ui.dart), and its tile is drawn in the pack it is in, or was last in.
 class LookPicker extends StatelessWidget {
   const LookPicker({super.key, required this.app});
   final AppState app;
@@ -80,11 +82,11 @@ class LookPicker extends StatelessWidget {
     // A look of one's own in use (lib/custom_theme.dart) is the one ringed; none of the app's is then.
     final mine = CustomTheme.used(app);
     final own = CustomTheme.saved(app);
-    final chosen = mine == null ? app.look : null;
+    final chosen = mine == null ? app.look.family : null;
     final corner = t.radius('lg');
     final gap = t.space(2);
     final looks = [
-      for (final look in Look.values)
+      for (final look in Look.offered)
         if (look.ready || look == chosen) look,
     ];
     // A tile: [preview] in a frame, ringed where [on], with [label] under it.
@@ -121,12 +123,15 @@ class LookPicker extends StatelessWidget {
           preview: CustomThemePreview(theme: theme, width: side),
           onPressed: () => theme == mine ? themeMenu(context, app, theme) : CustomTheme.use(app, theme),
         );
-    Widget card(Look look, double side) {
-      final on = look == chosen;
+    Widget card(Look family, double side) {
+      final on = family == chosen;
+      // The look as pressing the tile gives it: in the pack it is in, or the one it was last in (Look.last).
+      // Under a look of one's own no tile is ringed, and the look beneath it is still the one its tile gives.
+      final look = app.look.family == family ? app.look : Look.last(app, family);
       // Ghost's preview wears the bubbles Ghost would: yours where Ghost is the look, else white, which choosing Ghost
       // goes back to.
-      final bubble = look != Look.ghost ? 'theme' : (chosen == Look.ghost ? app.bubble : 'white');
-      return tile(label: look.label, on: on, side: side, preview: LookPreview(look: look, bubble: bubble, width: side), onPressed: () => CustomTheme.chooseLook(app, look));
+      final bubble = look != Look.ghost ? 'theme' : (on ? app.bubble : 'white');
+      return tile(label: family.label, on: on, side: side, preview: LookPreview(look: look, bubble: bubble, width: side), onPressed: () => CustomTheme.chooseLook(app, look));
     }
 
     // As many across as fit at 5rem, stretched to fill the row up to 6.25rem each, where fixed 6.25rem tiles left a
