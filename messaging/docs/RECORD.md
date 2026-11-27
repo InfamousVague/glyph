@@ -481,6 +481,29 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   (Ghost.md, Ghost Keyboard). **The icon** is `art/app-icon.png`, Matt's `UplinkLogo.png`, and
   `python3 tool/app_icon.py` writes every platform's from it, Windows', Linux's, the iPhone's and the extension's
   now too; the picture is cleaned first, and the tool refuses one a round home-screen mask would cut.
+- **A circle's picture and banner: positioned, sharp, and sent whole** (after 0.12.51; `lib/ui/circles/circle_picture.dart`,
+  `lib/me/picture_make.dart`, `lib/ui/circles/circle_face.dart`, `lib/circles/circle.dart`; Matt, 2026-11-27: "uploading
+  the banner from my desktop to AlphaTesters circle says 'cannot use image'", then "uploading the pictures for banners
+  and the circle profile picture should use a cropping / zooming tool and upload at full resolution, right now they're
+  super low resolution"). Both are chosen, then positioned under the window a profile picture has
+  (`lib/ui/picture_crop.dart`: round for the picture, three to one for the banner), and kept as two things. The
+  stand-in in the circle's manifest is a JPEG now (a PNG where the part chosen can be seen through, so a logo keeps its
+  ground): 256 pixels across for a picture and 480 for a banner, where a PNG in the same room came out 72 to 128 and 150
+  to 192 for anything with detail in it. The part chosen is cut at the picture's own resolution (up to 2048 across for a
+  picture, 3840 for a banner; never made larger than it is), goes up sealed under the circle's own seed, and is named in
+  the manifest: `bf` as before, and `pf` for the picture, which says which stand-in it is the whole of, so one passed on
+  by an older build after it changed the picture is not drawn for the new one. A face drawn with more than 160 pixels
+  uses the full picture once it is on the device (`CircleFulls`); the banner already did. **What goes up is a copy the
+  app makes**: until now a banner set from a computer sent the chosen file itself as one of the app's own, and the
+  upload moved the person's picture out of its folder into the app's cache. **Each failure has its own words**, with
+  what the device or the relay said: a file that is no picture (named), a full copy that didn't go up (the stand-in is
+  still set), a circle this device can't change or that has no room left (tried again with a lighter stand-in first),
+  and an upload still waiting after two minutes is let go. Tests: circle_picture_test (the makers on pictures full of
+  detail, the part chosen, a logo's ground, the cut's size; `pf` through edits and an older build; the whole of
+  choosing a banner and a picture on a computer with the chosen file left as it was; each refusal's words). The
+  refusal Matt met was not found: both pictures on his Desktop pass the old maker and the new, and his circle's
+  manifest had room, so it failed at a later step the old message did not name. Not tried in the running app on any
+  device.
 - **Looks and their packs** (0.12.50; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
   `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
   0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
