@@ -245,8 +245,18 @@ class AccountHelper extends InboxNetwork {
   String get _dir => folder ?? (PlatformInfo.isAndroid ? '${Directory.systemTemp.parent.path}/files/${service.id}' : '${DeskStore.defaultDir().path}/${service.id}');
   File get _file => File('$_dir/chats.json');
 
+  /// A start under way: asked again meanwhile (a synced sign-in switching the plugin on while the app's own start is
+  /// still finding the helper), it waits for that one rather than start a second helper on the same folder.
+  Future<void>? _starting;
+
   @override
-  Future<void> start(AppState app) async {
+  Future<void> start(AppState app) {
+    final going = _starting;
+    if (going != null) return going;
+    return _starting = _start(app).whenComplete(() => _starting = null);
+  }
+
+  Future<void> _start(AppState app) async {
     _app = app;
     if (soon) return;
     final link = await (this.link ?? _process)();
@@ -296,6 +306,32 @@ class AccountHelper extends InboxNetwork {
     await Directory(_dir).create(recursive: true);
     try {
       return _ProcessLink(await Process.start(binary, ['--dir', _dir]), service.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The sign-in this device holds now, as the cookies (and Discord's and Slack's token) a synced entry carries: read
+  /// back from the helper's own session.json, so a sign-in made before sign-ins were shared, or whose sharing failed,
+  /// still reaches the account's other devices (CurlSync.pull; Matt, 2026-11-27: "if a connection is setup on one
+  /// device but not another on the same account it gets sent over"). Null where it is not signed in, or what the helper
+  /// keeps lacks a cookie the service needs.
+  Future<Map<String, String>?> heldSignIn() async {
+    if (_state != InboxState.ready) return null;
+    try {
+      final f = File('$_dir/session.json');
+      if (!await f.exists()) return null;
+      final m = (jsonDecode(await f.readAsString()) as Map).cast<String, Object?>();
+      // Only the cookies the service takes, as a pasted sign-in shares ([cookiesOf]): a helper may keep more of the site's.
+      final named = service.optional.isEmpty ? null : {...service.needed, ...service.optional};
+      final out = <String, String>{
+        for (final e in ((m['cookies'] as Map?) ?? const {}).entries)
+          if ('${e.value}'.isNotEmpty && (named == null || named.contains('${e.key}'))) '${e.key}': '${e.value}',
+      };
+      final token = m['token'];
+      if (token is String && token.isNotEmpty) out['token'] = token;
+      if (out.isEmpty || cookiesMissing(out, service.needed).isNotEmpty) return null;
+      return out;
     } catch (_) {
       return null;
     }
