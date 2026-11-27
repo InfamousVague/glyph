@@ -1,6 +1,6 @@
-# Ghost's Instagram helper: the protocol
+# Uplink's Instagram helper: the protocol
 
-The protocol is the one all of Ghost's account helpers share: **../ACCOUNT_HELPERS.md** (requests, answers, events,
+The protocol is the one all of Uplink's account helpers share: **../ACCOUNT_HELPERS.md** (requests, answers, events,
 field names). This file says only what is particular to Instagram. Run: `instagram-sidecar --dir <folder>`.
 
 ## Signing in: the cookies

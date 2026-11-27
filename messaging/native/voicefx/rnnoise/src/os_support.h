@@ -1,5 +1,5 @@
 /* Not in RNNoise 0.2's release, though vec_neon.h includes it (it is Opus's): the one macro it uses from it.
- * Added for Ghost Messaging's voicefx (native/voicefx/README.md). */
+ * Added for Uplink's voicefx (native/voicefx/README.md). */
 #ifndef OS_SUPPORT_H
 #define OS_SUPPORT_H
 #include <string.h>

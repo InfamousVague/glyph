@@ -409,7 +409,7 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         // in a banner (the screen asks E2e.state). Nothing is sent because of it.
         try { if (GhostMark.has(body)) Backgrounds.sawGhost(context, address) } catch (e: Exception) { Log.e(TAG, "ghost mark", e) }
         val thread = store.threadOfSms(row)
-        // A text only Ghost Messaging writes: they have the app. And a chat background, sealed or not, is worn.
+        // A text only Uplink writes: they have the app. And a chat background, sealed or not, is worn.
         try {
             if (Backgrounds.isGhostText(body)) Backgrounds.sawGhost(context, address)
             BackgroundWire.valueIn(E2e.read(context, address, body).first)?.let {

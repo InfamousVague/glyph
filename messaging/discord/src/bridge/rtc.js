@@ -1,4 +1,4 @@
-// One WebRTC connection to one Ghost member, with werift (WebRTC written in TypeScript: no native code). Sound only:
+// One WebRTC connection to one Uplink member, with werift (WebRTC written in TypeScript: no native code). Sound only:
 // the member's Opus packets come out of onAudio, and the bridge's mix for them goes in through send(). A picture the
 // app offers is turned down in the answer (port 0), which the app handles as any refused section.
 //

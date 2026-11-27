@@ -842,8 +842,8 @@ class InstalledPlugins extends ChangeNotifier {
     final parse = parsePack(bytes, appVersion: _appVersion);
     final errors = parse.errors.toList();
     if (errors.isNotEmpty) {
-      if (errors.every((e) => e.code == 'needs_newer_app')) return PackOutcome.failed('needs_newer_app', 'It needs a newer Ghost Messaging.', issues: parse.issues);
-      return PackOutcome.failed('invalid', 'This version of Ghost Messaging can\'t run it.', issues: parse.issues);
+      if (errors.every((e) => e.code == 'needs_newer_app')) return PackOutcome.failed('needs_newer_app', 'It needs a newer Uplink.', issues: parse.issues);
+      return PackOutcome.failed('invalid', 'This version of Uplink can\'t run it.', issues: parse.issues);
     }
     final pack = parse.pack!;
     if (pack.icon == null) return PackOutcome.failed('invalid', 'It has no icon, which every plugin from the Marketplace has.', issues: parse.issues);
@@ -851,7 +851,7 @@ class InstalledPlugins extends ChangeNotifier {
     if (pack.id != approval.plugin || pack.version != approval.version) return const PackOutcome.failed('bad_approval', 'Its review is for another plugin or another version.');
     final (signed, trusted) = (await _approvalsHold([(approval, pack.id, pack.version, sha256)], reviewKeys, retiredKeys)).single;
     if (!signed) return const PackOutcome.failed('bad_approval', 'Its review doesn\'t check out.');
-    if (!trusted) return const PackOutcome.failed('untrusted_key', 'This version of Ghost Messaging can\'t check its review. An update may fix it.');
+    if (!trusted) return const PackOutcome.failed('untrusted_key', 'This version of Uplink can\'t check its review. An update may fix it.');
     if (_dev.containsKey(pack.id)) return PackOutcome.failed('id_installed', 'Your development copy of ${pack.name} is loaded. Remove it in Settings › Developer first.');
     final floor = _floorOf(pack.id);
     if (floor != null) {
@@ -1026,7 +1026,7 @@ class InstalledPlugins extends ChangeNotifier {
   PackOutcome? _devRefused() {
     final app = _app;
     if (app == null) return _notLoaded;
-    if (!devAllowed) return const PackOutcome.failed('not_here', 'Plugins in development aren\'t in this version of Ghost Messaging.');
+    if (!devAllowed) return const PackOutcome.failed('not_here', 'Plugins in development aren\'t in this version of Uplink.');
     if (!app.flag('dev_mode', fallback: false)) return const PackOutcome.failed('dev_mode_off', 'Turn on developer mode first: tap Settings › About › Version twelve times.');
     return null;
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds Ghost Messaging for a browser (Matt: "the full web client"; docs/OPEN_NETWORK.md, part 6): a folder of plain
+ * Builds Uplink for a browser (Matt: "the full web client"; docs/OPEN_NETWORK.md, part 6): a folder of plain
  * files a relay serves under /app/ (relay/lib/web_app.dart). It builds and says how big the result is. It does not
  * put it anywhere.
  *
@@ -37,7 +37,7 @@
  *        --dart-define=GHOST_WEB_CALLS=false  with --no-calls (lib/web/app.dart: webCalls, true where nothing says)
  *        --dart-define=GHOST_WEB_FILES=false  with --no-files (lib/web/app.dart: webFiles, true where nothing says)
  *      and, where a hub is named, the page's policy lets it speak to that one too (connect-src), and send there the
- *      feedback, a report where the hub is Ghost Messaging's own, and a Files space's files (tool/lib/web_site.mjs
+ *      feedback, a report where the hub is Uplink's own, and a Files space's files (tool/lib/web_site.mjs
  *      connectFor).
  *   4. Takes the four emoji sets off the list of fonts a browser loads before its first frame (eleven megabytes):
  *      the app fetches the one in use when it starts, and another when it is chosen (lib/web/emoji.dart). The files
@@ -117,7 +117,7 @@ for (const needed of ['index.html', 'main.dart.js', 'flutter_bootstrap.js', 'arg
   if (!existsSync(join(out, needed))) fail(`the build has no ${needed}.`);
 }
 // The hub named: the page's policy lets it speak to that one, beside its own address, and send there what it sends
-// over plain HTTP (feedback, and a report where the hub is Ghost Messaging's own: tool/lib/web_site.mjs sentBeside),
+// over plain HTTP (feedback, and a report where the hub is Uplink's own: tool/lib/web_site.mjs sentBeside),
 // and nothing else.
 if (hub) {
   const pagePath = join(out, 'index.html');

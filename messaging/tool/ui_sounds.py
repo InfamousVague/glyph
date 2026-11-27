@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ghost Messaging's interface sounds, made with ElevenLabs' sound effects (POST /v1/sound-generation), as Ghost
+"""Uplink's interface sounds, made with ElevenLabs' sound effects (POST /v1/sound-generation), as Uplink
 Keyboard's tool/sound_packs.py makes its packs, with the same key (Matt, 2026-11-16: "I want to have them generated via
 the same way we generated other elevenlabs sounds using the same existing key", for the sounds of new friend
 requests, messages in and out, connecting and disconnecting, mute and unmute, "they should all be cohesive").

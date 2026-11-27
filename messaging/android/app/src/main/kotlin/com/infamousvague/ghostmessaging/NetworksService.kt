@@ -12,7 +12,7 @@ import android.os.Build
 import android.os.IBinder
 
 /**
- * Keeps Ghost running, connected to Signal and Telegram, while it is out of sight (Matt, 2026-11-16, on Ghost
+ * Keeps Uplink running, connected to Signal and Telegram, while it is out of sight (Matt, 2026-11-16, on Uplink
  * notifying for their messages: "Yes, build them"). Their connections live in the app's Dart (lib/inbox: Signal's
  * helper process, Telegram's TDLib), which runs in a Flutter engine kept past the screen (MainActivity
  * provideFlutterEngine); Android keeps the process for as long as a foreground service of the remote-messaging kind
@@ -49,7 +49,7 @@ class NetworksService : Service() {
 
         /** What the notification says for [names] and [calls]: its title, then its line. */
         fun words(names: List<String>, calls: Boolean): Pair<String, String> = when {
-            names.isEmpty() -> "Ready for calls" to "A friend's call rings, and their messages come, while Ghost Messaging is closed."
+            names.isEmpty() -> "Ready for calls" to "A friend's call rings, and their messages come, while Uplink is closed."
             calls -> "Connected to ${said(names)}" to "Calls ring and new messages are told to you as they come."
             else -> "Connected to ${said(names)}" to "New messages are told to you as they come."
         }
@@ -89,7 +89,7 @@ class NetworksService : Service() {
         // whatever the person changed of it).
         run {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Staying connected", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Android asks for a notification while Ghost Messaging stays connected with the app closed: to Signal, Telegram and the like, and for calls from friends. This one is as quiet as Android allows; turn it off here if you like, and calls and messages still come."
+                description = "Android asks for a notification while Uplink stays connected with the app closed: to Signal, Telegram and the like, and for calls from friends. This one is as quiet as Android allows; turn it off here if you like, and calls and messages still come."
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_SECRET
                 setSound(null, null)

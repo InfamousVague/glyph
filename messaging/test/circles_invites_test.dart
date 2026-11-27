@@ -163,7 +163,7 @@ void main() {
   group('links from outside the app', () {
     test('a circle\'s link is found in an invite\'s words; a space\'s link or other words are not one', () async {
       final c = (await _circle()).circle;
-      expect(Circles.linkIn('Join my circle Night Owls on Ghost Messaging: ${c.link}'), c.link);
+      expect(Circles.linkIn('Join my circle Night Owls on Uplink: ${c.link}'), c.link);
       expect(Circles.linkIn(c.link), c.link);
       expect(Circles.linkIn('https://gogho.st/join/#${'1' * 64}.TmlnaHQ'), isNull);
       expect(Circles.linkIn('see you at 8'), isNull);

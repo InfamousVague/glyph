@@ -1,6 +1,6 @@
 # ghost_p2p: the direct network's core
 
-The Rust half of Ghost Messaging's direct route (`docs/OPEN_NETWORK.md`, section 2; Matt, 2026-11-22: "look at iroh
+The Rust half of Uplink's direct route (`docs/OPEN_NETWORK.md`, section 2; Matt, 2026-11-22: "look at iroh
 as the rust backend for the p2p side"). A **node** is one device: a key made on the device, whose public half is its
 **node id**. A node offers one thing, framed streams to another node by its id on a numbered **channel**, and says
 how the path to each linked node stands. It is built on [iroh](https://github.com/n0-computer/iroh) 1.5 (QUIC,

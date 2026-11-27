@@ -29,7 +29,7 @@ import 'username_friends.dart' show acceptRequest, requestLine;
 import '../kit/semantic_colors.dart';
 import '../l10n/words.dart';
 
-/// Your profile on Ghost Messaging (Matt, 2026-11-14: "create a profile and username under "me" to register a
+/// Your profile on Uplink (Matt, 2026-11-14: "create a profile and username under "me" to register a
 /// username and add friends on the platform"): a username people find you by, held on the relay server's directory
 /// (only its scrambled form is kept there), and a name and a line about you, which go to your friends alone.
 class ProfileScreen extends StatefulWidget {
@@ -525,6 +525,6 @@ class ModeMark extends StatelessWidget {
     if (mode == 'invisible') {
       return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.color('app-ink-3'), width: size * 0.22)));
     }
-    return PresenceDot(presence: InboxPresence(network: 'Ghost Messaging', online: mode == 'online', away: mode == 'away', busy: mode == 'busy'), size: size);
+    return PresenceDot(presence: InboxPresence(network: 'Uplink', online: mode == 'online', away: mode == 'away', busy: mode == 'busy'), size: size);
   }
 }

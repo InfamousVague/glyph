@@ -478,7 +478,8 @@ class WindowsUpdateHost implements UpdateHost {
 
   static void _quit() => exit(0);
 
-  /// Where the installer puts the app: `%LOCALAPPDATA%\Programs\Ghost Messaging`.
+  /// Where the installer puts the app: `%LOCALAPPDATA%\Programs\Ghost Messaging` (the folder keeps the name the app
+  /// had until 2026-11-27: an install is found there, windows/installer.iss).
   bool get _installedByInstaller {
     final local = _env['LOCALAPPDATA'];
     if (local == null || local.isEmpty) return false;
@@ -706,7 +707,7 @@ class LinuxUpdateHost implements UpdateHost {
           _debSha = sha256.toLowerCase();
           return 'ready';
         }
-        return 'manual: It came from the .deb, which only an administrator can replace. To install it, run $command in a terminal, then open Ghost Messaging again.';
+        return 'manual: It came from the .deb, which only an administrator can replace. To install it, run $command in a terminal, then open Uplink again.';
       case LinuxInstall.readOnly:
         return 'manual: Its folder ($_folder) isn\'t yours to change. Download the new one from gogho.st and unpack it where you can write.';
       case LinuxInstall.folder:
@@ -724,7 +725,7 @@ class LinuxUpdateHost implements UpdateHost {
           try {
             stage.deleteSync(recursive: true);
           } catch (_) {}
-          return 'The update does not hold Ghost Messaging';
+          return 'The update does not hold Uplink';
         }
         try {
           file.deleteSync();
@@ -763,7 +764,7 @@ class LinuxUpdateHost implements UpdateHost {
     try {
       await launch('$here/$program');
     } catch (e) {
-      return 'The new version is in place but would not start ($e). Open Ghost Messaging again.';
+      return 'The new version is in place but would not start ($e). Open Uplink again.';
     }
     quit();
     return 'restarting';
@@ -789,13 +790,13 @@ class LinuxUpdateHost implements UpdateHost {
       _deb = null;
       // 126 is pkexec's for a password window put away.
       final why = code == 126 ? 'The password wasn\'t given, so it isn\'t installed yet.' : 'It couldn\'t be installed from here.';
-      return 'manual: $why To install it, run $command in a terminal, then open Ghost Messaging again.';
+      return 'manual: $why To install it, run $command in a terminal, then open Uplink again.';
     }
     _deb = null;
     try {
       await launch('$debFolder/$program');
     } catch (e) {
-      return 'The new version is installed but would not start ($e). Open Ghost Messaging again.';
+      return 'The new version is installed but would not start ($e). Open Uplink again.';
     }
     quit();
     return 'restarting';

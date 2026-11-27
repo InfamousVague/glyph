@@ -118,7 +118,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
       await settle(tester);
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('On Uplink'), findsOneWidget);
       await _picture(tester, '17-add-friend-drawer', dark: dark);
 
       final none = (await tester.runAsync(() => _me(null)))!;

@@ -4,9 +4,9 @@
 /// `assets/onboarding/<page>.mp3`. Change a line, run the tool, and that page alone is spoken again.
 library;
 
-// Ghost's voice (Matt, 2026-11-15: "Rework the onboarding to be a bit shorter and have it focus on the fact that ghost
+// Uplink's voice (Matt, 2026-11-15: "Rework the onboarding to be a bit shorter and have it focus on the fact that ghost
 // is an all in one messenger look at branding from things like discord telegram etc and find our own voice amoung
-// those"): where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Ghost is
+// those"): where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Uplink is
 // calm and sure of itself, in short sentences with a little wit. All your people, one quiet app.
 const Map<String, String> narration = {
   'welcome': 'Hi, I\'m Ghost. Your texts, your friends, your groups and your calls, all in one quiet app. No more juggling five messengers to reach the people you care about.',

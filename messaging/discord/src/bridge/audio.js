@@ -1,6 +1,6 @@
-// The bridge's sound, every 20 ms: what each Discord speaker and each Ghost member sent, decoded and queued; one mix of
-// the Ghost members for Discord (sent only while someone is talking); and for each Ghost member a mix of Discord and
-// the other Ghost members, never their own voice. The codec comes in (opus.js in the bot, a stand-in in tests) and so
+// The bridge's sound, every 20 ms: what each Discord speaker and each Uplink member sent, decoded and queued; one mix of
+// the Uplink members for Discord (sent only while someone is talking); and for each Uplink member a mix of Discord and
+// the other Uplink members, never their own voice. The codec comes in (opus.js in the bot, a stand-in in tests) and so
 // does the clock: tick() is called by Ticker below in the bot and by hand in tests.
 import { FRAME_MS, Gate, PcmQueue, mix, mixMinusSelf } from './mixer.js';
 
@@ -11,7 +11,7 @@ export class AudioEngine {
     this.toGhostBitrate = toGhostBitrate;
     this.discordIn = new Map(); // user id -> { decoder, queue }
     this.ghostIn = new Map(); // member id -> { decoder, queue }
-    this.out = new Map(); // member id -> encoder: the Ghost members sound is sent to
+    this.out = new Map(); // member id -> encoder: the Uplink members sound is sent to
     this.toDiscord = codec.encoder({ bitrate: toDiscordBitrate });
     this.gate = new Gate();
     this.tail = 0; // silence frames still to send to Discord after the gate closes
@@ -43,7 +43,7 @@ export class AudioEngine {
     this.feed(this.discordIn, userId, packet);
   }
 
-  /** An Opus packet from a Ghost member's WebRTC track. */
+  /** An Opus packet from an Uplink member's WebRTC track. */
   feedGhost(memberId, packet) {
     this.feed(this.ghostIn, memberId, packet);
   }
@@ -53,13 +53,13 @@ export class AudioEngine {
     this.discordIn.delete(userId);
   }
 
-  /** A Ghost member gone: nothing more from them, nothing more to them. */
+  /** An Uplink member gone: nothing more from them, nothing more to them. */
   dropGhost(memberId) {
     this.ghostIn.delete(memberId);
     this.out.delete(memberId);
   }
 
-  /** A Ghost member to send sound to (their connection is up). */
+  /** An Uplink member to send sound to (their connection is up). */
   addRecipient(memberId) {
     if (!this.out.has(memberId)) this.out.set(memberId, this.codec.encoder({ bitrate: this.toGhostBitrate }));
   }
@@ -81,7 +81,7 @@ export class AudioEngine {
     const ghostFrames = new Map();
     for (const [id, s] of this.ghostIn) ghostFrames.set(id, s.queue.take());
 
-    // Ghost -> Discord: every Ghost member mixed, sent while the gate is open and for five frames of silence after.
+    // Uplink -> Discord: every Uplink member mixed, sent while the gate is open and for five frames of silence after.
     const ghostLive = [...ghostFrames.values()].filter(Boolean);
     const forDiscord = ghostLive.length ? mix(ghostLive) : null;
     let discord = null;
@@ -93,7 +93,7 @@ export class AudioEngine {
       discord = this.codec.silence;
     }
 
-    // Discord -> Ghost: each member's own mix (all of Discord, the other Ghost members), never their own voice.
+    // Discord -> Uplink: each member's own mix (all of Discord, the other Uplink members), never their own voice.
     const ghost = new Map();
     const mixes = mixMinusSelf(fromDiscord, ghostFrames, [...this.out.keys()]);
     for (const [id, frame] of mixes) ghost.set(id, frame ? this.out.get(id).encode(frame) : this.codec.silence);

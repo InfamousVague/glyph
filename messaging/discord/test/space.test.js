@@ -1,4 +1,4 @@
-// The bridge as a member of a Ghost space, through the fake hub, with the browser join page's own Hangout and Chat
+// The bridge as a member of an Uplink space, through the fake hub, with the browser join page's own Hangout and Chat
 // (site/join/voice.js) on the other side: who it says it is, the Discord people, signalling, and the chat both ways.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -140,13 +140,13 @@ test('chat: voice.js\'s Chat and the bridge talk both ways; the bridge\'s own me
   chat.open({ name: 'Matt', guest: false });
   await until(() => chat.opened && space.present.get('e5'.repeat(16)) === 'Matt', 2000, 'chat open');
   await until(() => chat.present.get(me.id)?.name === 'Discord', 2000, 'the bridge\'s hello');
-  // Ghost -> bridge
-  assert.equal(chat.send('hello from Ghost'), true);
+  // Uplink -> bridge
+  assert.equal(chat.send('hello from Uplink'), true);
   await until(() => events.chat.length === 1, 2000, 'message to the bridge');
-  assert.deepEqual({ ...events.chat[0], id: undefined }, { from: 'e5'.repeat(16), name: 'Matt', text: 'hello from Ghost', id: undefined });
-  // bridge -> Ghost, as from a Discord author
+  assert.deepEqual({ ...events.chat[0], id: undefined }, { from: 'e5'.repeat(16), name: 'Matt', text: 'hello from Uplink', id: undefined });
+  // bridge -> Uplink, as from a Discord author
   assert.equal(space.sendChat({ name: 'Amy', text: '  hi from Discord  ', at: 1234 }), true);
-  await until(() => chat.messages.some((m) => m.x === 'hi from Discord'), 2000, 'message to Ghost');
+  await until(() => chat.messages.some((m) => m.x === 'hi from Discord'), 2000, 'message to Uplink');
   const m = chat.messages.find((x) => x.x === 'hi from Discord');
   assert.deepEqual([m.n, m.f, m.at], ['Amy', me.id, 1234]);
   assert.equal(events.chat.length, 1, 'the bridge\'s own message is not handed back to it');

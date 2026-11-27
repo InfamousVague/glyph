@@ -16,7 +16,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * A friend by username wrote while Ghost was closed (Matt, 2026-11-16: "Yes, wake-ups", "Check every ~15 min"). What
+ * A friend by username wrote while Uplink was closed (Matt, 2026-11-16: "Yes, wake-ups", "Check every ~15 min"). What
  * friends by username write goes by the relay server's hub (lib/net/hub_carrier.dart), which holds it while the app
  * is not connected; nothing on the phone hears it until the app opens. So every fifteen minutes or so, as Android
  * allows, this signs in to the hub only to look (relay/lib/hub.dart `peek`): told how much is held, nothing is
@@ -146,7 +146,7 @@ object HubPeek {
         val n = Notification.Builder(context, Notifier.channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setContentTitle("New message")
-            .setContentText("A friend wrote. Open Ghost to read it.")
+            .setContentText("A friend wrote. Open Uplink to read it.")
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)

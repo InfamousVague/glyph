@@ -16,7 +16,7 @@ import 'inbox.dart';
 /// API from Google Workspace accounts (work or school) only: its docs list "A Business or Enterprise Google Workspace
 /// account with access to Google Chat" as the prerequisite, so a personal Gmail account is not offered.
 ///
-/// Signing in is OAuth 2.0 for installed apps with PKCE and a loopback redirect: Ghost listens on 127.0.0.1 at a free
+/// Signing in is OAuth 2.0 for installed apps with PKCE and a loopback redirect: Uplink listens on 127.0.0.1 at a free
 /// port, opens Google's consent page in the browser, takes the code it is sent back to that address, and exchanges it
 /// (with the verifier) for tokens. Google's device flow does not allow Chat scopes. Only the refresh token and the
 /// account are kept (AppState `googlechat_session`); access tokens live in memory and are refreshed as they run out.
@@ -25,7 +25,7 @@ import 'inbox.dart';
 /// GHOST_GCHAT_CLIENT_ID=… GHOST_GCHAT_CLIENT_SECRET=…`); Google itself says such a secret is not confidential.
 ///
 /// Names: a message names its sender as `users/{id}` and under user sign-in gives a display name only for people in the
-/// space or with prior affinity. Ghost takes names from a space's memberships first and asks the People API
+/// space or with prior affinity. Uplink takes names from a space's memberships first and asks the People API
 /// (`people:batchGet`, `directory.readonly`) for anyone still nameless; the Chat user id is the People API's person id.
 ///
 /// No push: the spaces are asked for every [_idle], the open one every [_open], and a 429 doubles the wait.
@@ -57,7 +57,7 @@ class GoogleChat extends InboxNetwork {
 
   static const _g = 'https://www.googleapis.com/auth';
 
-  /// What Ghost asks for. The first two are needed; without the others names, unread counts or reactions go without.
+  /// What Uplink asks for. The first two are needed; without the others names, unread counts or reactions go without.
   static const needed = ['$_g/chat.spaces.readonly', '$_g/chat.messages'];
   static const scopes = [
     'openid',
@@ -202,7 +202,7 @@ class GoogleChat extends InboxNetwork {
     } catch (e) {
       await _closeListener();
       _state = InboxState.signedOut;
-      _error = 'Ghost could not listen for Google\'s answer on this device ($e).';
+      _error = 'Uplink could not listen for Google\'s answer on this device ($e).';
       notifyListeners();
       return null;
     }
@@ -235,21 +235,21 @@ class GoogleChat extends InboxNetwork {
       return;
     }
     if (q['state'] != _stateWord) {
-      await _page(req, 400, 'This answer was not for Ghost\'s sign-in. Go back to Ghost and try again.');
+      await _page(req, 400, 'This answer was not for Uplink\'s sign-in. Go back to Uplink and try again.');
       return;
     }
     final refused = q['error'];
     if (refused != null) {
-      await _page(req, 200, 'Ghost was not signed in. You can close this tab.');
+      await _page(req, 200, 'Uplink was not signed in. You can close this tab.');
       await _closeListener();
       _failSignIn(switch (refused) {
-        'access_denied' => 'Google Chat was not allowed. Sign in again when you\'re ready, and allow what Ghost asks for.',
-        'admin_policy_enforced' || 'org_internal' => 'Your organisation\'s admin hasn\'t allowed Ghost Messaging. Ask them to allow it in the Google Admin console.',
+        'access_denied' => 'Google Chat was not allowed. Sign in again when you\'re ready, and allow what Uplink asks for.',
+        'admin_policy_enforced' || 'org_internal' => 'Your organisation\'s admin hasn\'t allowed Uplink. Ask them to allow it in the Google Admin console.',
         _ => 'Google said: $refused',
       });
       return;
     }
-    await _page(req, 200, 'Signed in. You can close this tab and go back to Ghost Messaging.');
+    await _page(req, 200, 'Signed in. You can close this tab and go back to Uplink.');
     await _closeListener();
     await _exchange(q['code']!);
   }
@@ -259,7 +259,7 @@ class GoogleChat extends InboxNetwork {
     req.response.statusCode = code;
     req.response.headers.contentType = ContentType.html;
     req.response.write('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-        '<title>Ghost Messaging</title><body style="font-family:system-ui;margin:3em auto;max-width:28em;padding:0 1em">'
+        '<title>Uplink</title><body style="font-family:system-ui;margin:3em auto;max-width:28em;padding:0 1em">'
         '<p>${const HtmlEscape().convert(words)}</p></body>');
     await req.response.close();
   }
@@ -281,7 +281,7 @@ class GoogleChat extends InboxNetwork {
       final missing = [for (final s in needed) if (granted.isNotEmpty && !granted.contains(s)) s];
       if (missing.isNotEmpty) {
         _revokeQuietly(refresh);
-        throw const _Said('Ghost needs to read your spaces and your messages. Sign in again and leave those ticked.');
+        throw const _Said('Uplink needs to read your spaces and your messages. Sign in again and leave those ticked.');
       }
       final claims = _claims(t['id_token'] as String?);
       _refresh = refresh;
@@ -392,7 +392,7 @@ class GoogleChat extends InboxNetwork {
     _openTick = Timer.periodic(_open, (_) => load(chatId));
   }
 
-  /// Whether Google's 429 still asks Ghost to wait.
+  /// Whether Google's 429 still asks Uplink to wait.
   bool get _paused => _pausedUntil != null && DateTime.now().isBefore(_pausedUntil!);
 
   // --- spaces ---------------------------------------------------------------------------------------------------------
@@ -824,11 +824,11 @@ class GoogleChat extends InboxNetwork {
   /// What went wrong, in words for the page.
   static String _plain(Object e) {
     if (e is _Said) return e.message;
-    if (e is _Revoked) return 'Google no longer lets Ghost into your Google Chat (the access was removed or ran out). Sign in again.';
+    if (e is _Revoked) return 'Google no longer lets Uplink into your Google Chat (the access was removed or ran out). Sign in again.';
     if (e is _Status) {
-      if (e.code == 401) return 'Google did not let Ghost in. Sign in again.';
-      if (e.code == 403) return e.error ?? 'Google Chat refused. Your organisation may not allow Ghost Messaging, or this isn\'t a Google Workspace account.';
-      if (e.code == 429) return 'Google Chat asks to slow down. Ghost will try again shortly.';
+      if (e.code == 401) return 'Google did not let Uplink in. Sign in again.';
+      if (e.code == 403) return e.error ?? 'Google Chat refused. Your organisation may not allow Uplink, or this isn\'t a Google Workspace account.';
+      if (e.code == 429) return 'Google Chat asks to slow down. Uplink will try again shortly.';
       return e.error ?? 'Google answered ${e.code}.';
     }
     if (e is SocketException || e is TimeoutException || e is HandshakeException) return 'Google can\'t be reached just now.';

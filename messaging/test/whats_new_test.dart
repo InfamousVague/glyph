@@ -93,7 +93,7 @@ void main() {
   testWidgets('a phone set up before notes were kept is shown the newest release\'s', (tester) async {
     await open(tester, seen: '', current: changelog.first.version);
     expect(find.text('What\'s new'), findsOneWidget);
-    expect(find.text('Ghost Messaging ${changelog.first.version}'), findsOneWidget);
+    expect(find.text('Uplink ${changelog.first.version}'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
   });
 

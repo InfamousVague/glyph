@@ -57,7 +57,7 @@ class ListingPlugin extends GhostPlugin {
   @override
   bool get onByDefault => false;
 
-  /// Its minApp is newer than this app: shown, and Add says it needs a newer Ghost Messaging.
+  /// Its minApp is newer than this app: shown, and Add says it needs a newer Uplink.
   bool get needsNewerApp => _newer;
 }
 

@@ -528,10 +528,10 @@ void main() {
   });
 
   // GMFB-25 ("The app works fully against a self-hosted hub"): a computer paired with a phone made its own connection
-  // for spaces to Ghost Messaging's relay whatever relay the phone used, so the two were in different rooms.
-  test('the phone says which relay it uses where it is not Ghost Messaging\'s, and its computer\'s spaces go to that one', () async {
+  // for spaces to Uplink's relay whatever relay the phone used, so the two were in different rooms.
+  test('the phone says which relay it uses where it is not Uplink\'s, and its computer\'s spaces go to that one', () async {
     final v = Voice.instance;
-    // On Ghost Messaging's relay the phone says nothing of it, and its answer is what it always was.
+    // On Uplink's relay the phone says nothing of it, and its answer is what it always was.
     expect((await v.answerDesk({'op': 'list'}) as Map).containsKey('hub'), isFalse);
     // What a computer takes from the answer: a hub's address it can dial, or ours.
     expect(Voice.hubFromPhone('wss://relay.example.com/hub'), 'wss://relay.example.com/hub');
@@ -544,7 +544,7 @@ void main() {
     expect(v.pairedHubUrl, 'wss://gogho.st/hub');
     v.takePhoneHub('wss://relay.example.com/hub');
     expect(v.pairedHubUrl, 'wss://relay.example.com/hub');
-    // A phone from before, or back on Ghost Messaging's relay, says none: ours again.
+    // A phone from before, or back on Uplink's relay, says none: ours again.
     v.takePhoneHub(null);
     expect(v.pairedHubUrl, 'wss://gogho.st/hub');
   });

@@ -10,7 +10,7 @@ import 'rcs_setup.dart';
 import '../kit/semantic_colors.dart';
 
 /// The walkthrough's "your texts" step (lib/onboarding/onboarding.dart): Android lets only the default SMS app send
-/// and keep texts, so the one thing to do is choose Ghost, or use it beside Google Messages.
+/// and keep texts, so the one thing to do is choose Uplink, or use it beside Google Messages.
 ///
 /// Before that, what catches people coming from Google Messages or Samsung Messages (android/.../Arriving.kt; Matt,
 /// 2026-11-13, of a friend whose chats "didn't load" and whose texts stopped arriving: "can you detect this somehow
@@ -24,7 +24,7 @@ class TextsStep extends StatefulWidget {
   /// The page's colour, which its one filled button wears.
   final Color hue;
 
-  /// Ghost can send and receive texts now: the default, or beside Google Messages.
+  /// Uplink can send and receive texts now: the default, or beside Google Messages.
   final VoidCallback onDone;
 
   @override
@@ -89,7 +89,7 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
     widget.onDone();
   }
 
-  /// Asks Android to make Ghost the default texting app; a no is remembered so the page can say what to do next.
+  /// Asks Android to make Uplink the default texting app; a no is remembered so the page can say what to do next.
   Future<void> _go() async {
     setState(() => _asking = true);
     final ok = await Sms.instance.requestDefault();
@@ -112,11 +112,11 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
       return Row(children: [
         AppIcon(Lucide.circleCheck, size: 20, color: widget.hue),
         SizedBox(width: t.space(2)),
-        Expanded(child: Text(s.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
+        Expanded(child: Text(s.isDefault ? 'Uplink is your texting app.' : 'Uplink is working beside Google Messages.', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
       ]);
     }
     // Setting up RCS from Settings, Google Messages made the default on the way: the same steps carried on here
-    // (lib/ui/rcs_setup.dart), and this step is done once Ghost is beside it.
+    // (lib/ui/rcs_setup.dart), and this step is done once Uplink is beside it.
     if (AppState.of(context).flag('rcs_setup', fallback: false)) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         Text('Finish setting up RCS', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
@@ -168,12 +168,12 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
           title: 'Or keep Google Messages, and RCS',
           children: [
             Text(
-              'Ghost can work beside Google Messages instead. Your texts are read from Android, RCS chats come in through Google Messages\' notifications, and replies go back through it, as RCS where the chat is RCS.',
+              'Uplink can work beside Google Messages instead. Your texts are read from Android, RCS chats come in through Google Messages\' notifications, and replies go back through it, as RCS where the chat is RCS.',
               style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
             ),
             SizedBox(height: t.space(3)),
-            _Step(number: _status?.sms == true ? '✓' : '1', text: 'Allow Ghost to read and send texts.'),
-            _Step(number: _status?.bridge == true ? '✓' : '2', text: 'Allow notification access, so Ghost can read Google Messages\' notifications. Only Google Messages\' are read; every other app\'s are ignored.'),
+            _Step(number: _status?.sms == true ? '✓' : '1', text: 'Allow Uplink to read and send texts.'),
+            _Step(number: _status?.bridge == true ? '✓' : '2', text: 'Allow notification access, so Uplink can read Google Messages\' notifications. Only Google Messages\' are read; every other app\'s are ignored.'),
             Text(
               'What it can\'t do: chats muted in Google Messages, or open there when a message comes, aren\'t seen. RCS chats from before aren\'t brought over, and pictures in RCS chats stay in Google Messages.',
               style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
@@ -182,11 +182,11 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
             if (a.sideloaded && _status?.bridge != true) ...[
               SizedBox(height: t.space(2)),
               Text(
-                'If Android says notification access is a restricted setting, open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.',
+                'If Android says notification access is a restricted setting, open Android\'s page for Uplink, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.',
                 style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45),
               ),
               SizedBox(height: t.space(2)),
-              _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
+              _Button(label: 'Open Android\'s page for Uplink', onPressed: () => Sms.instance.openAppInfo()),
             ],
             SizedBox(height: t.space(3)),
             _Button(label: 'Use beside Google Messages', onPressed: _beside),
@@ -200,17 +200,17 @@ class _TextsStepState extends State<TextsStep> with WidgetsBindingObserver {
         _Card(
           icon: Lucide.circleAlert,
           danger: true,
-          title: 'Ghost isn\'t the default yet',
+          title: 'Uplink isn\'t the default yet',
           children: [
             Text(
               a.sideloaded
-                  ? 'If Android said the setting is restricted or unavailable, that is because this copy didn\'t come from the Play Store. Open Android\'s page for Ghost Messaging, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.'
-                  : 'Android only lets the default app send and receive texts. Try again, and choose Ghost Messaging when Android asks.',
+                  ? 'If Android said the setting is restricted or unavailable, that is because this copy didn\'t come from the Play Store. Open Android\'s page for Uplink, tap ⋮ at the top, choose Allow restricted settings, then come back and try again.'
+                  : 'Android only lets the default app send and receive texts. Try again, and choose Uplink when Android asks.',
               style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
             ),
             if (a.sideloaded) ...[
               SizedBox(height: t.space(3)),
-              _Button(label: 'Open Android\'s page for Ghost Messaging', onPressed: () => Sms.instance.openAppInfo()),
+              _Button(label: 'Open Android\'s page for Uplink', onPressed: () => Sms.instance.openAppInfo()),
             ],
           ],
         ),

@@ -124,7 +124,7 @@ def main():
         card = card.crop((0, (h - nh) // 2, w, (h + nh) // 2))
     card = card.resize((1200, 630), Image.LANCZOS)
     draw = ImageDraw.Draw(card)
-    draw.text((72, 206), "Ghost Messaging", font=font(64), fill=(255, 255, 255))
+    draw.text((72, 206), "Uplink", font=font(64), fill=(255, 255, 255))
     draw.text((74, 294), "High-quality text, voice and video.", font=font(34, bold=False), fill=(225, 250, 246))
     draw.text((74, 340), "In one app.", font=font(34, bold=False), fill=(225, 250, 246))
     draw.text((74, 470), "gogho.st", font=font(30), fill=(190, 240, 232))

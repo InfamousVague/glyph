@@ -249,7 +249,7 @@ class ReviewItemScreen extends StatefulWidget {
   const ReviewItemScreen(this.sid, {super.key, this.api, this.ask});
   final String sid;
 
-  /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
+  /// The Marketplace: MarketState.instance.api where null, which is Uplink's own (MarketApi.live) in the app.
   final MarketApi? api;
 
   /// For a test: the relay's answers to the admin sign-in, in place of Me.admin.
@@ -487,7 +487,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
   /// Why the store's listing of it isn't the one its package names, or null: the relay's list of screenshots or its
   /// developer isn't the package's, or a screenshot the package names came as another picture's bytes. One that
   /// couldn't be fetched at all is no sign of that, and holds Approve back on its own ([_approveWhy]). Users' pages
-  /// draw the package's own (D.4), under "Reviewed by Ghost Messaging"; a relay that is wrong or broken into could show
+  /// draw the package's own (D.4), under "Reviewed by Uplink"; a relay that is wrong or broken into could show
   /// the reviewer other pictures and another "By @" (review, 2026-11-20).
   String? get _listingWrong {
     final row = _row, pack = _pack;
@@ -502,7 +502,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
   String? get _approveWhy {
     final row = _row;
     final signer = _api.signer;
-    if (signer == null) return 'This device has no Ghost identity of its own: review from your phone.';
+    if (signer == null) return 'This device has no Uplink identity of its own: review from your phone.';
     final here = InstalledPlugins.instance;
     if (!isReviewKey(signer.publicKey, keys: here.reviewKeys, retired: here.retiredKeys)) return 'This build doesn\'t trust this device\'s key for reviews: its approvals wouldn\'t install.';
     final pack = _pack;
@@ -638,7 +638,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
     final row = _row;
     if (row == null) return 'It hasn\'t been read yet.';
     final signer = _api.signer;
-    if (signer == null) return 'This device has no Ghost identity of its own: review from your phone.';
+    if (signer == null) return 'This device has no Uplink identity of its own: review from your phone.';
     // A withdrawal counts on a device only where that build pins its key (verifyRevocation), a retired one among them;
     // one signed by a key it doesn't pin switched nothing off, while the store took it, unlisted the plugin and
     // kept it as the one withdrawal of that version (review, 2026-11-20).

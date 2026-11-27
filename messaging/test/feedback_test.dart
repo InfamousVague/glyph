@@ -179,7 +179,7 @@ void main() {
 
   // GMFB-25 ("features that only exist on gogho.st ... fall back cleanly"): on a relay of someone's own with no board
   // set up, feedback was answered "Feedback isn't set up on this server yet" and went nowhere.
-  test('a relay of someone\'s own that takes no feedback: it goes to Ghost Messaging\'s instead; any other refusal is that relay\'s to say', () async {
+  test('a relay of someone\'s own that takes no feedback: it goes to Uplink\'s instead; any other refusal is that relay\'s to say', () async {
     const own = 'wss://relay.example.com/hub', ours = 'wss://gogho.st/hub';
     final asked = <String>[];
     Future<String> Function(String) sender(Map<String, Object> answers) => (url) async {
@@ -209,8 +209,8 @@ void main() {
     await expectLater(sendFeedbackOrOurs(hubUrl: ours, ours: ours, mayLeave: true, send: sender({ours: off})), throwsA(same(off)));
     await expectLater(sendFeedbackOrOurs(hubUrl: own, ours: ours, mayLeave: false, send: sender({own: off, ours: 'GMFB-70'})), throwsA(same(off)));
     expect(asked, [ours, own]);
-    expect(feedbackGoesWords(ours), 'It goes to the Ghost Messaging team.');
-    expect(feedbackGoesWords(own), 'It goes to your relay\'s own feedback board where it has one, and to the Ghost Messaging team where it doesn\'t.');
+    expect(feedbackGoesWords(ours), 'It goes to the Uplink team.');
+    expect(feedbackGoesWords(own), 'It goes to your relay\'s own feedback board where it has one, and to the Uplink team where it doesn\'t.');
   });
 
   test('the address is the hub\'s server with /feedback in place of /hub', () {

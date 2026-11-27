@@ -126,14 +126,14 @@ void main() {
     });
 
     test('the log to copy says what it is of, and holds only its newest lines', () {
-      usage.about = 'Ghost Messaging 0.0.0 on test';
+      usage.about = 'Uplink 0.0.0 on test';
       usage.start();
       for (var i = 0; i < AppUsage.logMost + 40; i++) {
         pass(AppUsage.every + const Duration(seconds: 1));
       }
       expect(usage.log, hasLength(AppUsage.logMost));
       final text = usage.text().split('\n');
-      expect(text.first, 'Ghost Messaging 0.0.0 on test: performance log');
+      expect(text.first, 'Uplink 0.0.0 on test: performance log');
       expect(text[1], startsWith('Began 2026-11-24 10:00:00; '));
       expect(text.last, usage.log.last);
       usage.clear();

@@ -14,14 +14,14 @@ function cookieHosts(): string[] {
 export function manifest(target: 'chrome' | 'firefox', opts: { version: string }): Record<string, unknown> {
   const base: Record<string, unknown> = {
     manifest_version: 3,
-    name: 'Ghost Messaging — keys',
+    name: 'Uplink — keys',
     version: opts.version,
     description:
-      'Signs every device on your Ghost account in to your chat networks (Messenger, Instagram, Discord, X, Slack, Google Messages and more as Ghost adds them) from your browser, sealed, so you sign in once, not on every device.',
+      'Signs every device on your Uplink account in to your chat networks (Messenger, Instagram, Discord, X, Slack, Google Messages and more as Uplink adds them) from your browser, sealed, so you sign in once, not on every device.',
     // webRequest: Discord's and Slack's sign-in token is in their own requests, not a cookie (ghost/services.ts `token`).
     permissions: ['cookies', 'storage', 'webRequest'],
     host_permissions: cookieHosts(),
-    action: { default_title: 'Ghost Messaging keys', default_popup: 'popup.html' },
+    action: { default_title: 'Uplink keys', default_popup: 'popup.html' },
     icons: { 16: 'icons/16.png', 48: 'icons/48.png', 128: 'icons/128.png' },
   };
   if (target === 'firefox') {

@@ -72,7 +72,7 @@ if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScop
   globalThis.ghostArgon2id = stretch;
 }
 `;
-const banner = `/* Argon2id for Ghost Messaging in a browser, run as a worker: posted {password, salt, memoryKiB, passes, lanes, length}, it posts {key} back.
+const banner = `/* Argon2id for Uplink in a browser, run as a worker: posted {password, salt, memoryKiB, passes, lanes, length}, it posts {key} back.
  * Written by tool/web/build-argon2.mjs; change that, not this.
  * From @noble/hashes ${found.version} (${locked.integrity}), bundled with esbuild ${esbuildVersion}.
  * @noble/hashes is MIT licensed: Copyright (c) 2022 Paul Miller (https://paulmillr.com). */`;

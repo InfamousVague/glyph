@@ -1,6 +1,6 @@
 # Account keys, signed statements and vouches (GMFB-33)
 
-Every Ghost Messaging account is a P-256 key pair; its **name** on the network is the first 16 bytes of the SHA-256
+Every Uplink account is a P-256 key pair; its **name** on the network is the first 16 bytes of the SHA-256
 of the compressed public key, in hex (`docs/OPEN_NETWORK.md`, section 1). This page says how that key is shown to the
 world, how a statement signed with it is written and checked, and how friends vouch for each other. The code is
 `lib/me/identity.dart`, `lib/friends/vouches.dart` and `lib/ui/identity_ui.dart`; `tool/check-proof.mjs` checks a
@@ -26,7 +26,7 @@ Profile › Sign a statement makes a block like this (the statement is up to 280
     Signed: 2026-11-23T10:15:07Z
     Signature: 3q2-7w…(86 characters)
 
-    I am @matt on Ghost Messaging
+    I am @matt on Uplink
     -----END GHOST PROOF-----
 
 - `Account` is the signer's did:key; `Signed` the time, UTC, to the second, exactly as written, and it must match

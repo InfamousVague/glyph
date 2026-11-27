@@ -184,7 +184,7 @@ final RegExp _space = RegExp(r'\s');
 /// Names that only reach something on the person's own network.
 const List<String> _localSuffixes = ['.local', '.lan', '.home', '.internal', '.localhost', '.arpa'];
 
-/// Ghost Messaging's own: their /join and /c/ addresses the app opens itself as Android App Links.
+/// Uplink's own: their /join and /c/ addresses the app opens itself as Android App Links.
 const List<String> _ownHosts = ['gogho.st', 'ghost-sms.com'];
 
 /// Two or more labels of lower-case ASCII letters, digits and inner hyphens, no punycode (a look-alike's disguise), not
@@ -391,7 +391,7 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
   for (final k in pack.keys) {
     if (!packFields.contains(k)) add('unknown_field', '$k', '"$k" isn\'t a field of ghost-plugin/1.');
   }
-  if (pack['format'] != packFormat) add('format_unknown', 'format', 'format: this version of Ghost Messaging reads "$packFormat".');
+  if (pack['format'] != packFormat) add('format_unknown', 'format', 'format: this version of Uplink reads "$packFormat".');
 
   // Three readers of a field, each adding its own issues and returning null where the field won't do: text (any
   // string), words (a string within its length and of allowed characters), and list (strings, each once, each passed
@@ -458,7 +458,7 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
     if (!packIdPattern.hasMatch(id)) {
       add('bad_id', 'id', 'id: 3 to 24 lower-case letters and digits, starting with a letter.');
     } else if (reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho')) {
-      add('id_reserved', 'id', 'id: "$id" is kept for Ghost Messaging\'s own plugins and places.');
+      add('id_reserved', 'id', 'id: "$id" is kept for Uplink\'s own plugins and places.');
     } else if (examplePackIds.contains(id)) {
       add('id_example', 'id', 'That\'s the example\'s id: give your plugin an id of its own.');
     }

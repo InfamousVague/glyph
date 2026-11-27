@@ -44,7 +44,7 @@ String? tidyInviteWord(String raw) {
 String? inviteWordProblem(String raw) {
   final w = tidyInviteWord(raw);
   if (w == null) return 'A word is 3 to 32 letters, numbers or hyphens.';
-  if (reservedInviteWords.contains(w)) return '"$w" is kept for Ghost Messaging itself. Try another.';
+  if (reservedInviteWords.contains(w)) return '"$w" is kept for Uplink itself. Try another.';
   return null;
 }
 

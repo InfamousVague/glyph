@@ -48,7 +48,7 @@ final class Scribe: NSObject {
         let language = args["language"] as? String
         SFSpeechRecognizer.requestAuthorization { status in
           guard status == .authorized else {
-            DispatchQueue.main.async { result(FlutterError(code: "denied", message: "Speech recognition isn't allowed for Ghost Messaging", details: nil)) }
+            DispatchQueue.main.async { result(FlutterError(code: "denied", message: "Speech recognition isn't allowed for Uplink", details: nil)) }
             return
           }
           DispatchQueue.global(qos: .userInitiated).async {

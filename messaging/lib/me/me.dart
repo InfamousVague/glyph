@@ -155,7 +155,7 @@ class Watched {
   int get hashCode => id.hashCode;
 }
 
-/// Someone watched for who is on Ghost Messaging.
+/// Someone watched for who is on Uplink.
 class Joined {
   const Joined(this.network, this.handle, this.at, {this.seen = false});
   final String network;
@@ -386,7 +386,7 @@ class Me extends ChangeNotifier {
         ways = (m['ways'] as Map? ?? const {}).cast<String, String>();
         ready = true;
         _takeSouls(m);
-        // Ghost's own lists of what was deleted or archived where the network could not, kept on the account: read
+        // Uplink's own lists of what was deleted or archived where the network could not, kept on the account: read
         // back and joined with this device's (lib/kept_lists.dart).
         unawaited(KeptLists.instance.pull().catchError((_) => false));
         // Cookies a Chrome extension captured on another device: read back and sign in any service not already on
@@ -652,7 +652,7 @@ class Me extends ChangeNotifier {
   /// a test of what is sealed with it (test/plugin_sync_test.dart).
   static Uint8List curlKeyOf(List<String> words) => AccountCrypto.hkdf(AccountCrypto.seedOf(words), 'ghost-account v1', 'ghost curl v1');
 
-  /// Whether this device has the account's blob key and the relay to keep it on: a Ghost account is signed in to here.
+  /// Whether this device has the account's blob key and the relay to keep it on: an Uplink account is signed in to here.
   /// Plugin sync (lib/plugins/plugin_sync.dart) does nothing without it.
   Future<bool> curlReady() async => await _curlKey() != null;
 
@@ -706,7 +706,7 @@ class Me extends ChangeNotifier {
   Future<Map<String, Object?>?> curlKept({bool strict = false}) async {
     final key = await _curlKey();
     if (key == null) {
-      if (strict) throw MeError('No Ghost account on this device.');
+      if (strict) throw MeError('No Uplink account on this device.');
       return null;
     }
     // Two readers at one moment share one asking (GMFB-69): the sign-ins' sync and the plugins' sync both read this
@@ -1151,8 +1151,8 @@ class Me extends ChangeNotifier {
   /// someone else holds it there, this install has no username on that relay, and [nameTaken] says so. The name it
   /// had on the relay it left is kept for when it goes back.
   ///
-  /// The first greeting since this was kept settles nothing on Ghost Messaging's relay, where nothing has moved; on
-  /// another, the username is taken to have been Ghost Messaging's. Whatever fails leaves everything as it was, to be
+  /// The first greeting since this was kept settles nothing on Uplink's relay, where nothing has moved; on
+  /// another, the username is taken to have been Uplink's. Whatever fails leaves everything as it was, to be
   /// settled at the next greeting.
   @visibleForTesting
   Future<void> relayGreeted(String url) => _relayGreeted(url);

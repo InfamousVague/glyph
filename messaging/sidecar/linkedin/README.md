@@ -1,20 +1,20 @@
-# Ghost Messaging's LinkedIn helper
+# Uplink's LinkedIn helper
 
-A small program Ghost Messaging runs beside itself to reach the person's LinkedIn messages: signed in with the
+A small program Uplink runs beside itself to reach the person's LinkedIn messages: signed in with the
 cookies of a browser signed in to their account, then the inbox's conversations, their history, messages as they
 arrive, sending (words, replies, pictures and files), reactions, taking a message back, read marks, and the names
 and pictures of the people met.
 
 **LinkedIn does not support this, and does not allow it.** LinkedIn has no API for other apps to read or send
 messages, and its terms forbid programs that act as its website. It may ask the person to confirm it is them, sign
-the session out, or restrict the account. Ghost says so, and asks the person to agree, before signing in.
+the session out, or restrict the account. Uplink says so, and asks the person to agree, before signing in.
 
 It is built on `pkg/linkedingo` of [mautrix-linkedin](https://github.com/mautrix/linkedin) (v0.2611.0) by Sumner
 Evans and contributors, under the GNU Affero General Public License 3.0, and this helper's own source is under the
 same licence (LICENSE). The licence asks that whoever is given the program can have its source: SOURCE_URL is where
 it is published. No cgo: the session is a JSON file, not a database.
 
-Ghost Messaging itself is a separate program: it starts this one (`linkedin-sidecar --dir <folder>`) and talks to it
+Uplink itself is a separate program: it starts this one (`linkedin-sidecar --dir <folder>`) and talks to it
 over its standard input and output, one JSON object a line (../ACCOUNT_HELPERS.md, and PROTOCOL.md for what is
 LinkedIn's own). The folder holds `session.json` (the cookies, readable by the person alone), `linkedin.log` and
 cached pictures (`avatars/`). Nothing a message says is logged; nothing but the protocol is written to standard

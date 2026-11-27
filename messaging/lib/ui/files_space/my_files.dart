@@ -62,7 +62,7 @@ class _MyFilesScreenState extends State<MyFilesScreen> {
   @override
   Widget build(BuildContext context) {
     // A browser whose build has no Files spaces has no drive either (Sms.browserFiles; docs/OPEN_NETWORK.md, part 6).
-    if (!Sms.filesHere) return _says(context, 'My files isn\'t in the browser yet. It opens in Ghost Messaging on a phone or a computer.');
+    if (!Sms.filesHere) return _says(context, 'My files isn\'t in the browser yet. It opens in Uplink on a phone or a computer.');
     return FutureBuilder<VoiceChannel?>(
       future: _drive,
       builder: (context, got) {
@@ -71,7 +71,7 @@ class _MyFilesScreenState extends State<MyFilesScreen> {
         // The drive is made from the account's recovery words: a device that keeps none (signed in to no account, or a
         // computer linked to a phone, which is not given them) has nothing to make it from.
         if (c == null) {
-          return _says(context, 'My files is kept for your Ghost account, so every device signed in to it shows the same files. Sign in to your account on this device in Settings to use it here.');
+          return _says(context, 'My files is kept for your Uplink account, so every device signed in to it shows the same files. Sign in to your account on this device in Settings to use it here.');
         }
         // On a computer: a folder of its own kept in step with the drive (GMFB-38).
         final sync = widget.sync ?? (widget.store == null && FolderSync.here ? FolderSync.instance : null);

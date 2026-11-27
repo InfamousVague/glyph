@@ -14,7 +14,7 @@ import 'chats.dart';
 import 'store.dart';
 import 'store_files.dart';
 
-/// Ghost Messaging on an iPhone of its own (Matt, 2026-11-15: "investigate if we can within apples rules make a
+/// Uplink on an iPhone of its own (Matt, 2026-11-15: "investigate if we can within apples rules make a
 /// bridge for messaging through RCS like we're doing with mautrix on android and if not we'll want to roll a version
 /// of the app that works without sms"; "it's unlikely the user will ever have two phones").
 ///
@@ -66,7 +66,7 @@ class StandaloneCalls implements SmsCalls {
 
   static Future<bool> _restartHere() async {
     if (PlatformInfo.environment.containsKey('FLUTTER_TEST') || !PlatformInfo.isMacOS) return false;
-    // …/Ghost Messaging.app/Contents/MacOS/Ghost Messaging, three folders up.
+    // …/Ghost Messaging.app/Contents/MacOS/Ghost Messaging, three folders up (the app's file keeps its earlier name).
     final app = File(PlatformInfo.resolvedExecutable).parent.parent.parent.path;
     if (!app.endsWith('.app')) return false;
     await Process.start('/bin/sh', ['-c', 'sleep 1; /usr/bin/open -n "\$0"', app], mode: ProcessStartMode.detached);
@@ -218,7 +218,7 @@ class StandaloneCalls implements SmsCalls {
       case 'netPeers':
         return UsernameChats.peersOf(_buddyList, _keys!);
 
-      // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): this
+      // An Uplink account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): this
       // install's key to seal into the account's backup, a restored key put in its place, the account's words kept
       // beside the key in the Keychain, and a clean start once a device has signed in.
       case 'identityExport':

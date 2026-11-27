@@ -343,7 +343,7 @@ class VoiceMember {
   /// They want the call's words as captions ('cw'): each device that can then writes out its own voice.
   final bool captions;
 
-  /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
+  /// Their username on Uplink, where they have one and said it: to add them as a friend.
   final String? username;
   final bool muted;
   final bool video;

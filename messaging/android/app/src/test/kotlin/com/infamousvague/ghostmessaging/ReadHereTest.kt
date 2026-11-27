@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * A conversation read in Ghost is read in its list, whatever Android's database says: beside Google Messages it takes
- * no writes from Ghost (Matt, 2026-11-16: "Rcs messages are not being marked as read when i view the message group").
+ * A conversation read in Uplink is read in its list, whatever Android's database says: beside Google Messages it takes
+ * no writes from Uplink (Matt, 2026-11-16: "Rcs messages are not being marked as read when i view the message group").
  */
 class ReadHereTest {
     private fun row(id: Long, date: Long, unread: Boolean) = mapOf<String, Any?>("id" to id, "date" to date, "unread" to unread)

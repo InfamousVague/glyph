@@ -1,10 +1,10 @@
-// Ghost Messaging's Signal helper (README.md, PROTOCOL.md). AGPL-3.0, as signalmeow, on which it is built.
+// Uplink's Signal helper (README.md, PROTOCOL.md). AGPL-3.0, as signalmeow, on which it is built.
 //
 // It links to the person's Signal account as a secondary device, as Signal Desktop does, and speaks JSON lines over
 // standard input and output. Requests, each with an "id" its answer carries back:
 //
 //	{"id":1,"op":"status"}                                   → {"linked":bool,"connected":bool,"aci":"…","number":"…","name":"…"}
-//	{"id":2,"op":"link","name":"Ghost Messaging"}            → null, then events "qr" (again every 45 s) and "linked" or "link_failed"
+//	{"id":2,"op":"link","name":"Uplink"}            → null, then events "qr" (again every 45 s) and "linked" or "link_failed"
 //	{"id":3,"op":"unlink"}                                   → null; everything forgotten
 //	{"id":4,"op":"contacts"}                                 → [{"aci","name","number","avatar"}…]
 //	{"id":5,"op":"groups"}                                   → [{"id","title","members","avatar"}…] (and event "group", the same, when one is first heard from)
@@ -184,7 +184,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// signalmeow's and libsignal's log to standard error, for Ghost's developer log; never standard output. And to
+	// signalmeow's and libsignal's log to standard error, for Uplink's developer log; never standard output. And to
 	// signal.log in the store's folder, so a stuck send can be traced on the device afterwards (Matt, 2026-11-16:
 	// "Sending signal messages get stuck on sending"): started afresh once it passes a megabyte.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
@@ -215,7 +215,7 @@ func main() {
 		}
 		go handle(r)
 	}
-	// Ghost closed its end: the app is quitting.
+	// Uplink closed its end: the app is quitting.
 	mu.Lock()
 	stop()
 	mu.Unlock()
@@ -454,7 +454,7 @@ func do(r request) (any, error) {
 	case "status":
 		return status(ctx), nil
 	case "link":
-		return nil, link(cmp.Or(r.Name, "Ghost Messaging"))
+		return nil, link(cmp.Or(r.Name, "Uplink"))
 	case "unlink":
 		if c, err := client(); err == nil {
 			if err := c.Unlink(ctx); err != nil {

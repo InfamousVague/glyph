@@ -177,7 +177,7 @@ void main() {
         (at: DateTime(2026, 11, 21, 18, 0), who: 'Maya Chen', text: 'Here is the *plan*', files: const ['plan.pdf'], replyTo: null, edited: true),
         (at: DateTime(2026, 11, 22, 9, 6), who: 'Maya Chen', text: 'Yes!', files: const [], replyTo: 'Replying to You: Coffee?', edited: false),
       ], now: DateTime(2026, 11, 22, 20, 0));
-      expect(md, startsWith('# Maya Chen\n\nExported from Ghost Messaging on 2026-11-22 at 20:00 · 3 messages\n'));
+      expect(md, startsWith('# Maya Chen\n\nExported from Uplink on 2026-11-22 at 20:00 · 3 messages\n'));
       expect(md.indexOf('## 2026-11-21'), lessThan(md.indexOf('## 2026-11-22')));
       expect(md, contains('**Maya Chen** 18:00 (edited)\nHere is the *plan*\n- 📎 plan.pdf'));
       expect(md, contains('**You** 09:05\nCoffee?  \nAt 10'));
@@ -191,7 +191,7 @@ void main() {
 
     test('JSON: what it is, then each message oldest first with who, when, words and files (GMFB-36)', () {
       final j = jsonDecode(chatJson('Maya', three, now: DateTime(2026, 11, 22, 20, 0), where: 'a space')) as Map;
-      expect(j['app'], 'Ghost Messaging');
+      expect(j['app'], 'Uplink');
       expect(j['title'], 'Maya');
       expect(j['where'], 'a space');
       expect(j['exported'], '2026-11-22T20:00:00.000');

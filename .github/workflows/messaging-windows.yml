@@ -1,4 +1,4 @@
-# Ghost Messaging for Windows: the desktop app built on a Windows runner (Matt, 2026-11-14: "Add a mac and windows
+# Uplink for Windows: the desktop app built on a Windows runner (Matt, 2026-11-14: "Add a mac and windows
 # build to ghost-sms.com"). A Mac cannot build a Windows Flutter app, so this does, by hand (Run workflow, or
 # `gh workflow run messaging-windows.yml -f version=0.7.21 -f build=33`). What it makes is the installer
 # (messaging/windows/installer.iss) as an artifact; messaging/tool/release-windows.mjs fetches it and puts it on
@@ -7,7 +7,7 @@
 # AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (or none, signing in by GitHub's OIDC token through a federated credential),
 # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE. Without them it builds unsigned as before,
 # and Windows asks before running it the first time.
-name: Ghost Messaging for Windows
+name: Uplink for Windows
 
 on:
   workflow_dispatch:
@@ -154,7 +154,7 @@ jobs:
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
-          description: Ghost Messaging
+          description: Uplink
           description-url: https://gogho.st
 
       - name: Build the installer

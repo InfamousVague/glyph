@@ -43,7 +43,7 @@ class BlockTarget {
         null => '${Sms.remote ? 'Your phone' : 'Android'} will stop their texts and calls before they reach you.',
         'telegram' => 'Telegram will stop their messages and calls, on all your devices.',
         'signal' => 'Signal will stop their messages and calls, on your phone too.',
-        'matrix' => 'Ghost will hide them here; Matrix itself is not told.',
+        'matrix' => 'Uplink will hide them here; Matrix itself is not told.',
         _ => 'Their messages won\'t show here.',
       };
 
@@ -129,10 +129,10 @@ class _BlockedListState extends State<BlockedList> {
         final ghosts = Buddies.instance.blocked;
         final networks = [for (final n in Inbox.instance.networks) if (!n.soon && (n.state == InboxState.ready || n.blockedPeople.isNotEmpty)) n];
         final groups = <(String, List<Widget>, String?)>[
-          // Ghost people blocked with a report (GMFB-40): kept here, unblocked here.
+          // Uplink people blocked with a report (GMFB-40): kept here, unblocked here.
           if (ghosts.isNotEmpty)
             (
-              'Ghost',
+              'Uplink',
               [
                 for (final b in ghosts)
                   SettingRow(
@@ -173,7 +173,7 @@ class _BlockedListState extends State<BlockedList> {
                 null,
               ),
         ];
-        const intro = Tr('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat; a Ghost person when you report them.');
+        const intro = Tr('Blocked where they are: a number on your phone, a Telegram or Signal person on that network itself, so it holds in their apps too. Block someone with a long press on their name in a chat; an Uplink person when you report them.');
         if (groups.isEmpty) {
           return PaneSection(
             title: 'Blocked',

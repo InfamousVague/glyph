@@ -1,4 +1,4 @@
-# Ghost's WhatsApp helper: the protocol
+# Uplink's WhatsApp helper: the protocol
 
 Matt, 2026-11-17: "enable whatsapp but warn the user that it's unsupported by whatsapp". A helper process,
 `whatsapp-sidecar`, built on [whatsmeow](https://github.com/tulir/whatsmeow) (MPL-2.0, the library mautrix-whatsapp is

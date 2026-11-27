@@ -595,7 +595,7 @@ class _Arrow extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(corner),
                 // A step up from the page, as the quick-reply chips are: on a black page the page's own black left only
-                // the hairline to tell it from the chat behind it, and on Ghost's light page white vanished over your
+                // the hairline to tell it from the chat behind it, and on Uplink's light page white vanished over your
                 // own white, outlined bubbles.
                 color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
                 border: Border.all(color: t.color('app-rule')),
@@ -635,7 +635,7 @@ class _Arrow extends StatelessWidget {
   }
 
   /// The count's figures: white on the red, the same white the navigation pill's counts are drawn in (lib/ui/nav_bar.dart),
-  /// since no look has a token for words on its red (Ghost's glacier-danger-contrast is its paper, black in the dark);
+  /// since no look has a token for words on its red (Uplink's glacier-danger-contrast is its paper, black in the dark);
   /// unless a look's red is light enough that white would not read on it (Dial-Up's dark half, #FF6060, about 3:1),
   /// where they take the page's darker end instead.
   static Color _onDanger(Tokens t) {

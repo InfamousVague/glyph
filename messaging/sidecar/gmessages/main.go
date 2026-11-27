@@ -1,4 +1,4 @@
-// Ghost Messaging's Google Messages sidecar (README.md). AGPL-3.0, as libgm, on which it is built.
+// Uplink's Google Messages sidecar (README.md). AGPL-3.0, as libgm, on which it is built.
 //
 // Requests, one JSON object a line on standard input, each with an "id" its answer carries back:
 //
@@ -23,7 +23,7 @@
 // {"ev":"phone","responding":bool}, {"ev":"unpaired","why":"…"}, {"ev":"inactive"} (another web session, on a
 // computer or messages.google.com, took over: Google Messages has one active at a time) and {"ev":"active"}.
 //
-// With --takeover (Ghost on the phone, which owns the session) an inactive session takes itself back after a short
+// With --takeover (Uplink on the phone, which owns the session) an inactive session takes itself back after a short
 // wait, as mautrix-gmessages' bridge does.
 package main
 
@@ -51,7 +51,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 )
 
-// request is one line Ghost sends. Fields an op does not use are left empty.
+// request is one line Uplink sends. Fields an op does not use are left empty.
 type request struct {
 	ID     int64  `json:"id"`
 	Op     string `json:"op"`
@@ -116,7 +116,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// libgm's log to standard error, for Ghost's developer log; never standard output, which is the conversation.
+	// libgm's log to standard error, for Uplink's developer log; never standard output, which is the conversation.
 	log = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	if loaded := loadSession(); loaded != nil {
 		auth = loaded
@@ -143,7 +143,7 @@ func main() {
 		}
 		go handle(r)
 	}
-	// Ghost closed its end: the app is quitting.
+	// Uplink closed its end: the app is quitting.
 	mu.Lock()
 	if cli != nil {
 		saveSession()
@@ -199,7 +199,7 @@ func connect() {
 }
 
 // onEvent takes what libgm hears from Google Messages: remembers SIMs and conversations, and passes messages,
-// conversations and the session's ups and downs on to Ghost as events.
+// conversations and the session's ups and downs on to Uplink as events.
 func onEvent(raw any) {
 	switch evt := raw.(type) {
 	case *events.ClientReady:
@@ -240,7 +240,7 @@ func onEvent(raw any) {
 			}
 		case gmproto.AlertType_BROWSER_ACTIVE:
 			// libgm sends no ClientReady any more: this alert is what says the session is up (mautrix-gmessages'
-			// bridge treats it so too). Ghost reads "connected" and fetches the conversations.
+			// bridge treats it so too). Uplink reads "connected" and fetches the conversations.
 			event("active", nil)
 			event("connected", nil)
 		}
@@ -255,7 +255,7 @@ func onEvent(raw any) {
 	}
 }
 
-// unpaired forgets the session, in memory and on disk, and tells Ghost why.
+// unpaired forgets the session, in memory and on disk, and tells Uplink why.
 func unpaired(why string) {
 	mu.Lock()
 	if cli != nil {
@@ -523,7 +523,7 @@ func sendInfo(ctx context.Context, c *libgm.Client, conv string, info []*gmproto
 			return nil, err
 		}
 	}
-	// An id of our own making, answered to Ghost: the sent message comes back as an event carrying it ("tmp").
+	// An id of our own making, answered to Uplink: the sent message comes back as an event carrying it ("tmp").
 	tmp := fmt.Sprintf("tmp_%d", time.Now().UnixNano())
 	resp, err := c.SendMessage(ctx, &gmproto.SendMessageRequest{
 		ConversationID: conv,
@@ -683,7 +683,7 @@ func gaiaWhy(err error) string {
 	}
 }
 
-// conversation is a conversation as Ghost reads it: its people, last line and flags. "time" is in milliseconds
+// conversation is a conversation as Uplink reads it: its people, last line and flags. "time" is in milliseconds
 // (Google Messages counts in microseconds).
 func conversation(c *gmproto.Conversation) map[string]any {
 	people := make([]map[string]any, 0, len(c.GetParticipants()))
@@ -702,7 +702,7 @@ func conversation(c *gmproto.Conversation) map[string]any {
 	}
 }
 
-// message is a message as Ghost reads it: its words joined, each attachment with the id and key the "media" op
+// message is a message as Uplink reads it: its words joined, each attachment with the id and key the "media" op
 // needs to fetch it, its reactions, and Google Messages' status in lower case. "time" is in milliseconds.
 func message(m *gmproto.Message) map[string]any {
 	var text []string

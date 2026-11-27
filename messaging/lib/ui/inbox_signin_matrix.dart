@@ -116,7 +116,7 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                         label: _browser ? 'Waiting for your browser…' : 'Sign in with your browser',
                         hint: Text(_browser
                             ? 'Sign in on the page that opened. It comes back here by itself once you\'re in.'
-                            : 'Your server\'s own sign-in page opens. Ghost never sees your password.'),
+                            : 'Your server\'s own sign-in page opens. Uplink never sees your password.'),
                         disabled: busy && !_browser,
                         onPress: _browser ? null : _withBrowser,
                       ),
@@ -157,7 +157,7 @@ class _MatrixSignInScreenState extends State<MatrixSignInScreen> {
                   ),
                 ],
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Tr('Your messages go between this device and your Matrix server only. Ghost\'s servers never see them, and your password isn\'t kept: only the session your server gives back, and this device\'s encryption keys.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and your Matrix server only. Uplink\'s servers never see them, and your password isn\'t kept: only the session your server gives back, and this device\'s encryption keys.')),
               ],
             ),
           ),

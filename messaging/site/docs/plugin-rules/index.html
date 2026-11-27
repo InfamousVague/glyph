@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tags, tabs and buttons · Ghost Messaging docs</title>
+<title>Tags, tabs and buttons · Uplink docs</title>
 <meta name="description" content="Tags, tabs and kinds with their rows, buttons and menu lines, and what happens as texts arrive.">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
@@ -14,7 +14,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Uplink</span></a>
   <a class="brand-docs" href="/docs/">Docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -196,10 +196,10 @@
 <ul>
   <li>texts from one person who isn't in the phone's contacts: never a group, whose last words may be anyone's;</li>
   <li>words known to be theirs: never your own, and not a conversation you started that has had nothing back yet;</li>
-  <li>texts not sent with Ghost Messaging's own encryption;</li>
+  <li>texts not sent with Uplink's own encryption;</li>
   <li>texts (SMS and picture messages): never chats on other networks, circles and spaces, or friends by username.</li>
 </ul>
-<p>While Ghost Messaging can't read your contacts (<span class="ui-path">Settings › Android › Contacts</span> is Off), no number has a name and a contact can't be told from a stranger, so a plugin from another developer sees nothing at all.</p>
+<p>While Uplink can't read your contacts (<span class="ui-path">Settings › Android › Contacts</span> is Off), no number has a name and a contact can't be told from a stranger, so a plugin from another developer sees nothing at all.</p>
 <p>Where those don't hold, it gives no tags and offers no buttons. And whatever it sees, it does nothing to a text with a sign-in code in it: it can tag one, but its tabs don't take it, its rows don't draw it, a conversation moved into its tab by hand goes back to where it belongs, and its incoming rules leave it alone. That's wider than what the Codes tab takes: a word like code, password, verification or 验证码 anywhere in the text with a run of four to ten letters and digits holding a digit, so "G-482913 is your Google verification code." counts, and so does "Use code SAVE20". Nor does it to a conversation with such a text still unread under newer words, a code then "Never share this code" a moment later, until it's read, on a computer paired with the phone as on the phone; nor, until the phone has said, to one it's asking about. The same goes for a conversation moved into its tab whose sender is in your contacts now. Try it, and <code>filters.classify</code> once the plugin is on, count as texts from a stranger, so they reach it: <a href="/docs/plugin-testing/#seen">testing what it sees</a>.</p>
 
     <nav class="prevnext"><a class="prev" href="/docs/plugin-format/"><small>Previous</small>The plugin file</a><a class="next" href="/docs/plugin-phrases/"><small>Next</small>Phrases and tokens</a></nav>

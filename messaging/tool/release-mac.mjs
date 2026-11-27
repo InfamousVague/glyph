@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds and signs Ghost Messaging for the Mac, makes what an installed copy updates itself from, and (when asked)
+ * Builds and signs Uplink for the Mac, makes what an installed copy updates itself from, and (when asked)
  * installs it on this Mac or publishes it. Matt, 2026-11-13: "install the app on my mac and make sure it has OTA
  * updates so we don't need to reinstall again".
  *
@@ -136,7 +136,7 @@ if (has('publish') && live && live.version === versionName && !has('again')) {
 }
 // The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
 requireGuards(ROOT, fail);
-say(`> Building Ghost Messaging for the Mac ${versionName} (${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
+say(`> Building Uplink for the Mac ${versionName} (${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 if (!read('security', ['find-identity', '-v', '-p', 'codesigning']).includes(`"${IDENTITY}"`)) {
   fail(`No signing identity "${IDENTITY}" in this Mac's keychain: an installed copy takes only what its own team signed.`);
@@ -376,7 +376,7 @@ if (notarised) {
   run('ln', ['-s', '/Applications', join(stage, 'Applications')]);
   const path = join(OUT, DMG);
   rmSync(path, { force: true });
-  run('hdiutil', ['create', '-volname', 'Ghost Messaging', '-srcfolder', stage, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-ov', path]);
+  run('hdiutil', ['create', '-volname', 'Uplink', '-srcfolder', stage, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-ov', path]);
   rmSync(stage, { recursive: true, force: true });
   run('codesign', ['--sign', IDENTITY, '--timestamp', path]);
   say('> Notarising the disk image (a few minutes)');
@@ -403,7 +403,7 @@ const info = {
   ...(dmg ? { dmg } : {}),
 };
 writeFileSync(join(OUT, FEED), `${JSON.stringify(info, null, 2)}\n`);
-say(`ok Ghost Messaging for the Mac ${info.version} (${info.versionCode}), ${(info.bytes / 1e6).toFixed(1)} MB zipped${notarised ? ', notarised' : ''}, in build/release-mac`);
+say(`ok Uplink for the Mac ${info.version} (${info.versionCode}), ${(info.bytes / 1e6).toFixed(1)} MB zipped${notarised ? ', notarised' : ''}, in build/release-mac`);
 
 // --- on this Mac ----------------------------------------------------------------------------------------------------
 
@@ -495,7 +495,7 @@ if (said?.sha256 !== info.sha256) {
   process.exit(1);
 }
 const head = await fetch(`${HOST_URL}/${ZIP}`, { method: 'HEAD' }).catch(() => ({ headers: { get: () => '?' } }));
-say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for the Mac ${info.version} (${info.versionCode}), zip served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+say(`ok live: ${HOST_URL}/${FEED} — Uplink for the Mac ${info.version} (${info.versionCode}), zip served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
 if (dmg) {
   const d = await fetch(`${HOST_URL}/${DMG}`, { method: 'HEAD' }).catch(() => null);
   const served = d?.ok ? Number(d.headers.get('content-length')) : 0;

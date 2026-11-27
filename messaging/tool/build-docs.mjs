@@ -373,7 +373,7 @@ function shell(p, body, outline, i) {
     .map((s) => `<div class="nav-group"><div class="nav-title">${esc(s.title)}</div>${s.pages.map((q) => `<a href="${hrefOf(q)}"${q.slug === p.slug ? ' aria-current="page"' : ''}>${icon(q.icon)}<span>${esc(q.title)}</span>${q.soon ? ' <span class="badge soon">Soon</span>' : ''}</a>`).join('')}</div>`)
     .join('') + `<a class="nav-other" href="${book.other.href}">${icon(book.other.href === '/docs/' ? 'arrow-left' : 'braces')}<span>${esc(book.other.label)}</span></a>`;
   const toc = outline.length > 1 ? `<nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div>${outline.map((h) => `<a href="#${h.id}">${esc(h.text)}</a>`).join('')}</nav>` : '';
-  const title = p.slug === 'index' ? 'Ghost Messaging docs' : `${p.title} · Ghost Messaging ${book.name.toLowerCase()}`;
+  const title = p.slug === 'index' ? 'Uplink docs' : `${p.title} · Uplink ${book.name.toLowerCase()}`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -390,7 +390,7 @@ function shell(p, body, outline, i) {
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar">${icon('menu')}</button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Uplink</span></a>
   <a class="brand-docs" href="${book.home}">${esc(book.name)}</a>
   <div class="search">
     ${icon('search')}
@@ -503,7 +503,7 @@ function postmanCollection() {
   const appGroups = [...new Set(appApi.methods.map((m) => m.group))];
   return {
     info: {
-      name: 'Ghost Messaging',
+      name: 'Uplink',
       description: 'The app\'s API and the relay server\'s HTTP routes. Made by tool/build-docs.mjs from the app\'s own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.',
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },

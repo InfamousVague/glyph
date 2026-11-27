@@ -1,4 +1,4 @@
-# Ghost Messaging relay behind Caddy, with TLS from Let's Encrypt (docs/SELF_HOSTING.md).
+# Uplink relay behind Caddy, with TLS from Let's Encrypt (docs/SELF_HOSTING.md).
 #
 #   cp relay.env.example relay.env        # and edit it: nothing in it is required
 #   cp Caddyfile.example Caddyfile        # and put your domain in it

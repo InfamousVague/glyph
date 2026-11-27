@@ -1,5 +1,5 @@
 /* gogho.st/docs: Glacier's tokens (glacier-tokens.css, the app's own) for sizes, radii and motion, and the marketing
-   site's colours (site/index.html) for the page and the accent. The mocks are drawn as the app draws its Ghost look. */
+   site's colours (site/index.html) for the page and the accent. The mocks are drawn as the app draws its Uplink look. */
 
 :root {
   color-scheme: light;
@@ -22,7 +22,7 @@
   --danger: #d4473b;
   --amber: #b7791f;
   --shadow: 0 1px 2px rgba(13, 35, 34, .06), 0 10px 30px rgba(13, 35, 34, .07);
-  /* The app's own surfaces, for the mocks (Ghost look, light). */
+  /* The app's own surfaces, for the mocks (Uplink look, light). */
   --app-bg: #f6f8f8;
   --app-card: #ffffff;
   --app-line: #e3e9e8;
@@ -181,7 +181,7 @@ h1 { font-size: clamp(1.8rem, 1.5rem + 1.2vw, 2.4rem); line-height: 1.15; letter
 .step h3 { margin: .1rem 0 .35rem !important; font-size: 1.05rem; }
 .step-body > p:first-of-type { margin-top: 0; }
 
-/* --- the mocks: the app as it draws itself (Ghost look) ------------------------------------------------------------- */
+/* --- the mocks: the app as it draws itself (Uplink look) ------------------------------------------------------------- */
 .mock { margin: 1rem 0 .4rem; display: flex; flex-direction: column; align-items: flex-start; }
 .mock figcaption { color: var(--ink-3); font-size: .82rem; margin: .5rem .2rem 0; max-width: 22rem; }
 .m-screen {

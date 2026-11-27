@@ -5,18 +5,18 @@ import '../net/home_record.dart' show goodRelayHost;
 /// rooms on one relay, and their links named none: opened by someone whose app used another relay, the app joined the
 /// same rooms there, where nobody was, and said nothing.
 ///
-/// A link made while the app uses a relay other than Ghost Messaging's own ends with that relay's host after an `@`:
+/// A link made while the app uses a relay other than Uplink's own ends with that relay's host after an `@`:
 ///
 ///     https://gogho.st/join/#c.<seed>.<name>.<owner>@relay.example.com
 ///     https://gogho.st/join/#<seed>.<name>.<owner>.text@relay.example.com:8443
 ///
 /// Still after `#`, so no server is told it, and still under gogho.st's address, whose page reads it (site/join). A
-/// link made on Ghost Messaging's relay names none, as every link did before, so an older build reads those as it
+/// link made on Uplink's relay names none, as every link did before, so an older build reads those as it
 /// always has; one that names a relay is no link at all to a build from before, which would only have joined an empty
 /// room with it.
 abstract final class LinkRelay {
   /// The relay the links this app makes name: its host (and port, where it has one of its own) while the app uses a
-  /// relay other than Ghost Messaging's; null on ours, for a relay no link can name (lib/net/relay_choice.dart,
+  /// relay other than Uplink's; null on ours, for a relay no link can name (lib/net/relay_choice.dart,
   /// relayHostForLinks), and where nothing set this (a test). Set as the routes start (lib/net/net.dart).
   static String? Function()? here;
 
@@ -24,7 +24,7 @@ abstract final class LinkRelay {
   /// reads a link out of other words ([Circles.linkIn]): a full stop after the link is not part of it.
   static const pattern = r'(?:@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?::[0-9]{1,5})?)?';
 
-  /// [link], naming the relay this app is on where that is not Ghost Messaging's own.
+  /// [link], naming the relay this app is on where that is not Uplink's own.
   static String mark(String link) {
     final host = here?.call()?.toLowerCase();
     return host == null || !goodRelayHost(host) ? link : '$link@$host';
@@ -42,7 +42,7 @@ abstract final class LinkRelay {
 
   /// Where [link] names a relay other than the one this app uses, that relay's host; null where it names none (it is
   /// taken to be here, as every link from before is) or names this one. [mine]: this app's relay as a link names it,
-  /// null on Ghost Messaging's own; [isHere]: whether a host is this app's relay under another of its names.
+  /// null on Uplink's own; [isHere]: whether a host is this app's relay under another of its names.
   static String? elsewhere(String link, {required String? mine, bool Function(String host)? isHere}) {
     final theirs = split(link).relay;
     if (theirs == null || theirs == mine || (isHere?.call(theirs) ?? false)) return null;

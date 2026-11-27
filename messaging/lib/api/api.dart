@@ -1,4 +1,4 @@
-/// Ghost Messaging's API (Matt, 2026-11-17: "build an entire API that we can use to interact with every aspect of the
+/// Uplink's API (Matt, 2026-11-17: "build an entire API that we can use to interact with every aspect of the
 /// app frontend and backend and expose it all through a API section of the settings that shows up when developer mode
 /// is enabled it should serve as a complete list of documentation for the API as well as test areas").
 ///

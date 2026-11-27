@@ -55,7 +55,7 @@ class Feedback {
   /// Whether the install [id] holds the username [name] (Handles.ownsName).
   final bool Function(String id, String name) ownsName;
 
-  /// The Ghost account an install's identity belongs to (Accounts.accountOf), or null.
+  /// The Uplink account an install's identity belongs to (Accounts.accountOf), or null.
   final String? Function(String id)? accountOf;
   final NotionCall _notion;
   final DateTime Function() _now;
@@ -211,7 +211,7 @@ class Feedback {
       // so that we can give out bug bounties properly"): the install's id, which the admin page gives souls to, and its
       // account, which signing back in on another device or after a reinstall keeps. Only where they gave their name.
       final account = accountOf?.call(id);
-      final reporter = named == null ? '' : 'Reporter: $username · Ghost id $id${account == null ? '' : ' · account $account'}';
+      final reporter = named == null ? '' : 'Reporter: $username · Uplink id $id${account == null ? '' : ' · account $account'}';
       final ticket = await file(report, username: username, reporter: reporter);
       if (verbose) stdout.writeln('${now.toIso8601String()} feedback filed: $ticket');
       return answer(HttpStatus.ok, {'ok': true, 'id': ticket});

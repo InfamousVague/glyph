@@ -51,7 +51,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => null));
 
-  test('the chats shown are made once for each change, and again when a list of Ghost\'s own changes', () async {
+  test('the chats shown are made once for each change, and again when a list of Uplink\'s own changes', () async {
     final n = _Counting()..listStore = AppState();
     for (var i = 0; i < 6; i++) {
       expect(n.shownChats.map((c) => c.id), ['a', 'b']);
@@ -70,7 +70,7 @@ void main() {
     expect(n.archivedChats, isEmpty);
   });
 
-  test('one of Ghost\'s lists is read from its kept form once, and is not the caller\'s to change', () {
+  test('one of Uplink\'s lists is read from its kept form once, and is not the caller\'s to change', () {
     final n = _Counting()..listStore = AppState();
     n.setLocal('notspam', 'a', true);
     final first = n.localList('notspam');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ships gogho.st (before 2026-11-15, ghost-sms.com), Ghost Messaging's site (site/), to the box in one ssh session, as Ghost Keyboard's
+ * Ships gogho.st (before 2026-11-15, ghost-sms.com), Uplink's site (site/), to the box in one ssh session, as Ghost Keyboard's
  * tool/deploy-site.mjs ships ghostkbd.com (Matt, 2026-11-13: "serve it over ghost-sms.com I'll point the domain to
  * the same server ghost kbd uses").
  *

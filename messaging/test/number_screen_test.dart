@@ -16,7 +16,7 @@ import 'support/list_harness.dart';
 /// The server's own rules are relay/test/handles_test.dart's, and the two together test/me_test.dart's.
 void main() {
   const number = '+15550100199';
-  const ours = 'Your Ghost Messaging verification code is: 482913';
+  const ours = 'Your Uplink verification code is: 482913';
 
   /// What the server was asked, in order.
   final asked = <Map<String, Object?>>[];
@@ -120,7 +120,7 @@ void main() {
     await press(tester, 'Text me a code');
     await arrive(tester, 9, text('Your Coinbase verification code is 771204. Do not share it.'));
     // Our own text from before the asking, seen again as its conversation changes: not this asking's.
-    await arrive(tester, 7, text('Your Ghost Messaging verification code is: 111222', ago: const Duration(minutes: 5)));
+    await arrive(tester, 7, text('Your Uplink verification code is: 111222', ago: const Duration(minutes: 5)));
     await arrive(tester, 4, text(ours, outgoing: true));
     // "Some conversation changed", with no word on which: nothing is read.
     Sms.instance.changes.add(-1);

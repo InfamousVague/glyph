@@ -1,13 +1,13 @@
-# Ghost Messaging's Messenger helper
+# Uplink's Messenger helper
 
-A small program Ghost Messaging runs beside itself (on the phone and on a computer) to reach the person's Facebook
+A small program Uplink runs beside itself (on the phone and on a computer) to reach the person's Facebook
 Messenger chats: the chats Messenger lists, their history, new messages as they come, sending words and files,
 replies, reactions, unsending, read marks, people's names and pictures. It signs in with the cookies of a browser
 already signed in to the account and then behaves as messenger.com does.
 
 **Meta does not support or allow this.** Messenger has no way in for other apps, and Meta's terms do not permit
 them. Meta may ask the person to confirm it is them (a "checkpoint"), sign the session out, or restrict or disable the
-account. Ghost says so, and asks the person to agree, before signing in.
+account. Uplink says so, and asks the person to agree, before signing in.
 
 It is built on [mautrix-meta](https://github.com/mautrix/meta)'s `messagix` library by Tulir Asokan and contributors
 (GNU Affero General Public License 3.0), and on [whatsmeow](https://github.com/tulir/whatsmeow) (MPL-2.0) for
@@ -16,7 +16,7 @@ too (LICENSE), and is public at the address in SOURCE_URL. The encrypted chats' 
 [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) (MIT) where built with cgo (the phone), through
 [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) (BSD) where not (the computers).
 
-Ghost Messaging itself is a separate program: it starts this one (`messenger-sidecar --dir <folder>`) and talks to it
+Uplink itself is a separate program: it starts this one (`messenger-sidecar --dir <folder>`) and talks to it
 over its standard input and output, one JSON object a line (PROTOCOL.md, ../ACCOUNT_HELPERS.md). The folder holds
 `session.json` (the cookies, messagix's connection state, the kinds of chats met; readable by the person alone),
 `e2ee.db` (this device's keys for encrypted chats, the same), `messenger.log` and `avatars/`. Nothing a message says is

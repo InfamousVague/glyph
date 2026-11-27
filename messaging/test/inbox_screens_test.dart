@@ -187,7 +187,7 @@ void main() {
 
   // Matt, 2026-11-15: "Also use the same composer for telegram and if possible proxy the archive and delete messages
   // too, if we can't actually delete telegram messages add them to a ignore or archive list".
-  testWidgets('a chat slid is archived and pinned (in Ghost\'s own lists where the network keeps none); its page has the same composer, and a message is deleted', (tester) async {
+  testWidgets('a chat slid is archived and pinned (in Uplink\'s own lists where the network keeps none); its page has the same composer, and a message is deleted', (tester) async {
     final sheet = await loadSheet(tester);
     telegram.listStore = AppState();
     await _shoot(tester, sheet, const ConversationsScreen(), '16-inbox-list-archive', dark: false);

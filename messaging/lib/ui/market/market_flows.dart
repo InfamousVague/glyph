@@ -46,7 +46,7 @@ const String marketNoTextsWords = 'This plugin sorts texts, which this computer 
 /// Why the listing [l] can't be added on this device, or null where it can.
 String? listingWhyNot(ListingPlugin l) {
   if (marketNoTexts) return marketNoTextsWords;
-  if (l.needsNewerApp) return 'Needs a newer Ghost Messaging';
+  if (l.needsNewerApp) return 'Needs a newer Uplink';
   return null;
 }
 
@@ -99,7 +99,7 @@ class MarketConsent extends StatelessWidget {
         if (dev)
           line(Lucide.flaskConical, 'Not reviewed by anyone: switch this on only if you made it.', key: const ValueKey('market-consent-dev'))
         else
-          line(LucideMore.badgeCheck, 'Reviewed by Ghost Messaging'),
+          line(LucideMore.badgeCheck, 'Reviewed by Uplink'),
         for (final r in packReaches(pack)) line(r.icon, r.label, hint: r.hint),
         if (adds.isNotEmpty) ...[
           Padding(padding: EdgeInsets.only(top: t.space(3)), child: Text('It adds:', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink))),

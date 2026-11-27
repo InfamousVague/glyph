@@ -77,7 +77,7 @@ class Bounty {
       return answer(HttpStatus.badRequest, {'error': 'It couldn\'t be read.'});
     }
     final to = j['to'], souls = j['souls'], why = j['why'];
-    if (to is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(to)) return answer(HttpStatus.badRequest, {'error': 'to is a Ghost id: 32 hex characters.'});
+    if (to is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(to)) return answer(HttpStatus.badRequest, {'error': 'to is an Uplink id: 32 hex characters.'});
     if (souls is! int || souls < 1 || souls > mostAtOnce) return answer(HttpStatus.badRequest, {'error': 'Between 1 and $mostAtOnce souls.'});
     if (why is! String || why.trim().isEmpty || why.length > 200) return answer(HttpStatus.badRequest, {'error': 'Say why (the ticket), in at most 200 characters.'});
     final now = _now();

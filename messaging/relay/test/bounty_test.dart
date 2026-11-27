@@ -88,7 +88,7 @@ void main() {
     expect((await pay({'to': kevin, 'souls': 501, 'why': 'x'})).$1, 400, reason: 'more than 500 at once');
     expect((await pay({'to': kevin, 'souls': -5, 'why': 'x'})).$1, 400, reason: 'a bounty never takes');
     expect((await pay({'to': kevin, 'souls': 50, 'why': ' '})).$1, 400, reason: 'why is needed');
-    expect((await pay({'to': 'nobody', 'souls': 50, 'why': 'x'})).$1, 400, reason: 'a Ghost id');
+    expect((await pay({'to': 'nobody', 'souls': 50, 'why': 'x'})).$1, 400, reason: 'an Uplink id');
     expect(souls[kevin], 50, reason: 'only the one good request paid');
   });
 

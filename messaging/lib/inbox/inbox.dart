@@ -14,7 +14,7 @@ import 'teams.dart';
 import 'whatsapp.dart';
 import 'telegram.dart';
 
-/// Direct messages from other networks, read and answered in Ghost (Matt, 2026-11-15: "Let's build in telegram and
+/// Direct messages from other networks, read and answered in Uplink (Matt, 2026-11-15: "Let's build in telegram and
 /// bluesky for now, since we can't send outbound messages anything without the ability to back and forth is
 /// useless"). docs/other-apps-dms.md says why these two: each offers a real client API, read and write, that a
 /// third-party app may use. Every network runs on this device and talks to its own servers: nothing about it goes
@@ -95,7 +95,7 @@ class InboxChat {
   /// What the network itself says of the account, where it marks it ("Telegram marks this account as a scam").
   final String? flag;
 
-  /// Muted on the network itself (Telegram's own mute): no notification from Ghost either (lib/inbox/alerts.dart).
+  /// Muted on the network itself (Telegram's own mute): no notification from Uplink either (lib/inbox/alerts.dart).
   final bool muted;
 
   /// With what a new message or a read changes; the rest (pinned, muted, the stranger marks) as it is.
@@ -436,7 +436,7 @@ class InboxPresence {
   final String network;
   final bool online;
 
-  /// Here but away (the app put away, or they chose Away), and here but Busy (GMFB-34): Ghost Messaging's own.
+  /// Here but away (the app put away, or they chose Away), and here but Busy (GMFB-34): Uplink's own.
   final bool away;
   final bool busy;
 
@@ -470,7 +470,7 @@ class PresenceChanges extends ChangeNotifier {
 }
 
 /// One network's client: signing in, its chats, a chat's messages, and sending. Each network extends this and
-/// overrides what it can do itself; what it leaves alone falls back to lists Ghost keeps on this device (archived,
+/// overrides what it can do itself; what it leaves alone falls back to lists Uplink keeps on this device (archived,
 /// deleted, blocked, pinned) or to "not supported". Tells its listeners whenever what it shows changes.
 abstract class InboxNetwork extends ChangeNotifier {
   /// Its short name in keys and addresses ("telegram"), and its name as shown ("Telegram").
@@ -506,9 +506,9 @@ abstract class InboxNetwork extends ChangeNotifier {
   // --- archiving and deleting (Matt, 2026-11-15: "if possible proxy the archive and delete messages too, if we can't
   // actually delete telegram messages add them to a ignore or archive list") -------------------------------------------
   // A network that can do these itself does them there (Telegram's archive, its Delete); one that can't keeps them
-  // in a list of Ghost's own on this device, so they are gone from here all the same.
+  // in a list of Uplink's own on this device, so they are gone from here all the same.
 
-  /// The chats the list shows: [chats] without those in Ghost's own lists (archived, deleted or blocked here).
+  /// The chats the list shows: [chats] without those in Uplink's own lists (archived, deleted or blocked here).
   ///
   /// Worked out once for each change ([stamp]) and each state of those lists, not at every asking: the list of
   /// conversations asks several times a build, and a network's [chats] may itself be made anew each time
@@ -540,7 +540,7 @@ abstract class InboxNetwork extends ChangeNotifier {
   String? _shownKey, _archivedKey;
   List<InboxChat>? _shown, _archivedList;
 
-  /// The chats archived: the network's own archive, or Ghost's list for it.
+  /// The chats archived: the network's own archive, or Uplink's list for it.
   List<InboxChat> get archivedChats {
     final key = '$stamp|${_raw('archived')}';
     if (key == _archivedKey && _archivedList != null) return _archivedList!;
@@ -576,7 +576,7 @@ abstract class InboxNetwork extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Deletes [chatId] for this account: there where the network allows it, else left out of Ghost from now on.
+  /// Deletes [chatId] for this account: there where the network allows it, else left out of Uplink from now on.
   Future<void> deleteChat(String chatId) async {
     setLocal('deleted', chatId, true);
     notifyListeners();
@@ -585,15 +585,15 @@ abstract class InboxNetwork extends ChangeNotifier {
   // --- blocking (Matt, 2026-11-17: "I'd like to be able to block signal and telegram users"; "add the signal helper
   // and do your recommendation. Make sure the UIs are unified across SMS Telegram and Signal") -------------------------
   // Blocked on the network itself where it can ([canBlock]: Telegram's own block, Signal's through the helper), and
-  // always in Ghost's own list too, so they are gone from here at once and stay gone while the network is away.
+  // always in Uplink's own list too, so they are gone from here at once and stay gone while the network is away.
 
-  /// Whether this network blocks people itself (else Ghost's list is the whole of it).
+  /// Whether this network blocks people itself (else Uplink's list is the whole of it).
   bool get canBlock => false;
 
   /// Whether the one-to-one chat [chatId] is with someone blocked.
   bool isBlocked(String chatId) => localList('blocked').contains(chatId);
 
-  /// Everyone blocked, as Ghost knows them: [chatId] of the chat with them, and their name as it was.
+  /// Everyone blocked, as Uplink knows them: [chatId] of the chat with them, and their name as it was.
   List<({String id, String name})> get blockedPeople {
     final names = _blockedNames;
     return [for (final id in localList('blocked')) (id: id, name: names[id] ?? id)]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -608,14 +608,14 @@ abstract class InboxNetwork extends ChangeNotifier {
     }
   }
 
-  /// Blocks the person [chatId] is with, or unblocks them ([on] false): on the network where it can, then in Ghost's
-  /// list. Throws with the network's reason where it refuses; Ghost's list is left as it was then.
+  /// Blocks the person [chatId] is with, or unblocks them ([on] false): on the network where it can, then in Uplink's
+  /// list. Throws with the network's reason where it refuses; Uplink's list is left as it was then.
   Future<void> block(String chatId, {required String name, bool on = true}) async {
     keepBlocked(chatId, name: name, on: on);
     notifyListeners();
   }
 
-  /// Ghost's list alone: [chatId] in it or out, with the name to show.
+  /// Uplink's list alone: [chatId] in it or out, with the name to show.
   void keepBlocked(String chatId, {String? name, bool on = true}) {
     final names = _blockedNames;
     if (on && name != null && name.isNotEmpty) names[chatId] = name;
@@ -624,7 +624,7 @@ abstract class InboxNetwork extends ChangeNotifier {
     setLocal('blocked', chatId, on);
   }
 
-  /// Brings the network's own blocked list into Ghost's (someone blocked in the network's app shows here too). Nothing
+  /// Brings the network's own blocked list into Uplink's (someone blocked in the network's app shows here too). Nothing
   /// where the network keeps none.
   Future<void> refreshBlocked() async {}
 
@@ -643,7 +643,7 @@ abstract class InboxNetwork extends ChangeNotifier {
   bool get canSendFiles => false;
 
   /// Sends the files at [paths] to [chatId], [caption] with the last; [voice] for a recorded voice message.
-  /// [sticker]: the one file is one of Ghost's stickers, sent as the network sends stickers where it can, and shown as
+  /// [sticker]: the one file is one of Uplink's stickers, sent as the network sends stickers where it can, and shown as
   /// one here either way.
   Future<void> sendFiles(String chatId, List<String> paths, {String caption = '', bool voice = false, bool sticker = false}) async =>
       throw UnsupportedError('$name can\'t send files here yet');
@@ -654,13 +654,13 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Asks for [fileId] to be brought down without waiting: a picture as its bubble is first drawn.
   void wantFile(int fileId) {}
 
-  /// Pins [chatId] at the top, or unpins it: the network's own pin where it has one, else Ghost's list.
+  /// Pins [chatId] at the top, or unpins it: the network's own pin where it has one, else Uplink's list.
   Future<void> pin(String chatId, bool pinned) async {
     setLocal('pinned', chatId, pinned);
     notifyListeners();
   }
 
-  /// Whether [chat] is pinned, by the network or in Ghost's list.
+  /// Whether [chat] is pinned, by the network or in Uplink's list.
   bool isPinned(InboxChat chat) => chat.pinned || localList('pinned').contains(chat.id);
 
   /// Whether [message] can be deleted for everyone in the chat, not only for this account.
@@ -672,17 +672,17 @@ abstract class InboxNetwork extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// [chatId]'s messages without those Ghost's own list leaves out.
+  /// [chatId]'s messages without those Uplink's own list leaves out.
   List<InboxMessage> shownMessages(String chatId) {
     final gone = localList('deleted_msg_$chatId');
     final all = messagesOf(chatId);
     return gone.isEmpty ? all : [for (final m in all) if (!gone.contains(m.id)) m];
   }
 
-  /// Where Ghost's own lists are kept: the app's preferences on this device, given as the network starts.
+  /// Where Uplink's own lists are kept: the app's preferences on this device, given as the network starts.
   AppState? listStore;
 
-  /// One of Ghost's own lists for this network ("archived", "deleted", "deleted_msg_<chat>").
+  /// One of Uplink's own lists for this network ("archived", "deleted", "deleted_msg_<chat>").
   ///
   /// Read from its kept form once for each form it has had: rows ask for these lists while they are built, a chat a
   /// time, and splitting the same string for every row was most of a build of the list.
@@ -722,7 +722,7 @@ abstract class InboxNetwork extends ChangeNotifier {
   /// Shown in Settings as "Coming soon", and never started: not offered yet.
   bool get soon => false;
 
-  /// An official Ghost connection: Telegram and Signal (texts through Google Messages are the app's own, not a network
+  /// An official Uplink connection: Telegram and Signal (texts through Google Messages are the app's own, not a network
   /// here). The rest are plugins — opt-in, off until switched on, and not started until then (Matt, 2026-11-20: "only
   /// keep telegram and signal as the official services ... Setup all these other services as plugins"). Official ones
   /// are shown first in Settings › Connections and always started.

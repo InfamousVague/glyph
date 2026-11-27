@@ -1,10 +1,10 @@
-# Ghost Messaging's Discord bot: presence and the voice bridge
+# Uplink's Discord bot: presence and the voice bridge
 
-Lets the app show a linked Discord server's voice channels as **spaces**, with who is in each, and, when a Ghost user
-presses one, **bridges** it: the bot joins that Discord voice channel and the matching Ghost space at once, and
-carries the sound and the channel's text chat both ways. Ghost people talk through the bot ("Ghost · Matt"); Discord
+Lets the app show a linked Discord server's voice channels as **spaces**, with who is in each, and, when an Uplink user
+presses one, **bridges** it: the bot joins that Discord voice channel and the matching Uplink space at once, and
+carries the sound and the channel's text chat both ways. Uplink people talk through the bot ("Uplink · Matt"); Discord
 people are heard in the space and listed in it. One Node program (discord.js 14.27.0, @discordjs/voice 0.19.2) holding
-one gateway connection to Discord, one connection to Ghost's relay hub on the same box, and answering the app over
+one gateway connection to Discord, one connection to Uplink's relay hub on the same box, and answering the app over
 HTTP on `127.0.0.1:18788`. On the box the web server passes `https://ghost-sms.com/discord/*` (and
 `https://gogho.st/discord/*`) to it with the `/discord` prefix kept.
 
@@ -20,7 +20,7 @@ DISCORD_TOKEN=… DISCORD_APP_ID=… npm start   # a real bot; logs the invite l
 ## How linking works
 
 1. Someone with **Manage Server** runs `/ghost link` in the Discord server. The bot answers only them
-   (ephemeral): *"Your code is ABC123. In Ghost Messaging tap New › Add a Discord server and enter it. It works
+   (ephemeral): *"Your code is ABC123. In Uplink tap New › Add a Discord server and enter it. It works
    once, for 10 minutes."*
 2. The app sends the code to `POST /discord/claim` and gets back a token for that server.
 3. The app asks `GET /discord/state?token=…` whenever it wants the server's voice channels and who is in them.
@@ -81,7 +81,7 @@ Each channel the bridge is in now also has `"bridged": true` (the key is absent 
 **`POST /discord/voice/join`** with `{"token":"<link token>","channel":"<voice channel id>"}`
 
 - `200 {"seed":"<64 lowercase hex>","name":"Lounge","guild":"<id>","channel":"<id>","bridge":"<32 hex>"}`. By the
-  time it answers, the bot is in the Discord voice channel and the bridge is in the Ghost space made from `seed`
+  time it answers, the bot is in the Discord voice channel and the bridge is in the Uplink space made from `seed`
   (asking again changes nothing, and restarts the 30-second leave clock below). The app joins that space like any
   other (a `VoiceChannel` with this seed and name, no owner or roles); `bridge` is the bridge's hub id, so the app
   can tell which member is Discord.
@@ -91,7 +91,7 @@ Each channel the bridge is in now also has `"bridged": true` (the key is absent 
   a voice channel of the token's server (stage channels are not bridged); `410 {"error":"gone"}` when the bot has
   left the server; `403 {"error":"no permission","missing":["View Channel","Connect","Speak"]}` (those it lacks in
   that channel); `409 {"error":"full"}` when the channel is at its user limit; `409 {"error":"busy"}` when the bot is
-  already bridging another channel of that server with Ghost people in it (a bot can be in one voice channel per
+  already bridging another channel of that server with Uplink people in it (a bot can be in one voice channel per
   server; an idle bridge gives way); `502 {"error":"voice failed"}` when Discord voice did not connect within 20 s;
   `503 {"error":"relay unreachable"}` when the hub did not let the bridge in within 10 s; `503 {"error":"starting"}`
   while the bot connects (or with `GHOST_BRIDGE=off`); `429` past 30 a minute from one address; `400 {"error":"bad json"}`.
@@ -107,39 +107,39 @@ Use Voice Activity (33554432), Change Nickname (67108864), Manage Webhooks (5368
 
 What it does once a join request has put it in both places:
 
-- **In the Ghost space** it is one member, speaking the app's protocol (`lib/voice/voice.dart`, `lib/voice/hangout.dart`,
+- **In the Uplink space** it is one member, speaking the app's protocol (`lib/voice/voice.dart`, `lib/voice/hangout.dart`,
   `site/join/voice.js`): it answers each newcomer's WebRTC offer (and offers itself to anyone already there when it
   comes in), says `{t:'me', n:'Discord', m:false, v:false}`, and, sealed in the call's room like everything else,
   `{t:'dc', people:[{id, name, avatar, speaking, muted, deafened, bot}]}`: everyone in the Discord voice channel but the
   bot, by name. It is said when the bridge comes in, to each newcomer, whenever someone comes, goes, mutes or starts or
   stops speaking (Discord's speaking events), and at least every 5 s.
-- **Sound, Ghost → Discord**: every Ghost member's track is decoded, mixed, and played into the Discord channel as
+- **Sound, Uplink → Discord**: every Uplink member's track is decoded, mixed, and played into the Discord channel as
   one stream. It is sent only while someone is actually talking (a level gate with 300 ms of hang, since apps send
   packets even in silence), followed by five frames of Opus silence and Discord's "stopped speaking", so the bot's
-  green ring means a Ghost person is talking.
-- **Sound, Discord → Ghost**: each Discord speaker's stream from the receiver (already out of Discord's DAVE
-  end-to-end encryption) is decoded, mixed, and sent to each Ghost member on the bridge's one outgoing track. Each
-  member gets their own mix with every other Ghost member in it and their own voice taken out, so nobody hears
+  green ring means an Uplink person is talking.
+- **Sound, Discord → Uplink**: each Discord speaker's stream from the receiver (already out of Discord's DAVE
+  end-to-end encryption) is decoded, mixed, and sent to each Uplink member on the bridge's one outgoing track. Each
+  member gets their own mix with every other Uplink member in it and their own voice taken out, so nobody hears
   themselves back. Everything is 48 kHz stereo in 20 ms frames, with a small queue per speaker (40 ms to start, at
   most 120 ms) to even out arrival.
-- **Nickname**: "Ghost · Matt" while one Ghost person is in the call, "Ghost · 3 people" for more, and back to the
+- **Nickname**: "Uplink · Matt" while one Uplink person is in the call, "Uplink · 3 people" for more, and back to the
   bot's own name when nobody is (changed at most every 1.5 s; skipped quietly without Change Nickname).
 - **Chat**: the voice channel's own text chat (Discord's "text in voice") and the space's chat. A Discord message
   (not the bot's, not from the bridge's webhook or any webhook of this application, not a system message) goes into
   the space as a message from the bridge with `n` set to the author's server name; attachments become their links.
-  A Ghost message goes to Discord through a webhook named "Ghost Messaging" that the bot makes once in that channel
+  An Uplink message goes to Discord through a webhook named "Uplink" that the bot makes once in that channel
   (its id and token kept in `bridges.json`), posted under the sender's name with all mentions disabled (nobody is
-  pinged by `@everyone` from Ghost). Without Manage Webhooks it is posted by the bot as `**Name:** text`. Nothing the
+  pinged by `@everyone` from Uplink). Without Manage Webhooks it is posted by the bot as `**Name:** text`. Nothing the
   bridge said itself is passed back, and history a newcomer is sent is never re-posted. The bridge keeps the space's
   last 300 messages in memory (never on disk) so it can answer a newcomer's history request like any member.
-- **Leaving**: when no Ghost member has been in the call for 30 s, it leaves the Discord channel and the space. If
+- **Leaving**: when no Uplink member has been in the call for 30 s, it leaves the Discord channel and the space. If
   Discord disconnects it, it waits 5 s for Discord's own reconnect, then rejoins once; if that fails (or it is
   dropped again), it leaves the space. Moved to another channel by someone, it leaves (it would carry the wrong
   channel).
 
 ### Privacy
 
-A bridged space is **not end-to-end encrypted on the Ghost side**: the bridge holds the space's key and hears, mixes
+A bridged space is **not end-to-end encrypted on the Uplink side**: the bridge holds the space's key and hears, mixes
 and re-encodes everything said in it, as it must to carry it to Discord. Discord's side is DAVE-encrypted between
 Discord clients and the bot, and the bot decrypts it for the same reason. The relay still sees only sealed packets.
 Anyone who can read the box's `/var/lib/ghost-discord/bridges.json` can join every bridged space; it is readable by
@@ -161,7 +161,7 @@ the service's user only. The bridge never records anything: sound passes through
 
 ### Resources
 
-Every 20 ms the bridge decodes every speaker, encodes once for Discord and once for each Ghost member, and werift
+Every 20 ms the bridge decodes every speaker, encodes once for Discord and once for each Uplink member, and werift
 runs DTLS and SRTP in JavaScript. On an Apple-silicon Mac the loopback test (bridge plus a stand-in app in one
 process, both WebRTC ends) used about a fifth of a core and 95 MB; the box is slower and a call may have several
 members. Hence the service's limits are 400 MB (`MemoryMax`, Node's heap at 256 MB) and one whole processor
@@ -211,7 +211,7 @@ server the first time.
   commands, the adapter that hands servers to the HTTP side, and the Discord half of the bridge (joining voice, the
   receiver, playback, nickname, webhook).
 - `src/bridge/`: everything else of the bridge, testable without Discord or a network. `bridge.js` (the bridges,
-  the leave rule, who says what when), `space.js` (the bridge as a member of a Ghost space), `hub.js` (the hub
+  the leave rule, who says what when), `space.js` (the bridge as a member of an Uplink space), `hub.js` (the hub
   connection and key), `protocol.js` (seeds to rooms and keys, sealing, frames: a port of `site/join/voice.js`),
   `rtc.js` (werift), `audio.js` and `mixer.js` (the 20 ms engine and mixing), `opus.js`, `mapping.js` (the `dc` list,
   the nickname, chat each way), `store.js` (`bridges.json`).

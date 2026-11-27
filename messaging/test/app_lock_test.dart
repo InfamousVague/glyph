@@ -446,7 +446,7 @@ void main() {
     final presses = ValueNotifier(0);
     await pumpGate(tester, lock, presses);
     expect(find.byType(AppLockScreen), findsOneWidget);
-    expect(find.text('Ghost Messaging is locked'), findsOneWidget);
+    expect(find.text('Uplink is locked'), findsOneWidget);
     expect(line(tester), 'Enter your PIN');
     // What is behind takes no touch, and the lock screen is drawn over all of it, opaque.
     // (The touch lands on the pad's 5, which is where the button behind is: taken back below.)

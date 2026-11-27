@@ -1,4 +1,4 @@
-/// Which plugins are on, synced across every device signed in to one Ghost account (GMFB-9, @kevin: "Sync plugins: It
+/// Which plugins are on, synced across every device signed in to one Uplink account (GMFB-9, @kevin: "Sync plugins: It
 /// would be convenient to sync plugins across devices at least for the messaging apps and stuff"; Matt asked for it to
 /// be built, 2026-11-21).
 ///
@@ -180,7 +180,7 @@ enum PackFetch {
 /// What plugin sync needs of a device: the relay's blob and this device's plugins. The app's is [AppPluginSyncHost]; a
 /// test has its own.
 abstract interface class PluginSyncHost {
-  /// Whether a Ghost account is here to sync with (its key, and the relay reachable).
+  /// Whether an Uplink account is here to sync with (its key, and the relay reachable).
   Future<bool> ready();
 
   /// The account's whole blob, opened; null where nothing is kept. Throws where it can't be read (so it isn't
@@ -224,7 +224,7 @@ class PluginSync {
   PluginSyncHost? get host => _host;
 
   /// The switch in Settings › Plugins (and the Marketplace's Added): on unless switched off. Nothing is synced without
-  /// a Ghost account, whatever it says.
+  /// an Uplink account, whatever it says.
   static const onKey = 'plugins_sync_on';
 
   /// This device's copy: `{v:1, list:{...}, applied:{id:mark}, seeded:bool, account:'...'}`. Not under `plugin_`, the

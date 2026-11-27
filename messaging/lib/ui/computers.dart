@@ -131,7 +131,7 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
       title: 'Paired computers',
-      footer: m.computers.isEmpty ? const Tr('None yet. Ghost Messaging on a computer shows this phone\'s conversations and sends texts through it. The phone stays the only thing that texts.') : null,
+      footer: m.computers.isEmpty ? const Tr('None yet. Uplink on a computer shows this phone\'s conversations and sends texts through it. The phone stays the only thing that texts.') : null,
       children: [
         for (final c in m.computers)
           SettingRow(
@@ -143,7 +143,7 @@ List<Widget> computersPane(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: icon(LucideMore.qrCode),
           label: 'Pair a computer',
-          hint: const Tr('Scan the code Ghost Messaging shows on the computer.'),
+          hint: const Tr('Scan the code Uplink shows on the computer.'),
           onPress: () async {
             await push<void>(context, (_) => const PairComputerScreen());
             m.refresh();
@@ -235,7 +235,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
         if (mounted) {
           setState(() {
             _accepted = true;
-            _problem = 'That link isn\'t a Ghost Messaging pairing code.';
+            _problem = 'That link isn\'t an Uplink pairing code.';
           });
         }
       });
@@ -363,7 +363,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
       _Lead(
         icon: Lucide.laptop,
         title: 'Pair with $name?',
-        body: 'It will show this phone\'s conversations and send texts through this phone. Go on only if you are setting up Ghost Messaging on your own computer right now, and it is showing this code. You will compare six digits with it before anything is shared.',
+        body: 'It will show this phone\'s conversations and send texts through this phone. Go on only if you are setting up Uplink on your own computer right now, and it is showing this code. You will compare six digits with it before anything is shared.',
       ),
       PairButton(
         label: 'Pair with $name',
@@ -380,7 +380,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
   // What the page shows at each phase of the pairing, in the order they come: nothing begun, looking for the
   // computer, the six digits to compare, paired, and not paired.
   List<Widget> _start(Tokens t) => [
-        _Lead(icon: Lucide.laptop, title: 'Your texts on your computer', body: 'Open Ghost Messaging on the computer. It shows a code to scan. The phone stays the only thing that sends and receives; the computer shows your conversations and sends through it, sealed between the two.'),
+        _Lead(icon: Lucide.laptop, title: 'Your texts on your computer', body: 'Open Uplink on the computer. It shows a code to scan. The phone stays the only thing that sends and receives; the computer shows your conversations and sends through it, sealed between the two.'),
         PairButton(label: 'Scan the code', icon: LucideMore.qrCode, onPressed: _scan),
         PairButton(label: 'Paste the code instead', icon: Lucide.clipboardPaste, quiet: true, onPressed: _paste),
         if (_pasting) ...[

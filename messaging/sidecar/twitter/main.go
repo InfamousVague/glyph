@@ -1,9 +1,9 @@
-// Ghost Messaging's X helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-twitter, on whose twittermeow package it
+// Uplink's X helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-twitter, on whose twittermeow package it
 // is built.
 //
 // It signs in to X as the person, with the cookies of a browser signed in to their account and their X Chat
 // passcode, behaves as x.com's Messages page does, and speaks JSON lines over standard input and output: the
-// protocol all of Ghost's account helpers share (../ACCOUNT_HELPERS.md). Requests, each with an "id" its answer
+// protocol all of Uplink's account helpers share (../ACCOUNT_HELPERS.md). Requests, each with an "id" its answer
 // carries back:
 //
 //	{"id":1,"op":"status"}                                                        → {"linked","connected","me","name","handle"}
@@ -147,7 +147,7 @@ var (
 	connected bool
 	// One sign-in or sign-out at a time.
 	signLock sync.Mutex
-	// The requests still being answered, which main waits for (briefly) when Ghost closes its end.
+	// The requests still being answered, which main waits for (briefly) when Uplink closes its end.
 	inflight sync.WaitGroup
 )
 
@@ -168,7 +168,7 @@ func event(name string, fields map[string]any) {
 }
 
 // main opens the kept session, if there is one, says `ready`, then answers the requests on standard input, each in
-// its own goroutine, until Ghost closes it.
+// its own goroutine, until Uplink closes it.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the X session is kept")
 	flag.Parse()
@@ -177,7 +177,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// The log goes to standard error (Ghost's developer log) and twitter.log beside the session; never stdout.
+	// The log goes to standard error (Uplink's developer log) and twitter.log beside the session; never stdout.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	out.SetEscapeHTML(false)
 
@@ -207,7 +207,7 @@ func main() {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

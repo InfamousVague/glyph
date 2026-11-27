@@ -28,10 +28,10 @@ String voiceProblem(Object e) => e is PlatformException ? (e.message ?? '$e') : 
 
 /// What to do when the microphone was refused, in this device's own words (GMFB-32: a computer records too).
 String micRefusedWords() {
-  if (PlatformInfo.isMacOS) return 'Allow the microphone for Ghost Messaging in System Settings › Privacy & Security › Microphone to record a voice message.';
+  if (PlatformInfo.isMacOS) return 'Allow the microphone for Uplink in System Settings › Privacy & Security › Microphone to record a voice message.';
   if (PlatformInfo.isWindows) return 'Turn on microphone access for desktop apps in Windows Settings › Privacy & security › Microphone to record a voice message.';
-  if (PlatformInfo.isIOS) return 'Allow the microphone for Ghost Messaging in the iPhone\'s Settings to record a voice message.';
-  return 'Allow the microphone for Ghost Messaging in Android\'s settings to record a voice message.';
+  if (PlatformInfo.isIOS) return 'Allow the microphone for Uplink in the iPhone\'s Settings to record a voice message.';
+  return 'Allow the microphone for Uplink in Android\'s settings to record a voice message.';
 }
 
 /// The composer while a voice message is being recorded: throw it away, how long it has run and how loud it is, send.

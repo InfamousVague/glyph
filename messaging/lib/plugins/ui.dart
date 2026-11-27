@@ -223,7 +223,7 @@ class _FilterButtonState extends State<FilterButton> with WidgetsBindingObserver
         below: true,
         end: true,
         // Dial-Up's is a square raised button like the rest of its window's, held while its menu is open, with the
-        // taskbar's red square for the count, where the round grey pill was the one Ghost shape left on its page.
+        // taskbar's red square for the count, where the round grey pill was the one Uplink shape left on its page.
         child: isDialup(context)
             ? Stack(clipBehavior: Clip.none, children: [
                 RetroButton(
@@ -457,9 +457,10 @@ class BrandFace extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color, border: Border.all(color: t.color('app-rule'), width: 1)),
         alignment: Alignment.center,
-        // Our own codes wear the app's ghost, white on black, as the icon on the home screen has it.
+        // Our own codes wear the app's mark, white on black, as the icon on the home screen has it: as wide as its
+        // corners leave room for in the circle.
         child: face.domain == ghostDomain
-            ? Image.asset('assets/art/ghost-mark.png', width: size * 0.62, height: size * 0.62, filterQuality: FilterQuality.medium)
+            ? Image.asset('assets/art/ghost-mark.png', width: size * 0.74, height: size * 0.74, filterQuality: FilterQuality.medium)
             : face.mark != null
             ? CustomPaint(size: Size.square(size * markShare(face.mark!)), painter: _MarkPainter(face.mark!, inkOn(face.color) ? const Color(0xFF111111) : const Color(0xFFFFFFFF)))
             : Text(

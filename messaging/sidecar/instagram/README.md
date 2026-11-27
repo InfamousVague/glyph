@@ -1,13 +1,13 @@
-# Ghost Messaging's Instagram helper
+# Uplink's Instagram helper
 
-A small program Ghost Messaging runs beside itself (on the phone and on a computer) to reach the person's Instagram
+A small program Uplink runs beside itself (on the phone and on a computer) to reach the person's Instagram
 direct messages: the inbox, a thread's history, new messages as they arrive, pictures, videos and voice messages,
 shared posts, reels and stories (as a line of words with their link), replies, reactions, edits, unsends and seen marks.
 
 **Instagram does not support or allow this.** Instagram has no way in for other apps to a person's messages. This
 helper signs in as the person, with the cookies of a browser signed in to instagram.com, and behaves as the website
 does. Instagram may ask the person to confirm it is them, sign the session out (the browser's too), or restrict the
-account. Ghost says so, and asks the person to agree, before signing in.
+account. Uplink says so, and asks the person to agree, before signing in.
 
 It is built on `pkg/instameow` of [mautrix-meta](https://github.com/mautrix/meta) (v0.2611.0) by Tulir Asokan and
 contributors, the library that project's own Instagram bridge uses since 2026, under the GNU Affero General Public
@@ -15,8 +15,8 @@ License 3.0. This helper's own source is under the same licence (LICENSE); where
 The bridge itself (`pkg/igconnector`, Matrix, its database) is not used; instameow brings a few of mautrix-go's
 packages along as its own dependencies. The helper is pure Go: no C, no SQLite.
 
-Ghost Messaging itself is a separate program: it starts this one (`instagram-sidecar --dir <folder>`) and talks to it
-over its standard input and output, one JSON object a line: the protocol all of Ghost's account helpers share
+Uplink itself is a separate program: it starts this one (`instagram-sidecar --dir <folder>`) and talks to it
+over its standard input and output, one JSON object a line: the protocol all of Uplink's account helpers share
 (../ACCOUNT_HELPERS.md), with Instagram's particulars in PROTOCOL.md. The folder holds `session.json` (the cookies,
 which are the sign-in: readable by the person alone, mode 0600), `instagram.log` and `avatars/`. Nothing a message
 says is logged.

@@ -518,7 +518,7 @@ void main() {
     final claimed = route.handles.firstWhere((m) => m['dir'] == 'claim');
     route.sayHandles({'dir': 'claim', 'name': 'oldie'});
     await claimed;
-    await expectLater(alex.buddies.add('oldie@b.test'), throwsA(isA<MeError>().having((e) => e.message, 'message', '@oldie@b.test can\'t be reached from another relay yet. They need a newer version of Ghost Messaging.')));
+    await expectLater(alex.buddies.add('oldie@b.test'), throwsA(isA<MeError>().having((e) => e.message, 'message', '@oldie@b.test can\'t be reached from another relay yet. They need a newer version of Uplink.')));
     expect(alex.buddies.all, isEmpty, reason: 'nobody is kept who can\'t be written to');
   });
 

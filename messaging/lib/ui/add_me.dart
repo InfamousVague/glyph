@@ -43,7 +43,7 @@ class AddMeSection extends StatelessWidget {
             toast(context, 'Copied your add-me link');
           },
         ),
-        SettingRow(icon: AppIcon(Lucide.share2, size: 18), label: 'Share it', onPress: () => Sms.instance.shareText('Add me on Ghost Messaging', link)),
+        SettingRow(icon: AppIcon(Lucide.share2, size: 18), label: 'Share it', onPress: () => Sms.instance.shareText('Add me on Uplink', link)),
         SettingRow(key: const ValueKey('add-me-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', onPress: () => showAddMeCode(context, username)),
       ],
     );
@@ -61,7 +61,7 @@ void showAddMeCode(BuildContext context, String username) {
         QrView(key: const ValueKey('add-me-code'), data: addMeLink(username, id: Net.instance.id, relay: relayHostForLinks(Net.instance.hubUrl)), size: t.lenOf('15rem'), label: 'Your add-me link, as a QR code'),
         SizedBox(height: t.space(3)),
         Text('@$username', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
-        Text('Scan to add me on Ghost Messaging', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        Text('Scan to add me on Uplink', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
       ]),
     ),
     choices: const [],
@@ -73,15 +73,15 @@ String addMeElsewhereWords(String hubUrl, String name) =>
     'You use ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. @$name is looked up there, so this may be someone other than the person who shared the link, or nobody. If they are on another relay, add them as @$name@their.relay in Add a friend instead.';
 
 /// The same, where the link carries its person's key and names no relay: they are looked for on this app's relay and
-/// then on Ghost Messaging's, and the key holds either answer to the person who shared the link.
+/// then on Uplink's, and the key holds either answer to the person who shared the link.
 String addMeUnnamedWords(String hubUrl, String name) =>
-    'You use ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}, and this link names no relay. @$name is looked for there first, then on Ghost Messaging\'s relay; either way it is only ever the person whose link this is.';
+    'You use ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}, and this link names no relay. @$name is looked for there first, then on Uplink\'s relay; either way it is only ever the person whose link this is.';
 
 /// What is said before a friend request is sent to someone the link says is on another relay than this app's.
 String addMeOtherRelayWords(String theirs, String name) =>
     '@$name is on $theirs, another relay than yours. The request goes from your relay to theirs, where both pass messages to each other; if they don\'t yet, it is sent again by itself for two weeks.';
 
-/// Ghost Messaging's own relay, as a username on it is written from another relay: `maya@gogho.st`.
+/// Uplink's own relay, as a username on it is written from another relay: `maya@gogho.st`.
 const ghostRelayHost = 'gogho.st';
 
 /// Someone's add-me link was opened: asked whether to send them a friend request, then sent.
@@ -100,7 +100,7 @@ void askToAdd(BuildContext context, String link) {
   final net = Net.instance;
   // The start of their account's name, where the link carries it: the relay's answer must be that key.
   final key = addLinkKey(link);
-  // Which relay the link says they are on (lib/friends/add_link.dart): none named is Ghost Messaging's own.
+  // Which relay the link says they are on (lib/friends/add_link.dart): none named is Uplink's own.
   final plan = addPlan(name, theirs: addLinkRelay(link), mine: relayHostForLinks(net.hubUrl), onDefault: net.onDefaultHub, hubUrl: net.hubUrl, hasKey: key != null, here: (host) => net.homes?.isHere(host) ?? false);
   showChoices(context, title: 'Send @$name a friend request?', header: plan.note == null ? null : Text(plan.note!), choices: [
     Choice('Send a friend request', Lucide.userPlus, () async {
@@ -109,7 +109,7 @@ void askToAdd(BuildContext context, String link) {
         try {
           got = await b.add(plan.ask, keyPrefix: key);
         } on MeError {
-          // Not on this app's relay, or someone else is there under the name: on Ghost Messaging's, where the link
+          // Not on this app's relay, or someone else is there under the name: on Uplink's, where the link
           // names no relay; the key holds that answer to the same person.
           if (plan.then == null) rethrow;
           got = await b.add(plan.then!, keyPrefix: key);
@@ -126,8 +126,8 @@ void askToAdd(BuildContext context, String link) {
 /// someone on another relay), what it is given next where that finds nobody of the link's key ([then]), and what is
 /// said first ([note]).
 ///
-/// [theirs]: the relay the link names, null for none (Ghost Messaging's, or a link from before). [mine]: this app's
-/// relay as a link would name it, null on Ghost Messaging's own ([onDefault]) and for a relay no link can name. [here]:
+/// [theirs]: the relay the link names, null for none (Uplink's, or a link from before). [mine]: this app's
+/// relay as a link would name it, null on Uplink's own ([onDefault]) and for a relay no link can name. [here]:
 /// whether a host is this app's relay under any of its names.
 ({String ask, String? then, String? note}) addPlan(String name, {required String? theirs, required String? mine, required bool onDefault, required String hubUrl, required bool hasKey, required bool Function(String host) here}) {
   if (theirs != null) {
@@ -136,6 +136,6 @@ void askToAdd(BuildContext context, String link) {
     return (ask: '$name@$theirs', then: null, note: addMeOtherRelayWords(theirs, name));
   }
   if (onDefault) return (ask: name, then: null, note: null);
-  // A link that names no relay, opened on a relay of one's own: here first; with its key, Ghost Messaging's after.
+  // A link that names no relay, opened on a relay of one's own: here first; with its key, Uplink's after.
   return hasKey ? (ask: name, then: '$name@$ghostRelayHost', note: addMeUnnamedWords(hubUrl, name)) : (ask: name, then: null, note: addMeElsewhereWords(hubUrl, name));
 }

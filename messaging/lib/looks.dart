@@ -10,7 +10,7 @@ import 'custom_theme.dart';
 /// A look is a block of rules at the end of assets/css/app.css, keyed on `data-theme-preset`: its own twelve greys
 /// (which ink.css copies onto the page's paper and ink), its accent and the colour of your own bubbles. The page is
 /// told which with [ghostAttrs], so the app, the computer's app and every test that draws a screen stamp the same
-/// attributes from the same choice. Ghost is the app's own and stamps no preset at all, so it is drawn exactly as it
+/// attributes from the same choice. Uplink is the app's own and stamps no preset at all, so it is drawn exactly as it
 /// was before there were looks.
 ///
 /// **Four looks are offered, and each has its packs** (Matt, 2026-11-27: "I think we should add texture packs to all
@@ -18,7 +18,7 @@ import 'custom_theme.dart';
 /// them texture packs for the Ghost theme"). A pack is what a look is drawn with in place of its own, chosen under it
 /// in Settings › Appearance › Textures (lib/ui/resource_packs_ui.dart), and it is one of two kinds:
 /// - a set of rules that is part of the app, which is a value here like any look ([isPack], [family]): Mist and
-///   Lamplight, Ghost's. Each was a look of its own until then and is still drawn exactly as it was, by its own
+///   Lamplight, Uplink's. Each was a look of its own until then and is still drawn exactly as it was, by its own
 ///   preset, so nothing that goes by the look in use had to learn of packs. It is only chosen somewhere else;
 /// - a resource pack's pictures, fetched to the device ([pictures]; lib/packs/resource_pack.dart): Runestone's.
 /// Sharp and Dial-Up have none yet. Phosphor is gone ([retired]), and Dial-Up is its daytime half alone.
@@ -26,8 +26,8 @@ import 'custom_theme.dart';
 /// [after] is a note for whoever works on it, never shown: the visible names stay the app's own (no other company's
 /// name or marks, as the store listings ask).
 enum Look {
-  ghost('Ghost', '', 'The app\'s own: white paper and black ink, or the reverse, and your bubbles in the colour you choose.', Lucide.ghost, light: true, dark: true, keyboard: 'white'),
-  // Ghost's packs, each its own preset in app.css and its own brightness.
+  ghost('Uplink', '', 'The app\'s own: white paper and black ink, or the reverse, and your bubbles in the colour you choose.', Lucide.ghost, light: true, dark: true, keyboard: 'white'),
+  // Uplink's packs, each its own preset in app.css and its own brightness.
   mist('Mist', 'morning fog on pale water', 'A pale aqua page with deep teal ink, and deep teal bubbles of your own.', LucideMore.cloud, light: true, dark: false, keyboard: 'ghost'),
   lamplight('Lamplight', 'a reading lamp late at night: warm, low on blue', 'Warm parchment words on a brown-black page, and amber bubbles. For reading late.', Lucide.lightbulb, light: false, dark: true, keyboard: 'orange'),
   sharp('Sharp', 'high contrast, every grey above WCAG AA; its dark half is the true-black OLED choice', 'Black on white or white on black, lines you can see, and teal bubbles.', Lucide.square, light: true, dark: true, keyboard: 'ghost'),
@@ -99,7 +99,7 @@ enum Look {
   /// Offered in Settings › Appearance: every look is now; a look still being built can say false here.
   bool get ready => true;
 
-  /// The look this is chosen under: itself, unless it is one of another's packs (Mist and Lamplight are Ghost's).
+  /// The look this is chosen under: itself, unless it is one of another's packs (Mist and Lamplight are Uplink's).
   Look get family => switch (this) { mist || lamplight => ghost, _ => this };
 
   /// Whether this is a pack: chosen under its [family] in Settings › Appearance › Textures, not among the looks.
@@ -123,7 +123,7 @@ enum Look {
   /// Looks that were in the app and are not: Phosphor (Matt, 2026-11-27: "remove the phosphor entirely").
   static const retired = {'phosphor'};
 
-  /// The look chosen in [app]: Ghost where none was, or one no longer known.
+  /// The look chosen in [app]: Uplink where none was, or one no longer known.
   static Look of(AppState app) => named(app.choice(pref, 'ghost'));
 
   static Look named(String name) {
@@ -139,7 +139,7 @@ enum Look {
     return kept.isPack && kept.family == family ? kept : family;
   }
 
-  /// Where the look kept in [app] is one of the [retired], Ghost is chosen in its place as if it had been pressed:
+  /// Where the look kept in [app] is one of the [retired], Uplink is chosen in its place as if it had been pressed:
   /// your bubbles go back to the colour they had before the look, unless a colour was chosen under it or a look of
   /// your own is in use (whose accent they wear). Asked once the choices are read (AppState.load).
   static void settle(AppState app) {

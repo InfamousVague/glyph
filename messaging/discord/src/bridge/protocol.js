@@ -1,4 +1,4 @@
-// The Ghost side's wire format, ported from site/join/voice.js (the browser join page) and lib/net/crypto.dart: a
+// The Uplink side's wire format, ported from site/join/voice.js (the browser join page) and lib/net/crypto.dart: a
 // space's room names, tokens and key made from its seed, everything said in a room sealed with AES-GCM, and the
 // hub's room frames. Pure: node:crypto only, no network. test/protocol.test.js checks it against voice.js itself.
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';

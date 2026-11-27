@@ -201,7 +201,7 @@ class Matrix extends InboxNetwork {
     try {
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     } catch (e) {
-      _failed('This device wouldn\'t let Ghost listen for the browser: $e');
+      _failed('This device wouldn\'t let Uplink listen for the browser: $e');
       return;
     }
     _loopback = server;
@@ -210,8 +210,8 @@ class Matrix extends InboxNetwork {
       final got = req.uri.queryParameters['loginToken'];
       req.response.headers.contentType = ContentType.html;
       req.response.write(got == null || got.isEmpty
-          ? '<!doctype html><meta charset="utf-8"><title>Ghost Messaging</title><p style="font:16px system-ui;margin:3em">Waiting for Matrix to sign you in…</p>'
-          : '<!doctype html><meta charset="utf-8"><title>Ghost Messaging</title><p style="font:16px system-ui;margin:3em">Signed in to Matrix. You can close this page and go back to Ghost Messaging.</p>');
+          ? '<!doctype html><meta charset="utf-8"><title>Uplink</title><p style="font:16px system-ui;margin:3em">Waiting for Matrix to sign you in…</p>'
+          : '<!doctype html><meta charset="utf-8"><title>Uplink</title><p style="font:16px system-ui;margin:3em">Signed in to Matrix. You can close this page and go back to Uplink.</p>');
       await req.response.close();
       if (got != null && got.isNotEmpty && !token.isCompleted) token.complete(got);
     }, onDone: () {
@@ -504,7 +504,7 @@ class Matrix extends InboxNetwork {
     _media[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      // An m.sticker event, or one of Ghost's sent from here: drawn on its own, with no bubble.
+      // An m.sticker event, or one of Uplink's sent from here: drawn on its own, with no bubble.
       kind: InboxMedia.kindOf(mime, sticker: sticker),
       fileId: key,
       path: _files[key],
@@ -752,7 +752,7 @@ class Matrix extends InboxNetwork {
 
   @override
   Future<GroupDetails?> changeGroup(String chatId, GroupChange change) async {
-    if (!change.leave) throw UnsupportedError('Change this room in Element: Ghost can leave it');
+    if (!change.leave) throw UnsupportedError('Change this room in Element: Uplink can leave it');
     await _ask('leave', {'room': chatId});
     _rooms.remove(chatId);
     _messages.remove(chatId);

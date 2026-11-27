@@ -111,7 +111,7 @@ class ProofCheck {
 ///     Signed: 2026-11-23T10:15:00Z
 ///     Signature: (r then s, 64 bytes, base64url without padding)
 ///
-///     I am @matt on Ghost Messaging
+///     I am @matt on Uplink
 ///     -----END GHOST PROOF-----
 ///
 /// The signature is ECDSA on P-256 with SHA-256 over the UTF-8 of `ghost-proof v1`, a newline, the DID, a newline, the

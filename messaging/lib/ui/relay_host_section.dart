@@ -50,7 +50,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
         if (host.on) SettingRow(key: const ValueKey('host-via'), icon: icon(Lucide.globe), label: viaWords(host.viaLink, host.via)),
         if (host.on) SettingRowBox(child: RelayHostViaBox(host: host)),
         if (up && host.inUse)
-          SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Tr('To leave it, go back to Ghost Messaging\'s relay above, or switch it off.'))
+          SettingRow(key: const ValueKey('host-in-use'), icon: icon(Lucide.check), label: 'This app uses it', hint: const Tr('To leave it, go back to Uplink\'s relay above, or switch it off.'))
         else if (up && host.phone)
           SettingRow(key: const ValueKey('host-use-not'), icon: icon(Lucide.info), label: 'Not for this app on a phone', hint: const Text(phoneNotHereWords))
         else if (up && host.viaLink.kind != ViaKind.stays)
@@ -88,7 +88,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
                 onPress: () => _copy(context, url, 'Copied its address on this network'),
               ),
           if (host.lan && host.lanUrls.isNotEmpty) ...[
-            SettingRow(key: const ValueKey('host-lan-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', hint: const Tr('A phone\'s camera opens it in Ghost Messaging, at "Use this relay?".'), onPress: () => showRelayCode(context, host.lanUrls.first)),
+            SettingRow(key: const ValueKey('host-lan-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', hint: const Tr('A phone\'s camera opens it in Uplink, at "Use this relay?".'), onPress: () => showRelayCode(context, host.lanUrls.first)),
             SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('A relay on our network', relayLink(host.lanUrls.first))),
           ],
           if (host.lan) SettingRowBox(child: RelayHostPortBox(host: host)),
@@ -108,7 +108,7 @@ List<Widget> relayHostSections(BuildContext context, Net net) {
             SettingRow(key: const ValueKey('host-direct'), icon: icon(Lucide.link2), label: host.directUrl!, hint: const Text('Copy. $directOnHint'), onPress: () => _copy(context, host.directUrl!, 'Copied its address over Direct')),
             if (!host.directHelped) SettingRow(key: const ValueKey('host-direct-helper'), icon: icon(Lucide.info), label: 'Not findable from afar yet', hint: const Text(directNoHelperWords)),
             SettingRow(key: const ValueKey('host-direct-qr'), icon: AppIcon(LucideMore.qrCode, size: 18), label: 'Show the QR code', onPress: () => showRelayCode(context, host.directUrl!)),
-            SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('My relay on Ghost Messaging', relayLink(host.directUrl!))),
+            SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('My relay on Uplink', relayLink(host.directUrl!))),
           ],
         ],
       ),
@@ -214,7 +214,7 @@ void showRelayCode(BuildContext context, String address) {
         QrView(key: const ValueKey('host-code'), data: relayLink(address), size: t.lenOf('15rem'), label: 'This relay, as a QR code'),
         SizedBox(height: t.space(3)),
         Text(address, textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
-        Text('Scan to use this relay in Ghost Messaging', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        Text('Scan to use this relay in Uplink', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
       ]),
     ),
     choices: const [],
@@ -244,7 +244,7 @@ Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url,
         ],
       ]),
     ),
-    choices: [if (usable) Choice('Use this relay', Lucide.check, () => yes = true, hint: check.asksPass ? 'It asks for a pass phrase: whoever runs it can give it to you.' : 'It answered as a Ghost Messaging relay.')],
+    choices: [if (usable) Choice('Use this relay', Lucide.check, () => yes = true, hint: check.asksPass ? 'It asks for a pass phrase: whoever runs it can give it to you.' : 'It answered as an Uplink relay.')],
   );
   final phrase = pass.text.trim();
   pass.dispose();
@@ -352,7 +352,7 @@ class _RelayHostPassBoxState extends State<RelayHostPassBox> {
   }
 }
 
-/// The public relay it stays linked to, chosen: Ghost Messaging's own unless the person names another.
+/// The public relay it stays linked to, chosen: Uplink's own unless the person names another.
 class RelayHostViaBox extends StatefulWidget {
   const RelayHostViaBox({super.key, required this.host});
   final RelayHosting host;
@@ -387,7 +387,7 @@ class _RelayHostViaBoxState extends State<RelayHostViaBox> {
       GlacierInput(key: const ValueKey('host-via-field'), controller: _via, placeholder: 'gogho.st'.t, ariaLabel: 'The public relay it stays linked to', inputMode: TextInputType.url, autoCorrect: false, size: GlacierFieldSize.md, onSubmitted: (_) => _use()),
       if (_problem != null) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text(_problem!, key: const ValueKey('host-via-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-danger')))),
       SizedBox(height: t.space(2)),
-      SettingRow(key: const ValueKey('host-via-use'), icon: const AppIcon(Lucide.globe, size: 18), label: 'Stay linked to this relay', hint: const Tr('Empty: Ghost Messaging\'s own.'), onPress: _use),
+      SettingRow(key: const ValueKey('host-via-use'), icon: const AppIcon(Lucide.globe, size: 18), label: 'Stay linked to this relay', hint: const Tr('Empty: Uplink\'s own.'), onPress: _use),
     ]);
   }
 }

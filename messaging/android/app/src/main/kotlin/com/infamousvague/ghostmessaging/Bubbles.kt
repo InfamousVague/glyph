@@ -14,16 +14,16 @@ import java.util.concurrent.ConcurrentHashMap
  * the screen like google messages and facebook messenger"; Matt asked for it to be built). A conversation's
  * notification carries Android's bubble metadata, which opens [BubbleActivity] on that one conversation; Android
  * decides whether it shows as a bubble, by its own setting for the app and for each conversation (Android 11 and
- * later). Ghost's own switch is Settings › Notifications › Bubbles ("notif_bubbles", on unless switched off).
+ * later). Uplink's own switch is Settings › Notifications › Bubbles ("notif_bubbles", on unless switched off).
  */
 object Bubbles {
-    /** The key of Ghost's own switch in the "ui" preferences: "off", or anything else for on. */
+    /** The key of Uplink's own switch in the "ui" preferences: "off", or anything else for on. */
     const val PREF = "notif_bubbles"
 
     /** Android's bubbles are the conversation kind from Android 11 (API 30); on 10 they were a developer option. */
     const val MIN_SDK = 30
 
-    /** Whether a conversation's notification offers a bubble: Android 11 or later, and Ghost's switch not off. */
+    /** Whether a conversation's notification offers a bubble: Android 11 or later, and Uplink's switch not off. */
     fun wanted(pref: String?, sdk: Int): Boolean = sdk >= MIN_SDK && pref != "off"
 
     /** The same, read from this phone: its Android and the switch as kept. */

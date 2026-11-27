@@ -37,7 +37,7 @@ void main() {
     });
     final s = await RcsShare.ofPhone();
     expect((s?.throughPhone, s?.webConnected), (true, false));
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async => throw PlatformException(code: 'old', message: 'Update Ghost Messaging on your phone'));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async => throw PlatformException(code: 'old', message: 'Update Uplink on your phone'));
     expect(await RcsShare.ofPhone(), isNull);
   });
 }

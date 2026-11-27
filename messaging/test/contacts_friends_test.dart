@@ -13,7 +13,7 @@ import 'package:glacier/glacier.dart';
 
 import 'support/fake_friends.dart';
 
-/// Friends on Ghost Messaging in Contacts (lib/ui/contacts.dart, lib/inbox/people.dart): a Friends filter of their own,
+/// Friends on Uplink in Contacts (lib/ui/contacts.dart, lib/inbox/people.dart): a Friends filter of their own,
 /// and first in All. Matt, 2026-11-17: "add the ability to sort contacts by friends in ghost".
 void main() {
   group('the list (people.dart)', () {
@@ -51,7 +51,7 @@ void main() {
 
       expect(find.text('Friends'), findsOneWidget, reason: 'the chip');
       expect(_names(tester), ['Sam Rivera', 'Theo Park', 'Maya Chen', 'Mom']);
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('On Uplink'), findsOneWidget);
       // Blocked is a round button beside Add, under every filter (Matt, 2026-11-19: "move blocked to the right of the
       // add friend button instead of making it it's whole own rown"), not a row of the list.
       expect(find.byKey(const ValueKey('contacts-blocked')), findsOneWidget);
@@ -60,7 +60,7 @@ void main() {
       await tester.tap(find.text('Friends'));
       await _pumps(tester);
       expect(_names(tester), ['Sam Rivera', 'Theo Park']);
-      expect(find.text('On Ghost Messaging'), findsNothing, reason: 'under Friends everyone is one');
+      expect(find.text('On Uplink'), findsNothing, reason: 'under Friends everyone is one');
       expect(find.text('The people you text most. Search to find anyone else.'), findsNothing);
 
       await tester.tap(find.text('Phone'));

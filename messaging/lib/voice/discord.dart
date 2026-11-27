@@ -11,7 +11,7 @@ import 'voice.dart';
 /// have spaces emulated as voice chat channels from a discord server ... group all of a servers spaces under one group
 /// and show members that are in a space proxied from discord").
 ///
-/// The first step is presence: Ghost Messaging's Discord bot (messaging/discord/, on the box at gogho.st/discord) is added to
+/// The first step is presence: Uplink's Discord bot (messaging/discord/, on the box at gogho.st/discord) is added to
 /// a server, someone with Manage Server types `/ghost link` there and enters the code it gives in the app, and from
 /// then on the app shows that server's voice channels as a group of spaces, with who is in each, read from the bot
 /// every few seconds. Pressing one joins it from the app: the bot joins that Discord channel and carries the sound and
@@ -73,7 +73,7 @@ class DiscordChannel {
   final int position;
   final List<DiscordMember> members;
 
-  /// The bridge is in it now: Ghost people are talking there through the bot.
+  /// The bridge is in it now: Uplink people are talking there through the bot.
   final bool bridged;
 
   /// Opens it in Discord (the app where installed, else the web).
@@ -201,7 +201,7 @@ class DiscordServers extends ChangeNotifier {
     }
   }
 
-  /// The bot's own invite: Ghost Messaging's Discord application (the one account linking uses), able only to see
+  /// The bot's own invite: Uplink's Discord application (the one account linking uses), able only to see
   /// channels. Used where the service can't be asked.
   static const knownInvite = 'https://discord.com/oauth2/authorize?client_id=1571262060967366837&scope=bot%20applications.commands&permissions=1024';
 
@@ -272,13 +272,13 @@ class DiscordServers extends ChangeNotifier {
       case 409:
         throw DiscordProblem(r['error'] == 'full'
             ? 'That channel is full.'
-            : 'The bot is already carrying Ghost people in another channel of this server, and it can be in one at a time. Join that one, or try again when it\'s empty.');
+            : 'The bot is already carrying Uplink people in another channel of this server, and it can be in one at a time. Join that one, or try again when it\'s empty.');
       case 429:
         throw const DiscordProblem('Too many tries. Wait a minute and try again.');
       case 502:
         throw const DiscordProblem('The bot couldn\'t connect to Discord voice. Try again in a moment.');
       case 503:
-        throw const DiscordProblem('The bot couldn\'t reach Ghost Messaging\'s relay. Try again in a moment.');
+        throw const DiscordProblem('The bot couldn\'t reach Uplink\'s relay. Try again in a moment.');
       default:
         throw const DiscordProblem('The Discord bot couldn\'t join right now. Try again in a moment.');
     }

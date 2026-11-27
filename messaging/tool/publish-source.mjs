@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ghost Messaging's source, published (Matt, 2026-11-15: "I want to open source it for the privacy focused nature";
+ * Uplink's source, published (Matt, 2026-11-15: "I want to open source it for the privacy focused nature";
  * "once done publish the repo as a public repo on my github").
  *
  *   node tool/publish-source.mjs [--dry-run]
@@ -90,9 +90,9 @@ const listed = (dir) => run('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD'
 // The whole app, as committed.
 const tracked = listed(ROOT);
 if (!tracked.includes('LICENSE')) fail('No LICENSE in messaging/: nothing is published without one.');
-publish('InfamousVague/ghost-messaging', snapshot, tracked, `Ghost Messaging ${version}`);
+publish('InfamousVague/ghost-messaging', snapshot, tracked, `Uplink ${version}`);
 
 // The sidecar on its own, for those who look for it there.
 const sidecar = join(snapshot, 'sidecar/gmessages');
 const sidecarFiles = listed(join(ROOT, 'sidecar/gmessages')).filter((f) => f !== 'SOURCE_URL');
-publish('InfamousVague/ghost-gmessages-sidecar', sidecar, sidecarFiles, `As in Ghost Messaging ${version}`);
+publish('InfamousVague/ghost-gmessages-sidecar', sidecar, sidecarFiles, `As in Uplink ${version}`);

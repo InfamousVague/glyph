@@ -188,8 +188,8 @@ The disk is what is installed; prefs hold small indexes, each starting `plugins_
   texts read or silence them the moment the new copy was in.
 - **Removing** writes `''` to `plugin_x<id>` (adding it again asks again) and to every switch an incoming rule names
   (adding it again starts with them off), keeps its other choices unless `forget`, and keeps the floor.
-- **Withdrawing.** `takeRevocations` reads `/market/revoked` from the market's own address and, where that isn't Ghost
-  Messaging's relay, from Ghost Messaging's relay too, so a self-hosted relay can't withhold a withdrawal. It verifies
+- **Withdrawing.** `takeRevocations` reads `/market/revoked` from the market's own address and, where that isn't Uplink's
+  relay, from Uplink's relay too, so a self-hosted relay can't withhold a withdrawal. It verifies
   every entry by a pinned key (any other fails without a check), each once however often it is sent, on an isolate and
   outside the installer's queue, so a long list of them never holds up Add, Update or Remove; one that fails is
   remembered (`unverified.json`, its mark a SHA-256 of its fields) and never checked again, since a bad signature stays
@@ -310,9 +310,9 @@ uploaded is ever served as HTML or SVG.
   from Settings › Admin › Plugin review › This device's review key on the device he reviews from and read back to him in
   full, never from a `whois`, the hub or anything else the relay answers, which would make the relay the source of the
   trust. Changing the list is an app release. With it empty, a build trusts no reviewer: Discover says "This version of
-  Ghost Messaging can't check plugins from other developers." and Approve is disabled.
+  Uplink can't check plugins from other developers." and Approve is disabled.
 - **The review key's other lives.** It is the hub key of the device he reviews from: on his phone, the key its texting
-  encryption has (`Net.kt`); with a Ghost account, the account's, from the twelve recovery words, sealed on the relay
+  encryption has (`Net.kt`); with an Uplink account, the account's, from the twelve recovery words, sealed on the relay
   under his password and on every device signed in to it, a Mac's or a PC's key file included. Whoever gets any of
   these can approve plugins every build trusts. The other way is to review from an identity used for nothing else,
   which needs a second name in `GHOST_ADMIN_NAMES` and `adminNames`.

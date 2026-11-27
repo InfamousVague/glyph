@@ -110,7 +110,7 @@ void main() {
     expect(handleMentions('no mentions here'), isEmpty);
   });
 
-  test('a mention\'s id is made the right subject: a username, a Ghost id, a network\'s person', () {
+  test('a mention\'s id is made the right subject: a username, an Uplink id, a network\'s person', () {
     expect(subjectOfMention('u:maya').username, 'maya');
     expect(subjectOfMention('0123456789abcdef0123456789abcdef').id, '0123456789abcdef0123456789abcdef');
   });

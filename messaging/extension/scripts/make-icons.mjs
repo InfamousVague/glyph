@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Writes simple placeholder icons (icons/16.png, 48.png, 128.png): a dark rounded square with a pale ghost mark.
-// Swap in real art any time; the build copies whatever is in icons/.
+// The build copies whatever is in icons/, and since 2026-11-27 that is the app's own mark, written there by the app's
+// tool/app_icon.py: running this would put the placeholders back over it.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -64,7 +65,7 @@ function draw(size) {
     const cy = Math.min(Math.max(y, r), size - r);
     return (x - cx) ** 2 + (y - cy) ** 2 <= r * r || (x >= r && x <= size - r) || (y >= r && y <= size - r);
   };
-  // Ghost body: a circle head with a flat-ish bottom, two eyes.
+  // Uplink body: a circle head with a flat-ish bottom, two eyes.
   const hx = size / 2;
   const hy = size * 0.46;
   const hr = size * 0.26;

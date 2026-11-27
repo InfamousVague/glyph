@@ -22,7 +22,7 @@ void main() {
       'lastSend': {'at': DateTime(2026, 11, 13, 19, 5).millisecondsSinceEpoch, 'ok': false, 'detail': 'the carrier\'s server refused it (HTTP 403), 294 KB'},
     });
     final report = s.report('0.6.2');
-    expect(report, contains('Ghost Messaging 0.6.2'));
+    expect(report, contains('Uplink 0.6.2'));
     expect(report, contains('Carrier: T-Mobile'));
     expect(report, contains('Mobile data: on'));
     expect(report, contains('Largest message: 1024 KB'));

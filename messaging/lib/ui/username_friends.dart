@@ -31,7 +31,7 @@ Future<void> acceptRequest(BuildContext context, Buddy r, {Buddies? buddies}) as
 
 /// Friend requests at the top of Contacts (Matt, 2026-11-16: "We need a way to add friends on the network by username
 /// on the contacts page and see friend requests"): the requests waiting for an answer with Accept and Decline on each,
-/// and the ones you sent. The friends themselves are listed On Ghost Messaging with the friends by number (Matt,
+/// and the ones you sent. The friends themselves are listed On Uplink with the friends by number (Matt,
 /// 2026-11-19: "remove the Friends by username section on the contacts page"); Remove friend is in their chat's settings
 /// and on Me. Asking someone, and choosing a username of your own,
 /// is the drawer the Add button beside the search opens (lib/ui/add_friend_drawer.dart). Buddies

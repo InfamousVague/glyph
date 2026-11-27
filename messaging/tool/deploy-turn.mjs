@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Puts the media relay calls fall back on onto the box: coturn, a TURN server, beside Ghost Messaging's relay (Matt,
+ * Puts the media relay calls fall back on onto the box: coturn, a TURN server, beside Uplink's relay (Matt,
  * 2026-11-21: "Sometimes calls are not negotiating in voice chats and I can't connect to another person, if p2p fails
  * please connect over voice through the relay"). relay/lib/turn.dart says why and how the two fit.
  *
@@ -91,7 +91,7 @@ $SUDO chmod 755 /usr/local/sbin/ghost-turn-cert
 $SUDO /usr/local/sbin/ghost-turn-cert --no-restart
 $SUDO tee /etc/systemd/system/ghost-turn-cert.service >/dev/null <<'UNIT'
 [Unit]
-Description=Copy gogho.st's certificate for coturn (Ghost Messaging, tool/deploy-turn.mjs)
+Description=Copy gogho.st's certificate for coturn (Uplink, tool/deploy-turn.mjs)
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/ghost-turn-cert
@@ -110,7 +110,7 @@ UNIT
 # The configuration. The secret is written by this shell from its input, never by a command line others could read.
 umask 027
 $SUDO tee /etc/turnserver.conf.new >/dev/null <<CONF
-# Ghost Messaging's media relay for calls (tool/deploy-turn.mjs in the glyph repository's messaging/; relay/lib/turn.dart).
+# Uplink's media relay for calls (tool/deploy-turn.mjs in the glyph repository's messaging/; relay/lib/turn.dart).
 listening-port=3478
 tls-listening-port=5349
 min-port=${MIN_PORT}
@@ -157,10 +157,10 @@ $SUDO chmod 640 /etc/turnserver.conf.new
 $SUDO mv /etc/turnserver.conf.new /etc/turnserver.conf
 [ -f /etc/default/coturn ] && $SUDO sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
 
-$SUDO ufw allow 3478/udp comment 'coturn (Ghost Messaging calls)' >/dev/null
-$SUDO ufw allow 3478/tcp comment 'coturn (Ghost Messaging calls)' >/dev/null
-$SUDO ufw allow 5349/tcp comment 'coturn TLS (Ghost Messaging calls)' >/dev/null
-$SUDO ufw allow ${MIN_PORT}:${MAX_PORT}/udp comment 'coturn relayed (Ghost Messaging calls)' >/dev/null
+$SUDO ufw allow 3478/udp comment 'coturn (Uplink calls)' >/dev/null
+$SUDO ufw allow 3478/tcp comment 'coturn (Uplink calls)' >/dev/null
+$SUDO ufw allow 5349/tcp comment 'coturn TLS (Uplink calls)' >/dev/null
+$SUDO ufw allow ${MIN_PORT}:${MAX_PORT}/udp comment 'coturn relayed (Uplink calls)' >/dev/null
 echo "ok ufw lets in 3478 (UDP and TCP), 5349 (TCP) and ${MIN_PORT}-${MAX_PORT} (UDP)"
 
 $SUDO systemctl daemon-reload

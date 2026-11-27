@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join a space · Ghost Messaging</title>
-<meta name="description" content="Join a Ghost Messaging space from your browser: voice and video, sealed between the people in it.">
+<title>Join a space · Uplink</title>
+<meta name="description" content="Join an Uplink space from your browser: voice and video, sealed between the people in it.">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -100,7 +100,7 @@
 <main>
   <header>
     <img src="/icon.png" alt="">
-    <b>Ghost Messaging</b>
+    <b>Uplink</b>
     <a href="/">Get the app</a>
   </header>
 
@@ -112,20 +112,20 @@
 
   <!-- A circle's link: circles open in the app (lib/circles/circle.dart). Get the app copies the invite, which the app
        finds the first time it is set up and opens the circle with (lib/circles/pending_link.dart); with the app here,
-       Open in Ghost Messaging hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
+       Open in Uplink hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
        click a link on their phone or desktop to join a circle, have it prompt them to download the app if it's not
        downloaded already and then have it redirect to the circle after they sign up for their account". -->
   <section id="circle" class="center" hidden>
     <h1 id="circle-title">Circle</h1>
-    <p class="sub">You're invited to <b id="circle-name">a circle</b> on Ghost Messaging: a few people and their spaces, for chat and voice, texting and files.</p>
+    <p class="sub">You're invited to <b id="circle-name">a circle</b> on Uplink: a few people and their spaces, for chat and voice, texting and files.</p>
     <ol class="steps card">
-      <li><b>Get Ghost Messaging</b> <span id="circle-for">for this device</span>.</li>
+      <li><b>Get Uplink</b> <span id="circle-for">for this device</span>.</li>
       <li><b>Set it up</b>: pick a username, a minute or two.</li>
       <li><b>You're in.</b> The app opens <span id="circle-name2">the circle</span> for you.</li>
     </ol>
     <div class="row" style="justify-content:center;margin-top:1.25rem">
       <a class="primary" id="circle-get" href="/" style="text-decoration:none">Get the app</a>
-      <a class="quiet" id="circle-open" href="#" style="text-decoration:none">Open in Ghost Messaging</a>
+      <a class="quiet" id="circle-open" href="#" style="text-decoration:none">Open in Uplink</a>
     </div>
     <p class="note" id="circle-note" aria-live="polite"></p>
     <p class="note">Set it up already? Open this link on that device, or paste it into the app (New › Join a circle by link). <button class="link" id="circle-copy">Copy link</button></p>
@@ -155,7 +155,7 @@
       <p class="note">What's said here goes between the people in the space, sealed with a key from this link. Our server only helps you find each other.</p>
       <!-- Someone texted this link from the app (Matt, 2026-11-17: "a link that eventually follows through after they
            setup their account"): the app is the other way in, with the invite kept for them. -->
-      <p class="note">Rather use the app? <a href="/">Get Ghost Messaging</a> and set it up: once you verify your phone number in it, your invite will be waiting.</p>
+      <p class="note">Rather use the app? <a href="/">Get Uplink</a> and set it up: once you verify your phone number in it, your invite will be waiting.</p>
     </div>
   </section>
 
@@ -198,7 +198,7 @@
 
 <dialog id="signup">
   <h2 style="margin-top:0">Sign up</h2>
-  <p class="note" style="margin-top:0">A username people can find you by on Ghost Messaging. It's tied to this browser: there's no password, and nothing else about you is kept.</p>
+  <p class="note" style="margin-top:0">A username people can find you by on Uplink. It's tied to this browser: there's no password, and nothing else about you is kept.</p>
   <label for="username" style="margin-top:1rem">Username</label>
   <input type="text" id="username" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="maya">
   <p class="error" id="signup-error" hidden></p>
@@ -227,7 +227,7 @@ const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 // A circle's link: said what it is, and the way to the app (Matt, 2026-11-17: circles, "simpler and easier to digest").
 const circle = readCircleLink(location.hash);
 if (circle) {
-  document.title = circle.name + ' · Ghost Messaging';
+  document.title = circle.name + ' · Uplink';
   $('circle-title').textContent = 'Join ' + circle.name;
   $('circle-name').textContent = circle.name;
   $('circle-name2').textContent = circle.name;
@@ -258,16 +258,16 @@ if (circle) {
   if (iphone) $('circle-open').hidden = true;
   $('circle-open').href = own;
   const say = (words) => { $('circle-note').textContent = words; };
-  // A circle on a relay other than Ghost Messaging's (the link says which, lib/invites/link_relay.dart): the app has to
+  // A circle on a relay other than Uplink's (the link says which, lib/invites/link_relay.dart): the app has to
   // use that relay to join it, and says so itself where it doesn't.
-  if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Ghost Messaging, use that relay first (Settings › Routes › Relay server), then open this link.');
+  if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Uplink, use that relay first (Settings › Routes › Relay server), then open this link.');
   // Get the app: the invite copied as it goes, for the app to find once it is set up.
   $('circle-get').addEventListener('click', () => {
-    const done = () => say('Your invite is copied. Install Ghost Messaging and open it: once it\'s set up, it takes you to ' + circle.name + '.');
+    const done = () => say('Your invite is copied. Install Uplink and open it: once it\'s set up, it takes you to ' + circle.name + '.');
     try {
-      navigator.clipboard.writeText(location.href).then(done, () => say('Once Ghost Messaging is set up, come back and press Open in Ghost Messaging.'));
+      navigator.clipboard.writeText(location.href).then(done, () => say('Once Uplink is set up, come back and press Open in Uplink.'));
     } catch (_) {
-      say('Once Ghost Messaging is set up, come back and press Open in Ghost Messaging.');
+      say('Once Uplink is set up, come back and press Open in Uplink.');
     }
   });
   // Open: where nothing took it (the app isn't here), said so.
@@ -277,7 +277,7 @@ if (circle) {
     window.addEventListener('blur', away, { once: true });
     document.addEventListener('visibilitychange', away, { once: true });
     setTimeout(() => {
-      if (!left && !document.hidden) say('Nothing opened? Ghost Messaging isn\'t on this device yet: get it above, and your invite comes with it.');
+      if (!left && !document.hidden) say('Nothing opened? Uplink isn\'t on this device yet: get it above, and your invite comes with it.');
     }, 1800);
   });
   $('circle-copy').onclick = async () => {
@@ -291,7 +291,7 @@ if (!link) { show('bad'); throw new Error('not a hangout link'); }
 // A texting or Files space has no voice: its chat alone, with no microphone or camera asked for.
 // An open space is a call too: here, with no floor, everyone is heard whole (lib/voice/open_space.dart).
 const chatOnly = link.kind !== 'voice' && link.kind !== 'open';
-document.title = link.name + ' · Ghost Messaging';
+document.title = link.name + ' · Uplink';
 for (const id of ['title', 'call-title']) $(id).textContent = link.name;
 if (chatOnly) {
   for (const id of ['lobby-mic', 'lobby-cam', 'devices', 'preview', 'tiles', 'people', 'mic', 'cam']) $(id).hidden = true;

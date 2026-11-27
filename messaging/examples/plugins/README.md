@@ -1,6 +1,6 @@
 # Example plugins
 
-Two complete plugins in the `ghost-plugin/1` format, to load in Ghost Messaging's Developer mode, try, and make your
+Two complete plugins in the `ghost-plugin/1` format, to load in Uplink's Developer mode, try, and make your
 own from. How plugins work, field by field: [Build a plugin](https://gogho.st/docs/build-a-plugin/) on gogho.st/docs.
 
 | File | What it shows |

@@ -30,12 +30,12 @@ const _heart = LucideIcon.phosphor('heart', 'M232,102c0,66-104,122-104,122S24,16
 
 /// The badges there are, in the order they are drawn (the relay's `specialBadges`).
 const specialBadges = [
-  SpecialBadge('team', 'Ghost team', 'Makes Ghost Messaging', Lucide.ghost, 'indigo'),
+  SpecialBadge('team', 'Uplink team', 'Makes Uplink', Lucide.ghost, 'indigo'),
   SpecialBadge('founder', 'Founder', 'Here from the very start', Lucide.crown, 'amber'),
   SpecialBadge('bughunter', 'Bug hunter', 'Found and reported bugs', _bug, 'coral'),
   SpecialBadge('alpha', 'Alpha tester', 'Tried it before anyone else', Lucide.flaskConical, 'purple'),
   SpecialBadge('helper', 'Helper', 'Helps others find their way', Lucide.sparkles, 'teal'),
-  SpecialBadge('supporter', 'Supporter', 'Supports Ghost Messaging', _heart, 'rose'),
+  SpecialBadge('supporter', 'Supporter', 'Supports Uplink', _heart, 'rose'),
 ];
 
 /// The badge with this id; null for one this build doesn't know.

@@ -15,7 +15,7 @@ import 'package:ghost_messaging/ui/network.dart';
 import 'package:ghost_messaging/ui/settings.dart' show SettingsModel;
 import 'package:glacier/glacier.dart';
 
-/// GMFB-25, "Self-hosting the relay, documented": another relay's address is tidied, asked whether a Ghost Messaging
+/// GMFB-25, "Self-hosting the relay, documented": another relay's address is tidied, asked whether an Uplink
 /// relay answers there, and only then used; going back to ours is one step; and nothing changes for anyone who never
 /// touches it.
 
@@ -71,7 +71,7 @@ void main() {
       expect(Net.instance.onDefaultHub, isTrue);
       expect(Net.instance.hub!.url, Net.defaultHub);
       expect(app.choice('net_hub', 'unset'), 'unset', reason: 'nothing is written until someone chooses');
-      expect(relayInUseWords(Net.defaultHub), 'Ghost Messaging\'s relay (gogho.st)');
+      expect(relayInUseWords(Net.defaultHub), 'Uplink\'s relay (gogho.st)');
     });
 
     test('an address chosen before this change is still read as it was', () async {
@@ -107,12 +107,12 @@ void main() {
     test('the relay in use, named', () {
       expect(relayInUseWords('wss://relay.example.com/hub'), 'Your own relay: relay.example.com');
       expect(relayInUseWords('ws://127.0.0.1:8787/hub'), 'Your own relay: 127.0.0.1:8787');
-      expect(relayInUseWords('wss://ghost-sms.com/hub'), 'Ghost Messaging\'s relay (ghost-sms.com)');
+      expect(relayInUseWords('wss://ghost-sms.com/hub'), 'Uplink\'s relay (ghost-sms.com)');
     });
   });
 
   group('asking whether a relay answers', () {
-    test('a Ghost Messaging hub answers', () async {
+    test('an Uplink hub answers', () async {
       final s = await _server('hub');
       addTearDown(() => s.close(force: true));
       final r = await checkRelay(_hubAt(s), timeout: const Duration(seconds: 5));
@@ -126,10 +126,10 @@ void main() {
       addTearDown(() => other.close(force: true));
       final a = await checkRelay(_hubAt(quiet), timeout: const Duration(milliseconds: 600));
       expect(a.ok, isFalse);
-      expect(a.problem, contains('not as a Ghost Messaging relay'));
+      expect(a.problem, contains('not as an Uplink relay'));
       final b = await checkRelay(_hubAt(other), timeout: const Duration(seconds: 5));
       expect(b.ok, isFalse);
-      expect(b.problem, contains('not as a Ghost Messaging relay'));
+      expect(b.problem, contains('not as an Uplink relay'));
     });
 
     test('nobody there is not one', () async {
@@ -162,7 +162,7 @@ void main() {
         asked++;
         return true;
       });
-      expect(r.problem, contains('not as a Ghost Messaging relay'));
+      expect(r.problem, contains('not as an Uplink relay'));
       expect(asked, 0);
       expect(net.hubUrl, Net.defaultHub);
       expect(app.choice('net_hub', 'unset'), 'unset');
@@ -223,7 +223,7 @@ void main() {
 
     testWidgets('shows ours in use, with no way "back" to it', (tester) async {
       await open(tester, AppState());
-      expect(inUse(tester), 'Ghost Messaging\'s relay (gogho.st)');
+      expect(inUse(tester), 'Uplink\'s relay (gogho.st)');
       expect(find.byKey(const ValueKey('relay-use-default')), findsNothing);
       expect(find.text(relayLimitsWords), findsOneWidget, reason: 'what a relay of your own does not reach is said');
       await tester.pumpWidget(const SizedBox());
@@ -249,7 +249,7 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pump(const Duration(milliseconds: 50));
       expect(Net.instance.hubUrl, Net.defaultHub);
-      expect(inUse(tester), 'Ghost Messaging\'s relay (gogho.st)');
+      expect(inUse(tester), 'Uplink\'s relay (gogho.st)');
       expect(find.byKey(const ValueKey('relay-use-default')), findsNothing);
       expect(tester.widget<EditableText>(find.byType(EditableText)).controller.text, '', reason: 'the field follows: ours is shown as empty');
       await tester.pumpWidget(const SizedBox());

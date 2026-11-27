@@ -1,7 +1,7 @@
 // The Discord half of the bridge (bridge/bridge.js's `discord`), with discord.js and @discordjs/voice: joining a voice
 // channel (end-to-end encrypted with Discord's DAVE protocol through @snazzah/davey, which @discordjs/voice brings),
-// each speaker's Opus packets out of the receiver, the Ghost mix played in, the people in the channel, the bot's
-// nickname, and Ghost's chat posted through a webhook in the channel.
+// each speaker's Opus packets out of the receiver, the Uplink mix played in, the people in the channel, the bot's
+// nickname, and Uplink's chat posted through a webhook in the channel.
 import { EndBehaviorType, VoiceConnectionStatus, entersState, joinVoiceChannel } from '@discordjs/voice';
 import { ChannelType, PermissionFlagsBits, WebhookClient } from 'discord.js';
 import { dcPeople, ghostToBotMessage, ghostToWebhook } from './bridge/mapping.js';
@@ -43,7 +43,7 @@ export function discordSide({ client, store, log }) {
     if (!saved) {
       const perms = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
       if (!perms?.has(PermissionFlagsBits.ManageWebhooks)) return null;
-      const made = await channel.createWebhook({ name: 'Ghost Messaging', reason: 'Ghost Messaging: messages from the Ghost side of this call' });
+      const made = await channel.createWebhook({ name: 'Uplink', reason: 'Uplink: messages from the Uplink side of this call' });
       saved = { id: made.id, token: made.token };
       store.setWebhook(guild.id, channel.id, saved);
       log(`webhook made in ${guild.id}/${channel.id}`);
@@ -138,10 +138,10 @@ export function discordSide({ client, store, log }) {
     async setNickname(guildId, text) {
       const me = client.guilds.cache.get(guildId)?.members.me;
       if (!me?.permissions.has(PermissionFlagsBits.ChangeNickname)) return;
-      await me.setNickname(text, 'Ghost Messaging: who is talking from Ghost').catch(() => {});
+      await me.setNickname(text, 'Uplink: who is talking from Uplink').catch(() => {});
     },
 
-    /** A Ghost member's message into the channel's chat: through the webhook, under their name, else as the bot. */
+    /** An Uplink member's message into the channel's chat: through the webhook, under their name, else as the bot. */
     async postText(guildId, channelId, message) {
       const guild = client.guilds.cache.get(guildId);
       const channel = guild?.channels.cache.get(channelId);

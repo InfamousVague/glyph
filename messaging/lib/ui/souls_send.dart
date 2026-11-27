@@ -25,7 +25,7 @@ import 'souls.dart' show SoulFlame, soulsCount;
 import '../l10n/words.dart';
 
 /// The page souls are sent from: how many, a few words to go with them if wanted, and Send, which asks once more
-/// before anything goes. [to] is the friend's Ghost id and [name] what they are called here; [write] sends the card's
+/// before anything goes. [to] is the friend's Uplink id and [name] what they are called here; [write] sends the card's
 /// words into the conversation (true where they went). Closes once the souls are sent.
 ///
 /// [api] and [receipts] are for a test; the app's own otherwise.
@@ -220,7 +220,7 @@ class _SendSoulsScreenState extends State<SendSoulsScreen> {
 
 /// A message that is a souls card ([SoulsCard.of]), drawn as one: the flame, who sent how many to whom, and the note.
 /// It says souls were sent only once the relay's receipt agrees ([SoulsReceipts]): from the one who wrote the message
-/// ([from], a Ghost id) to the other ([to]). Until then it says it isn't confirmed, and where the relay knows of no
+/// ([from], an Uplink id) to the other ([to]). Until then it says it isn't confirmed, and where the relay knows of no
 /// such sending it says that.
 ///
 /// [line] draws it as one line of words instead (Dial-Up's transcript). [api] and [receipts] are for a test.

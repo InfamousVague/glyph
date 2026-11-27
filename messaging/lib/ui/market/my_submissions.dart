@@ -60,7 +60,7 @@ String resubmitVersion(SubmissionView s, {String? current}) {
 class MySubmissionsScreen extends StatefulWidget {
   const MySubmissionsScreen({super.key, this.api, this.highlight, this.market, this.hub});
 
-  /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
+  /// The Marketplace: MarketState.instance.api where null, which is Uplink's own (MarketApi.live) in the app.
   final MarketApi? api;
 
   /// A submission to mark and scroll to: the one just sent.

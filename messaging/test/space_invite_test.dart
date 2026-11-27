@@ -198,7 +198,7 @@ void main() {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(texts, ['Join me in Friday hang on Ghost Messaging: ${channel.link}']);
+    expect(texts, ['Join me in Friday hang on Uplink: ${channel.link}']);
     expect(find.text('Invite people'), findsNothing, reason: 'the sheet goes');
     await tester.pumpWidget(const SizedBox());
     await draw(tester, page());

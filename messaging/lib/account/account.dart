@@ -26,13 +26,13 @@ import '../sms.dart';
 import '../voice/channels.dart' show Voice;
 import 'account_crypto.dart';
 
-/// A Ghost account on this install (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
+/// An Uplink account on this install (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
 /// need to add password based authentication as well as SMS verification for verified numbers"; "I like your
 /// recommendation let's do it for now"; "i also want accounts to be generated based on ethereum type addresses with a
 /// recovery seed we can back up").
 ///
 /// - **Making one** ([draft], then [create]): twelve recovery words, the address they make (the account's id), a password.
-///   The Ghost identity is the words' own where this install has nothing yet (no username, friends or circles), and
+///   The Uplink identity is the words' own where this install has nothing yet (no username, friends or circles), and
 ///   then the install takes it on and starts again; elsewhere it is the key the install already has, so nobody who
 ///   knows it has to add it again. Either way the identity and the words go in a backup sealed with the password and
 ///   with the words, kept on the relay (relay/lib/accounts.dart), and the device is listed under the account.
@@ -328,7 +328,7 @@ class Account extends ChangeNotifier {
   }
 
   /// The account [words] make, opened with them: no password and no code, the words being the account itself. Where
-  /// the relay has no backup for it ([AccountRestore.backedUp] false) the words still make the address and the Ghost
+  /// the relay has no backup for it ([AccountRestore.backedUp] false) the words still make the address and the Uplink
   /// identity of an account that began with them; a new password is then needed to keep a backup again.
   Future<AccountRestore> signInWithWords(List<String> words) async {
     if (!AccountCrypto.validWords(words)) throw AccountError('Those words don\'t add up. Check each one, and their order.');
@@ -1045,7 +1045,7 @@ class SmsAccountPort implements AccountPort {
   Future<void> wipeHere(String note) => Sms.instance.wipeHere(note);
 }
 
-/// What an account carries besides its identity: the profile, friends by username, circles, the key Ghost's own kept
+/// What an account carries besides its identity: the profile, friends by username, circles, the key Uplink's own kept
 /// lists are sealed with.
 abstract class AccountProfiles {
   /// Nothing here yet that anyone knows this install's key by: no username, friends or circles.

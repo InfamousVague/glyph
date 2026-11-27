@@ -35,7 +35,7 @@ void main() {
     final button = tester.getRect(find.byKey(const ValueKey('share-feedback')));
     expect(button.right, greaterThan(1100 - 40), reason: 'at its right end');
     expect(tester.getRect(find.byKey(const ValueKey('strip-extra'))).right, lessThan(button.left), reason: 'more buttons before it');
-    expect(find.text('Ghost Messaging'), findsOneWidget);
+    expect(find.text('Uplink'), findsOneWidget);
 
     // Under a video at full screen there is none of it (Matt, 2026-11-25: "fullscreen videos still incorrectly show
     // the titlebar of the app"), and the page under it has the whole window; after, it is back.

@@ -13,11 +13,11 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * Google Messages' web connection on the phone itself (Matt, 2026-11-15: "Can you build the on phone google messages
  * connection too?"): the sidecar (sidecar/gmessages, AGPL-3.0, built for Android as libgmsidecar.so) run beside the
- * app, as the computers run it, so Ghost has Google Messages' conversations whole without its notifications: RCS
+ * app, as the computers run it, so Uplink has Google Messages' conversations whole without its notifications: RCS
  * and texts, pictures, reactions, and their delivered and read marks.
  *
  * What it hears goes into the bridge's database (GmBridge.Db), as what the notifications say does, so everything
- * after (Store's list and conversations, Ghost's notifications, replies, a paired computer) works the same, with more
+ * after (Store's list and conversations, Uplink's notifications, replies, a paired computer) works the same, with more
  * in it. Google Messages has one active web session at a time; the phone's takes it back when a computer's or
  * messages.google.com takes it (--takeover), and a paired computer uses the phone's (lib/desktop/gm_web.dart defers).
  *
@@ -265,7 +265,7 @@ object GmWeb {
         val read = out || unreadIn[conv] == false
         val fresh = db.keepWebMessage(conv, thread, m.getString("id"), text, time, from?.optString("name")?.ifBlank { null }, from?.optString("number")?.ifBlank { null }, out, m.optString("status"), if (parts.length() > 0) parts.toString() else null, reactions, read)
         Bus.changed(thread)
-        // A new message of theirs, just now: Ghost's notification (Google Messages' own may be off altogether).
+        // A new message of theirs, just now: Uplink's notification (Google Messages' own may be off altogether).
         if (notify && fresh && !out && System.currentTimeMillis() - time < 5 * 60_000) {
             unreadIn[conv] = true
             try { Notifier.incoming(app, thread) } catch (e: Exception) { DevLog.add(app, "gmweb", "notification: ${e.message}") }
@@ -410,7 +410,7 @@ object GmWeb {
     /** Marks [conv] read in Google Messages, as far as its newest message (which sends a read receipt where on). */
     fun read(conv: String) {
         if (!connected) {
-            DevLog.add(app, "gmweb", "read: not connected to Google Messages, so $conv is read in Ghost alone")
+            DevLog.add(app, "gmweb", "read: not connected to Google Messages, so $conv is read in Uplink alone")
             return
         }
         // A conversation known only from notifications has no id of the connection's: nothing to tell it.

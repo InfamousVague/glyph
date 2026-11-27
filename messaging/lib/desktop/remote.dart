@@ -849,7 +849,7 @@ class LinkCalls implements SmsCalls, CapableCalls {
         }
       case 'telegram':
         // The phone's Telegram approves this computer's sign-in (lib/inbox/telegram.dart answerComputer).
-        if (!_caps.contains('telegram')) throw const PhoneError('Update Ghost Messaging on your phone to sign in to Telegram through it.');
+        if (!_caps.contains('telegram')) throw const PhoneError('Update Uplink on your phone to sign in to Telegram through it.');
         return link.request('telegram', a, const Duration(seconds: 40));
       case 'signins':
         // The networks' sign-ins the phone holds (lib/inbox/curl_sync.dart forComputer): none from a phone too old to say.
@@ -857,11 +857,11 @@ class LinkCalls implements SmsCalls, CapableCalls {
         return link.request('signins', a, const Duration(seconds: 20));
       case 'rcs':
         // How RCS stands on the phone (lib/gm/rcs_share.dart, GMFB-11).
-        if (!_caps.contains('rcs')) throw const PhoneError('Update Ghost Messaging on your phone to see its RCS here.');
+        if (!_caps.contains('rcs')) throw const PhoneError('Update Uplink on your phone to see its RCS here.');
         return link.request('rcs', a, const Duration(seconds: 15));
       case 'voice':
         // The phone's voice channels, kept in step with this computer's (lib/voice/channels.dart).
-        if (!_caps.contains('voice')) throw const PhoneError('Update Ghost Messaging on your phone to see its spaces here.');
+        if (!_caps.contains('voice')) throw const PhoneError('Update Uplink on your phone to see its spaces here.');
         return link.request('voice', a, const Duration(seconds: 15));
       case 'translate' || 'translateLanguages' || 'translateModel':
         // Translation is the phone's (android Translate.kt): this computer's texts are translated there, as asked. A
@@ -878,15 +878,15 @@ class LinkCalls implements SmsCalls, CapableCalls {
         }
       case 'handover':
         // The phone's identity and friends, for this computer's own network (lib/friends/handover.dart).
-        if (!_caps.contains('handover')) throw const PhoneError('Update Ghost Messaging on your phone to have friends on this computer.');
+        if (!_caps.contains('handover')) throw const PhoneError('Update Uplink on your phone to have friends on this computer.');
         return link.request('handover', a, const Duration(seconds: 40));
       case 'buddies':
         // Friends by username, the phone's (lib/friends/buddies.dart forComputer): added, answered and listed through it.
-        if (!_caps.contains('buddies')) throw const PhoneError('Update Ghost Messaging on your phone to add friends from here.');
+        if (!_caps.contains('buddies')) throw const PhoneError('Update Uplink on your phone to add friends from here.');
         return link.request('buddies', a, const Duration(seconds: 40));
       case 'me':
         // Settings › Me's number, verified through the phone (Me.followPhone); a code takes the phone a while.
-        if (!_caps.contains('me')) throw const PhoneError('Update Ghost Messaging on your phone to verify your number from here.');
+        if (!_caps.contains('me')) throw const PhoneError('Update Uplink on your phone to verify your number from here.');
         return link.request('me', a, const Duration(seconds: 45));
       case 'setOpenThread' || 'openRequest' || 'systemPalette' || 'e2eMine' || 'setAutoUpdate':
         return null;

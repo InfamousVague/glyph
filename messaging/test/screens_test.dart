@@ -437,7 +437,7 @@ void _answerChannel() {
           '11-13 19:12:43 mms   not sent, 420 KB: the carrier\'s server refused it (HTTP 413) (result 4, HTTP 413)',
           '11-13 19:13:10 call  send: IllegalStateException: that picture couldn\'t be read (Android no longer lets this app read it; choose it again)',
         ];
-        return {'lines': lines, 'report': 'Ghost Messaging 0.6.2\nsamsung SM-F966U, Android 16 (API 36)\n\n${lines.join('\n')}'};
+        return {'lines': lines, 'report': 'Uplink 0.6.2\nsamsung SM-F966U, Android 16 (API 36)\n\n${lines.join('\n')}'};
       case 'mmsStatus':
         // Picture messages as the phone reports them: nothing in the way, one sent, one that could not be fetched.
         return {
@@ -515,7 +515,7 @@ Future<Fetched> _fakeSites(Uri url) async {
 /// The on-phone Google Messages connection as it stands (android GmWeb.state): there, not paired, unless a test says.
 Map<String, Object?> _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
 
-/// Google Messages' notification channels as Ghost saw them (android GmBridge.channelList): none, unless a test says.
+/// Google Messages' notification channels as Uplink saw them (android GmBridge.channelList): none, unless a test says.
 List<Map<String, Object?>> _gmChannels = const [];
 
 /// What the phone says of itself (SmsStatus): the default SMS app, unless a test says otherwise.
@@ -711,7 +711,7 @@ void main() {
       expect(find.text(shrunkNote), findsOneWidget);
       // One no picture can be made of is still named, and can still be tried.
       expect(find.text('9864ade8-2512-4c3f-83b2-8d46dbb76b14.webm'), findsOneWidget);
-      // Each opens Ghost's own player (Matt: "id like a video player built with glacier UI"), closed again by its back button.
+      // Each opens Uplink's own player (Matt: "id like a video player built with glacier UI"), closed again by its back button.
       VideoPlayerPlatform.instance = FakeVideoPlayer();
       for (final p in [players.first, players.last]) {
         await tester.tap(p);
@@ -791,7 +791,7 @@ void main() {
       expect(find.byType(GhostLogo), findsOneWidget);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
       final packs = (await tester.runAsync(stickerPacks))!;
-      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet', 'Mischief']);
+      expect(packs.map((p) => p.name), ['Uplink', 'Love', 'Party', 'Sweet', 'Mischief']);
       for (final (pack, encrypted) in [('ghost', false), ('sweet', true), ('mischief', false)]) {
         await _shoot(
           tester,
@@ -902,15 +902,15 @@ void main() {
       await _shoot(tester, sheet, const ThreadScreen(thread: 1, people: [Person(address: '+15551230001', name: 'Maya Chen')]), '9-background-dusk', dark: dark, prefs: const {'chat_bg': 'preset:dusk'});
       // The walkthrough (Matt, 2026-11-15: "Look at how we do onboarding on Ghost KBD and Ghost Markdown with the
       // optional voice guide through the elevenlabs key and the vibrant colors and iconography for each step, mimick
-      // this on the setup of Ghost Messaging"): since 2026-11-20 the texts page alone, which holds Continue until Ghost
+      // this on the setup of Ghost Messaging"): since 2026-11-20 the texts page alone, which holds Continue until Uplink
       // can send (Matt: "rework the onboarding flow to be very simple").
       _statusSaid = const {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-2-texts', dark: dark);
       expect(find.text('Set as default SMS app'), findsOneWidget);
-      expect(find.byKey(const ValueKey('guide-skip')), findsNothing, reason: 'nothing to skip to before Ghost can send texts');
+      expect(find.byKey(const ValueKey('guide-skip')), findsNothing, reason: 'nothing to skip to before Uplink can send texts');
       await tester.tap(find.byKey(const ValueKey('guide-next')));
       await _settle(tester);
-      expect(find.text('Start with your texts'), findsOneWidget, reason: 'Continue waits until Ghost can send texts');
+      expect(find.text('Start with your texts'), findsOneWidget, reason: 'Continue waits until Uplink can send texts');
       // Google Messages on the phone and texts allowed, notification access not yet: the way to keep it, and RCS
       // (Matt, 2026-11-15: "I'd like to have a way that people can reliably get text in and out of ghost without
       // needing to switch the default messaging app").
@@ -920,7 +920,7 @@ void main() {
       expect(find.text('Use beside Google Messages'), findsOneWidget);
       // Setting up RCS from Settings › Messages (lib/ui/rcs_setup.dart; Matt, 2026-11-15: "add a button under messages
       // settings to setup RCS if on an android phone and walk the user through how to enable the rcs sidecar"): from
-      // Ghost the default, Google Messages the next thing to make so; and part way, Google Messages the default.
+      // Uplink the default, Google Messages the next thing to make so; and part way, Google Messages the default.
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true, 'gmInstalled': true, 'sms': true, 'bridge': false, 'gmDefault': false};
       await _shoot(tester, sheet, const RcsSetupScreen(), '19-rcs-setup', dark: dark);
       expect(find.text('Open Default apps'), findsOneWidget);
@@ -974,12 +974,12 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       VideoEngine.make = VideoEngine.defaultEngine;
       _gmWeb = const {'available': true, 'running': true, 'paired': false, 'connected': false};
-      // Ghost is the texting app: the texts page says so, and Continue (the walkthrough is that page alone since
+      // Uplink is the texting app: the texts page says so, and Continue (the walkthrough is that page alone since
       // 2026-11-20).
       _statusSaid = const {'isDefault': true, 'contacts': false, 'notifications': false, 'phone': true};
       await _shoot(tester, sheet, const Onboarding(), '0-guide-2-texts-done', dark: dark);
       expect(find.byKey(const ValueKey('guide-skip')), findsOneWidget);
-      expect(find.text('Ghost is your texting app.'), findsOneWidget);
+      expect(find.text('Uplink is your texting app.'), findsOneWidget);
       expect(find.text('Continue'), findsOneWidget);
       _statusSaid = const {'isDefault': true, 'contacts': true, 'notifications': false, 'phone': true};
       // Then the first page of one's own: a username and a password, and signing in to an account one has as a section
@@ -1124,7 +1124,7 @@ void main() {
       // A plugin's page, from the Plugins page since 2026-11-17: off, it offers to add it, and its settings wait
       // until it is added (in place of the switch at the top it had from 2026-11-14).
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-spam'), '12-plugins-settings-off', dark: dark, prefs: const {'plugin_spam': 'off'});
-      expect(find.textContaining('Add to Ghost Messaging'), findsOneWidget);
+      expect(find.textContaining('Add to Uplink'), findsOneWidget);
       expect(find.text('Mute conversations in Spam'), findsNothing);
       // Kinds of text's own page: each kind, said in a line.
       await _shoot(tester, sheet, const SettingsSectionScreen('plugin-kinds'), '12-plugins-settings-kinds', dark: dark);
@@ -1271,18 +1271,18 @@ void main() {
       expect(find.text('Friend request'), findsOneWidget);
       expect(find.text('Accept'), findsOneWidget);
       expect(find.text('Waiting for them'), findsOneWidget);
-      // Jamie, a friend by username, is On Ghost Messaging with the friends by number: no section of their own (Matt,
+      // Jamie, a friend by username, is On Uplink with the friends by number: no section of their own (Matt,
       // 2026-11-19: "just show the On Ghost Messaging and remove the Friends by username section on the contacts page").
       expect(find.text('Friends by username'), findsNothing);
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('On Uplink'), findsOneWidget);
       expect(find.text('Jamie Lee'), findsOneWidget);
       expect(find.text('@jamie'), findsOneWidget);
       expect(tester.getTopLeft(find.text('Jamie Lee')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
       Buddies.instance = null;
       await tester.runAsync(() => Me.instance.start(MemoryMeStore(), ValueNotifier(0), () => null));
       expect(find.text('New group'), findsNothing);
-      // The people added on Ghost Messaging come first, under their own heading, and the phone's contacts after.
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      // The people added on Uplink come first, under their own heading, and the phone's contacts after.
+      expect(find.text('On Uplink'), findsOneWidget);
       expect(tester.getTopLeft(find.text('Alex Kim')).dy, lessThan(tester.getTopLeft(find.text('Contacts').last).dy));
       expect(tester.getTopLeft(find.text('Sam Rivera')).dy, lessThan(tester.getTopLeft(find.text('Maya Chen')).dy));
       // Its name, and who is in it; Create waits for someone to be chosen.
@@ -2400,7 +2400,7 @@ void main() {
       await _settle(tester);
       await _shootAgain(tester, '11-frame-wide-invite', dark: dark);
       expect(find.byType(ThreadScreen), findsOneWidget);
-      expect(find.textContaining('Join me on Ghost Messaging'), findsOneWidget);
+      expect(find.textContaining('Join me on Uplink'), findsOneWidget);
       // A newer version waiting: beside a pane the card is in the list's column, above its title and search, with
       // the app's name left out so its words and its button fit; on a narrow screen it runs the screen's width and
       // says the name.
@@ -2414,7 +2414,7 @@ void main() {
       expect(tester.getRect(find.text('0.6.2 is out')).bottom, lessThan(tester.getRect(find.byType(GlacierSearchField).first).top));
       tester.view.physicalSize = cover;
       await _settle(tester);
-      expect(find.text('Ghost Messaging 0.6.2 is out'), findsOneWidget);
+      expect(find.text('Uplink 0.6.2 is out'), findsOneWidget);
       expect(tester.getRect(find.text('Update now')).right, greaterThan(300));
       _updateWaiting = false;
       // The next round starts with a frame of its own.

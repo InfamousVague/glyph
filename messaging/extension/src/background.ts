@@ -53,7 +53,7 @@ async function status(): Promise<Reply> {
 /** Captures the ready services (or just `only`) and syncs them. Returns the updated status. */
 async function captureAndSync(only?: string): Promise<Reply> {
   const acct = await current();
-  if (!acct) return { error: 'Sign in to your Ghost account first.' };
+  if (!acct) return { error: 'Sign in to your Uplink account first.' };
   const entries: Record<string, CaptureEntry> = {};
   for (const s of SERVICES) {
     if (only && s.id !== only) continue;
@@ -168,9 +168,9 @@ let googleTimer: ReturnType<typeof setTimeout> | undefined;
 /** Opens Google's sign-in in a private window; its cookies are captured once it's signed in ([googleCapture]). */
 async function googleSetup(): Promise<Reply> {
   const acct = await current();
-  if (!acct) return { error: 'Sign in to your Ghost account first.' };
+  if (!acct) return { error: 'Sign in to your Uplink account first.' };
   if (!(await chrome.extension.isAllowedIncognitoAccess())) {
-    return { ...(await status()), error: 'Chrome needs to let the extension into private windows first: open chrome://extensions, choose Details on Ghost Messaging keys, and turn on Allow in Incognito. Then try again.' };
+    return { ...(await status()), error: 'Chrome needs to let the extension into private windows first: open chrome://extensions, choose Details on Uplink keys, and turn on Allow in Incognito. Then try again.' };
   }
   const win = await chrome.windows.create({ url: GOOGLE.signInUrl, incognito: true, focused: true });
   if (!win) return { ...(await status()), error: 'The private window could not be opened.' };
@@ -179,7 +179,7 @@ async function googleSetup(): Promise<Reply> {
   const store = stores.find((st) => tabId !== undefined && st.tabIds.includes(tabId)) ?? stores.find((st) => st.id !== '0');
   if (win.id === undefined || !store) return { ...(await status()), error: 'The private window could not be opened.' };
   google_ = { windowId: win.id, storeId: store.id };
-  return { ...(await status()), note: 'Sign in to the Google account your Google Messages uses, in the private window. It closes by itself once Ghost has the sign-in.' };
+  return { ...(await status()), note: 'Sign in to the Google account your Google Messages uses, in the private window. It closes by itself once Uplink has the sign-in.' };
 }
 
 /** Once the private window is signed in to Google: its sign-in sealed and synced, and the window closed, so that
@@ -196,7 +196,7 @@ async function googleCapture(): Promise<void> {
     await acct.sync({ [GOOGLE.id]: { cookies, at: Date.now(), from: FROM } });
     google_ = null;
     await chrome.windows.remove(g.windowId).catch(() => undefined);
-    await chrome.storage.local.set({ 'google-note': 'Google Messages is ready to set up in Ghost: open Settings › Google Messages on a device and choose "Use the Google sign-in from your browser".' });
+    await chrome.storage.local.set({ 'google-note': 'Google Messages is ready to set up in Uplink: open Settings › Google Messages on a device and choose "Use the Google sign-in from your browser".' });
   } catch {
     // Offline: the next cookie change in the window tries again.
   }

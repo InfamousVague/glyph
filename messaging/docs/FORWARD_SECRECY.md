@@ -42,7 +42,7 @@ The attacker we design against:
    key they were ever given, and they can make new identities.
 
 We do not try to defend against malware running on a device while it is in use, against someone who can read your
-screen, or against the network learning who talks to whom. Ghost doesn't hide that today either.
+screen, or against the network learning who talks to whom. Uplink doesn't hide that today either.
 
 ## Friends, and an account's own devices
 

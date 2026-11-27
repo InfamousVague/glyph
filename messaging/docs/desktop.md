@@ -1,4 +1,4 @@
-# Ghost Messaging on the desktop
+# Uplink on the desktop
 
 Matt, 2026-11-13: "Is it possible for us to make a companion desktop app that can proxy messages encrypted from my
 phone to my desktop and then send back to the phone to send again?", then "I'd like to support both a relay server
@@ -23,7 +23,7 @@ The phone stays the only thing that texts. The Mac shows what the phone has and 
    link, `ghostmsg://pair/…`, because a phone's own camera can open a link in the app that takes it and can only
    show plain words (Matt, pointing his camera at the first one: "linking the Qr code said it can't be used by any
    app on my phone"). As words to paste it is `GHOSTPAIR1:…`, the same letters after the tag.
-3. The phone: point its camera at the code and open the link in Ghost Messaging; or Settings › Computers › Pair a
+3. The phone: point its camera at the code and open the link in Uplink; or Settings › Computers › Pair a
    computer, which scans it (the camera and ZXing, on the phone) or takes it pasted. A code that came from outside
    the app is asked about before anything is done with it ("Pair with Matt's MacBook Pro?"), since anything can
    open a link. Its page shows the same three choices, set as the Mac had them, and can change them: the phone's
@@ -230,8 +230,8 @@ standing in for ghost-sms.com (`GHOST_DESK_UPDATES=http://127.0.0.1:8793/mac.jso
 so no hand is needed): the older read the description, brought the zip down, checked it, swapped itself, quit, and
 was opened again as the newer in six seconds, the old one removed (`~/Library/Caches/com.infamousvague.
 ghostmessaging.mac/update-install/install.log` has each step). An update changed after it was signed was refused
-("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Ghost
-Messaging's developer"); the running app was left as it was both times. The copy in /Applications then took
+("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Uplink's
+developer"); the running app was left as it was both times. The copy in /Applications then took
 itself from 456600 to 456601 the same way. **Not tried**: an update from ghost-sms.com itself (nothing is
 published there), `--publish`, `--notarize`, and quitting with an update waiting (the swap is the same code as
 Restart; what differs is that nothing reopens the app).

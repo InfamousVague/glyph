@@ -18,7 +18,7 @@ the person opts in.
 - **Settings › Me**: your number, **Verified** once a code texted to it has come back (below), and your key;
   **Linked accounts** (Discord, Telegram, X, Bluesky, Mastodon, GitHub);
   **Tell friends I'm here**, off until switched on; **Remove everything about me**.
-- **Settings › Friends joining**: who of the people you watch for is on Ghost Messaging, the newest first and marked
+- **Settings › Friends joining**: who of the people you watch for is on Uplink, the newest first and marked
   New until the page is opened; **Add handles**; **Bring in who I follow** for a linked Bluesky, Mastodon or GitHub
   account; the list by network, each handle taken off by a press. The Settings ring on the navigation pill wears the
   number of new ones.
@@ -59,7 +59,7 @@ say it back.
    **Text me a code** asks the relay server (`{"dir": "text", "p": "phone", "handle": "+15550100199"}`).
 2. The relay asks the texting service to text that number. The service makes the code, sends it, and remembers it.
    The relay never sees the code it did not get back from the app, and keeps none.
-3. The text arrives ("Your Ghost Messaging verification code is: 482913"). The page reads the code out of it and
+3. The text arrives ("Your Uplink verification code is: 482913"). The page reads the code out of it and
    sends it back (`{"dir": "code", …, "code": "482913"}`) with nothing pressed; it can be typed too.
 4. The relay asks the service whether that is the code. Where it is, the number is linked to this install like any
    account (`{"dir": "linked", "p": "phone", …}`), and the row says **Verified**.
@@ -111,7 +111,7 @@ What that lets the server see beyond what the hub already saw: that an install h
 how many handles another is watching for. Someone who already knows a handle can hash it and find it in the file;
 nobody can read a handle out of it. A verified phone number is the exception, kept the same way but few enough to
 be worked back (A phone number, above). It holds no key or name, and tells nobody a number, so it cannot tell a
-watcher how to reach the person who joined: the watcher is told the handle is on Ghost Messaging and asks them for their number where they
+watcher how to reach the person who joined: the watcher is told the handle is on Uplink and asks them for their number where they
 already talk.
 
 **Nothing is said to the server about any of this until the person links an account, adds a handle, or opens
@@ -127,12 +127,12 @@ All three want the address a sign-in comes back to. With the relay behind ghost-
     https://ghost-sms.com/link/x/callback
     https://ghost-sms.com/link/telegram/callback   (Telegram asks only for the domain: ghost-sms.com)
 
-1. **Discord.** discord.com/developers/applications › New Application ("Ghost Messaging") › OAuth2. Add the redirect
+1. **Discord.** discord.com/developers/applications › New Application ("Uplink") › OAuth2. Add the redirect
    above. Copy the Client ID and reset and copy the Client Secret.
 2. **X.** developer.x.com › a Project and an App (the free tier is enough: it only asks who signed in). User
    authentication settings › OAuth 2.0, type "Web App" (confidential), callback as above, website
    `https://ghost-sms.com`. Copy the OAuth 2.0 Client ID and Client Secret.
-3. **Telegram.** Message @BotFather: `/newbot` (name "Ghost Messaging", a username ending in `bot`), keep the token;
+3. **Telegram.** Message @BotFather: `/newbot` (name "Uplink", a username ending in `bot`), keep the token;
    then `/setdomain`, choose the bot, send `ghost-sms.com`.
 
 Then their values, where the server reads them. Since the texting service's values (below) the way is the file on
@@ -163,7 +163,7 @@ gets right.
 
 1. **An account.** twilio.com, signed up and upgraded from the trial (a trial account texts only numbers it has
    itself verified).
-2. **A Verify service.** Console › Verify › Services › Create new. Friendly name **Ghost Messaging**, exactly: it
+2. **A Verify service.** Console › Verify › Services › Create new. Friendly name **Uplink**, exactly: it
    is the name in the text, and the app reads a code only from a text that says "ghost". SMS on; the code's length
    left at six. Copy the **Service SID** (`VA…`).
 3. **Where it may text.** In Twilio's geo permissions for SMS and Verify, the United States and Canada only. This
@@ -222,7 +222,7 @@ was holding in memory for people who were away at that moment was lost with the 
   404 once a code has run out; 429 when it has texted a number too often). The first real verification is the
   test of that, and of the text's wording being one the page reads. The server half is not deployed.
 - **A verified number does nothing for anyone else yet.** The step after it: someone who has your number in their
-  contacts hears you are on Ghost Messaging, as a watcher of a handle does. That means sending the server hashes
+  contacts hears you are on Uplink, as a watcher of a handle does. That means sending the server hashes
   of people's contacts, which can be worked back as above, so it wants its own decision, its own limits, and its
   own switch.
 - **Not run against the real networks.** `handles_test.dart` and `me_test.dart` stand in for Discord, X, Telegram,

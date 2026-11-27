@@ -1,4 +1,4 @@
-// A Ghost Messaging hangout in a browser (Matt, 2026-11-14: "Make the voice hangouts possible to share via a link so
+// An Uplink hangout in a browser (Matt, 2026-11-14: "Make the voice hangouts possible to share via a link so
 // people can join to talk anonymously or sign up through the browser similar to a zoom meeting").
 //
 // The app's own protocol, as lib/voice/voice.dart, lib/voice/rtc.dart, lib/net/hub_carrier.dart and lib/net/crypto.dart
@@ -48,7 +48,7 @@ export function readLink(fragment) {
 
 /**
  * The relay a link names after an `@` at its end (lib/invites/link_relay.dart; GMFB-25): a space or a circle made on a
- * relay other than Ghost Messaging's says which, `…@relay.example.com`. The fragment without it, and the relay's host
+ * relay other than Uplink's says which, `…@relay.example.com`. The fragment without it, and the relay's host
  * (lower case, with its port where it has one), or '' where it names none. What follows the `@` is taken only where
  * it could be a host, as the app takes it (lib/net/home_record.dart goodRelayHost).
  */

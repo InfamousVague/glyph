@@ -1,9 +1,9 @@
-// Ghost Messaging's Instagram helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-meta, on whose instameow library
+// Uplink's Instagram helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-meta, on whose instameow library
 // it is built.
 //
 // Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice". It signs in to the person's Instagram
 // account with the cookies of a browser signed in to instagram.com, behaves as the website does, and speaks JSON
-// lines over standard input and output: the protocol all of Ghost's account helpers share (../ACCOUNT_HELPERS.md).
+// lines over standard input and output: the protocol all of Uplink's account helpers share (../ACCOUNT_HELPERS.md).
 // Requests, each with an "id" its answer carries back:
 //
 //	{"id":1,"op":"status"}                                    → {"linked","connected","me","name","handle"}
@@ -93,7 +93,7 @@ func event(name string, fields map[string]any) {
 }
 
 // main takes up the kept session, if there is one, then answers the requests on standard input, each in its own
-// goroutine, until Ghost closes it.
+// goroutine, until Uplink closes it.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Instagram session is kept")
 	flag.Parse()
@@ -102,7 +102,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// The log goes to standard error (Ghost's developer log) and instagram.log beside the session; never stdout, and
+	// The log goes to standard error (Uplink's developer log) and instagram.log beside the session; never stdout, and
 	// at info level, where neither the library nor this helper writes what a message says.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	out.SetEscapeHTML(false)
@@ -132,7 +132,7 @@ func main() {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

@@ -1,4 +1,4 @@
-/// Inviting someone not on Ghost Messaging by a text from your own phone, and leaving a sealed copy of the invite on
+/// Inviting someone not on Uplink by a text from your own phone, and leaving a sealed copy of the invite on
 /// the relay for the day they set the app up (Matt, 2026-11-17: "if they're not on ghost yet it should send them a
 /// text saying they've been invited to join a space in ghost with a link that eventually follows through after they
 /// setup their account").

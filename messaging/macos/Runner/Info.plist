@@ -13,7 +13,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Uplink</string>
+	<key>CFBundleDisplayName</key>
+	<string>Uplink</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -29,7 +31,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>Ghost Messaging invite</string>
+			<string>Uplink invite</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>ghostmsg</string>
@@ -42,17 +44,17 @@
 		<string>_ghostmsg._tcp</string>
 	</array>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Ghost Messaging writes out a recorded call's words on this device. Nothing is sent anywhere.</string>
+	<string>Uplink writes out a recorded call's words on this device. Nothing is sent anywhere.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ghost Messaging uses the microphone for a voice message you record, and in a voice channel or call you join. It listens at no other time.</string>
+	<string>Uplink uses the microphone for a voice message you record, and in a voice channel or call you join. It listens at no other time.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Ghost Messaging uses the camera when you turn video on in a voice channel or call.</string>
+	<string>Uplink uses the camera when you turn video on in a voice channel or call.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Ghost Messaging plays, pauses and skips songs in Spotify when you start the music in a circle's call.</string>
+	<string>Uplink plays, pauses and skips songs in Spotify when you start the music in a circle's call.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Ghost Messaging takes the sound of the Spotify app to play it to the people in your call, and what your Mac plays when you share your screen with its sound.</string>
+	<string>Uplink takes the sound of the Spotify app to play it to the people in your call, and what your Mac plays when you share your screen with its sound.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Ghost Messaging finds your phone on the network you share, to show its texts and send through it without a server in between, and, where you switch the Local network route on, your own devices and your friends' on that network.</string>
+	<string>Uplink finds your phone on the network you share, to show its texts and send through it without a server in between, and, where you switch the Local network route on, your own devices and your friends' on that network.</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.social-networking</string>
 	<key>NSMainNibFile</key>

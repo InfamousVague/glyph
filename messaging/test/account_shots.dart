@@ -1,4 +1,4 @@
-// A Ghost account's screens drawn in every look (test/themes_test.dart): making one (the password, the words to write
+// An Uplink account's screens drawn in every look (test/themes_test.dart): making one (the password, the words to write
 // down, checking them), signing in (username and password, the texted code, the recovery words) and the devices signed
 // in. Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might need to add password based
 // authentication as well as SMS verification for verified numbers"; "i also want accounts to be generated based on

@@ -1,5 +1,5 @@
-// What the bridge keeps: its own key (its Ghost hub id stays the same across restarts), one seed per bridged Discord
-// voice channel, and the webhook it posts Ghost messages through in that channel. In bridges.json beside links.json,
+// What the bridge keeps: its own key (its Uplink hub id stays the same across restarts), one seed per bridged Discord
+// voice channel, and the webhook it posts Uplink messages through in that channel. In bridges.json beside links.json,
 // readable only by the service's user, written whole to a temporary file and renamed over the old one.
 //
 // A seed is 32 random bytes made once per (server, channel) and never derived from anything public: whoever has it
@@ -68,7 +68,7 @@ export class BridgeStore {
     this.save();
   }
 
-  /** Every webhook id the bridge posts through: messages from them are never passed back to Ghost. */
+  /** Every webhook id the bridge posts through: messages from them are never passed back to Uplink. */
   webhookIds() {
     return new Set([...this.channels.values()].map((v) => v.webhook?.id).filter(Boolean));
   }

@@ -43,7 +43,7 @@ Future<void> showWhatsNew(BuildContext context, [List<ReleaseNotes>? notes]) {
   return showMembersDrawer(
     context,
     title: 'What\'s new',
-    subtitle: shown.length == 1 ? 'Ghost Messaging ${shown.single.version}' : 'Since you last looked',
+    subtitle: shown.length == 1 ? 'Uplink ${shown.single.version}' : 'Since you last looked',
     face: const GhostLogo(size: 40),
     list: (_) => WhatsNewList(notes: shown),
   );

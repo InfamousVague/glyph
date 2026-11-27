@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Calls · Ghost Messaging docs</title>
+<title>Calls · Uplink docs</title>
 <meta name="description" content="Joining voice, the call's controls, each person's volume, and guests from a browser.">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
@@ -14,7 +14,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Uplink</span></a>
   <a class="brand-docs" href="/docs/">Docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -48,13 +48,13 @@
   <li><b>Afterwards</b> the chat keeps a line for it on both sides: a missed call, a declined one, or no answer.</li>
   <li><b>It is the same call</b> as a space's: everything on this page works in it, sharing your screen included.</li>
 </ul>
-<p><b>Ring when the app is closed (Android).</b> Ghost Messaging has no push service behind it, so a call can only ring on a phone that is connected, and Android disconnects an app soon after you leave it. To be rung anyway, switch on <span class="ui-path">Settings › Notifications › Ring when the app is closed</span>. The app then stays connected after you close it:</p>
+<p><b>Ring when the app is closed (Android).</b> Uplink has no push service behind it, so a call can only ring on a phone that is connected, and Android disconnects an app soon after you leave it. To be rung anyway, switch on <span class="ui-path">Settings › Notifications › Ring when the app is closed</span>. The app then stays connected after you close it:</p>
 <ul>
   <li>Android shows a small, quiet notification while it does (<b>Ready for calls</b>), and it uses some battery.</li>
-  <li>Say yes when Android asks whether Ghost Messaging may run unrestricted, or press <b>Run while the phone sleeps</b> under the switch. Without that, a phone left untouched for a while may hold the app back, and a call can ring late or not at all.</li>
-  <li>After the phone restarts, open Ghost Messaging once. A notification reminds you.</li>
+  <li>Say yes when Android asks whether Uplink may run unrestricted, or press <b>Run while the phone sleeps</b> under the switch. Without that, a phone left untouched for a while may hold the app back, and a call can ring late or not at all.</li>
+  <li>After the phone restarts, open Uplink once. A notification reminds you.</li>
 </ul>
-<p>It is off until you switch it on. With it off, a call made while your app is closed shows as a missed call the next time you open it. A computer rings while Ghost Messaging is open on it.</p>
+<p>It is off until you switch it on. With it off, a call made while your app is closed shows as a missed call the next time you open it. A computer rings while Uplink is open on it.</p>
 
 <h2 id="controls">In the call</h2>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Lounge</span></div><div class="m-body">
@@ -90,8 +90,8 @@
 <h2 id="screen">Share your screen</h2>
 <p>Open the call's menu (the three dots at its top) and press <b>Share screen</b>. It works on Mac, Windows, Linux and Android.</p>
 <ul>
-  <li><b>On a computer</b>, pick a whole screen or one window. On a Mac, the first time, allow Ghost Messaging in <span class="ui-path">System Settings › Privacy &amp; Security › Screen Recording</span>, then try again.</li>
-  <li><b>Its sound too</b>, on a Windows PC and a Mac: leave <b>Share sound too</b> on over the screens and windows, and what the computer plays goes with the picture. On a PC that is a window's own sound, or everything the PC plays for a whole screen. On a Mac it is everything the Mac plays, whichever you pick (macOS 14.4 or later; the Mac asks once whether Ghost Messaging may record system audio). The call's own voices are never part of it, so nobody hears themselves back. Linux and Android share the picture alone for now.</li>
+  <li><b>On a computer</b>, pick a whole screen or one window. On a Mac, the first time, allow Uplink in <span class="ui-path">System Settings › Privacy &amp; Security › Screen Recording</span>, then try again.</li>
+  <li><b>Its sound too</b>, on a Windows PC and a Mac: leave <b>Share sound too</b> on over the screens and windows, and what the computer plays goes with the picture. On a PC that is a window's own sound, or everything the PC plays for a whole screen. On a Mac it is everything the Mac plays, whichever you pick (macOS 14.4 or later; the Mac asks once whether Uplink may record system audio). The call's own voices are never part of it, so nobody hears themselves back. Linux and Android share the picture alone for now.</li>
   <li><b>On Android</b>, the phone asks before it shares, and you can choose one app or the whole screen. A notification says <b>Sharing your screen</b> while it's on.</li>
 </ul>
 <figure class="mock"><div class="m-screen"><div class="m-head"><span class="m-title">Lounge</span></div><div class="m-body">
@@ -141,7 +141,7 @@
   <div class="m-row m-raw"><span class="m-btn secondary"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#mic"/></svg><span>Microphone</span></span><span class="m-btn secondary"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#video"/></svg><span>Camera</span></span></div>
   <span class="m-btn primary tap"><span>Join</span></span>
 </div></div><figcaption>The browser page a space's link opens.</figcaption></figure>
-<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>Strict networks</b><p>Calls connect through Ghost's relay first, which gets through almost any network: a phone on a mobile network, a workplace, school or hotel network. If the relay can't be reached, the call tries a direct path between you instead, by itself. The relay passes the call along still encrypted between you: it can't hear or see it.</p></div></aside>
+<aside class="note info"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#info"/></svg><div><b>Strict networks</b><p>Calls connect through Uplink's relay first, which gets through almost any network: a phone on a mobile network, a workplace, school or hotel network. If the relay can't be reached, the call tries a direct path between you instead, by itself. The relay passes the call along still encrypted between you: it can't hear or see it.</p></div></aside>
 
 <h2 id="extras">With plugins</h2>
 <p>Add <a href="/docs/record-call/">Record call</a>, <a href="/docs/live-captions/">Live captions</a>, <a href="/docs/watch-together/">Watch together</a>, <a href="/docs/soundboard/">Soundboard</a>, <a href="/docs/spotify/">Spotify</a> or <a href="/docs/auto-leveler/">Auto leveler</a> for more in calls. They show in the call's menu, and Record call, Soundboard and Spotify put a button in the space's header.</p>

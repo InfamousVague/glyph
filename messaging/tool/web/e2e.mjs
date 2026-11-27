@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ghost Messaging in a browser, tried end to end as two people would use it (Matt: "the full web client"): a relay
+ * Uplink in a browser, tried end to end as two people would use it (Matt: "the full web client"): a relay
  * on this machine serving the built app, and real browser engines driving the page itself.
  *
  *   node tool/build-web.mjs                 first: build/web
@@ -230,7 +230,7 @@ class Seat {
     page.on('request', (r) => {
       const u = new URL(r.url());
       // Where the build names a hub elsewhere (--hub-port), what the page sends beside it over plain HTTP too: feedback
-      // (tool/lib/web_site.mjs sentBeside; a report goes nowhere from a page made for a relay not Ghost Messaging's).
+      // (tool/lib/web_site.mjs sentBeside; a report goes nowhere from a page made for a relay not Uplink's).
       if (hubPort && u.host === `127.0.0.1:${hubPort}` && (u.pathname === '/feedback' || u.pathname.startsWith('/files/'))) return;
       if (u.origin !== origin && !['data:', 'blob:', 'about:'].includes(u.protocol)) this.outside.add(`${u.origin}${u.pathname}`);
     });
@@ -715,7 +715,7 @@ async function run(engine) {
       await m.press('Contacts', { role: 'button' });
       await m.press('Add a friend');
       await m.type('Search by @username', sam.username);
-      await m.sees('On Ghost Messaging');
+      await m.sees('On Uplink');
       await m.press('Add', { role: 'button' });
       await m.sees('Friend request sent');
       await m.shot(`${engine}-Maya-4-asked`);
@@ -732,7 +732,7 @@ async function run(engine) {
     });
     const hello = `Hello Sam, from ${engine}`, answer = `And hello Maya, from ${engine}`;
     await step('Maya opens Sam from Contacts and writes to him', async () => {
-      await m.press(`${sam.username}, Ghost`);
+      await m.press(`${sam.username}, Uplink`);
       await m.sees('Friend · encrypted');
       await m.write('Encrypted message', hello);
       await m.sees(hello);
@@ -834,7 +834,7 @@ async function run(engine) {
     await step('a second tab of Maya\'s browser is told the app is open in another tab; "Use it here" moves it over', async () => {
       const second = await Seat.open(mayaBrowser, 'Maya (second tab)', origin);
       seats.push(second);
-      await second.sees('Ghost Messaging is open in another tab.');
+      await second.sees('Uplink is open in another tab.');
       await second.shot(`${engine}-Maya-9-second-tab`);
       // The first tab is still the app meanwhile.
       await m.sees(sam.username);
@@ -843,7 +843,7 @@ async function run(engine) {
       await second.sees(answer);
       // And the first tab, which gave way, now says what the second did.
       await m.ready();
-      await m.sees('Ghost Messaging is open in another tab.', { within: 30000 });
+      await m.sees('Uplink is open in another tab.', { within: 30000 });
       await m.shot(`${engine}-Maya-9-first-tab`);
       // From here Maya is in the tab that took over.
       m = second;
@@ -1006,7 +1006,7 @@ async function run(engine) {
       await s.press('Settings', { role: 'button' });
       await s.sees('Appearance');
       await s.wheelTo('Emoji', 'About');
-      await s.sees('Ghost Messaging in a browser');
+      await s.sees('Uplink in a browser');
       await (calls ? s.sees('Voice and video') : Promise.resolve());
       await (calls ? s.lacks('Sounds', 'Notifications', 'Updates', 'Your phone') : s.lacks('Voice and video', 'Sounds', 'Notifications', 'Updates', 'Your phone'));
       await s.press('About');
@@ -1066,7 +1066,7 @@ async function run(engine) {
       await elsewhere.sees('Messages', { within: 60000 });
       signIn = Date.now() - began;
       await elsewhere.press('Contacts', { role: 'button' });
-      await elsewhere.sees(`${sam.username}, Ghost`, { within: 30000 });
+      await elsewhere.sees(`${sam.username}, Uplink`, { within: 30000 });
       await elsewhere.shot(`${engine}-Maya-15-signed-in`);
       // Her conversation with Sam, said before this browser existed: her other browser, still open, hands it over
       // (GMFB-53: "none of my messages appear in the sidebar"; Friends.historyAsk). In the list, and opened, both ways.

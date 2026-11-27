@@ -182,10 +182,10 @@ final class UpdatesChannel: NSObject {
   /// Whether this app can replace itself where it is, or why not, in a sentence for the update card.
   static func cannotReplace(_ app: URL) -> String? {
     let parent = app.deletingLastPathComponent()
-    if app.path.contains("/AppTranslocation/") { return "Ghost Messaging is running from where it was downloaded. Move it to Applications first." }
-    if (try? app.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly == true { return "Ghost Messaging is running from a disk that can’t be written to." }
+    if app.path.contains("/AppTranslocation/") { return "Uplink is running from where it was downloaded. Move it to Applications first." }
+    if (try? app.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly == true { return "Uplink is running from a disk that can’t be written to." }
     let manager = FileManager.default
-    if !manager.isWritableFile(atPath: parent.path) || !manager.isWritableFile(atPath: app.path) { return "Ghost Messaging can’t write to \(parent.path)." }
+    if !manager.isWritableFile(atPath: parent.path) || !manager.isWritableFile(atPath: app.path) { return "Uplink can’t write to \(parent.path)." }
     return nil
   }
 
@@ -232,7 +232,7 @@ final class UpdatesChannel: NSObject {
       guard SecRequirementCreateWithString("anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"" as CFString, [], &requirement) == errSecSuccess else { return "the team’s requirement could not be made" }
     } else {
       #if !DEBUG
-      return "this copy of Ghost Messaging is not signed by its developer, so it can’t tell a real update from another app"
+      return "this copy of Uplink is not signed by its developer, so it can’t tell a real update from another app"
       #endif
     }
     let flags = SecCSFlags(rawValue: UInt32(kSecCSCheckAllArchitectures) | UInt32(kSecCSStrictValidate) | UInt32(kSecCSCheckNestedCode))
@@ -240,7 +240,7 @@ final class UpdatesChannel: NSObject {
     let status = SecStaticCodeCheckValidityWithErrors(code, flags, requirement, &error)
     guard status == errSecSuccess else {
       // A whole signature by somebody else is the requirement failing; anything else is a signature that is not whole.
-      if status == errSecCSReqFailed { return "the download is not signed by Ghost Messaging’s developer" }
+      if status == errSecCSReqFailed { return "the download is not signed by Uplink’s developer" }
       log("the download's signature: \(error?.takeRetainedValue().localizedDescription ?? "") (\(status))")
       return "the download’s signature is not whole (\(status))"
     }

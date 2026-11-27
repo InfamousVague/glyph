@@ -114,7 +114,7 @@ void main() {
     await settle(tester);
     final consent = _key('market-consent');
     expect(consent, findsOneWidget);
-    for (final line in ['By @maya', 'Reviewed by Ghost Messaging', 'Reads texts from numbers not in your contacts', 'Sorts texts into its own tabs and kinds', 'Can mark texts as read', 'Copies to your clipboard when you ask', 'It adds:', 'A Bills tab in the list', 'A kind in the list\'s filter: Receipts', 'Can mark Receipts texts as read as they come, once you switch it on']) {
+    for (final line in ['By @maya', 'Reviewed by Uplink', 'Reads texts from numbers not in your contacts', 'Sorts texts into its own tabs and kinds', 'Can mark texts as read', 'Copies to your clipboard when you ask', 'It adds:', 'A Bills tab in the list', 'A kind in the list\'s filter: Receipts', 'Can mark Receipts texts as read as they come, once you switch it on']) {
       expect(find.descendant(of: consent, matching: find.text(line)), findsOneWidget, reason: line);
     }
     expect(_key('market-consent-dev'), findsNothing);
@@ -139,7 +139,7 @@ void main() {
     expect(market.listings.single.needsNewerApp, isTrue);
     await page(tester, marketPluginsScreen(open: 'xbills'));
     expect(_key('plugins-detail-xbills'), findsOneWidget);
-    expect(find.text('Needs a newer Ghost Messaging'), findsOneWidget);
+    expect(find.text('Needs a newer Uplink'), findsOneWidget);
     await tester.tap(find.descendant(of: _key('plugins-detail-xbills'), matching: _key('plugins-add-xbills')), warnIfMissed: false);
     await settle(tester);
     expect(_key('market-consent'), findsNothing);
@@ -228,12 +228,12 @@ void main() {
     expect(find.descendant(of: _key('plugins-shelf-found'), matching: _key('plugins-card-xbills')), findsOneWidget);
   });
 
-  testWidgets('a store pack\'s page: Reviewed by Ghost Messaging; Remove asks, then removes', (tester) async {
+  testWidgets('a store pack\'s page: Reviewed by Uplink; Remove asks, then removes', (tester) async {
     await ready();
     await addStore(installed, billsPack(support: 'help@example.com'));
     await page(tester, marketPluginsScreen(open: 'xbills'));
     expect(_key('plugins-detail-xbills'), findsOneWidget);
-    expect(tester.widget<Text>(_key('plugins-detail-source')).data, 'By @maya\nReviewed by Ghost Messaging');
+    expect(tester.widget<Text>(_key('plugins-detail-source')).data, 'By @maya\nReviewed by Uplink');
     expect(_key('plugins-detail-reviewed'), findsOneWidget);
     expect(_key('plugins-detail-dev'), findsNothing);
     expect(find.text('Built-in plugins sort first: a text Codes, Spam filter or a kind of Kinds of text takes stays theirs.'), findsOneWidget);
@@ -287,7 +287,7 @@ void main() {
     await settle(tester);
     expect([for (final p in installed.store) p.id], ['parcels']);
     await page(tester, marketPluginsScreen(open: 'xparcels'));
-    expect(find.descendant(of: _key('plugins-detail-withdrawn'), matching: find.text('This version of Ghost Messaging can\'t check its review, so it\'s off. An update may fix it.')), findsOneWidget);
+    expect(find.descendant(of: _key('plugins-detail-withdrawn'), matching: find.text('This version of Uplink can\'t check its review, so it\'s off. An update may fix it.')), findsOneWidget);
     await tester.tap(find.descendant(of: _key('plugins-detail-xparcels'), matching: _key('plugins-remove-xparcels')));
     await settle(tester);
     await tester.ensureVisible(find.text('Remove Parcels'));
@@ -465,7 +465,7 @@ void main() {
     expect(find.byKey(const ValueKey('plugins-detail-xreceipts'), skipOffstage: false), findsNothing);
   });
 
-  testWidgets('an update that needs a newer Ghost Messaging isn\'t counted, nor offered on Updates or its page', (tester) async {
+  testWidgets('an update that needs a newer Uplink isn\'t counted, nor offered on Updates or its page', (tester) async {
     await ready();
     await addStore(installed, billsPack());
     await listed(tester, [billsPack(version: '1.1.0', minApp: '9.0.0')]);
@@ -592,7 +592,7 @@ void main() {
     final elsewhere = billsPack();
     await listed(tester, [elsewhere], entries: {'bills': await entryOf(elsewhere, by: KeysSigner(NetKeys.generate()))});
     await settle(tester);
-    expect(find.text('This version of Ghost Messaging can\'t check plugins from other developers. Update it to see them.'), findsOneWidget);
+    expect(find.text('This version of Uplink can\'t check plugins from other developers. Update it to see them.'), findsOneWidget);
     // The line is All's and From developers', not a shelf's of the app's own.
     await tester.tap(_key('plugins-chip-added'));
     await settle(tester);
@@ -714,7 +714,7 @@ void main() {
     await settle(tester);
     expect(_key('market-consent'), findsOneWidget);
     expect(_key('market-consent-dev'), findsOneWidget);
-    expect(find.text('Reviewed by Ghost Messaging'), findsNothing);
+    expect(find.text('Reviewed by Uplink'), findsNothing);
     expect(installed.devOf('bills')!.agreed, isNull, reason: 'nothing agreed to before the sheet is answered');
     await tester.ensureVisible(find.text('Switch it on'));
     await settle(tester);

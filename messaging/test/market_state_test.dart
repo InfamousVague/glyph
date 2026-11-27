@@ -20,7 +20,7 @@ import 'support/market_fakes.dart';
 /// The Marketplace as the device knows it (lib/market/market_state.dart; Matt, 2026-11-20: "I would like users to be
 /// able to develop and submit their own plugins to our plugin marketplace and I'd like to be able to verify them for
 /// the store through a review process"): what the relay sends is bounded, every listed package is fetched and checked
-/// before it is a listing, the withdrawals are read from Ghost Messaging's own relay too, signatures that verified are
+/// before it is a listing, the withdrawals are read from Uplink's own relay too, signatures that verified are
 /// not checked again, and the catalog's three problems. The packs, their approvals and the installer are the
 /// runtime's own (lib/plugins/pack); only the relay is made up (test/support/market_fakes.dart).
 void main() {
@@ -85,12 +85,12 @@ void main() {
     expect((await api.catalog())!.plugins, hasLength(2000));
   });
 
-  test('the withdrawals are read from Ghost Messaging\'s own relay too, where the market is another, and each is checked', () async {
+  test('the withdrawals are read from Uplink\'s own relay too, where the market is another, and each is checked', () async {
     final bills = billsPack();
     await addStore(installed, bills);
     final good = await signRevocation(reviewer, plugin: 'bills', sha256: sha256Hex(packBytes(bills)), why: 'It copied texts it shouldn\'t have');
     final forged = await signRevocation(KeysSigner(NetKeys.generate()), plugin: 'bills', sha256: 'f' * 64, why: 'Nobody pinned signed this');
-    // The market's own relay keeps it back; Ghost Messaging's says it.
+    // The market's own relay keeps it back; Uplink's says it.
     relay.revokedOf['gogho.st'] = {'ok': true, 'v': 1, 'at': 0, 'revoked': [good.toJson(), forged.toJson()], 'retired': []};
     final m = market();
     await m.refresh(force: true);
@@ -217,7 +217,7 @@ void main() {
     expect([for (final l in m.listings) l.id]..sort(), ['xbills', 'xparcels']);
   });
 
-  test('an update that needs a newer Ghost Messaging isn\'t offered until the app is updated', () async {
+  test('an update that needs a newer Uplink isn\'t offered until the app is updated', () async {
     // Counted on the ring and offered on Updates and its page, it was refused at every press (review, 2026-11-20).
     await addStore(installed, billsPack());
     await relay.list(billsPack(version: '1.1.0', minApp: '9.0.0'));
@@ -377,7 +377,7 @@ void main() {
     expect(NetCrypto.verify(base64Decode(c.headers['x-ghost-key']!), get, base64Decode(c.headers['x-ghost-sig']!)), isTrue);
     // With no identity, a signed call says why in the words of what it was for.
     final nobody = MarketApi(hubUrl: 'https://relay.test', transport: relay.call);
-    await expectLater(nobody.mine(), throwsA(isA<MarketError>().having((e) => e.code, 'code', 'no_identity').having((e) => e.message, 'message', startsWith('Submitting needs your Ghost identity'))));
+    await expectLater(nobody.mine(), throwsA(isA<MarketError>().having((e) => e.code, 'code', 'no_identity').having((e) => e.message, 'message', startsWith('Submitting needs your Uplink identity'))));
   });
 
   test('a PNG decoded in Dart alone: the plain ones drawn, an interlaced one or a broken one not', () {

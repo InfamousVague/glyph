@@ -10,7 +10,7 @@ import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
 
-/// At the top of the list of conversations, above its title and search, while a newer Ghost Messaging is waiting
+/// At the top of the list of conversations, above its title and search, while a newer Uplink is waiting
 /// (Matt, 2026-11-14: "move the update banner on desktop and mobile to show at the top of the sidebar above where it
 /// says messages and has the search bar"): what version, Update now, and a cross. It is part of the list's column, so
 /// it pushes the title down rather than lying over anything, and where the list stands beside a pane (a computer, a
@@ -50,7 +50,7 @@ class _UpdateCardState extends State<UpdateCard> {
   static String? line(UpdateState u, {bool short = false}) {
     final version = u.available;
     if (version == null || version.isEmpty) return null;
-    final what = short ? version : 'Ghost Messaging $version';
+    final what = short ? version : 'Uplink $version';
     return switch (u.phase) {
       'available' => '$what is out',
       'ready' => '$what is ready to install',

@@ -55,7 +55,7 @@ String networkSummary() {
 
 /// What an invitation says: where to get the app, in words a person would send. When they have it and the two
 /// phones text each other, the app offers to exchange keys, and that is what makes them reachable by the routes.
-const inviteText = 'Join me on Ghost Messaging: calls and private chats straight between our phones. Get it at https://gogho.st';
+const inviteText = 'Join me on Uplink: calls and private chats straight between our phones. Get it at https://gogho.st';
 
 /// Each route's icon in Settings › Routes.
 LucideIcon _routeIcon(String id) => switch (id) { 'hub' => Lucide.globe, 'sms' => Lucide.messageSquare, 'lan' => Lucide.wifi, P2pCarrier.routeId => Lucide.link2, _ => Lucide.network };
@@ -259,7 +259,7 @@ const lanSaysWords =
 
 /// Under [lanFoundWords]: whose devices are looked for, and when they are found.
 const lanFoundHint =
-    'Your own devices and your friends\', while they have Ghost Messaging open on the same Wi-Fi or wired network with this route switched on. A device is found within a few seconds of joining the network.';
+    'Your own devices and your friends\', while they have Uplink open on the same Wi-Fi or wired network with this route switched on. A device is found within a few seconds of joining the network.';
 
 /// Settings › Routes › Local network (GMFB-24): what the route finds and holds on this network now. Its own row, with
 /// its switch, is with the other routes above. [nameOf] names a person by their install's name.
@@ -639,11 +639,11 @@ List<Widget> networkPane(BuildContext context, SettingsModel m) {
             SettingRow(
               key: const ValueKey('relay-use-default'),
               icon: icon(Lucide.undo2),
-              label: 'Go back to Ghost Messaging\'s relay',
+              label: 'Go back to Uplink\'s relay',
               hint: const Tr('gogho.st, where everyone else is.'),
               onPress: () async {
                 await net.useRelay('');
-                if (context.mounted) toast(context, 'Using Ghost Messaging\'s relay again');
+                if (context.mounted) toast(context, 'Using Uplink\'s relay again');
               },
             ),
           SettingRowBox(child: RelayAddressField(net: net)),
@@ -774,7 +774,7 @@ String _hubLine(Net net) {
   };
 }
 
-/// Another relay's address, typed, checked and only then used (GMFB-25): a Ghost Messaging relay has to answer at it
+/// Another relay's address, typed, checked and only then used (GMFB-25): an Uplink relay has to answer at it
 /// ([Net.useRelay]), and the person is told what moving there means before anything changes.
 class RelayAddressField extends StatefulWidget {
   const RelayAddressField({super.key, required this.net, this.connect});
@@ -802,7 +802,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     widget.net.addListener(_moved);
   }
 
-  /// The relay changed elsewhere (Go back to Ghost Messaging's relay): the field follows, unless something else was
+  /// The relay changed elsewhere (Go back to Uplink's relay): the field follows, unless something else was
   /// typed in it meanwhile.
   void _moved() {
     final now = _inUse;
@@ -834,7 +834,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
     });
     if (r.problem != null || r.declined) return;
     _address.text = _shown = _inUse;
-    toast(context, widget.net.onDefaultHub ? 'Using Ghost Messaging\'s relay' : 'Using ${relayInUseWords(widget.net.hubUrl)}');
+    toast(context, widget.net.onDefaultHub ? 'Using Uplink\'s relay' : 'Using ${relayInUseWords(widget.net.hubUrl)}');
   }
 
   @override
@@ -860,7 +860,7 @@ class _RelayAddressFieldState extends State<RelayAddressField> {
         key: const ValueKey('relay-check-and-use'),
         icon: _checking ? const GhostSpinner(size: 18) : const AppIcon(Lucide.check, size: 18),
         label: _checking ? 'Checking it answers…' : 'Check it and use it',
-        hint: const Tr('Nothing changes unless a Ghost Messaging relay answers there.'),
+        hint: const Tr('Nothing changes unless an Uplink relay answers there.'),
         onPress: _checking ? null : _use,
       ),
     ]);

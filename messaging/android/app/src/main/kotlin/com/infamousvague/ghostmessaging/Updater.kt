@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 /**
  * The app's own updates, from the box: `apk.json` and the APK it names under [BASE], published by tool/release.mjs
  * (Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com"). Ghost Keyboard's Updater.kt, less its Offline
- * guard: this is the one place Ghost Messaging opens a connection to, and nothing of the person's goes with it.
+ * guard: this is the one place Uplink opens a connection to, and nothing of the person's goes with it.
  *
  * What makes it safe to install what was downloaded:
  * - the file is handed on only at exactly the size and SHA-256 that apk.json gives;

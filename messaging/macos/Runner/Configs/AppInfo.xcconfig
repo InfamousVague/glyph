@@ -11,4 +11,4 @@ PRODUCT_NAME = Ghost Messaging
 PRODUCT_BUNDLE_IDENTIFIER = com.infamousvague.ghostmessaging.mac
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Ghost Messaging for the Mac: your phone's texts, sealed between the two.
+PRODUCT_COPYRIGHT = Uplink for the Mac: your phone's texts, sealed between the two.

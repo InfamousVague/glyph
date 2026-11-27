@@ -50,7 +50,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
     return true;
   }
 
-  /// What a Ghost account asks of the install it is on (lib/account/account.dart, SmsAccountPort): answered here, on
+  /// What an Uplink account asks of the install it is on (lib/account/account.dart, SmsAccountPort): answered here, on
   /// this computer, and never passed to the phone. Passed on, as every call this does not answer is, a sign-in here
   /// would have put the account's identity into the phone and its words in the phone's vault (2026-11-18, found as
   /// Matt asked for "a way to login on desktop just to claim a username").
@@ -66,7 +66,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
   File _secretFile(String name) => File('${dir.path}/secret-${name.replaceAll(RegExp(r'[^a-z0-9_]'), '')}.key');
   File get _phoneAccountFile => File('${dir.path}/phone_account.json');
 
-  /// The Ghost account the phone is signed in to, as it last said in a handover: its address and username, so Settings
+  /// The Uplink account the phone is signed in to, as it last said in a handover: its address and username, so Settings
   /// › Me can ask this computer to sign in to the same one, and warn before another. Null where it is in none, or is a
   /// phone from before it said.
   ({String address, String username})? get phoneAccount {
@@ -190,7 +190,7 @@ class DeskOwnCalls extends UsernameOverlay implements CapableCalls, OwnNetworkCa
         return NetCrypto.sign(keys, (a['message'] as List).cast<int>());
       case 'netPeers' when keys != null:
         return UsernameChats.peersOf(buddyList, keys);
-      // A Ghost account on this computer ([accountCalls]): its identity, the account's words and password key kept
+      // An Uplink account on this computer ([accountCalls]): its identity, the account's words and password key kept
       // beside it (the Keychain, or this folder in a build of one's own, as the standalone computer keeps them), and a
       // clean start. None of these reaches the phone.
       case 'identityExport':

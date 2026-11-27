@@ -27,7 +27,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 
-  test('a handle is made a Ghost username where it can be one; a status is cut to fit', () {
+  test('a handle is made an Uplink username where it can be one; a status is cut to fit', () {
     expect(usernameFrom('@Maya.Chen'), 'maya.chen');
     expect(usernameFrom('maya-chen_99'), 'mayachen_99');
     expect(usernameFrom('ab'), '', reason: 'too short to be one');

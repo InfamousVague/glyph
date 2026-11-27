@@ -1,4 +1,4 @@
-// The bridge's Ghost protocol against the browser join page's own code (site/join/voice.js): the same rooms from a
+// The bridge's Uplink protocol against the browser join page's own code (site/join/voice.js): the same rooms from a
 // seed, packets each side can open, the same SDP changes, and the hub's sign-in.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

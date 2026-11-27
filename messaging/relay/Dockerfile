@@ -1,4 +1,4 @@
-# Ghost Messaging relay in a container (docs/SELF_HOSTING.md).
+# Uplink relay in a container (docs/SELF_HOSTING.md).
 #
 #   docker build -t ghost-relay .            # from messaging/relay
 #   docker run -d --name ghost-relay -p 127.0.0.1:8787:8787 -v ghost-relay-data:/data \

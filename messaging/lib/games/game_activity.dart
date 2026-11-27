@@ -86,7 +86,7 @@ class GameActivities extends ChangeNotifier {
   /// What this device is playing, as it would tell; null for nothing.
   GameActivity? mine;
 
-  /// What [id] (an install's name on Ghost) is playing, where they said so lately.
+  /// What [id] (an install's name on Uplink) is playing, where they said so lately.
   GameActivity? of(String? id) {
     if (id == null || id.isEmpty) return null;
     final t = _theirs[id];

@@ -18,7 +18,7 @@ import 'thread.dart' show LinkedText;
 /// the old AOL chatrooms"): no bubbles and no faces, each message one run of words, a bold coloured "Name:" and then
 /// what they said, wrapping back to the left edge under the name, all inside one white well sunk into the window.
 ///
-/// The three conversations that draw bubbles (texts and Ghost in lib/ui/thread.dart, Telegram and Signal in
+/// The three conversations that draw bubbles (texts and Uplink in lib/ui/thread.dart, Telegram and Signal in
 /// lib/ui/inbox_ui.dart, a space's chat in lib/ui/hangout_screen.dart) draw these instead while [drawsLines], so the
 /// look is the same in all three; every other look keeps its bubbles exactly as they were.
 

@@ -17,7 +17,7 @@ class WindowTitle extends StatefulWidget {
   final Widget child;
 
   /// What the title bar says with nothing open.
-  static const app = 'Ghost Messaging';
+  static const app = 'Uplink';
 
   /// The open circle's name, else the open conversation's; null with neither. Changes after the frame in which a
   /// page came or went, never during one.

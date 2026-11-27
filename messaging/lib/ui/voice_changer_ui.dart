@@ -230,7 +230,7 @@ class _VoiceChangerKeyScreenState extends State<VoiceChangerKeyScreen> {
         child: ListView(padding: pad, keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, children: [
           SettingsCallout(
             icon: AppIcon(Lucide.info, size: 18),
-            child: const Tr('With this key, each voice message you send while Voice changer is on goes from this device to ElevenLabs to be changed, and counts against your ElevenLabs plan. Ghost\'s servers never see the key or the recording.'),
+            child: const Tr('With this key, each voice message you send while Voice changer is on goes from this device to ElevenLabs to be changed, and counts against your ElevenLabs plan. Uplink\'s servers never see the key or the recording.'),
           ),
           SizedBox(height: t.space(4)),
           PaneSection(

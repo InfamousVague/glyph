@@ -18,7 +18,7 @@ import '../l10n/words.dart';
 /// top shows the choice as it will look.
 ///
 /// A conversation's background can sync with its [people]: as the page is left, what the conversation now wears is
-/// sent to them as a text their copy of Ghost Messaging wears too. It is on by itself where everyone is known to have
+/// sent to them as a text their copy of Uplink wears too. It is on by itself where everyone is known to have
 /// the app, and can be switched on for someone who is not known to yet.
 class BackgroundPicker extends StatefulWidget {
   const BackgroundPicker({super.key, this.thread, this.who, this.people = const []});
@@ -40,7 +40,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
   bool _mixing = false;
   bool _busy = false;
 
-  /// Whether everyone here is known to have Ghost Messaging; null until Android has said.
+  /// Whether everyone here is known to have Uplink; null until Android has said.
   bool? _known;
 
   /// Something was chosen, or syncing switched on, while the page was open: there may be something to send.
@@ -163,8 +163,8 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                 if (_canSync) ...[
                   PaneSection(
                     footer: Text(_known == true
-                        ? 'When you leave this page, what this conversation wears is sent to $_them as a text, and their Ghost Messaging wears it too. What they choose comes back the same way.'
-                        : '${widget.people.length > 1 ? 'Not everyone here is' : '${widget.people.first.label} isn\'t'} known to have Ghost Messaging yet. It is known once a key or a background has come from them. To anyone without the app, the background arrives as a text of letters.'),
+                        ? 'When you leave this page, what this conversation wears is sent to $_them as a text, and their Uplink wears it too. What they choose comes back the same way.'
+                        : '${widget.people.length > 1 ? 'Not everyone here is' : '${widget.people.first.label} isn\'t'} known to have Uplink yet. It is known once a key or a background has come from them. To anyone without the app, the background arrives as a text of letters.'),
                     children: [
                       SettingRow(
                         icon: const AppIcon(Lucide.refreshCw, size: 18),
@@ -273,7 +273,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
                   SizedBox(height: t.space(5)),
                   PaneSection(
                     title: 'Shared backgrounds',
-                    footer: const Tr('Someone with Ghost Messaging can sync a conversation\'s background with you, and you with them, from the conversation\'s header. It travels as a text in the conversation. Off, theirs is not worn here.'),
+                    footer: const Tr('Someone with Uplink can sync a conversation\'s background with you, and you with them, from the conversation\'s header. It travels as a text in the conversation. Off, theirs is not worn here.'),
                     children: [
                       SettingRow(
                         icon: const AppIcon(Lucide.refreshCw, size: 18),

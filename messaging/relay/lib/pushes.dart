@@ -189,7 +189,7 @@ class Apns {
   }
 
   /// The notification itself: words only, since the relay cannot read what came.
-  static const payload = '{"aps":{"alert":{"title":"Ghost Messaging","body":"New message"},"sound":"default","thread-id":"ghost"}}';
+  static const payload = '{"aps":{"alert":{"title":"Uplink","body":"New message"},"sound":"default","thread-id":"ghost"}}';
 
   /// What curl is run with to post [payload] to [url], and what it is given on its standard input: the headers, one
   /// a line (`-H @-`), so the provider token [jwt] is never among the arguments, which anyone on the machine can read

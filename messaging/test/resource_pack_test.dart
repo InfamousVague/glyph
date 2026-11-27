@@ -201,7 +201,7 @@ void main() {
       expect(ResourcePacks.chosen(app), ResourcePacks.usual, reason: 'the pack chosen where none ever was');
       await packs.start(app);
       await Future<void>.delayed(const Duration(milliseconds: 30));
-      expect([asked, packs.current, packs.fetching, packs.failed], [isEmpty, isNull, isNull, isNull], reason: 'Ghost is the look: the hub is not asked');
+      expect([asked, packs.current, packs.fetching, packs.failed], [isEmpty, isNull, isNull, isNull], reason: 'Uplink is the look: the hub is not asked');
 
       app.setLook(Look.runestone);
       expect(packs.usedBy(app), isNull, reason: 'flat stone until it is here');

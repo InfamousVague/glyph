@@ -123,7 +123,7 @@ class ApiServer {
       final path = r.uri.path;
       if (path == '/' || path.isEmpty) {
         res.headers.contentType = ContentType.text;
-        res.write('Ghost Messaging API. GET /api with "Authorization: Bearer <token>" (Settings › API) lists every method.\n');
+        res.write('Uplink API. GET /api with "Authorization: Bearer <token>" (Settings › API) lists every method.\n');
         await res.close();
         return;
       }

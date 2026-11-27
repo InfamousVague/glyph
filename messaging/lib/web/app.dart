@@ -33,7 +33,7 @@ import 'settings.dart';
 import 'store.dart';
 import '../l10n/words.dart';
 
-/// Ghost Messaging in a web page (Matt: "the full web client"; docs/OPEN_NETWORK.md, part 6): one more device of an
+/// Uplink in a web page (Matt: "the full web client"; docs/OPEN_NETWORK.md, part 6): one more device of an
 /// account, running as a computer with no phone linked does ([Sms.standalone], lib/standalone), on the same calls
 /// ([StandaloneCalls]) with the browser's own store under them (store.dart).
 ///
@@ -55,7 +55,7 @@ Future<void> webMain({Browser? browser}) async {
   if (hold == null) {
     // Open in another tab already: said, with the way to have it here instead.
     return runApp(WebNotice(
-      words: 'Ghost Messaging is open in another tab.',
+      words: 'Uplink is open in another tab.',
       more: 'It runs in one tab at a time, so each message arrives once.',
       action: 'Use it here',
       onAction: () async {
@@ -144,7 +144,7 @@ Future<void> _start(Browser b) async {
   } catch (_) {
     return runApp(const WebNotice(
       words: 'This browser won\'t keep anything for this page.',
-      more: 'Ghost Messaging keeps who you are and your conversations in the browser. A private window, or a browser set to keep nothing, has nowhere for them.',
+      more: 'Uplink keeps who you are and your conversations in the browser. A private window, or a browser set to keep nothing, has nowhere for them.',
     ));
   }
   // Kept through a browser running short of space, where it agrees to (each browser decides; a site visited often, or
@@ -168,7 +168,7 @@ Future<void> _start(Browser b) async {
     // so nothing is put over what is there.
     kept.close();
     return runApp(WebNotice(
-      words: 'Ghost Messaging couldn\'t read what this browser keeps for it just now.',
+      words: 'Uplink couldn\'t read what this browser keeps for it just now.',
       more: 'Nothing was changed. Try again in a moment; if it keeps happening, the browser may be short of space.',
       action: 'Try again',
       onAction: () async => b.reload(),
@@ -285,7 +285,7 @@ class WebApp extends StatelessWidget {
         child: ListenableBuilder(
           listenable: state,
           builder: (context, _) => WidgetsApp(
-            title: 'Ghost Messaging',
+            title: 'Uplink',
             color: const Color(0xFF4F5BD5),
             debugShowCheckedModeBanner: false,
             pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),

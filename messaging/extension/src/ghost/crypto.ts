@@ -1,11 +1,11 @@
-// The cryptography of a Ghost Messaging account, ported to the browser from the app's Dart so that the extension
+// The cryptography of an Uplink account, ported to the browser from the app's Dart so that the extension
 // arrives at the same keys the app does: messaging/lib/account/account_crypto.dart and messaging/lib/net/crypto.dart.
 // Every constant and label here is copied from there; a mismatch would seal a blob the app cannot open.
 //
 // - Recovery words -> BIP-39 seed (PBKDF2-HMAC-SHA512, 2048 rounds, salt "mnemonic").
 // - Seed -> secp256k1 account key (BIP-32 m/44'/60'/0'/0/0); its EIP-55 address is the account id; it signs the
 //   EIP-191 messages the relay checks (acct-seed).
-// - Seed -> P-256 "Ghost identity" (HKDF-SHA256); a device is known to the hub by it, and all of an account's devices
+// - Seed -> P-256 "Uplink identity" (HKDF-SHA256); a device is known to the hub by it, and all of an account's devices
 //   share it. The extension connects to the hub as this identity.
 // - The sealed backup (opened with the seed) carries the real identity private key and `kept_key`, from which the
 //   cURL-entry seal key is derived.
@@ -230,9 +230,9 @@ export async function openSeedBackup(seed: Bytes, address: string, blob: string)
 
 export interface AccountBackup {
   words: string[];
-  /** The Ghost identity's private key, 32 bytes as hex. */
+  /** The Uplink identity's private key, 32 bytes as hex. */
   identity: string;
-  /** The key Ghost's own kept lists (and ours) are sealed with. */
+  /** The key Uplink's own kept lists (and ours) are sealed with. */
   keptKey: string;
   username: string;
 }

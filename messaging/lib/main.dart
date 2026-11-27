@@ -107,7 +107,7 @@ void _logErrors() {
   };
 }
 
-/// Ghost Messaging: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
+/// Uplink: an SMS/MMS app drawn with Glacier and Ghost.md's stylesheets, as Ghost Keyboard's settings are.
 /// The messages themselves are Android's (android/.../Store.kt); this is the screen over them.
 ///
 /// Where the app starts on every platform. A computer goes off to lib/desktop; a phone reads what must be read
@@ -130,7 +130,7 @@ Future<void> main() async {
     });
   }
   // An iPhone has no texts for an app to read (Apple allows it only in the EU, to the default messaging app), so it is
-  // Ghost Messaging of its own: friends by username, groups and calls over the internet (lib/standalone; Matt,
+  // Uplink of its own: friends by username, groups and calls over the internet (lib/standalone; Matt,
   // 2026-11-15: "roll a version of the app that works without sms"). One already paired with an Android phone as a
   // computer is (lib/desktop) stays that phone's companion.
   if (PlatformInfo.isIOS) {
@@ -183,7 +183,7 @@ Future<void> main() async {
   // to develop and submit their own plugins to our plugin marketplace"): read from this phone's folder and each checked
   // again before any screen or the API asks the registry. At most three seconds; a slower disk finishes after.
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
-  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // Which plugins are on, synced across the Uplink account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
   // person's switches heard from here on; the account's list is met once the relay is reached.
   PluginSync.instance.start(state);
   // What the phone's side needs to keep a hidden kind's texts from notifying with the app closed (GMFB-18, Matt, Android
@@ -280,7 +280,7 @@ class GhostMessagingApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: state,
         builder: (context, _) => WidgetsApp(
-          title: 'Ghost Messaging',
+          title: 'Uplink',
           navigatorKey: _navigator,
           // Each page that opens asks for a look for a newer version (lib/ui/update_banner.dart).
           navigatorObservers: [UpdateWatch()],
@@ -311,7 +311,7 @@ class GhostMessagingApp extends StatelessWidget {
   }
 }
 
-/// Setup until Ghost is the default SMS app, then the conversations. A notification or another app's "text this
+/// Setup until Uplink is the default SMS app, then the conversations. A notification or another app's "text this
 /// number" opens what it asks for over them.
 class _Home extends StatefulWidget {
   const _Home();
@@ -326,7 +326,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
 
   /// Each page that opens in the pane asks for a look for a newer version, as each page of the app does.
   final _paneWatch = <NavigatorObserver>[UpdateWatch()];
-  /// The walkthrough is open (it opened because Ghost could not send texts), until it is finished.
+  /// The walkthrough is open (it opened because Uplink could not send texts), until it is finished.
   bool _walking = false;
 
   /// Joins in circles, notified (once for the app's life).
@@ -422,7 +422,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       // Once the networks are up, the account's sign-ins brought into step at once (lib/inbox/curl_sync.dart): at the
       // relay's hello the helpers were still starting, and what this phone holds would wait for the timer.
       unawaited(Inbox.instance.start(app).then((_) => CurlSync.instance.pull()));
-      // Their new messages notified, and the phone kept connected to them while Ghost is out of sight
+      // Their new messages notified, and the phone kept connected to them while Uplink is out of sight
       // (lib/inbox/alerts.dart).
       // Why Android keeps the app running after its screen is closed: networks signed in, and a friend's call to ring
       // where the person chose that (lib/keep_running.dart, GMFB-28).
@@ -444,7 +444,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
         inFront: () => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
         on: () => app.flag('notif_mentions'),
       );
-      // Someone new in one of this phone's circles, notified while Ghost is in the background (in front, the list says
+      // Someone new in one of this phone's circles, notified while Uplink is in the background (in front, the list says
       // it: lib/ui/shell.dart). Matt, 2026-11-19: "add join notifications for memebers in circles".
       _circleJoins ??= Circles.instance.joined.listen((j) {
         if (!app.flag('notif_joins') || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) return;
@@ -571,7 +571,7 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_isDefault == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
-    // The walkthrough (lib/onboarding): from first launch, while Ghost cannot send texts, and on until it is
+    // The walkthrough (lib/onboarding): from first launch, while Uplink cannot send texts, and on until it is
     // finished, though the texts page makes it able to part way through.
     if (!_isDefault! || _walking) {
       _walking = true;

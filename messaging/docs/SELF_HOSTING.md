@@ -1,6 +1,6 @@
 # Running your own relay
 
-GMFB-25, "Self-hosting the relay, documented", from the gap review against Uplink. Ghost Messaging's relay is one
+GMFB-25, "Self-hosting the relay, documented", from the gap review against Uplink. Uplink's relay is one
 small Dart program with no dependencies beyond Dart's own library (`relay/`). Anyone can run it and point their app at
 it in **Settings › Routes › Relay server**. This page covers how to run it, what it needs, and, before you start,
 what you give up by moving to it.
@@ -28,7 +28,7 @@ relay in use whether it passes messages to other relays, as that relay says itse
 | Circle invite words (`gogho.st/c/<word>`) | Kept on each relay apart. A word made on your relay works typed into **Join a circle** by people on your relay; the gogho.st/c/ page only knows gogho.st's words. |
 | Files spaces | Kept on your relay's disk, for people on your relay. |
 | Texts (SMS, including encrypted texts and data texts) | Unchanged: they go over the phone network, not through any relay. |
-| The Marketplace (browsing, installing, reporting a plugin or a person) | Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay. |
+| The Marketplace (browsing, installing, reporting a plugin or a person) | Always Uplink's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay. |
 | Verifying your number, linking Discord, X, Telegram | Off unless you set up your own Twilio Verify service and your own apps with those networks (the env file below). |
 | Waking a closed iPhone | Not possible: it needs Apple's push key for the app's bundle id, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened. |
 | Share feedback | Goes to your relay where you set up a Notion board for it. Where you didn't, the app sends it to gogho.st instead, since it is about the app (the browser client can't: it speaks only to the relay it came from). |
@@ -88,7 +88,7 @@ One program on one port (8787 unless told otherwise), plain HTTP and WebSockets:
 | `/word/<hash>` | A circle's invite word, for a web page like gogho.st's /c/. |
 | `/link/...` | The pages a network sign-in comes back to (only with those networks set up). |
 | `/market/...` | A Marketplace. The apps never read yours (above); the sample env file closes it. |
-| `/feedback`, `/bounty` | Ghost Messaging's own feedback board and bug bounty; off without their variables. |
+| `/feedback`, `/bounty` | Uplink's own feedback board and bug bounty; off without their variables. |
 | `/app/...` | The app in a browser, as plain files, with `--web` (or `GHOST_WEB_DIR`); `/app/clear-site-data` answers `Clear-Site-Data: "storage"` to the page's own asking (`Sec-Fetch-Site: same-origin`) as it signs out, and is a file that isn't there to anything else. None without it. |
 | anything else | `Ghost Messaging relay` as plain text: a quick check that it is up. |
 
@@ -119,7 +119,7 @@ link only on one network), the app in a browser (`GHOST_WEB_DIR`; and `GHOST_APP
 from where that is one of its own, whose page may then read the answers to the reports and feedback it sends, and
 nothing else), Files limits (`GHOST_FILES_*`, lower `GHOST_FILES_TOTAL` to fit your disk), Twilio Verify for number
 checks (`GHOST_TWILIO_*`), network sign-ins (`GHOST_DISCORD_*`, `GHOST_X_*`, `GHOST_TELEGRAM_*`,
-`GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only Ghost Messaging's own relay
+`GHOST_GITHUB_TOKEN`). The rest (`GHOST_APNS_*`, `GHOST_NOTION_*`, `GHOST_BOUNTY_KEY`) only Uplink's own relay
 can use; leave them empty.
 
 ```sh
@@ -269,7 +269,7 @@ The apps also make direct links between a person's own devices and their friends
 2): a second way through beside the relay, and how an app checks what the relay tells it. Two devices on one network
 link by themselves. Across networks they need a **link helper**: a server both can reach, which tells each the address
 the internet sees it at, passes their first packets, and carries their traffic for as long as no straight path can be
-made. It is iroh's relay server, `iroh-relay`. It is not the Ghost Messaging relay, and the two know nothing of each
+made. It is iroh's relay server, `iroh-relay`. It is not the Uplink relay, and the two know nothing of each
 other.
 
 iroh's makers run public ones, for "development and hobby use only", so the app ships with none: it uses the ones its
@@ -313,7 +313,7 @@ curl -s http://127.0.0.1:7845/metrics                # on the server: what it ha
 
 What to know before relying on it:
 
-- **Anyone who knows the address can link through it**, Ghost Messaging or not: the apps' device ids are known to no
+- **Anyone who knows the address can link through it**, Uplink or not: the apps' device ids are known to no
   server, so there is no list to hold a caller to. What bounds it is the limit in the settings (one device may send
   256 KiB a second through it, after a first megabyte) and the service's memory and processor. A device that sends
   more than that is slowed, not cut off, and whatever else it is sending through the helper waits behind the load
@@ -334,9 +334,9 @@ What to know before relying on it:
 
 On each phone: **Settings › Routes › Relay server**. Type your relay's address (`relay.example.com` is enough; it
 becomes `wss://relay.example.com/hub`) and press **Check it and use it**. The app connects and waits for the hub's
-greeting; if a Ghost Messaging relay doesn't answer, nothing changes and it says why. If one does, it says what moving
+greeting; if an Uplink relay doesn't answer, nothing changes and it says why. If one does, it says what moving
 means (above) and switches only when you say so. The section always shows which relay is in use, and on your own a
-**Go back to Ghost Messaging's relay** row switches back in one press.
+**Go back to Uplink's relay** row switches back in one press.
 
 Everyone you want in a circle, a space or a call with has to set the same address. A friend can also be on another
 relay, where yours and theirs talk to each other (above): add them as `@name@their.relay`.

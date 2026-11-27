@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join a circle · Ghost Messaging</title>
-<meta name="description" content="A Ghost Messaging circle's invite.">
+<title>Join a circle · Uplink</title>
+<meta name="description" content="An Uplink circle's invite.">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -36,7 +36,7 @@
   <img src="/icon.png" alt="">
   <h1 id="title">Opening the invite…</h1>
   <p id="line">Looking up this circle.</p>
-  <div><a class="btn" href="/">Get Ghost Messaging</a></div>
+  <div><a class="btn" href="/">Get Uplink</a></div>
 </main>
 <script>
 (async () => {
@@ -49,7 +49,7 @@
   let w = decodeURIComponent(location.pathname.replace(/^\/c\//, '').replace(/\/$/, '')).trim().toLowerCase();
   w = w.replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '');
   if (w.length < 3 || w.length > 32) return fail('That isn’t an invite', 'An invite word is 3 to 32 letters, numbers or hyphens.');
-  document.title = `${w} · Ghost Messaging`;
+  document.title = `${w} · Uplink`;
 
   const enc = new TextEncoder();
   const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');

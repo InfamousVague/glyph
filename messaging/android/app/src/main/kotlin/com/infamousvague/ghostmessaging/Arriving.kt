@@ -9,7 +9,7 @@ import android.provider.Settings
 import android.provider.Telephony
 
 /**
- * Coming to Ghost Messaging from another texting app (Matt, 2026-11-13: a friend's "messages disappeared they didn't
+ * Coming to Uplink from another texting app (Matt, 2026-11-13: a friend's "messages disappeared they didn't
  * load into ghost messaging", "messages are also not coming through for him", then "can you detect this somehow and
  * then instruct the user how to fix it?").
  *

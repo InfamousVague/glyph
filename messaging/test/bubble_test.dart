@@ -84,7 +84,7 @@ void main() {
     expect(find.bySemanticsLabel('Back'), findsNothing, reason: 'there is no list behind a bubble');
     expect(asked.where((c) => c.method == 'setOpenThread').map((c) => (c.arguments as Map)['thread']), contains(4));
 
-    await tester.tap(find.bySemanticsLabel('Open in Ghost Messaging'));
+    await tester.tap(find.bySemanticsLabel('Open in Uplink'));
     await tester.pump();
     final open = asked.where((c) => c.method == 'openInApp').toList();
     expect(open, hasLength(1));

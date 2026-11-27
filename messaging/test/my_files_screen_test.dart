@@ -187,7 +187,7 @@ void main() {
       expect(await go(), contains('No connection'));
       up.failing = true;
       expect(await go(), 'Can\'t reach the files server.');
-      expect(await sendPathToFriend(friend('maya'), f.path, up, mineKey: () async => null, send: (_, _) async => true, byName: 'matt'), contains('need a Ghost account'));
+      expect(await sendPathToFriend(friend('maya'), f.path, up, mineKey: () async => null, send: (_, _) async => true, byName: 'matt'), contains('need an Uplink account'));
       expect(sent, hasLength(1));
     });
   });

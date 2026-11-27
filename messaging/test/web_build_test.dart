@@ -18,11 +18,11 @@ void main() {
     // What `flutter build web` fills in and writes: without either the built page loads nothing.
     expect(page, contains(r'<base href="$FLUTTER_BASE_HREF">'));
     expect(page, contains('<script src="flutter_bootstrap.js" async></script>'));
-    expect(page, contains('<title>Ghost Messaging</title>'));
+    expect(page, contains('<title>Uplink</title>'));
     final named = RegExp(r'href="([^"$]+\.(?:png|json))"').allMatches(page).map((m) => m.group(1)!).toList();
     expect(named, containsAll(['favicon.png', 'manifest.json', 'icons/Icon-192.png']));
     final manifest = jsonDecode(File('web/manifest.json').readAsStringSync()) as Map;
-    expect(manifest['name'], 'Ghost Messaging');
+    expect(manifest['name'], 'Uplink');
     final icons = [for (final i in manifest['icons'] as List) (i as Map)['src'] as String];
     expect(icons, hasLength(4));
     for (final file in [...named, ...icons]) {
@@ -95,7 +95,7 @@ void main() {
     final lock = ((jsonDecode(File('extension/package-lock.json').readAsStringSync()) as Map)['packages'] as Map)['node_modules/@noble/hashes'] as Map;
     expect(pin, matches(RegExp(r'^\d+\.\d+\.\d+$')), reason: 'one version, not a range');
     expect(lock['version'], pin);
-    expect(worker, startsWith('/* Argon2id for Ghost Messaging in a browser'));
+    expect(worker, startsWith('/* Argon2id for Uplink in a browser'));
     expect(worker, contains('Written by tool/web/build-argon2.mjs'));
     expect(worker, contains('From @noble/hashes $pin (${lock['integrity']})'));
     expect(worker, contains('MIT licensed'));

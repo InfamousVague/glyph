@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>The browser extension · Ghost Messaging docs</title>
+<title>The browser extension · Uplink docs</title>
 <meta name="description" content="Sign in to your chat networks once, in your browser, and every device of yours is signed in too.">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
@@ -14,7 +14,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Uplink</span></a>
   <a class="brand-docs" href="/docs/">Docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -30,8 +30,8 @@
     <div class="crumb">Computers</div>
     <h1>The browser extension</h1>
     <p class="lede">Sign in to your chat networks once, in your browser, and every device of yours is signed in too.</p>
-    <p>Some chat networks have no way in for other apps, so Ghost signs in to them with your browser's own sign-in. The <b>Ghost Messaging keys</b> extension does that part for you: sign in to them as you always do, in Chrome, and every device signed in to your Ghost account is signed in too. No copying anything from one device to the next.</p>
-<p>Today that's <b>Messenger</b>, <b>Instagram</b>, <b>Discord</b>, <b>X</b>, <b>Slack</b> and <b>Google Messages</b> (RCS). Networks that sign in this way are added to the extension as Ghost gains them.</p>
+    <p>Some chat networks have no way in for other apps, so Uplink signs in to them with your browser's own sign-in. The <b>Uplink keys</b> extension does that part for you: sign in to them as you always do, in Chrome, and every device signed in to your Uplink account is signed in too. No copying anything from one device to the next.</p>
+<p>Today that's <b>Messenger</b>, <b>Instagram</b>, <b>Discord</b>, <b>X</b>, <b>Slack</b> and <b>Google Messages</b> (RCS). Networks that sign in this way are added to the extension as Uplink gains them.</p>
 
 <p><b><a href="/ghost-messaging-keys.zip" download>Download the extension</a></b> (for Chrome and browsers built on it; version 0.2.1)</p>
 
@@ -45,28 +45,28 @@
 <p>Go to <code>chrome://extensions</code> and turn on <span class="ui-path">Developer mode</span>, at the top right.</p>
 </div></li>
 <li class="step"><div class="step-body"><h3>Load it</h3>
-<p>Click <span class="ui-path">Load unpacked</span> and choose the folder you unzipped. <b>Ghost Messaging keys</b> appears in the list; pin it from the puzzle piece in the toolbar so it's at hand.</p>
+<p>Click <span class="ui-path">Load unpacked</span> and choose the folder you unzipped. <b>Uplink keys</b> appears in the list; pin it from the puzzle piece in the toolbar so it's at hand.</p>
 </div></li>
-<li class="step"><div class="step-body"><h3>Sign in to your Ghost account</h3>
-<p>Click the extension and sign in with your Ghost username and password. If your account has a verified phone number, choose <span class="ui-path">Text me a code</span> and type the code it sends. That's what lets it seal your sign-ins so only your devices can open them.</p>
+<li class="step"><div class="step-body"><h3>Sign in to your Uplink account</h3>
+<p>Click the extension and sign in with your Uplink username and password. If your account has a verified phone number, choose <span class="ui-path">Text me a code</span> and type the code it sends. That's what lets it seal your sign-ins so only your devices can open them.</p>
 </div></li>
 </ol>
 
 <h2 id="use">Using it</h2>
-<p>Sign in to a network in that browser: <b>Messenger</b> (messenger.com or facebook.com), <b>Instagram</b>, <b>Discord</b>, <b>X</b> or <b>Slack</b>. Discord and Slack need a page of theirs opened once after you sign in, so the extension sees the sign-in they send with each request. Google Messages is set up apart, <a href="#google-messages">below</a>. A few seconds later the extension seals that sign-in and hands it to Ghost's relay. Each of your devices picks it up, switches on that plugin (<span class="ui-path">Settings › Connections › Plugins</span>) and signs in. When the sites refresh your sign-in, it's sent again by itself.</p>
-<p>To stop, sign out of the extension or remove it from Chrome. Your devices keep the sign-ins they already have until you sign out of those plugins in Ghost.</p>
+<p>Sign in to a network in that browser: <b>Messenger</b> (messenger.com or facebook.com), <b>Instagram</b>, <b>Discord</b>, <b>X</b> or <b>Slack</b>. Discord and Slack need a page of theirs opened once after you sign in, so the extension sees the sign-in they send with each request. Google Messages is set up apart, <a href="#google-messages">below</a>. A few seconds later the extension seals that sign-in and hands it to Uplink's relay. Each of your devices picks it up, switches on that plugin (<span class="ui-path">Settings › Connections › Plugins</span>) and signs in. When the sites refresh your sign-in, it's sent again by itself.</p>
+<p>To stop, sign out of the extension or remove it from Chrome. Your devices keep the sign-ins they already have until you sign out of those plugins in Uplink.</p>
 
 <h2 id="google-messages">Google Messages (RCS)</h2>
 <p>Setting up Google Messages by Google account normally means a private window, signing in to Google, and copying a request out of the browser's developer tools. The extension does those for you:</p>
 <ol class="steps">
 <li class="step"><div class="step-body"><h3>Let it into private windows</h3>
-<p>In <code>chrome://extensions</code>, open <span class="ui-path">Details</span> on Ghost Messaging keys and turn on <span class="ui-path">Allow in Incognito</span>. It only ever opens its own private window, for this.</p>
+<p>In <code>chrome://extensions</code>, open <span class="ui-path">Details</span> on Uplink keys and turn on <span class="ui-path">Allow in Incognito</span>. It only ever opens its own private window, for this.</p>
 </div></li>
 <li class="step"><div class="step-body"><h3>Set up Google Messages</h3>
-<p>In the extension, choose <span class="ui-path">Set up Google Messages</span>. A private window opens on Google's sign-in: sign in with the Google account your Google Messages uses. The window closes by itself once Ghost has the sign-in, which keeps it as it was.</p>
+<p>In the extension, choose <span class="ui-path">Set up Google Messages</span>. A private window opens on Google's sign-in: sign in with the Google account your Google Messages uses. The window closes by itself once Uplink has the sign-in, which keeps it as it was.</p>
 </div></li>
-<li class="step"><div class="step-body"><h3>Pair in Ghost</h3>
-<p>On the device you want it on, open Google Messages' setup (<span class="ui-path">Settings › Google Messages</span>) and choose <span class="ui-path">Use the Google sign-in from your browser</span>. Google Messages on your phone asks you to tap an emoji: tap the one Ghost shows. That last tap is Google's, and can't be skipped.</p>
+<li class="step"><div class="step-body"><h3>Pair in Uplink</h3>
+<p>On the device you want it on, open Google Messages' setup (<span class="ui-path">Settings › Google Messages</span>) and choose <span class="ui-path">Use the Google sign-in from your browser</span>. Google Messages on your phone asks you to tap an emoji: tap the one Uplink shows. That last tap is Google's, and can't be skipped.</p>
 </div></li>
 </ol>
 <p>The extension never reads this browser's own Google sign-in: only the private window's, which nothing else uses.</p>
@@ -74,7 +74,7 @@
 <h2 id="privacy">What it can and can't see</h2>
 <ul>
 <li>It reads only the sign-in cookies of Messenger, Instagram, Discord, X and Slack, the sign-in that Discord and Slack send with their own requests (Discord's authorization header, Slack's token), and Google's cookies from the private window it opens when you set up Google Messages: nothing from other sites, and nothing from the pages themselves.</li>
-<li>What it sends is <b>sealed</b> with a key made from your account's recovery words. Ghost's relay keeps one sealed copy for your account and can't open it.</li>
+<li>What it sends is <b>sealed</b> with a key made from your account's recovery words. Uplink's relay keeps one sealed copy for your account and can't open it.</li>
 <li>Your password is used the moment you type it and never kept. Unless you tick <span class="ui-path">Stay signed in</span>, the extension forgets your account when the browser closes.</li>
 <li>These are your own sign-ins to those services, used the way their websites use them. They don't allow other apps officially, and may sign you out or limit your account.</li>
 </ul>

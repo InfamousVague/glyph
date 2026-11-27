@@ -24,12 +24,12 @@ class _PageBrowser implements Browser {
   String? get unfit {
     // Sealing what is kept (crypto.subtle) and the one-tab lock are given only to a page from a secure address:
     // https, or this computer itself.
-    if (!web.window.isSecureContext) return 'Ghost Messaging needs a secure address to run in a browser: one that starts with https.';
+    if (!web.window.isSecureContext) return 'Uplink needs a secure address to run in a browser: one that starts with https.';
     // Without the browser's lock between tabs nothing makes sure the app is open in one tab at a time: two would both
     // be this device to the relay, each taking the other's place, and both would write the one store, each over the
     // other's conversations. Every browser of the last few years has it (Chrome and Edge 69, Firefox 96, Safari 15.4).
     if (!(web.window.navigator as JSObject).has('locks') || !(web.window as JSObject).has('BroadcastChannel')) {
-      return 'This browser is too old for Ghost Messaging. It can\'t make sure the app is open in only one tab, which keeps each message from arriving twice and one tab from writing over another\'s conversations. A recent Chrome, Edge, Firefox or Safari can.';
+      return 'This browser is too old for Uplink. It can\'t make sure the app is open in only one tab, which keeps each message from arriving twice and one tab from writing over another\'s conversations. A recent Chrome, Edge, Firefox or Safari can.';
     }
     return null;
   }

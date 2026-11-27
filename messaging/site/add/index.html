@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Add a friend · Ghost Messaging</title>
-<meta name="description" content="Add someone as a friend on Ghost Messaging.">
+<title>Add a friend · Uplink</title>
+<meta name="description" content="Add someone as a friend on Uplink.">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -35,9 +35,9 @@
 <main>
   <img src="/icon.png" alt="">
   <h1 id="title">Add a friend</h1>
-  <p id="line">On Ghost Messaging.</p>
+  <p id="line">On Uplink.</p>
   <div class="row">
-    <a class="btn" id="open" href="/">Open in Ghost Messaging</a>
+    <a class="btn" id="open" href="/">Open in Uplink</a>
     <a class="btn quiet" href="/">Get the app</a>
   </div>
 </main>
@@ -53,17 +53,17 @@
     $('open').remove();
     return;
   }
-  document.title = `@${name} · Ghost Messaging`;
+  document.title = `@${name} · Uplink`;
   $('title').textContent = `Add @${name}`;
-  $('line').textContent = `@${name} would like to be friends on Ghost Messaging. Open it in the app to send them a request.`;
+  $('line').textContent = `@${name} would like to be friends on Uplink. Open it in the app to send them a request.`;
   // The start of their account's name, after # (never sent to any server, this one included): carried into the app,
   // which refuses the relay's answer for the username where its key doesn't begin so (lib/friends/add_link.dart).
-  // After the key, the relay their username is on where it is not Ghost Messaging's own (#KEY@relay.example.com,
+  // After the key, the relay their username is on where it is not Uplink's own (#KEY@relay.example.com,
   // GMFB-25): carried into the app too, which asks that relay for the name.
   const [key, relay = ''] = location.hash.replace(/^#/, '').toLowerCase().split('@');
   const keyOk = /^[0-9a-f]{8,32}$/.test(key);
   const relayOk = keyOk && relay.length <= 120 && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+(:[0-9]{1,5})?$/.test(relay);
-  if (relayOk) $('line').textContent = `@${name}, on the relay ${relay}, would like to be friends on Ghost Messaging. Open it in the app to send them a request.`;
+  if (relayOk) $('line').textContent = `@${name}, on the relay ${relay}, would like to be friends on Uplink. Open it in the app to send them a request.`;
   // The app's own address for it (android ghostmsg://add/<name>): the app asks before sending anything.
   $('open').href = `ghostmsg://add/${encodeURIComponent(name)}${keyOk ? '#' + key + (relayOk ? '@' + relay : '') : ''}`;
 })();

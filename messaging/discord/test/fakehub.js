@@ -1,4 +1,4 @@
-// An in-process stand-in for Ghost's relay hub (relay/lib/hub.dart), for tests: the signed sign-in (checked as the
+// An in-process stand-in for Uplink's relay hub (relay/lib/hub.dart), for tests: the signed sign-in (checked as the
 // hub checks it), rooms with a token each, who came and went, and room packets handed on with the sender's id put in.
 // Sockets are objects with send()/onmessage, delivered on the next turn of the event loop as a network would.
 import { ECDH, createHash, createPublicKey, verify } from 'node:crypto';

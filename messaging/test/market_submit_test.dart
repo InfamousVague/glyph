@@ -124,7 +124,7 @@ void main() {
     // A computer that follows its phone has no identity of its own.
     await form(tester, with_: MarketApi(hubUrl: 'https://relay.test', transport: relay.call));
     expect(_key('market-submit-who'), findsOneWidget);
-    expect(find.textContaining('Submitting needs your Ghost identity on this'), findsOneWidget);
+    expect(find.textContaining('Submitting needs your Uplink identity on this'), findsOneWidget);
     expect(_key('market-submit-me'), findsOneWidget);
     expect(_key('market-submit-paste'), findsNothing);
     // No username.
@@ -142,7 +142,7 @@ void main() {
     market.mine = null;
     // Another server: the form is there, Send isn't.
     await form(tester, hub: 'wss://relay.example.org/hub');
-    expect(find.text('Plugins are reviewed on Ghost Messaging\'s own server, and this app uses relay.example.org. Switch back in Settings › Routes to submit.'), findsOneWidget, reason: 'the section has been called Routes since 2026-11-19');
+    expect(find.text('Plugins are reviewed on Uplink\'s own server, and this app uses relay.example.org. Switch back in Settings › Routes to submit.'), findsOneWidget, reason: 'the section has been called Routes since 2026-11-19');
     // The place it names is the one Settings has, where the relay server is changed: on the phone.
     expect([for (final s in settingsSectionsOn(SettingsWhere.phone)) if (s.id == 'network') s.label], ['Routes']);
     await paste(tester, packFile(billsJson()));

@@ -20,6 +20,8 @@ String? keptPathFor(String name, {required String os, String? base, Map<String, 
   String? join(String? from, List<String> parts) => from == null || from.isEmpty ? null : [from, ...parts].join(os == 'windows' ? r'\' : '/');
   return switch (os) {
     'android' || 'ios' || 'macos' => join(base, [own]),
+    // The folder's name on disk stays what every install already has (the app was Ghost Messaging until 2026-11-27):
+    // renamed, a Windows PC would lose what it keeps.
     'windows' => join(env['LOCALAPPDATA'], ['Ghost Messaging', own]),
     'linux' => join(env['XDG_CACHE_HOME'] ?? (env['HOME'] == null ? null : '${env['HOME']}/.cache'), ['ghost-messaging', own]),
     _ => null,

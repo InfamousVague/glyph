@@ -3,7 +3,7 @@
 /// written is kept here with when it goes, and sent then by the same way the conversation's Send would have taken.
 ///
 /// Kept with the app's choices (AppState, so on a computer in its own folder), and sent by this app while it runs: a
-/// message whose time came while Ghost was closed goes as soon as it opens again. Words only, no pictures.
+/// message whose time came while Uplink was closed goes as soon as it opens again. Words only, no pictures.
 ///
 /// Four kinds of conversation, by [ScheduledMessage.kind]:
 /// - `text`: a text, or to a friend by the app's routes where one is up, as the conversation's Send does

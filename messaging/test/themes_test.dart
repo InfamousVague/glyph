@@ -77,7 +77,7 @@ import 'support/fake_video.dart';
 ///
 /// Every run checks that each look, in each brightness it has, gives every colour the app's Dart reads (a look's
 /// rules that loop or leave a grey out make a colour come out empty, which would stop the app drawing at all), that
-/// its ink reads on its paper and your bubble's words on your bubble, and that Ghost's own look is as it was.
+/// its ink reads on its paper and your bubble's words on your bubble, and that Uplink's own look is as it was.
 ///
 /// It also builds a few screens in every look ([themeScreens]), failing on an exception. With THEME_SHOTS=1 in the
 /// environment (or `flutter test --update-goldens test/themes_test.dart`) it keeps their pictures at
@@ -114,10 +114,10 @@ void main() {
     }
   });
 
-  test('a look stamps its preset and its fixed brightness; Ghost stamps neither, and follows Theme', () {
+  test('a look stamps its preset and its fixed brightness; Uplink stamps neither, and follows Theme', () {
     _answerChannel();
     final app = AppState();
-    expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile'}, reason: 'Ghost on System: exactly what the app stamped before looks');
+    expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile'}, reason: 'Uplink on System: exactly what the app stamped before looks');
     app.setTheme('dark');
     expect(ghostAttrs(app, 'desktop'), {'platform': 'desktop', 'theme': 'dark'});
     app.setLook(Look.mist);
@@ -128,7 +128,7 @@ void main() {
     expect(ghostAttrs(app, 'mobile')['rounding'], 'square');
   });
 
-  test('choosing a look makes your bubbles its own; Ghost again puts them back, unless a colour was chosen since', () {
+  test('choosing a look makes your bubbles its own; Uplink again puts them back, unless a colour was chosen since', () {
     _answerChannel();
     final app = AppState();
     expect(app.bubble, 'white');
@@ -149,7 +149,7 @@ void main() {
   // Matt, 2026-11-27: "I think we should add texture packs to all themes, but remove the phosphor entirely and remove
   // the dark dial uptheme, also remove lamplight and mist and make them texture packs for the Ghost theme".
   group('looks and their packs', () {
-    test('four looks are offered; Mist and Lamplight are Ghost\'s packs, and Dial-Up is its light half alone', () {
+    test('four looks are offered; Mist and Lamplight are Uplink\'s packs, and Dial-Up is its light half alone', () {
       _answerChannel();
       expect(Look.offered, [Look.ghost, Look.sharp, Look.dialup, Look.runestone]);
       expect(Look.ghost.packs, [Look.mist, Look.lamplight]);
@@ -173,7 +173,7 @@ void main() {
       expect(Look.named('phosphor'), Look.ghost);
     });
 
-    test('a pack is drawn as the look it was: its own preset, brightness and bubbles, under Ghost', () {
+    test('a pack is drawn as the look it was: its own preset, brightness and bubbles, under Uplink', () {
       _answerChannel();
       final app = AppState()..setTheme('dark');
       app.setLook(Look.mist);
@@ -183,7 +183,7 @@ void main() {
       app.setLook(Look.lamplight);
       expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile', 'theme': 'dark', 'theme-preset': 'lamplight'});
       expect(app.bubble, 'theme');
-      // Ghost's own again: no preset, Theme's brightness, and the bubbles you had.
+      // Uplink's own again: no preset, Theme's brightness, and the bubbles you had.
       app.setLook(Look.ghost);
       expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile', 'theme': 'dark'});
       expect(app.bubble, 'white');
@@ -194,19 +194,19 @@ void main() {
       final app = AppState()..setLook(Look.lamplight);
       expect(Look.last(app, Look.ghost), Look.lamplight);
       app.setLook(Look.sharp);
-      expect(Look.last(app, Look.ghost), Look.lamplight, reason: 'Ghost is still in Lamplight after a while in Sharp');
+      expect(Look.last(app, Look.ghost), Look.lamplight, reason: 'Uplink is still in Lamplight after a while in Sharp');
       expect([Look.last(app, Look.sharp), Look.last(app, Look.dialup)], [Look.sharp, Look.dialup]);
       app.setLook(Look.last(app, Look.ghost));
       expect(app.look, Look.lamplight);
       app.setLook(Look.ghost);
-      expect(Look.last(app, Look.ghost), Look.ghost, reason: 'Ghost\'s own, chosen');
-      // Mist chosen as a look, before packs were noted: still Mist when Ghost is chosen again.
+      expect(Look.last(app, Look.ghost), Look.ghost, reason: 'Uplink\'s own, chosen');
+      // Mist chosen as a look, before packs were noted: still Mist when Uplink is chosen again.
       final old = AppState()..set(Look.pref, 'mist');
       old.setLook(Look.runestone);
       expect(Look.last(old, Look.ghost), Look.mist);
     });
 
-    test('Phosphor, taken out, is Ghost as if Ghost had been chosen', () async {
+    test('Phosphor, taken out, is Uplink as if Uplink had been chosen', () async {
       Future<AppState> opened(Map<String, String> kept) async {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => call.method == 'prefs' ? kept : null);
@@ -218,7 +218,7 @@ void main() {
       // Your bubbles were the look's green: the colour they had before it comes back.
       var app = await opened({'look': 'phosphor', 'bubble': 'theme', 'bubble_before_look': 'pink', 'theme_bubble': 'green'});
       expect([app.look, app.choice(Look.pref, ''), app.bubble, app.choice('theme_bubble', '')], [Look.ghost, 'ghost', 'pink', 'white']);
-      // None noted: white, as Ghost starts.
+      // None noted: white, as Uplink starts.
       app = await opened({'look': 'phosphor', 'bubble': 'theme'});
       expect([app.look, app.bubble], [Look.ghost, 'white']);
       // A colour chosen under it stays.
@@ -248,7 +248,7 @@ void main() {
     expect(accentPair('white', lightPage: page).light, isNull);
   });
 
-  test('Ghost is drawn as it was: the colours that were hex in the Dart, the scrims, and the accent check', () {
+  test('Uplink is drawn as it was: the colours that were hex in the Dart, the scrims, and the accent check', () {
     for (final b in ['light', 'dark']) {
       final t = Tokens.root(sheet, attrs: Look.ghost.attrs(platform: 'mobile', theme: b));
       int argb(Color c) => c.toARGB32();
@@ -267,7 +267,7 @@ void main() {
       expect(t.raw('app-bubble-theirs'), isNull, reason: 'their bubbles are the paper\'s, as before');
       expect(t.raw('app-bubble-rim'), isNull);
     }
-    // The accent's check against Ghost's own papers, read from its rules, decides as the fixed near white and near
+    // The accent's check against Uplink's own papers, read from its rules, decides as the fixed near white and near
     // black did, for every colour.
     final light = Tokens.root(sheet, attrs: const {'platform': 'mobile', 'theme': 'light'}).color('app-paper');
     final dark = Tokens.root(sheet, attrs: const {'platform': 'mobile', 'theme': 'dark'}).color('app-paper');
@@ -417,8 +417,8 @@ void main() {
 
   // The video player (lib/ui/video_screen.dart; Matt, 2026-11-18: "add support for playing mkv video files and mp4's
   // within the app in a player themed by glacier UI"): playing with its controls up, paused, and a file that can't be
-  // played, on a computer's window and (paused) a phone, in Ghost light and dark and Dial-Up's Daytime.
-  testWidgets('the video player in Ghost and Dial-Up', (tester) async {
+  // played, on a computer's window and (paused) a phone, in Uplink light and dark and Dial-Up's Daytime.
+  testWidgets('the video player in Uplink and Dial-Up', (tester) async {
     _answerChannel();
     final shots = Platform.environment['THEME_SHOTS'] == '1' || autoUpdateGoldenFiles;
     await tester.runAsync(_fonts);
@@ -731,16 +731,16 @@ final themeScreens = <ThemeScreen>[
   // one put off with Not now.
   ThemeScreen('circle-invite-banner', () => const AppShell(), before: _inviteToCircles, after: _leaveCircle),
   ThemeScreen('circle-invites-tab', () => const AppShell(), before: _inviteToCircles, after: _leaveCircle, choices: (_) => _tapCirclesTabSoon()),
-  // Contacts with two friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends in
+  // Contacts with two friends on Uplink (Matt, 2026-11-17: "add the ability to sort contacts by friends in
   // ghost"): All with the friends first under their heading and the Friends chip among the filters, then that chip on.
   ThemeScreen('contacts', () => const ContactsScreen(), before: _twoFriends, after: _noFriends),
   ThemeScreen('contacts-friends', () => const ContactsScreen(), before: _twoFriends, after: _noFriends, choices: (_) => _tapFriendsChipSoon()),
-  // A Ghost account (test/account_shots.dart; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
+  // An Uplink account (test/account_shots.dart; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
   // making one, its recovery words, signing in each way, and the devices signed in.
   ...accountThemeScreens,
 ];
 
-/// Theo and Sam, friends on Ghost Messaging; the phone's contacts name them ('searchContacts' in [_answerChannel]).
+/// Theo and Sam, friends on Uplink; the phone's contacts name them ('searchContacts' in [_answerChannel]).
 void _twoFriends() {
   Friends.instance = Friends(FakePort('+15551239999')
     ..stand('+15551230002', friend: 'yes')

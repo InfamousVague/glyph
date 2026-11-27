@@ -80,12 +80,12 @@ const shareSoundKey = 'share_sound';
 /// The switch over the screens and windows, and what it says under it on a PC and on a Mac.
 const shareSoundLabel = 'Share sound too';
 String shareSoundHint({required bool mac}) => mac
-    ? 'What your Mac plays goes with your screen, apart from this call. Your Mac asks once whether Ghost Messaging may record system audio.'
+    ? 'What your Mac plays goes with your screen, apart from this call. Your Mac asks once whether Uplink may record system audio.'
     : 'A window\'s own sound goes with it; with a whole screen, everything your PC plays apart from this call.';
 
 /// Said where the screen is shared and its sound could not be taken.
 String shareSoundFailedWords({required bool mac}) => mac
-    ? 'Your screen is shared without its sound. To send sound, allow Ghost Messaging under System Settings › Privacy & Security › Screen & System Audio Recording, then share again.'
+    ? 'Your screen is shared without its sound. To send sound, allow Uplink under System Settings › Privacy & Security › Screen & System Audio Recording, then share again.'
     : 'Your screen is shared without its sound: this PC didn\'t give any to send.';
 
 /// Asks which screen or window to share, from [sources]: each with a picture of it. The chosen one's id; null if
@@ -206,8 +206,8 @@ class _ScreenChoicesState extends State<ScreenChoices> {
       final mac = widget.mac ?? PlatformInfo.isMacOS;
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         words(mac
-            ? 'No screens or windows were found. Your Mac has to allow it: open System Settings › Privacy & Security › Screen & System Audio Recording and turn on Ghost Messaging. If macOS asks, quit and reopen Ghost Messaging, then try again.'
-            : 'No screens or windows were found. Try again; if there is still nothing, close Ghost Messaging, open it again and share from there.'),
+            ? 'No screens or windows were found. Your Mac has to allow it: open System Settings › Privacy & Security › Screen & System Audio Recording and turn on Uplink. If macOS asks, quit and reopen Uplink, then try again.'
+            : 'No screens or windows were found. Try again; if there is still nothing, close Uplink, open it again and share from there.'),
         Padding(
           padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
           child: Align(

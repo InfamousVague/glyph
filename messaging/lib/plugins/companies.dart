@@ -37,9 +37,10 @@ class Company {
 /// The companies known by name. Not every company: the ones a phone in the United States is most often sent a code
 /// by. Anything else is named by [senderNameIn] where its text names it.
 const List<Company> companies = [
-  // Ourselves: the code that verifies a number in Settings › Me ("Your Ghost Messaging verification code is: …",
+  // Ourselves: the code that verifies a number in Settings › Me ("Your Uplink verification code is: …",
   // sent by the relay's texting service). Its face is the app's own ghost (BrandFace), not a pack's mark.
-  Company('Ghost Messaging', ghostDomain, 0x000000, ['Ghost.md']),
+  // Under its earlier name too, Ghost Messaging, which a relay not yet brought up to date still writes in the text.
+  Company('Uplink', ghostDomain, 0x000000, ['Ghost Messaging', 'Ghost.md']),
   // Money.
   Company('Coinbase', 'coinbase.com', 0x0052FF),
   Company('Discover', 'discover.com', 0xFF6000, ['Discover Card', 'Discover Bank']),

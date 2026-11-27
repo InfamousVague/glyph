@@ -1,4 +1,4 @@
-# Ghost's account helpers: the protocol they share
+# Uplink's account helpers: the protocol they share
 
 Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice": Facebook Messenger (`sidecar/messenger`,
 on mautrix-meta's messagix), Instagram (`sidecar/instagram`, on mautrix-meta's instameow: that project moved

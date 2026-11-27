@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>How the parts work together · Ghost Messaging developer docs</title>
+<title>How the parts work together · Uplink developer docs</title>
 <meta name="description" content="Things followed from the tap to the wire: a text, a message to a friend, a call, an open space's floor, pairing a computer, adding a plugin, and more.">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
@@ -14,7 +14,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Uplink</span></a>
   <a class="brand-docs" href="/docs/developer/">Developer docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -33,7 +33,7 @@
     <p>The quickest way into the source is to follow one thing through it. Here are several, each from the tap to the wire, naming the file at every step. <a href="/docs/developer/architecture/">How the app is built</a> says what each part is.</p>
 
 <h2 id="sms">Sending a text</h2>
-<p>On an Android phone where Ghost Messaging is the texting app.</p>
+<p>On an Android phone where Uplink is the texting app.</p>
 <ol class="steps">
 <li class="step"><div class="step-body"><h3>The box decides</h3><p><code>lib/ui/thread.dart</code>: words alone to one friend go by the routes (the next section). Anything else is a text: <code>Sms.instance.send</code>.</p></div></li>
 <li class="step"><div class="step-body"><h3>Dart to Kotlin</h3><p><code>lib/sms.dart</code> passes <code>send</code> to <code>Sms.calls</code>. On Android that is the overlay (<code>lib/standalone/overlay.dart</code>), which passes a phone number on to the channel <code>ghost_messaging/sms</code>, answered in <code>MainActivity.kt</code>.</p></div></li>
