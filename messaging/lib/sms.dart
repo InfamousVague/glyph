@@ -1631,6 +1631,10 @@ class Sms {
   Future<Map<String, dynamic>> telegram(Map<String, Object?> what) async =>
       Map<String, dynamic>.from((await _calls.invokeMethod<Map>('telegram', {'what': what})) ?? const {});
 
+  /// On a computer: the networks' sign-ins its phone holds or can read of the account's (lib/inbox/curl_sync.dart
+  /// forComputer; android DartAsk "signins"), for a computer that can't open what the account keeps itself.
+  Future<Map<Object?, Object?>> signInsOfPhone() async => (await _calls.invokeMethod<Map>('signins', {'what': const <String, Object?>{}})) ?? const {};
+
   /// On a computer: how RCS stands on its phone (lib/gm/rcs_share.dart; android DartAsk "rcs").
   Future<Map<Object?, Object?>> rcsOfPhone() async => (await _calls.invokeMethod<Map>('rcs', {'what': const <String, Object?>{}})) ?? const {};
 

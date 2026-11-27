@@ -24,6 +24,7 @@ import '../../voice/voice.dart';
 import '../call_float.dart' show CallPageMark, CallPictures, FloatWords, popOutCall;
 import '../common.dart';
 import '../connecting_banner.dart';
+import '../flat_line.dart' show pictureOfSpace;
 import '../hangout_screen.dart';
 import '../recording_ui.dart';
 import '../ripple_avatar.dart';
@@ -489,9 +490,17 @@ class SpaceFace extends StatelessWidget {
             : LinkBadge(
           id: person.id,
           size: size,
-          child: RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed),
+          child: _face(context, now),
         ),
       );
+
+  /// Their picture where the space's own room knows it, as the sidebar shows it, and their initial where it does not.
+  Widget _face(BuildContext context, Map<String, double> now) {
+    Widget face(Widget? picture) => RippleAvatar(name: person.me ? (person.name.isEmpty ? 'You' : person.name) : person.name, level: person.muted ? 0 : (now[person.id] ?? 0), muted: person.muted, size: size, ringed: ringed, child: picture);
+    final room = call.room;
+    if (room == null) return face(null);
+    return SpacePicture(room: room, id: person.me ? room.me : person.id, builder: (context, picture) => face(pictureOfSpace(context, picture, size)));
+  }
 }
 
 /// Someone's picture where their video is on and has arrived; else [fallback] (or their face on a dark ground), so a

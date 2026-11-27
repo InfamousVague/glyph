@@ -126,6 +126,35 @@ void main() {
       return (n, helper);
     }
 
+    test('what a helper is signed in with is read back from its session.json, for the account\'s other devices', () async {
+      File('${dir.path}/session.json').writeAsStringSync('{"me":"1","name":"Matt","token":"tok-abc","heartbeat":{"x":1}}');
+      final (discord, _) = await started(linked: true, service: discordService);
+      expect(await discord.heldSignIn(), {'token': 'tok-abc'}, reason: 'Discord keeps its token alone');
+      File('${dir.path}/session.json').writeAsStringSync('{"cookies":{"sessionid":"s","csrftoken":"c","ds_user_id":"9","rur":""},"me":"9"}');
+      final (ig, _) = await started(linked: true);
+      expect(await ig.heldSignIn(), {'sessionid': 's', 'csrftoken': 'c', 'ds_user_id': '9'}, reason: 'cookies, none blank');
+      File('${dir.path}/session.json').writeAsStringSync('{"cookies":{"csrftoken":"c"}}');
+      expect(await ig.heldSignIn(), isNull, reason: 'missing a cookie the service needs');
+      final (out, _) = await started();
+      expect(await out.heldSignIn(), isNull, reason: 'not signed in here');
+    });
+
+    test('asked to start again while it is starting, it waits for the first: one helper, never two on one folder', () async {
+      var made = 0;
+      final helper = FakeHelper();
+      final gate = Completer<void>();
+      final n = AccountHelper(discordService, link: () async {
+        made++;
+        await gate.future;
+        return helper;
+      }, folder: dir.path);
+      final first = n.start(AppState()), second = n.start(AppState());
+      gate.complete();
+      await Future.wait([first, second]);
+      expect(made, 1);
+      expect(n.state, InboxState.signedOut);
+    });
+
     test('a sign-in pasted here is shared for the account\'s other devices; one that came synced is not shared again', () async {
       final shared = <String, Map<String, String>>{};
       AccountHelper.onShare = (id, cookies) => shared[id] = cookies;
