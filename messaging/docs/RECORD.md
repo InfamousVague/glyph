@@ -481,7 +481,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   (Ghost.md, Ghost Keyboard). **The icon** is `art/app-icon.png`, Matt's `UplinkLogo.png`, and
   `python3 tool/app_icon.py` writes every platform's from it, Windows', Linux's, the iPhone's and the extension's
   now too; the picture is cleaned first, and the tool refuses one a round home-screen mask would cut.
-- **A circle's picture and banner: positioned, sharp, and sent whole** (after 0.12.51; `lib/ui/circles/circle_picture.dart`,
+- **A circle's picture and banner: positioned, sharp, and sent whole** (0.12.52; `lib/ui/circles/circle_picture.dart`,
   `lib/me/picture_make.dart`, `lib/ui/circles/circle_face.dart`, `lib/circles/circle.dart`; Matt, 2026-11-27: "uploading
   the banner from my desktop to AlphaTesters circle says 'cannot use image'", then "uploading the pictures for banners
   and the circle profile picture should use a cropping / zooming tool and upload at full resolution, right now they're
@@ -502,8 +502,11 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   detail, the part chosen, a logo's ground, the cut's size; `pf` through edits and an older build; the whole of
   choosing a banner and a picture on a computer with the chosen file left as it was; each refusal's words). The
   refusal Matt met was not found: both pictures on his Desktop pass the old maker and the new, and his circle's
-  manifest had room, so it failed at a later step the old message did not name. Not tried in the running app on any
-  device.
+  manifest had room, so it failed at a later step the old message did not name. Run for real on the emulator against
+  a relay on this machine: a new circle's picture positioned and drawn, then its banner and its picture set from the
+  circle's settings, each with its cut on the relay and in the app's cache at the picture's own size (3000 by 1000,
+  2000 by 2000) and no temporary file left behind; and with the relay stopped, a banner set from its stand-in once
+  the two minutes were up. Not tried on a Mac, which is where he met the refusal, nor on an iPhone.
 - **Looks and their packs** (0.12.50; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
   `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
   0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
