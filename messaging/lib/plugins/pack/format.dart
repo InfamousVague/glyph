@@ -52,9 +52,9 @@ abstract final class PackLimits {
 final RegExp packIdPattern = RegExp(r'^[a-z][a-z0-9]{2,23}$');
 final RegExp packVersionPattern = RegExp(r'^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$');
 final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');   // and no "..", and none of reservedDeveloperWords
-const List<String> reservedDeveloperWords = ['ghost', 'gogho', 'official', 'verified', 'support'];
+const List<String> reservedDeveloperWords = ['uplink', 'ghost', 'gogho', 'official', 'verified', 'support'];
 
-/// Ids no pack may have: the built-ins' and their sections', and the app's own words. Any id with ghost or gogho in it
+/// Ids no pack may have: the built-ins' and their sections', and the app's own words. Any id with uplink, ghost or gogho in it
 /// is refused too.
 const Set<String> reservedPackIds = {'notion', 'spotify', 'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', 'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', 'ghost', 'ghostmessaging', 'official', 'admin', 'system', 'market', 'marketplace', 'store', 'plugin', 'plugins', 'settings', 'messages'};
 
@@ -103,7 +103,14 @@ String? packIdOf(String registryId) {
   return packIdPattern.hasMatch(id) && !_reservedId(id) ? id : null;
 }
 
-bool _reservedId(String id) => reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho');
+bool _reservedId(String id) => reservedPackIds.contains(id) || ownWordIn(id);
+
+/// Whether [folded] (an id, or a name through [packFold]) holds one of the app's own words: its name, the name it had
+/// until 2026-11-27, or its site's. Nobody else's plugin, id or section may read as the app's.
+///
+/// The name is looked for with i and l as one letter: in most faces nobody tells "UpIink", written with a capital i,
+/// from the app's own.
+bool ownWordIn(String folded) => folded.replaceAll('i', 'l').contains('upllnk') || folded.contains('ghost') || folded.contains('gogho');
 
 /// A pack's section [key] as the registry knows it: its keys are letters only, so the last 0 parses back.
 String sectionIdOf(String packId, String key) => 'x${packId}0$key';

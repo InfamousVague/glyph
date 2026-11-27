@@ -791,7 +791,7 @@ void main() {
       expect(find.byType(GhostLogo), findsOneWidget);
       // The stickers' sheet over a conversation: the first pack, then the pastel one, in an encrypted conversation.
       final packs = (await tester.runAsync(stickerPacks))!;
-      expect(packs.map((p) => p.name), ['Uplink', 'Love', 'Party', 'Sweet', 'Mischief']);
+      expect(packs.map((p) => p.name), ['Ghost', 'Love', 'Party', 'Sweet', 'Mischief']);
       for (final (pack, encrypted) in [('ghost', false), ('sweet', true), ('mischief', false)]) {
         await _shoot(
           tester,

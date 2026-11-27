@@ -558,7 +558,7 @@ class _Checker {
   /// A name or a label that reads as one of the app's own, once folded ([packFold]), is refused.
   void reserved(String v, String p) {
     final folded = packFold(v);
-    if (reservedPluginNames.contains(folded) || folded.contains('ghost') || folded.contains('gogho')) {
+    if (reservedPluginNames.contains(folded) || ownWordIn(folded)) {
       error('name_reserved', p, '"$v" reads as one of Uplink\'s own names: choose one of your own.');
     }
   }
@@ -574,7 +574,7 @@ class _Checker {
     if (id != null) {
       if (!packIdPattern.hasMatch(id)) {
         error('bad_id', 'id', '"$id": an id is 3 to 24 lower-case letters and digits, starting with a letter.');
-      } else if (reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho')) {
+      } else if (reservedPackIds.contains(id) || ownWordIn(id)) {
         error('id_reserved', 'id', '"$id" is kept for the app itself: choose another.');
       } else if (submission && examplePackIds.contains(id)) {
         error('id_example', 'id', 'That\'s the example\'s id: give your plugin an id of its own.');

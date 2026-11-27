@@ -105,6 +105,7 @@ void main() {
     // What is typed back in the field is read as the same number.
     expect(tidyNumber(showNumber('+15550100199')), '+15550100199');
     expect(ownCodeIn('Your Uplink verification code is: 482913'), '482913');
+    expect(ownCodeIn('Your Ghost Messaging verification code is: 482913'), '482913', reason: 'the name the texting service still gives it, and a relay not brought up to date');
     expect(ownCodeIn('Your Coinbase verification code is 771204. Do not share it.'), isNull);
     expect(ownCodeIn('Uplink is out: 0.7.11'), isNull);
   });

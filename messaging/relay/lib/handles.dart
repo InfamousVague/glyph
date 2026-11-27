@@ -507,7 +507,7 @@ class Handles {
 
   /// Usernames nobody may claim: ones that would read as the service or its staff, and a few words with a meaning of
   /// their own (everyone, here, null).
-  static const reserved = {'admin', 'administrator', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
+  static const reserved = {'admin', 'administrator', 'uplink', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
   int get listed => _listed.length;
   int get watched => _watch.values.fold(0, (n, s) => n + s.length);
 

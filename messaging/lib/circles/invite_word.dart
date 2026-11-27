@@ -26,7 +26,7 @@ const inviteWordRounds = 60000;
 const reservedInviteWords = {
   'admin', 'alpha', 'api', 'app', 'apps', 'beta', 'c', 'docs', 'download', 'feedback', 'files', 'ghost', 'ghostmessaging', 'gogho',
   'gogh', 'help', 'hub', 'join', 'link', 'mac', 'official', 'pair', 'privacy', 'relay', 'root', 'security', 'staff', 'support',
-  'team', 'terms', 'windows', 'word', 'www',
+  'team', 'terms', 'uplink', 'windows', 'word', 'www',
 };
 
 /// [raw] as a word ("Book Club!" is "book-club"; "gogho.st/c/bookclub" is "bookclub"), or null where it can't be one:

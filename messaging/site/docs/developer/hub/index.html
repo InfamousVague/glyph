@@ -238,7 +238,7 @@
 <p>Two hashes appear throughout, both SHA-256 as 64 hex digits. A username's key is the hash of <code>ghost-name v1|&lt;username&gt;</code>. A handle's key <code>k</code> is the hash of <code>ghost-handle v1|&lt;network&gt;|&lt;handle&gt;</code>. Both are tidied first: trimmed, lower case, no leading <code>@</code>, and a phone number in E.164 form.</p>
 
 <h3 id="dir-names">Usernames and profile</h3>
-<p>A username is 3 to 20 characters from <code>a-z</code>, <code>0-9</code>, <code>.</code> and <code>_</code>, starting with a letter or digit, with no two dots together. Some words are reserved (<code>admin</code>, <code>support</code>, <code>ghost</code> and the like). An install holds one at a time.</p>
+<p>A username is 3 to 20 characters from <code>a-z</code>, <code>0-9</code>, <code>.</code> and <code>_</code>, starting with a letter or digit, with no two dots together. Some words are reserved (<code>admin</code>, <code>support</code>, <code>uplink</code> and the like). An install holds one at a time.</p>
 <table>
   <tr><th>Message</th><th>Takes</th><th>Answer</th></tr>
   <tr><td><code>hello</code></td><td><code>name</code>: your own username, optional.</td><td><code>{"dir": "hello", "ways", "listed", "links", "watching", "souls", "special"}</code>. <code>ways</code> says how each network is linked here: <code>signin</code>, <code>proof</code>, <code>text</code> or <code>off</code>. <code>links</code> is a list of <code>{"p", "k", "at"}</code>. Then <code>souls-gifts</code> where something was given that the app has not said it showed, and any <code>linked</code> and <code>joined</code> that happened while you were away.</td></tr>

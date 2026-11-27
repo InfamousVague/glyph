@@ -132,7 +132,13 @@ String showNumber(String number) =>
 
 /// The code in a text, where the text is the one asked for with [Me.textCode]: a sign-in code in a text that names
 /// the app. Another company's code that arrives meanwhile is not read as ours, so it never leaves the phone.
-String? ownCodeIn(String text) => text.toLowerCase().contains('ghost') ? signInCode(text) : null;
+///
+/// The text is the texting service's, which names the app as its own settings there say (relay/lib/texts.dart): Uplink
+/// once that is changed, Ghost Messaging until then and from a relay someone else runs. Either is ours.
+String? ownCodeIn(String text) {
+  final words = text.toLowerCase();
+  return words.contains('uplink') || words.contains('ghost') ? signInCode(text) : null;
+}
 
 /// What a handle is kept and watched by on the server: a hash, so its lists name nobody (the server's
 /// `Handles.keyOf`; relay/test/handles_test.dart holds the two to the same answer).

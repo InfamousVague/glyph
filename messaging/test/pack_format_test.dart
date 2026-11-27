@@ -293,7 +293,7 @@ void main() {
 
   group('names like the app\'s own', () {
     test('name_reserved for Codes, a Cyrillic \u0421odes, fullwidth Ｃｏｄｅｓ, Kinds of text, Uplink Helper and a section called Spam', () {
-      for (final name in ['Codes', '\u0421odes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Uplink Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
+      for (final name in ['Codes', '\u0421odes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Uplink Helper', 'UpIink tools', 'Up1ink', 'Ghost Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
         expectError(check(bills()..['name'] = name), 'name_reserved', 'name');
       }
       expectError(check(bills()..['rules']['sections'][0]['label'] = 'Spam'), 'name_reserved', 'rules.sections[0].label');
