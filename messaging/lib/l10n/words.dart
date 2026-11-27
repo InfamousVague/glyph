@@ -31,25 +31,35 @@ class Words extends ChangeNotifier {
   /// The languages there are, by their code, each named in itself.
   ///
   /// The twenty most spoken (Matt, 2026-11-26: "Add translations for the 20 most popular languages"). Chinese is
-  /// Simplified (a device in Chinese of any kind is given it); Arabic and Urdu are drawn left to right for now.
+  /// Simplified (a device in Chinese of any kind is given it). Then eight more, two of them written right to left
+  /// (Matt, 2026-11-26: "Translate some RLT and LTR languages"): Hebrew, Persian, Italian, Dutch, Polish, Ukrainian,
+  /// Thai and Greek. Arabic, Urdu, Hebrew and Persian are drawn left to right for now.
   static const languages = {
     'en': 'English',
     'ar': 'العربية',
     'bn': 'বাংলা',
     'de': 'Deutsch',
+    'el': 'Ελληνικά',
     'es': 'Español',
+    'fa': 'فارسی',
     'fr': 'Français',
+    'he': 'עברית',
     'hi': 'हिन्दी',
     'id': 'Bahasa Indonesia',
+    'it': 'Italiano',
     'ja': '日本語',
     'ko': '한국어',
     'mr': 'मराठी',
+    'nl': 'Nederlands',
+    'pl': 'Polski',
     'pt': 'Português',
     'ru': 'Русский',
     'sw': 'Kiswahili',
     'ta': 'தமிழ்',
     'te': 'తెలుగు',
+    'th': 'ไทย',
     'tr': 'Türkçe',
+    'uk': 'Українська',
     'ur': 'اردو',
     'vi': 'Tiếng Việt',
     'zh': '简体中文',

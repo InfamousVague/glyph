@@ -68,8 +68,8 @@ void main() {
     expect(Words.meant(Words.automatic, device: 'es'), 'es');
     expect(Words.meant(Words.automatic, device: 'ES'), 'es');
     expect(Words.meant(Words.automatic, device: 'fr'), 'fr');
-    expect(Words.meant(Words.automatic, device: 'it'), 'en', reason: 'a language the app has not');
-    expect(Words.meant('xx', device: 'it'), 'en', reason: 'a choice from a newer build that this one has not');
+    expect(Words.meant(Words.automatic, device: 'fi'), 'en', reason: 'a language the app has not');
+    expect(Words.meant('xx', device: 'fi'), 'en', reason: 'a choice from a newer build that this one has not');
   });
 
   test('loaded from the files: English drawn as written, Spanish by its English, anything untranslated in English', () async {

@@ -25,6 +25,14 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.46', '2026-11-27', [
+    'A chat\'s last line in the list is its newest message again. Since 0.12.44, beside Google Messages, some incoming messages were left out of the list, so a chat could show an older text there, or be missing from it.',
+    'Reading a chat doesn\'t move it: one you open from the top of the list stays where it is while you\'re in the app. A new message still takes its chat to the top, and the list is put back in order when you leave the app, switch tabs, search, or pull it down.',
+    'The list opens steadier: unread chats are at the top from the first moment, where they used to arrive a few at a time, and opening or closing a chat no longer reads every conversation again.',
+    'Keyboard shortcuts: next chat and previous chat follow the order on screen.',
+    'Texting someone new works beside Google Messages, where New chat used to say it couldn\'t open the conversation.',
+    'Eight more languages: Hebrew, Persian, Italian, Dutch, Polish, Ukrainian, Thai and Greek, twenty-eight in all. Hebrew, Persian, Arabic and Urdu are still laid out left to right for now.',
+  ]),
   ReleaseNotes('0.12.45', '2026-11-26', [
     'Ghost Messaging speaks twenty languages: Arabic, Bengali, Chinese, English, French, German, Hindi, Indonesian, Japanese, Korean, Marathi, Portuguese, Russian, Spanish, Swahili, Tamil, Telugu, Turkish, Urdu and Vietnamese.',
     'Language has a section of its own in Settings: Automatic follows your device, or choose one.',

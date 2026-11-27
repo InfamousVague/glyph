@@ -450,6 +450,12 @@ object GmBridge {
     /** A thread number of the bridge's own, below zero so it is never one of Android's. */
     fun syntheticThread(conv: String): Long = -1L - (conv.hashCode().toLong() and 0x7fffffffL)
 
+    /** A stand-in conversation for people nobody has texted yet, below zero and the same for the same people. */
+    fun pendingThread(addresses: List<String>): Long = syntheticThread("to:" + addresses.map { it.trim() }.sorted().joinToString(","))
+
+    /** The bridge's conversation with exactly these people, where it has one. */
+    fun threadOfPeople(context: Context, addresses: List<String>): Long? = try { convFor(Db.get(context), addresses)?.thread } catch (_: Exception) { null }
+
     /**
      * Answers [conv] through Google Messages' own Reply, so an RCS chat is answered as RCS; false where there is no
      * Reply kept (Google Messages took the notification away, or the app was started since).
@@ -570,6 +576,22 @@ object GmBridge {
         companion object {
             @Volatile private var one: Db? = null
             fun get(context: Context): Db = one ?: synchronized(this) { one ?: Db(context.applicationContext).also { one = it } }
+
+            /**
+             * Each conversation with its newest message as its conversation shows it: not a picture message still coming
+             * down, whose words are a stand-in (Store.withBridgedMessages leaves those out too).
+             *
+             * A message kept from a notification has no status of Google Messages' own (NULL), and in SQL a NULL that is
+             * LIKE anything is neither true nor false: `NOT (out = 0 AND status LIKE …)` was then neither, and the row
+             * was passed over. So every incoming message the notifications brought was left out of this, and a
+             * conversation with nothing else in it was left out whole: its row in the list said its last SMS, or was not
+             * there (0.12.44 and 0.12.45; Matt, 2026-11-26: "right now they don't always show the last message"). A
+             * status that is not there is taken as none.
+             */
+            const val CONVERSATIONS =
+                "SELECT c.conv, c.thread, c.title, c.grp, c.addresses, m.text, m.time, m.out, (SELECT COUNT(*) FROM msg u WHERE u.conv = c.conv AND u.out = 0 AND u.read = 0), m.media " +
+                    "FROM conv c JOIN msg m ON m.id = (SELECT id FROM msg x WHERE x.conv = c.conv AND NOT (x.out = 0 AND COALESCE(x.status, '') LIKE 'incoming\\_%' ESCAPE '\\' " +
+                    "AND (COALESCE(x.status, '') LIKE '%downloading%' OR COALESCE(x.status, '') LIKE '%retrying%' OR COALESCE(x.status, '') LIKE '%awaiting_auto_download%')) ORDER BY time DESC LIMIT 1) ORDER BY m.time DESC"
         }
 
         // Written ahead (WAL), so the helper's thread and the list's reads do not wait on each other. Set the
@@ -734,12 +756,7 @@ object GmBridge {
         }
 
         /** The conversations kept, newest first. */
-        fun conversations(): List<Conv> = readableDatabase.rawQuery(
-            // Its newest message as its conversation shows it: not a picture message still coming down, whose words
-            // are a stand-in (Store.withBridgedMessages leaves those out too).
-            "SELECT c.conv, c.thread, c.title, c.grp, c.addresses, m.text, m.time, m.out, (SELECT COUNT(*) FROM msg u WHERE u.conv = c.conv AND u.out = 0 AND u.read = 0), m.media " +
-                "FROM conv c JOIN msg m ON m.id = (SELECT id FROM msg x WHERE x.conv = c.conv AND NOT (x.out = 0 AND x.status LIKE 'incoming\\_%' ESCAPE '\\' AND (x.status LIKE '%downloading%' OR x.status LIKE '%retrying%' OR x.status LIKE '%awaiting_auto_download%')) ORDER BY time DESC LIMIT 1) ORDER BY m.time DESC", null,
-        ).use { c ->
+        fun conversations(): List<Conv> = readableDatabase.rawQuery(CONVERSATIONS, null).use { c ->
             buildList {
                 while (c.moveToNext()) add(Conv(c.getString(0), c.getLong(1), c.getString(2), c.getInt(3) == 1, c.getString(4).split('\u001f').filter { it.isNotEmpty() }, c.getString(5), c.getLong(6), c.getInt(7) == 1, c.getInt(8), c.getString(9)))
             }
