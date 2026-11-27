@@ -135,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: ListenableBuilder(
           listenable: me,
           builder: (context, _) => ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               // Before a username is claimed, the profile can be filled in from an account the person has (Matt,
@@ -324,7 +324,7 @@ class _BuddiesScreenState extends State<BuddiesScreen> {
         child: ListenableBuilder(
           listenable: Listenable.merge([b, Me.instance]),
           builder: (context, _) => ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               if (Me.instance.username == null)

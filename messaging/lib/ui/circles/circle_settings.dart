@@ -198,12 +198,12 @@ class _Sidebar extends StatelessWidget {
     final owner = _isOwner(c);
     final caps = t.lenOf('0.72rem');
     Widget heading(String words) => Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(4), t.space(3), t.space(1)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(4), t.space(3), t.space(1)),
           child: Semantics(header: true, label: words, child: ExcludeSemantics(child: Text(isBevelChrome(t) ? words : words.toUpperCase(), style: pageText(t, caps, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: caps))))),
         );
     String? last;
     return ListView(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(8)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(8)),
       children: [
         Row(children: [
           CircleFace.of(c, size: 44, selected: c.picture == null),
@@ -339,7 +339,7 @@ class _Scroll extends StatelessWidget {
       child: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
           children: [Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 680), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)))],
         ),
       ),
@@ -872,7 +872,7 @@ class _RoleRow extends StatelessWidget {
           offset: -3,
           child: Container(
             color: s.pressed ? t.color('app-paper-3') : const Color(0x00000000),
-            padding: EdgeInsets.fromLTRB(manage ? t.space(1) : t.space(3), t.space(2), t.space(1), t.space(2)),
+            padding: EdgeInsetsDirectional.fromSTEB(manage ? t.space(1) : t.space(3), t.space(2), t.space(1), t.space(2)),
             child: Row(children: [
               if (manage)
                 ReorderableDragStartListener(
@@ -883,7 +883,7 @@ class _RoleRow extends StatelessWidget {
                   ),
                 )
               else
-                Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.lock, size: 14, color: t.color('app-ink-4'))),
+                Padding(padding: EdgeInsetsDirectional.only(end: t.space(2)), child: AppIcon(Lucide.lock, size: 14, color: t.color('app-ink-4'))),
               RoleDot(hue: role.hue, size: 14),
               SizedBox(width: t.space(3)),
               Expanded(child: name),

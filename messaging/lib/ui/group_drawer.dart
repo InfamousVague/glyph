@@ -204,7 +204,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(2), pad.top + t.space(6), t.space(2), pad.bottom + t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(2), pad.top + t.space(6), t.space(2), pad.bottom + t.space(2)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: t.lenOf('34rem')),
           child: ClipRRect(
@@ -213,7 +213,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
               color: t.color('glacier-bg'),
               child: Stack(children: [
                 SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(4)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(4)),
                   child: g == null
                       ? (_problem == null
                           // Its people in bones while the group is read (lib/ui/skeleton.dart).
@@ -224,7 +224,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
                             ))
                       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: _sections(context, g)),
                 ),
-                if (_busy) Positioned(top: t.space(3), right: t.space(3), child: const GhostSpinner()),
+                if (_busy) PositionedDirectional(top: t.space(3), end: t.space(3), child: const GhostSpinner()),
               ]),
             ),
           ),

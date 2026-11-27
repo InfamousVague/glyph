@@ -273,7 +273,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
       child: Row(spacing: dialup ? t.space(1) : t.space(2), children: [
         chip('all', 'All', null),
         chip('friends', 'Friends', AppIcon(Lucide.userCheck, size: 15, wash: false, color: markInk('friends'))),
@@ -303,7 +303,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       back: true,
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
           // Add, beside the search, opens the drawer that finds friends by username, and has a username chosen first
           // where there is none (lib/ui/add_friend_drawer.dart; Matt, 2026-11-16: "move the Add button to the side of
           // search and have it open a drawer"). On the phone, whose friends they are.
@@ -383,14 +383,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         final i = friends ? at - 1 : at;
                         if (i == rows.length) {
                           return Padding(
-                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 0),
+                            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), 0),
                             child: Text(Sms.browser ? 'Your friends on Ghost Messaging. Add another by their username.' : 'The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                           );
                         }
                         final row = rows[i];
                         if (row.heading != null) {
                           return Padding(
-                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(i == 0 ? 1 : 4), t.space(4), t.space(1)),
+                            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(i == 0 ? 1 : 4), t.space(4), t.space(1)),
                             child: Text(row.heading!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
                           );
                         }

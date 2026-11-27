@@ -83,7 +83,7 @@ class TitleBar extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: heightOf(t, withClose: buttons.isNotEmpty)),
           child: Padding(
-            padding: EdgeInsets.only(left: desk ? 4 : 8, top: subtitle == null ? 0 : 4, bottom: subtitle == null ? 0 : 4),
+            padding: EdgeInsetsDirectional.only(start: desk ? 4 : 8, top: subtitle == null ? 0 : 4, bottom: subtitle == null ? 0 : 4),
             child: Row(
               children: [
                 if (leading != null) ...[leading!, SizedBox(width: desk ? 4 : 6)],

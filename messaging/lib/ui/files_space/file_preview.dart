@@ -446,7 +446,7 @@ class _WordsState extends State<_Words> {
     return ColoredBox(
       color: bevel ? DialupColors.of(t).paper : t.color('glacier-bg'),
       child: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + t.space(6)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + t.space(6)),
         children: [
           // Code keeps its lines: it scrolls across rather than wrapping.
           if (widget.code) SingleChildScrollView(scrollDirection: Axis.horizontal, child: words) else words,

@@ -236,7 +236,7 @@ class _CircleBannerState extends State<CircleBanner> {
           child: image == null
               ? DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
+                    gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [hue.withValues(alpha: 0.45), hue.withValues(alpha: 0.12)]),
                   ),
                 )
               : Stack(fit: StackFit.expand, clipBehavior: Clip.hardEdge, children: [
@@ -311,7 +311,7 @@ class CircleSpaceList extends StatelessWidget {
     // the border bevel").
     if (!bevel) return list;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(1), t.space(1), t.space(1), t.space(1) + foot),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(1), t.space(1), t.space(1), t.space(1) + foot),
       child: Sunken(child: list),
     );
   }
@@ -331,7 +331,7 @@ class _NewSpaceRow extends StatelessWidget {
       onPressed: onPress,
       semanticLabel: 'New space',
       builder: (context, state) => Container(
-        margin: bevel ? EdgeInsets.only(top: t.space(1)) : EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), 0),
+        margin: bevel ? EdgeInsets.only(top: t.space(1)) : EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(1), t.space(2), 0),
         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
         decoration: BoxDecoration(
           color: !bevel && (state.pressed || state.hovered) ? t.color('app-paper-2') : null,
@@ -367,7 +367,7 @@ class CircleSectionHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(2), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(4), t.space(2), t.space(1)),
       child: Row(children: [
         Expanded(child: Text(name.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'), tracking: 0.6))),
         if (onAdd != null) IconTap(icon: Lucide.plus, label: 'New space in $name', size: 16, onPressed: onAdd!),
@@ -428,14 +428,30 @@ class CircleVoicePeople extends StatelessWidget {
     // activity is logged uses the ripple animation like the sidebar"), in Dial-Up from its square.
     Widget rippled(double level, Widget picture) => Padding(
           padding: const EdgeInsets.all(ring),
-          child: VoiceRipples(level: level, reach: 9, corner: bevel ? 0 : null, builder: (context, _) => picture),
+          // With the green ring round the face while they talk, as a face in a call has (RippleAvatar; Matt, 2026-11-27:
+          // "make the sidebar ripples also have the green outline circle it's missing").
+          child: VoiceRipples(
+            level: level,
+            reach: 9,
+            corner: bevel ? 0 : null,
+            builder: (context, strength) => strength <= 0.05
+                ? picture
+                : DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
+                      shape: bevel ? BoxShape.rectangle : BoxShape.circle,
+                      border: Border.all(color: t.online.withValues(alpha: (0.4 + strength * 0.6).clamp(0, 1)), width: 2),
+                    ),
+                    child: picture,
+                  ),
+          ),
         );
     Widget rows(Map<String, double> levels) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           // A stage says so over who is in it, with how many of them listen (GMFB-29).
           if (space.listening case final listening?)
             Padding(
               key: ValueKey('circle-voice-${space.seed}-stage'),
-              padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
+              padding: EdgeInsetsDirectional.fromSTEB(indent + ring, 3, t.space(4), 3),
               child: Row(children: [
                 AppIcon(Lucide.megaphone, size: 14, color: t.color('app-ink-3'), wash: false),
                 SizedBox(width: t.space(1)),
@@ -450,7 +466,7 @@ class CircleVoicePeople extends StatelessWidget {
                   : Avatar(people: [Person(address: 'space:$id', name: p.name)], size: face);
               return Padding(
                 key: ValueKey('circle-voice-${space.seed}-${p.id}'),
-                padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+                padding: EdgeInsetsDirectional.fromSTEB(indent, 3, t.space(4), 3),
                 child: Row(children: [
                   rippled(levels[id] ?? 0, picture),
                   SizedBox(width: t.space(2)),
@@ -474,7 +490,7 @@ class CircleVoicePeople extends StatelessWidget {
           if (space.music case final music?)
             Padding(
               key: ValueKey('circle-voice-${space.seed}-music'),
-              padding: EdgeInsets.fromLTRB(indent, 3, t.space(4), 3),
+              padding: EdgeInsetsDirectional.fromSTEB(indent, 3, t.space(4), 3),
               child: Row(children: [
                 rippled(levels[SpotifyMusic.levelId] ?? 0, SongCover(url: music.cover, size: face, corner: bevel ? 0 : face / 2)),
                 SizedBox(width: t.space(2)),
@@ -490,7 +506,7 @@ class CircleVoicePeople extends StatelessWidget {
             ),
           if (rest > 0)
             Padding(
-              padding: EdgeInsets.fromLTRB(indent + ring, 3, t.space(4), 3),
+              padding: EdgeInsetsDirectional.fromSTEB(indent + ring, 3, t.space(4), 3),
               child: Text('and $rest more', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
           SizedBox(height: t.space(1)),

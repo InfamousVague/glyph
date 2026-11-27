@@ -474,9 +474,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             ),
           ),
         ),
-        Positioned(
+        PositionedDirectional(
           top: t.space(1),
-          right: t.space(1),
+          end: t.space(1),
           child: Container(
             decoration: BoxDecoration(color: t.color('app-paper'), shape: BoxShape.circle),
             child: IconTap(

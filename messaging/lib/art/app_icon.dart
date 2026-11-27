@@ -37,6 +37,11 @@ class LucideIcon {
 /// nothing drew from it) has one fixed stroke and no wash, which is why these are drawn from the paths.
 ///
 /// Ported from Ghost.md (lib/art/app_icon.dart) with its icon packs left out: Lucide's outline, always.
+/// The icons that point a way, which [AppIcon] draws mirrored where the text runs right to left: arrows and chevrons
+/// (back, forward, a row that opens a page), reply and send (which point along the line), undo, leaving, and a side
+/// panel.
+const mirrored = {'arrow-left', 'arrow-right', 'chevron-left', 'chevron-right', 'reply', 'send', 'undo-2', 'skip-forward', 'log-out', 'panel-left', 'external-link', 'square-arrow-out-up-right'};
+
 class AppIcon extends StatelessWidget {
   const AppIcon(this.icon, {super.key, this.size = 24, this.strokeWidth = 2, this.color, this.wash = true, this.semanticLabel});
 
@@ -64,7 +69,9 @@ class AppIcon extends StatelessWidget {
             viewBox: 256,
           )
         : DrawnIconPainter(strokes: icon.shapes, washed: wash ? [for (final index in icon.wash) icon.shapes[index]] : const [], color: ink, strokeWidth: strokeWidth);
-    final picture = CustomPaint(size: Size.square(size), painter: painter);
+    Widget picture = CustomPaint(size: Size.square(size), painter: painter);
+    // An icon that points a way points the other in a language written right to left: back is to the right there.
+    if (mirrored.contains(icon.name) && Directionality.maybeOf(context) == TextDirection.rtl) picture = Transform.flip(flipX: true, child: picture);
     if (semanticLabel == null) return ExcludeSemantics(child: picture);
     return Semantics(label: semanticLabel, image: true, child: picture);
   }

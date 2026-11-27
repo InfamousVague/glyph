@@ -183,7 +183,7 @@ class _KeyRecorderState extends State<KeyRecorder> {
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
           children: [
             PaneSection(
               description: Text(got == null ? 'Press the keys you want, all together. Esc leaves it as it was.' : 'Press other keys to change them, or save these.'),

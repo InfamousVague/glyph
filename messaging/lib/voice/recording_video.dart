@@ -211,7 +211,7 @@ abstract final class RecordingVideo {
     final canvas = ui.Canvas(recorder);
     final all = ui.Rect.fromLTWH(0, 0, layout.width.toDouble(), layout.height.toDouble());
     canvas.drawRect(all, ui.Paint()..color = const ui.Color(0xFF0E1013));
-    ui.Paragraph words(String text, double size, double within, {ui.FontWeight weight = ui.FontWeight.w600, ui.TextAlign align = ui.TextAlign.left}) {
+    ui.Paragraph words(String text, double size, double within, {ui.FontWeight weight = ui.FontWeight.w600, ui.TextAlign align = ui.TextAlign.start}) {
       final b = ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: size, fontWeight: weight, maxLines: 1, ellipsis: '…', textAlign: align))
         ..pushStyle(ui.TextStyle(color: const ui.Color(0xFFF2F4F7)))
         ..addText(text);

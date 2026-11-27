@@ -401,7 +401,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
         child: GestureDetector(
           onTap: () {},
           child: Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
               child: _Frame(
@@ -420,7 +420,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
                       if (ghost.isNotEmpty || friendless) const _Heading('On Ghost Messaging'),
                       if (friendless) ...[
                         Padding(
-                          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(1)),
+                          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(1)),
                           child: Text('No friends here yet. Add someone by their username and you can invite them in one press.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
                         ),
                         _AddFriend(onPress: () {
@@ -448,7 +448,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
                       _Ways(target: target, qr: _qr, onQr: () => setState(() => _qr = !_qr), share: widget.share, compose: widget.compose),
                       if (_qr)
                         Padding(
-                          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+                          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
                           child: Center(
                             child: Semantics(
                               label: 'The invite link to ${target.name}, as a QR code',
@@ -457,7 +457,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
                           ),
                         ),
                       Padding(
-                        padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(1)),
+                        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(1)),
                         child: GlacierSearchField(
                           key: const ValueKey('invite-search'),
                           placeholder: 'Search friends and contacts'.t,
@@ -537,9 +537,9 @@ class _FadedFoot extends StatelessWidget {
     final ground = isBevelChrome(t) ? DialupColors.of(t).chrome : t.color('app-paper-2');
     return Stack(children: [
       child,
-      Positioned(
-        left: 0,
-        right: 0,
+      PositionedDirectional(
+        start: 0,
+        end: 0,
         bottom: 0,
         height: height(t),
         child: IgnorePointer(
@@ -565,7 +565,7 @@ class _Ways extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
       child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
         // A text is a phone's to send, and the share sheet a phone's or a computer's: neither in a browser (Sms.browser),
         // where the link is copied or shown as its QR code.
@@ -678,7 +678,7 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(1)),
       child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-3'))),
     );
   }
@@ -793,7 +793,7 @@ class _Empty extends StatelessWidget {
                 ? 'Your contacts can\'t be read here. Share the link, or add a friend by their username.'
                 : 'No friends or contacts yet. Share the link with anyone.';
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(2)),
       child: Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
     );
   }
@@ -815,7 +815,7 @@ class _Send extends StatelessWidget {
     final label = n == 0 ? 'Send invites' : n == 1 ? 'Send invite' : 'Send $n invites';
     final hint = texts == 0 ? null : texts == n ? (texts == 1 ? 'By text' : 'By text, one each') : '${n - texts} in the app, $texts by text';
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(3)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(3)),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         _Primary(key: const ValueKey('invite-send'), label: label, icon: Lucide.send, enabled: n > 0 && !sending, onPress: onSend),
         if (hint != null) ...[
@@ -846,7 +846,7 @@ class _Ask extends StatelessWidget {
         ? '${Sms.paired ? 'Sent from your phone' : 'From your number'}, one text each${friends > 0 ? ', and $friends ${friends == 1 ? 'friend' : 'friends'} invited in the app' : ''}. Once they set up Ghost Messaging, the invite will be waiting.'
         : 'This phone can\'t send texts: the share sheet opens with the invite written, for you to send.';
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(3)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(3)),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(question, key: const ValueKey('invite-ask'), style: pageText(t, t.fontSize('md'), weight: 'bold', color: t.color('app-ink'))),
         SizedBox(height: t.space(1)),

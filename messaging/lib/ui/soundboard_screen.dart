@@ -52,7 +52,7 @@ class SoundboardScreen extends StatelessWidget {
         final edit = c != null && Circles.instance.can(c, CirclePerm.circle);
         // Arranging a circle's sounds from its settings is never a press in a call.
         final live = circle == null && board.inCall;
-        final pad = EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
+        final pad = EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
 
         void press(BoardSound s) {
           if (!live) return board.preview(s, space: c?.bannerChannel);
@@ -102,7 +102,7 @@ class SoundboardScreen extends StatelessWidget {
                       SizedBox(width: t.lenOf('6.5rem'), child: Text('Loudness', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
                       Expanded(child: VolumeSlider(key: const ValueKey('soundboard-volume'), value: board.volume / 100, max: 1, label: 'Soundboard loudness', onChanged: (x) => board.setVolume((x * 100).round()))),
                       SizedBox(width: t.space(3)),
-                      SizedBox(width: t.lenOf('3rem'), child: Text('${board.volume}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+                      SizedBox(width: t.lenOf('3rem'), child: Text('${board.volume}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
                     ]),
                   ),
                 ],
@@ -274,7 +274,7 @@ class _SoundNameScreenState extends State<SoundNameScreen> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final adding = widget.sound == null;
-    final pad = EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
+    final pad = EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
     return GhostPage(
       title: adding ? 'Add a sound' : 'Name it again',
       body: SettingsPaneScope(

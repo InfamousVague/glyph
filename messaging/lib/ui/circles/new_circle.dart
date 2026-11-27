@@ -45,7 +45,7 @@ Widget _form(List<Widget> children) => Builder(
       builder: (context) => LayoutBuilder(builder: (context, box) {
         final t = context.tokens;
         final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
-        return ListView(padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: children);
+        return ListView(padding: EdgeInsetsDirectional.fromSTEB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: children);
       }),
     );
 
@@ -153,7 +153,7 @@ class SpaceKindCards extends StatelessWidget {
     if (title.isEmpty) return cards;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Padding(
-        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(2)),
         child: Semantics(
           label: title,
           child: ExcludeSemantics(
@@ -252,7 +252,7 @@ class _SpacePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Container(
-      padding: EdgeInsets.fromLTRB(t.space(1), t.space(1), t.space(3), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(1), t.space(1), t.space(3), t.space(1)),
       decoration: BoxDecoration(color: isBevelChrome(t) ? null : t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('full'))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         SpaceKindBadge(kind: kind, size: 22),
@@ -823,7 +823,7 @@ class _WordsPageState extends State<_WordsPage> {
     return GhostPage(
       title: widget.title,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           PaneSection(
             description: widget.hint == null ? null : Text(widget.hint!),

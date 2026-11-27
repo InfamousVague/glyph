@@ -78,12 +78,12 @@ class TextSizeSlider extends StatelessWidget {
           onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
           child: SizedBox(
             height: 32,
-            child: Stack(alignment: Alignment.centerLeft, children: [
+            child: Stack(alignment: AlignmentDirectional.centerStart, children: [
               Container(height: 6, decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(3))),
               Container(width: w * frac, height: 6, decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(3))),
-              Positioned(left: w * along(100) - 1, child: Container(width: 2, height: 12, color: t.color('app-ink-4'))),
-              Positioned(
-                left: (w * frac - 11).clamp(0.0, w - 22),
+              PositionedDirectional(start: w * along(100) - 1, child: Container(width: 2, height: 12, color: t.color('app-ink-4'))),
+              PositionedDirectional(
+                start: (w * frac - 11).clamp(0.0, w - 22),
                 child: Container(
                   width: 22,
                   height: 22,

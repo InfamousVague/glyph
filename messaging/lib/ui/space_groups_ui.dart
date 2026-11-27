@@ -71,7 +71,7 @@ class SpaceGroupRow extends StatelessWidget {
       onPressed: () => groups.fold(heading.id, !folded),
       semanticLabel: '${heading.name}, ${heading.count} ${heading.count == 1 ? 'space' : 'spaces'}, ${folded ? 'folded' : 'open'}',
       builder: (context, state) => Padding(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(2), t.space(1)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(4), t.space(2), t.space(1)),
         child: Row(children: [
           AnimatedRotation(turns: folded ? -0.25 : 0, duration: const Duration(milliseconds: 160), child: AppIcon(Lucide.chevronDown, size: 16, color: t.color('app-ink-3'))),
           SizedBox(width: t.space(2)),
@@ -151,7 +151,7 @@ class _GroupNamePageState extends State<_GroupNamePage> {
     return GhostPage(
       title: widget.title,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           PaneSection(title: 'Name', children: [
             SettingRowBox(
@@ -208,7 +208,7 @@ class DiscordChannelRow extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
           child: Container(
             decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(3) - 2, t.space(3), t.space(3) - 2),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3) - 2, t.space(3), t.space(3) - 2),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 AppIcon(channel.stage ? LucideMore.audioLines : Lucide.volume2, size: 18, color: live ? green : t.color('app-ink-2')),
@@ -220,18 +220,18 @@ class DiscordChannelRow extends StatelessWidget {
               // Who is in it, as Discord's sidebar lists them: face, name, and what they have on or off.
               for (final m in channel.members)
                 Padding(
-                  padding: EdgeInsets.only(left: t.space(6), top: t.space(2)),
+                  padding: EdgeInsetsDirectional.only(start: t.space(6), top: t.space(2)),
                   child: Row(children: [
                     RippleAvatar(name: m.name, level: 0, size: 24),
                     SizedBox(width: t.space(2)),
                     Expanded(child: Text(m.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')))),
                     if (m.bot) _Badge(words: 'BOT', color: t.color('app-ink-3')),
                     if (m.streaming) _Badge(words: 'LIVE', color: t.colorOf('#dd3a30')),
-                    if (m.video) Padding(padding: EdgeInsets.only(left: t.space(1)), child: AppIcon(Lucide.video, size: 14, color: t.color('app-ink-3'))),
+                    if (m.video) Padding(padding: EdgeInsetsDirectional.only(start: t.space(1)), child: AppIcon(Lucide.video, size: 14, color: t.color('app-ink-3'))),
                     if (m.deafened)
-                      Padding(padding: EdgeInsets.only(left: t.space(1)), child: AppIcon(LucideMore.headphoneOff, size: 14, color: t.colorOf('#dd3a30')))
+                      Padding(padding: EdgeInsetsDirectional.only(start: t.space(1)), child: AppIcon(LucideMore.headphoneOff, size: 14, color: t.colorOf('#dd3a30')))
                     else if (m.muted)
-                      Padding(padding: EdgeInsets.only(left: t.space(1)), child: AppIcon(LucideMore.micOff, size: 14, color: t.colorOf('#dd3a30'))),
+                      Padding(padding: EdgeInsetsDirectional.only(start: t.space(1)), child: AppIcon(LucideMore.micOff, size: 14, color: t.colorOf('#dd3a30'))),
                   ]),
                 ),
             ]),
@@ -252,7 +252,7 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Container(
-      margin: EdgeInsets.only(left: t.space(1)),
+      margin: EdgeInsetsDirectional.only(start: t.space(1)),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
       child: Text(words, style: pageText(t, 9, weight: 'bold', color: const Color(0xFFFFFFFF))),
@@ -313,7 +313,7 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
       title: 'Add a Discord server',
       actions: [docsButton('discord')],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           SettingsCallout(child: const Tr('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Ghost\'s bot carries the sound and the chat both ways.')),
           gap,

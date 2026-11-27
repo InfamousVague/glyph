@@ -39,7 +39,7 @@ class LookPreview extends StatelessWidget {
         // names under the tiles share a baseline.
         final strut = StrutStyle(fontSize: t.fontSize('xs'), height: 1.25, forceStrutHeight: true);
         Widget line(String text, {required bool out}) => Align(
-              alignment: out ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: out ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
               child: Container(
                 // Tight sides, so the words fit the smallest tile even in Phosphor's mono.
                 padding: EdgeInsets.symmetric(horizontal: t.space(1) + 2, vertical: t.space(1)),

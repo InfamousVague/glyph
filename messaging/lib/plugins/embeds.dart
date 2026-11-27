@@ -429,7 +429,7 @@ class EmbedView extends StatelessWidget {
              // Whose it is, where a GIF service's own page was the link (KLIPY asks that its name be shown).
              if (s != null && !linksAPicture(e.url))
                Padding(
-                 padding: EdgeInsets.only(top: 3, left: 2),
+                 padding: EdgeInsetsDirectional.only(top: 3, start: 2),
                  child: Text(s.id == 'klipy' ? 'Powered by KLIPY' : s.name, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                ),
             ]),
@@ -471,7 +471,7 @@ class EmbedView extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
                 ?image,
                 Padding(
-                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(2) + 2, t.space(3), t.space(3)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2) + 2, t.space(3), t.space(3)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Row(children: [
                       if (mark != null) ...[CustomPaint(size: const Size.square(13), painter: _MarkPainter(mark, brand)), SizedBox(width: t.space(1) + 2)],

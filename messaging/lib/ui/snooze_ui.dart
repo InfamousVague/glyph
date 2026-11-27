@@ -55,7 +55,7 @@ class SnoozedReminders extends StatelessWidget {
         final back = Snoozed.instance.remindersIn(chat);
         if (back.isEmpty) return const SizedBox.shrink();
         return Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), 0),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             for (final r in back)
               Padding(
@@ -68,7 +68,7 @@ class SnoozedReminders extends StatelessWidget {
                   },
                   semanticLabel: 'Show the snoozed message',
                   builder: (context, state) => Container(
-                    padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
                     decoration: BoxDecoration(
                       color: t.color(state.pressed || state.hovered ? 'app-paper-3' : 'app-paper-2'),
                       borderRadius: BorderRadius.circular(t.radius('md')),

@@ -33,7 +33,7 @@ class Words extends ChangeNotifier {
   /// The twenty most spoken (Matt, 2026-11-26: "Add translations for the 20 most popular languages"). Chinese is
   /// Simplified (a device in Chinese of any kind is given it). Then eight more, two of them written right to left
   /// (Matt, 2026-11-26: "Translate some RLT and LTR languages"): Hebrew, Persian, Italian, Dutch, Polish, Ukrainian,
-  /// Thai and Greek. Arabic, Urdu, Hebrew and Persian are drawn left to right for now.
+  /// Thai and Greek. Arabic, Urdu, Hebrew and Persian draw the whole app mirrored ([rightToLeft]).
   static const languages = {
     'en': 'English',
     'ar': 'العربية',
@@ -64,6 +64,13 @@ class Words extends ChangeNotifier {
     'vi': 'Tiếng Việt',
     'zh': '简体中文',
   };
+
+  /// The languages written right to left: the app is drawn mirrored in them, its start on the right (Matt,
+  /// 2026-11-26, asked whether to: "Yes, flip them").
+  static const rightToLeft = {'ar', 'fa', 'he', 'ur'};
+
+  /// Which way the app is drawn in the language drawn now.
+  TextDirection get direction => rightToLeft.contains(_language) ? TextDirection.rtl : TextDirection.ltr;
 
   /// Where the choice is kept: a code of [languages], or [automatic] for the device's own where it is one of them.
   static const key = 'language', automatic = 'auto';
@@ -173,6 +180,24 @@ class Words extends ChangeNotifier {
     mark(root);
   }
 }
+
+/// Which way words someone wrote run, where the app is drawn right to left: by their first letter, as a phone's own
+/// messages app does, so an English message keeps its "?" at its end. Null where the app runs left to right (they
+/// are drawn as ever) or the words have no letter.
+TextDirection? ownDirection(String words) {
+  if (Words.instance.direction == TextDirection.ltr) return null;
+  for (final r in words.runes) {
+    if ((r >= 0x0590 && r <= 0x08FF) || (r >= 0xFB1D && r <= 0xFDFF) || (r >= 0xFE70 && r <= 0xFEFF)) return TextDirection.rtl;
+    if (_letter.hasMatch(String.fromCharCode(r))) return TextDirection.ltr;
+  }
+  return null;
+}
+
+final _letter = RegExp(r'\p{L}', unicode: true);
+
+/// [words] someone wrote, kept to their own direction inside a line drawn right to left (a first-strong isolate), so
+/// English punctuation stays at the English end. As they are where the app runs left to right.
+String ownWords(String words) => Words.instance.direction == TextDirection.ltr || words.isEmpty ? words : '\u2068$words\u2069';
 
 /// `'Settings'.t`: these words in the language drawn now.
 extension Translated on String {

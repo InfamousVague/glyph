@@ -110,7 +110,7 @@ class _VideoBubbleState extends State<VideoBubble> {
                         : Padding(
                             padding: EdgeInsets.all(t.space(3)),
                             child: Align(
-                              alignment: Alignment.topLeft,
+                              alignment: AlignmentDirectional.topStart,
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
                                 AppIcon(Lucide.film, size: 15, color: widget.ink, wash: false),
                                 SizedBox(width: t.space(2)),
@@ -131,8 +131,8 @@ class _VideoBubbleState extends State<VideoBubble> {
                   ),
                 ),
                 if (length > Duration.zero)
-                  Positioned(
-                    right: t.space(2),
+                  PositionedDirectional(
+                    end: t.space(2),
                     bottom: t.space(2),
                     child: Container(
                       padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 2),

@@ -100,7 +100,7 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
         return GhostPage(
           title: 'People by text',
           subtitle: widget.space.name,
-          body: ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
+          body: ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
             SettingsCallout(
               child: Text(texter == null
                   ? 'This isn\'t an SMS space.'

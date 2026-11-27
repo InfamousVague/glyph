@@ -127,12 +127,12 @@ class FlatLine extends StatelessWidget {
         // 2026-11-19: "the mention highlight has too much padding on the top").
         margin: EdgeInsets.only(top: first && mentionsMe ? t.space(2) : 0),
         padding: mentionsMe
-            ? EdgeInsets.fromLTRB(t.space(1), first ? t.space(1) : 2, t.space(1), first ? t.space(1) : 2)
-            : EdgeInsets.only(top: first ? t.space(3) : 2, left: t.space(1), right: t.space(1)),
+            ? EdgeInsetsDirectional.fromSTEB(t.space(1), first ? t.space(1) : 2, t.space(1), first ? t.space(1) : 2)
+            : EdgeInsetsDirectional.only(top: first ? t.space(3) : 2, start: t.space(1), end: t.space(1)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: gutter,
-            child: first ? Align(alignment: Alignment.topLeft, child: _toPerson(face(size))) : null,
+            child: first ? Align(alignment: AlignmentDirectional.topStart, child: _toPerson(face(size))) : null,
           ),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -146,7 +146,7 @@ class FlatLine extends StatelessWidget {
                     Text(clock(at), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ]),
                 ),
-              Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: body(context, maxWidth))),
+              Align(alignment: AlignmentDirectional.centerStart, child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: body(context, maxWidth))),
               if (reactions.isNotEmpty) ReactionChips(key: reactionsKey, kinds: reactions, onToggle: onReact, onAdd: onAddReaction),
               ?foot,
             ]),
@@ -184,7 +184,7 @@ class FlatQuote extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Container(
-      padding: EdgeInsets.fromLTRB(t.space(2), 2, t.space(2), 2),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 2, t.space(2), 2),
       decoration: BoxDecoration(
         color: ink.withValues(alpha: 0.07),
         border: Border(left: BorderSide(color: t.color('app-accent'), width: 3)),

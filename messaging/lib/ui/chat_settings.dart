@@ -167,7 +167,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           child: GhostPage(
             title: 'Conversation settings',
             body: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
                 Column(mainAxisSize: MainAxisSize.min, children: [
                   Avatar(people: people, size: t.lenOf('4.5rem')),

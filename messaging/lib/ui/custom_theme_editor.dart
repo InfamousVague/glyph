@@ -49,7 +49,7 @@ class CustomThemePreview extends StatelessWidget {
     final words = family == null ? t.textAt(size, color: theme.ink) : t.textAt(size, color: theme.ink).copyWith(fontFamily: family);
     final strut = StrutStyle(fontSize: size, height: 1.25, forceStrutHeight: true);
     Widget line(String text, {required bool out}) => Align(
-          alignment: out ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: out ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: t.space(large ? 3 : 1) + 2, vertical: t.space(large ? 2 : 1)),
             decoration: BoxDecoration(color: out ? theme.accent : theme.surface, borderRadius: BorderRadius.circular(t.radius(large ? 'lg' : 'md'))),
@@ -293,7 +293,7 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
           children: [
             PaneSection(
               description: Text(widget.pasted

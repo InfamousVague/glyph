@@ -84,7 +84,7 @@ class _SafetyNumber extends StatelessWidget {
     final groups = digits.split(' ').where((g) => g.isNotEmpty).toList();
     final rows = [groups.take(3).join('  '), groups.skip(3).join('  ')].where((r) => r.isNotEmpty);
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         Semantics(
           label: 'Safety number: ${groups.join(', ')}',

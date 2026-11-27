@@ -168,7 +168,7 @@ class _PeopleReportsScreenState extends State<PeopleReportsScreen> {
       title: 'Reports of people',
       actions: [IconTap(icon: Lucide.refreshCw, label: 'Refresh', onPressed: () => unawaited(_read()))],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           if (error?.code == 'not_admin')
             KeyedSubtree(key: const ValueKey('people-reports-signin'), child: AdminSignIn(ask: widget.ask, onDone: _read))
@@ -234,7 +234,7 @@ class PeopleReportScreen extends StatelessWidget {
       key: ValueKey('people-report-page-${report.row.rid}'),
       title: r.isMessage ? 'Reported message' : 'Reported person',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(title: 'Who', children: [
             SettingRow(icon: const AppIcon(Lucide.userRound, size: 18), label: r.subjectUsername.isNotEmpty ? '@${r.subjectUsername}' : (r.subjectName.isEmpty ? 'Unknown' : r.subjectName), hint: Text([if (r.subjectName.isNotEmpty) r.subjectName, if (r.subjectId.isNotEmpty) 'Ghost id ${r.subjectId}'].join(' · ')), onPress: r.subjectId.isEmpty ? null : () => copy(r.subjectId)),

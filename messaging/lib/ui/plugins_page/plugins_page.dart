@@ -344,7 +344,7 @@ class _PluginsPageState extends State<PluginsPage> {
           final foot = t.space(8) + MediaQuery.paddingOf(context).bottom;
           final shelves = ListView(
             key: const ValueKey('plugins-scroll'),
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), foot),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), foot),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               Center(
@@ -376,15 +376,15 @@ class _PluginsPageState extends State<PluginsPage> {
                 ),
                 child: ListView(
                   key: ValueKey('plugins-pane-${open.id}'),
-                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), foot),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), foot),
                   children: [_detail(context, open, close: true)],
                 ),
               ),
             ],
             ),
-            Positioned(
+            PositionedDirectional(
               key: const ValueKey('plugins-split'),
-              right: paneW - grip / 2,
+              end: paneW - grip / 2,
               top: 0,
               bottom: 0,
               width: grip,

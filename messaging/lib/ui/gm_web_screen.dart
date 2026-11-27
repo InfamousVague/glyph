@@ -206,7 +206,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
     }
     return GhostPage(
       title: 'Google Messages connection',
-      body: ListView(padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(10)), children: children),
+      body: ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(10)), children: children),
     );
   }
 }

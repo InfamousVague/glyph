@@ -616,11 +616,11 @@ class _VideoScreenState extends State<VideoScreen> {
             // Waiting for more of it (a streamed file not yet here, a slow disk): a small spinner, only while it waits.
             if (ready && v.buffering) const Positioned.fill(child: IgnorePointer(child: Center(child: GhostSpinner(size: 26)))),
             if (_skipped != null)
-              Positioned(
+              PositionedDirectional(
                 top: 0,
                 bottom: 0,
-                left: _skippedRight ? null : t.space(8),
-                right: _skippedRight ? t.space(8) : null,
+                start: _skippedRight ? null : t.space(8),
+                end: _skippedRight ? t.space(8) : null,
                 child: Center(
                   child: IgnorePointer(
                     child: Container(
@@ -641,20 +641,20 @@ class _VideoScreenState extends State<VideoScreen> {
                   child: Stack(children: [
                     // A shade at the top and the foot, so the controls stand off a bright picture.
                     if (!bevel) ...[
-                      const Positioned(top: 0, left: 0, right: 0, height: 140, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x99000000), Color(0x00000000)]))))),
-                      const Positioned(bottom: 0, left: 0, right: 0, height: 200, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xAA000000), Color(0x00000000)]))))),
+                      const PositionedDirectional(top: 0, start: 0, end: 0, height: 140, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x99000000), Color(0x00000000)]))))),
+                      const PositionedDirectional(bottom: 0, start: 0, end: 0, height: 200, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xAA000000), Color(0x00000000)]))))),
                     ],
-                    Positioned(
+                    PositionedDirectional(
                       top: bevel ? 0 : pad.top + t.space(3),
-                      left: bevel ? 0 : t.space(4),
-                      right: bevel ? 0 : t.space(4),
+                      start: bevel ? 0 : t.space(4),
+                      end: bevel ? 0 : t.space(4),
                       // Dial-Up's title bar runs the width, from under the status bar, as its windows' do.
                       child: bevel ? ColoredBox(color: DialupColors.of(t).titlebar, child: Padding(padding: EdgeInsets.only(top: pad.top), child: top)) : top,
                     ),
                     if (ready)
-                      Positioned(
-                        left: bevel ? 0 : t.space(4),
-                        right: bevel ? 0 : t.space(4),
+                      PositionedDirectional(
+                        start: bevel ? 0 : t.space(4),
+                        end: bevel ? 0 : t.space(4),
                         bottom: bevel ? 0 : pad.bottom + t.space(4),
                         child: Center(
                           child: ConstrainedBox(
@@ -666,8 +666,8 @@ class _VideoScreenState extends State<VideoScreen> {
                       ),
                     // The sounds and subtitles, over the dock's right end.
                     if (ready && _tracksOpen && v.tracks.choosable)
-                      Positioned(
-                        right: bevel ? t.space(2) : t.space(4),
+                      PositionedDirectional(
+                        end: bevel ? t.space(2) : t.space(4),
                         bottom: (bevel ? pad.bottom : pad.bottom + t.space(4)) + 72,
                         child: _TrackPanel(look: look, tracks: v.tracks, maxHeight: MediaQuery.sizeOf(context).height * 0.6, onAudio: _chooseAudio, onSubtitle: _chooseSubtitle),
                       ),
@@ -833,10 +833,10 @@ class _Dock extends StatelessWidget {
     ]);
     if (look.bevel) {
       // Dial-Up: the window's silver panel along the foot, raised, its buttons the era's square ones.
-      return Bevel(padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(3), t.space(2) + foot), child: row);
+      return Bevel(padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(3), t.space(2) + foot), child: row);
     }
     return Container(
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(3), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(3), t.space(2)),
       decoration: look.panel(t),
       child: row,
     );
@@ -877,29 +877,29 @@ class _TrackState extends State<_Track> {
       final Widget line;
       if (look.bevel) {
         final knob = 12.0;
-        line = Stack(alignment: Alignment.centerLeft, clipBehavior: Clip.none, children: [
+        line = Stack(alignment: AlignmentDirectional.centerStart, clipBehavior: Clip.none, children: [
           SizedBox(
             width: w,
             height: 10,
             child: Sunken(
               color: look.track,
               child: Stack(fit: StackFit.expand, children: [
-                for (final (a, b) in widget.held) Positioned(left: (w - 4) * a, width: ((w - 4) * (b - a)).clamp(0.0, w), top: 0, bottom: 0, child: ColoredBox(color: look.strong.withValues(alpha: 0.3))),
-                FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: shown, child: ColoredBox(color: look.strong)),
+                for (final (a, b) in widget.held) PositionedDirectional(start: (w - 4) * a, width: ((w - 4) * (b - a)).clamp(0.0, w), top: 0, bottom: 0, child: ColoredBox(color: look.strong.withValues(alpha: 0.3))),
+                FractionallySizedBox(alignment: AlignmentDirectional.centerStart, widthFactor: shown, child: ColoredBox(color: look.strong)),
               ]),
             ),
           ),
-          Positioned(left: (w * shown - knob / 2).clamp(0.0, w - knob), child: SizedBox(width: knob, height: 20, child: const Bevel())),
+          PositionedDirectional(start: (w * shown - knob / 2).clamp(0.0, w - knob), child: SizedBox(width: knob, height: 20, child: const Bevel())),
         ]);
       } else {
         final knob = big ? 16.0 : 12.0;
-        line = Stack(alignment: Alignment.centerLeft, clipBehavior: Clip.none, children: [
+        line = Stack(alignment: AlignmentDirectional.centerStart, clipBehavior: Clip.none, children: [
           Container(height: 4, decoration: BoxDecoration(color: look.track, borderRadius: BorderRadius.circular(2))),
           for (final (a, b) in widget.held)
-            Positioned(left: w * a, child: Container(width: (w * (b - a)).clamp(0.0, w), height: 4, decoration: BoxDecoration(color: look.ink.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+            PositionedDirectional(start: w * a, child: Container(width: (w * (b - a)).clamp(0.0, w), height: 4, decoration: BoxDecoration(color: look.ink.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
           Container(width: w * shown, height: 4, decoration: BoxDecoration(color: look.strong, borderRadius: BorderRadius.circular(2))),
-          Positioned(
-            left: (w * shown - knob / 2).clamp(-knob / 2, w - knob / 2),
+          PositionedDirectional(
+            start: (w * shown - knob / 2).clamp(-knob / 2, w - knob / 2),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               width: knob,
@@ -957,7 +957,7 @@ class _TrackPanel extends StatelessWidget {
     final ink = look.bevel ? DialupColors.of(t).ink : look.ink;
     final soft = look.bevel ? DialupColors.of(t).inkSoft : look.soft;
     Widget heading(String words) => Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(1)),
           child: Text(words.toUpperCase(), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: soft)),
         );
     Widget row(String words, bool on, VoidCallback pick) => GlacierPressable(
@@ -998,7 +998,7 @@ class _TrackPanel extends StatelessWidget {
         // The phone's player shows only a subtitle file beside the video, never those inside it: said, not hidden.
         if (!tracks.innerSubtitles)
           Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(1)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(1)),
             child: Text('Subtitles inside a video can\'t be shown on this device yet.', style: pageText(t, t.fontSize('xs'), color: soft, height: 1.4)),
           ),
       ]),

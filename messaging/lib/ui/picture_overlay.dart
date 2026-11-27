@@ -101,10 +101,10 @@ class _PictureOverlayState extends State<PictureOverlay> {
               ),
             ),
           ),
-          Positioned(
+          PositionedDirectional(
             top: pad.top + 8,
-            left: 8,
-            right: 8,
+            start: 8,
+            end: 8,
             child: Row(children: [
               Expanded(
                 child: Text(

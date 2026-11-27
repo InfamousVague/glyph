@@ -130,7 +130,7 @@ class VouchMark extends StatelessWidget {
         final words = vouchedWords(n, mine: buddy == null);
         return Padding(
           key: const ValueKey('profile-vouch-mark'),
-          padding: EdgeInsets.only(left: t.space(1)),
+          padding: EdgeInsetsDirectional.only(start: t.space(1)),
           child: HoverTip(message: words, child: Semantics(label: words, child: AppIcon(Lucide.userCheck, size: size, color: t.color('app-ink-2')))),
         );
       },

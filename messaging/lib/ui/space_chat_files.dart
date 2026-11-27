@@ -412,7 +412,7 @@ class SpaceOutgoing extends StatelessWidget {
             child: GlacierProgressBar(value: o.progress * 100, indeterminate: waiting != null || pct == 0, ariaLabel: 'Sending'),
           ),
         Padding(
-          padding: EdgeInsets.only(top: 2, right: t.space(1)),
+          padding: EdgeInsetsDirectional.only(top: 2, end: t.space(1)),
           child: o.failed
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   Flexible(child: Text('Not sent: ${why ?? 'it stopped'}', maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.danger))),
@@ -459,10 +459,10 @@ class SpacePickedStrip extends StatelessWidget {
     final side = t.lenOf('4rem');
     return SizedBox(
       height: side + t.space(2),
-      child: ListView(scrollDirection: Axis.horizontal, padding: EdgeInsets.only(bottom: t.space(2), left: t.space(1)), children: [
+      child: ListView(scrollDirection: Axis.horizontal, padding: EdgeInsetsDirectional.only(bottom: t.space(2), start: t.space(1)), children: [
         for (final p in files)
           Padding(
-            padding: EdgeInsets.only(right: t.space(2)),
+            padding: EdgeInsetsDirectional.only(end: t.space(2)),
             child: Builder(builder: (context) {
               final name = p.path.split(PlatformInfo.pathSeparator).last.split('/').last;
               final kind = FileKind.of(name, FileKind.mimeOf(name));
@@ -473,7 +473,7 @@ class SpacePickedStrip extends StatelessWidget {
                       ? Image.file(File(p.path), width: side, height: side, fit: BoxFit.cover, cacheWidth: (side * MediaQuery.devicePixelRatioOf(context)).round(), errorBuilder: (_, _, _) => _named(t, side, kind, name))
                       : _named(t, side, kind, name),
                 ),
-                Positioned(top: 0, right: 0, child: IconTap(icon: Lucide.x, label: 'Take off $name', size: 14, box: t.lenOf('1.5rem'), onPressed: () => onRemove(p))),
+                PositionedDirectional(top: 0, end: 0, child: IconTap(icon: Lucide.x, label: 'Take off $name', size: 14, box: t.lenOf('1.5rem'), onPressed: () => onRemove(p))),
               ]);
             }),
           ),

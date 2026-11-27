@@ -42,9 +42,9 @@ class ThreadLine extends StatelessWidget {
     final t = context.tokens;
     final who = last.name.isEmpty ? Voice.instance.nameOf(last.from) : last.name;
     return Padding(
-      padding: EdgeInsets.only(left: indent, top: t.space(1), bottom: t.space(1)),
+      padding: EdgeInsetsDirectional.only(start: indent, top: t.space(1), bottom: t.space(1)),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: GlacierPressable(
           onPressed: onOpen,
           semanticLabel: 'Open the thread, ${count == 1 ? '1 reply' : '$count replies'}',
@@ -111,7 +111,7 @@ class SpaceThreadPanel extends StatelessWidget {
       color: t.color('glacier-bg'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(1), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(1), t.space(2)),
           child: Row(children: [
             AppIcon(Lucide.messageSquare, size: 16, color: t.color('app-ink-3')),
             SizedBox(width: t.space(2)),
@@ -178,7 +178,7 @@ class _SpaceThreadViewState extends State<SpaceThreadView> {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(3)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(3)),
               children: [
                 _ThreadMessage(room: room, message: root, big: true),
                 Padding(
@@ -196,7 +196,7 @@ class _SpaceThreadViewState extends State<SpaceThreadView> {
           ),
           if (room.mayWrite)
             Padding(
-              padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), pad.bottom + t.space(3)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), pad.bottom + t.space(3)),
               child: ComposerBox(
                 typing: _typing,
                 field: ComposerField(controller: _text, focusNode: _focus, hint: 'Reply in thread', onSubmitted: _send, enterSends: true),

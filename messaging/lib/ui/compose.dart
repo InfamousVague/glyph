@@ -137,7 +137,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           RetroButton(onPressed: ready ? _next : null, label: 'Next', faceHeight: 32, minFaceWidth: 64)
         else
         Padding(
-          padding: EdgeInsets.only(right: t.space(2)),
+          padding: EdgeInsetsDirectional.only(end: t.space(2)),
           child: GlacierPressable(
             onPressed: ready ? _next : null,
             builder: (context, state) => Container(
@@ -150,7 +150,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
       ],
       body: _face(dialup, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, t.space(2)),
           child: Wrap(
             spacing: t.space(2),
             runSpacing: t.space(2),
@@ -161,7 +161,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   onPressed: () => setState(() => _to.remove(p)),
                   semanticLabel: 'Remove ${p.label}',
                   builder: (context, state) => Container(
-                    padding: EdgeInsets.fromLTRB(t.space(1), t.space(1), t.space(3), t.space(1)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(1), t.space(1), t.space(3), t.space(1)),
                     decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(dialup ? 0 : t.lenOf('1rem'))),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Avatar(people: [p], size: t.lenOf('1.5rem')),
@@ -176,7 +176,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, t.space(2)),
           child: _well(dialup, GlacierInput(
             controller: _field,
             focusNode: _focus,
@@ -236,7 +236,7 @@ Widget _face(bool dialup, Widget body) => dialup ? Builder(builder: (context) =>
 
 /// The people found, in a white well sunk into Dial-Up's face (as the Chat List's rows are) while there are any.
 Widget _results(bool dialup, bool any, double gutter, Widget list) =>
-    dialup && any ? Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, gutter), child: Sunken(child: list)) : list;
+    dialup && any ? Padding(padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, gutter), child: Sunken(child: list)) : list;
 
 /// One person found: their face, their name, and [line] under it.
 class _ContactRow extends StatelessWidget {

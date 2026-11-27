@@ -156,7 +156,7 @@ class _BackgroundPickerState extends State<BackgroundPicker> {
           child: GhostPage(
             title: thread == null ? 'Chat background' : (widget.who == null ? 'Background' : 'Background with ${widget.who}'),
             body: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
                 BackgroundPreview(background: worn, thread: thread),
                 SizedBox(height: t.space(5)),
@@ -307,7 +307,7 @@ class BackgroundPreview extends StatelessWidget {
     final (mine, onMine) = myBubble(t, app, thread);
     final theirs = theirBubble(t, onBackground: !background.isNone);
     Widget bubble(String text, {required bool out}) => Align(
-          alignment: out ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: out ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
           child: Container(
             margin: EdgeInsets.only(top: t.space(1)),
             padding: EdgeInsets.symmetric(horizontal: t.space(3) + 2, vertical: t.space(2)),

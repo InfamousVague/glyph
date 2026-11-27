@@ -109,7 +109,7 @@ class WatchingLine extends StatelessWidget {
         final who = w.by == 'me' ? 'You are' : '${Voice.instance.nameOf(w.by)} is';
         final reachable = filesSpaceOf(w.space) != null;
         Widget pill(String label, VoidCallback onPressed) => Padding(
-              padding: EdgeInsets.only(left: t.space(2)),
+              padding: EdgeInsetsDirectional.only(start: t.space(2)),
               child: GlacierPressable(
                 onPressed: onPressed,
                 semanticLabel: label,

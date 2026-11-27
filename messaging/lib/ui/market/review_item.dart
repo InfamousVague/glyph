@@ -782,7 +782,7 @@ class _ReviewItemScreenState extends State<ReviewItemScreen> {
           ),
         );
     return ListView(
-      padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsetsDirectional.fromSTEB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
       children: [
         if (!shaOk)
           PaneSection(children: [SettingRow(key: const ValueKey('market-review-mismatch'), icon: AppIcon(Lucide.triangleAlert, size: 18, color: t.danger), label: 'This package isn\'t the one the store lists. Don\'t approve it.', labelColor: t.danger)]),

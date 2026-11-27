@@ -783,9 +783,9 @@ class _CallBannersState extends State<CallBanners> {
         return Stack(children: [
           // Still laid out, unseen, so that the chip goes when the lines have nothing more to say. Positioned, as an
           // unpositioned child would size the stack to it (nothing) and leave the chip outside where it can be pressed.
-          Positioned(left: 0, right: 0, top: top, child: Offstage(child: lines)),
-          Positioned(
-            right: t.space(3),
+          PositionedDirectional(start: 0, end: 0, top: top, child: Offstage(child: lines)),
+          PositionedDirectional(
+            end: t.space(3),
             top: top,
             child: GestureDetector(
               key: const ValueKey('call-banners-folded'),
@@ -808,9 +808,9 @@ class _CallBannersState extends State<CallBanners> {
         ]);
       }
       return Stack(children: [
-        Positioned(
-          left: 0,
-          right: 0,
+        PositionedDirectional(
+          start: 0,
+          end: 0,
           top: top,
           child: GestureDetector(
             key: const ValueKey('call-banners'),

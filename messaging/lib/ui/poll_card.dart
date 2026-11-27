@@ -118,7 +118,7 @@ class _Answer extends StatelessWidget {
               // Its share of the votes, as a wash from the left.
               Positioned.fill(
                 child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   widthFactor: share.clamp(0, 1),
                   child: ColoredBox(color: accent.withValues(alpha: chosen ? 0.22 : 0.12)),
                 ),
@@ -230,7 +230,7 @@ class _NewPollScreenState extends State<NewPollScreen> {
         finder: SettingsFinder(),
         child: LayoutBuilder(builder: (context, box) {
           final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
-          return ListView(padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: [
+          return ListView(padding: EdgeInsetsDirectional.fromSTEB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: [
             PaneSection(title: 'Question', children: [
               SettingRowBox(
                 child: GlacierInput(
