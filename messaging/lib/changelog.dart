@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.50', '2026-11-27', [
+    'Runestone comes with its textures: the look draws its buttons, windows and parchment from the Duckscape resource pack, and fetches it to this device by itself the first time you use the look. Choose another pack, or plain stone, in Settings › Appearance › Textures. Not in a browser.',
+    'Textures for every look: Settings › Appearance has the packs of the look you are using, under the looks. Mist and Lamplight are Ghost\'s packs now and are chosen there, and a look keeps its pack while you use another.',
+    'Four looks: Ghost, Sharp, Dial-Up and Runestone. Phosphor is gone, and so is Dial-Up\'s dark half. If you were using Phosphor, the app opens in Ghost with the bubbles you had before.',
+  ]),
   ReleaseNotes('0.12.49', '2026-11-27', [
     'Discord, Slack, Messenger and Instagram signed in on one of your devices now sign in on the others too, including sign-ins made long ago, at start and every few minutes. A computer paired with your phone gets them from the phone. Sign out on a device and it stays signed out.',
     'People Here lists only who is in the call, and the faces in a call take your look\'s shape.',
