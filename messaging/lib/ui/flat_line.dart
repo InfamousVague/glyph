@@ -230,3 +230,12 @@ Widget? faceOfPicture(BuildContext context, String? picture, double size) {
   if (isBevelChrome(context.tokens)) return DialupFace(size: size, child: image);
   return ClipOval(child: SizedBox(width: size, height: size, child: image));
 }
+
+/// [picture] (as lib/ui/hangout_screen.dart's SpacePicture gives it) filling [size] square with no frame or shape of its own, or null where there
+/// is none: for a face that frames it itself (RippleAvatar's child, VoiceFace's).
+Widget? pictureOfSpace(BuildContext context, String? picture, double size) {
+  if (picture == null || picture.isEmpty) return null;
+  final bytes = pictureBytes(picture);
+  if (bytes == null) return null;
+  return Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: faceDecodeWidth(context, size));
+}

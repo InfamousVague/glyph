@@ -25,6 +25,10 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.49', '2026-11-27', [
+    'Discord, Slack, Messenger and Instagram signed in on one of your devices now sign in on the others too, including sign-ins made long ago, at start and every few minutes. A computer paired with your phone gets them from the phone. Sign out on a device and it stays signed out.',
+    'People Here lists only who is in the call, and the faces in a call take your look\'s shape.',
+  ]),
   ReleaseNotes('0.12.48', '2026-11-27', [
     'A new look, Runestone: dark stone windows, an old adventure game\'s square letters, pixel icons and emoji, and chats written on parchment. Choose it in Settings › Appearance.',
     'Runestone\'s textures: it can draw its buttons, windows and parchment from a resource pack, pixel art that players of the game it is modelled on have made. Choose one in Settings › Appearance › Textures and it is fetched to this device; with none the look is plain stone. Not in a browser.',

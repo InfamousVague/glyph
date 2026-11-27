@@ -419,7 +419,9 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       DiscordServers.instance.start(app);
       // Telegram's and Bluesky's chats (lib/inbox), each started where it was signed in before, and their Settings.
       addInboxSettings();
-      Inbox.instance.start(app);
+      // Once the networks are up, the account's sign-ins brought into step at once (lib/inbox/curl_sync.dart): at the
+      // relay's hello the helpers were still starting, and what this phone holds would wait for the timer.
+      unawaited(Inbox.instance.start(app).then((_) => CurlSync.instance.pull()));
       // Their new messages notified, and the phone kept connected to them while Ghost is out of sight
       // (lib/inbox/alerts.dart).
       // Why Android keeps the app running after its screen is closed: networks signed in, and a friend's call to ring
@@ -470,6 +472,8 @@ class _HomeState extends State<_Home> with WidgetsBindingObserver {
       Sms.answer('voice', Voice.instance.answerDesk);
       // And how RCS stands here, for a paired computer to say so (lib/gm/rcs_share.dart, GMFB-11).
       Sms.answer('rcs', (_) => RcsShare.answer(app));
+      // And the networks' sign-ins, for a paired computer that can't read the account's itself (lib/inbox/curl_sync.dart).
+      Sms.answer('signins', CurlSync.instance.forComputer);
       // And its Telegram approves a paired computer's sign-in (lib/inbox/telegram.dart).
       Sms.answer('telegram', (args) async {
         final tg = Inbox.instance.named('telegram');

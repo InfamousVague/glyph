@@ -111,7 +111,10 @@ void main() {
     });
 
     test('someone\'s game is believed for twelve minutes after it was last said', () {
-      var now = DateTime(2026, 11, 20, 12);
+      // Today's, not a fixed date: a game said to have begun more than a week before the real clock is taken to have
+      // begun now (GameActivity.fromJson), and this test, written for 2026-11-20, failed from 2026-11-27 on.
+      final start = DateTime.now();
+      var now = start;
       final all = GameActivities(clock: () => now);
       var told = 0;
       all.addListener(() => told++);
@@ -120,7 +123,7 @@ void main() {
       expect(told, 1);
       // Said again (every five minutes while it goes on): still believed, nobody told anew.
       now = now.add(const Duration(minutes: 5));
-      all.heard('maya', {'n': 'Hades', 's': DateTime(2026, 11, 20, 12).millisecondsSinceEpoch});
+      all.heard('maya', {'n': 'Hades', 's': start.millisecondsSinceEpoch});
       expect(told, 1);
       now = now.add(const Duration(minutes: 11));
       expect(all.of('maya')?.name, 'Hades');

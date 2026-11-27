@@ -211,7 +211,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   DiscordServers.instance.start(state);
   // Telegram's and Bluesky's chats (lib/inbox): the computer signs in to them itself, as their own apps do.
   addInboxSettings();
-  unawaited(Inbox.instance.start(state));
+  final networksUp = Inbox.instance.start(state);
+  unawaited(networksUp);
   // First messages from someone new on the networks the Human check guards, held until they answer its question, as
   // on the phone (lib/inbox/human_check.dart; GMFB-23).
   startHumanCheck(state);
@@ -229,6 +230,14 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // Sign-ins synced across the account (the browser extension's, and those made on another device): never set up on a
   // computer before, so none reached one (Matt, 2026-11-21: "the curl should automatically be applied to all devices").
   CurlSync.instance.app = state;
+  // And at once, as the computer starts (the relay's hello may have come before, or never, on a computer paired but
+  // without the account), once its networks are up; and whenever the link to its phone comes up.
+  unawaited(networksUp.then((_) => CurlSync.instance.pull()));
+  var linkUp = link.online;
+  link.addListener(() {
+    if (link.online && !linkUp) unawaited(CurlSync.instance.pull());
+    linkUp = link.online;
+  });
   // Loaded: the window its own size again, and the app in it; on its own with no username yet, the small window for
   // signing up or in (lib/desktop/window_size.dart; Matt, 2026-11-20: "make the sign up / sign in window smaller").
   await leaveSplashWindow(compact: alone && state.choice('me_username', '').isEmpty);

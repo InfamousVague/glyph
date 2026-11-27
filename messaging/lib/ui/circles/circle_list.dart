@@ -28,7 +28,9 @@ import '../../voice/spotify.dart' show SpotifyMusic;
 import '../../voice/voice.dart';
 import '../common.dart';
 import '../dialup/bevel.dart';
-import '../hangout_screen.dart' show SpaceFace;
+import '../dialup/parts.dart' show VoiceFace, voiceCorner;
+import '../flat_line.dart' show pictureOfSpace;
+import '../hangout_screen.dart' show SpaceFace, SpacePicture;
 import '../ripple_avatar.dart';
 import '../space_designs/space_design.dart' show callLevels;
 import '../spotify_panel.dart' show SongCover;
@@ -423,7 +425,11 @@ class CircleVoicePeople extends StatelessWidget {
     final room = voice.hangoutFor(space.channel);
     final shown = space.people.take(most).toList();
     final rest = space.people.length - shown.length;
-    const face = 22.0;
+    // A bit larger than they were at 22 (Matt, 2026-11-27: "make the uers in the sidebar a bit larger"), and their names
+    // with them.
+    const face = 28.0;
+    // Square in Dial-Up, a squircle in a resource pack's frame, round elsewhere: as a face in the call itself is.
+    final corner = voiceCorner(t, face);
     // Rings out from a face while they talk, as everywhere else in the app (Matt, 2026-11-25: "make sure everywhere voice
     // activity is logged uses the ripple animation like the sidebar"), in Dial-Up from its square.
     Widget rippled(double level, Widget picture) => Padding(
@@ -433,17 +439,17 @@ class CircleVoicePeople extends StatelessWidget {
           child: VoiceRipples(
             level: level,
             reach: 9,
-            corner: bevel ? 0 : null,
-            builder: (context, strength) => strength <= 0.05
-                ? picture
-                : DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      shape: bevel ? BoxShape.rectangle : BoxShape.circle,
-                      border: Border.all(color: t.online.withValues(alpha: (0.4 + strength * 0.6).clamp(0, 1)), width: 2),
-                    ),
-                    child: picture,
-                  ),
+            corner: corner,
+            builder: (context, strength) {
+              if (strength <= 0.05) return picture;
+              final line = t.online.withValues(alpha: (0.4 + strength * 0.6).clamp(0, 1));
+              if (corner != null) return TalkingLine(corner: corner, color: line, width: 2, child: picture);
+              return DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: line, width: 2)),
+                child: picture,
+              );
+            },
           ),
         );
     Widget rows(Map<String, double> levels) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
@@ -461,9 +467,21 @@ class CircleVoicePeople extends StatelessWidget {
           for (final p in shown)
             () {
               final talking = (levels[p.id] ?? 0) > RippleAvatar.talking;
-              final id = p.id, picture = room != null
-                  ? SpaceFace(room: room, id: p.me ? room.me : id, name: p.name, size: face)
-                  : Avatar(people: [Person(address: 'space:$id', name: p.name)], size: face);
+              final id = p.id;
+              final initial = Avatar(people: [Person(address: 'space:$id', name: p.name)], size: face);
+              final picture = room == null
+                  ? initial
+                  : corner == null
+                      ? SpaceFace(room: room, id: p.me ? room.me : id, name: p.name, size: face)
+                      // Their picture in the call's own frame; with none, their initials as everywhere.
+                      : SpacePicture(
+                          room: room,
+                          id: p.me ? room.me : id,
+                          builder: (context, kept) {
+                            final image = pictureOfSpace(context, kept, face);
+                            return image == null ? initial : VoiceFace(size: face, child: image);
+                          },
+                        );
               return Padding(
                 key: ValueKey('circle-voice-${space.seed}-${p.id}'),
                 padding: EdgeInsetsDirectional.fromSTEB(indent, 3, t.space(4), 3),
@@ -471,7 +489,7 @@ class CircleVoicePeople extends StatelessWidget {
                   rippled(levels[id] ?? 0, picture),
                   SizedBox(width: t.space(2)),
                   Expanded(
-                    child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: talking ? 'medium' : 'regular', color: t.color(talking ? 'app-ink' : 'app-ink-2'))),
+                    child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: talking ? 'medium' : 'regular', color: t.color(talking ? 'app-ink' : 'app-ink-2'))),
                   ),
                   // What they show the call, after their name (GMFB-66: "show what users are streaming and or sharing
                   // video"): a camera, or a screen.
@@ -492,7 +510,7 @@ class CircleVoicePeople extends StatelessWidget {
               key: ValueKey('circle-voice-${space.seed}-music'),
               padding: EdgeInsetsDirectional.fromSTEB(indent, 3, t.space(4), 3),
               child: Row(children: [
-                rippled(levels[SpotifyMusic.levelId] ?? 0, SongCover(url: music.cover, size: face, corner: bevel ? 0 : face / 2)),
+                rippled(levels[SpotifyMusic.levelId] ?? 0, SongCover(url: music.cover, size: face, corner: corner ?? face / 2)),
                 SizedBox(width: t.space(2)),
                 Expanded(
                   child: Text.rich(
