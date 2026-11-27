@@ -307,7 +307,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
           // Out of the call: who is here, a way in, and the chat.
           final here = room?.present.values.toList() ?? const <HangoutPerson>[];
           final inVoice = v.inChannel(widget.channel);
-          // Dial-Up: on the window's silver, and only who is in voice, since "People Here" under it counts the room.
+          // Dial-Up: on the window's silver, and who is in voice, as "People Here" under it lists them by name.
           final dialup = isDialup(context);
           final row = Padding(
             padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
@@ -787,7 +787,8 @@ class _HangoutChatState extends State<HangoutChat> {
       _here = null;
       return;
     }
-    final now = {for (final id in room.present.keys) if (id != room.me) id};
+    // Who "People Here" lists but you: in a space with a call, who is in the call (_inCall).
+    final now = _callSpace(room) ? _inCall(room) : {for (final id in room.present.keys) if (id != room.me) id};
     final was = _here;
     if (was == null) {
       // Who is here on joining is what "People Here" says; only later changes are comings and goings. Opened with
@@ -804,6 +805,22 @@ class _HangoutChatState extends State<HangoutChat> {
       _comings.add((at: at, id: id, came: false));
     }
     if (_comings.length > 200) _comings.removeRange(0, _comings.length - 200);
+  }
+
+  /// The call's people changed: in a space with a call they are who "People Here" lists, and who comes and goes.
+  void _voiceChanged() {
+    if (mounted && _callSpace(widget.room)) _roomChanged();
+  }
+
+  /// Whether [room] is a space with a call, where "People Here" is the call's people: not a texting or Files space,
+  /// and not in a browser, which has no calls yet (Sms.callsHere).
+  static bool _callSpace(HangoutRoom room) => room.channel.hasVoice && Sms.callsHere;
+
+  /// Who but you is in [room]'s call: who the call says is, and whoever says so themselves here before the call's word
+  /// of them comes.
+  static Set<String> _inCall(HangoutRoom room) {
+    final v = Voice.instance;
+    return <String>{...v.inChannel(room.channel), for (final p in room.present.values) if (p.inVoice) p.id}..removeAll({room.me, v.me, 'me'});
   }
 
   /// A person's name for a coming or a going: as they say it now, else as they last said it here, else as Voice
@@ -831,6 +848,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void initState() {
     super.initState();
     widget.room.addListener(_roomChanged);
+    Voice.instance.addListener(_voiceChanged);
     _roomChanged(first: true);
     // Opened from a snoozed message's notification (lib/main.dart): that message, once the chat is drawn.
     final show = Snoozed.instance.takeShow(_snoozeKey);
@@ -848,6 +866,7 @@ class _HangoutChatState extends State<HangoutChat> {
   void dispose() {
     if (MentionAlerts.showing == widget.room.channel.seed) MentionAlerts.showing = null;
     widget.room.removeListener(_roomChanged);
+    Voice.instance.removeListener(_voiceChanged);
     _slowTimer?.cancel();
     _shortcodes.dispose();
     _text.dispose();
@@ -1204,12 +1223,22 @@ class _HangoutChatState extends State<HangoutChat> {
     ]);
   }
 
-  /// Who is in the room: you first, then the others as they said they are, each with whether they are in its voice.
+  /// Who "People Here" lists: you first, then the others. In a space with a call it is who is in the call, and nobody
+  /// who only has the space open (Matt, 2026-11-27: "the 'people here' reports people not in voice chat actively": it
+  /// said 3 under a header that said "2 in voice"); in a texting or Files space, which has no call, and in a browser,
+  /// which has none yet, it is who has the space open.
   List<({String id, String name, bool voice, bool me})> _people(HangoutRoom room) {
     final v = Voice.instance;
     final inVoice = v.inChannel(room.channel);
+    final meIn = v.session?.channel.room == room.channel.room;
+    if (_callSpace(room)) {
+      return [
+        if (meIn) (id: room.me, name: 'You', voice: true, me: true),
+        for (final id in _inCall(room)) (id: id, name: _nameOf(id), voice: true, me: false),
+      ];
+    }
     return [
-      (id: room.me, name: 'You', voice: v.session?.channel.room == room.channel.room, me: true),
+      (id: room.me, name: 'You', voice: meIn, me: true),
       for (final p in room.present.values)
         if (p.id != room.me) (id: p.id, name: _nameOf(p.id), voice: p.inVoice || inVoice.contains(p.id), me: false),
     ];
@@ -2872,7 +2901,7 @@ class _HangoutSettingsScreenState extends State<HangoutSettingsScreen> {
 /// from the pictures kept here (lib/me/pictures.dart), asked of them once ([HangoutRoom.pictureOf]) where their
 /// greeting says they have one this device hasn't got. It was their initials always: the picture was only ever
 /// fetched for their profile card.
-class SpaceFace extends StatefulWidget {
+class SpaceFace extends StatelessWidget {
   const SpaceFace({super.key, required this.room, required this.id, required this.name, required this.size});
   final HangoutRoom room;
   final String id;
@@ -2880,10 +2909,27 @@ class SpaceFace extends StatefulWidget {
   final double size;
 
   @override
-  State<SpaceFace> createState() => _SpaceFaceState();
+  Widget build(BuildContext context) => SpacePicture(
+        room: room,
+        id: id,
+        builder: (context, picture) => faceOfPicture(context, picture, size) ?? Avatar(people: [Person(address: 'space:$id', name: name)], size: size),
+      );
 }
 
-class _SpaceFaceState extends State<SpaceFace> {
+/// Someone in a space's picture as it is kept on this device, given to [builder] (null where they have none, or none
+/// has come yet) and again as it changes: what [SpaceFace] frames as a face, and a call's faces and the sidebar's draw
+/// in their own shape ([pictureOfSpace]).
+class SpacePicture extends StatefulWidget {
+  const SpacePicture({super.key, required this.room, required this.id, required this.builder});
+  final HangoutRoom room;
+  final String id;
+  final Widget Function(BuildContext context, String? picture) builder;
+
+  @override
+  State<SpacePicture> createState() => _SpacePictureState();
+}
+
+class _SpacePictureState extends State<SpacePicture> {
   /// Who has been asked for their picture, by room, so a chat full of their messages asks once.
   static final Map<String, Set<String>> _asked = {};
 
@@ -2924,10 +2970,7 @@ class _SpaceFaceState extends State<SpaceFace> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final size = widget.size;
-    return faceOfPicture(context, _picture(), size) ?? Avatar(people: [Person(address: 'space:${widget.id}', name: widget.name)], size: size);
-  }
+  Widget build(BuildContext context) => widget.builder(context, _picture());
 }
 
 /// Over a space's box where it has slow mode: how long each person waits, and while this one waits, how long is left

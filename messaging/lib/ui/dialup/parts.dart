@@ -117,7 +117,7 @@ class DialupFace extends StatelessWidget {
     // Where the look draws with a resource pack (lib/packs/): round, inside the pack's own orb, as the game frames
     // what stands by its map (Matt, 2026-11-27: "find a different look for the profile pictures make them inside a
     // circle like shown", with a picture of one). The orb's ring is 4 of its 34 pixels each side.
-    final orb = packOf(context.tokens)?['other/minimap_orb_frame_small'];
+    final orb = packOf(context.tokens)?[_orbName];
     if (orb != null) {
       final inner = (size * 26 / 34).floorToDouble();
       return SizedBox.square(
@@ -145,7 +145,7 @@ class PackOrb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orb = packOf(context.tokens)?['other/minimap_orb_frame_small'];
+    final orb = packOf(context.tokens)?[_orbName];
     if (orb == null) return child;
     final inner = (size * 26 / 34).floorToDouble();
     return SizedBox.square(
@@ -156,6 +156,62 @@ class PackOrb extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// The corner a face in a call is drawn with under [t], and its talking rings with it (Matt, 2026-11-27: "in voice chat
+/// I should have the square icons with the talking wobbles being square like they are in the sidebar and make the
+/// profile pictures a squircle with the same texture outline we use for the user profile pictures"): null in a look of
+/// round faces; 0, a square, in Dial-Up; and where the look draws with a resource pack, a squircle's, the corner the
+/// pack's orb has when it is drawn for a face of 44.
+double? voiceCorner(Tokens t, double size) {
+  if (!isBevelChrome(t)) return null;
+  return packOf(t)?[_orbName] == null ? 0 : size * 17 / 44;
+}
+
+const _orbName = 'other/minimap_orb_frame_small';
+
+/// Someone's face in a call, [size] square, in the shape [voiceCorner] says: round as [child] is in a look of round
+/// faces, square in a ring of the sunken bevel in Dial-Up ([DialupFace]), and with a resource pack a squircle inside
+/// the pack's own orb, the frame a profile's picture has ([PackOrb]), its corners kept and its sides drawn out between
+/// them. [child] is the picture or the initial, filling [size] square.
+class VoiceFace extends StatelessWidget {
+  const VoiceFace({super.key, required this.size, required this.child});
+  final double size;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (!isBevelChrome(t)) return ClipOval(child: SizedBox.square(dimension: size, child: child));
+    final orb = packOf(t)?[_orbName];
+    if (orb == null) return DialupFace(size: size, child: FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox.square(dimension: size, child: child)));
+    // The orb's ring is 4 of its 34 pixels, and its inner edge 13 from its middle; drawn as for a face of 44.
+    final scale = size / 44, ring = (4 * scale).ceilToDouble() - 0.5;
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(alignment: Alignment.center, children: [
+        Positioned.fill(child: CustomPaint(painter: SquirclePainter(orb, scale))),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(13 * scale),
+          child: SizedBox.square(dimension: size - ring * 2, child: FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox.square(dimension: size, child: child))),
+        ),
+      ]),
+    );
+  }
+}
+
+/// A pack's round frame as a squircle's over the whole of its box: its four quarters at the corners, each of its
+/// pixels [scale] across, and its middle drawn out between them.
+class SquirclePainter extends CustomPainter {
+  const SquirclePainter(this.orb, this.scale);
+  final ui.Image orb;
+  final double scale;
+
+  @override
+  void paint(Canvas canvas, Size size) => paintNine(canvas, orb, Offset.zero & size, inset: (orb.width - 2) / 2, scale: scale);
+
+  @override
+  bool shouldRepaint(SquirclePainter old) => old.orb != orb || old.scale != scale;
 }
 
 /// A pack's round frame over the whole of its box, its pixels kept square.
