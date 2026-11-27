@@ -12,13 +12,13 @@ import 'invite_people.dart';
 import 'shell.dart';
 
 /// The words an invite to [c] goes with, by a text or the share sheet.
-String spaceInviteWords(VoiceChannel c) => 'Join me in ${c.name} on Ghost Messaging: ${c.link}';
+String spaceInviteWords(VoiceChannel c) => 'Join me in ${c.name} on Uplink: ${c.link}';
 
 /// Inviting people into a space, from wherever invite is offered (Matt, 2026-11-16: "make a way to invite friends from
 /// the app into spaces and invite people into spaces through the app"): the sheet lib/ui/invite_people.dart draws for
 /// spaces and circles alike (Matt, 2026-11-17: "when adding people to the space we should have a suggested list of our
 /// contacts to add if they're not on ghost yet it should send them a text ... sort the list by friends on ghost
-/// first"). Friends on Ghost Messaging are sent the space at once (Voice.share: it shows on their phone as an invite);
+/// first"). Friends on Uplink are sent the space at once (Voice.share: it shows on their phone as an invite);
 /// contacts chosen are texted the link from this phone, asked first; anyone else by a text already written, the link
 /// copied, its QR code, or the system's share sheet.
 ///

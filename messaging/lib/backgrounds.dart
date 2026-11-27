@@ -24,7 +24,7 @@ import 'kit/picture_decode.dart';
 /// and `wash:#..,#..,#..,#..` (a wash's top and bottom in light, then in dark), which is what someone else's
 /// "Match my wallpaper" is here.
 ///
-/// A conversation's own background can be synced with the people in it who have Ghost Messaging (Matt, 2026-11-13: "I
+/// A conversation's own background can be synced with the people in it who have Uplink (Matt, 2026-11-13: "I
 /// want the background to sync for everyone in a chat if they're all using ghost messaging"): it goes as a text in
 /// the conversation (android/.../BackgroundWire.kt), their copy wears it, and both draw the text as a line.
 @immutable
@@ -145,7 +145,7 @@ class ChatPreset {
 
 /// The washes offered, in the order shown. A kept `preset:<id>` names one, so an id is never changed.
 const chatPresets = <ChatPreset>[
-  ChatPreset('ghost', 'Ghost', Color(0xFFE2FAFA), Color(0xFFD0F1F4), Color(0xFF001F1E), Color(0xFF062B30)),
+  ChatPreset('ghost', 'Uplink', Color(0xFFE2FAFA), Color(0xFFD0F1F4), Color(0xFF001F1E), Color(0xFF062B30)),
   ChatPreset('mist', 'Mist', Color(0xFFEEF2F7), Color(0xFFDCE5F0), Color(0xFF0F141B), Color(0xFF172230)),
   ChatPreset('sky', 'Sky', Color(0xFFE3F1FD), Color(0xFFD3E5FB), Color(0xFF0B1929), Color(0xFF10243D)),
   ChatPreset('dusk', 'Dusk', Color(0xFFF2E9F8), Color(0xFFE1DCF6), Color(0xFF191326), Color(0xFF241B3A)),
@@ -238,10 +238,10 @@ class BubbleColor {
 
 /// The colours offered, in the order shown. The id is what is kept as the choice.
 const bubbleColors = <BubbleColor>[
-  // The look's own (lib/looks.dart): its rules' --app-bubble-mine, offered only while a look other than Ghost is
+  // The look's own (lib/looks.dart): its rules' --app-bubble-mine, offered only while a look other than Uplink is
   // chosen. Ghost Keyboard does not know it; it is told the look's nearest colour instead (AccentSync.kt).
   BubbleColor('theme', 'Theme'),
-  BubbleColor('ghost', 'Ghost'),
+  BubbleColor('ghost', 'Uplink'),
   BubbleColor('ink', 'Ink'),
   BubbleColor('wallpaper', 'Wallpaper'),
   BubbleColor('white', 'White', Color(0xFFFFFFFF)),
@@ -259,7 +259,7 @@ const bubbleColors = <BubbleColor>[
   BubbleColor('mint', 'Mint', Color(0xFF1F9E8F)),
 ];
 
-/// The colour kept as [id]; Ghost where the id is none of them.
+/// The colour kept as [id]; Uplink where the id is none of them.
 BubbleColor bubbleColor(String id) => bubbleColors.firstWhere((b) => b.id == id, orElse: () => bubbleColors.firstWhere((b) => b.id == 'ghost'));
 
 /// The bubble colour [thread] wears: its own (the `bubble_<thread>` choice), else everywhere's.
@@ -281,7 +281,7 @@ Color inkOn(Color ground) => ground.computeLuminance() > 0.5 ? const Color(0xFF1
 (Color, Color) bubbleOf(Tokens t, String id) {
   switch (id) {
     case 'theme':
-      // Ghost's own look names no bubble of its own: white, its default.
+      // Uplink's own look names no bubble of its own: white, its default.
       if ((t.raw('app-bubble-mine') ?? '').isEmpty) return bubbleOf(t, 'white');
       return (t.color('app-bubble-mine'), t.color('app-on-bubble-mine'));
     case 'ink':
@@ -350,8 +350,8 @@ class BubbleSwatches extends StatelessWidget {
       );
     }
 
-    // The look's own first, while a look other than Ghost is chosen, or while it is the one chosen (a conversation
-    // left on 'theme' when Ghost came back showed no swatch chosen at all).
+    // The look's own first, while a look other than Uplink is chosen, or while it is the one chosen (a conversation
+    // left on 'theme' when Uplink came back showed no swatch chosen at all).
     final look = AppState.maybeOf(context)?.look ?? Look.ghost;
     return Wrap(spacing: t.space(1), runSpacing: t.space(3), children: [
       if (same) swatch('', 'Same', null),
@@ -372,20 +372,20 @@ Color theirBubble(Tokens t, {required bool onBackground}) {
 }
 
 /// The line round someone else's bubble where a look draws one (`--app-bubble-rim`: Sharp's, Dial-Up's and Runestone's), else
-/// null: Ghost's own bubbles have none.
+/// null: Uplink's own bubbles have none.
 Border? theirRim(Tokens t) => (t.raw('app-bubble-rim') ?? '').isEmpty ? null : Border.all(color: t.color('app-bubble-rim'), width: 1.5);
 
 /// The edge a look that draws rims (`--app-bubble-rim`) gives the app's other filled shapes, the composer and a card,
-/// which on Sharp's page were near-invisible fills where its search field and chips carry a rule; null in Ghost.
+/// which on Sharp's page were near-invisible fills where its search field and chips carry a rule; null in Uplink.
 Border? lookRim(Tokens t) => (t.raw('app-bubble-rim') ?? '').isEmpty ? null : Border.all(color: t.color('glacier-border'), width: t.len('glacier-hairline'));
 
 /// A corner the app draws at a fixed length (a bubble's, the composer's, a row's) under the look's radius scale,
-/// as the kit's own radii are: Ghost's scale is 1, so its corners are as they were, Sharp's 0.55 softens them and
+/// as the kit's own radii are: Uplink's scale is 1, so its corners are as they were, Sharp's 0.55 softens them and
 /// Dial-Up's and Runestone's 0 square them (the review of the looks, 2026-11-16: bubbles stayed pills in every look).
 /// [most] caps the scale for a corner that is already a pill, which a rounder look (Mist's 1.5) would only blur.
 double lookCorner(Tokens t, String length, {double most = double.infinity}) => t.lenOf(length) * t.number('glacier-radius-scale').clamp(0.0, most);
 
-/// The fill and words of a strong control that is not your bubble (a space's Join voice, an Owner's badge): Ghost's
+/// The fill and words of a strong control that is not your bubble (a space's Join voice, an Owner's badge): Uplink's
 /// ink on paper, where ink is its accent, and a look's own accent otherwise, since in Mist or Lamplight an ink-filled
 /// pill was a near-black blob beside everything else that is pressed or chosen.
 (Color, Color) strongFill(Tokens t) => t.attrs['theme-preset'] == null ? (t.color('app-ink'), t.color('app-paper')) : (t.color('app-accent'), t.color('app-on-accent'));

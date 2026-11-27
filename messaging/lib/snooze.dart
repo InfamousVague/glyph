@@ -3,7 +3,7 @@
 /// it is opened.
 ///
 /// Kept with the app's choices (AppState), by the conversation's key (`text:<thread>`, or `space:<room>` for a
-/// space's chat in Messages), and looked at by this app while it runs: a snooze whose time came while Ghost was closed
+/// space's chat in Messages), and looked at by this app while it runs: a snooze whose time came while Uplink was closed
 /// ends as soon as it opens again. Where the device has no notification for it (a computer), the app says it itself
 /// while it is open ([Snoozed.back]).
 ///

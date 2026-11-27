@@ -12,7 +12,7 @@ import 'souls_send.dart';
 import 'web_app.dart';
 import 'ws_door.dart';
 
-/// Ghost Messaging's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
+/// Uplink's relay (docs/desktop.md): a WebSocket server a phone and the computer it is paired with both dial
 /// out to when they are on different networks. It passes what one sends to the other while both are connected, and
 /// that is all.
 ///

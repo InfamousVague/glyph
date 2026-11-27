@@ -150,7 +150,7 @@ class _PairWizardState extends State<PairWizard> {
             height: t.lenOf('4rem'),
             decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(t.lenOf('1rem')), border: Border.all(color: t.color('app-rule'))),
             alignment: Alignment.center,
-            child: Image.asset('assets/art/ghost-mark.png', width: t.lenOf('2.3rem'), height: t.lenOf('2.3rem')),
+            child: Image.asset('assets/art/ghost-mark.png', width: t.lenOf('3.2rem'), height: t.lenOf('3.2rem')),
           ),
           SizedBox(height: t.space(5)),
         ],
@@ -163,7 +163,7 @@ class _PairWizardState extends State<PairWizard> {
   List<Widget> _choose(Tokens t) {
     final relay = _relay.text.trim();
     return [
-      _title(t, 'Your texts, on your $computerWord', 'Pair this $computerWord with Ghost Messaging on your Android phone to text from it. The phone stays the only thing that sends and receives texts; the $computerWord shows your conversations and sends through it. Everything between the two is sealed with a key only they hold. Friends, circles, Telegram and Signal work without it.', mark: true),
+      _title(t, 'Your texts, on your $computerWord', 'Pair this $computerWord with Uplink on your Android phone to text from it. The phone stays the only thing that sends and receives texts; the $computerWord shows your conversations and sends through it. Everything between the two is sealed with a key only they hold. Friends, circles, Telegram and Signal work without it.', mark: true),
       ConnectionChoice(
         value: relay.isEmpty ? 'local' : _mode,
         onChanged: (m) => setState(() => _mode = m),
@@ -195,8 +195,8 @@ class _PairWizardState extends State<PairWizard> {
 
   /// The code for the phone to scan, or to copy and paste there, while this side waits for it.
   List<Widget> _showing(Tokens t, PairingAttempt a) => [
-        _title(t, 'Scan this with your phone', 'Point the phone\'s camera at it and open the link in Ghost Messaging. Or, in Ghost Messaging on the phone: Settings › Computers › Pair a computer.'),
-        // The code as a link: the phone's own camera opens it in Ghost Messaging, and the app's scanner reads it too.
+        _title(t, 'Scan this with your phone', 'Point the phone\'s camera at it and open the link in Uplink. Or, in Uplink on the phone: Settings › Computers › Pair a computer.'),
+        // The code as a link: the phone's own camera opens it in Uplink, and the app's scanner reads it too.
         Center(child: QrView(data: a.offer.link)),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const GhostSpinner(size: 16),

@@ -1,4 +1,4 @@
-// Plugin sync across a Ghost account's devices (GMFB-9, lib/plugins/plugin_sync.dart): the list's merge rule, the
+// Plugin sync across an Uplink account's devices (GMFB-9, lib/plugins/plugin_sync.dart): the list's merge rule, the
 // sealed blob it shares with the cURL entries, and a device applying what another device chose.
 import 'dart:convert';
 import 'dart:typed_data';

@@ -3,7 +3,7 @@ import 'package:glacier/glacier.dart';
 
 /// The few colours that mean something whatever the look (lib/looks.dart): danger, unread, chosen, online and the
 /// rest. Each was a hex written where it was drawn, so no look could reach it; now each is a token of the app's
-/// (assets/css/app.css, `--app-danger` and so on) with that same hex as its value and as the fallback here, so Ghost's
+/// (assets/css/app.css, `--app-danger` and so on) with that same hex as its value and as the fallback here, so Uplink's
 /// own look draws them exactly as before and a look may name its own.
 extension AppColors on Tokens {
   /// Something failed or will be lost: a message that did not go, Delete, a muted microphone.

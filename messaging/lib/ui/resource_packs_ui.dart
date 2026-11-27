@@ -15,7 +15,7 @@ import 'common.dart';
 /// remove lamplight and mist and make them texture packs for the Ghost theme").
 ///
 /// A look's packs are of two kinds (lib/looks.dart): sets of rules that are part of the app, which were looks of
-/// their own before (Mist and Lamplight, Ghost's), and a resource pack's pictures, fetched to the device (Runestone's:
+/// their own before (Mist and Lamplight, Uplink's), and a resource pack's pictures, fetched to the device (Runestone's:
 /// lib/packs/resource_pack.dart; Matt, 2026-11-27: "see how we can get the dark vanilla texture pack", then "let's
 /// try the duckscape theme instead and bring in the pixelated looks", and, of the look in flat stone on his phone, "I
 /// see the runestone theme but I wanted it to use the duckscape look"). The section lists the look's own first, then

@@ -199,7 +199,7 @@ void main() {
     final account = Account(relay: install, port: install, store: MemoryMeStore(), profiles: install);
     expect(await account.signOut(), isTrue);
     expect([host.on, host.state, host.hasPass, secrets[RelayHost.passKey]], [false, HostState.off, false, null]);
-    expect(app.choice('net_hub', 'unset'), '', reason: 'back to Ghost Messaging\'s own, as before it moved');
+    expect(app.choice('net_hub', 'unset'), '', reason: 'back to Uplink\'s own, as before it moved');
     expect(install.secrets.containsKey(Net.joinPassName), isFalse);
     expect(File('${folder.path}/relay-key.json').existsSync(), isTrue, reason: 'its folder stays');
   });

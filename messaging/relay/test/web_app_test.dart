@@ -41,7 +41,7 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('ghost-relay-web-');
     web = Directory('${root.path}/web')..createSync();
-    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><title>Ghost Messaging</title>');
+    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><title>Uplink</title>');
     File('${web.path}/main.dart.js').writeAsStringSync('console.log("the app");');
     File('${web.path}/main.dart.3f9a1c2b.js').writeAsStringSync('console.log("the app, named by what is in it");');
     File('${web.path}/manifest.json').writeAsStringSync('{}');
@@ -69,7 +69,7 @@ void main() {
     expect(page.status, 200);
     expect(page.headers['content-type'], 'text/html; charset=utf-8');
     expect(page.headers['cache-control'], 'no-cache');
-    expect(utf8.decode(page.body), contains('<title>Ghost Messaging</title>'));
+    expect(utf8.decode(page.body), contains('<title>Uplink</title>'));
     expect((await raw('/app/index.html')).body, page.body);
     // The page's own addresses are read from the folder, so the folder's address ends in a slash.
     final bare = await raw('/app');
@@ -88,7 +88,7 @@ void main() {
   test('every answer says what the app may do: the page\'s own policy as a header, the worker\'s too, and the rest of the list', () async {
     final list = jsonDecode(File('../tool/web/headers.json').readAsStringSync()) as Map;
     const policy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://hub.example/hub; base-uri 'self'";
-    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><head><meta http-equiv="Content-Security-Policy" content="$policy"></head><title>Ghost Messaging</title>');
+    File('${web.path}/index.html').writeAsStringSync('<!DOCTYPE html><head><meta http-equiv="Content-Security-Policy" content="$policy"></head><title>Uplink</title>');
     File('${web.path}/argon2id.js').writeAsStringSync('self.onmessage = () => {};');
     final expected = {...(list['every'] as Map).cast<String, String>(), 'Content-Security-Policy': '$policy; ${list['frameAncestors']}'};
     for (final (path, status) in const [('/app/', 200), ('/app/argon2id.js', 200), ('/app/main.dart.3f9a1c2b.js', 200), ('/app/nothing-here.js', 404)]) {

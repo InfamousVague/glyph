@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:pointycastle/export.dart' show SHA256Digest;
 
-/// Profile pictures of people on Ghost, by their id on the hub (Matt, 2026-11-19: "build a profile section in the app
+/// Profile pictures of people on Uplink, by their id on the hub (Matt, 2026-11-19: "build a profile section in the app
 /// that allows us to set profile pictures and status messages"): a friend's comes with their profile; someone in a
 /// space says only their picture's [hashOf] when they come in, and the picture itself is asked of them when someone
 /// looks at their profile (lib/voice/hangout.dart, `pic?`), so a space's greetings stay small.

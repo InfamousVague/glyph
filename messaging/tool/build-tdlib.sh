@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds TDLib's JSON client (libtdjson), Telegram's own client library, from Telegram's source at a pinned commit,
-# for Ghost's Telegram inbox (lib/networks/telegram.dart; Matt, 2026-11-15: "Let's build in telegram and bluesky").
+# for Uplink's Telegram inbox (lib/networks/telegram.dart; Matt, 2026-11-15: "Let's build in telegram and bluesky").
 #
 #   sh tool/build-tdlib.sh mac        build/tdlib/mac/libtdjson.dylib        (Apple silicon)
 #   sh tool/build-tdlib.sh android    build/tdlib/android/arm64-v8a/libtdjson.so

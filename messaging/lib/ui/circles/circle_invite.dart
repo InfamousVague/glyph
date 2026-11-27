@@ -1,4 +1,4 @@
-/// Inviting people into a circle, the way a space is (lib/ui/space_invite.dart): friends on Ghost Messaging chosen and
+/// Inviting people into a circle, the way a space is (lib/ui/space_invite.dart): friends on Uplink chosen and
 /// sent the circle at once (Circles.share: it reaches their phone as an invite), and anyone else by a text already
 /// written, the link copied or shared, or its QR code shown for a camera across the table.
 library;
@@ -27,7 +27,7 @@ import '../ripple_avatar.dart';
 import 'circle_face.dart';
 
 /// The words an invite to [c] goes with, by a text or the share sheet.
-String circleInviteWords(Circle c) => 'Join my circle ${c.name} on Ghost Messaging: ${circleInviteLink(c)}';
+String circleInviteWords(Circle c) => 'Join my circle ${c.name} on Uplink: ${circleInviteLink(c)}';
 
 /// The link to share for [c]: its invite word's (gogho.st/c/…) where it has one, else its own long link.
 String circleInviteLink(Circle c) => c.inviteWord == null ? c.link : inviteWordLink(c.inviteWord!);
@@ -124,7 +124,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                           padding: EdgeInsets.only(bottom: t.space(1)),
                           child: DrawerHead(title: 'Invite people', subtitle: c.name, face: CircleFace.of(c, size: 40), note: 'Whoever has the link is in the circle.'),
                         ),
-                        _Heading('Friends on Ghost Messaging'),
+                        _Heading('Friends on Uplink'),
                         if (friends.isEmpty) ...[
                           Padding(
                             padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(1)),

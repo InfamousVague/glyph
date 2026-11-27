@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Puts Ghost Messaging's Discord bot (discord/) on the box: who is in a linked Discord server's voice channels, for
- * the app's spaces, and the bridge that joins one of those channels and the matching Ghost space and carries sound
+ * Puts Uplink's Discord bot (discord/) on the box: who is in a linked Discord server's voice channels, for
+ * the app's spaces, and the bridge that joins one of those channels and the matching Uplink space and carries sound
  * and chat both ways. One Node program holding one connection to Discord's gateway, one to the relay's hub on this box
  * (ws://127.0.0.1:18787/hub), and answering the app on 127.0.0.1:18788; the web server passes
  * https://ghost-sms.com/discord/* (and gogho.st's) to it (tool/deploy-site.mjs --caddy writes that into the site's
@@ -166,7 +166,7 @@ if (!printOnly) {
 }
 
 const SERVICE = `[Unit]
-Description=Ghost Messaging Discord bot: who is in a linked server's voice channels, and the voice and chat bridge to Ghost spaces, at /discord (ghost-sms.com)
+Description=Uplink Discord bot: who is in a linked server's voice channels, and the voice and chat bridge to Uplink spaces, at /discord (ghost-sms.com)
 After=network-online.target
 Wants=network-online.target
 
@@ -184,7 +184,7 @@ WorkingDirectory=${DIR}/app
 ExecStart=${DIR}/node/bin/node ${DIR}/app/src/bot.js
 Restart=always
 RestartSec=5
-# The bridge decodes every speaker, mixes, and encodes once for Discord and once per Ghost member every 20 ms, and
+# The bridge decodes every speaker, mixes, and encodes once for Discord and once per Uplink member every 20 ms, and
 # runs WebRTC (DTLS, SRTP) in JavaScript: discord/README.md has the numbers.
 MemoryMax=400M
 CPUQuota=100%
@@ -196,7 +196,7 @@ PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-# AF_NETLINK: Node lists the machine's addresses through it (os.networkInterfaces), and WebRTC offers Ghost apps those
+# AF_NETLINK: Node lists the machine's addresses through it (os.networkInterfaces), and WebRTC offers Uplink apps those
 # addresses; without it the bridge offered none and no call's sound ever connected (2026-11-17).
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 UMask=0077
@@ -287,7 +287,7 @@ case "$ANSWER" in *'"service":"ghost-discord"'*) ;; *) echo "x the bot does not 
 $SUDO rm -rf ${DIR}/app.old
 # The invite link (no secret in it): the journal has it too.
 echo "  invite: $(curl -s --max-time 5 http://127.0.0.1:${PORT}/discord/invite | sed -n 's/.*"url":"\\([^"]*\\)".*/\\1/p')"
-# The bridge talks to Ghost apps over UDP (WebRTC). Said here so a firewall that would block it is seen.
+# The bridge talks to Uplink apps over UDP (WebRTC). Said here so a firewall that would block it is seen.
 if command -v ufw >/dev/null 2>&1 && $SUDO ufw status 2>/dev/null | grep -q '^Status: active'; then
   echo "  note: ufw is active; the bridge's WebRTC needs inbound UDP (or GHOST_RTC_PORTS and a rule for them): discord/README.md"
 fi

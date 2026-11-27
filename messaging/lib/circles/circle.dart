@@ -835,7 +835,7 @@ class Circle {
   /// space's link; the seed is after the #, which a browser never sends to any server. The owner's key follows the
   /// name, so whoever opens it knows whose list of spaces to believe.
   ///
-  /// Made while the app uses a relay other than Ghost Messaging's own, it ends with that relay's host after an `@`
+  /// Made while the app uses a relay other than Uplink's own, it ends with that relay's host after an `@`
   /// (lib/invites/link_relay.dart; GMFB-25): a circle is rooms on one relay, and whoever opens the link has to know which.
   String get link => LinkRelay.mark('https://gogho.st/join/#c.$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}');
 

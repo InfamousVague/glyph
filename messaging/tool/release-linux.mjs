@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ghost Messaging for Linux on gogho.st (Matt, 2026-11-20: "add support on the website for linux based systems and
+ * Uplink for Linux on gogho.st (Matt, 2026-11-20: "add support on the website for linux based systems and
  * downloads").
  *
  *   node tool/release-linux.mjs --glyph ~/Development/Apps/glyph [--run <id>] [--ref <branch>] [--keep-connection] [--again] [--no-p2p]
@@ -68,14 +68,14 @@ async function liveRelease() {
 }
 {
   const now = await liveRelease();
-  if (now && now.version === versionName && !has('again')) fail(`Ghost Messaging for Linux ${versionName} is already on the site (--again to send it again).`);
+  if (now && now.version === versionName && !has('again')) fail(`Uplink for Linux ${versionName} is already on the site (--again to send it again).`);
 }
 
 // The build: started here for this version, or one that already ran.
 let run = flag('run');
 if (!run) {
   const before = new Set(JSON.parse(out('gh', ['run', 'list', '--workflow', WORKFLOW, '--limit', '20', '--json', 'databaseId'])).map((r) => r.databaseId));
-  say(`> Building Ghost Messaging for Linux ${versionName} (${versionCode}) on GitHub`);
+  say(`> Building Uplink for Linux ${versionName} (${versionCode}) on GitHub`);
   // --no-p2p: the runner leaves the direct network's core out (the workflow's own `p2p` input; the app then has no
   // direct route). Not said at all otherwise, so a workflow from before the core is asked nothing it doesn't know.
   // The runner builds what GitHub has at the branch, never what is here: refused unless that is this release
@@ -165,7 +165,7 @@ if (said?.sha256 !== info.sha256) {
   process.exit(1);
 }
 const head = await fetch(`${HOST_URL}/${DEB}`, { method: 'HEAD' });
-say(`ok live: ${HOST_URL}/${FEED} — Ghost Messaging for Linux ${info.version} (${info.versionCode}), .deb served at ${head.headers.get('content-length')} bytes (${deb.bytes} expected)`);
+say(`ok live: ${HOST_URL}/${FEED} — Uplink for Linux ${info.version} (${info.versionCode}), .deb served at ${head.headers.get('content-length')} bytes (${deb.bytes} expected)`);
 
 // The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
 // so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.

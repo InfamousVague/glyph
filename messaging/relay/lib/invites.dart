@@ -6,7 +6,7 @@ import 'dart:math';
 
 import 'sha256.dart';
 
-/// Invites waiting for someone who is not on Ghost Messaging yet (Matt, 2026-11-17: "when adding people to the space we
+/// Invites waiting for someone who is not on Uplink yet (Matt, 2026-11-17: "when adding people to the space we
 /// should have a suggested list of our contacts to add if they're not on ghost yet it should send them a text saying
 /// they've been invited to join a space in ghost with a link that eventually follows through after they setup their
 /// account").

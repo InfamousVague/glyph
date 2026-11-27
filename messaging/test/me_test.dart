@@ -104,9 +104,10 @@ void main() {
     expect(showNumber('+442079460958'), '+442079460958');
     // What is typed back in the field is read as the same number.
     expect(tidyNumber(showNumber('+15550100199')), '+15550100199');
-    expect(ownCodeIn('Your Ghost Messaging verification code is: 482913'), '482913');
+    expect(ownCodeIn('Your Uplink verification code is: 482913'), '482913');
+    expect(ownCodeIn('Your Ghost Messaging verification code is: 482913'), '482913', reason: 'the name the texting service still gives it, and a relay not brought up to date');
     expect(ownCodeIn('Your Coinbase verification code is 771204. Do not share it.'), isNull);
-    expect(ownCodeIn('Ghost Messaging is out: 0.7.11'), isNull);
+    expect(ownCodeIn('Uplink is out: 0.7.11'), isNull);
   });
 
   // Matt, 2026-11-15: "add them to a ignore or archive list on my ghost account specifically" (lib/kept_lists.dart).
@@ -256,7 +257,7 @@ void main() {
     bios['maya'] = 'hello';
     await expectLater(maya.me.check('github', 'maya'), throwsA(isA<MeError>().having((e) => e.message, 'message', contains('not in that profile'))));
     expect(maya.me.links, isEmpty);
-    bios['maya'] = 'On Ghost Messaging. $code';
+    bios['maya'] = 'On Uplink. $code';
     // Maya has switched "Tell friends I'm here" off herself: linking does not undo that.
     maya.me.setListed(false);
     await maya.me.check('github', 'maya');

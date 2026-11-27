@@ -1,4 +1,4 @@
-# Ghost Messaging on the desktop
+# Uplink on the desktop
 
 Matt, 2026-11-13: "Is it possible for us to make a companion desktop app that can proxy messages encrypted from my
 phone to my desktop and then send back to the phone to send again?", then "I'd like to support both a relay server
@@ -23,7 +23,7 @@ The phone stays the only thing that texts. The Mac shows what the phone has and 
    link, `ghostmsg://pair/…`, because a phone's own camera can open a link in the app that takes it and can only
    show plain words (Matt, pointing his camera at the first one: "linking the Qr code said it can't be used by any
    app on my phone"). As words to paste it is `GHOSTPAIR1:…`, the same letters after the tag.
-3. The phone: point its camera at the code and open the link in Ghost Messaging; or Settings › Computers › Pair a
+3. The phone: point its camera at the code and open the link in Uplink; or Settings › Computers › Pair a
    computer, which scans it (the camera and ZXing, on the phone) or takes it pasted. A code that came from outside
    the app is asked about before anything is done with it ("Pair with Matt's MacBook Pro?"), since anything can
    open a link. Its page shows the same three choices, set as the Mac had them, and can change them: the phone's
@@ -208,7 +208,7 @@ UpdatesChannel.swift` in the repository's root, where they have run since 2026-1
   library, strictly (`macos/Runner/UpdatesChannel.swift`). Only Matt's Developer ID signs as that team, so nothing
   the server or the network says can stand in for it, and there is no second key to keep or lose.
 - **How it is put in place.** Unpacked beside the running app in a hidden folder
-  (`/Applications/.Ghost Messaging.app-update`), then the two trade places in one step, the app quits, and a small
+  (`/Applications/.Uplink.app-update`, named for the installed copy's own file), then the two trade places in one step, the app quits, and a small
   helper opens the new one and removes the old only once the new one has said it opened; if it has not in two
   minutes the old one is put back. A bar over every page offers Restart to update; quitting swaps it in as well, so
   the next launch is the new version either way.
@@ -230,8 +230,8 @@ standing in for ghost-sms.com (`GHOST_DESK_UPDATES=http://127.0.0.1:8793/mac.jso
 so no hand is needed): the older read the description, brought the zip down, checked it, swapped itself, quit, and
 was opened again as the newer in six seconds, the old one removed (`~/Library/Caches/com.infamousvague.
 ghostmessaging.mac/update-install/install.log` has each step). An update changed after it was signed was refused
-("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Ghost
-Messaging's developer"); the running app was left as it was both times. The copy in /Applications then took
+("the download's signature is not whole"), and so was one signed by somebody else ("not signed by Uplink's
+developer"); the running app was left as it was both times. The copy in /Applications then took
 itself from 456600 to 456601 the same way. **Not tried**: an update from ghost-sms.com itself (nothing is
 published there), `--publish`, `--notarize`, and quitting with an update waiting (the swap is the same code as
 Restart; what differs is that nothing reopens the app).
@@ -265,7 +265,7 @@ flutter test                                    # sealing held to test/desk_vect
 cd android && ./gradlew :app:testDebugUnitTest  # the phone's sealing (the same examples), its session, its WebSocket
                                                 # client, a QR code read from a frame
 cd relay && dart test                           # the relay
-flutter build macos                             # build/macos/Build/Products/Release/Ghost Messaging.app
+flutter build macos                             # build/macos/Build/Products/Release/Uplink.app
 ```
 
 Against an emulator, the real Mac app and the real phone app (`integration_test/desk_live_test.dart` says how):
@@ -279,7 +279,7 @@ it small on a grey plate of its own. Not for its outline, which was redrawn thre
 black and white and nothing else, Xcode's asset catalog stores a picture with no colour in it as greyscale, and
 macOS puts a greyscale icon on a plate whatever its outline (one pixel that is not grey, and the same picture is
 drawn whole). `tool/app_icon.py` gives the Mac icon's black two parts in 255 of blue and refuses to write one that
-is all grey; `python3 tool/app_icon.py --check "build/macos/Build/Products/Release/Ghost Messaging.app"` says how
+is all grey; `python3 tool/app_icon.py --check "build/macos/Build/Products/Release/Uplink.app"` says how
 the built app's catalog stored it. macOS keeps the picture it made for an app at a path: `touch` the app after a
 rebuild (or move it) and the Dock draws it again. Seen whole on the app as built, by `NSWorkspace`'s icon for it.
 

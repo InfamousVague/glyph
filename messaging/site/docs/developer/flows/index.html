@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>How the parts work together · Ghost Messaging developer docs</title>
+<title>How the parts work together · Uplink developer docs</title>
 <meta name="description" content="Things followed from the tap to the wire: a text, a message to a friend, a call, an open space's floor, pairing a computer, adding a plugin, and more.">
+<meta name="theme-color" content="#040406">
 <link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:ital,wght@0,500;0,600;0,700;1,700;1,800;1,900&amp;display=swap">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
 <link rel="stylesheet" href="/docs/docs.css">
 <script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
@@ -14,7 +19,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/art/uplink-logo.webp" alt="Uplink" width="1200" height="918"></a>
   <a class="brand-docs" href="/docs/developer/">Developer docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -22,18 +27,18 @@
     <div class="results" id="results" role="listbox" hidden></div>
   </div>
   <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
-  <a class="get" href="/#get">Get the app</a>
+  <a class="get" href="/#get"><span>Get Uplink</span></a>
 </header>
 <div class="frame">
   <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">The source</div><a href="/docs/developer/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#braces"/></svg><span>Developer docs</span></a><a href="/docs/developer/architecture/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#network"/></svg><span>How the app is built</span></a><a href="/docs/developer/flows/" aria-current="page"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#workflow"/></svg><span>How the parts work together</span></a><a href="/docs/developer/build/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#terminal"/></svg><span>Build, test and run it</span></a></div><div class="nav-group"><div class="nav-title">APIs</div><a href="/docs/developer/api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#book-open"/></svg><span>API overview and Postman</span></a><a href="/docs/developer/app-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#code"/></svg><span>App API</span></a><a href="/docs/developer/relay-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Relay server API</span></a><a href="/docs/developer/hub/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>The hub and pairing protocols</span></a></div><a class="nav-other" href="/docs/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg><span>Back to the docs</span></a></aside>
   <main id="main" class="page">
-    <div class="crumb">The source</div>
+    <div class="crumb"><span class="needle" aria-hidden="true"></span>The source</div>
     <h1>How the parts work together</h1>
     <p class="lede">Things followed from the tap to the wire: a text, a message to a friend, a call, an open space's floor, pairing a computer, adding a plugin, and more.</p>
     <p>The quickest way into the source is to follow one thing through it. Here are several, each from the tap to the wire, naming the file at every step. <a href="/docs/developer/architecture/">How the app is built</a> says what each part is.</p>
 
 <h2 id="sms">Sending a text</h2>
-<p>On an Android phone where Ghost Messaging is the texting app.</p>
+<p>On an Android phone where Uplink is the texting app.</p>
 <ol class="steps">
 <li class="step"><div class="step-body"><h3>The box decides</h3><p><code>lib/ui/thread.dart</code>: words alone to one friend go by the routes (the next section). Anything else is a text: <code>Sms.instance.send</code>.</p></div></li>
 <li class="step"><div class="step-body"><h3>Dart to Kotlin</h3><p><code>lib/sms.dart</code> passes <code>send</code> to <code>Sms.calls</code>. On Android that is the overlay (<code>lib/standalone/overlay.dart</code>), which passes a phone number on to the channel <code>ghost_messaging/sms</code>, answered in <code>MainActivity.kt</code>.</p></div></li>

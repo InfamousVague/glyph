@@ -309,7 +309,7 @@ class Market {
   static const withdrawalsMost = 8 * 1024 * 1024, revocationsMost = 25000, retirementsMost = 100;
 
   /// The answers and their words (the app checks `ok`, never the status alone: anything that isn't the market answers
-  /// 200 "Ghost Messaging relay" as text).
+  /// 200 "Uplink relay" as text).
   static const Map<String, (int, String)> errors = {
     'off': (503, 'The Marketplace isn\'t open on this server.'),
     'broken': (500, 'Something went wrong here. Try again later.'),

@@ -203,16 +203,16 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
           Text(synced != null ? 'Your browser has signed in for you' : 'Or let your browser do steps 1 to 3', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
           SizedBox(height: t.space(1)),
           if (synced != null) ...[
-            text('The Ghost Messaging keys extension signed in to Google in a private window and synced it to your account. Pair with it, then tap the emoji on your phone.'),
+            text('The Uplink keys extension signed in to Google in a private window and synced it to your account. Pair with it, then tap the emoji on your phone.'),
             Row(children: [
               button(_asking ? 'Asking Google…' : 'Use the Google sign-in from your browser', _asking ? null : _pairSynced, filled: true),
             ]),
           ] else
-            text('The Ghost Messaging keys extension for Chrome signs in to Google in a private window and hands the sign-in to all your devices: add it from gogho.st/docs/browser-extension, open it, and choose Set up Google Messages. This page then has a button for it.', small: true),
+            text('The Uplink keys extension for Chrome signs in to Google in a private window and hands the sign-in to all your devices: add it from gogho.st/docs/browser-extension, open it, and choose Set up Google Messages. This page then has a button for it.', small: true),
         ]),
       ),
       if (widget.onPhone)
-        text('Google only lets this be done in a computer\'s browser (it needs the browser\'s developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (email or a note to yourself) and paste it in step 3. Or simpler: pair Ghost on your computer instead (Settings › Google Messages there).'),
+        text('Google only lets this be done in a computer\'s browser (it needs the browser\'s developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (email or a note to yourself) and paste it in step 3. Or simpler: pair Uplink on your computer instead (Settings › Google Messages there).'),
       card(1, 'Sign in to Google in a private window', [
         text('Open this link in a private (incognito) window and sign in with the Google account Google Messages on your phone uses. A private window keeps the browser from changing the sign-in afterwards. Don\'t go anywhere else in that window.'),
         if (widget.onOpenPrivate != null) ...[
@@ -266,7 +266,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
           ),
       ], current: _pasted.text.isNotEmpty),
       card(4, 'Tap the emoji on your phone', [
-        text('Google Messages on your phone asks you to choose an emoji. Ghost shows here which one.'),
+        text('Google Messages on your phone asks you to choose an emoji. Uplink shows here which one.'),
       ]),
     ]);
   }

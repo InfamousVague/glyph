@@ -47,7 +47,7 @@ describe('account derivation matches real wallets (hence the app)', () => {
   });
 });
 
-describe('the Ghost identity', () => {
+describe('the Uplink identity', () => {
   it('is stable for a seed and yields a 32-hex id', async () => {
     const seed = await seedOf(WORDS);
     const a = idOf(identityPublicOf(identityScalarOf(seed)));

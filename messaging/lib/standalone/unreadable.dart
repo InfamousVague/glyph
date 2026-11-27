@@ -23,7 +23,7 @@ class StoreUnreadableNotice extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('Ghost Messaging couldn\'t read what it keeps on this $device just now.', textAlign: TextAlign.center, style: face.copyWith(fontSize: 20, height: 1.35, fontWeight: FontWeight.w600)),
+                Text('Uplink couldn\'t read what it keeps on this $device just now.', textAlign: TextAlign.center, style: face.copyWith(fontSize: 20, height: 1.35, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
                 Text('Nothing was changed. Quit it and open it again; if this keeps happening, the $device may be short of space.', textAlign: TextAlign.center, style: face.copyWith(fontSize: 15, height: 1.45, color: soft)),
               ]),

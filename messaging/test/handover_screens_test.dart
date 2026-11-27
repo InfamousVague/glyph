@@ -313,7 +313,7 @@ void main() {
 
     // A phone signed in to nothing has nothing to hand over, and joins no room.
     await showPhone(tester, device, lock: lock, account: FakeAccount(), code: device.codeText);
-    expect(find.textContaining('isn\'t signed in to a Ghost account'), findsOneWidget);
+    expect(find.textContaining('isn\'t signed in to an Uplink account'), findsOneWidget);
     expect(device.phase, HandoverPhase.waiting);
     await close(tester);
 

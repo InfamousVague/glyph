@@ -294,7 +294,7 @@ abstract final class MusicTrouble {
   /// What the others in the call are told.
   static const words = {
     closed: 'Spotify was closed on their computer.',
-    denied: 'Their computer isn\'t letting Ghost Messaging press Spotify\'s buttons.',
+    denied: 'Their computer isn\'t letting Uplink press Spotify\'s buttons.',
     silent: 'No sound is coming from Spotify on their computer.',
     failed: 'Spotify isn\'t answering on their computer.',
     song: 'That song couldn\'t be played.',
@@ -308,10 +308,10 @@ abstract final class MusicTrouble {
   static String mine(String word, {required bool mac}) => switch (word) {
         closed => 'Spotify isn\'t open. Open Spotify and sign in, then press Start.',
         denied => mac
-            ? 'macOS isn\'t letting Ghost Messaging press Spotify\'s buttons. Turn it on in System Settings › Privacy & Security › Automation, then press Start again.'
-            : 'Windows isn\'t letting Ghost Messaging press Spotify\'s buttons.',
+            ? 'macOS isn\'t letting Uplink press Spotify\'s buttons. Turn it on in System Settings › Privacy & Security › Automation, then press Start again.'
+            : 'Windows isn\'t letting Uplink press Spotify\'s buttons.',
         silent => mac
-            ? 'No sound is coming from Spotify. Check that it plays on this Mac and not on another device, and that Ghost Messaging is on in System Settings › Privacy & Security › Screen & System Audio Recording.'
+            ? 'No sound is coming from Spotify. Check that it plays on this Mac and not on another device, and that Uplink is on in System Settings › Privacy & Security › Screen & System Audio Recording.'
             : 'No sound is coming from Spotify. Check that it plays on this PC and not on another device, and that it isn\'t muted in the Windows volume mixer.',
         failed => 'Spotify isn\'t answering. Look at the Spotify app, then press Start again.',
         song => 'Spotify couldn\'t play that song here, so the next one plays.',

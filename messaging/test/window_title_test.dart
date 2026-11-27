@@ -108,7 +108,7 @@ void main() {
 
     testWidgets('the title strip names the conversation that is open, then the circle, then the app again', (tester) async {
       final shell = await open(tester);
-      expect(said(tester), 'Ghost Messaging', reason: 'nothing open');
+      expect(said(tester), 'Uplink', reason: 'nothing open');
 
       shell.openThread(2, const [Person(address: '+15550101', name: 'Maya Chen')]);
       await settle(tester);
@@ -131,7 +131,7 @@ void main() {
       await settle(tester);
       shell.close();
       await settle(tester);
-      expect(said(tester), 'Ghost Messaging');
+      expect(said(tester), 'Uplink');
       expect(WindowTitle.now.value, isNull);
     });
   });

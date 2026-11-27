@@ -1,5 +1,5 @@
 // Sound as numbers: 48 kHz stereo, 16-bit, interleaved, in 20 ms frames (960 samples a channel, 1920 numbers).
-// A small queue per speaker to even out how packets arrive, mixing by adding and clipping, and each Ghost member's
+// A small queue per speaker to even out how packets arrive, mixing by adding and clipping, and each Uplink member's
 // mix without their own voice in it. Pure: no codec, no network, no clock.
 
 export const RATE = 48000;
@@ -80,7 +80,7 @@ export function clipTo16(total, minus = null) {
 export const mix = (frames, len = FRAME_LEN) => clipTo16(sum(frames, len));
 
 /**
- * One mix for each Ghost member: everyone from Discord ([discord], already mixed, or null) and every other Ghost
+ * One mix for each Uplink member: everyone from Discord ([discord], already mixed, or null) and every other Uplink
  * member ([ghost]: id -> frame or null), never their own voice. Map id -> Int16Array, or null where it is silence.
  */
 export function mixMinusSelf(discord, ghost, recipients) {

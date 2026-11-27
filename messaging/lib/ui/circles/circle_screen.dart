@@ -63,7 +63,7 @@ class FilesNotHere extends StatelessWidget {
       title: channel.name,
       body: Padding(
         padding: EdgeInsets.all(t.space(4)),
-        child: Align(alignment: Alignment.topCenter, child: SettingsCallout(child: const Tr('Files spaces aren\'t in the browser yet. This one opens in Ghost Messaging on a phone or a computer.'))),
+        child: Align(alignment: Alignment.topCenter, child: SettingsCallout(child: const Tr('Files spaces aren\'t in the browser yet. This one opens in Uplink on a phone or a computer.'))),
       ),
     );
   }

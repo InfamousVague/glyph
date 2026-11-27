@@ -1,4 +1,4 @@
-# Ghost Messaging's relay
+# Uplink's relay
 
 Passes sealed frames between a phone and the computer it is paired with when they are on different networks
 (Matt, 2026-11-13: "I'd like to support both a relay server and local networking"; [../docs/desktop.md](../docs/desktop.md)).
@@ -118,7 +118,7 @@ host it dialled (v2):
 The host is what the app dialled, in lower case, with its port only where it is not the scheme's own. The hub takes a
 v2 signature only for a host in its own names (`This relay isn't reached as …` otherwise, whatever the request's
 own Host header says, which the one signing in writes), and **from a key that has signed in with v2 it takes no v1
-again** (`This account signs in a newer way now: update Ghost Messaging on this device.`): the names are kept in
+again** (`This account signs in a newer way now: update Uplink on this device.`): the names are kept in
 `hub-v2.json` across restarts. So once an app of this build has signed in to its relay, a v1 signature it gives
 anywhere else is worth nothing there; an app from before keeps signing v1, and keeps working for an account none of
 whose devices has signed in with v2.

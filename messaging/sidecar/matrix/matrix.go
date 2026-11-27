@@ -356,7 +356,7 @@ func resolve(ctx context.Context, in string) (base string, parsed homeserverInpu
 	return "https://" + parsed.Server, parsed, nil
 }
 
-// loginWith signs in at [base] with [req] as a new device named "Ghost Messaging", keeps the session with a fresh
+// loginWith signs in at [base] with [req] as a new device named "Uplink", keeps the session with a fresh
 // key for its store, starts syncing and answers the status.
 func loginWith(ctx context.Context, base string, req *mautrix.ReqLogin) (map[string]any, error) {
 	if loggedIn() {
@@ -369,7 +369,7 @@ func loginWith(ctx context.Context, base string, req *mautrix.ReqLogin) (map[str
 		return nil, err
 	}
 	c.Log = log.With().Str("component", "mautrix").Logger()
-	req.InitialDeviceDisplayName = "Ghost Messaging"
+	req.InitialDeviceDisplayName = "Uplink"
 	req.StoreCredentials = true
 	req.StoreHomeserverURL = true
 	if _, err := c.Login(ctx, req); err != nil {

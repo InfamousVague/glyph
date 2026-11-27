@@ -110,7 +110,7 @@ class SpacePerson {
   final bool owner;
   final String? username;
 
-  /// Where they are from when not from Ghost Messaging: 'Discord' for someone in the Discord voice channel a space is
+  /// Where they are from when not from Uplink: 'Discord' for someone in the Discord voice channel a space is
   /// bridged to. Shown beside their name; they can't be acted on from here.
   final String? tag;
 

@@ -53,7 +53,7 @@ final class SpotifySound {
   private let peakLock = NSLock()
   private var peak: Float = 0
 
-  init(feed: MusicFeed, what: What = .app(SpotifySound.bundle), name: String = "Ghost Messaging music", cant: String = "The sound of Spotify could not be taken on this Mac.") {
+  init(feed: MusicFeed, what: What = .app(SpotifySound.bundle), name: String = "Uplink music", cant: String = "The sound of Spotify could not be taken on this Mac.") {
     self.feed = feed
     self.what = what
     self.name = name

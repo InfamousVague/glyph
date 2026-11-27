@@ -16,7 +16,7 @@ import 'sha256.dart';
 /// [signedWords]. Who asks is the id of the key that signed, so nobody sends anyone else's souls.
 ///
 /// - `POST /souls/send`, body `{to, souls, id}`: moves `souls` (a whole number, 1 to 100) from the asker to `to` (a
-///   Ghost id that holds a username here). `id` is the asker's own name for this sending, 32 hex digits made up
+///   Uplink id that holds a username here). `id` is the asker's own name for this sending, 32 hex digits made up
 ///   afresh for each: asked again with the same `id` (an answer lost on the way) the relay answers the first receipt
 ///   and moves nothing. Answers `{ok, receipt: {id, at, from, to, souls}, n}` (n: the asker's souls after), with
 ///   `again: true` for a repeat.

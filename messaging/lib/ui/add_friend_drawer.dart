@@ -256,7 +256,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
             'yes' => ('Friends already', null),
             'asked' => ('Friend request sent', null),
             'invited' => ('Asked to be your friend', _Button(key: const ValueKey('add-found'), label: 'Accept', filled: true, onPress: _busy ? null : () => _add(name))),
-            _ => (name.contains('@') ? 'On ${name.substring(name.indexOf('@') + 1)}' : 'On Ghost Messaging', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
+            _ => (name.contains('@') ? 'On ${name.substring(name.indexOf('@') + 1)}' : 'On Uplink', _Button(key: const ValueKey('add-found'), label: _busy ? 'Asking…' : 'Add', icon: Lucide.userPlus, filled: true, onPress: _busy ? null : () => _add(name))),
           },
       };
       result = Padding(

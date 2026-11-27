@@ -28,7 +28,7 @@
   --app-accent: var(--app-ink);
   --app-on-accent: var(--app-paper);
   /* The colours that mean something whatever the look (lib/kit/semantic_colors.dart): each was a hex in the Dart
-     where it was drawn, and keeps that hex here, so Ghost's own look is drawn as before; a look may name its own. */
+     where it was drawn, and keeps that hex here, so Uplink's own look is drawn as before; a look may name its own. */
   --app-danger: #dd3a30;
   --app-unread: #4f5bd5;
   --app-chosen: #4f5bd5;
@@ -39,7 +39,7 @@
   --app-text-selection: color-mix(in srgb, var(--app-chosen) 30%, transparent);
   --app-sheet-scrim: #00000066;
   --app-menu-scrim: #00000073;
-  /* Your bubbles while they are the look's own ('theme', lib/backgrounds.dart): white, Ghost's default, until a look
+  /* Your bubbles while they are the look's own ('theme', lib/backgrounds.dart): white, Uplink's default, until a look
      (at the end of this file) names its own. */
   --app-bubble-mine: #FFFFFF;
   --app-on-bubble-mine: #16181D;
@@ -899,7 +899,7 @@ body:has(.app-headerPane) .app-statusScrim {
  *
  * Settings › Appearance › Look (Matt, 2026-11-16: "spend some time making a few themes for ghost"). Each is stamped
  * on the page as `data-theme-preset` by ghostAttrs, with its fixed `data-theme` where it has only one brightness;
- * Ghost, the app's own, stamps none and none of this applies to it. Mist and Lamplight are Ghost's packs since
+ * Uplink, the app's own, stamps none and none of this applies to it. Mist and Lamplight are Uplink's packs since
  * 2026-11-27 (chosen under it, in Settings › Appearance › Textures) and are written here as any look is: a pack that
  * is part of the app is a preset of its own.
  *
@@ -954,7 +954,7 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-selection: color-mix(in oklch, #0C7F7A 22%, transparent);
   --glacier-focus-ring: #0C7F7A;
   --glacier-radius-scale: 1.5;
-  /* What means unread, chosen or informative is the look's teal, not Ghost's indigo (the text selection follows
+  /* What means unread, chosen or informative is the look's teal, not Uplink's indigo (the text selection follows
      --app-chosen). */
   --app-unread: #0C7F7A;
   --app-chosen: #0C7F7A;
@@ -1447,7 +1447,7 @@ body:has(.app-headerPane) .app-statusScrim {
 }
 
 /* The section colours of Settings' row icons and the avatars' colours (`data-hue`, lib/kit/settings_css.dart, which
-   is laid over this sheet with lower specificity), settled into each look: Ghost's indigo was the one cold patch on
+   is laid over this sheet with lower specificity), settled into each look: Uplink's indigo was the one cold patch on
    Mist's, Lamplight's and Sharp's pages (the review of the looks, 2026-11-16). Dial-Up draws its icons in plain ink.
    Both --hue and --hue-dark, since settings.css makes the dark page's --hue its --hue-dark. */
 :root:root:root:root[data-theme-preset='mist'] [data-hue='indigo'] {

@@ -40,7 +40,7 @@ List<Widget> shortcutsPane(BuildContext context, SettingsModel m) {
   }
   return [
     if (Sms.callsHere) PaneSection(
-      footer: Text('In a call your microphone stays off, and is on only while you hold ${keys.of(KeyCommand.pushToTalk)?.label ?? 'its key'}. It works while Ghost Messaging is the app in front.'),
+      footer: Text('In a call your microphone stays off, and is on only while you hold ${keys.of(KeyCommand.pushToTalk)?.label ?? 'its key'}. It works while Uplink is the app in front.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.mic),

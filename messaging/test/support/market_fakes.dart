@@ -189,7 +189,7 @@ class FakeRelay {
   final shots = <String, Uint8List>{};
   Map<String, Object?> revoked = const {'ok': true, 'v': 1, 'at': 0, 'revoked': [], 'retired': []};
 
-  /// The revoked list one host answers in place of [revoked] (Ghost Messaging's own, read beside another market).
+  /// The revoked list one host answers in place of [revoked] (Uplink's own, read beside another market).
   final revokedOf = <String, Map<String, Object?>>{};
   final answers = <String, ({int status, Object? body})>{};
 

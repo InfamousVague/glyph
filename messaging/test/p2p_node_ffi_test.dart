@@ -453,18 +453,18 @@ void main() {
   }, skip: skip, timeout: patient);
 
   test('a release app opens the copy of the core it carries, and nothing its environment or its folder names', () {
-    const mac = '/Applications/Ghost.app/Contents/MacOS/Ghost';
+    const mac = '/Applications/Uplink.app/Contents/MacOS/Uplink';
     expect(IrohNode.libraryPlaces(release: true, os: 'macos', program: mac, current: '/Users/someone', named: '/tmp/another.dylib'), [
-      '/Applications/Ghost.app/Contents/Frameworks/libghost_p2p.dylib',
+      '/Applications/Uplink.app/Contents/Frameworks/libghost_p2p.dylib',
     ]);
     expect(IrohNode.libraryPlaces(release: false, os: 'macos', program: mac, current: '/Users/someone', named: '/tmp/another.dylib'), [
       '/tmp/another.dylib',
-      '/Applications/Ghost.app/Contents/Frameworks/libghost_p2p.dylib',
+      '/Applications/Uplink.app/Contents/Frameworks/libghost_p2p.dylib',
       '/Users/someone/build/p2p/mac/libghost_p2p.dylib',
     ]);
     expect(IrohNode.libraryPlaces(release: true, os: 'android', program: '/system/bin/app_process64', current: '/', named: '/sdcard/x.so'), ['libghost_p2p.so']);
     expect(IrohNode.libraryPlaces(release: true, os: 'linux', program: '/opt/ghost/ghost', current: '/home/x', named: '/tmp/x.so'), ['/opt/ghost/lib/libghost_p2p.so']);
-    expect(IrohNode.libraryPlaces(release: true, os: 'windows', program: r'C:\Ghost\ghost.exe', current: r'C:\Users\x', named: r'C:\x.dll'), [r'C:\Ghost\ghost_p2p.dll']);
+    expect(IrohNode.libraryPlaces(release: true, os: 'windows', program: r'C:\Uplink\ghost.exe', current: r'C:\Users\x', named: r'C:\x.dll'), [r'C:\Uplink\ghost_p2p.dll']);
   });
 
   test('no copy of the node key is left in what the core was handed', () async {

@@ -163,7 +163,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// arrives or is sent, and not again each time the conversation is read.
   final Set<String> _reactionsSeen = {};
 
-  /// Where Ghost Messaging's own encryption stands with the one person here (android/.../E2e.kt); none in a group.
+  /// Where Uplink's own encryption stands with the one person here (android/.../E2e.kt); none in a group.
   E2eState _e2e = const E2eState();
 
   /// The name this conversation was given on this phone, where it was: a group's (lib/ui/chat_settings.dart).
@@ -688,7 +688,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       _voiceStopped ??= Sms.instance.voiceStopped.stream.listen((_) {
         if (!mounted || _recordingLimit == null) return;
         setState(() => _recordingLimit = null);
-        toast(context, 'The recording was thrown away when you left Ghost Messaging.');
+        toast(context, 'The recording was thrown away when you left Uplink.');
       });
       setState(() => _recordingLimit = limit);
     } catch (e) {
@@ -934,7 +934,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     );
   }
 
-  /// Whether a message here can be reported (GMFB-40): a chat by username, or a group of friends, both on Ghost. Texts
+  /// Whether a message here can be reported (GMFB-40): a chat by username, or a group of friends, both on Uplink. Texts
   /// and the other networks have their own ways to report.
   bool get _reportable => _byName || _isGhost;
 
@@ -1055,7 +1055,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final friend = _soulsFriend;
     if (friend != null && Buddies.instance.elsewhere(friend)) throw _NotSent('${friend.shown} is on another relay. Pictures and files can only be sent to friends on yours for now');
     final mineKey = await Me.instance.mineKey();
-    if (mineKey == null) throw _NotSent('pictures and files to a friend need a Ghost account on this device');
+    if (mineKey == null) throw _NotSent('pictures and files to a friend need an Uplink account on this device');
     final seed = FileCard.seedOf(mineKey);
     final channel = FileCard.channelOf(seed);
     final out = <OutgoingFile>[];
@@ -1276,7 +1276,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           IconTap(icon: LucideMore.phoneCall, label: 'Call the group', onPressed: _callGroup),
         ],
         // A bubble's way into the whole app (GMFB-8: "message bubbles that just sit on the side of the screen").
-        if (widget.onExpand != null) IconTap(icon: Lucide.maximize, label: 'Open in Ghost Messaging', onPressed: widget.onExpand),
+        if (widget.onExpand != null) IconTap(icon: Lucide.maximize, label: 'Open in Uplink', onPressed: widget.onExpand),
         // Each conversation's own settings: its background, your bubbles in it, its encryption, mute and pin.
         // On a computer too (Matt, 2026-11-14: "There needs to be chat settings on desktop as well"): what a computer
         // can change of a conversation, and what it can only show (lib/ui/chat_settings.dart).
@@ -1730,7 +1730,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       child: Padding(
         padding: composerFootPadding(t),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Both phones have Ghost Messaging and nothing has been exchanged: encryption is offered, until it is
+          // Both phones have Uplink and nothing has been exchanged: encryption is offered, until it is
           // turned on or the banner is dismissed (Matt, 2026-11-13: "a banner that can be dismissed asking the user
           // to enable encryption for better security").
           // They asked to be friends: said here until it is answered.
@@ -1743,14 +1743,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
               onPress: () {},
               onDismiss: () => _answerFriend(false),
             ),
-          // Both have Ghost Messaging and nothing has been said about being friends (Matt, 2026-11-14: "If both
+          // Both have Uplink and nothing has been said about being friends (Matt, 2026-11-14: "If both
           // users chatting are on ghost messenger show an 'add friend' button"): offered where a relay server
           // answers, until it is asked or put away. It stands in for the offer of encryption below, which adding a
           // friend turns on.
           if (_offersFriend(context))
             _E2eBar(
               icon: Lucide.userPlus,
-              text: '${_people.first.label} has Ghost Messaging too. Friends chat over the internet, encrypted, not by text.',
+              text: '${_people.first.label} has Uplink too. Friends chat over the internet, encrypted, not by text.',
               action: 'Add friend',
               onAction: _addFriend,
               onPress: () {},
@@ -1764,7 +1764,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             ),
           if (!_offersFriend(context) && Sms.can('e2eOffer') && !_group && _people.isNotEmpty && _e2e.offerable && AppState.of(context).flag('e2e_banner_${widget.thread}'))
             _E2eBar(
-              text: '${_people.first.label} has Ghost Messaging too. Encrypt this conversation for better security?',
+              text: '${_people.first.label} has Uplink too. Encrypt this conversation for better security?',
               action: 'Turn on',
               onAction: _e2eStart,
               onPress: () => showEncryptionChoices(context, _people.first, _e2e, _e2eChanged),
@@ -2322,7 +2322,7 @@ class _Bubble extends StatelessWidget {
                   ink: ink,
                   // Settings › Appearance › Text size.
                   style: pageText(t, t.fontSize('md') * app.textScale * size, color: ink, height: 1.35),
-                  // An "@username" pressed opens who it is on Ghost (Matt, 2026-11-19: "when clicking on a @mention
+                  // An "@username" pressed opens who it is on Uplink (Matt, 2026-11-19: "when clicking on a @mention
                   // anywhere ... show this profile popup").
                   mentions: handleMentions(body),
                   mentionStyle: mentionStyle(t, on: ink),

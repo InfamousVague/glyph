@@ -16,9 +16,9 @@ import '../l10n/words.dart';
 /// work without needing to be the default sms app so it can work in tandem and I can turn off notifications from
 /// google messages or hide them and proxy everything through ghost").
 ///
-/// RCS runs only inside Google Messages, so it becomes the default SMS app again and Ghost works beside it
-/// (android GmBridge.kt): texts read from Android, RCS chats from Google Messages' notifications, which Ghost hides and
-/// shows its own in their place. Once Google Messages is the default, Android takes Ghost's SMS permissions back and
+/// RCS runs only inside Google Messages, so it becomes the default SMS app again and Uplink works beside it
+/// (android GmBridge.kt): texts read from Android, RCS chats from Google Messages' notifications, which Uplink hides and
+/// shows its own in their place. Once Google Messages is the default, Android takes Uplink's SMS permissions back and
 /// the app opens on its first screen; that screen carries on with these same steps (lib/ui/setup.dart, `rcs_setup`).
 class RcsSetupScreen extends StatelessWidget {
   const RcsSetupScreen({super.key});
@@ -34,7 +34,7 @@ class RcsSetupScreen extends StatelessWidget {
 class RcsSteps extends StatefulWidget {
   const RcsSteps({super.key, this.onDone});
 
-  /// Called once Ghost is beside Google Messages (the first screen opens the app then).
+  /// Called once Uplink is beside Google Messages (the first screen opens the app then).
   final VoidCallback? onDone;
 
   @override
@@ -66,7 +66,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _look();
   }
 
-  /// Reads from Android how far the steps have got; once Ghost is beside Google Messages the setup is over.
+  /// Reads from Android how far the steps have got; once Uplink is beside Google Messages the setup is over.
   Future<void> _look() async {
     try {
       final s = await Sms.instance.status();
@@ -101,7 +101,7 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
     final s = _s;
     if (s == null) return const SizedBox.shrink();
     final rcsOn = app.flag('rcs_on_chosen', fallback: false);
-    // Silent as far as Ghost has seen (every channel a notification came on is quiet), or said so by the person.
+    // Silent as far as Uplink has seen (every channel a notification came on is quiet), or said so by the person.
     final loud = [for (final c in _channels) if (c.loud) c];
     final silent = (_channels.isNotEmpty && loud.isEmpty) || (loud.isEmpty && app.flag('gm_silent_chosen', fallback: false));
     final done = [s.gmInstalled, s.gmDefault, rcsOn, s.sms, s.bridge, silent];
@@ -153,31 +153,31 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
       Padding(
         padding: EdgeInsets.only(bottom: t.space(4)),
         child: Text(
-          'RCS (typing dots, read receipts, full-size pictures, group chats over the internet) runs only inside Google Messages. Ghost works beside it: Google Messages stays the default and does the sending, and you use Ghost. Its notifications are hidden and Ghost shows its own.',
+          'RCS (typing dots, read receipts, full-size pictures, group chats over the internet) runs only inside Google Messages. Uplink works beside it: Google Messages stays the default and does the sending, and you use Uplink. Its notifications are hidden and Uplink shows its own.',
           style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
         ),
       ),
-      step(0, 'Google Messages on this phone', 'Ghost uses it for RCS. It is free from the Play Store.', action: 'Get Google Messages', onAction: Sms.instance.openGm),
-      step(1, 'Google Messages is the default SMS app', 'In Android\'s Default apps, open SMS app and choose Messages. Ghost opens on its first screen after this and carries on from here.',
+      step(0, 'Google Messages on this phone', 'Uplink uses it for RCS. It is free from the Play Store.', action: 'Get Google Messages', onAction: Sms.instance.openGm),
+      step(1, 'Google Messages is the default SMS app', 'In Android\'s Default apps, open SMS app and choose Messages. Uplink opens on its first screen after this and carries on from here.',
           action: 'Open Default apps', onAction: () {
         app.setFlag('rcs_setup', true);
         Sms.instance.openDefaultApps();
       }),
       step(2, 'RCS chats are on in Google Messages', 'In Google Messages, tap your profile picture, then Messages settings, then RCS chats, and turn it on. It can take a few minutes to say Connected.',
           action: 'Open Google Messages', onAction: Sms.instance.openGm, also: 'It\'s on', onAlso: () => app.setFlag('rcs_on_chosen', true)),
-      step(3, 'Ghost may read and send texts', 'Android asks. Ghost reads your texts from Android\'s own store and sends plain texts itself.', action: 'Allow', onAction: _texts),
-      step(4, 'Ghost may read Google Messages\' notifications', 'That is how RCS chats reach Ghost. Only Google Messages\' are read; every other app\'s are ignored. Turn it on for Ghost Messaging.',
+      step(3, 'Uplink may read and send texts', 'Android asks. Uplink reads your texts from Android\'s own store and sends plain texts itself.', action: 'Allow', onAction: _texts),
+      step(4, 'Uplink may read Google Messages\' notifications', 'That is how RCS chats reach Uplink. Only Google Messages\' are read; every other app\'s are ignored. Turn it on for Uplink.',
           action: 'Open notification access', onAction: Sms.instance.openBridgeAccess,
           more: _arriving.sideloaded && !s.bridge
               ? Padding(
                   padding: EdgeInsets.only(top: t.space(2)),
-                  child: Text('If Android says it is a restricted setting: open Android\'s page for Ghost Messaging, tap ⋮, choose Allow restricted settings, then try again.',
+                  child: Text('If Android says it is a restricted setting: open Android\'s page for Uplink, tap ⋮, choose Allow restricted settings, then try again.',
                       style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.45)),
                 )
               : null,
-          also: _arriving.sideloaded && !s.bridge ? 'Android\'s page for Ghost' : null,
+          also: _arriving.sideloaded && !s.bridge ? 'Android\'s page for Uplink' : null,
           onAlso: Sms.instance.openAppInfo),
-      step(5, 'Google Messages\' notifications are silent', 'Leave them on, but set them to Silent: Ghost reads them, hides each one as it comes, and shows its own. Turned off completely, Ghost would see nothing. A conversation with its own sound in Google Messages needs silencing on its own too.',
+      step(5, 'Google Messages\' notifications are silent', 'Leave them on, but set them to Silent: Uplink reads them, hides each one as it comes, and shows its own. Turned off completely, Uplink would see nothing. A conversation with its own sound in Google Messages needs silencing on its own too.',
           action: loud.isEmpty ? 'Open its notification settings' : null,
           onAction: Sms.instance.openGmNotifications,
           also: _channels.isEmpty ? 'They\'re silent' : null,
@@ -195,12 +195,12 @@ class _RcsStepsState extends State<RcsSteps> with WidgetsBindingObserver {
                   ]),
                 )),
       if (s.beside)
-        SettingsCallout(child: const Tr('RCS is set up. Ghost shows every conversation, RCS and texts, and replies go through Google Messages.')),
+        SettingsCallout(child: const Tr('RCS is set up. Uplink shows every conversation, RCS and texts, and replies go through Google Messages.')),
       SizedBox(height: t.space(4)),
       Text('On your computer', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
       SizedBox(height: t.space(1)),
       Text(
-        'For full history, pictures and reactions on your Mac or Windows PC, open Ghost Messaging there, go to Settings › Google Messages, and scan the QR code it shows with Google Messages on this phone (profile picture › Device pairing › QR code scanner).',
+        'For full history, pictures and reactions on your Mac or Windows PC, open Uplink there, go to Settings › Google Messages, and scan the QR code it shows with Google Messages on this phone (profile picture › Device pairing › QR code scanner).',
         style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
       ),
     ]);

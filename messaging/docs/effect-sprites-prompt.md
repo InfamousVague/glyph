@@ -1,4 +1,4 @@
-# Ghost Messaging effect sprites: prompts for Nano Banana 3
+# Uplink effect sprites: prompts for Nano Banana 3
 
 Twenty-one images: one reference sheet of the ghost, then one sprite sheet for each of the twenty message effects.
 
@@ -27,7 +27,7 @@ block. If it can't, leave the green: it is keyed out afterwards.
 You are drawing a sprite sheet for a mobile messaging app. The app cuts the sheet into separate sprites and animates
 them itself, so every sprite must be one complete, separate object.
 
-CHARACTER: the Ghost Messaging ghost, exactly as in the attached reference sheet. A small, friendly, rounded cartoon
+CHARACTER: the Uplink ghost, exactly as in the attached reference sheet. A small, friendly, rounded cartoon
 ghost: matte white body, two simple oval black eyes, no mouth unless the pose needs one, a scalloped hem of three
 curves, no arms unless the pose needs them (then short mitten-like hands). A solid indigo-violet rim (#8C95FF) runs
 round its whole silhouette, about 2% of its width.

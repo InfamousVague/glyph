@@ -1,4 +1,4 @@
-/// Ghost Messaging's plugins: the contract (Matt, 2026-11-14: "prime the whole app to have plugin support for placing
+/// Uplink's plugins: the contract (Matt, 2026-11-14: "prime the whole app to have plugin support for placing
 /// UI elements and doing things like filtering out spam messages separating OTPs into their own section and more").
 ///
 /// A plugin is a [GhostPlugin]: an id, a name, a line saying what it does and a switch (the Marketplace, kept with
@@ -89,7 +89,7 @@ class MessageFacts {
   /// conversation of texts as the list holds it.
   final String? network;
 
-  /// It came sealed by Ghost Messaging's own encryption, or the conversation's encryption is on (Message.encrypted,
+  /// It came sealed by Uplink's own encryption, or the conversation's encryption is on (Message.encrypted,
   /// Conversation.encrypted): a plugin from another developer never sees it (lib/plugins/pack/format.dart packSees).
   final bool encrypted;
 

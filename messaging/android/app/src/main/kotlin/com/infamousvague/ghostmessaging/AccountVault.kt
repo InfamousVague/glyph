@@ -11,7 +11,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Where a Ghost account's secrets are kept on the phone (lib/account in the app; Matt, 2026-11-17: "i also want accounts
+ * Where an Uplink account's secrets are kept on the phone (lib/account in the app; Matt, 2026-11-17: "i also want accounts
  * to be generated based on ethereum type addresses with a recovery seed we can back up"): the recovery words, so the
  * phone can sign as the account (its devices, a new password) without asking for them. Sealed with AES-GCM under a key
  * of its own in the Android Keystore, as this phone's encryption key is (E2e.kt), in a preferences file of its own, so

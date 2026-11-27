@@ -150,7 +150,7 @@ class _HandoverCodePanelState extends State<HandoverCodePanel> {
             const _Lead(
               icon: LucideMore.qrCode,
               title: 'Scan this with your phone',
-              body: 'On an Android phone signed in to your account, open Ghost Messaging, then Settings › Me › Sign in a new device, and point it at this code. The code holds nothing of your account.',
+              body: 'On an Android phone signed in to your account, open Uplink, then Settings › Me › Sign in a new device, and point it at this code. The code holds nothing of your account.',
             ),
             Center(child: QrView(key: const ValueKey('handover-qr'), data: code, size: 240, label: 'The sign-in code, as a QR code')),
           ],
@@ -274,13 +274,13 @@ class _HandoverApproveScreenState extends State<HandoverApproveScreen> {
   void _begin(String text) {
     // A phone signed in to nothing has no account to hand over (the scanner in Settings › Computers is there for it too).
     if (!_account.signedIn) {
-      _problem = 'This phone isn\'t signed in to a Ghost account, so it has none to sign a new device in to.';
+      _problem = 'This phone isn\'t signed in to an Uplink account, so it has none to sign a new device in to.';
       if (mounted) setState(() {});
       return;
     }
     final code = HandoverCode.parse(text);
     if (code == null) {
-      _problem = _isPairingCode(text) ? 'That code pairs a computer with this phone\'s texts. Scan it from Settings › Computers instead.' : 'That isn\'t a sign-in code from Ghost Messaging.';
+      _problem = _isPairingCode(text) ? 'That code pairs a computer with this phone\'s texts. Scan it from Settings › Computers instead.' : 'That isn\'t a sign-in code from Uplink.';
       if (mounted) setState(() {});
       return;
     }
@@ -394,7 +394,7 @@ class _HandoverApproveScreenState extends State<HandoverApproveScreen> {
             PairButton(label: 'Cancel', icon: Lucide.x, quiet: true, onPressed: () => Navigator.of(context).maybePop()),
           ],
         HandoverPhase.compare when _asking == 'pin' => [
-            const _Lead(icon: Lucide.lock, title: 'Your PIN first', body: 'The one that unlocks Ghost Messaging on this phone.'),
+            const _Lead(icon: Lucide.lock, title: 'Your PIN first', body: 'The one that unlocks Uplink on this phone.'),
             if (problem != null) Text(problem, style: TextStyle(color: t.danger)),
             PinPad(onSubmit: _pin, enabled: !_busy && _lock.wait <= Duration.zero, submitLabel: 'Sign it in', submitIcon: Lucide.check),
             PairButton(label: 'Cancel', icon: Lucide.x, quiet: true, onPressed: _no),

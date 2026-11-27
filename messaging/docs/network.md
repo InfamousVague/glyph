@@ -1,4 +1,4 @@
-# Ghost Messaging's network: routes
+# Uplink's network: routes
 
 Matt, 2026-11-14: "implement a full relay system for the app that's replacable and swappable so that for right now
 we can use our servers to negotiate calls through the app, video chats andre but in the future id like to be able to
@@ -432,7 +432,7 @@ cannot open a packet.
 
 A packet goes as a **data text**: an SMS addressed to a port (16962), which Android hands to the app that listens
 there and to no other. It is never written to the phone's messages and no texting app shows it, so it works whether
-or not Ghost Messaging is the phone's texting app. 133 bytes each, up to six for one packet, each a text on the
+or not Uplink is the phone's texting app. 133 bytes each, up to six for one packet, each a text on the
 person's plan. One that comes with the app closed is kept (sixty, a day) and handed over when it opens.
 
 ## Trying it

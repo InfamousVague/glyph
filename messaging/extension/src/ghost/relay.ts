@@ -1,4 +1,4 @@
-// The connection to the Ghost Messaging relay's hub (messaging/relay/lib/hub.dart), as a device of the account: the
+// The connection to the Uplink relay's hub (messaging/relay/lib/hub.dart), as a device of the account: the
 // same handshake the app makes (sign the hub's nonce with the P-256 identity), then the request/reply `dir` messages
 // the app uses. We use only `acct-find` / `acct-get` / `acct-seed` to sign in and `curl-keep` / `curl-kept` to carry
 // the captured cookies. The relay holds the cookies only sealed; it cannot read them.

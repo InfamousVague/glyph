@@ -16,7 +16,7 @@ Invoke-ArtifactSigning `
   -FileDigest SHA256 `
   -TimestampRfc3161 'http://timestamp.acs.microsoft.com' `
   -TimestampDigest SHA256 `
-  -Description 'Ghost Messaging' `
+  -Description 'Uplink' `
   -DescriptionUrl 'https://gogho.st'
 $sig = Get-AuthenticodeSignature -FilePath $File
 if ($sig.Status -ne 'Valid') { throw "$File is not signed ($($sig.Status): $($sig.StatusMessage))" }

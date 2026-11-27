@@ -1,13 +1,13 @@
-# Ghost Messaging's Discord helper
+# Uplink's Discord helper
 
-A small program Ghost Messaging runs beside itself to reach the person's Discord direct messages and groups: signed
+A small program Uplink runs beside itself to reach the person's Discord direct messages and groups: signed
 in with the token of a browser signed in to their account, then their chats, the history of each, messages as they
 arrive, sending (words, replies, pictures and files), reactions, deleting your own message, read marks, and the
 names and pictures of the people met.
 
 **Discord does not allow this, and may disable the account.** Discord's terms forbid automating a user account
 (it calls these "self-bots"): a program signed in as a person rather than as a bot. Discord may ask the person to
-verify the account, sign the session out, or disable the account for good. Ghost says so, and asks the person to
+verify the account, sign the session out, or disable the account for good. Uplink says so, and asks the person to
 agree, before signing in.
 
 It is built the way [mautrix-discord](https://github.com/mautrix/discord) (v0.7.7) by Tulir Asokan and contributors
@@ -18,7 +18,7 @@ General Public License 3.0, and this helper's own source is under the same licen
 whoever is given the program can have its source: SOURCE_URL is where it is published. Matrix and mautrix-discord's
 bridge are not used. No cgo: the session is a JSON file, not a database.
 
-Ghost Messaging itself is a separate program: it starts this one (`discord-sidecar --dir <folder>`) and talks to it
+Uplink itself is a separate program: it starts this one (`discord-sidecar --dir <folder>`) and talks to it
 over its standard input and output, one JSON object a line (../ACCOUNT_HELPERS.md, and PROTOCOL.md for what is
 Discord's own). The folder holds `session.json` (the token, readable by the person alone), `discord.log` and cached
 pictures (`avatars/`). Nothing a message says is logged; nothing but the protocol is written to standard output.

@@ -122,7 +122,7 @@ class _Shot {
 class SubmitPluginScreen extends StatefulWidget {
   const SubmitPluginScreen({super.key, this.api, this.market, this.pickFile, this.pickPicture, this.pastePicture, this.iconOf, this.shotOf, this.start, this.startVersion, this.startFor, this.from, this.hub});
 
-  /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
+  /// The Marketplace: MarketState.instance.api where null, which is Uplink's own (MarketApi.live) in the app.
   final MarketApi? api;
   final MarketState? market;
   final Future<PickedPlugin?> Function()? pickFile;
@@ -159,7 +159,7 @@ class SubmitPluginScreen extends StatefulWidget {
 }
 
 class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBindingObserver {
-  // The Marketplace's own api where none is given: in the app MarketApi.live(), Ghost Messaging's own relay signed
+  // The Marketplace's own api where none is given: in the app MarketApi.live(), Uplink's own relay signed
   // with this install's hub key; a test's Marketplace in a test.
   MarketState get _market => widget.market ?? MarketState.instance;
   late final MarketApi _api = widget.api ?? _market.api;
@@ -825,12 +825,12 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
         : pack == null
             ? 'Load the plugin first.'
             : _serverOther
-                ? 'Switch back to Ghost Messaging\'s own server first.'
+                ? 'Switch back to Uplink\'s own server first.'
                 : problems.isNotEmpty
                     ? 'Put the problems above right first.'
                     : !_agree
                         ? 'Agree to the guidelines first.'
-                        : 'It goes to Ghost Messaging\'s review. You\'ll hear when it\'s decided.';
+                        : 'It goes to Uplink\'s review. You\'ll hear when it\'s decided.';
     return [
       PaneSection(
         title: 'The plugin',

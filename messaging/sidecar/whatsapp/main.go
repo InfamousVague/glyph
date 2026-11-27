@@ -1,11 +1,11 @@
-// Ghost Messaging's WhatsApp helper (README.md, PROTOCOL.md). MPL-2.0, as whatsmeow, on which it is built.
+// Uplink's WhatsApp helper (README.md, PROTOCOL.md). MPL-2.0, as whatsmeow, on which it is built.
 //
 // Matt, 2026-11-17: "enable whatsapp but warn the user that it's unsupported by whatsapp". It links to the person's
 // WhatsApp account as a linked device, as WhatsApp Web does, and speaks JSON lines over standard input and output, in
 // the same shape as the Signal helper (sidecar/signal). Requests, each with an "id" its answer carries back:
 //
 //	{"id":1,"op":"status"}                                    → {"linked","connected","jid","number","name"}
-//	{"id":2,"op":"link","name":"Ghost Messaging"}             → null, then events "qr" (a new one every ~20 s) and "linked" or "link_failed"
+//	{"id":2,"op":"link","name":"Uplink"}             → null, then events "qr" (a new one every ~20 s) and "linked" or "link_failed"
 //	{"id":3,"op":"pair_phone","phone":"+15550100"}            → {"code":"ABCD-EFGH"}: WhatsApp's "Link with phone number instead"
 //	{"id":4,"op":"unlink"}                                    → null; everything forgotten
 //	{"id":5,"op":"contacts"}                                  → [{"jid","name","number","avatar"}…]
@@ -68,7 +68,7 @@ import (
 )
 
 // deviceName is what WhatsApp shows in the phone's Linked devices.
-const deviceName = "Ghost Messaging"
+const deviceName = "Uplink"
 
 // quote names the message a send answers: its id, its author's JID and its words, which WhatsApp shows above the
 // reply.
@@ -145,7 +145,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// whatsmeow's log goes to standard error (Ghost's developer log) and whatsapp.log beside the store; never stdout.
+	// whatsmeow's log goes to standard error (Uplink's developer log) and whatsapp.log beside the store; never stdout.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	out.SetEscapeHTML(false)
 	// The name WhatsApp shows for this device in Linked devices.
@@ -179,7 +179,7 @@ func main() {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

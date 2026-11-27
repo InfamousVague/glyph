@@ -87,7 +87,7 @@ class AppUsage extends ChangeNotifier {
   int spikes = 0;
 
   /// What a copied log begins with: the app, its version and the device, said by whoever starts it.
-  String about = 'Ghost Messaging';
+  String about = 'Uplink';
 
   Timer? _timer;
   bool get running => _timer != null;

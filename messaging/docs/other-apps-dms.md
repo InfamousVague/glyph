@@ -1,4 +1,4 @@
-# Other apps' direct messages in Ghost
+# Other apps' direct messages in Uplink
 
 Matt, 2026-11-15: "pick up the other sessions question about proxying direct messages from other apps like discord,
 slack, telegram through our app and being able to reply via an API, i'm not sure which services allow this so look
@@ -65,7 +65,7 @@ protocol, through the open-source bridges' client libraries (AGPL-3.0, as this a
 | Building a helper for a Mac, Linux, Windows or the phone | `tool/build-accountsidecar.sh <name> <mac\|linux\|windows\|android>`; the Mac's and the phone's releases carry them (`tool/release-mac.mjs`, `tool/release.mjs`) |
 
 **The warning.** Before anything is asked of the service the person is told, and must agree, that it does not
-support or allow other apps, that Ghost signs in as them with a browser's session, and that the service may ask them
+support or allow other apps, that Uplink signs in as them with a browser's session, and that the service may ask them
 to confirm it is them, sign that session out, or restrict the account. The same stands on each one's page of
 Settings. This is the same footing as WhatsApp.
 
@@ -76,7 +76,7 @@ not fetched, and encrypted files cannot be sent yet.
 
 **What is kept where.** The cookies are given to the helper on the device and kept by it alone (`session.json` in
 the app's own folder, readable by the person only); the app keeps the chats and the newest 400 messages of each
-(`chats.json`). Nothing goes through Ghost's servers.
+(`chats.json`). Nothing goes through Uplink's servers.
 
 **Not tried against real accounts.** Everything here was built and tested against stand-ins and the libraries' own
 types: no sign-in was made to any of the three. The first real sign-in on each is the test of it, as it was for
@@ -93,7 +93,7 @@ There are two ways in, and they cover different apps:
 1. **The phone's own notifications (any app, no API).** Android lets an app with *notification access* read the
    notifications other apps post and press their **Reply** action (the same `RemoteInput` that Wear OS, Android Auto
    and the shade's inline reply use). Discord, Slack, WhatsApp, Instagram, Messenger, Signal, Teams and Telegram
-   all post a message notification with a Reply action. Ghost would show those messages and send replies through
+   all post a message notification with a Reply action. Uplink would show those messages and send replies through
    the other app itself, signed in as you, with no keys, no servers and nothing against those apps' terms (no token
    is taken, no client is faked). Limits below.
 2. **Real APIs, where a service allows a third-party client.** Telegram, Mastodon, Bluesky and Matrix do, fully.
@@ -123,9 +123,9 @@ WhatsApp and Instagram. Then add (2) for **Telegram** (full history, media, work
 ## How (1), notifications, would work
 
 - A `NotificationListenerService` in the Android app; the person turns on notification access once (Android's own
-  switch, not a runtime permission), and chooses which apps Ghost may read.
+  switch, not a runtime permission), and chooses which apps Uplink may read.
 - A posted notification with `MessagingStyle` gives the sender, the conversation, the recent messages and whether
-  it is a group. Each conversation becomes a row in Ghost marked with the app it came from.
+  it is a group. Each conversation becomes a row in Uplink marked with the app it came from.
 - **Reply**: the notification's action with a `RemoteInput` is filled in and sent (`RemoteInput.addResultsToIntent`
   and the action's `PendingIntent`). **Mark read** is the action too, where the app gives one. The other app sends
   it, as you.
@@ -133,16 +133,16 @@ WhatsApp and Instagram. Then add (2) for **Telegram** (full history, media, work
 
 What it cannot do, and must say plainly:
 
-- **Only what arrives as a notification**: no history before Ghost was set up, nothing from a muted chat, nothing
+- **Only what arrives as a notification**: no history before Uplink was set up, nothing from a muted chat, nothing
   while the other app's notifications are off or it is open on screen.
 - **Reply only while the notification is there**: once it is dismissed (or read elsewhere) there is no Reply action
-  until the next message. Ghost can still show the conversation; replying then means opening the other app.
+  until the next message. Uplink can still show the conversation; replying then means opening the other app.
 - **Pictures and voice** mostly do not come through; some apps put a picture in the notification, most only "Photo".
 - **Phone only**: the phone must be on and have the other apps installed and signed in.
 - **Google Play**: notification access is a sensitive capability, and a Play listing must justify it as a core
   feature (**unverified** which declaration it needs today; check Play Console's permissions declaration before a
   Play build). The sideloaded and Mac builds are not affected.
-- Ghost already reads its own SMS; this reads *other* apps' messages, so it should be off by default, per app, with
+- Uplink already reads its own SMS; this reads *other* apps' messages, so it should be off by default, per app, with
   a clear page saying what is read and that nothing leaves the phone except to the paired Mac.
 
 ## How (2) would fit

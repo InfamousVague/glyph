@@ -3,11 +3,14 @@
 (() => {
   const root = document.documentElement;
 
-  // Light or dark: the reader's own setting until they choose here.
+  // Dark (Uplink's night) or light (black on paper): dark until the reader chooses here, as the landing page is.
+  const tint = () => { const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = root.dataset.theme === 'light' ? '#f5f5f2' : '#040406'; };
+  tint();
   document.querySelector('.theme-btn')?.addEventListener('click', () => {
-    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = root.dataset.theme !== 'light';
     root.dataset.theme = dark ? 'light' : 'dark';
     try { localStorage.setItem('docs-theme', root.dataset.theme); } catch (_) {}
+    tint();
   });
 
   // The list of pages, as a drawer on a narrow screen.

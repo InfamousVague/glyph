@@ -42,7 +42,7 @@ final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');
 
 // The vocabularies, the same lists as the app's lib/plugins/pack/format.dart (test/market_pack_test.dart compares them).
 
-/// Ids kept for the app's own plugins and places, and any id holding `ghost` or `gogho`.
+/// Ids kept for the app's own plugins and places, and any id holding `uplink`, `ghost` or `gogho`.
 const Set<String> reservedPackIds = {
   'notion', 'spotify', 'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', //
   'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', //
@@ -54,7 +54,7 @@ const Set<String> reservedPackIds = {
 const Set<String> examplePackIds = {'bills', 'parcels'};
 
 /// None of these anywhere in a developer's username: a plugin listed as by @ghostdev or @officialbills reads as the app's.
-const List<String> reservedDeveloperWords = ['ghost', 'gogho', 'official', 'verified', 'support'];
+const List<String> reservedDeveloperWords = ['uplink', 'ghost', 'gogho', 'official', 'verified', 'support'];
 
 /// What a pack may name: its colour, the labels it is found by, the shelf of the store it sits on, and what it asks
 /// to be allowed to do. GET /market hands these to the app.
@@ -184,7 +184,7 @@ final RegExp _space = RegExp(r'\s');
 /// Names that only reach something on the person's own network.
 const List<String> _localSuffixes = ['.local', '.lan', '.home', '.internal', '.localhost', '.arpa'];
 
-/// Ghost Messaging's own: their /join and /c/ addresses the app opens itself as Android App Links.
+/// Uplink's own: their /join and /c/ addresses the app opens itself as Android App Links.
 const List<String> _ownHosts = ['gogho.st', 'ghost-sms.com'];
 
 /// Two or more labels of lower-case ASCII letters, digits and inner hyphens, no punycode (a look-alike's disguise), not
@@ -391,7 +391,7 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
   for (final k in pack.keys) {
     if (!packFields.contains(k)) add('unknown_field', '$k', '"$k" isn\'t a field of ghost-plugin/1.');
   }
-  if (pack['format'] != packFormat) add('format_unknown', 'format', 'format: this version of Ghost Messaging reads "$packFormat".');
+  if (pack['format'] != packFormat) add('format_unknown', 'format', 'format: this version of Uplink reads "$packFormat".');
 
   // Three readers of a field, each adding its own issues and returning null where the field won't do: text (any
   // string), words (a string within its length and of allowed characters), and list (strings, each once, each passed
@@ -457,8 +457,8 @@ bool developerOk(String name) => packUsernamePattern.hasMatch(name) && !name.con
   if (id != null) {
     if (!packIdPattern.hasMatch(id)) {
       add('bad_id', 'id', 'id: 3 to 24 lower-case letters and digits, starting with a letter.');
-    } else if (reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho')) {
-      add('id_reserved', 'id', 'id: "$id" is kept for Ghost Messaging\'s own plugins and places.');
+    } else if (reservedPackIds.contains(id) || id.contains('uplink') || id.contains('ghost') || id.contains('gogho')) {
+      add('id_reserved', 'id', 'id: "$id" is kept for Uplink\'s own plugins and places.');
     } else if (examplePackIds.contains(id)) {
       add('id_example', 'id', 'That\'s the example\'s id: give your plugin an id of its own.');
     }

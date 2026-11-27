@@ -1,5 +1,5 @@
 // My files (GMFB-37, @matt: "A private file drive for each account, not tied to any space"): the drive every device of
-// one Ghost account makes from the account's own key, against the relay's files service as it is, on this machine.
+// one Uplink account makes from the account's own key, against the relay's files service as it is, on this machine.
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';

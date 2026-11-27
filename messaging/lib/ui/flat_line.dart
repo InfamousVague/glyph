@@ -218,7 +218,7 @@ InlineSpan editedMark(TextStyle style, Color ink, {Key? key, VoidCallback? onTap
   ]);
 }
 
-/// A face [size] across from a profile picture as Ghost keeps one (base64; lib/me/pictures.dart), or null where [picture]
+/// A face [size] across from a profile picture as Uplink keeps one (base64; lib/me/pictures.dart), or null where [picture]
 /// is none that can be read.
 Widget? faceOfPicture(BuildContext context, String? picture, double size) {
   if (picture == null || picture.isEmpty) return null;

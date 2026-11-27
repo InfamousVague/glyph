@@ -1,4 +1,4 @@
-/// A Ghost account's screens (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts. We
+/// An Uplink account's screens (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts. We
 /// might need to add password based authentication as well as SMS verification for verified numbers"; "I like your
 /// recommendation let's do it for now"; "i also want accounts to be generated based on ethereum type addresses with a
 /// recovery seed we can back up"): making one (a password, then the recovery words written down and confirmed), signing
@@ -64,13 +64,13 @@ Widget _accountSection(BuildContext context) {
         title: 'Account',
         description: Text(paired
             ? 'Sign in to the account your phone is in, so this computer is the same you as your phone, or make one for who you are now.'
-            : 'Keep who you are on Ghost Messaging, your friends and circles, and sign in with them on another device.'),
+            : 'Keep who you are on Uplink, your friends and circles, and sign in with them on another device.'),
         footer: account.removedHere ? const Tr('This device was signed out of your account from another device.') : null,
         children: [
           if (phones != null)
             SettingRow(
               icon: _icon(Lucide.smartphone),
-              label: 'Sign in to your Ghost account',
+              label: 'Sign in to your Uplink account',
               hint: Text(phones.username.isEmpty ? 'The account your phone is in, ${shortAddress(phones.address)}' : '@${phones.username}, the account your phone is in'),
               onPress: () => push(context, (_) => SignInScreen(username: phones.username)),
             ),
@@ -81,7 +81,7 @@ Widget _accountSection(BuildContext context) {
             onPress: () => push(context, (_) => const CreateAccountScreen()),
           ),
           if (phones == null || phones.username.isEmpty)
-            SettingRow(icon: _icon(Lucide.keyRound), label: paired ? 'Sign in to your Ghost account' : 'Sign in to an account', hint: const Tr('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen()))
+            SettingRow(icon: _icon(Lucide.keyRound), label: paired ? 'Sign in to your Uplink account' : 'Sign in to an account', hint: const Tr('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen()))
           else
             SettingRow(icon: _icon(Lucide.keyRound), label: 'Sign in to another account', hint: const Tr('With your username and password, or your recovery words'), onPress: () => push(context, (_) => const SignInScreen())),
         ],
@@ -468,7 +468,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             children: [Padding(padding: EdgeInsets.all(t.space(3)), child: RecoveryWordsGrid(words: words))],
           ),
           _gap(context),
-          SettingsCallout(icon: _icon(Lucide.shieldCheck), child: const Tr('Never type them into a website or tell them to anyone. Ghost Messaging will never ask for them except here, to sign in.')),
+          SettingsCallout(icon: _icon(Lucide.shieldCheck), child: const Tr('Never type them into a website or tell them to anyone. Uplink will never ask for them except here, to sign in.')),
           _gap(context, 8),
           PairButton(label: 'I\'ve written them down', icon: Lucide.arrowRight, onPressed: () => setState(() => _step = CreateStep.confirm)),
           // Just made at sign-up (GMFB-3, @kevin: "We need to find a way to reduce friction when onboarding new users. I
@@ -557,7 +557,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           ),
           _gap(context, 8),
           PairButton(
-            label: _restart ? 'Start Ghost Messaging as your account' : 'Done',
+            label: _restart ? 'Start Uplink as your account' : 'Done',
             icon: _restart ? Lucide.rotateCcw : Lucide.check,
             onPressed: () async {
               if (!_restart) return Navigator.of(context).pop();
@@ -580,19 +580,19 @@ String _relayHost(String hubUrl) {
   return u == null || u.host.isEmpty ? hubUrl : '${u.host}${u.hasPort ? ':${u.port}' : ''}';
 }
 
-/// On the sign-in screen while the app uses a relay other than Ghost Messaging's own (GMFB-25: "Sign-in works only on
+/// On the sign-in screen while the app uses a relay other than Uplink's own (GMFB-25: "Sign-in works only on
 /// the relay the account was made on", and nothing said which relay was asked): which relay is asked, and where an
-/// account made elsewhere is signed in to. Null on Ghost Messaging's relay, where there is nothing to say.
+/// account made elsewhere is signed in to. Null on Uplink's relay, where there is nothing to say.
 String? signInRelayWords(String hubUrl) => hubUrl == Net.defaultHub
     ? null
-    : 'You are signing in on ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. An account is kept on the relay it was made on: to sign in to one made on Ghost Messaging\'s relay, go back to it first in Settings › Routes.';
+    : 'You are signing in on ${relayInUseWords(hubUrl).replaceFirst('Your own relay: ', 'your own relay, ')}. An account is kept on the relay it was made on: to sign in to one made on Uplink\'s relay, go back to it first in Settings › Routes.';
 
-/// "No account has that username", saying which relay was asked where it is not Ghost Messaging's own.
+/// "No account has that username", saying which relay was asked where it is not Uplink's own.
 String noAccountWords(String hubUrl) => hubUrl == Net.defaultHub
     ? 'No account has that username.'
-    : 'No account has that username on ${_relayHost(hubUrl)}. If yours was made on Ghost Messaging\'s relay or another, sign in there: go back to it first in Settings › Routes.';
+    : 'No account has that username on ${_relayHost(hubUrl)}. If yours was made on Uplink\'s relay or another, sign in there: go back to it first in Settings › Routes.';
 
-/// What follows "no backup of it was found on the server" where the server is a relay other than Ghost Messaging's:
+/// What follows "no backup of it was found on the server" where the server is a relay other than Uplink's:
 /// which one, and that the account may be on another.
 String noBackupHereWords(String hubUrl) => hubUrl == Net.defaultHub ? '' : ' (${_relayHost(hubUrl)}; if your account was made on another relay, go back and change the relay in Settings › Routes first, or it is made anew here without its friends and circles)';
 
@@ -836,7 +836,7 @@ class RestartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final how = PlatformInfo.isIOS || PlatformInfo.isAndroid ? 'Swipe it away from the app switcher and open it again to finish.' : 'Quit Ghost Messaging and open it again to finish.';
+    final how = PlatformInfo.isIOS || PlatformInfo.isAndroid ? 'Swipe it away from the app switcher and open it again to finish.' : 'Quit Uplink and open it again to finish.';
     // Everything of the account here was deleted (signed out with everything, or removed from another device).
     final gone = Account.instance.ended;
     return ColoredBox(
@@ -847,7 +847,7 @@ class RestartScreen extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _icon(Lucide.rotateCcw),
             _gap(context, 4),
-            Text('Open Ghost Messaging again', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
+            Text('Open Uplink again', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink'))),
             _gap(context, 2),
             Text(
               gone

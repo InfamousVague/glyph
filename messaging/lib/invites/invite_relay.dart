@@ -1,5 +1,5 @@
 /// Speaking to the relay's keeper of waiting invites (relay/lib/invites.dart) over the hub: leaving sealed invites for
-/// numbers not on Ghost Messaging yet, and, on the install that verified a number, taking those left for it.
+/// numbers not on Uplink yet, and, on the install that verified a number, taking those left for it.
 library;
 
 import 'dart:async';

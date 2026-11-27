@@ -198,7 +198,7 @@ void main() {
       expect(SpaceFile.cleanName('CON.txt'), '_CON.txt');
       expect(SpaceFile.cleanName('notes. . '), 'notes');
       expect(FilePlatform.runsCode('setup.command'), isTrue);
-      expect(FilePlatform.runsCode('Ghost.APK'), isTrue);
+      expect(FilePlatform.runsCode('Uplink.APK'), isTrue);
       expect(FilePlatform.runsCode('report.pdf'), isFalse);
     });
 

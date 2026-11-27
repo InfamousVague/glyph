@@ -580,7 +580,7 @@ class HumanCheck extends ChangeNotifier {
     _changed(n);
   }
 
-  /// Blocks the sender of [chatId], on the network where it can, and in Ghost's own list.
+  /// Blocks the sender of [chatId], on the network where it can, and in Uplink's own list.
   Future<void> block(InboxNetwork n, String chatId) async {
     final st = _state(n.id);
     final r = st.chats[chatId];

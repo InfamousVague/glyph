@@ -1,4 +1,4 @@
-# Handoff: Ghost Messaging, 2026-11-13
+# Handoff: Uplink, 2026-11-13
 
 **Since this was written (the same day, on Matt's Mac):** section 1 is done: ghost-sms.com has its Caddy block and
 its certificate, and 0.3.1 was published as the first release, signed with the key now in `~/.config/ghostmessaging/`
@@ -179,7 +179,7 @@ and then encrypt all messages so only others with the app can read them".
   call, is what rules that out.
 - No forward secrecy: there is no ratchet. It is not Signal's protocol.
 - A sealed text is longer (base64, plus 28 bytes), so it costs more SMS parts.
-- The other person must have Ghost Messaging; to anything else a sealed text is a line of letters.
+- The other person must have Uplink; to anything else a sealed text is a line of letters.
 
 ## 3. Try it on the phone
 

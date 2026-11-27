@@ -17,7 +17,7 @@ class Reach {
   const Reach.phone(String this.address) : contact = null;
   const Reach.on(InboxContact this.contact) : address = null;
 
-  /// A text (or Ghost, for a friend) to this number.
+  /// A text (or Uplink, for a friend) to this number.
   final String? address;
 
   /// A chat on this contact's network.
@@ -41,7 +41,7 @@ class Someone {
   /// The phone contact's label for the number (Mobile, Work).
   final String? label;
 
-  /// On Ghost Messaging (lib/friends/friends.dart): a text to them goes over the internet.
+  /// On Uplink (lib/friends/friends.dart): a text to them goes over the internet.
   final bool friend;
 
   /// In the phone's own contacts.
@@ -161,7 +161,7 @@ class _Building {
       inPhone: phone != null,
       reaches: [
         // A number known from anywhere can be texted, a network contact's too; a friend by username is written to on
-        // Ghost by their @username, which has no digits to make a number of (Matt, 2026-11-19: "the message with isn't
+        // Uplink by their @username, which has no digits to make a number of (Matt, 2026-11-19: "the message with isn't
         // working we should be able to see message phill with his internal account": a friend by username had no
         // way listed, so the choice opened empty).
         if (number != null && (numberKey(number).isNotEmpty || (phone?.friend == true && number.startsWith('@')))) Reach.phone(number),
@@ -173,7 +173,7 @@ class _Building {
   static int _rank(String network) => switch (network) { 'telegram' => 0, 'signal' => 1, _ => 2 };
 }
 
-/// What the list is narrowed to: everyone, the phone's contacts, friends on Ghost Messaging, or one network's.
+/// What the list is narrowed to: everyone, the phone's contacts, friends on Uplink, or one network's.
 /// Friends are a filter of their own (Matt, 2026-11-17: "add the ability to sort contacts by friends in ghost").
 List<Someone> narrowed(List<Someone> people, String filter) => switch (filter) {
       'all' => people,
@@ -182,7 +182,7 @@ List<Someone> narrowed(List<Someone> people, String filter) => switch (filter) {
       _ => [for (final s in people) if (s.kinds.contains(filter)) s],
     };
 
-/// Friends on Ghost Messaging first, by name, then everyone else in the order they came (the phone's, then the
+/// Friends on Uplink first, by name, then everyone else in the order they came (the phone's, then the
 /// networks' by name, as [gather] gives them): the friends are who Matt looks for first (2026-11-17: "add the ability
 /// to sort contacts by friends in ghost").
 List<Someone> friendsFirst(List<Someone> people) => [

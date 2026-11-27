@@ -16,7 +16,7 @@ Future<void> settle() async {
   }
 }
 
-/// Blocking a Telegram or Signal person on the network itself, and in Ghost's own list so they are gone from here at
+/// Blocking a Telegram or Signal person on the network itself, and in Uplink's own list so they are gone from here at
 /// once (lib/inbox/inbox.dart; Matt, 2026-11-17: "I'd like to be able to block signal and telegram users"; "add the
 /// signal helper and do your recommendation").
 void main() {

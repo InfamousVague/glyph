@@ -7,14 +7,14 @@ import 'p256.dart';
 import 'secp256k1.dart';
 import 'sha256.dart';
 
-/// Ghost accounts (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might need to add password
+/// Uplink accounts (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might need to add password
 /// based authentication as well as SMS verification for verified numbers"; "i also want accounts to be generated based on
 /// ethereum type addresses with a recovery seed we can back up"). The app makes an account from twelve recovery words: an
-/// Ethereum-style address is its id, and a backup of the Ghost identity is sealed twice on the phone, once with the
+/// Ethereum-style address is its id, and a backup of the Uplink identity is sealed twice on the phone, once with the
 /// password and once with the words (lib/account/account_crypto.dart in the app). This keeps the two sealed blobs, and
 /// can open neither.
 ///
-/// - **An account** is kept by its address: the Ghost identity it belongs to (the hub's name for it and its P-256 key,
+/// - **An account** is kept by its address: the Uplink identity it belongs to (the hub's name for it and its P-256 key,
 ///   with that key's signature over the address as proof it agreed), the two blobs, and the devices signed in to it.
 ///   One account to an identity.
 /// - **Writes** (`acct-put`, `acct-devices`, `acct-delete`, and reading the words' blob, `acct-seed`) carry `body`, a
@@ -303,12 +303,12 @@ class Accounts {
           // on their own computer, as fast as they could buy them.
           final pwv = _unhex(body['pwv']);
           if (pwv == null || pwv.length != 32 || _kdfOf(pw) == null) return err('That backup is not one this server can keep. Update the app and try again.');
-          if (identity is! String || key == null || bind == null || !P256.isKey(key) || hexOf(sha256(key).sublist(0, 16)) != identity) return err('That is not a Ghost identity.');
+          if (identity is! String || key == null || bind == null || !P256.isKey(key) || hexOf(sha256(key).sublist(0, 16)) != identity) return err('That is not an Uplink identity.');
           if (!P256.verify(key, utf8.encode('ghost-account bind v1|$address'), bind)) return err('That identity did not agree to this account.');
           final had = _accounts[address];
-          if (had != null && had['id'] != identity) return err('That account belongs to another Ghost identity.');
+          if (had != null && had['id'] != identity) return err('That account belongs to another Uplink identity.');
           final other = _byId[identity];
-          if (other != null && other != address) return err('This Ghost identity already has an account.');
+          if (other != null && other != address) return err('This Uplink identity already has an account.');
           final record = <String, Object?>{
             'id': identity,
             'key': base64Encode(key),

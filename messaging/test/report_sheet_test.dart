@@ -119,7 +119,7 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
-  testWidgets('a person report has no messages; someone with no Ghost id is not offered Block', (tester) async {
+  testWidgets('a person report has no messages; someone with no Uplink id is not offered Block', (tester) async {
     final h = await SpaceHarness.load(tester);
     final sent = <AbuseReport>[];
     await h.shoot(tester, ReportForm(target: const ReportTarget(id: '', username: 'pest', name: 'Pest', place: 'profile'), send: (r) async => (sent..add(r)).isEmpty ? '' : 'fedcba9876543210'), 'report-person');
@@ -132,10 +132,10 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
-  // Second review of the web client: a report goes to Ghost Messaging's own review, which a page reaches only where it
+  // Second review of the web client: a report goes to Uplink's own review, which a page reaches only where it
   // was made for gogho.st's hub (app.gogho.st: its policy names the address, the relay lets it read the answer). A page
   // made for another relay says where to report from instead, and still offers Block.
-  test('a report goes from anywhere but a page made for a relay not Ghost Messaging\'s', () {
+  test('a report goes from anywhere but a page made for a relay not Uplink\'s', () {
     expect(reportsGoFromHere(browser: false, hub: 'wss://relay.example.com/hub'), isTrue);
     expect(reportsGoFromHere(browser: false, hub: Net.defaultHub), isTrue);
     expect(reportsGoFromHere(browser: true, hub: 'wss://gogho.st/hub'), isTrue);
@@ -156,7 +156,7 @@ void main() {
     final sent = <AbuseReport>[], blocked = <String>[];
     await h.shoot(tester, ReportForm(target: _target, send: (r) async => (sent..add(r)).isEmpty ? '' : 'x', block: (t) async => blocked.add(t.id)), 'report-not-here');
     expect(find.byKey(const ValueKey('report-not-here')), findsOneWidget);
-    expect(find.textContaining('which this page can\'t reach: it was made for relay.example.com. Report @pest from app.gogho.st, or from Ghost Messaging on your phone or computer.'), findsOneWidget);
+    expect(find.textContaining('which this page can\'t reach: it was made for relay.example.com. Report @pest from app.gogho.st, or from Uplink on your phone or computer.'), findsOneWidget);
     expect(find.byKey(const ValueKey('report-send')), findsNothing);
     await _press(tester, 'report-block-only');
     await tester.pump();
@@ -266,7 +266,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('something nasty'), findsOneWidget);
     expect(find.textContaining('their signature checks out'), findsOneWidget);
-    expect(find.textContaining('Ghost id ${reporter.id}'), findsOneWidget);
+    expect(find.textContaining('Uplink id ${reporter.id}'), findsOneWidget);
     Navigator.of(tester.element(find.text('something nasty'))).pop();
     await tester.pump(const Duration(milliseconds: 400));
 

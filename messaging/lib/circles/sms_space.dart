@@ -212,7 +212,7 @@ class SmsSpaces extends ChangeNotifier {
     _keep(space.seed, [...list, TextedPerson(number: n, name: name.trim().isEmpty ? n : name.trim(), seen: DateTime.now().millisecondsSinceEpoch, member: member)]);
     final circle = Circles.instance.circleOf(space)?.name;
     await _send([n], member != null
-        ? 'You\'re in ${space.name}${circle == null ? '' : ' in $circle'} by text, as a member whose number is on Ghost Messaging: what people write there comes to you here, and what you text back goes to all of them. Text STOP to leave.'
+        ? 'You\'re in ${space.name}${circle == null ? '' : ' in $circle'} by text, as a member whose number is on Uplink: what people write there comes to you here, and what you text back goes to all of them. Text STOP to leave.'
         : 'You\'re in ${space.name}${circle == null ? '' : ' in $circle'} by text: what people write there comes to you here, and what you text back goes to all of them. Text STOP to leave.');
     Voice.instance.hangoutFor(space)?.send('$textedMark${name.trim().isEmpty ? n : name.trim()} is in this space by text now.');
     return true;

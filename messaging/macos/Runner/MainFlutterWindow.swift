@@ -38,7 +38,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
     self.setFrame(windowFrame, display: true)
     // Two panes side by side need room: the list and a conversation.
     self.minSize = NSSize(width: 760, height: 520)
-    self.title = "Ghost Messaging"
+    self.title = "Uplink"
     // The window draws edge to edge: no title strip of the Mac's own above the app. Each page's header is the top
     // bar, in the theme's colours, with the three buttons folded down into it and the window dragged by it (Matt,
     // 2026-11-17: "move the toolbar top bar into our own topbar component so it can match themes on mac make it fold
@@ -95,7 +95,7 @@ class MainFlutterWindow: NSWindow, NSDraggingDestination {
       case "title":
         // What the app's title strip names (lib/ui/window_title.dart: the circle or conversation that is open): the
         // window's own title too, which is not drawn but is what the Window menu and Mission Control call it.
-        self.title = (call.arguments as? String) ?? "Ghost Messaging"
+        self.title = (call.arguments as? String) ?? "Uplink"
         result(nil)
       case "drag":
         // The press that began on a top bar moves the window, as a title bar does.

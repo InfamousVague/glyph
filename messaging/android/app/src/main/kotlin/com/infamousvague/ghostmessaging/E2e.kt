@@ -14,7 +14,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Ghost Messaging's own encryption between two phones that both run it: this phone's key, the keys other people
+ * Uplink's own encryption between two phones that both run it: this phone's key, the keys other people
  * sent, and where each conversation stands. The cryptography is [E2eCrypto]'s; this is what Android keeps.
  *
  * A conversation with one person is in one of four states:
@@ -35,7 +35,7 @@ object E2e {
     private const val TAG = "GhostMessaging"
     private const val PREFS = "e2e"
     private const val WRAP_ALIAS = "ghost_e2e_wrap"
-    const val KEY_NOTE = "Ghost Messaging encryption key. With the app (gogho.st) our texts can be end-to-end encrypted."
+    const val KEY_NOTE = "Uplink encryption key. With the app (gogho.st) our texts can be end-to-end encrypted."
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -92,7 +92,7 @@ object E2e {
     fun hasIdentity(context: Context) = prefs(context).contains("identity")
 
     /**
-     * This phone's private key as its 32 bytes, for a Ghost account's sealed backup (lib/account in the app; Matt,
+     * This phone's private key as its 32 bytes, for an Uplink account's sealed backup (lib/account in the app; Matt,
      * 2026-11-17: "We need to have a way to login to existing accounts"): an account made on a phone that had its own key
      * keeps that key, and a new device signing in gets it back. It goes from here only to be sealed by the app.
      */
@@ -222,7 +222,7 @@ object E2e {
 
     private const val DAY = 24L * 60 * 60 * 1000
 
-    /** Settings › Encryption › Find people who have Ghost Messaging: on unless switched off. */
+    /** Settings › Encryption › Find people who have Uplink: on unless switched off. */
     fun detect(context: Context): Boolean = context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("e2e_detect", "on") != "off"
 
     /** The person turned encryption off with [address]: it is not offered to them again until they offer it. */

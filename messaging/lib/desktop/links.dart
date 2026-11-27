@@ -1,5 +1,5 @@
 /// Links opened into the computer's app (Matt, 2026-11-19: "make a route to allow people to click a link on their phone
-/// or desktop to join a circle"): the invite page's Open in Ghost Messaging (site/join) opens
+/// or desktop to join a circle"): the invite page's Open in Uplink (site/join) opens
 /// `ghostmsg://join/#c.…`, which the Mac hands over through its AppDelegate and Windows through the copy of the app
 /// it starts (windows/runner/links.cpp), Linux through the copy of the app the desktop starts (linux/runner/links.cc)
 /// and an iPhone through its scene (ios/Runner/SceneDelegate.swift), all on "ghost_desktop/links".
@@ -79,7 +79,7 @@ class DeskLinks {
       if (shell != null && shell.mounted) await askToUseRelay(shell.context, url.trim());
       return;
     }
-    // Someone's add-me link (`ghostmsg://add/NAME#KEY`, from the page's Open in Ghost Messaging, site/add; GMFB-34):
+    // Someone's add-me link (`ghostmsg://add/NAME#KEY`, from the page's Open in Uplink, site/add; GMFB-34):
     // asked first, then the friend request, as on a phone. It was taken for a circle's link here, and answered "That
     // circle link isn't complete". One that comes before the frame is up (the app started by the link, as a computer
     // or an iPhone is when it wasn't running, or still at the welcome) is held until it is ([takeHeldAdd]).

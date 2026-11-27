@@ -25,10 +25,15 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.51', '2026-11-27', [
+    'Uplink: Ghost Messaging has a new name. The app says Uplink everywhere now: on your home screen, in its own pages, and in what your phone or computer asks you. Your account, your chats, your friends and your settings are just as they were, and the people you talk to reach you as before.',
+    'A new app icon: the Uplink logo, on your home screen, in the Dock, on the taskbar and inside the app.',
+    'Uplink on a Mac: a copy that was already installed keeps its old name in Finder and the Dock until you rename it to Uplink in Applications. It goes on updating itself either way, and a fresh download is Uplink from the start.',
+  ]),
   ReleaseNotes('0.12.50', '2026-11-27', [
     'Runestone comes with its textures: the look draws its buttons, windows and parchment from the Duckscape resource pack, and fetches it to this device by itself the first time you use the look. Choose another pack, or plain stone, in Settings › Appearance › Textures. Not in a browser.',
-    'Textures for every look: Settings › Appearance has the packs of the look you are using, under the looks. Mist and Lamplight are Ghost\'s packs now and are chosen there, and a look keeps its pack while you use another.',
-    'Four looks: Ghost, Sharp, Dial-Up and Runestone. Phosphor is gone, and so is Dial-Up\'s dark half. If you were using Phosphor, the app opens in Ghost with the bubbles you had before.',
+    'Textures for every look: Settings › Appearance has the packs of the look you are using, under the looks. Mist and Lamplight are Uplink\'s packs now and are chosen there, and a look keeps its pack while you use another.',
+    'Four looks: Uplink, Sharp, Dial-Up and Runestone. Phosphor is gone, and so is Dial-Up\'s dark half. If you were using Phosphor, the app opens in Uplink with the bubbles you had before.',
   ]),
   ReleaseNotes('0.12.49', '2026-11-27', [
     'Discord, Slack, Messenger and Instagram signed in on one of your devices now sign in on the others too, including sign-ins made long ago, at start and every few minutes. A computer paired with your phone gets them from the phone. Sign out on a device and it stays signed out.',
@@ -53,11 +58,11 @@ const List<ReleaseNotes> changelog = [
     'Eight more languages: Hebrew, Persian, Italian, Dutch, Polish, Ukrainian, Thai and Greek, twenty-eight in all. Hebrew, Persian, Arabic and Urdu are still laid out left to right for now.',
   ]),
   ReleaseNotes('0.12.45', '2026-11-26', [
-    'Ghost Messaging speaks twenty languages: Arabic, Bengali, Chinese, English, French, German, Hindi, Indonesian, Japanese, Korean, Marathi, Portuguese, Russian, Spanish, Swahili, Tamil, Telugu, Turkish, Urdu and Vietnamese.',
+    'Uplink speaks twenty languages: Arabic, Bengali, Chinese, English, French, German, Hindi, Indonesian, Japanese, Korean, Marathi, Portuguese, Russian, Spanish, Swahili, Tamil, Telugu, Turkish, Urdu and Vietnamese.',
     'Language has a section of its own in Settings: Automatic follows your device, or choose one.',
   ]),
   ReleaseNotes('0.12.44', '2026-11-26', [
-    'Ghost Messaging speaks Spanish: Settings › Appearance › Language. Automatic follows your device\'s language. Names, counts and other words the app puts together as it goes are still in English for now.',
+    'Uplink speaks Spanish: Settings › Appearance › Language. Automatic follows your device\'s language. Names, counts and other words the app puts together as it goes are still in English for now.',
     'Pictures from Google Messages show as pictures, not "Attachment", and a chat\'s last line in the list is the message it really ended on.',
     'Groundwork for circles to change their key when someone is removed: your device can now take and read a new key. Nothing changes yet; it is switched on in a later version.',
   ]),
@@ -172,7 +177,7 @@ const List<ReleaseNotes> changelog = [
     'A call is on the screen the moment you join, and says what it is still waiting for in a line above its people: Connecting… with the step it is on (the server, your microphone, each person), then Connected. The people already in it are drawn in grey until each is there, and leaving shows at once.',
     'Lists and chats draw their shape in grey while they load, a light passing over it, where a small arc turned on an empty page: your conversations, a chat\'s messages, the people you can write to, a folder of files.',
     'A fix for the Mac app freezing for a few seconds as a call is joined or left: it no longer waits for the microphone to start and stop.',
-    'On a Mac, the top bar of the window shows the circle or conversation that is open, where it said Ghost Messaging.',
+    'On a Mac, the top bar of the window shows the circle or conversation that is open, where it said Uplink.',
     'A space\'s call is drawn one way now: the other call layouts, and the switch between them in Settings › Developer, are gone.',
   ]),
   ReleaseNotes('0.12.26', '2026-11-24', [
@@ -189,7 +194,7 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.12.24', '2026-11-23', [
     'Voice spaces on a computer: in a call, the space shows the call in the top two thirds and its chat with the message box under it, and the circle\'s list beside it stays as it was, so you can move between spaces without leaving the call. Drag the line between them to make either bigger.',
     'Open spaces: the circle\'s list stays beside the floor, and the call\'s buttons are there once, at the floor\'s left foot. The box for the chat is at the right and looks like every other message box; New group is at the top right. The walls take the colour you chose for the app (purple where you chose none), shaded so they stand up, with a fainter glow on the floor.',
-    'My files: a private drive for your Ghost account, under the search. Every device signed in to your account shows the same files, sealed so the server can\'t open them. Press and hold a file to send it into a space\'s chat.',
+    'My files: a private drive for your Uplink account, under the search. Every device signed in to your account shows the same files, sealed so the server can\'t open them. Press and hold a file to send it into a space\'s chat.',
     'Sign in on a new computer or browser by scanning a code with your Android phone: choose Phone on the sign-in screen, then Settings › Me › Sign in a new device on the phone. Check the six digits match and unlock your phone, and the new device signs in with nothing to type.',
     'On a computer, My files can keep a folder of yours in step: new and changed files go both ways while the app is open. Syncing never removes anything, so a file you delete on one side comes back for now.',
     'Send souls to a friend: press + in a chat with a friend by username and choose Send souls. A card in the chat shows what was sent once the relay confirms it.',
@@ -282,7 +287,7 @@ const List<ReleaseNotes> changelog = [
     'Share your screen in a call: on a Mac, Windows or Linux pick a whole screen or one window; on Android the phone asks. Everyone else sees it large and whole, with Back to call to put it away and View to bring it back.',
   ]),
   ReleaseNotes('0.12.8', '2026-11-22', [
-    'Messages with friends by username reach every device on your Ghost account: what you send from your phone shows on your Mac and PC too, and what they send reaches all of them, even a device that was closed.',
+    'Messages with friends by username reach every device on your Uplink account: what you send from your phone shows on your Mac and PC too, and what they send reaches all of them, even a device that was closed.',
     'Emoji shortcodes: type :joy: and it becomes 😂; start typing :jo and matching emoji show over the box, to pick with the arrow keys and Enter, or a tap.',
     'New plugin, Human check: on the networks you choose, someone new is held out of Messages and notifications until they answer a small question your app sends them, which weeds out bots and spam. You can let anyone in or block them from the Held list.',
   ]),
@@ -295,19 +300,19 @@ const List<ReleaseNotes> changelog = [
     'Calls: the red handle over a call no longer stays on screen after a recording stops, or when the soundboard or voice changer has nothing to show.',
   ]),
   ReleaseNotes('0.12.5', '2026-11-21', [
-    'Sign in once, signed in everywhere: a network plugin you sign in to on one device, in the app or with the browser extension, signs in on every device on your Ghost account, the Mac and Windows apps included. Each sign-in page also offers Use the sign-in from your browser.',
+    'Sign in once, signed in everywhere: a network plugin you sign in to on one device, in the app or with the browser extension, signs in on every device on your Uplink account, the Mac and Windows apps included. Each sign-in page also offers Use the sign-in from your browser.',
     'Plugins you turn on or off reach your other devices within a couple of minutes, even a computer that stays open.',
     'Network plugins on Windows: Messenger, Instagram, Discord, X and Slack now work in the Windows app too.',
   ]),
   ReleaseNotes('0.12.4', '2026-11-21', [
     'Discord, X and Slack plugins in the Marketplace: your Discord direct messages and group chats, your X direct messages and a Slack workspace, read and answered in Messages. They sign in with your browser\'s session; the browser extension does it for every device. None of them allows other apps, so you agree to a warning first.',
-    'X\'s messages are end-to-end encrypted: Ghost asks once for your 4-digit X Chat passcode to open them, and doesn\'t keep it.',
+    'X\'s messages are end-to-end encrypted: Uplink asks once for your 4-digit X Chat passcode to open them, and doesn\'t keep it.',
     'Browser extension: an account with a verified phone number can sign in. Enter the number, choose Text me a code, then type the code.',
   ]),
   ReleaseNotes('0.12.3', '2026-11-21', [
     'Chat bubbles on Android: a conversation can float on the side of your screen, like Google Messages and Messenger. Turn them on or off in Settings › Notifications.',
-    'Plugins sync across your devices: turn one on, or add one from the Marketplace, and your other devices on the same Ghost account follow. Network plugins switch on and offer their sign-in; your sign-ins never leave a device. Settings › Plugins has the switch.',
-    'Google Messages in a tap: the browser extension can now sign in to Google for you, in a private window of its own, and Ghost pairs with it from Google Messages\' setup. No copying from the browser\'s developer tools. You still tap Google\'s emoji on your phone.',
+    'Plugins sync across your devices: turn one on, or add one from the Marketplace, and your other devices on the same Uplink account follow. Network plugins switch on and offer their sign-in; your sign-ins never leave a device. Settings › Plugins has the switch.',
+    'Google Messages in a tap: the browser extension can now sign in to Google for you, in a private window of its own, and Uplink pairs with it from Google Messages\' setup. No copying from the browser\'s developer tools. You still tap Google\'s emoji on your phone.',
     'RCS messages on a computer: one paired with your phone now shows when RCS already comes through the phone, rather than asking you to set it up again.',
     'Test your microphone and speaker in Settings › Voice and video: a live level bar, and Hear yourself through the speaker you chose.',
     'In a call, each face shows when someone is still connecting, reconnecting, on a slow connection, or can\'t connect.',
@@ -315,7 +320,7 @@ const List<ReleaseNotes> changelog = [
     'Sign up: your 12 recovery words can wait. Choose Later, and a reminder stays in your conversations until you see them.',
   ]),
   ReleaseNotes('0.12.2', '2026-11-21', [
-    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Ghost account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
+    'Messenger, Instagram and LinkedIn: sign in once, on every device. A new browser extension captures your sign-in for each from a browser you\'re already signed in to and syncs it, sealed, to your Uplink account; your other devices then sign in on their own, so you no longer copy a login onto each one. The relay only ever holds it sealed and cannot read it.',
     'Calls: turning your video off no longer leaves your last frame frozen in your tile on the other side.',
     'Calls: the lines over a call — the recording\'s, a plugin\'s — can be dragged out of the way and folded down to a chip.',
     'Files: a large upload no longer makes the app stutter during a call.',
@@ -335,7 +340,7 @@ const List<ReleaseNotes> changelog = [
   ]),
   ReleaseNotes('0.11.6', '2026-11-21', [
     'Files spaces: files over 4 GB show in the space again. A big film or backup could finish uploading and still not appear in the list.',
-    'Calls: video now shows on both ends. Until now each side saw only their own camera, never the other person\'s. Calls also connect through Ghost\'s relay first, which gets through almost any network, and only try a direct path if the relay can\'t be reached; a call that hasn\'t connected after 15 seconds tries the other way by itself.',
+    'Calls: video now shows on both ends. Until now each side saw only their own camera, never the other person\'s. Calls also connect through Uplink\'s relay first, which gets through almost any network, and only try a direct path if the relay can\'t be reached; a call that hasn\'t connected after 15 seconds tries the other way by itself.',
     'Windows: the microphone you pick in a call or in Settings › Voice and video is the one used. Windows used the first microphone it found, whatever you chose.',
     'Windows: calls no longer turn your other sounds down (music, videos, games). If you liked that, switch on Lower other sounds in calls in Settings › Voice and video.',
   ]),
@@ -345,11 +350,11 @@ const List<ReleaseNotes> changelog = [
     'Windows: Record call, Live captions and Scribe now work on Windows. Captions and Scribe need Windows\' speech recognition for your language (Settings › Time & language › Speech).',
   ]),
   ReleaseNotes('0.11.4', '2026-11-21', [
-    'Calls: when you and someone else can\'t reach each other directly, on a mobile network or a strict workplace, school or hotel network, the call now goes through Ghost\'s relay by itself instead of never connecting. It stays encrypted between you: the relay can\'t hear or see it.',
+    'Calls: when you and someone else can\'t reach each other directly, on a mobile network or a strict workplace, school or hotel network, the call now goes through Uplink\'s relay by itself instead of never connecting. It stays encrypted between you: the relay can\'t hear or see it.',
     'Files spaces: "Getting it ready" is far quicker for a big file, and shows a percentage. Checking a 26 GB file took over twenty minutes; it now takes seconds on a Mac or iPhone and about four minutes on Android and Windows. Checking a download is quicker the same way.',
   ]),
   ReleaseNotes('0.11.3', '2026-11-21', [
-    'LinkedIn is no longer a network here: LinkedIn kept signing people out of their own browsers when Ghost used the sign-in. It is gone from the Marketplace and from Settings › Connections, and its saved sign-in and chats are deleted from this device the next time the app starts.',
+    'LinkedIn is no longer a network here: LinkedIn kept signing people out of their own browsers when Uplink used the sign-in. It is gone from the Marketplace and from Settings › Connections, and its saved sign-in and chats are deleted from this device the next time the app starts.',
   ]),
   ReleaseNotes('0.11.2', '2026-11-21', [
     'Networks: one you added (Instagram, LinkedIn and the others) no longer shows as removed after the app starts again while another network is slow to start. Each network now starts on its own.',
@@ -368,7 +373,7 @@ const List<ReleaseNotes> changelog = [
     'Recording a call: the recording\'s pill, with its tracks, meters and mixer, now shows over the call itself (the call\'s page was covering it), and the red line over the call counts the time.',
   ]),
   ReleaseNotes('0.10.7', '2026-11-20', [
-    'Connections: Telegram and Signal are Ghost\'s official networks, there and ready to sign in to. The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn — are now plugins under Connections › Plugins: off until you switch one on, and not run until then. Anything you\'d already connected stays on. Your texts, through Google Messages, are unchanged.',
+    'Connections: Telegram and Signal are Uplink\'s official networks, there and ready to sign in to. The others — WhatsApp, Matrix, Microsoft Teams, Google Chat, Messenger, Instagram and LinkedIn — are now plugins under Connections › Plugins: off until you switch one on, and not run until then. Anything you\'d already connected stays on. Your texts, through Google Messages, are unchanged.',
   ]),
   ReleaseNotes('0.10.6', '2026-11-20', [
     'Spaces and circles: react to messages. Press and hold a message (or right-click on a computer) and pick an emoji; tap a reaction in a circle to add yours or take it off. Everyone can react in read-only spaces.',
@@ -402,7 +407,7 @@ const List<ReleaseNotes> changelog = [
     'Messages: Clean up is one of those rows now, not a button over the search, so the bar above the search is gone.',
   ]),
   ReleaseNotes('0.10.2', '2026-11-20', [
-    'Texts are optional on a phone: Skip this step in the walkthrough, and Ghost works with friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.',
+    'Texts are optional on a phone: Skip this step in the walkthrough, and Uplink works with friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.',
     'Circles: a circle\'s picture fills its round in the rail, with only the halo round the open one.',
     'Messages: Mark all read\'s count is a small circle.',
     'Sign up with Discord opens your browser on a computer or an iPhone.',
@@ -444,13 +449,13 @@ const List<ReleaseNotes> changelog = [
     'Messages: the bar over the search goes when it has nothing in it. Mark all read shows while something is unread, and the cleaner while there\'s something to clean.',
   ]),
   ReleaseNotes('0.9.35', '2026-11-20', [
-    'An emoji picker of Ghost\'s own, from the smiley button in any chat: search by name, pick a skin tone, and your recent ones come first. It stays open while you pick a few.',
+    'An emoji picker of Uplink\'s own, from the smiley button in any chat: search by name, pick a skin tone, and your recent ones come first. It stays open while you pick a few.',
     'Contacts: Blocked is a button beside Add, not a row of its own.',
   ]),
   ReleaseNotes('0.9.34', '2026-11-19', [
     'Help and docs: step-by-step guides for everything at gogho.st/docs, from Settings › About, and a ? on Pair a computer and Add a Discord server.',
     'Settings › Network is called Routes now, so it isn\'t mixed up with Connections (your linked accounts).',
-    'Add a Discord server says what pressing a channel does now: you join it from Ghost, sound and chat both ways.',
+    'Add a Discord server says what pressing a channel does now: you join it from Uplink, sound and chat both ways.',
   ]),
   ReleaseNotes('0.9.33', '2026-11-19', [
     'Verified numbers: a badge beside the names of people who verified their phone number, in spaces, circles and profiles.',
@@ -465,11 +470,11 @@ const List<ReleaseNotes> changelog = [
   ReleaseNotes('0.9.31', '2026-11-19', [
     'On a computer, Emoji in a space\'s or circle\'s chat opens your computer\'s emoji panel.',
     'A circle\'s name, picture and back arrow sit inside its banner picture, clear of its rounded edges.',
-    'Sign up with Discord, Telegram or Signal: your username, name, picture and status are filled in from that account, and it\'s connected to Ghost as you go. Change anything before you continue.',
+    'Sign up with Discord, Telegram or Signal: your username, name, picture and status are filled in from that account, and it\'s connected to Uplink as you go. Change anything before you continue.',
     'Scrolling down a circle\'s spaces shrinks its banner to just the name and picture as you go, and it grows back at the top.',
   ]),
   ReleaseNotes('0.9.30', '2026-11-19', [
-    'Mac download: Ghost Messaging for the Mac is a disk image now, signed and checked by Apple. Open it and drag the app to Applications; it opens on any Mac without a warning.',
+    'Mac download: Uplink for the Mac is a disk image now, signed and checked by Apple. Open it and drag the app to Applications; it opens on any Mac without a warning.',
     'Friends show once each in Contacts and when you choose people to invite, not twice.',
     'A circle\'s banner starts below your phone\'s clock and battery, not behind them.',
     'A profile\'s message box lines up with the choices under it.',
@@ -485,7 +490,7 @@ const List<ReleaseNotes> changelog = [
   ]),
   ReleaseNotes('0.9.27', '2026-11-19', [
     'When someone new joins a circle you\'re in, you\'re told: a notification on your phone, or a note in the app with a way to the circle. Turn it off in Settings › Notifications › Joins in circles.',
-    'A circle\'s invite link works for people without the app: its page offers the right download, and once the app is set up it opens the circle for you. With the app already there, Open in Ghost Messaging opens it, on a computer too.',
+    'A circle\'s invite link works for people without the app: its page offers the right download, and once the app is set up it opens the circle for you. With the app already there, Open in Uplink opens it, on a computer too.',
   ]),
   ReleaseNotes('0.9.26', '2026-11-19', [
     'The Messages, Codes and Circles tabs are all there the moment the app opens, without Circles jumping along.',
@@ -525,7 +530,7 @@ const List<ReleaseNotes> changelog = [
     'Mentions: type @ in a space or a circle to mention someone. They get a notification, and messages that mention you stand out.',
     'Unread marks show @ when something unread mentions you.',
     'The Codes tab is always there, even before your first code.',
-    'Contacts lists friends by username and by number together, under On Ghost Messaging.',
+    'Contacts lists friends by username and by number together, under On Uplink.',
   ]),
 ];
 

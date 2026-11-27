@@ -1,4 +1,4 @@
-# Ghost's Matrix helper: the protocol
+# Uplink's Matrix helper: the protocol
 
 Matt, 2026-11-17: "Let's add support for matrix, microsoft teams and google chat". A helper process, `matrix-sidecar`,
 built on mautrix-go (MPL-2.0) with its pure-Go Olm/Megolm (`goolm`), signed in to the person's Matrix account as a

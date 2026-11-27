@@ -23,7 +23,7 @@ import '../l10n/words.dart';
 /// without sms"). Since 2026-11-20 it asks for two things only (Matt: "rework the onboarding flow to be very simple and
 /// just ask for a username and password"): the username, which is how anyone reaches someone here, claimed on the
 /// relay server's directory (it keeps only the username's hash and this device's public key), and a password, which
-/// makes the Ghost account at the same moment (lib/account), so the username can be signed in to on another device.
+/// makes the Uplink account at the same moment (lib/account), so the username can be signed in to on another device.
 /// The recovery words come after, to write down and check, and the check can be skipped.
 ///
 /// The username is claimed first, then the account is made with this install's own identity ("bound"): made the
@@ -46,7 +46,7 @@ String? welcomeNote(String note) {
   return switch (note) {
     'removed' => 'This $here was removed from your account from another device, so everything of the account on it was deleted. Sign in again, or start afresh.',
     'signed-out' => 'You\'re signed out, and everything of your account was deleted from this $here.',
-    'lost' => 'What this browser kept for Ghost Messaging couldn\'t be opened, so it was cleared. Sign in again with your username and password.',
+    'lost' => 'What this browser kept for Uplink couldn\'t be opened, so it was cleared. Sign in again with your username and password.',
     _ => null,
   };
 }
@@ -127,7 +127,7 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
             padding: EdgeInsetsDirectional.fromSTEB(t.space(6), pad.top + t.space(8), t.space(6), pad.bottom + t.space(8)),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
-              // The ghost on black, as the computer's first page has it (lib/desktop/ui/wizard.dart).
+              // The app's mark on black, as the computer's first page has it (lib/desktop/ui/wizard.dart).
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: Container(
@@ -135,11 +135,11 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
                   height: t.lenOf('4rem'),
                   decoration: BoxDecoration(color: const Color(0xFF000000), borderRadius: BorderRadius.circular(t.lenOf('1rem')), border: Border.all(color: t.color('app-rule'))),
                   alignment: Alignment.center,
-                  child: Image.asset('assets/art/ghost-mark.png', width: t.lenOf('2.3rem'), height: t.lenOf('2.3rem')),
+                  child: Image.asset('assets/art/ghost-mark.png', width: t.lenOf('3.2rem'), height: t.lenOf('3.2rem')),
                 ),
               ),
               SizedBox(height: t.space(6)),
-              Text('Ghost Messaging', style: pageText(t, t.fontSize('2xl'), weight: 'bold', color: t.color('app-ink'), height: 1.2)),
+              Text('Uplink', style: pageText(t, t.fontSize('2xl'), weight: 'bold', color: t.color('app-ink'), height: 1.2)),
               SizedBox(height: t.space(2)),
               Text('Pick a username and a password.', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45)),
               // Why this device starts with nothing, where it was just made to (lib/account/account.dart).

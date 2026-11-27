@@ -1,12 +1,12 @@
 /// Using a relay server of one's own (GMFB-25, "Self-hosting the relay, documented", from the Uplink gap review):
-/// what a typed address becomes, whether a Ghost Messaging relay answers at it before the app moves there, and how the
+/// what a typed address becomes, whether an Uplink relay answers at it before the app moves there, and how the
 /// relay in use is named in Settings › Routes. How to run one is docs/SELF_HOSTING.md.
 ///
 /// What a relay of one's own does and doesn't reach (said in Settings › Routes and the docs). Since relays talk to
 /// each other (docs/OPEN_NETWORK.md, section 4; lib/net/homes.dart), a friend can be on another relay, where both
 /// relays allow it. Usernames, sealed account backups, circles, spaces, calls and invite words still live on the relay
 /// they were made on, and reach only people using the same relay. Texts (SMS) don't go through any relay. The
-/// Marketplace is always read from Ghost Messaging's own relay.
+/// Marketplace is always read from Uplink's own relay.
 library;
 
 import 'dart:async';
@@ -18,14 +18,14 @@ import 'hub_carrier.dart' show HubRelay;
 import 'hub_link.dart';
 import 'net.dart';
 
-/// Whether [url] is Ghost Messaging's own relay (gogho.st, or ghost-sms.com from before the move).
+/// Whether [url] is Uplink's own relay (gogho.st, or ghost-sms.com from before the move).
 bool isOwnRelay(String url) {
   final host = Uri.tryParse(url.trim())?.host.toLowerCase() ?? '';
   return host == 'gogho.st' || host == 'ghost-sms.com' || host == 'www.gogho.st';
 }
 
 /// The host a link names for the relay at [hubUrl] (an add-me link, lib/friends/add_link.dart): its host, with its
-/// port where that is not the scheme's own. Null for Ghost Messaging's own (a link that names none means ours), and for
+/// port where that is not the scheme's own. Null for Uplink's own (a link that names none means ours), and for
 /// a relay nobody elsewhere could dial by a host's name: one hosted from an app, or one at a plain `ws://` address on a
 /// local network.
 String? relayHostForLinks(String hubUrl) {
@@ -38,20 +38,20 @@ String? relayHostForLinks(String hubUrl) {
 
 /// The relay in use, in a line for Settings › Routes.
 String relayInUseWords(String hubUrl) {
-  if (hubUrl == Net.defaultHub) return 'Ghost Messaging\'s relay (gogho.st)';
+  if (hubUrl == Net.defaultHub) return 'Uplink\'s relay (gogho.st)';
   // A relay hosted from an app (lib/relay_host): this one's own, or someone else's reached over Direct.
   final hosted = GhostRelayAddress.parse(hubUrl);
   if (hosted != null) return hosted.relay == Net.instance.hostedHere ? 'The relay on this device' : 'A relay in someone\'s app (${hosted.relay.substring(0, 8)}), over Direct';
   final u = Uri.tryParse(hubUrl);
   final host = u == null ? hubUrl : '${u.host}${u.hasPort ? ':${u.port}' : ''}';
-  if (isOwnRelay(hubUrl)) return 'Ghost Messaging\'s relay ($host)';
+  if (isOwnRelay(hubUrl)) return 'Uplink\'s relay ($host)';
   return 'Your own relay: $host';
 }
 
 /// What a typed address becomes: a WebSocket address ending in /hub. `relay.example.com` is
 /// `wss://relay.example.com/hub`; `https://` is `wss://` and `http://` is `ws://`; a path not ending in /hub has /hub
 /// put on it; a query or a fragment is dropped. Null where it can't be an address (no host, another scheme, spaces).
-/// Empty is empty: Ghost Messaging's own again.
+/// Empty is empty: Uplink's own again.
 String? tidyRelayAddress(String typed) {
   var s = typed.trim();
   if (s.isEmpty) return '';
@@ -79,7 +79,7 @@ String? tidyRelayAddress(String typed) {
   return Uri(scheme: scheme, host: u.host.toLowerCase(), port: u.hasPort ? u.port : null, path: path).toString();
 }
 
-/// What came of asking an address whether it is a Ghost Messaging relay.
+/// What came of asking an address whether it is an Uplink relay.
 class RelayCheck {
   const RelayCheck.answered(this.took, {this.relay, this.hosted = false, this.asksPass = false}) : problem = null;
   const RelayCheck.failed(this.problem)
@@ -105,7 +105,7 @@ class RelayCheck {
   bool get ok => problem == null;
 }
 
-/// Asks [url] (already tidied) whether a Ghost Messaging relay's hub is there: it connects and waits for the hub's
+/// Asks [url] (already tidied) whether an Uplink relay's hub is there: it connects and waits for the hub's
 /// greeting (`{"hello": <hex>}`, relay/lib/hub.dart), then closes without signing in. Nothing about this install is
 /// sent. A server that answers something else, or nothing within [timeout], is not one. It is dialled with [connect]
 /// where one is given (a test's stand-in, or another way to a hub), and with [dialHub]'s WebSocket where not.
@@ -152,11 +152,11 @@ Future<RelayCheck> checkRelay(String url, {Duration timeout = const Duration(sec
     ok = await greeted.future.timeout(left.isNegative ? Duration.zero : left);
   } on TimeoutException {
     await _close(ws, sub);
-    return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
+    return const RelayCheck.failed('A server answered there, but not as an Uplink relay.');
   }
   await _close(ws, sub);
   if (doorFull) return const RelayCheck.failed(doorFullWords);
-  if (!ok) return const RelayCheck.failed('A server answered there, but not as a Ghost Messaging relay.');
+  if (!ok) return const RelayCheck.failed('A server answered there, but not as an Uplink relay.');
   // A hosted relay's address names the relay: the one that answers must be it (found in the second review,
   // 2026-11-23: anything at that node was taken).
   final named = GhostRelayAddress.parse(url);

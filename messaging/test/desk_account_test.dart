@@ -22,7 +22,7 @@ import 'package:glacier/glacier.dart';
 import 'account_flow_test.dart' show Device, FakeTexts;
 import 'themes_test.dart' show ThemeScreen, shootLook;
 
-/// A Ghost account on a computer paired with a phone, whose friends and circles run under the phone's identity taken
+/// An Uplink account on a computer paired with a phone, whose friends and circles run under the phone's identity taken
 /// on here (lib/desktop/own_calls.dart). Matt, 2026-11-18: "On my fold vs on my desktop, both with the same number
 /// linked but it seems i'm not logged in on desktop, there doesn't seem to be a way to login on desktop just to claim a
 /// username, i would like to be able to link a session to a new account".
@@ -199,7 +199,7 @@ void main() {
     expect((Sms.calls as _Phone).asked, isEmpty);
   });
 
-  testWidgets('Settings › Me on a paired computer, in Ghost light', (tester) async {
+  testWidgets('Settings › Me on a paired computer, in Uplink light', (tester) async {
     Future<void> family(String name, String file) async {
       final loader = FontLoader(name)..addFont(File(file).readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
       await loader.load();
@@ -213,7 +213,7 @@ void main() {
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;
     installSettingsStyles(sheet);
     await shootLook(tester, sheet, Look.ghost, 'light', ThemeScreen('desk-account-me', () => const SettingsSectionScreen('me'), size: const Size(412, 1100)), write: false);
-    expect(find.text('Sign in to your Ghost account'), findsOneWidget);
+    expect(find.text('Sign in to your Uplink account'), findsOneWidget);
     expect(find.text('@matt, the account your phone is in'), findsOneWidget);
     expect(find.text('Create an account'), findsOneWidget);
     expect(find.text('Sign in to another account'), findsOneWidget);

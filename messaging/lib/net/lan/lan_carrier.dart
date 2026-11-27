@@ -506,7 +506,7 @@ class LanCarrier implements Carrier, LiveLinks {
     // and tried again with the next beacon. Not while a link is open, though: a device that is heard and connected to
     // carries, whatever became of its own beacon.
     final carrying = said || _links.isNotEmpty;
-    _set(carrying ? CarrierState.up : CarrierState.down, carrying ? null : 'Nothing can be said on the local network now: this device is on none, or its system settings keep Ghost Messaging off the local network.');
+    _set(carrying ? CarrierState.up : CarrierState.down, carrying ? null : 'Nothing can be said on the local network now: this device is on none, or its system settings keep Uplink off the local network.');
   }
 
   static int _byBytes(Uint8List a, Uint8List b) {

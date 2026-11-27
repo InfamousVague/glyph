@@ -9,4 +9,4 @@ export 'call_sound_none.dart' if (dart.library.js_interop) 'call_sound_web.dart'
 /// What a call in a browser leaves out, as Settings › Voice and video and the call itself say it: what needs the native
 /// halves (lib/voice/voice_fx.dart, recorder.dart, rtc.dart's screen) a page hasn't got.
 const callsInBrowser = 'In a browser a call has no recording, no voice changer, no noise removal beyond the browser\'s own, no '
-    'boost past 100% and no screen sharing. Those are in Ghost Messaging on a phone or a computer.';
+    'boost past 100% and no screen sharing. Those are in Uplink on a phone or a computer.';

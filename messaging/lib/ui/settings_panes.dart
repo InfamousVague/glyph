@@ -125,7 +125,7 @@ List<SettingsSection> _ownSections() => [
       final look = m.app.look;
       final own = CustomTheme.used(m.app);
       if (own != null) return [own.name, if (m.app.font == 'readable') 'Readable font', if (m.app.textPercent != 100) '${m.app.textPercent}% text'].join(' · ');
-      // The look, then the pack it is drawn with: one of its own (Ghost's Mist), or a resource pack's name.
+      // The look, then the pack it is drawn with: one of its own (Uplink's Mist), or a resource pack's name.
       final used = ResourcePacks.instance.usedBy(m.app)?.entry;
       final pictures = used == null ? null : ResourcePacks.nameOf(used);
       return [
@@ -434,7 +434,7 @@ List<SettingsSection> _ownSections() => [
     icon: _icon(Lucide.info),
     hue: 'graphite',
     group: 'app',
-    summary: (m) => 'Ghost Messaging ${m.update.current.isEmpty ? appVersion : m.update.current}',
+    summary: (m) => 'Uplink ${m.update.current.isEmpty ? appVersion : m.update.current}',
     page: _about,
   ),
     ];
@@ -448,7 +448,7 @@ String sealedWords(String hubUrl) {
 }
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.50';
+const appVersion = '0.12.51';
 
 // --- Language ---------------------------------------------------------------------------------------------------------
 
@@ -569,7 +569,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
     if (look != Look.dialup)
       PaneSection(
         title: 'Bubbles',
-        footer: Text('The colour of your own bubbles in every conversation.${look != Look.ghost ? ' Theme is ${look.label}\'s own.' : ''} Ghost is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
+        footer: Text('The colour of your own bubbles in every conversation.${look != Look.ghost ? ' Theme is ${look.label}\'s own.' : ''} Uplink is Ghost Keyboard\'s teal, Ink is the page\'s own black and white${palette ? ', and Wallpaper is the accent Android takes from this phone\'s wallpaper' : ''}. A conversation can have a colour of its own, from the cog at its top.${Sms.remote ? '' : ' Ghost Keyboard offers the same colours for its enter key and keeps in step: choose one here or there and both change.'}'),
         children: [
           SettingRow(
             icon: _icon(Lucide.messageSquare),
@@ -769,7 +769,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.messageSquare),
           label: m.status?.beside ?? false ? 'RCS is on, through Google Messages' : 'Set up RCS',
           hint: Text(m.status?.beside ?? false
-              ? 'Ghost works beside Google Messages: RCS chats and texts in Ghost, Ghost\'s notifications. Open to check each step.'
+              ? 'Uplink works beside Google Messages: RCS chats and texts in Uplink, Uplink\'s notifications. Open to check each step.'
               : 'Typing dots, read receipts, full-size pictures and group chats over the internet, through Google Messages. A few steps, one at a time.'),
           onPress: () => push(context, (_) => const RcsSetupScreen()),
         ),
@@ -778,7 +778,7 @@ List<Widget> _messages(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.link),
           label: 'Google Messages connection',
-          hint: const Tr('Pictures, reactions and read marks for RCS chats in Ghost, without Google Messages\' notifications. Paired once with another screen\'s help.'),
+          hint: const Tr('Pictures, reactions and read marks for RCS chats in Uplink, without Google Messages\' notifications. Paired once with another screen\'s help.'),
           onPress: () => push(context, (_) => const GmWebScreen()),
         ),
         // The same on a Mac or a PC, kept running (lib/ui/gm_guide_screen.dart; Matt, 2026-11-15: "Tell me how to setup
@@ -885,12 +885,12 @@ String bubbleSettingWords(String? system) => switch (system) {
       _ => '',
     };
 
-/// What Android's bubble setting means for Ghost's bubbles, under its row.
+/// What Android's bubble setting means for Uplink's bubbles, under its row.
 String bubbleSettingHint(String? system, {required bool on}) {
-  if (!on) return 'Ghost\'s bubbles are switched off above. This is Android\'s page for them, where it decides which conversations may bubble.';
+  if (!on) return 'Uplink\'s bubbles are switched off above. This is Android\'s page for them, where it decides which conversations may bubble.';
   return switch (system) {
     'all' => 'Every conversation can bubble. Tap to change it on Android\'s page.',
-    'none' => 'Android has bubbles off for Ghost, so none show. Tap to turn them on.',
+    'none' => 'Android has bubbles off for Uplink, so none show. Tap to turn them on.',
     _ => 'Only the conversations you choose bubble: press a notification\'s bubble button. Tap to let every one bubble.',
   };
 }
@@ -1027,13 +1027,13 @@ List<Widget> _notifications(BuildContext context, SettingsModel m) {
     if (m.status?.beside ?? false)
       PaneSection(
         title: 'Beside Google Messages',
-        footer: const Tr('Keep Google Messages\' notifications allowed (set them to Silent): Ghost reads them to see RCS chats. Turned off completely, Ghost sees nothing new.'),
+        footer: const Tr('Keep Google Messages\' notifications allowed (set them to Silent): Uplink reads them to see RCS chats. Turned off completely, Uplink sees nothing new.'),
         children: [
           SettingRow(
             icon: _icon(Lucide.bell),
-            label: 'Ghost\'s notifications in place of Google Messages\'',
-            hint: const Tr('Each Google Messages notification is hidden as it comes and Ghost shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
-            control: GlacierSwitch(checked: app.flag('gm_proxy', fallback: true), onCheckedChange: (v) => app.setFlag('gm_proxy', v), ariaLabel: 'Ghost\'s notifications in place of Google Messages\''),
+            label: 'Uplink\'s notifications in place of Google Messages\'',
+            hint: const Tr('Each Google Messages notification is hidden as it comes and Uplink shows its own. Replying from it goes through Google Messages, as RCS where the chat is RCS.'),
+            control: GlacierSwitch(checked: app.flag('gm_proxy', fallback: true), onCheckedChange: (v) => app.setFlag('gm_proxy', v), ariaLabel: 'Uplink\'s notifications in place of Google Messages\''),
           ),
           SettingRow(
             icon: _icon(LucideMore.vibrate),
@@ -1064,7 +1064,7 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.lock),
           label: 'Encrypted texts',
-          hint: const Tr('With someone who also has Ghost Messaging, your texts go sealed so only your two phones can read them. Not your carrier, and not another app on either phone.'),
+          hint: const Tr('With someone who also has Uplink, your texts go sealed so only your two phones can read them. Not your carrier, and not another app on either phone.'),
         ),
         SettingRow(
           icon: _icon(Lucide.info),
@@ -1081,15 +1081,15 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
       children: [
         SettingRow(
           icon: _icon(Lucide.sparkles),
-          label: 'Find people who have Ghost Messaging',
-          hint: const Tr('When someone you text has Ghost Messaging too, the two phones recognise each other, and the conversation shows a banner offering to encrypt it. Off, your phone says nothing of itself, and you turn encryption on from a conversation\'s header.'),
-          control: GlacierSwitch(checked: m.app.flag('e2e_detect'), onCheckedChange: (v) => m.app.setFlag('e2e_detect', v), ariaLabel: 'Find people who have Ghost Messaging'),
+          label: 'Find people who have Uplink',
+          hint: const Tr('When someone you text has Uplink too, the two phones recognise each other, and the conversation shows a banner offering to encrypt it. Off, your phone says nothing of itself, and you turn encryption on from a conversation\'s header.'),
+          control: GlacierSwitch(checked: m.app.flag('e2e_detect'), onCheckedChange: (v) => m.app.setFlag('e2e_detect', v), ariaLabel: 'Find people who have Uplink'),
         ),
       ],
     ),
     PaneSection(
       title: 'People',
-      footer: m.e2e.isEmpty ? const Tr('Nobody yet. A conversation with someone who has Ghost Messaging offers it in a banner, or open any conversation, tap the name at the top, and choose Encryption.') : null,
+      footer: m.e2e.isEmpty ? const Tr('Nobody yet. A conversation with someone who has Uplink offers it in a banner, or open any conversation, tap the name at the top, and choose Encryption.') : null,
       children: [
         for (final e in m.e2e)
           SettingRow(
@@ -1105,7 +1105,7 @@ List<Widget> _encryption(BuildContext context, SettingsModel m) {
         SettingRow(
           icon: _icon(Lucide.keyRound),
           label: 'Your phone holds the key',
-          hint: const Tr('The key, a new one, and finding people who have Ghost Messaging are set on the phone, under Settings › Encryption.'),
+          hint: const Tr('The key, a new one, and finding people who have Uplink are set on the phone, under Settings › Encryption.'),
         ),
       ]),
     if (!Sms.remote)
@@ -1149,11 +1149,11 @@ List<Widget> _blocked(BuildContext context, SettingsModel m) => const [BlockedLi
 /// 12345 as 12,345.
 String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'(?<=\d)(?=(\d{3})+$)'), (_) => ',');
 
-/// Texts off: what Ghost does without them, and the same step as the walkthrough's to turn them on.
+/// Texts off: what Uplink does without them, and the same step as the walkthrough's to turn them on.
 List<Widget> _texts(BuildContext context, SettingsModel m) => [
       PaneSection(
         title: 'Texts are off',
-        description: const Tr('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on to read and send your texts here too, as your texting app or beside Google Messages.'),
+        description: const Tr('Uplink works without your texts: friends, circles, Telegram and Signal. Turn texts on to read and send your texts here too, as your texting app or beside Google Messages.'),
         children: [
           SettingRowBox(
             child: Padding(
@@ -1189,19 +1189,19 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
     if (s != null && (s.beside || (!s.isDefault && s.gmInstalled)))
       PaneSection(
         title: 'Beside Google Messages',
-        description: const Tr('Google Messages is the default SMS app and keeps RCS. Ghost reads your texts from Android and RCS chats from Google Messages\' notifications, and replies through it.'),
+        description: const Tr('Google Messages is the default SMS app and keeps RCS. Uplink reads your texts from Android and RCS chats from Google Messages\' notifications, and replies through it.'),
         footer: const Tr('Not seen: chats muted in Google Messages, or open there when a message comes. RCS chats from before aren\'t brought over, and RCS pictures stay in Google Messages. New group chats and pictures open Google Messages to send.'),
         children: [
           SettingRow(
             icon: _icon(s.bridge ? Lucide.circleCheck : Lucide.triangleAlert),
             label: s.bridge ? 'Reading Google Messages\' notifications' : 'Notification access is off',
-            hint: Text(s.bridge ? 'Only Google Messages\' notifications are read. Every other app\'s are ignored.' : 'Without it RCS chats don\'t reach Ghost. Turn it on for Ghost Messaging.'),
+            hint: Text(s.bridge ? 'Only Google Messages\' notifications are read. Every other app\'s are ignored.' : 'Without it RCS chats don\'t reach Uplink. Turn it on for Uplink.'),
             onPress: () => Sms.instance.openBridgeAccess(),
           ),
           SettingRow(
             icon: _icon(Lucide.rotateCcw),
-            label: 'Make Ghost the default instead',
-            hint: const Tr('Everything then goes through Ghost, pictures and group chats too, and RCS is turned off for your number.'),
+            label: 'Make Uplink the default instead',
+            hint: const Tr('Everything then goes through Uplink, pictures and group chats too, and RCS is turned off for your number.'),
             onPress: () => Sms.instance.openDefaultApps(),
           ),
         ],
@@ -1226,7 +1226,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(Lucide.rotateCcw),
             label: 'Or turn it off in ${a.app}',
-            hint: Text('Make ${a.app} the default SMS app again here, open its settings, switch off RCS chats, then come back and make Ghost Messaging the default.'),
+            hint: Text('Make ${a.app} the default SMS app again here, open its settings, switch off RCS chats, then come back and make Uplink the default.'),
             onPress: () => Sms.instance.openDefaultApps(),
           ),
           SettingRow(
@@ -1295,7 +1295,7 @@ List<Widget> _android(BuildContext context, SettingsModel m) {
           SettingRow(
             icon: _icon(LucideMore.shieldCheck),
             label: 'Allow restricted settings',
-            hint: const Tr('If Android says a setting is restricted or unavailable (the default SMS app, a permission), open Android\'s page for Ghost Messaging, tap ⋮ at the top, and choose Allow restricted settings. Then try again.'),
+            hint: const Tr('If Android says a setting is restricted or unavailable (the default SMS app, a permission), open Android\'s page for Uplink, tap ⋮ at the top, and choose Allow restricted settings. Then try again.'),
             onPress: () => Sms.instance.openAppInfo(),
           ),
         ],
@@ -1396,7 +1396,7 @@ String updateLine(UpdateState u) => switch (u.phase) {
       'available' => '${u.available} is available.',
       'downloading' => 'Downloading ${u.available}${u.progress == null ? '' : ' · ${(u.progress! * 100).round()}%'}',
       'ready' => u.error == 'needsPermission' || !u.canInstall
-          ? '${u.available} is downloaded. Allow Ghost Messaging to install its own updates, then tap Update now.'
+          ? '${u.available} is downloaded. Allow Uplink to install its own updates, then tap Update now.'
           : '${u.available} is downloaded and ready.',
       'installing' => 'Installing ${u.available}…',
       'failed' => u.error == 'offline'
@@ -1518,7 +1518,7 @@ List<Widget> _developer(BuildContext context, SettingsModel m) {
           icon: _icon(Lucide.send),
           label: 'Share the report',
           hint: const Tr('To an email, a note or another app.'),
-          onPress: () => Sms.instance.shareText('Ghost Messaging report', m.devReport),
+          onPress: () => Sms.instance.shareText('Uplink report', m.devReport),
         ),
         SettingRow(
           icon: _icon(Lucide.trash2),
@@ -1585,7 +1585,7 @@ void versionTapped(BuildContext context, AppState app, {DateTime? now}) {
 List<Widget> _about(BuildContext context, SettingsModel m) {
   return [
     PaneSection(
-      title: 'Ghost Messaging',
+      title: 'Uplink',
       footer: const Tr('Your messages stay in Android\'s own message store, so they\'re all still there if you switch back to another app.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(m.update.current.isEmpty ? appVersion : m.update.current), onPress: () => versionTapped(context, m.app)),

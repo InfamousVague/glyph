@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "MattsSoftware" "\0"
-            VALUE "FileDescription", "Ghost Messaging" "\0"
+            VALUE "FileDescription", "Uplink" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "ghost_messaging" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 MattsSoftware. All rights reserved." "\0"
             VALUE "OriginalFilename", "ghost_messaging.exe" "\0"
-            VALUE "ProductName", "Ghost Messaging" "\0"
+            VALUE "ProductName", "Uplink" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

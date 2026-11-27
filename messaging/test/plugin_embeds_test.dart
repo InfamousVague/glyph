@@ -24,7 +24,7 @@ void main() {
         return (status: 200, body: jsonEncode({'title': 'Blinding Lights', 'thumbnail_url': 'https://i.scdn.co/image/abc'}));
       }
       if (url.host == 'publish.twitter.com') {
-        return (status: 200, body: jsonEncode({'author_name': 'Ghost', 'html': '<blockquote><p lang="en">Hello &amp; welcome</p>&mdash; Ghost</blockquote>'}));
+        return (status: 200, body: jsonEncode({'author_name': 'Uplink', 'html': '<blockquote><p lang="en">Hello &amp; welcome</p>&mdash; Uplink</blockquote>'}));
       }
       if (url.host == 'music.apple.com' || url.host == 'news.example') {
         return (

@@ -198,7 +198,7 @@ void main() {
       expect(Net.instance.ledger, isNotNull);
       expect(Net.instance.board!.log, same(Net.instance.ledger));
       expect(find.textContaining('compare what went between them, over direct links'), findsOneWidget);
-      expect(_words(tester, 'relay-checked'), ['Not checked yet', 'Of Ghost Messaging\'s relay (gogho.st), over direct links with your friends\' devices.']);
+      expect(_words(tester, 'relay-checked'), ['Not checked yet', 'Of Uplink\'s relay (gogho.st), over direct links with your friends\' devices.']);
       expect(find.byKey(const ValueKey('relay-matched')), findsNothing);
       expect(_words(tester, 'relay-check-now'), ['Check now', 'Dials the friends the relay says are here, and compares.']);
       expect(_words(tester, 'names-watched').first, 'No friends added by username yet');

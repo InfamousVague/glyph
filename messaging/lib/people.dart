@@ -35,7 +35,7 @@ void startOwnFriends(AppState app) {
   // Friends' words go by the routes ([Friends]): a friend by username's, here; a number's, still by the phone's texts.
   Net.instance.start(app).then((_) => Friends.instance.start(app)).then((_) => quietly(() => _checkRelay(app)));
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
-  // A Ghost account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
+  // An Uplink account of this computer's own, under the identity it took on (Matt, 2026-11-18: "there doesn't seem to be
   // a way to login on desktop just to claim a username, i would like to be able to link a session to a new account").
   Account.instance.start(AppMeStore(app));
   // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.
@@ -69,7 +69,7 @@ void startPeople(AppState app) {
   // The accounts linked and the handles watched for (Settings › Me): spoken of to the relay server only once one has
   // been.
   Me.instance.start(AppMeStore(app), Net.instance, () => Net.instance.hub, needHub: (yes) => Net.instance.want('me', yes));
-  // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): where this
+  // An Uplink account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"): where this
   // device is signed in to one, the relay is asked whether it still is.
   Account.instance.start(AppMeStore(app));
   // Messages scheduled from Send (lib/scheduled.dart): sent as their times come, and any that came while closed.

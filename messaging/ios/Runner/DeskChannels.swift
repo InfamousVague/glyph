@@ -83,7 +83,7 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         // No "Enter Password" under it: the app's PIN is the other way in, not the device's passcode.
         context.localizedFallbackTitle = ""
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) else { return result(false) }
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: args["reason"] as? String ?? "Unlock Ghost Messaging") { ok, _ in
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: args["reason"] as? String ?? "Unlock Uplink") { ok, _ in
           DispatchQueue.main.async { result(ok) }
         }
       // What the message field has on a Mac that the phone has from Android: pictures to choose, the Mac's own

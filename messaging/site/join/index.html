@@ -3,49 +3,70 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join a space · Ghost Messaging</title>
-<meta name="description" content="Join a Ghost Messaging space from your browser: voice and video, sealed between the people in it.">
+<title>Join a space · Uplink</title>
+<meta name="description" content="Join an Uplink space from your browser: voice and video, sealed between the people in it.">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#040406">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/uplink.css">
+<script>try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}</script>
 <style>
-  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --tile: #e6e6e8; --ink: #0e0e10; --ink2: #55565c; --rule: #e3e3e6; --red: #dd3a30; --green: #2fb35a; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --tile: #1c1c1f; --ink: #f2f2f3; --ink2: #a3a4ab; --rule: #232326; } }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
-  main { max-width: 64rem; margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom)); min-height: 100%; display: flex; flex-direction: column; }
-  header { display: flex; align-items: center; gap: 0.75rem; }
-  header img { width: 2.25rem; height: 2.25rem; border-radius: 0.65rem; }
-  header a { color: var(--ink2); font-size: 0.9rem; text-decoration: none; margin-left: auto; }
-  h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.1; margin: 2rem 0 0.4rem; overflow-wrap: anywhere; }
+  /* In Uplink's look (/uplink.css): the page's own names for its colours, from the shared ones. */
+  :root { --bg: var(--u-bg); --card: var(--u-paper); --tile: #17171d; --ink: var(--u-ink); --ink2: var(--u-ink-2); --rule: var(--u-rule); --red: #ff5f52; --green: var(--u-ink); }
+  :root[data-theme="light"] { --tile: #e7e7e2; --red: #d2382c; }
+  body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  .backdrop { position: fixed; }
+  .backdrop::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,4,6,.5), rgba(4,4,6,.82) 70%); }
+  main { position: relative; z-index: 1; flex: 1; width: 100%; max-width: 64rem; margin: 0 auto; padding: 0 var(--u-gutter) max(1.5rem, env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+  h1 { font-family: var(--u-display); font-style: italic; font-weight: 900; font-size: clamp(2rem, 6.5vw, 3rem); letter-spacing: -.01em; line-height: 1; margin: 2.4rem 0 .6rem; overflow-wrap: anywhere; }
+  h2 { font-family: var(--u-display); font-style: italic; font-weight: 800; letter-spacing: .01em; }
   .sub { color: var(--ink2); margin: 0 0 1.5rem; }
-  .card { background: var(--card); border-radius: 1.25rem; padding: 1.1rem; }
+  .sub b { color: var(--ink); }
+  /* A sticker: the face, a hairline edge, and a line inset from it. */
+  .card, .chat, dialog { background: var(--card); border: 1px solid var(--rule); border-radius: var(--u-r); box-shadow: var(--u-shadow); }
+  .card, .chat { position: relative; }
+  .card::after, .chat::after { content: ""; position: absolute; inset: var(--u-inset); border: 1.25px solid var(--u-line); border-radius: calc(var(--u-r) - 3px); opacity: .4; pointer-events: none; }
+  .card { padding: 1.2rem 1.25rem; }
   .lobby { display: grid; gap: 1rem; grid-template-columns: 1fr; max-width: 34rem; }
-  .preview { aspect-ratio: 4 / 3; background: var(--tile); border-radius: 1rem; overflow: hidden; position: relative; display: grid; place-items: center; }
+  .preview { aspect-ratio: 4 / 3; background: var(--tile); border: 1px solid var(--rule); border-radius: var(--u-r); overflow: hidden; position: relative; display: grid; place-items: center; }
   .preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-  .preview .face { width: 4.5rem; height: 4.5rem; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 1.6rem; }
-  label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
-  input[type=text] { width: 100%; font: inherit; padding: 0.75rem 1rem; border-radius: 0.8rem; border: 1.5px solid var(--rule); background: var(--bg); color: var(--ink); }
+  .preview .face { width: 4.5rem; height: 4.5rem; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--u-line); display: grid; place-items: center; font: italic 900 1.7rem/1 var(--u-display); }
+  label { display: block; font-weight: 700; margin-bottom: 0.45rem; }
+  input[type=text] { width: 100%; font: inherit; padding: 0.75rem 1rem; border-radius: var(--u-r-sm); border: 1.5px solid var(--rule); background: var(--bg); color: var(--ink); }
+  input[type=text]:focus { outline: none; border-color: var(--ink); }
   .row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
   button { font: inherit; cursor: pointer; border: 0; }
-  .primary { background: var(--ink); color: var(--bg); font-weight: 650; padding: 0.85rem 1.6rem; border-radius: 999px; font-size: 1.05rem; }
-  .primary:disabled { opacity: 0.5; cursor: default; }
-  .quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--rule); padding: 0.6rem 1rem; border-radius: 999px; font-weight: 600; }
+  /* The main and quiet buttons lean as the sticker does; only their shape leans, so the words a script sets stand upright. */
+  .primary, .quiet { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; background: none; text-decoration: none; transition: transform .15s ease; }
+  .primary::before, .quiet::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: var(--u-r-sm); transform: skewX(var(--u-slant)); transition: border-color .15s ease, box-shadow .15s ease; }
+  .primary, .quiet { margin-inline: .3rem; }
+  .primary { color: var(--u-solid-fg); font-weight: 700; padding: 0.85rem 1.7rem; font-size: 1.05rem; }
+  .primary::before { background: var(--u-solid-bg); }
+  .quiet { color: var(--ink); padding: 0.6rem 1.15rem; font-weight: 650; }
+  .quiet::before { border: 1.5px solid var(--rule); }
+  .primary:hover, .quiet:hover { transform: translateY(-2px); }
+  .primary:hover::before { box-shadow: 4px 4px 0 var(--rule); }
+  .quiet:hover::before { border-color: var(--ink); }
+  .primary:disabled { opacity: 0.5; cursor: default; transform: none; }
   .link { background: none; color: var(--ink2); text-decoration: underline; padding: 0; font-size: 0.95rem; }
-  .round { width: 3.4rem; height: 3.4rem; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 1.5px solid var(--rule); color: var(--ink); }
+  .round { width: 3.4rem; height: 3.4rem; border-radius: var(--u-r); display: grid; place-items: center; background: var(--card); border: 1.5px solid var(--rule); color: var(--ink); }
+  .round:hover { border-color: var(--ink); }
   .round.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .round.leave { background: var(--red); color: #fff; border-color: var(--red); }
   .round svg { width: 1.35rem; height: 1.35rem; }
   .note { color: var(--ink2); font-size: 0.9rem; margin: 0.6rem 0 0; }
+  .note a { color: var(--ink); }
   .error { color: var(--red); font-size: 0.95rem; margin: 0.5rem 0 0; }
   .grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); align-content: start; margin-top: 1rem; }
   .grid:empty { display: none; }
-  .bar .dock { display: flex; gap: 0.6rem; padding: 0.5rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--rule); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
-  .tile { aspect-ratio: 4 / 3; background: var(--tile); border-radius: 1rem; overflow: hidden; position: relative; display: grid; place-items: center; }
+  .bar .dock { display: flex; gap: 0.6rem; padding: 0.5rem; border-radius: var(--u-r-lg); background: var(--bg); border: 1px solid var(--rule); box-shadow: var(--u-shadow); }
+  .tile { aspect-ratio: 4 / 3; background: var(--tile); border: 1px solid var(--rule); border-radius: var(--u-r); overflow: hidden; position: relative; display: grid; place-items: center; }
   .tile video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
   .tile.me video { transform: scaleX(-1); }
-  .tile .face { width: 4rem; height: 4rem; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 1.5rem; }
+  .tile .face { width: 4rem; height: 4rem; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--u-line); display: grid; place-items: center; font: italic 900 1.5rem/1 var(--u-display); }
   .tile .who { position: absolute; left: 0.6rem; bottom: 0.5rem; right: 0.6rem; font-weight: 600; font-size: 0.95rem; display: flex; gap: 0.35rem; align-items: center; text-shadow: 0 0 6px rgba(0,0,0,0.25); }
   .tile.has-video .who { color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
   .tile .who small { font-weight: 400; opacity: 0.75; }
@@ -58,7 +79,7 @@
   /* A face, and wobbly rings going out from it while they talk (Matt, 2026-11-15: "make the profile picture habe
      wobbly ripples going out when talking"). */
   .face2 { position: relative; width: 2.6rem; height: 2.6rem; flex: none; }
-  .face2 b { position: absolute; inset: 0; border-radius: 50%; background: var(--tile); display: grid; place-items: center; z-index: 1; border: 1px solid var(--rule); }
+  .face2 b { position: absolute; inset: 0; border-radius: 50%; background: var(--tile); display: grid; place-items: center; z-index: 1; border: 1px solid var(--rule); font-family: var(--u-display); font-style: italic; font-weight: 900; }
   .face2 i { position: absolute; inset: 0; border: 2px solid var(--green); border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; opacity: 0; }
   .talking .face2 b { border: 2.5px solid var(--green); }
   .talking .face2 i { animation: ripple 1.8s ease-out infinite; }
@@ -69,63 +90,76 @@
     50% { border-radius: 54% 46% 48% 52% / 46% 54% 48% 52%; }
     100% { transform: scale(1.85) rotate(60deg); opacity: 0; border-radius: 48% 52% 54% 46% / 54% 48% 46% 52%; }
   }
-  @media (prefers-reduced-motion: reduce) { .talking .face2 i { animation: none; opacity: 0.5; } }
-  .bar { position: sticky; bottom: 0; display: flex; justify-content: center; gap: 0.9rem; padding: 1rem 0 0.25rem; background: linear-gradient(transparent, var(--bg) 35%); }
-  .center { text-align: center; margin: auto; max-width: 28rem; }
-  .steps { text-align: left; margin: 0.5rem 0 0; padding: 1rem 1.2rem 1rem 2.6rem; display: grid; gap: 0.55rem; }
-  .steps li::marker { color: var(--ink2); font-weight: 650; }
+  @media (prefers-reduced-motion: reduce) { .talking .face2 i { animation: none; opacity: 0.5; } .primary, .quiet { transition: none; } }
+  .bar { position: sticky; bottom: 0; display: flex; justify-content: center; gap: 0.9rem; padding: 1rem 0 0.25rem; background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 88%, transparent) 40%); }
+  .center { text-align: center; margin: auto; max-width: 30rem; padding: 2rem 0; }
+  .center h1 { margin-top: 0; }
+  .center .u-kicker { margin-bottom: .2rem; }
+  .lobby-kicker { margin: 2.4rem 0 0; }
+  .lobby-kicker + h1 { margin-top: .5rem; }
+  .steps { text-align: left; margin: 0.5rem 0 0; padding: 1.2rem 1.4rem; list-style: none; counter-reset: step; display: grid; gap: 0.7rem; }
+  .steps li { counter-increment: step; display: flex; gap: .8rem; align-items: baseline; position: relative; }
+  .steps li::before { content: counter(step); flex: none; display: inline-grid; place-items: center; width: 1.65rem; height: 1.65rem; border: 1.5px solid var(--ink); border-radius: var(--u-r-sm); transform: skewX(var(--u-slant)); font: italic 800 .88rem/1 var(--u-display); }
+  .steps li > span.t { flex: 1; }
   /* The hangout's chat (lib/voice/hangout.dart), beside the people on a wide screen, under them on a narrow one. */
   .room { display: grid; gap: 1.25rem; grid-template-columns: 1fr; align-items: start; }
   @media (min-width: 52rem) { .room { grid-template-columns: minmax(16rem, 22rem) 1fr; } }
-  .chat { background: var(--card); border-radius: 1.25rem; padding: 0.9rem 1rem; display: flex; flex-direction: column; min-height: 18rem; max-height: 60vh; margin-top: 1rem; }
-  .chat h2 { font-size: 1rem; margin: 0 0 0.4rem; }
+  .chat { padding: 1rem 1.1rem; display: flex; flex-direction: column; min-height: 18rem; max-height: 60vh; margin-top: 1rem; }
+  .chat > * { position: relative; z-index: 1; }
+  .chat h2 { font-size: 1.05rem; margin: 0 0 0.4rem; text-transform: uppercase; }
   .chat ol { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
   .chat li { padding: 0.25rem 0; overflow-wrap: anywhere; }
   .chat li .h { display: flex; gap: 0.5rem; align-items: baseline; margin-top: 0.5rem; }
   .chat li .h b { font-size: 0.92rem; }
   .chat li .h time { color: var(--ink2); font-size: 0.78rem; }
   .chat li .del { margin-left: auto; background: none; color: var(--ink2); font-size: 0.8rem; padding: 0; }
-  .chat form { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
-  .chat form button { padding: 0.6rem 1.1rem; font-size: 0.95rem; }
+  .chat form { display: flex; gap: 0.6rem; margin-top: 0.6rem; }
+  .chat form button { padding: 0.6rem 1.2rem; font-size: 0.95rem; }
   .chat .empty { color: var(--ink2); font-size: 0.92rem; margin: auto 0; text-align: center; }
-  .tag { font-size: 0.72rem; font-weight: 650; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--tile); color: var(--ink2); }
-  .tag.strong { background: var(--ink); color: var(--bg); }
+  .tag { font: italic 800 0.72rem/1.4 var(--u-display); letter-spacing: .03em; text-transform: uppercase; padding: 0.05rem 0.45rem; border-radius: 2px; border: 1px solid var(--rule); color: var(--ink2); }
+  .tag.strong { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .round:disabled { opacity: 0.4; cursor: default; }
   [hidden] { display: none !important; }
-  dialog { border: 0; border-radius: 1.25rem; background: var(--bg); color: var(--ink); max-width: min(26rem, calc(100% - 2rem)); padding: 1.4rem; }
-  dialog::backdrop { background: rgba(0,0,0,0.45); }
+  dialog { padding: 1.5rem; color: var(--ink); max-width: min(26rem, calc(100% - 2rem)); }
+  dialog h2 { text-transform: uppercase; font-size: 1.5rem; }
+  dialog::backdrop { background: rgba(0,0,0,0.6); }
+  .u-bar .u-btn { margin-left: auto; }
 </style>
 </head>
 <body>
+<div class="u-slot u-slot--bg u-stars backdrop" aria-hidden="true"><img class="u-slot-img" src="/art/space/join.webp" alt="" loading="lazy" onerror="this.remove()"></div>
+<header class="u-bar">
+  <div class="u-wrap">
+    <a class="u-brand" href="/"><img src="/art/uplink-logo.webp" width="1200" height="918" alt="Uplink"></a>
+    <a class="u-btn u-btn--solid u-btn--sm" href="/"><span>Get Uplink</span></a>
+  </div>
+</header>
 <main>
-  <header>
-    <img src="/icon.png" alt="">
-    <b>Ghost Messaging</b>
-    <a href="/">Get the app</a>
-  </header>
 
   <!-- Not a hangout link. -->
   <section id="bad" class="center" hidden>
+    <span class="u-kicker">Space link</span>
     <h1>This link isn't a space</h1>
     <p class="sub">Ask whoever sent it for the whole link: it ends with a long string of letters and numbers after a #.</p>
   </section>
 
   <!-- A circle's link: circles open in the app (lib/circles/circle.dart). Get the app copies the invite, which the app
        finds the first time it is set up and opens the circle with (lib/circles/pending_link.dart); with the app here,
-       Open in Ghost Messaging hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
+       Open in Uplink hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
        click a link on their phone or desktop to join a circle, have it prompt them to download the app if it's not
        downloaded already and then have it redirect to the circle after they sign up for their account". -->
   <section id="circle" class="center" hidden>
+    <span class="u-kicker">Circle invite</span>
     <h1 id="circle-title">Circle</h1>
-    <p class="sub">You're invited to <b id="circle-name">a circle</b> on Ghost Messaging: a few people and their spaces, for chat and voice, texting and files.</p>
+    <p class="sub">You're invited to <b id="circle-name">a circle</b> on Uplink: a few people and their spaces, for chat and voice, texting and files.</p>
     <ol class="steps card">
-      <li><b>Get Ghost Messaging</b> <span id="circle-for">for this device</span>.</li>
-      <li><b>Set it up</b>: pick a username, a minute or two.</li>
-      <li><b>You're in.</b> The app opens <span id="circle-name2">the circle</span> for you.</li>
+      <li><span class="t"><b>Get Uplink</b> <span id="circle-for">for this device</span>.</span></li>
+      <li><span class="t"><b>Set it up</b>: pick a username, a minute or two.</span></li>
+      <li><span class="t"><b>You're in.</b> The app opens <span id="circle-name2">the circle</span> for you.</span></li>
     </ol>
     <div class="row" style="justify-content:center;margin-top:1.25rem">
-      <a class="primary" id="circle-get" href="/" style="text-decoration:none">Get the app</a>
-      <a class="quiet" id="circle-open" href="#" style="text-decoration:none">Open in Ghost Messaging</a>
+      <a class="primary" id="circle-get" href="/">Get Uplink</a>
+      <a class="quiet" id="circle-open" href="#">Open in Uplink</a>
     </div>
     <p class="note" id="circle-note" aria-live="polite"></p>
     <p class="note">Set it up already? Open this link on that device, or paste it into the app (New › Join a circle by link). <button class="link" id="circle-copy">Copy link</button></p>
@@ -133,6 +167,7 @@
 
   <!-- Before joining: who is here, your name, your microphone and camera. -->
   <section id="lobby" hidden>
+    <span class="u-kicker lobby-kicker">Space invite</span>
     <h1 id="title">Space</h1>
     <p class="sub" id="here">Connecting…</p>
     <div class="lobby">
@@ -155,7 +190,7 @@
       <p class="note">What's said here goes between the people in the space, sealed with a key from this link. Our server only helps you find each other.</p>
       <!-- Someone texted this link from the app (Matt, 2026-11-17: "a link that eventually follows through after they
            setup their account"): the app is the other way in, with the invite kept for them. -->
-      <p class="note">Rather use the app? <a href="/">Get Ghost Messaging</a> and set it up: once you verify your phone number in it, your invite will be waiting.</p>
+      <p class="note">Rather use the app? <a href="/">Get Uplink</a> and set it up: once you verify your phone number in it, your invite will be waiting.</p>
     </div>
   </section>
 
@@ -198,7 +233,7 @@
 
 <dialog id="signup">
   <h2 style="margin-top:0">Sign up</h2>
-  <p class="note" style="margin-top:0">A username people can find you by on Ghost Messaging. It's tied to this browser: there's no password, and nothing else about you is kept.</p>
+  <p class="note" style="margin-top:0">A username people can find you by on Uplink. It's tied to this browser: there's no password, and nothing else about you is kept.</p>
   <label for="username" style="margin-top:1rem">Username</label>
   <input type="text" id="username" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="maya">
   <p class="error" id="signup-error" hidden></p>
@@ -227,7 +262,7 @@ const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 // A circle's link: said what it is, and the way to the app (Matt, 2026-11-17: circles, "simpler and easier to digest").
 const circle = readCircleLink(location.hash);
 if (circle) {
-  document.title = circle.name + ' · Ghost Messaging';
+  document.title = circle.name + ' · Uplink';
   $('circle-title').textContent = 'Join ' + circle.name;
   $('circle-name').textContent = circle.name;
   $('circle-name2').textContent = circle.name;
@@ -239,7 +274,7 @@ if (circle) {
   const files = { apk: '/ghost-messaging.apk', mac: '/ghost-messaging-mac.dmg', windows: '/ghost-messaging-setup.exe' };
   if (kind) {
     $('circle-for').textContent = where[kind];
-    $('circle-get').textContent = 'Get the app ' + where[kind];
+    $('circle-get').textContent = 'Get Uplink ' + where[kind];
     $('circle-get').href = files[kind];
     fetch('/' + (kind === 'apk' ? 'apk' : kind) + '.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -258,16 +293,16 @@ if (circle) {
   if (iphone) $('circle-open').hidden = true;
   $('circle-open').href = own;
   const say = (words) => { $('circle-note').textContent = words; };
-  // A circle on a relay other than Ghost Messaging's (the link says which, lib/invites/link_relay.dart): the app has to
+  // A circle on a relay other than Uplink's (the link says which, lib/invites/link_relay.dart): the app has to
   // use that relay to join it, and says so itself where it doesn't.
-  if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Ghost Messaging, use that relay first (Settings › Routes › Relay server), then open this link.');
+  if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Uplink, use that relay first (Settings › Routes › Relay server), then open this link.');
   // Get the app: the invite copied as it goes, for the app to find once it is set up.
   $('circle-get').addEventListener('click', () => {
-    const done = () => say('Your invite is copied. Install Ghost Messaging and open it: once it\'s set up, it takes you to ' + circle.name + '.');
+    const done = () => say('Your invite is copied. Install Uplink and open it: once it\'s set up, it takes you to ' + circle.name + '.');
     try {
-      navigator.clipboard.writeText(location.href).then(done, () => say('Once Ghost Messaging is set up, come back and press Open in Ghost Messaging.'));
+      navigator.clipboard.writeText(location.href).then(done, () => say('Once Uplink is set up, come back and press Open in Uplink.'));
     } catch (_) {
-      say('Once Ghost Messaging is set up, come back and press Open in Ghost Messaging.');
+      say('Once Uplink is set up, come back and press Open in Uplink.');
     }
   });
   // Open: where nothing took it (the app isn't here), said so.
@@ -277,7 +312,7 @@ if (circle) {
     window.addEventListener('blur', away, { once: true });
     document.addEventListener('visibilitychange', away, { once: true });
     setTimeout(() => {
-      if (!left && !document.hidden) say('Nothing opened? Ghost Messaging isn\'t on this device yet: get it above, and your invite comes with it.');
+      if (!left && !document.hidden) say('Nothing opened? Uplink isn\'t on this device yet: get it above, and your invite comes with it.');
     }, 1800);
   });
   $('circle-copy').onclick = async () => {
@@ -291,7 +326,7 @@ if (!link) { show('bad'); throw new Error('not a hangout link'); }
 // A texting or Files space has no voice: its chat alone, with no microphone or camera asked for.
 // An open space is a call too: here, with no floor, everyone is heard whole (lib/voice/open_space.dart).
 const chatOnly = link.kind !== 'voice' && link.kind !== 'open';
-document.title = link.name + ' · Ghost Messaging';
+document.title = link.name + ' · Uplink';
 for (const id of ['title', 'call-title']) $(id).textContent = link.name;
 if (chatOnly) {
   for (const id of ['lobby-mic', 'lobby-cam', 'devices', 'preview', 'tiles', 'people', 'mic', 'cam']) $(id).hidden = true;

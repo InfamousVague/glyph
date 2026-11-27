@@ -8,7 +8,7 @@
   <tr><td>Public key</td><td>33 bytes, compressed: <code>02</code> or <code>03</code>, then x. Sent as base64 in the sign-in, <code>whois</code> and <code>acct-put</code>; as 66 lowercase hex digits for a read-only room's <code>owner</code>.</td></tr>
   <tr><td>Name (id)</td><td>The first 16 bytes of SHA-256 of those 33 bytes, as 32 lowercase hex digits. In binary frames it is the 16 raw bytes.</td></tr>
   <tr><td>Signature</td><td>ECDSA over SHA-256 of the message, as 64 raw bytes: r, then s, big-endian. Not DER. Sent as base64 in the sign-in and in <code>bind</code>; as 128 lowercase hex digits in a read-only room's grants.</td></tr>
-  <tr><td>Account address</td><td>A <a href="/docs/how-accounts-work/">Ghost account</a> is a second key, secp256k1, known by an Ethereum-style address: <code>0x</code> and 40 hex digits. Only the <a href="#dir-accounts">account messages</a> use it.</td></tr>
+  <tr><td>Account address</td><td>An <a href="/docs/how-accounts-work/">Uplink account</a> is a second key, secp256k1, known by an Ethereum-style address: <code>0x</code> and 40 hex digits. Only the <a href="#dir-accounts">account messages</a> use it.</td></tr>
 </table>
 <p>All hex the server reads is lowercase.</p>
 
@@ -39,7 +39,7 @@
   <tr><td><code>fed</code></td><td><code>1</code> from another relay, never from an app: the frame is then a <a href="#federation-link">relay's hello</a>, with other fields.</td></tr>
 </table>
 <h3 id="sign-in-v2">Bound to a host</h3>
-<p>A v1 signature says nothing of where it was made, so a server an app was pointed at could pass the app's own relay's number to it and sign in there with the answer. A v2 signature is good only at a hub reached by the host it names. Once the hub has seen a key sign in with v2, it takes no v1 from that key while it knows its own hosts, and answers <code>{"ok": false, "err": "This account signs in a newer way now: update Ghost Messaging on this device."}</code>. Refused again within the hour, the answer comes 2 minutes late, with the connection open meanwhile. The hub remembers 200,000 such keys across restarts, letting go first of those that hold no username. A hub that knows no hosts takes v1 from anyone and never says <code>v2</code>.</p>
+<p>A v1 signature says nothing of where it was made, so a server an app was pointed at could pass the app's own relay's number to it and sign in there with the answer. A v2 signature is good only at a hub reached by the host it names. Once the hub has seen a key sign in with v2, it takes no v1 from that key while it knows its own hosts, and answers <code>{"ok": false, "err": "This account signs in a newer way now: update Uplink on this device."}</code>. Refused again within the hour, the answer comes 2 minutes late, with the connection open meanwhile. The hub remembers 200,000 such keys across restarts, letting go first of those that hold no username. A hub that knows no hosts takes v1 from anyone and never says <code>v2</code>.</p>
 <p>One name can be signed in from 8 devices at once. A new connection with the same <code>device</code> takes the older one's place, and a ninth device takes the place of the one connected longest. The connection that lost its place is closed with <code>4409</code>.</p>
 <p>Where the hub counts what one place does, a place is the connection's address: an IPv4 address, or the first 48 bits of an IPv6 one. Behind a proxy on the same machine or a private network, it is the last address in <code>X-Forwarded-For</code>, the one the proxy saw.</p>
 
@@ -191,7 +191,7 @@
   <tr><td><code>{"push": {"apns": "&lt;hex&gt;", "sandbox": false}}</code></td><td>Keeps the token for this device of this name, by the <code>device</code> it signed in with. <code>apns</code> is 32 to 200 hex digits. <code>sandbox</code> counts only as <code>true</code>. The same token under another device of the name is forgotten there.</td><td><code>{"push": true}</code>, or <code>false</code> from a server that sends no pushes.</td></tr>
   <tr><td><code>{"push": null}</code></td><td>Forgets this device's token. So does any value that isn't such an object.</td><td>The same.</td></tr>
 </table>
-<p>When a packet is held for a name, every device of it that registered a token is sent one notification. It says only <b>Ghost Messaging</b> and <b>New message</b>, once a minute for one name at most. The server never has the words of a message to put in it.</p>
+<p>When a packet is held for a name, every device of it that registered a token is sent one notification. It says only <b>Uplink</b> and <b>New message</b>, once a minute for one name at most. The server never has the words of a message to put in it.</p>
 
 <h2 id="directory">The directory</h2>
 <p>Messages with a <code>dir</code> key ask the server's directory: usernames, linked handles, badges, accounts and invitations. Each is <code>{"dir": "&lt;name&gt;", …}</code> and its answer comes back on the same connection as another <code>dir</code> message. They aren't numbered: match an answer by its <code>dir</code> and the fields it repeats.</p>
@@ -201,7 +201,7 @@
 <p>Two hashes appear throughout, both SHA-256 as 64 hex digits. A username's key is the hash of <code>ghost-name v1|&lt;username&gt;</code>. A handle's key <code>k</code> is the hash of <code>ghost-handle v1|&lt;network&gt;|&lt;handle&gt;</code>. Both are tidied first: trimmed, lower case, no leading <code>@</code>, and a phone number in E.164 form.</p>
 
 <h3 id="dir-names">Usernames and profile</h3>
-<p>A username is 3 to 20 characters from <code>a-z</code>, <code>0-9</code>, <code>.</code> and <code>_</code>, starting with a letter or digit, with no two dots together. Some words are reserved (<code>admin</code>, <code>support</code>, <code>ghost</code> and the like). An install holds one at a time.</p>
+<p>A username is 3 to 20 characters from <code>a-z</code>, <code>0-9</code>, <code>.</code> and <code>_</code>, starting with a letter or digit, with no two dots together. Some words are reserved (<code>admin</code>, <code>support</code>, <code>uplink</code> and the like). An install holds one at a time.</p>
 <table>
   <tr><th>Message</th><th>Takes</th><th>Answer</th></tr>
   <tr><td><code>hello</code></td><td><code>name</code>: your own username, optional.</td><td><code>{"dir": "hello", "ways", "listed", "links", "watching", "souls", "special"}</code>. <code>ways</code> says how each network is linked here: <code>signin</code>, <code>proof</code>, <code>text</code> or <code>off</code>. <code>links</code> is a list of <code>{"p", "k", "at"}</code>. Then <code>souls-gifts</code> where something was given that the app has not said it showed, and any <code>linked</code> and <code>joined</code> that happened while you were away.</td></tr>
@@ -270,7 +270,7 @@
 </table>
 
 <h3 id="dir-accounts">Accounts</h3>
-<p>A <a href="/docs/how-accounts-work/">Ghost account</a> is an address holding two sealed backups of one identity: one sealed by the password, one by the recovery words. The server can open neither. Four of these messages must be signed by the account's key, and come in an envelope:</p>
+<p>An <a href="/docs/how-accounts-work/">Uplink account</a> is an address holding two sealed backups of one identity: one sealed by the password, one by the recovery words. The server can open neither. Four of these messages must be signed by the account's key, and come in an envelope:</p>
 <pre><code>{"dir": "acct-put", "body": "{\"op\":\"put\",\"a\":\"0x…\",\"by\":\"&lt;your id&gt;\",\"at\":1763900000000,…}", "sig": "&lt;130 hex&gt;"}</code></pre>
 <ul>
   <li><code>body</code> is a JSON object written as a string, 196,608 characters at most (2,048 for <code>acct-devices</code>). It always holds <code>op</code> (<code>put</code>, <code>seed</code>, <code>devices</code> or <code>delete</code>), <code>a</code> (the address), <code>by</code> (the name of the connection saying it) and <code>at</code> (the time in milliseconds, within 10 minutes of the server's clock).</li>

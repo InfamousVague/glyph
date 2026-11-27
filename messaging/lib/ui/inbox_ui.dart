@@ -339,7 +339,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
   /// Edited before this device saw it, there is nothing to show: the network keeps no earlier words.
   void _showOriginal(InboxMessage m) {
     if (m.versions.isEmpty) {
-      showChoices(context, title: 'Edited before Ghost saw it. ${_n.name} doesn\'t keep what it said first.', choices: const []);
+      showChoices(context, title: 'Edited before Uplink saw it. ${_n.name} doesn\'t keep what it said first.', choices: const []);
       return;
     }
     void copy(String text) {
@@ -1180,7 +1180,7 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Tr('Your messages go between this device and Bluesky. Ghost\'s own server never sees them, and the app password itself isn\'t kept: only the session Bluesky gives back.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and Bluesky. Uplink\'s own server never sees them, and the app password itself isn\'t kept: only the session Bluesky gives back.')),
               ],
             ),
           ),
@@ -1192,7 +1192,7 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
 
 /// Linking Signal: the QR code Signal on the person's phone scans (Settings › Linked devices › Link new device). On a
 /// computer it is drawn here; on the phone, which cannot scan its own screen, it is drawn on another screen too, by
-/// the link to Ghost's pairing page (the same sealed room the Google Messages QR code uses), or the address copied.
+/// the link to Uplink's pairing page (the same sealed room the Google Messages QR code uses), or the address copied.
 class SignalLinkScreen extends StatefulWidget {
   const SignalLinkScreen({super.key, required this.network});
   final Signal network;
@@ -1215,12 +1215,12 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
   Future<void> _elsewhere() async {
     if (!_room.open && !await _room.openRoom(onCame: () => _showCode())) {
       // Nothing would reach the page (GMFB-15): say so rather than share a link that draws nothing.
-      if (mounted) toast(context, 'Ghost\'s relay can\'t be reached right now, so the code can\'t go to another screen. Check Settings › Network.', tone: GlacierToastTone.danger);
+      if (mounted) toast(context, 'Uplink\'s relay can\'t be reached right now, so the code can\'t go to another screen. Check Settings › Network.', tone: GlacierToastTone.danger);
       return;
     }
     _showCode();
     final link = _room.link;
-    if (link != null && mounted) await Sms.instance.shareText('Link Signal to Ghost', link);
+    if (link != null && mounted) await Sms.instance.shareText('Link Signal to Uplink', link);
     if (mounted) setState(() {});
   }
 
@@ -1262,7 +1262,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
               children: [
                 PaneSection(
                   title: 'Scan this with Signal',
-                  description: const Tr('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Ghost becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
+                  description: const Tr('In Signal on your phone: Settings › Linked devices › Link new device, then point it at this code. Uplink becomes another of your devices, as Signal Desktop is. Messages from now on come here; Signal keeps no older ones for a new device.'),
                   footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     SettingRowBox(
@@ -1288,7 +1288,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Tr('Signal has no API for other apps: Ghost links the way Signal Desktop does, through the open-source mautrix-signal (GNU AGPL). Your messages go between this device and Signal only, never through Ghost\'s servers.')),
+                const SettingsFootnote(child: Tr('Signal has no API for other apps: Uplink links the way Signal Desktop does, through the open-source mautrix-signal (GNU AGPL). Your messages go between this device and Signal only, never through Uplink\'s servers.')),
               ],
             ),
           ),
@@ -1298,7 +1298,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
   }
 }
 
-/// Signing in to Mastodon: the server, its own page to approve Ghost on, and the code that page shows.
+/// Signing in to Mastodon: the server, its own page to approve Uplink on, and the code that page shows.
 class MastodonSignInScreen extends StatefulWidget {
   const MastodonSignInScreen({super.key, required this.network});
   final Mastodon network;
@@ -1352,8 +1352,8 @@ class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
               PaneSection(
                 title: _page == null ? 'Your server' : 'The code',
                 description: Text(_page == null
-                    ? 'The server your account is on, or your whole address (@you@mastodon.social). Its own page opens to let Ghost read and send your direct messages.'
-                    : 'Approve Ghost Messaging on the page that opened, then paste the code it shows here.'),
+                    ? 'The server your account is on, or your whole address (@you@mastodon.social). Its own page opens to let Uplink read and send your direct messages.'
+                    : 'Approve Uplink on the page that opened, then paste the code it shows here.'),
                 footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                 children: [
                   if (_page == null) ...[
@@ -1367,7 +1367,7 @@ class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
                 ],
               ),
               SizedBox(height: t.space(4)),
-              const SettingsFootnote(child: Tr('Your messages go between this device and your Mastodon server. Ghost\'s own server never sees them; only the token your server gives back is kept.')),
+              const SettingsFootnote(child: Tr('Your messages go between this device and your Mastodon server. Uplink\'s own server never sees them; only the token your server gives back is kept.')),
             ],
           ),
         ),
@@ -1538,7 +1538,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
                   ),
                 ],
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Tr('Ghost signs in as a Telegram app of its own, on this device. Your chats go between it and Telegram; Ghost\'s own server never sees them. Sign out here, or end the session in Telegram › Settings › Devices.')),
+                const SettingsFootnote(child: Tr('Uplink signs in as a Telegram app of its own, on this device. Your chats go between it and Telegram; Uplink\'s own server never sees them. Sign out here, or end the session in Telegram › Settings › Devices.')),
               ],
             ),
           ),
@@ -1607,8 +1607,8 @@ List<Widget> _connectionsBody(BuildContext context) {
         hint: Text(hint ?? _summary(n)),
         onPress: () => push<void>(context, (_) => SettingsSectionScreen('inbox-${n.id}')),
       );
-  const intro = Tr('Your chats on other networks among your texts in Messages, each marked with its logo. Ghost signs in to each as an app of its own, on this device; its own server never sees your chats.');
-  const pluginIntro = Tr('Beyond Telegram and Signal, Ghost can bring in other networks as plugins. These aren\'t official Ghost connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
+  const intro = Tr('Your chats on other networks among your texts in Messages, each marked with its logo. Uplink signs in to each as an app of its own, on this device; its own server never sees your chats.');
+  const pluginIntro = Tr('Beyond Telegram and Signal, Uplink can bring in other networks as plugins. These aren\'t official Uplink connections — each signs in the way that network\'s own website or app does, and some don\'t allow other apps at all. Switch one on to connect it.');
   return [
     if (on.isNotEmpty) PaneSection(title: 'Connected', description: intro, children: [for (final n in on) row(n)]),
     if (off.isNotEmpty) PaneSection(title: on.isEmpty ? 'Official networks' : 'Add a connection', description: on.isEmpty ? intro : null, children: [for (final n in off) row(n)]),
@@ -1666,7 +1666,7 @@ List<Widget> _paneBody(BuildContext context, InboxNetwork n) {
     if (showToggle)
       PaneSection(
         title: 'Plugin',
-        description: Text('${n.name} is a plugin, not an official Ghost connection. Switch it on to connect it; switch it off and it is signed out and left alone.'),
+        description: Text('${n.name} is a plugin, not an official Uplink connection. Switch it on to connect it; switch it off and it is signed out and left alone.'),
         children: [
           SettingRow(
             key: const ValueKey('plugin-switch'),
@@ -1781,7 +1781,7 @@ class _FilesStrip extends StatelessWidget {
 }
 
 /// A picture, video, sound or file in a chat's bubble: a picture drawn (brought down as it is first drawn), a video's
-/// picture with Play, a sound or file as its name; a tap opens it full screen, in Ghost's player, or in the app that
+/// picture with Play, a sound or file as its name; a tap opens it full screen, in Uplink's player, or in the app that
 /// reads it.
 class InboxMediaView extends StatelessWidget {
   const InboxMediaView({super.key, required this.network, required this.media, required this.ink, this.card = false});

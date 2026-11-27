@@ -33,7 +33,7 @@ class PluginHues {
     final hue = t.colorOf('var(--hue, var(--app-ink))');
     // On the light page the hue's deep shade at the start and its bright one at the end, as Settings' chips pair them;
     // on the dark one --hue is already the bright shade: the start is it taken a little way into the page's dark and
-    // the end is it whole. Mixed half into black, Ghost dark's colours came out mauve, brown and brick, where Ghost.md's
+    // the end is it whole. Mixed half into black, Uplink dark's colours came out mauve, brown and brick, where Ghost.md's
     // Market keeps its tiles vivid in the dark (Matt asked for vivid).
     final start = t.isDark ? t.colorOf('color-mix(in srgb, var(--hue, var(--app-ink)) 76%, var(--app-paper))') : hue;
     final end = t.isDark ? hue : t.colorOf('color-mix(in srgb, var(--hue-dark, var(--hue, var(--app-ink))) 70%, var(--hue, var(--app-ink)))');

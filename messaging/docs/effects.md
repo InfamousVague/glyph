@@ -1,6 +1,6 @@
 # Message effects
 
-Every effect Ghost Messaging can play, what sets each off, and a prompt for generating its overlay (Matt, 2026-11-13:
+Every effect Uplink can play, what sets each off, and a prompt for generating its overlay (Matt, 2026-11-13:
 "a list for me of all the special effects so I can generate some graphics / videos for them to be overlays make sure
 each one has a prompt make it ghost themed", then "make sure we support all the same ones as imessage, samsung
 messenger, google messenger").
@@ -17,7 +17,7 @@ them all and slice them up"): see "The effects' sprites" below.
 | iMessage | Eight screen effects: Echo, Spotlight, Balloons, Confetti, Love, Lasers, Fireworks, Celebration. Four bubble effects: Slam, Loud, Gentle, Invisible Ink | All twelve. An iPhone sending one to a non-iPhone writes "(sent with Lasers)" after the words: that is read, played, and not shown |
 | Google Messages | Screen effects on a phrase, such as "It's snowing", "I love you", "Happy birthday", "Congratulations", "Wow", "Kisses", "Thank you", "Good night", "Good morning", "Get well soon", "Bye bye", "I'm hungry", "Sorry", "Party time" | One for each. Google has not published its list, so these are the widely reported ones |
 | Samsung Messages | No keyword effects of its own | Nothing to match |
-| Ghost Messaging | | `ghosts`, for "Boo" and Halloween |
+| Uplink | | `ghosts`, for "Boo" and Halloween |
 
 An effect plays once when a message that sets it off arrives or is sent while the conversation is open, and again
 from the message's long-press menu ("Play effect"). Settings › Look › Message effects turns them all off, and so does
@@ -94,7 +94,7 @@ message's own bubble and take no overlay.
 
 Paste this in front of every prompt so the set reads as one family:
 
-> Ghost Messaging brand style: a small, friendly, rounded cartoon ghost mascot, matte white with a soft
+> Uplink brand style: a small, friendly, rounded cartoon ghost mascot, matte white with a soft
 > indigo-violet (#8C95FF) rim glow, two simple oval black eyes, no mouth unless smiling, a scalloped hem of three
 > curves, no arms unless the action needs them. Flat, clean, modern vector-like 3D with soft shading, no outlines, no
 > text, no logos. Portrait 9:16, 1080x2400. Isolated on a pure flat chroma green (#00FF00) background with no

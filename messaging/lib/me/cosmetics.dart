@@ -145,7 +145,7 @@ class CosmeticCatalog {
   static const _magenta = Color(0xFFFF3DCB), _sand = Color(0xFFE2C79A), _blue = Color(0xFF3D8BFF), _smoke = Color(0xFF8D96A3);
 
   static const all = <Cosmetic>[
-    // The Ghost pack (Matt, 2026-11-22: "Let's work on just nailing one good profile decoration pack focused around
+    // The Uplink pack (Matt, 2026-11-22: "Let's work on just nailing one good profile decoration pack focused around
     // the ghosts"): the app's own ghosts, animated, from ~/Desktop/ghost-pack-lovart-prompts.md.
     Cosmetic(CosmeticKind.decoration, 'ghost-ring', 'Ghost Ring', Color(0xFFE8F4FF), second: _ice),
     // Avatar decorations: around the picture, spilling a little past it.
@@ -193,7 +193,7 @@ class CosmeticCatalog {
     Cosmetic(CosmeticKind.name, 'shimmer', 'Shimmer', Color(0xFFC9D2DE), second: Color(0xFFFFFFFF), style: NameStyle.shimmer),
     Cosmetic(CosmeticKind.name, 'spectral-glow', 'Spectral glow', Color(0xFFE8F4FF), second: Color(0xFF7FD3FF), style: NameStyle.glow),
     Cosmetic(CosmeticKind.name, 'rainbow', 'Rainbow', Color(0xFFFF4D4D), second: Color(0xFF4D7BFF), style: NameStyle.rainbow),
-    // Profile effects: over the whole card, from its edges. The Ghost pack's first.
+    // Profile effects: over the whole card, from its edges. The Uplink pack's first.
     Cosmetic(CosmeticKind.effect, 'haunted', 'Haunted', Color(0xFFFFFFFF), second: _ice),
     Cosmetic(CosmeticKind.effect, 'falling-ghosts', 'Falling ghosts', Color(0xFFFFFFFF)),
     Cosmetic(CosmeticKind.effect, 'embers', 'Embers', Color(0xFFFF7A1A), second: Color(0xFFFFD23F)),

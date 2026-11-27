@@ -60,7 +60,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
     if (!_room.open) await _room.openRoom(onCame: () => _showCode());
     _showCode();
     final link = _room.link;
-    if (link != null && mounted) await Sms.instance.shareText('Link WhatsApp to Ghost', link);
+    if (link != null && mounted) await Sms.instance.shareText('Link WhatsApp to Uplink', link);
     if (mounted) setState(() {});
   }
 
@@ -133,7 +133,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           else if (!_byNumber)
             PaneSection(
               title: 'Scan this with WhatsApp',
-              description: const Tr('In WhatsApp on your phone: Settings › Linked devices › Link a device, then point it at this code. Ghost becomes another of your devices, as WhatsApp Web is, and your recent chats come across.'),
+              description: const Tr('In WhatsApp on your phone: Settings › Linked devices › Link a device, then point it at this code. Uplink becomes another of your devices, as WhatsApp Web is, and your recent chats come across.'),
               footer: error,
               children: [
                 SettingRowBox(
@@ -162,7 +162,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           else
             PaneSection(
               title: 'Link with your phone number',
-              description: const Tr('Your WhatsApp number, with its country code. Ghost gets an eight-letter code from WhatsApp: in WhatsApp on your phone, Settings › Linked devices › Link a device › Link with phone number instead, then type it there.'),
+              description: const Tr('Your WhatsApp number, with its country code. Uplink gets an eight-letter code from WhatsApp: in WhatsApp on your phone, Settings › Linked devices › Link a device › Link with phone number instead, then type it there.'),
               footer: error,
               children: [
                 SettingRowBox(
@@ -199,7 +199,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
               children: [
                 ...sections,
                 SizedBox(height: t.space(4)),
-                if (_agreed) const SettingsFootnote(child: Text('$whatsAppWarning Your messages go between this device and WhatsApp only, never through Ghost\'s servers.')),
+                if (_agreed) const SettingsFootnote(child: Text('$whatsAppWarning Your messages go between this device and WhatsApp only, never through Uplink\'s servers.')),
               ],
             ),
           ),

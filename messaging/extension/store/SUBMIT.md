@@ -1,4 +1,4 @@
-# Submitting Ghost Messaging keys to the Chrome Web Store
+# Submitting Uplink keys to the Chrome Web Store
 
 What's prepared here, and the steps only you can do (they need the developer account and the one-time
 fee). Everything in this folder is ready to upload.
@@ -20,7 +20,7 @@ fresh one: `cd messaging/extension && npm run build && (cd dist/chrome && zip -r
 
 1. **Register as a developer** (one-time, ~$5) at the Chrome Web Store Developer Dashboard with the
    Google account that should own the listing: https://chrome.google.com/webstore/devconsole/ . Use a
-   Ghost/MattsSoftware account, not a personal one, if you want the team to manage it.
+   Uplink/MattsSoftware account, not a personal one, if you want the team to manage it.
 2. **New item → upload** `ghost-messaging-keys.zip`.
 3. **Store listing tab:** paste the name, summary, description and category from `LISTING.md`; upload
    the icon, screenshot and promo tile from `promo/`.

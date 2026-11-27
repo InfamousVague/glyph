@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds the link helper: iroh's relay server (the crate iroh-relay, MIT or Apache-2.0), which the direct network's
 # devices find each other through and fall back on when no straight path can be made (docs/OPEN_NETWORK.md section 2,
-# docs/SELF_HOSTING.md). It is not Ghost Messaging's relay, and nothing of ours is in it.
+# docs/SELF_HOSTING.md). It is not Uplink's relay, and nothing of ours is in it.
 #   build/link/iroh-relay        the server's: Linux, x86-64, glibc 2.31 or later (Ubuntu 20.04, Debian 11, and newer)
 #   build/link/host/iroh-relay   this machine's: what native/link-check starts, and what a server builds for itself
 # Beside each, iroh-relay.sha256 and iroh-relay.version: tool/deploy-link.mjs sends nothing those two don't match.

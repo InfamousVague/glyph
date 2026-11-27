@@ -78,7 +78,7 @@ void main() {
     await settle(tester);
     expect(find.text('WHILE THE APP IS CLOSED'), findsOneWidget);
     expect(find.text(KeepRunning.reachLabel), findsOneWidget);
-    expect(find.textContaining('After your phone restarts, open Ghost Messaging once'), findsOneWidget, reason: 'what it can\'t do is said where it is switched on');
+    expect(find.textContaining('After your phone restarts, open Uplink once'), findsOneWidget, reason: 'what it can\'t do is said where it is switched on');
     expect(find.byKey(const ValueKey('stay-reachable-sleep')), findsNothing, reason: 'nothing of the battery until it is on');
     expect(KeepRunning.wanted(app), isFalse);
 

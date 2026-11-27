@@ -25,7 +25,7 @@ export const policyOf = (html) => META.exec(html)?.[1] ?? null;
 /**
  * What the page sends to beside [hub], over plain HTTP from the page itself (lib/web/http.dart), where the hub is at
  * another address than the page: feedback to the hub's server (lib/feedback/feedback_api.dart feedbackUrlFor), a
- * report to Ghost Messaging's review there where the hub is Ghost Messaging's own (lib/market/market_api.dart
+ * report to Uplink's review there where the hub is Uplink's own (lib/market/market_api.dart
  * marketIsOwn, marketUrlFor; lib/ui/report_sheet.dart reportsGoFromHere: a page made for another relay sends none),
  * and a Files space's files, from a build with them (lib/files/files_http_web.dart; FilesApi.baseFor: the hub's
  * server, `/files/`). A build without Files spaces never asks there; the one policy serves both, so the site's block

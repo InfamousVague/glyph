@@ -1,4 +1,4 @@
-// Ghost Messaging's Messenger helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-meta, on whose messagix it is
+// Uplink's Messenger helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-meta, on whose messagix it is
 // built.
 //
 // Matt, 2026-11-20: "Let's do the feasible ones but skip X and google voice". It signs in to the person's Facebook
@@ -140,7 +140,7 @@ func event(name string, fields map[string]any) {
 }
 
 // main takes up the kept session, if there is one, then answers the requests on standard input, each in its own
-// goroutine, until Ghost closes it; the session is written a last time on the way out.
+// goroutine, until Uplink closes it; the session is written a last time on the way out.
 func main() {
 	flag.StringVar(&dir, "dir", "", "where the Messenger session is kept")
 	flag.Parse()
@@ -149,7 +149,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// The log goes to standard error (Ghost's developer log) and messenger.log beside the session; never stdout.
+	// The log goes to standard error (Uplink's developer log) and messenger.log beside the session; never stdout.
 	// Info level: messagix says what a message holds only at trace level.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	globallog.Logger = log
@@ -178,7 +178,7 @@ func main() {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

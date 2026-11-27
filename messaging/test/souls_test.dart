@@ -27,7 +27,7 @@ void main() {
   setUp(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 
   // GMFB-25: souls are counted by each relay apart, and nothing said whose count was shown on a relay of one's own.
-  test('on a relay of your own the Souls page says whose count it is; on Ghost Messaging\'s it says nothing more', () {
+  test('on a relay of your own the Souls page says whose count it is; on Uplink\'s it says nothing more', () {
     expect(soulsRelayWords('wss://gogho.st/hub'), isNull);
     expect(soulsRelayWords('wss://relay.example.com/hub'), startsWith('Each relay counts souls apart. This is your count on relay.example.com, and souls go only between people on it.'));
     expect(soulsRelayWords('wss://relay.example.com/hub'), contains('still yours there'));

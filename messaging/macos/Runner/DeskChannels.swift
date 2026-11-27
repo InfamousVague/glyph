@@ -58,8 +58,8 @@ final class DeskChannels: NSObject, FlutterStreamHandler, NetServiceBrowserDeleg
         // No "Enter Password" under it: the app's PIN is the other way in, not the device's passcode.
         context.localizedFallbackTitle = ""
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) else { return result(false) }
-        // macOS puts "Ghost Messaging is trying to" before it: the reason starts in lower case here.
-        let reason = args["reason"] as? String ?? "unlock Ghost Messaging"
+        // macOS puts "Uplink is trying to" before it: the reason starts in lower case here.
+        let reason = args["reason"] as? String ?? "unlock Uplink"
         context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason.prefix(1).lowercased() + reason.dropFirst()) { ok, _ in
           DispatchQueue.main.async { result(ok) }
         }

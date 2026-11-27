@@ -8,7 +8,7 @@ import 'net.dart';
 import '../invites/link_relay.dart';
 
 /// A QR code shown on another screen, for a phone that cannot scan its own (Google Messages' Device pairing, Signal's
-/// Link new device): a room on Ghost's relay whose name, token and key come from a secret in a link
+/// Link new device): a room on Uplink's relay whose name, token and key come from a secret in a link
 /// (`https://gogho.st/pair/#<secret>`). The page at that link joins the room and draws each code said in it, sealed
 /// with the key, so the relay carries what it cannot read. Made from lib/ui/gm_web_screen.dart's, for Signal too.
 class PairRoom {
@@ -29,7 +29,7 @@ class PairRoom {
 
   /// The page's address, once the room is open.
   ///
-  /// The room is on the relay this app uses, so where that is not Ghost Messaging's own the address names it after the
+  /// The room is on the relay this app uses, so where that is not Uplink's own the address names it after the
   /// secret (lib/invites/link_relay.dart; GMFB-25): the page dialled gogho.st's hub whatever relay the app was on, and
   /// waited in a room the app was never in.
   String? get link => _secret == null ? null : LinkRelay.mark('https://gogho.st/pair/#${NetCrypto.hex(_secret!)}');

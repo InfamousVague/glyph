@@ -21,7 +21,7 @@ import '../l10n/words.dart';
 /// Where to get the browser extension that signs these services in across every device automatically.
 const _extensionPage = 'https://gogho.st/docs/browser-extension/';
 
-/// The services the Ghost keys extension (messaging/extension) captures — the ones it's worth suggesting on this
+/// The services the Uplink keys extension (messaging/extension) captures — the ones it's worth suggesting on this
 /// screen. Google Messages has its own guide; LinkedIn is no longer in the extension.
 const _extensionServices = {'messenger', 'instagram', 'discord', 'twitter', 'slack'};
 
@@ -213,11 +213,11 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
             Row(children: [
               AppIcon(Lucide.puzzle, size: 20, color: t.color('app-ink')),
               SizedBox(width: t.space(2)),
-              Expanded(child: Text('Easier: the Ghost keys extension', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
+              Expanded(child: Text('Easier: the Uplink keys extension', style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
             ]),
             SizedBox(height: t.space(2)),
             Text(
-              'Add our browser extension (Chrome and Edge) and ${_s.name} links itself: sign in once in your browser and every device on your Ghost account is signed in too — no copying a request. The steps below still work if you\'d rather not.',
+              'Add our browser extension (Chrome and Edge) and ${_s.name} links itself: sign in once in your browser and every device on your Uplink account is signed in too — no copying a request. The steps below still work if you\'d rather not.',
               style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.45),
             ),
             SizedBox(height: t.space(3)),
@@ -255,7 +255,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
       if (_synced != null)
         card(0, 'Use the sign-in from your browser', [
           text(_s.passcode
-              ? 'The browser extension has synced your ${_s.name} sign-in. Enter your ${_s.name} Chat passcode to finish: ${_s.name} uses it to open your encrypted chats, and Ghost doesn\'t keep it.'
+              ? 'The browser extension has synced your ${_s.name} sign-in. Enter your ${_s.name} Chat passcode to finish: ${_s.name} uses it to open your encrypted chats, and Uplink doesn\'t keep it.'
               : 'The browser extension has synced your ${_s.name} sign-in from your browser. Sign in with it here.'),
           if (_s.passcode) passcodeField(),
           button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || !codeOk ? null : () => _signIn(synced: true), filled: true, key: const ValueKey('helper-synced-sign-in')),
@@ -263,7 +263,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
         ], current: true),
       if (_extensionServices.contains(_s.id) && _synced == null) extensionSuggestion(),
       if (!_computer)
-        text('This needs a computer\'s browser (its developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (a note or an email to yourself) and paste it in step 3. Or sign in to ${_s.name} from Ghost on the computer itself.'),
+        text('This needs a computer\'s browser (its developer tools). Do steps 1 and 2 on a computer, then get the copied text to this phone (a note or an email to yourself) and paste it in step 3. Or sign in to ${_s.name} from Uplink on the computer itself.'),
       card(1, 'Sign in to ${_s.name} in a private window', [
         text('Open ${_s.name} in a private (incognito) window and sign in to your account there. A private window keeps the browser from changing the sign-in afterwards.'),
         Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [
@@ -299,12 +299,12 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
         Row(children: [
           button(busy ? 'Asking ${_s.name}…' : 'Sign in', busy || _pasted.text.trim().isEmpty || !codeOk ? null : _signIn, filled: true, key: const ValueKey('helper-sign-in')),
           SizedBox(width: t.space(3)),
-          Expanded(child: Text('Then close the private window. Don\'t sign out in it: that would sign Ghost out too.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
+          Expanded(child: Text('Then close the private window. Don\'t sign out in it: that would sign Uplink out too.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
         ]),
         if (error != null && _synced == null) errorRow(),
       ], current: _pasted.text.isNotEmpty),
       SizedBox(height: t.space(2)),
-      SettingsFootnote(child: Text('${_s.warning} What you paste is your sign-in: Ghost gives it to the ${_s.name} helper on this device and nowhere else. Your messages go between this device and ${_s.name} only, never through Ghost\'s servers.')),
+      SettingsFootnote(child: Text('${_s.warning} What you paste is your sign-in: Uplink gives it to the ${_s.name} helper on this device and nowhere else. Your messages go between this device and ${_s.name} only, never through Uplink\'s servers.')),
     ];
   }
 }

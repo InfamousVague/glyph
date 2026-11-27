@@ -549,7 +549,7 @@ void main() {
       while (s.running) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
-      expect(s.line, 'Stopped: sign in to your Ghost account on this computer.');
+      expect(s.line, 'Stopped: sign in to your Uplink account on this computer.');
       final t = sync();
       drive.reachable = false;
       expect(t.choose(root), isNull);

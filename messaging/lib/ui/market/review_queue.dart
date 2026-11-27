@@ -41,7 +41,7 @@ String reviewRowHint(ReviewRow r, {String? current}) => [
 class ReviewQueueScreen extends StatefulWidget {
   const ReviewQueueScreen({super.key, this.api, this.ask});
 
-  /// The Marketplace: MarketState.instance.api where null, which is Ghost Messaging's own (MarketApi.live) in the app.
+  /// The Marketplace: MarketState.instance.api where null, which is Uplink's own (MarketApi.live) in the app.
   final MarketApi? api;
 
   /// For a test: the relay's answers to the admin sign-in, in place of Me.admin.

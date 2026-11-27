@@ -112,7 +112,7 @@ Future<String?> sendPathToFriend(
   String? Function()? refusal,
 }) async {
   final key = await (mineKey ?? Me.instance.mineKey)();
-  if (key == null) return 'Files to a friend need a Ghost account on this device.';
+  if (key == null) return 'Files to a friend need an Uplink account on this device.';
   final seed = FileCard.seedOf(key);
   final cleaned = SpaceFile.cleanName(name ?? path.split(PlatformInfo.pathSeparator).last.split('/').last);
   final shown = cleaned.isEmpty ? 'File' : cleaned;

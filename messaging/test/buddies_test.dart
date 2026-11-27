@@ -473,7 +473,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('accept-maya')));
       await settle(tester);
       expect(find.text('Friend request'), findsNothing);
-      // A friend now: listed On Ghost Messaging in Contacts with the friends by number, not here (2026-11-19).
+      // A friend now: listed On Uplink in Contacts with the friends by number, not here (2026-11-19).
       expect(find.text('Friends by username'), findsNothing);
       expect(find.text('Maya Chen'), findsNothing);
       expect(b.friends.single.username, 'maya');
@@ -535,7 +535,7 @@ void main() {
       await type(tester, '@maya');
       expect(find.text('That\'s you'), findsOneWidget);
       await type(tester, '@sam');
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('On Uplink'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('add-found')));
       await settle(tester);
       expect(find.text('Friend request sent'), findsOneWidget);

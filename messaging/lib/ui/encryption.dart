@@ -45,14 +45,14 @@ void showEncryptionChoices(BuildContext context, Person person, E2eState state, 
         ],
       );
     case 'offered':
-      showChoices(context, title: 'Your key was sent. Encryption starts when $name accepts in Ghost Messaging.', choices: [
+      showChoices(context, title: 'Your key was sent. Encryption starts when $name accepts in Uplink.', choices: [
         Choice('Send the key again', Lucide.send, offer),
         Choice('Cancel', Lucide.x, off, danger: true),
       ]);
     default:
       showChoices(
         context,
-        title: 'Encrypt your texts with $name so only your two phones can read them. They need Ghost Messaging too. This sends them one text with your key.',
+        title: 'Encrypt your texts with $name so only your two phones can read them. They need Uplink too. This sends them one text with your key.',
         choices: [Choice('Send my key', Lucide.lock, offer)],
       );
   }

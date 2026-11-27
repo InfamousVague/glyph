@@ -220,7 +220,7 @@ void main() {
     td.say(chat(20, 'Old crew', 'chatListArchive', type: const {'@type': 'chatTypeBasicGroup', 'basic_group_id': 2}));
     await settle();
     expect(tg.chats.map((c) => c.title), ['Jo Park']);
-    expect(tg.archivedChats.map((c) => c.title), ['Old crew'], reason: 'Telegram\'s archive is Ghost\'s Archived');
+    expect(tg.archivedChats.map((c) => c.title), ['Old crew'], reason: 'Telegram\'s archive is Uplink\'s Archived');
 
     await tg.archive('10', true);
     final add = td.sent.lastWhere((r) => r['@type'] == 'addChatToList');
@@ -245,7 +245,7 @@ void main() {
     expect(dm['revoke'], true);
     expect(tg.messagesOf('10'), isEmpty);
 
-    // Things that happened rather than things said, and kinds Ghost doesn't draw: words for each, not "Message" (Matt,
+    // Things that happened rather than things said, and kinds Uplink doesn't draw: words for each, not "Message" (Matt,
     // 2026-11-17: "A bunch of telegram messages are just showing as \"Message\"").
     td.say({'@type': 'updateUser', 'user': {'id': 41, 'first_name': 'Esther'}});
     td.say({'@type': 'updateUser', 'user': {'id': 42, 'first_name': 'Robin'}});
@@ -267,7 +267,7 @@ void main() {
       'Robin left the group': true,
       'Esther pinned a message': true,
       '🎯': false,
-      'A kind of message Ghost can\'t show yet: open Telegram to see it': false,
+      'A kind of message Uplink can\'t show yet: open Telegram to see it': false,
     });
     expect(tg.messagesOf('10').map((m) => m.text), isNot(contains('Message')));
     // Posted as a chat, not a person (an admin as the group itself): by that chat's name.

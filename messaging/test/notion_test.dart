@@ -30,7 +30,7 @@ NotionSend _notion(List<String> asked, {int? fail}) => (method, url, headers, bo
       expect(headers['Notion-Version'], Notion.version);
       if (fail != null) return (status: fail, body: '{}');
       final path = url.path.replaceFirst('/v1/', '');
-      if (path == 'users/me') return (status: 200, body: jsonEncode({'name': 'Ghost circle'}));
+      if (path == 'users/me') return (status: 200, body: jsonEncode({'name': 'Uplink circle'}));
       if (path == 'pages/$_page') return (status: 200, body: jsonEncode(_row('Ship the widgets', 'In progress', emoji: '🚀')));
       if (path == 'blocks/$_page/children') {
         return (status: 200, body: jsonEncode({
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('the token is checked by asking who it is, and only something shaped like one is a token', () async {
-      expect(await _reader([]).check(), 'Ghost circle');
+      expect(await _reader([]).check(), 'Uplink circle');
       expect(Notion.looksLikeToken('secret_abcdefghijklmnopqrstuvwxyz'), isTrue);
       expect(Notion.looksLikeToken(' ntn_1234567890abcdefghijABCDEFGHIJ '), isTrue);
       expect(Notion.looksLikeToken('my notion password'), isFalse);

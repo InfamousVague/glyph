@@ -1,4 +1,4 @@
-// Ghost Messaging's Matrix helper (README.md, PROTOCOL.md). MPL-2.0, as mautrix-go, on which it is built.
+// Uplink's Matrix helper (README.md, PROTOCOL.md). MPL-2.0, as mautrix-go, on which it is built.
 //
 // It signs in to the person's Matrix account as a device of its own, as Element does, keeps the account's end-to-end
 // encryption keys in its store, and speaks JSON lines over standard input and output. Requests, each with an "id" its
@@ -96,7 +96,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// mautrix's log goes to standard error, for Ghost's developer log; never standard output, which is the protocol's.
+	// mautrix's log goes to standard error, for Uplink's developer log; never standard output, which is the protocol's.
 	log = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	// The SSO address carries "&": kept as it is, not escaped for HTML.
 	out.SetEscapeHTML(false)
@@ -115,7 +115,7 @@ func main() {
 		}
 		go handle(r)
 	}
-	// Ghost closed its end: the app is quitting.
+	// Uplink closed its end: the app is quitting.
 	shutdown()
 }
 

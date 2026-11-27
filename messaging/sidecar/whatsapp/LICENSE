@@ -1,4 +1,4 @@
-Ghost Messaging's WhatsApp helper (sidecar/whatsapp)
+Uplink's WhatsApp helper (sidecar/whatsapp)
 
 This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -8,4 +8,4 @@ the Mozilla Public License 2.0, whose source is at that address; and on go-sqlit
 (https://github.com/mattn/go-sqlite3), Copyright (c) Yasuhiro Matsumoto, under the MIT licence, which includes SQLite
 (public domain). Their own licence files come with their source in the Go module cache (go.mod pins the versions).
 
-The helper's source is published with every release of Ghost Messaging that ships it.
+The helper's source is published with every release of Uplink that ships it.

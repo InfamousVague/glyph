@@ -23,7 +23,7 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * The cryptography of Ghost Messaging's own end-to-end encryption over SMS (Matt, 2026-11-13: "an additional level
+ * The cryptography of Uplink's own end-to-end encryption over SMS (Matt, 2026-11-13: "an additional level
  * of E2E encryption by allowing users to exchange keys somehow and then encrypt all messages so only others with the
  * app can read them"). Nothing here touches Android, so it is tested on the JVM (E2eCryptoTest).
  *

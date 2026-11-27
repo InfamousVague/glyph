@@ -40,7 +40,7 @@ typedef FeedbackSend = Future<String> Function(FeedbackReport report);
 
 /// The app's: signed with the hub key the username is claimed by (Me's hub, Net.instance.hub), else the key spaces
 /// are signed with, to the relay the app is on; and where that is a relay of someone's own that takes no feedback, to
-/// Ghost Messaging's instead ([sendFeedbackOrOurs]).
+/// Uplink's instead ([sendFeedbackOrOurs]).
 Future<String> sendFeedbackLive(FeedbackReport report) {
   final hub = Net.instance.hub;
   final signer = hub?.signer ?? Voice.instance.signer;
@@ -49,7 +49,7 @@ Future<String> sendFeedbackLive(FeedbackReport report) {
 }
 
 /// Under Send: who the feedback goes to. On a relay of someone's own it goes to that relay's own board where it has one.
-String feedbackGoesWords(String hubUrl) => hubUrl == Net.defaultHub || PlatformInfo.isWeb ? 'It goes to the Ghost Messaging team.' : 'It goes to your relay\'s own feedback board where it has one, and to the Ghost Messaging team where it doesn\'t.';
+String feedbackGoesWords(String hubUrl) => hubUrl == Net.defaultHub || PlatformInfo.isWeb ? 'It goes to the Uplink team.' : 'It goes to your relay\'s own feedback board where it has one, and to the Uplink team where it doesn\'t.';
 
 /// The Share feedback button: a small round button like Mark all read beside it, its words in a tip while a pointer
 /// rests on it; under Dial-Up one of the bar's tool buttons.
@@ -118,7 +118,7 @@ class FeedbackButton extends StatelessWidget {
 Future<void> showFeedbackDrawer(BuildContext context, {FeedbackSend? send, String? username, Future<List<({String name, Uint8List bytes})>> Function()? pickPictures}) => showMembersDrawer(
       context,
       title: 'Share feedback',
-      subtitle: 'It goes to the Ghost Messaging team',
+      subtitle: 'It goes to the Uplink team',
       list: (_) => FeedbackScreen(key: const ValueKey('feedback-drawer'), drawer: true, send: send, username: username, pickPictures: pickPictures),
     );
 
@@ -336,7 +336,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 title: 'What happened?',
                 description: Text(switch (_type) {
                   FeedbackType.bug => 'What you did, what you expected, and what happened instead.',
-                  FeedbackType.feature => 'What you\'d like Ghost Messaging to do, and what it would help with.',
+                  FeedbackType.feature => 'What you\'d like Uplink to do, and what it would help with.',
                   FeedbackType.confusing => 'Where you were, and what wasn\'t clear.',
                   FeedbackType.praise => 'What you like.',
                   FeedbackType.other => 'Tell us anything.',

@@ -10,7 +10,7 @@ import 'bip39_words.dart';
 import 'gzip.dart';
 import '../net/fast_gcm.dart';
 
-/// The cryptography of a Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
+/// The cryptography of an Uplink account (Matt, 2026-11-17: "We need to have a way to login to existing accounts. We might
 /// need to add password based authentication as well as SMS verification for verified numbers", and "i also want
 /// accounts to be generated based on ethereum type addresses with a recovery seed we can back up"):
 ///
@@ -20,8 +20,8 @@ import '../net/fast_gcm.dart';
 /// - **The account's address**: the words' BIP-39 seed (PBKDF2-HMAC-SHA512, 2048 rounds, salt "mnemonic"), BIP-32 down
 ///   m/44'/60'/0'/0/0 as Ethereum wallets go, and the address of that secp256k1 key: Keccak-256 of the 64-byte public
 ///   key, its last 20 bytes, written 0x… with EIP-55's capitals. The same words in MetaMask show the same address.
-/// - **The Ghost identity** (the P-256 key an install is known by, [NetKeys]) made from the same seed by HKDF-SHA256 with
-///   its own label, so a device restored from the words alone is the same Ghost identity where the account began with
+/// - **The Uplink identity** (the P-256 key an install is known by, [NetKeys]) made from the same seed by HKDF-SHA256 with
+///   its own label, so a device restored from the words alone is the same Uplink identity where the account began with
 ///   it. An install that had its own key before it made an account keeps that key, carried in the sealed backup.
 /// - **The backup** (identity, words, profile) sealed twice with AES-256-GCM: once under a key from the password
 ///   (Argon2id, 64 MiB, 3 passes, 1 lane, 16-byte salt) and once under a key from the seed (HKDF-SHA256), so either one
@@ -80,7 +80,7 @@ class AccountCrypto {
   static bool validWords(List<String> words) => entropyOf(words) != null;
 
   /// BIP-39's seed: PBKDF2-HMAC-SHA512 of the words joined by spaces, salted "mnemonic" and [passphrase], 2048 rounds,
-  /// 64 bytes. Ghost never asks for a passphrase; it is here for the BIP's own test vectors. The words are the list's,
+  /// 64 bytes. Uplink never asks for a passphrase; it is here for the BIP's own test vectors. The words are the list's,
   /// all ASCII, so NFKD changes nothing.
   static Uint8List seedOf(List<String> words, {String passphrase = ''}) {
     final kdf = PBKDF2KeyDerivator(HMac(SHA512Digest(), 128))..init(Pbkdf2Parameters(Uint8List.fromList(utf8.encode('mnemonic$passphrase')), 2048, 64));
@@ -221,7 +221,7 @@ class AccountCrypto {
   /// HKDF's salt for everything the seed makes here; each use has a label of its own.
   static const _salt = 'ghost-account v1';
 
-  /// The Ghost identity the seed makes: a P-256 scalar from HKDF, tried again with a counter in the rare case (one in
+  /// The Uplink identity the seed makes: a P-256 scalar from HKDF, tried again with a counter in the rare case (one in
   /// 2^32) it is nothing or past the curve's order.
   static NetKeys identityOf(List<int> seed) {
     final n = NetCrypto.curve.n;
@@ -322,26 +322,26 @@ class AccountCrypto {
     }
   }
 
-  /// The proof that the Ghost identity [identity] belongs to the account at [address]: its P-256 signature, which the
+  /// The proof that the Uplink identity [identity] belongs to the account at [address]: its P-256 signature, which the
   /// relay checks with the key the identity is known by.
   static Uint8List bindProof(NetKeys identity, String address) => NetCrypto.sign(identity, utf8.encode('ghost-account bind v1|${address.toLowerCase()}'));
 }
 
-/// What both sealed copies hold: who this account is on Ghost and what a new device needs to be it.
+/// What both sealed copies hold: who this account is on Uplink and what a new device needs to be it.
 class AccountBackup {
   AccountBackup({required this.words, required this.identity, this.mode = 'seed', this.username = '', this.displayName = '', this.bio = '', this.keptKey = '', this.friends = const [], this.circles = const [], DateTime? at}) : at = at ?? DateTime.now();
 
   /// The recovery words (a password alone then also gives back the words, for "show my recovery words").
   final List<String> words;
 
-  /// The Ghost identity's private key, 32 bytes as hex: the seed's own ('seed'), or the install's from before ('bound').
+  /// The Uplink identity's private key, 32 bytes as hex: the seed's own ('seed'), or the install's from before ('bound').
   final String identity;
   final String mode;
   final String username;
   final String displayName;
   final String bio;
 
-  /// The key Ghost's own lists kept on the relay are sealed with (lib/me/me.dart's kept_key), so they open again.
+  /// The key Uplink's own lists kept on the relay are sealed with (lib/me/me.dart's kept_key), so they open again.
   final String keptKey;
 
   /// Friends by username and circles, as each keeps itself (Buddy.toJson, Circle.toJson), when this was sealed.

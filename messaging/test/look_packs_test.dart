@@ -45,7 +45,7 @@ void main() {
   List<String> words(WidgetTester tester, String id) =>
       [for (final e in find.descendant(of: row(id), matching: find.byType(Text)).evaluate()) (e.widget as Text).data ?? ''];
 
-  testWidgets('the picker offers the four looks, each drawn in its pack, and rings Ghost while a pack of Ghost\'s is in use', (tester) async {
+  testWidgets('the picker offers the four looks, each drawn in its pack, and rings Uplink while a pack of Uplink\'s is in use', (tester) async {
     final app = await appearance(tester, AppState());
     final picker = find.byType(LookPicker);
     List<String> names() => [for (final e in find.descendant(of: picker, matching: find.byType(Text)).evaluate()) (e.widget as Text).data ?? '']
@@ -56,36 +56,36 @@ void main() {
           for (final e in find.descendant(of: picker, matching: find.byType(GlacierPressable)).evaluate())
             if ((e.widget as GlacierPressable).semanticLabel case final String label when label.endsWith(', chosen')) label.substring(0, label.length - ', chosen'.length),
         ].join(' + ');
-    expect(names(), ['Ghost', 'Sharp', 'Dial-Up', 'Runestone'], reason: 'no Mist, Lamplight or Phosphor among the looks');
-    expect(ringed(), 'Ghost');
+    expect(names(), ['Uplink', 'Sharp', 'Dial-Up', 'Runestone'], reason: 'no Mist, Lamplight or Phosphor among the looks');
+    expect(ringed(), 'Uplink');
     // The look the tile named [label] is drawn in.
     Look tile(String label) {
       final pressable = find.ancestor(of: find.descendant(of: picker, matching: find.text(label)), matching: find.byType(GlacierPressable)).first;
       return tester.widget<LookPreview>(find.descendant(of: pressable, matching: find.byType(LookPreview))).look;
     }
 
-    expect(tile('Ghost'), Look.ghost);
+    expect(tile('Uplink'), Look.ghost);
 
-    // Lamplight, from Textures: Ghost is still the look ringed, and its tile is Lamplight's page.
+    // Lamplight, from Textures: Uplink is still the look ringed, and its tile is Lamplight's page.
     await press(tester, row('lamplight'));
     expect(app.look, Look.lamplight);
-    expect(names(), ['Ghost', 'Sharp', 'Dial-Up', 'Runestone']);
-    expect(ringed(), 'Ghost');
-    expect(tile('Ghost'), Look.lamplight);
+    expect(names(), ['Uplink', 'Sharp', 'Dial-Up', 'Runestone']);
+    expect(ringed(), 'Uplink');
+    expect(tile('Uplink'), Look.lamplight);
 
-    // Sharp, then Ghost again from the picker: back in Lamplight, where it was left.
+    // Sharp, then Uplink again from the picker: back in Lamplight, where it was left.
     await press(tester, find.descendant(of: picker, matching: find.text('Sharp')));
     expect(app.look, Look.sharp);
     expect(ringed(), 'Sharp');
-    expect(tile('Ghost'), Look.lamplight, reason: 'the tile shows what pressing it gives');
-    await press(tester, find.descendant(of: picker, matching: find.text('Ghost')));
+    expect(tile('Uplink'), Look.lamplight, reason: 'the tile shows what pressing it gives');
+    await press(tester, find.descendant(of: picker, matching: find.text('Uplink')));
     expect(app.look, Look.lamplight);
   });
 
-  testWidgets('Textures under Ghost: its own, Mist and Lamplight, the one in use ticked', (tester) async {
+  testWidgets('Textures under Uplink: its own, Mist and Lamplight, the one in use ticked', (tester) async {
     final app = await appearance(tester, AppState());
     expect(find.text('TEXTURES'), findsOneWidget);
-    expect(words(tester, 'none').first, 'Ghost');
+    expect(words(tester, 'none').first, 'Uplink');
     expect(words(tester, 'mist').first, 'Mist');
     expect(words(tester, 'lamplight').first, 'Lamplight');
     expect(find.byKey(const ValueKey('pack-get')), findsNothing, reason: 'the hub is Runestone\'s');

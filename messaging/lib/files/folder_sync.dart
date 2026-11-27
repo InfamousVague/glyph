@@ -281,7 +281,7 @@ class FolderSyncEngine {
     if (h != null && _within(h, path)) return 'Your home folder can\'t be synced. Choose a folder in it.';
     for (final o in own) {
       final r = resolve(o) ?? o;
-      if (_within(path, r) || _within(r, path)) return 'That is where Ghost Messaging keeps its own files. Choose another folder.';
+      if (_within(path, r) || _within(r, path)) return 'That is where Uplink keeps its own files. Choose another folder.';
     }
     if (hidden(path.split(RegExp(r'[\\/]')).last)) return 'A hidden folder can\'t be synced.';
     return null;
@@ -1065,7 +1065,7 @@ class FolderSync extends ChangeNotifier {
       } catch (_) {
         return _say('Stopped: $driveName can\'t be reached right now.');
       }
-      if (drive == null) return _say(space == null ? 'Stopped: sign in to your Ghost account on this computer.' : 'Stopped: this space isn\'t on this computer any more.');
+      if (drive == null) return _say(space == null ? 'Stopped: sign in to your Uplink account on this computer.' : 'Stopped: this space isn\'t on this computer any more.');
       final key = crypto.sha256.convert(utf8.encode('${drive.id}\n$root')).toString().substring(0, 32);
       // What the person said is for this pass alone; anything gone since is asked again.
       final allow = {..._allow}, forget = {..._forget};

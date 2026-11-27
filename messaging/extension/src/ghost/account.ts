@@ -1,4 +1,4 @@
-// The Ghost Messaging account as the extension holds it: a device of the account that signs in with the recovery
+// The Uplink account as the extension holds it: a device of the account that signs in with the recovery
 // words or a username + password (the same two ways the app's SignInScreen offers), opens the account's backup to
 // learn the shared identity and seed, and then — on its own hub connection as that identity — reads and writes the
 // synced cURL entries sealed under the seed-derived key. Mirrors messaging/lib/account/account.dart's signInWithWords
@@ -75,7 +75,7 @@ export class GhostAccount {
       const sig = hex(signAccount(accountKey, utf8(body)));
       const r = await hub.ask('acct-seed', { body, sig });
       if (r.none === true || typeof r.blob !== 'string') {
-        throw new Error('No backup is kept for these words. Sign in on the Ghost Messaging app first, then sign in here.');
+        throw new Error('No backup is kept for these words. Sign in on the Uplink app first, then sign in here.');
       }
       const backup = await openSeedBackup(seed, address, r.blob);
       if (!backup) throw new Error('The backup for these words could not be opened.');

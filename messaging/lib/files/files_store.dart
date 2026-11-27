@@ -1621,7 +1621,7 @@ Future<void> markFromInternet(String path) async {
   try {
     if (PlatformInfo.isMacOS) {
       final secs = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toRadixString(16);
-      await Process.run('xattr', ['-w', 'com.apple.quarantine', '0081;$secs;Ghost Messaging;', path]);
+      await Process.run('xattr', ['-w', 'com.apple.quarantine', '0081;$secs;Uplink;', path]);
     } else if (PlatformInfo.isWindows) {
       await File('$path:Zone.Identifier').writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n');
     }

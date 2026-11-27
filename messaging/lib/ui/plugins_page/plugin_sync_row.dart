@@ -10,7 +10,7 @@ import '../../plugins/plugin_sync.dart';
 
 /// "Sync plugins across my devices" (GMFB-9, @kevin: "It would be convenient to sync plugins across devices at least
 /// for the messaging apps and stuff"): in Settings › Plugins and under the Marketplace's Added. On unless switched off;
-/// without a Ghost account it says so and nothing is synced (lib/plugins/plugin_sync.dart).
+/// without an Uplink account it says so and nothing is synced (lib/plugins/plugin_sync.dart).
 Widget pluginSyncSection(BuildContext context, AppState app) => ListenableBuilder(
       listenable: Listenable.merge([app, Account.instance]),
       builder: (context, _) {
@@ -24,8 +24,8 @@ Widget pluginSyncSection(BuildContext context, AppState app) => ListenableBuilde
               icon: const AppIcon(Lucide.refreshCw, size: 18),
               label: 'Sync plugins across my devices',
               hint: Text(account
-                  ? 'Plugins you add or remove here are added or removed on your other devices signed in to your Ghost account. Sign-ins stay on each device: a network added elsewhere asks you to sign in here.'
-                  : 'Sign in to a Ghost account to sync which plugins are on across your devices.'),
+                  ? 'Plugins you add or remove here are added or removed on your other devices signed in to your Uplink account. Sign-ins stay on each device: a network added elsewhere asks you to sign in here.'
+                  : 'Sign in to an Uplink account to sync which plugins are on across your devices.'),
               disabled: !account,
               control: GlacierSwitch(
                 checked: account && on,

@@ -1,4 +1,4 @@
-/* Argon2id for Ghost Messaging in a browser, run as a worker: posted {password, salt, memoryKiB, passes, lanes, length}, it posts {key} back.
+/* Argon2id for Uplink in a browser, run as a worker: posted {password, salt, memoryKiB, passes, lanes, length}, it posts {key} back.
  * Written by tool/web/build-argon2.mjs; change that, not this.
  * From @noble/hashes 1.8.0 (sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==), bundled with esbuild 0.27.7.
  * @noble/hashes is MIT licensed: Copyright (c) 2022 Paul Miller (https://paulmillr.com). */

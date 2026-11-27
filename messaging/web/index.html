@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <!--
-    Ghost Messaging in a browser: the page `node tool/build-web.mjs` (flutter build web -t lib/web/main.dart) copies
+    Uplink in a browser: the page `node tool/build-web.mjs` (flutter build web -t lib/web/main.dart) copies
     into the build beside the app itself and what loads it. A relay serves the folder under /app/; the build for
     app.gogho.st (--app) is served there from /, by tool/deploy-site.mjs's block.
 
@@ -32,19 +32,19 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-src 'none'; object-src 'none'">
   <meta name="referrer" content="no-referrer">
 
-  <meta name="description" content="Ghost Messaging in your browser: write to your friends and your circles, sealed end to end.">
+  <meta name="description" content="Uplink in your browser: write to your friends and your circles, sealed end to end.">
   <meta name="theme-color" content="#000000">
 
   <!-- Added to an iPhone's home screen. -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Ghost Messaging">
+  <meta name="apple-mobile-web-app-title" content="Uplink">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- The app's icon (tool/app_icon.py writes these from art/app-icon.png). -->
   <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>Ghost Messaging</title>
+  <title>Uplink</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- The icon's own black until the app has drawn its first frame, not a white flash. -->

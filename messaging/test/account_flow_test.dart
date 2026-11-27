@@ -19,7 +19,7 @@ import 'package:ghost_relay/accounts.dart';
 import 'package:ghost_relay/handles.dart';
 import 'package:ghost_relay/texts.dart';
 
-/// Making a Ghost account and signing in to it on other devices, end to end against the relay's own accounts and
+/// Making an Uplink account and signing in to it on other devices, end to end against the relay's own accounts and
 /// handles (relay/lib/accounts.dart, handles.dart) in this process (Matt, 2026-11-17: "We need to have a way to login to
 /// existing accounts. We might need to add password based authentication as well as SMS verification for verified
 /// numbers"; "i also want accounts to be generated based on ethereum type addresses with a recovery seed we can back
@@ -273,7 +273,7 @@ void main() {
     final restore = await fresh.account.signInWithPassword('maya', 'correct horse battery');
     expect(restore.address, draft.address);
     expect(await fresh.account.finish(restore), isTrue);
-    expect(fresh.keys.id, phone.keys.id, reason: 'the account\'s Ghost identity, in place of the fresh one');
+    expect(fresh.keys.id, phone.keys.id, reason: 'the account\'s Uplink identity, in place of the fresh one');
     expect(fresh.restarts, 1);
     expect(fresh.applied!.username, 'maya');
     expect(fresh.applied!.friends, isNotEmpty);

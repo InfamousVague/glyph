@@ -32,12 +32,12 @@ void main() {
 
   test('a statement is signed, and checks out as that account\'s; a changed word, time or account does not', () async {
     final mine = NetKeys.generate();
-    final block = await Proof.make('  I am @matt on Ghost Messaging  \r\n', publicKey: mine.public, sign: (m) async => NetCrypto.sign(mine, m), now: DateTime.utc(2026, 11, 23, 10, 15, 7, 900));
+    final block = await Proof.make('  I am @matt on Uplink  \r\n', publicKey: mine.public, sign: (m) async => NetCrypto.sign(mine, m), now: DateTime.utc(2026, 11, 23, 10, 15, 7, 900));
     expect(block.split('\n').take(3), [Proof.begin, 'Account: ${Did.ofKey(mine.public)}', 'Signed: 2026-11-23T10:15:07Z']);
-    expect(block.split('\n').skip(4), ['', 'I am @matt on Ghost Messaging', Proof.end]);
+    expect(block.split('\n').skip(4), ['', 'I am @matt on Uplink', Proof.end]);
     final good = Proof.check('Here is my proof:\n\n$block\n\nthanks');
     expect(good.good, isTrue, reason: good.problem);
-    expect([good.statement, good.did, good.signed], ['I am @matt on Ghost Messaging', Did.ofKey(mine.public), DateTime.utc(2026, 11, 23, 10, 15, 7)]);
+    expect([good.statement, good.did, good.signed], ['I am @matt on Uplink', Did.ofKey(mine.public), DateTime.utc(2026, 11, 23, 10, 15, 7)]);
     // As a site may show it: other line ends, lines indented.
     expect(Proof.check(block.replaceAll('\n', '\r\n    ')).good, isTrue);
 
@@ -57,7 +57,7 @@ void main() {
 
   test('tool/check-proof.mjs checks a proof with nothing but Node, as docs/proofs.md says anyone can', () async {
     final mine = NetKeys.generate();
-    final block = await Proof.make('I am @matt on Ghost Messaging.\nAnd this is a second line ✓', publicKey: mine.public, sign: (m) async => NetCrypto.sign(mine, m));
+    final block = await Proof.make('I am @matt on Uplink.\nAnd this is a second line ✓', publicKey: mine.public, sign: (m) async => NetCrypto.sign(mine, m));
     final dir = Directory.systemTemp.createTempSync('proof');
     addTearDown(() => dir.deleteSync(recursive: true));
     final good = File('${dir.path}/good.txt')..writeAsStringSync('pasted from somewhere:\n$block\n');
@@ -72,7 +72,7 @@ void main() {
 
   test('the app and tool/check-proof.mjs agree on every edge the review found (docs/proofs.md)', () async {
     final k = NetKeys.generate();
-    final block = await Proof.make('I am @matt on Ghost Messaging', publicKey: k.public, sign: (m) async => NetCrypto.sign(k, m));
+    final block = await Proof.make('I am @matt on Uplink', publicKey: k.public, sign: (m) async => NetCrypto.sign(k, m));
     final did = Did.ofKey(k.public);
     String signedOver(String time, String words) {
       final sig = NetCrypto.sign(k, Proof.signedBytes(did, time, words));
@@ -82,8 +82,8 @@ void main() {
     final cases = <String, (String, bool)>{
       'as made': (block, true),
       'indented with spaces and tabs': (block.split('\n').map((l) => ' \t$l\t ').join('\r\n'), true),
-      'a trailing NEL (U+0085) on the statement': (block.replaceFirst('Ghost Messaging\n', 'Ghost Messaging\u0085\n'), false),
-      'a trailing no-break space': (block.replaceFirst('Ghost Messaging\n', 'Ghost Messaging \n'), false),
+      'a trailing NEL (U+0085) on the statement': (block.replaceFirst('Uplink\n', 'Uplink\u0085\n'), false),
+      'a trailing no-break space': (block.replaceFirst('Uplink\n', 'Uplink \n'), false),
       'junk after the signature': (block.replaceFirstMapped(RegExp(r'Signature: (\S+)'), (m) => 'Signature: ${m[1]}!!*~'), false),
       'no Signed line': (signedOver('', 'hello'), false),
       'a time not to the second in UTC': (signedOver('2026-11-23 10:15:07', 'hello'), false),

@@ -198,7 +198,7 @@ class Homes extends ChangeNotifier {
   /// (for a relay hosted from an app) its name.
   bool livesHere(HomeRecord rec) => namesHere(rec.h);
 
-  /// Whether this app uses Ghost Messaging's own relay, which is reached by more than one name and says none of its
+  /// Whether this app uses Uplink's own relay, which is reached by more than one name and says none of its
   /// own: any of those names is this relay (found in the review, 2026-11-23: a friend whose record named
   /// ghost-sms.com was "on another relay" to one who dialled gogho.st).
   bool get _ownRelayByAlias {

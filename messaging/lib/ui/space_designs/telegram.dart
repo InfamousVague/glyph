@@ -21,7 +21,7 @@ import 'space_design.dart';
 
 /// A space's call, laid out as Telegram's group voice chat (the one way a space's call is drawn: space_design.dart):
 /// headed by the space's name and how many are in voice, video tiles two across above a list of people, and at the foot
-/// one big microphone button with two round buttons either side of it. Drawn in Ghost Messaging's own look, light or dark as the app is (Matt,
+/// one big microphone button with two round buttons either side of it. Drawn in Uplink's own look, light or dark as the app is (Matt,
 /// 2026-11-16: "Change the telegram one to be our colors without the gradients and our voice effects make the chat
 /// window 33% of the screen"): flat paper and ink, hairlines, and the app's wobbly green ripples (RippleAvatar) round
 /// whoever talks and round the microphone while you are live. No gradients anywhere. Made the app's own in its words

@@ -22,7 +22,7 @@ class SceneDelegate: FlutterSceneDelegate {
 }
 
 /// "ghost_desktop/links" (lib/desktop/links.dart; GMFB-34): someone's add-me link (ghostmsg://add/NAME#KEY, from the
-/// add-me page's Open in Ghost Messaging, site/add), a circle's invite (ghostmsg://join/#c.…) and a relay's
+/// add-me page's Open in Uplink, site/add), a circle's invite (ghostmsg://join/#c.…) and a relay's
 /// (ghostmsg://relay?a=…), waiting in [pending] until the app takes them ("take"), then handed over as they come
 /// ("open"), as on a Mac (macos/Runner/AppDelegate.swift).
 final class DeskLinks {

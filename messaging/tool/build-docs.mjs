@@ -373,7 +373,7 @@ function shell(p, body, outline, i) {
     .map((s) => `<div class="nav-group"><div class="nav-title">${esc(s.title)}</div>${s.pages.map((q) => `<a href="${hrefOf(q)}"${q.slug === p.slug ? ' aria-current="page"' : ''}>${icon(q.icon)}<span>${esc(q.title)}</span>${q.soon ? ' <span class="badge soon">Soon</span>' : ''}</a>`).join('')}</div>`)
     .join('') + `<a class="nav-other" href="${book.other.href}">${icon(book.other.href === '/docs/' ? 'arrow-left' : 'braces')}<span>${esc(book.other.label)}</span></a>`;
   const toc = outline.length > 1 ? `<nav class="toc" aria-label="On this page"><div class="nav-title">On this page</div>${outline.map((h) => `<a href="#${h.id}">${esc(h.text)}</a>`).join('')}</nav>` : '';
-  const title = p.slug === 'index' ? 'Ghost Messaging docs' : `${p.title} · Ghost Messaging ${book.name.toLowerCase()}`;
+  const title = p.slug === 'index' ? 'Uplink docs' : `${p.title} · Uplink ${book.name.toLowerCase()}`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -381,7 +381,12 @@ function shell(p, body, outline, i) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(p.summary ?? '')}">
+<meta name="theme-color" content="#040406">
 <link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:ital,wght@0,500;0,600;0,700;1,700;1,800;1,900&amp;display=swap">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
 <link rel="stylesheet" href="/docs/docs.css">
 <script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
@@ -390,7 +395,7 @@ function shell(p, body, outline, i) {
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar">${icon('menu')}</button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/art/uplink-logo.webp" alt="Uplink" width="1200" height="918"></a>
   <a class="brand-docs" href="${book.home}">${esc(book.name)}</a>
   <div class="search">
     ${icon('search')}
@@ -398,12 +403,12 @@ function shell(p, body, outline, i) {
     <div class="results" id="results" role="listbox" hidden></div>
   </div>
   <button class="theme-btn" type="button" aria-label="Switch between light and dark">${icon('sun-moon')}</button>
-  <a class="get" href="/#get">Get the app</a>
+  <a class="get" href="/#get"><span>Get Uplink</span></a>
 </header>
 <div class="frame">
   <aside class="sidebar" id="sidebar">${nav}</aside>
   <main id="main" class="page">
-    <div class="crumb">${esc(p.section)}</div>
+    <div class="crumb"><span class="needle" aria-hidden="true"></span>${esc(p.section)}</div>
     <h1>${esc(p.title)}${p.soon ? ' <span class="badge soon">Coming soon</span>' : ''}</h1>
     ${p.summary ? `<p class="lede">${esc(p.summary)}</p>` : ''}
     ${body}
@@ -503,7 +508,7 @@ function postmanCollection() {
   const appGroups = [...new Set(appApi.methods.map((m) => m.group))];
   return {
     info: {
-      name: 'Ghost Messaging',
+      name: 'Uplink',
       description: 'The app\'s API and the relay server\'s HTTP routes. Made by tool/build-docs.mjs from the app\'s own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.',
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },

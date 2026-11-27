@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'app_state.dart';
 
-/// Why an Android phone keeps Ghost Messaging running after its screen is closed (android NetworksService.kt), and
+/// Why an Android phone keeps Uplink running after its screen is closed (android NetworksService.kt), and
 /// telling Android so as the reasons change. Two reasons, each with or without the other:
 ///
 /// - **Networks signed in** (Signal, Telegram and the like): their connections live in the app, so their messages
@@ -39,10 +39,10 @@ class KeepRunning {
   /// The switch's name, and what is said under it and under Android's question beside it.
   static const reachLabel = 'Ring when the app is closed';
   static const reachHint =
-      'Ghost Messaging stays connected after you close it, so a friend\'s call rings and their messages come at once. Android shows a quiet notification while it does, and it uses some battery. After your phone restarts, open Ghost Messaging once.';
+      'Uplink stays connected after you close it, so a friend\'s call rings and their messages come at once. Android shows a quiet notification while it does, and it uses some battery. After your phone restarts, open Uplink once.';
   static const sleepLabel = 'Run while the phone sleeps';
-  static const sleepHint = 'To save battery a phone holds back apps while it sleeps, and a call may then ring late or not at all. Tap to let Ghost Messaging run unrestricted.';
-  static const sleepAllowedHint = 'Android lets Ghost Messaging run while the phone sleeps, so a call can ring then too.';
+  static const sleepHint = 'To save battery a phone holds back apps while it sleeps, and a call may then ring late or not at all. Tap to let Uplink run unrestricted.';
+  static const sleepAllowedHint = 'Android lets Uplink run while the phone sleeps, so a call can ring then too.';
 
   List<String> _networks = const [];
   bool _calls = false;

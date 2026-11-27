@@ -12,7 +12,7 @@
 ///
 /// **Which relay** (GMFB-25). A username is a name on one relay, so a link from someone on a relay of their own says
 /// which, after the key: `#KEY@relay.example.com`. Still after `#`, so no server is told it, and still under gogho.st's
-/// address, whose page (site/add) carries it into the app. A link with none is someone on Ghost Messaging's relay. The
+/// address, whose page (site/add) carries it into the app. A link with none is someone on Uplink's relay. The
 /// app asks that relay for the name (Buddies.add as `name@relay`), and the key holds the answer to the person who
 /// shared the link whichever relay gives it.
 library;
@@ -25,8 +25,8 @@ import '../net/home_record.dart' show goodRelayHost;
 const keyDigits = 32, fewestKeyDigits = 8;
 
 /// [username]'s add-me link, with [id] (their account name, all [keyDigits] hex digits of it) after `#` where given,
-/// and after that the [relay] the username is on (its host, with its port where it has one) where that is not Ghost
-/// Messaging's own. A relay is named only with a key: it is the key that holds whatever that relay answers to them.
+/// and after that the [relay] the username is on (its host, with its port where it has one) where that is not Uplink's
+/// own. A relay is named only with a key: it is the key that holds whatever that relay answers to them.
 String addMeLink(String username, {String? id, String? relay}) {
   if (id == null || !RegExp(r'^[0-9a-f]{32}$').hasMatch(id)) return 'https://gogho.st/add/$username';
   final at = relay?.trim().toLowerCase();
@@ -56,7 +56,7 @@ String? addLinkKey(String? text) {
 }
 
 /// The relay an add-me link says its username is on, after the key (`#KEY@relay.example.com`): its host, lower case,
-/// with its port where it has one. Null where it names none (someone on Ghost Messaging's relay, or a link from
+/// with its port where it has one. Null where it names none (someone on Uplink's relay, or a link from
 /// before), has no key, or what follows the `@` could not be a relay's host.
 String? addLinkRelay(String? text) {
   if (addLinkKey(text) == null) return null;

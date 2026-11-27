@@ -548,8 +548,10 @@ class GhostHem extends CustomPainter {
   bool shouldRepaint(GhostHem old) => old.color != color || old.stroke != stroke || old.tail != tail;
 }
 
-/// The app's logo: the white ghost that is a speech bubble, on black, as the icon on the home screen has it
-/// (assets/art/ghost-mark.png, cut from the icon by tool/app_icon.py). Black in either theme, since the mark is white.
+/// The app's logo: the white speech bubble with UP LINK cut out of it, on black, as the icon on the home screen has
+/// it (assets/art/ghost-mark.png, cut from the icon by tool/app_icon.py, and named for the ghost the mark was until
+/// 2026-11-27). Black in either theme, since the mark is white. The mark is wider than it is tall and fills four
+/// fifths of the tile, as it does of the icon.
 class GhostLogo extends StatelessWidget {
   const GhostLogo({super.key, this.size});
 
@@ -560,9 +562,9 @@ class GhostLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final side = size ?? t.lenOf('2.75rem');
-    // In a look of its own (Sharp, and Ghost's packs Mist and Lamplight) the mark is the look's ink on its paper, in
+    // In a look of its own (Sharp, and Uplink's packs Mist and Lamplight) the mark is the look's ink on its paper, in
     // its corners: the black tile was the one pure black on Mist's aqua page.
-    // Ghost's, and Dial-Up's on its desktop, are the app's own black tile.
+    // Uplink's, and Dial-Up's on its desktop, are the app's own black tile.
     final own = t.attrs['theme-preset'] != null && t.attrs['theme-preset'] != 'dialup';
     return Container(
       width: side,
@@ -573,7 +575,7 @@ class GhostLogo extends StatelessWidget {
         border: Border.all(color: t.color('app-rule')),
       ),
       alignment: Alignment.center,
-      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.64, height: side * 0.64, filterQuality: FilterQuality.medium, color: own ? t.color('app-ink') : null, colorBlendMode: own ? BlendMode.srcIn : null),
+      child: Image.asset('assets/art/ghost-mark.png', width: side * 0.8, height: side * 0.8, filterQuality: FilterQuality.medium, color: own ? t.color('app-ink') : null, colorBlendMode: own ? BlendMode.srcIn : null),
     );
   }
 }

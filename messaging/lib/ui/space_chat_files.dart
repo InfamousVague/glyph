@@ -112,7 +112,7 @@ class SpaceFilesNotHere extends StatelessWidget {
   final Color ground, ink;
   final Border? rim;
 
-  static const words = 'Files can\'t be opened in a browser yet. This one opens in Ghost Messaging on a phone or a computer.';
+  static const words = 'Files can\'t be opened in a browser yet. This one opens in Uplink on a phone or a computer.';
 
   @override
   Widget build(BuildContext context) {

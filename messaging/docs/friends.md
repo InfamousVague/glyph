@@ -42,7 +42,7 @@ with them is turned off, and with a key of theirs that is not the one it was mad
   takes it, it is taken back and goes as the encrypted text it would have been. Nothing is lost for want of a relay.
 - **A friend whose app is closed.** The relay server keeps it (seven days). One data text follows, in the clear,
   with nothing in it (`wake`; at most every ten minutes a person): their phone, knowing it for one without the app's
-  screens (`Friends.isWake`), says "New message. Open Ghost Messaging to read it." in that conversation's
+  screens (`Friends.isWake`), says "New message. Open Uplink to read it." in that conversation's
   notification, and the message takes its place when the app opens and fetches it.
 
 ## Not yet

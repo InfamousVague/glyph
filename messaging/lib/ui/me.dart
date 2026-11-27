@@ -189,7 +189,7 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
           ),
         ],
       ),
-    // A Ghost account (Matt, 2026-11-17: "We need to have a way to login to existing accounts"): made, signed in to,
+    // An Uplink account (Matt, 2026-11-17: "We need to have a way to login to existing accounts"): made, signed in to,
     // and looked after wherever friends and circles run under this install's identity, a computer paired with a phone
     // that has taken on the phone's identity among them (Matt, 2026-11-18: "there doesn't seem to be a way to login on
     // desktop just to claim a username, i would like to be able to link a session to a new account"). A paired
@@ -208,13 +208,13 @@ List<Widget> mePane(BuildContext context, SettingsModel m) {
       SettingsCallout(child: Text(me.reachable ? 'Asking the relay server…' : 'Linking an account needs the relay server, which isn\'t connected right now (Settings › Routes).')),
     PaneSection(
       title: 'Linked accounts',
-      description: const Tr('Show that an account is yours. Friends who asked to hear about that account are then told you\'re on Ghost Messaging, if you turn that on below.'),
+      description: const Tr('Show that an account is yours. Friends who asked to hear about that account are then told you\'re on Uplink, if you turn that on below.'),
       children: [for (final n in networks) _LinkRow(network: n)],
     ),
     PaneSection(
       title: 'Being found',
       footer: const Tr(
-          'Off, nobody is told anything. On, someone who already knows one of your linked handles, and asked to hear about it, is told that it is on Ghost Messaging. They are not given your number, your name or your other accounts, and nobody is told about your number, verified or not. The relay server keeps a scrambled form of each linked handle, never the handle itself.'),
+          'Off, nobody is told anything. On, someone who already knows one of your linked handles, and asked to hear about it, is told that it is on Uplink. They are not given your number, your name or your other accounts, and nobody is told about your number, verified or not. The relay server keeps a scrambled form of each linked handle, never the handle itself.'),
       children: [
         SettingRow(
           icon: _icon(Lucide.megaphone),
@@ -675,7 +675,7 @@ List<Widget> friendsPane(BuildContext context, SettingsModel m) {
   return [
     const _Wake(seen: true),
     PaneSection(
-      title: 'On Ghost Messaging',
+      title: 'On Uplink',
       children: [
         if (me.joined.isEmpty)
           const SettingRow(label: 'Nobody yet', hint: Tr('When someone you watch for links their account and chooses to be found, they show here.'))
@@ -719,7 +719,7 @@ class _JoinedRow extends StatelessWidget implements PaneRow {
       label: '@${joined.handle}',
       labelAfter: joined.seen ? null : Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: const GlacierPill(size: GlacierPillSize.sm, child: Tr('New'))),
       hint: Text('${n.name} · joined ${_when(joined.at)}'),
-      onPress: () => showChoices(context, title: '@${joined.handle} from ${n.name} is on Ghost Messaging. Ask them for their number there to start a conversation here.', choices: [
+      onPress: () => showChoices(context, title: '@${joined.handle} from ${n.name} is on Uplink. Ask them for their number there to start a conversation here.', choices: [
         if (page != null) Choice('Open their ${n.name} profile', Lucide.externalLink, () => Sms.instance.openLink(page)),
         Choice('Copy handle', Lucide.copy, () {
           Clipboard.setData(ClipboardData(text: joined.handle));
@@ -961,15 +961,15 @@ class _SameYou extends StatelessWidget {
         valueListenable: DeskHandover.state,
         builder: (context, s, _) {
           final (hint, canAsk) = switch (s.phase) {
-            'old' => ('Update Ghost Messaging on your phone, then this computer can have your friends, circles and account itself.', false),
+            'old' => ('Update Uplink on your phone, then this computer can have your friends, circles and account itself.', false),
             'asking' => ('Asking your phone…', false),
-            'done' => ('Done. Ghost Messaging opens again.', false),
-            'failed' => (s.problem == null || s.problem!.isEmpty ? 'Your phone didn\'t answer. Open Ghost Messaging on it, then try again.' : s.problem!, true),
+            'done' => ('Done. Uplink opens again.', false),
+            'failed' => (s.problem == null || s.problem!.isEmpty ? 'Your phone didn\'t answer. Open Uplink on it, then try again.' : s.problem!, true),
             _ => ('Waiting for your phone to connect.', true),
           };
           return PaneSection(
             title: 'Account',
-            description: const Tr('Your phone hands over who you are, your friends and your conversations with them, so this computer is the same you, with your phone switched off too. Then you can sign in to your Ghost account here.'),
+            description: const Tr('Your phone hands over who you are, your friends and your conversations with them, so this computer is the same you, with your phone switched off too. Then you can sign in to your Uplink account here.'),
             children: [
               SettingRow(
                 icon: _icon(Lucide.refreshCw),

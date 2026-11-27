@@ -19,7 +19,7 @@ import Security
 ///   no team takes nothing, since it could not tell a real update from any other app.
 ///
 /// HOW IT IS PUT IN PLACE: unpacked beside the running app, in a hidden folder of the same folder
-/// (`/Applications/.Ghost Messaging.app-update`), so the swap is a rename on one volume. `restart` swaps the two
+/// (`/Applications/.Uplink.app-update`, named for the installed copy's own file, whatever that is called), so the swap is a rename on one volume. `restart` swaps the two
 /// bundles in one step (`renamex_np` with `RENAME_SWAP`: there is never a moment with no app at the path), starts a
 /// small shell helper, and quits. The helper waits for this process to end, opens the app at the same path (now the
 /// new version), and waits for it to say it opened (it writes `launched-<build>` as this file's `settle` runs). Only
@@ -83,7 +83,7 @@ final class UpdatesChannel: NSObject {
   /// Dart empties.
   static var state: URL? { cache?.appendingPathComponent("update-install", isDirectory: true) }
 
-  /// The hidden folder an update is unpacked into, beside [app]: `.Ghost Messaging.app-update`.
+  /// The hidden folder an update is unpacked into, beside [app]: `.Uplink.app-update`, or `.Ghost Messaging.app-update` beside a copy installed under that name.
   static func folder(beside app: URL) -> URL {
     app.deletingLastPathComponent().appendingPathComponent(".\(app.lastPathComponent)-update", isDirectory: true)
   }
@@ -182,10 +182,10 @@ final class UpdatesChannel: NSObject {
   /// Whether this app can replace itself where it is, or why not, in a sentence for the update card.
   static func cannotReplace(_ app: URL) -> String? {
     let parent = app.deletingLastPathComponent()
-    if app.path.contains("/AppTranslocation/") { return "Ghost Messaging is running from where it was downloaded. Move it to Applications first." }
-    if (try? app.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly == true { return "Ghost Messaging is running from a disk that can’t be written to." }
+    if app.path.contains("/AppTranslocation/") { return "Uplink is running from where it was downloaded. Move it to Applications first." }
+    if (try? app.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly == true { return "Uplink is running from a disk that can’t be written to." }
     let manager = FileManager.default
-    if !manager.isWritableFile(atPath: parent.path) || !manager.isWritableFile(atPath: app.path) { return "Ghost Messaging can’t write to \(parent.path)." }
+    if !manager.isWritableFile(atPath: parent.path) || !manager.isWritableFile(atPath: app.path) { return "Uplink can’t write to \(parent.path)." }
     return nil
   }
 
@@ -232,7 +232,7 @@ final class UpdatesChannel: NSObject {
       guard SecRequirementCreateWithString("anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"" as CFString, [], &requirement) == errSecSuccess else { return "the team’s requirement could not be made" }
     } else {
       #if !DEBUG
-      return "this copy of Ghost Messaging is not signed by its developer, so it can’t tell a real update from another app"
+      return "this copy of Uplink is not signed by its developer, so it can’t tell a real update from another app"
       #endif
     }
     let flags = SecCSFlags(rawValue: UInt32(kSecCSCheckAllArchitectures) | UInt32(kSecCSStrictValidate) | UInt32(kSecCSCheckNestedCode))
@@ -240,7 +240,7 @@ final class UpdatesChannel: NSObject {
     let status = SecStaticCodeCheckValidityWithErrors(code, flags, requirement, &error)
     guard status == errSecSuccess else {
       // A whole signature by somebody else is the requirement failing; anything else is a signature that is not whole.
-      if status == errSecCSReqFailed { return "the download is not signed by Ghost Messaging’s developer" }
+      if status == errSecCSReqFailed { return "the download is not signed by Uplink’s developer" }
       log("the download's signature: \(error?.takeRetainedValue().localizedDescription ?? "") (\(status))")
       return "the download’s signature is not whole (\(status))"
     }

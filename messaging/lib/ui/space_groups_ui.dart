@@ -110,7 +110,7 @@ void _discordMenu(BuildContext context, DiscordLink link) {
   showChoices(context, title: link.name, choices: [
     Choice('Open in Discord', Lucide.externalLink, () => Sms.instance.openLink('https://discord.com/channels/${link.guildId}')),
     Choice('Refresh', Lucide.refreshCw, () => DiscordServers.instance.refresh()),
-    Choice('Remove from Ghost Messaging', Lucide.trash2, () => DiscordServers.instance.remove(link), danger: true),
+    Choice('Remove from Uplink', Lucide.trash2, () => DiscordServers.instance.remove(link), danger: true),
   ]);
 }
 
@@ -315,11 +315,11 @@ class _AddDiscordScreenState extends State<AddDiscordScreen> {
       body: ListView(
         padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
-          SettingsCallout(child: const Tr('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Ghost\'s bot carries the sound and the chat both ways.')),
+          SettingsCallout(child: const Tr('Your server\'s voice channels show up in Messages as a group of spaces, with who is in each right now. Press one to join it from here: Uplink\'s bot carries the sound and the chat both ways.')),
           gap,
           PaneSection(
             title: '1. Add the bot',
-            description: const Tr('Someone who can manage the server adds Ghost Messaging\'s bot. It only sees channel names and who is in voice.'),
+            description: const Tr('Someone who can manage the server adds Uplink\'s bot. It only sees channel names and who is in voice.'),
             children: [
               SettingRow(
                 icon: AppIcon(Lucide.userPlus, size: 18),

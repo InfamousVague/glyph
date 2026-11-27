@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Puts a link helper on the box, beside Ghost Messaging's relay and no part of it: iroh's relay server, which the
+ * Puts a link helper on the box, beside Uplink's relay and no part of it: iroh's relay server, which the
  * direct network's devices find each other through and fall back on when no straight path can be made
  * (docs/OPEN_NETWORK.md section 2: "Link helpers are ours, handed out by the relay"; iroh's public ones are for
  * "development and hobby use only"). tool/build-link.sh builds it; this sends what that built, and nothing else.
@@ -155,7 +155,7 @@ EOF_CERT
 $SUDO sh "$STAGE/ghost-link-cert" --check || { echo "x no certificate to give the link helper"; exit 1; }
 
 cat > "$STAGE/config.toml" <<'EOF_SETTINGS'
-# Ghost Messaging's link helper (iroh-relay ${VERSION}), written by tool/deploy-link.mjs in the glyph repository's
+# Uplink's link helper (iroh-relay ${VERSION}), written by tool/deploy-link.mjs in the glyph repository's
 # messaging/. Why each line is as it is: relay/deploy/link-helper.toml.example there.
 ${SETTINGS}
 EOF_SETTINGS
@@ -164,7 +164,7 @@ ${SERVICE}
 EOF_SERVICE
 cat > "$STAGE/ghost-link-cert.service" <<'EOF_UNIT'
 [Unit]
-Description=Copy ${DOMAIN}'s certificate for the link helper (Ghost Messaging, tool/deploy-link.mjs)
+Description=Copy ${DOMAIN}'s certificate for the link helper (Uplink, tool/deploy-link.mjs)
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/ghost-link-cert
@@ -205,8 +205,8 @@ if [ "$TRY" -ne 124 ] || ! grep -q 'relay: serving on' "$STAGE/try.log" || ! gre
 fi
 echo "ok the new program starts with the new settings, as ghost-link"
 
-$SUDO ufw allow ${PORT}/tcp comment 'link helper (Ghost Messaging direct links)' >/dev/null
-$SUDO ufw allow ${QUIC}/udp comment 'link helper, QUIC address discovery (Ghost Messaging direct links)' >/dev/null
+$SUDO ufw allow ${PORT}/tcp comment 'link helper (Uplink direct links)' >/dev/null
+$SUDO ufw allow ${QUIC}/udp comment 'link helper, QUIC address discovery (Uplink direct links)' >/dev/null
 echo "ok ufw lets in ${PORT} (TCP) and ${QUIC} (UDP)"
 
 # The swap and the restart.

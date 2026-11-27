@@ -1,4 +1,4 @@
-# Ghost Messaging
+# Uplink
 
 An SMS and MMS app for Android that replaces the phone's default messaging app, drawn with **Glacier**, the same
 UI kit Ghost.md and Ghost Keyboard use.
@@ -10,7 +10,7 @@ It is developed in Ghost.md's repository, in its own folder, and published whole
 
 ## Open source, for privacy
 
-Ghost Messaging is open source so anyone can check what it does with their messages (Matt, 2026-11-15: "I want to
+Uplink is open source so anyone can check what it does with their messages (Matt, 2026-11-15: "I want to
 open source it for the privacy focused nature"). All of it is here: the phone app, the Mac and Windows apps, the
 relay server (`relay/`) that carries messages between your own devices and between friends, the call processing
 (`native/voicefx`) and the Google Messages helper (`sidecar/gmessages`, also at
@@ -112,7 +112,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   side with nothing behind its see-through parts and no bubble round it (`InboxSticker`, `isStickerAlone`); a sticker
   with words or a quote keeps its bubble. Each network says which are stickers: Telegram's `messageSticker`,
   WhatsApp's pointer kind, Matrix's `m.sticker`, and Signal's helper marks its sticker attachment (`"sticker": true`,
-  sidecar/signal). One of Ghost's own stickers goes to Telegram as a Telegram sticker where it is WEBP (a PNG one goes
+  sidecar/signal). One of Uplink's own stickers goes to Telegram as a Telegram sticker where it is WEBP (a PNG one goes
   as a picture), and to the others as a picture shown here as a sticker.
 - **Reactions in spaces and circles** (0.10.6, not released; Matt, 2026-11-20: "add reactions after done to spaces and
   circles"). Press and hold (or right-click) a message in a space's or a circle's chat: the reaction row from texts
@@ -237,8 +237,8 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     Joins also name people in the members list.
   - site/join, for a circle's link: the download for the device it is opened on (Android, Mac, Windows; the home page
     otherwise) and three steps. Get the app copies the invite; the app reads the clipboard once, on a new install's
-    first setup with no circles yet, and joins and opens the circle (`lib/circles/pending_link.dart`). Open in Ghost
-    Messaging opens `ghostmsg://join/#c.…`, which the Android app (MainActivity), the Mac's (CFBundleURLTypes,
+    first setup with no circles yet, and joins and opens the circle (`lib/circles/pending_link.dart`). Open in Uplink
+    opens `ghostmsg://join/#c.…`, which the Android app (MainActivity), the Mac's (CFBundleURLTypes,
     AppDelegate) and Windows' (`windows/runner/links.cpp`: the scheme registered for the user at each start; a second
     copy hands the link to the running one by WM_COPYDATA) take, on "ghost_desktop/links" (`lib/desktop/links.dart`).
     A link opened while the app is still being set up is held and opened once it is.
@@ -329,12 +329,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   so). On a computer: space, arrows, M, F for full screen, Esc, a volume slider, a mouse scrubber; a file nothing here can
   play says so, with Open with another app. The Mac and iPhone builds use CocoaPods now (media_kit has no Swift Package
   Manager support): `pod install` is part of a build. About 23 MB more on the Mac. Tests: video_controls_test.
-- **Ghost accounts: recovery words, an Ethereum-style address, a password and the number** (0.9.4–0.9.5; `lib/account/`,
+- **Uplink accounts: recovery words, an Ethereum-style address, a password and the number** (0.9.4–0.9.5; `lib/account/`,
   `lib/ui/account_screens.dart`, `relay/lib/accounts.dart`; Matt, 2026-11-17: "We need to have a way to login to existing
   accounts. We might need to add password based authentication as well as SMS verification for verified numbers", and
   "i also want accounts to be generated based on ethereum type addresses with a recovery seed we can back up"). Creating
   an account makes 12 BIP-39 words; from them a secp256k1 key at m/44'/60'/0'/0/0 and its EIP-55 address (the account's
-  id), and the Ghost identity (HKDF). An install that already had an identity keeps it, bound to the address. A backup
+  id), and the Uplink identity (HKDF). An install that already had an identity keeps it, bound to the address. A backup
   sealed twice (Argon2id of the password, 64 MiB/3; and a key from the words; AES-256-GCM, the address bound in) is kept
   on the relay, which never sees either. Signing in: username + password (the relay hands the copy over only on a proof
   from the password, 10 tries an hour per account, plus a texted code where the account has a verified number), or the
@@ -350,9 +350,9 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     passes over them). In a space the greeting says the status and a mark of the picture (`ph`); the picture itself is
     asked of its owner when someone opens their card (`pic?` / `pic`), so greetings stay small (lib/me/pictures.dart).
   - Pressing an "@" opens the person's card (lib/ui/profile_card.dart, `showProfile`): picture, name, username, status
-    and line, then what can be done from there. In a space: mention them back and the members. On Ghost: open the chat,
+    and line, then what can be done from there. In a space: mention them back and the members. On Uplink: open the chat,
     add them as a friend or answer their request, copy the username, and for a friend a field to write to them without
-    leaving the page. In a text or a Ghost chat an "@username" written in the words is pressable too (`handleMentions`).
+    leaving the page. In a text or an Uplink chat an "@username" written in the words is pressable too (`handleMentions`).
   - Telegram and Signal: mentions come through (Telegram's text entities; Signal's mention ranges, whose placeholder
     becomes "@Name"), and the card shows what their APIs give (`InboxNetwork.profileOf`): Telegram's name, username,
     bio, photo, emoji status and last seen; Signal's name, number, avatar and about line. Message them there, copy the
@@ -408,7 +408,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   The Circles tab lists only circles. A circle's dock while it is open: Home, Spaces, Members, New space, Settings;
   the main dock's places close a circle first; leaving a circle's call lands back in the circle. Members is a drawer
   with Add people at its top; circle settings sit beside Add people. Add people suggests friends first, then contacts,
-  and texts those not on Ghost (after a confirm showing the words); the invite waits on the relay (`/invites`, sealed by
+  and texts those not on Uplink (after a confirm showing the words); the invite waits on the relay (`/invites`, sealed by
   a key from their number, 30 days) until they verify that number. A space's header has its kind, name and a signed
   description (`about`). Contacts have a Friends filter. The gap under the composer matches the dock's. Dial-Up's
   sidebar is wrapped in its bevel (no teal strip). Files: entries signed by their author and chained, moderator
@@ -456,22 +456,41 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
+- **The app is Uplink** (0.12.51; Matt, 2026-11-27: "Update all the language in the app to replace ghost and ghost
+  messaging with Uplink we're going to push it to the Satellite-im/uplink repo", then "when you're done also update the
+  logo to the uplink logo on the desktop and deploy to all platforms"). Every word someone reads says Uplink: the
+  app's strings and its 27 translations, each platform's own half (the name under the icon, window titles,
+  notifications, what the system asks permission with), the relay's and the Discord bot's messages, the browser
+  extension, the site and the docs, and the comments. The Mac app is `Uplink.app` and the Start menu's entry is
+  Uplink. **What keeps its old name**, because a program or an install depends on it and nobody reads it:
+  identifiers and file names in the source (`GhostLogo`, `ghost_messaging`, `ghost-mark.png`), the package and
+  bundle ids, gogho.st, the `ghostmsg:` scheme, `.ghostplugin` and `.ghostlook`, every wire constant, the files
+  server's `Authorization: Ghost <token>`, a file card's `Ghost file: ` mark, the relay's greeting
+  `Ghost Messaging relay` (an app of any version looks for it), Windows' install folder and `ghost_messaging.exe`
+  (an install is found there by its own update), Linux's `ghost-messaging` command and package, and every platform's
+  data folder, so nobody's messages move. A Mac copy installed before keeps its file's name, and so its name in
+  Finder and the Dock, until it is renamed: the updater swaps the new app into wherever the running one is
+  (`macos/Runner/UpdatesChannel.swift`). Still saying Ghost on purpose: the walkthrough's recorded voice
+  (`lib/onboarding/narration.dart`), the sticker pack of ghosts and the Ghost Ring decoration, and other products
+  (Ghost.md, Ghost Keyboard). **The icon** is `art/app-icon.png`, Matt's `UplinkLogo.png`, and
+  `python3 tool/app_icon.py` writes every platform's from it, Windows', Linux's, the iPhone's and the extension's
+  now too; the picture is cleaned first, and the tool refuses one a round home-screen mask would cut.
 - **Looks and their packs** (0.12.50; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
   `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
   0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
   add texture packs to all themes, but remove the phosphor entirely and remove the dark dial uptheme, also remove
-  lamplight and mist and make them texture packs for the Ghost theme"). Four looks are offered: Ghost, Sharp, Dial-Up and
+  lamplight and mist and make them texture packs for the Ghost theme"). Four looks are offered: Uplink, Sharp, Dial-Up and
   Runestone. Settings › Appearance has **Textures** under every look: the look as it comes, then its packs, the one in use
-  ticked. A pack is one of two kinds. Mist and Lamplight are Ghost's: each is still a value of `Look` with its own preset
+  ticked. A pack is one of two kinds. Mist and Lamplight are Uplink's: each is still a value of `Look` with its own preset
   in the stylesheet (`Look.family`, `isPack`, `packs`), so everything that goes by the look in use draws them exactly as
-  it did; they are only chosen under Ghost, whose tile is ringed and drawn in the pack. A look keeps the pack it was
-  last in (`look_pack_<look>`), so Ghost is still in Lamplight after a while in Sharp. Runestone's are resource packs'
+  it did; they are only chosen under Uplink, whose tile is ringed and drawn in the pack. A look keeps the pack it was
+  last in (`look_pack_<look>`), so Uplink is still in Lamplight after a while in Sharp. Runestone's are resource packs'
   pictures, and it has a usual one, Duckscape (`ResourcePacks.usual`): the pack chosen until another is, or plain stone,
   and fetched by itself the first time Runestone is the look, as the app starts in it or as it is chosen, and never
   before. Its row says Fetching while it is on its way and Try again where it couldn't be fetched, and the look is flat
   stone until it is here. Plain stone is kept as a choice (`resource_pack` empty), and nothing is fetched behind it.
   Sharp and Dial-Up have no pack yet, and say so. Phosphor is gone (its rules, and `Look.retired`: a device kept in it
-  opens in Ghost with the bubbles it had before), and so is Dial-Up's dark half, After Hours: Dial-Up is always light.
+  opens in Uplink with the bubbles it had before), and so is Dial-Up's dark half, After Hours: Dial-Up is always light.
   Tests: themes_test (looks and their packs), look_packs_test (the picker, and Textures under each look),
   resource_pack_test (the usual pack against a stand-in hub: fetched once, not before Runestone is the look, failing
   quietly, plain stone kept). Run for real on the emulator: Runestone chosen, and the app started in it with no pack on
@@ -504,16 +523,16 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (0.8.4; `lib/looks.dart`, `lib/ui/look_picker.dart`,
   `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
   some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). As it was then: since
-  "Looks and their packs", above, Phosphor and Dial-Up's dark half are gone and Mist and Lamplight are Ghost's packs.
+  "Looks and their packs", above, Phosphor and Dial-Up's dark half are gone and Mist and Lamplight are Uplink's packs.
   Settings › Appearance has
-  a Look picker above Theme. Ghost is the app as it was. Mist is a pale aqua page with deep teal ink (light only),
+  a Look picker above Theme. Uplink is the app as it was. Mist is a pale aqua page with deep teal ink (light only),
   Lamplight a warm amber dark for late reading, Sharp high contrast in either brightness (its dark half true black), and
   Phosphor a green-screen terminal in JetBrains Mono with square corners. Dial-Up is a late-90s online chat room: silver
   bevelled windows, navy title bars (purple in its dark half, After Hours, after the era's high-contrast black scheme),
   Arimo (Arial's measures, OFL, bundled), each message a line of "Name: words" with your own in red and each other person
   in a colour of their own, Host lines ("*** You are in ... ***", who entered and left a space), People Here in a space,
   a "Send" button and a taskbar of buttons along the foot. No other company's name, marks or sounds are used. Each look
-  brings its own bubble colour (the Theme swatch, `--app-bubble-mine`) and going back to Ghost puts back the colour you had;
+  brings its own bubble colour (the Theme swatch, `--app-bubble-mine`) and going back to Uplink puts back the colour you had;
   Ghost Keyboard is told the nearest of its colours. Red, indigo and the other fixed colours across the app became tokens
   (`lib/kit/semantic_colors.dart`) with their old values, so a look can change them. Tests: themes_test (tokens resolve
   and pass 4.5:1 in every look; `THEME_SHOTS=1` renders each look's screens to build/themes). The whole suite was not run
@@ -527,7 +546,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   holds), sends it over the sealed desk link, and the phone approves it with confirmQrCodeAuthentication. The computer
   gets a Telegram session of its own, so no number and no code; it is listed in Telegram's Devices like any other. The
   phone approves only a `tg://login?token=` link and only when it is signed in; anything else is refused before
-  Telegram is asked. A phone without this (older than 0.7.46) answers "Update Ghost Messaging on your phone"; the
+  Telegram is asked. A phone without this (older than 0.7.46) answers "Update Uplink on your phone"; the
   number sign-in stays beneath. Signal is not proxied yet. Tests: inbox_telegram_test, DeskSessionTest.
 - **Telegram's and Signal's contacts in Contacts, and which way to write** (0.7.42, not released; `lib/inbox/people.dart`,
   `lib/ui/contacts.dart`; Matt, 2026-11-16: "Show telegram and signal contacts when linked with icons to show which
@@ -536,25 +555,25 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   brought down) and Signal's (its contact sync, without the person themself) are in Contacts with the phone's. One row
   is one person: matched by number (its last ten digits), or, where one side has none, by the same full name of two
   words or more that names nobody else; two different numbers are two people. Each row ends with a mark for each way
-  to write: text (or Ghost's tick for a friend), Telegram, Signal. Filters: All, Phone, and each linked network. A
+  to write: text (or Uplink's tick for a friend), Telegram, Signal. Filters: All, Phone, and each linked network. A
   press on someone with one way goes straight there; with more, "Message … with" asks, each with its mark and who on
   that network (handle or number). A Telegram chat is made with createPrivateChat; a Signal one is the person's ACI
   and is in the list from its first message; either opens with the person's name and face (InboxChatScreen's
   fallback). A number known from Telegram or Signal can be texted too. Tests: inbox_people_test, inbox_screens_test
   (16-inbox-contacts), inbox_telegram_test, inbox_signal_test.
-- **Set up RCS, and Ghost's notifications in place of Google Messages'** (0.7.29; `lib/ui/rcs_setup.dart`,
+- **Set up RCS, and Uplink's notifications in place of Google Messages'** (0.7.29; `lib/ui/rcs_setup.dart`,
   GmBridge.kt; Matt, 2026-11-15: "add a button under messages settings to setup RCS if on an android phone and walk
   the user through how to enable the rcs sidecar"; "we should have a way to make the app work without needing to be
   the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them and
   proxy everything through ghost"). Settings › Messages › Set up RCS walks through six steps, each ticked as Android
-  says: Google Messages installed, made the default, RCS chats on in it, Ghost allowed texts, notification access,
+  says: Google Messages installed, made the default, RCS chats on in it, Uplink allowed texts, notification access,
   Google Messages' notifications set to Silent; then how to pair a computer (Settings › Google Messages there). When
-  Google Messages becomes the default, Android takes Ghost's SMS permissions back and the walkthrough opens at its
+  Google Messages becomes the default, Android takes Uplink's SMS permissions back and the walkthrough opens at its
   texts page, carrying on with the same steps (`rcs_setup`). Beside Google Messages, each of its message
-  notifications is hidden as it comes and Ghost's own shown (Settings › Notifications, `gm_proxy`, on by default);
-  replying from Ghost's goes back through Google Messages. Never hidden where Ghost may not post notifications.
-  Google Messages' own must stay allowed (Silent): they are what Ghost reads. Checked on an emulator: Google
-  Messages' notification gone, Ghost's shown, a reply from it sent through Google Messages.
+  notifications is hidden as it comes and Uplink's own shown (Settings › Notifications, `gm_proxy`, on by default);
+  replying from Uplink's goes back through Google Messages. Never hidden where Uplink may not post notifications.
+  Google Messages' own must stay allowed (Silent): they are what Uplink reads. Checked on an emulator: Google
+  Messages' notification gone, Uplink's shown, a reply from it sent through Google Messages.
 - **Google Messages set up by Google account, in one place** (0.7.33; `lib/gm/google_signin.dart`,
   `lib/gm/google_signin_flow.dart`, sidecar `pair_google`; Matt, 2026-11-15: "it seems they removed the ability to do
   it with the QR code"; "Please make setting up google messages a onboarding flow that is all in one place. It should
@@ -564,7 +583,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   phone, walk through it: sign in at Google's account chooser (coming back to messages.google.com/web/config) in a
   private window (the computer opens one: Firefox first, since Chrome may bind the sign-in to itself, then Chrome,
   Edge, Brave, Vivaldi; Safari has no switch, so the link is copied), copy the "config" request as cURL from the
-  developer tools, paste it, tap the emoji Ghost shows when Google Messages on the phone asks. The helper keeps the
+  developer tools, paste it, tap the emoji Uplink shows when Google Messages on the phone asks. The helper keeps the
   cookies in its session (saved every few minutes, as Google changes them); the private window is closed after, not
   signed out. The QR way stays as Pair with a QR code instead. The phone's browser has no developer tools, so on the
   phone steps 1 and 2 are done on a computer. Checked: Google refuses fake cookies with a readable reason, a paste
@@ -579,7 +598,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   `site/pair`; Matt, 2026-11-15: "Can you build the on phone google messages connection too?"). The sidecar built for
   Android (`tool/build-gmsidecar.sh android`, libgmsidecar.so, run from the app's native library folder) runs in the
   app's process, started by the notification listener (which Android keeps) and the app. What it hears goes into the
-  bridge's database, so the list, conversations, Ghost's notifications, replies and a paired computer all have it:
+  bridge's database, so the list, conversations, Uplink's notifications, replies and a paired computer all have it:
   RCS and texts, pictures (brought down on demand), reactions, and delivered and read marks (blue double check).
   Sending, pictures included, and marking read go through it when connected; else the notification bridge as before.
   Google Messages' notifications can then be off altogether. Pairing: the phone cannot scan its own screen, so
@@ -593,8 +612,8 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Which of Google Messages' notifications still make a sound** (0.7.29; GmBridge.kt `noteChannel`; Matt,
   2026-11-15: "investigate silencing google messages notifications so we only see thr ones coming through ghost
   instead"; "Let's do our best given these options and push out an update"). Android lets no ordinary app change
-  another's notification settings, and a notification is heard before Ghost can take it away, so the person silences
-  Google Messages. Ghost records the channel each of its message notifications comes on (a listener is shown each
+  another's notification settings, and a notification is heard before Uplink can take it away, so the person silences
+  Google Messages. Uplink records the channel each of its message notifications comes on (a listener is shown each
   one's settings): its "Incoming messages", and any conversation given a sound of its own, which overrides that one.
   The RCS guide's last step lists the ones still loud, each with a button to its own page in Android's settings, and
   ticks itself once all are quiet (as of each channel's last message). Your read receipts already go out through
@@ -607,20 +626,20 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   once, from Google Messages. Sending text and marking read go to Google Messages; pictures to its conversations are
   sent from the phone for now. It is done by a separate program, the sidecar (Go, built on mautrix-gmessages' libgm,
   AGPL-3.0, `tool/build-gmsidecar.sh`), which the app starts and talks to over its standard input and output; nothing
-  of it is linked into Ghost. Its session is kept in the app's folder. Releases carry it only once its source is
+  of it is linked into Uplink. Its session is kept in the app's folder. Releases carry it only once its source is
   public: `sidecar/gmessages/SOURCE_URL` names where, and release-mac.mjs and messaging-windows.yml leave it out until
   that file exists. Checked: the sidecar asks Google for a pairing code; pairing with a phone not yet.
 - **Or works beside Google Messages, keeping RCS** (0.7.25; `GmBridge.kt`; Matt, 2026-11-15: "I'd like
   to see if there is a way we can proxy messages from google messages to ghost so we can support RCS and other
   features ... I'd like to have a way that people can reliably get text in and out of ghost without needing to switch
-  the default messaging app"; then "Both, notifications first"). Google Messages stays the default. Ghost reads texts
+  the default messaging app"; then "Both, notifications first"). Google Messages stays the default. Uplink reads texts
   from Android's database (READ_SMS, asked for) and RCS chats from Google Messages' notifications (notification
   access; only Google Messages' are read), into `gm_bridge.db`, joined to Android's thread where the people are known.
   A message Android already has (the same words within three minutes) is shown once. Replies go through the
   notification's own Reply (RCS where the chat is RCS), else as SMS to one number, else Google Messages opens with the
   words filled in. Not seen: chats muted in Google Messages or open there when a message comes, RCS from before, RCS
   pictures; Android 15's hidden one-time codes are skipped (they are texts, read in full from Android). Delete and
-  mark read touch only Ghost's copy and Google Messages' Mark as read. Checked on an emulator with SMS; a real RCS
+  mark read touch only Uplink's copy and Google Messages' Mark as read. Checked on an emulator with SMS; a real RCS
   chat not yet. Next: the Messages for Web protocol on the computers, for history, pictures and reactions.
 - **Conversations**: newest first, with contact names and photos, unread dots, a "Not sent" mark, search over
   names, numbers and the last message, long press to mark as read, archive (this app's own list) or delete.
@@ -673,7 +692,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   wallpaper, in Settings › Appearance.
 - **Encryption** (0.4.0; Matt, 2026-11-13: "enable an option for an additional level of E2E encryption by allowing
   users to exchange keys somehow and then encrypt all messages so only others with the app can read them"). With one
-  person who also has Ghost Messaging, texts go sealed so only the two phones can read them. It is turned on from a
+  person who also has Uplink, texts go sealed so only the two phones can read them. It is turned on from a
   conversation's header (tap the name, Encryption): that sends one text with this phone's key, and the other person
   gets a bar over their composer, "Maya wants to encrypt this conversation", with Turn on, which sends theirs back.
   From then the header says "Encrypted" with a lock, the composer "Encrypted message", each sealed message has a small
@@ -700,7 +719,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **Synced backgrounds** (0.5.0; Matt, 2026-11-13: "I want the background to sync for everyone in a chat if they're
   all using ghost messaging"). A conversation's own background (its header › Chat background) has a switch, "Sync
   with Maya" ("with everyone here" in a group). On, what the conversation wears is sent to its people as the page is
-  left, once, and their Ghost Messaging wears it too; what they choose comes back the same way, so the newest choice
+  left, once, and their Uplink wears it too; what they choose comes back the same way, so the newest choice
   is everyone's. There is no server, so it goes as a text in the conversation (`BackgroundWire.kt`:
   `ghost:bg1:preset:dusk`, `color:#RRGGBB`, `none`, a wash's four colours for Match my wallpaper, since the other
   phone's wallpaper is its own, or `image` with the picture in the same message as an MMS, at the size the carrier
@@ -755,12 +774,12 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   the end of one, at most once a day to a person, only while nothing has been exchanged with them, only where the
   text stays the same number of SMS, and never on a reaction or one of the app's own `ghost:` texts. Every other app
   draws them as nothing; another copy remembers the person has the app. Their conversation then shows a banner over
-  the composer, "Maya has Ghost Messaging too. Encrypt this conversation for better security?", with Turn on (which
+  the composer, "Maya has Uplink too. Encrypt this conversation for better security?", with Turn on (which
   sends this phone's key; the other person's bar then has Turn on too) and a cross that puts it away for that
-  conversation. Nothing is sent because of the hello. Settings › Encryption › Find people who have Ghost Messaging
+  conversation. Nothing is sent because of the hello. Settings › Encryption › Find people who have Uplink
   turns the hello off.
 - **Bubble colours** (0.6.0; Matt: "a suite of colors to pick for the chat bubbles including white and gray"):
-  Ghost, Ink, Wallpaper, White, Silver, Gray, Graphite, Blue, Indigo, Purple, Pink, Red, Orange, Yellow, Green and
+  Uplink, Ink, Wallpaper, White, Silver, Gray, Graphite, Blue, Indigo, Purple, Pink, Red, Orange, Yellow, Green and
   Mint, the words on each black or white, whichever reads, and a line round a bubble the page would swallow.
   Settings › Appearance for every conversation, and a conversation's own in its settings.
 - **Each conversation's own settings** (0.6.0; `lib/ui/chat_settings.dart`; Matt: "each chat should get it's own
@@ -816,7 +835,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   every page down.
 - **White bubbles** (0.7.3; Matt: "change the default chat bubble to be white"): your own bubbles are white where
   no colour has been chosen, with the line a white bubble needs on the light page. Anyone who chose a colour keeps
-  it; Settings › Appearance has the others, the old teal ("Ghost") among them.
+  it; Settings › Appearance has the others, the old teal ("Uplink") among them.
 - **The logo where there is nothing** (0.7.2; Matt, 2026-11-14: "I also want the ghost image used when there are no
   messages to use the logo"). The empty list, an empty archive and a search that finds nothing show the app's own
   mark, the white ghost on black as it is on the home screen (`GhostLogo` in `lib/ui/common.dart`), where an
@@ -938,7 +957,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   voice message is named and not played.
 - **Stickers** (0.6.0; Matt: "generate 4 sticker packs using our ghost mascot we've developed including a sanrio
   one"). Four packs of sixteen, made by `python3 tool/sticker_packs.py` from the ghost's poses on the effects' sheets,
-  each with a sticker's white edge: **Ghost** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and
+  each with a sticker's white edge: **Uplink** (hello, boo, wow, sorry, coffee, asleep), **Love**, **Party**, and
   **Sweet**, the pastel one: the ghost in soft pink, lilac, mint, butter and sky with little hearts, flowers and
   sparkles. Sweet is our own ghost in that cute pastel manner; none of Sanrio's characters, names or drawings are in
   it, since those are Sanrio's. The sticker button is in the message field while it is empty; the sheet
@@ -963,7 +982,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   link as it does a picture's, and keeps them in a file only while the picture is made or the window is open (its
   folder in the temporary directory is removed as the app opens and quits). One no picture can be made of (a kind
   the device cannot read) is still named, and can still be tried. Sending a video is not part of this.
-  - **Ghost's own player on the phone** (0.7.36; `lib/ui/video_screen.dart`, `videoFile` in `Video.kt`; Matt,
+  - **Uplink's own player on the phone** (0.7.36; `lib/ui/video_screen.dart`, `videoFile` in `Video.kt`; Matt,
     2026-11-15: "id like a video player built with glacier UI right now it looks like a very old android core system
     player"). On black, a round frosted back button with who sent it, and a frosted dock: play/pause, where it has got
     to, a scrubber, its length, mute. A tap shows or hides the controls (they go by themselves after 3 s while it
@@ -1102,7 +1121,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   on strict networks may not connect; friends and messages in the browser.
 - **Bigger count badges** on the pill's rings and the filter (24 px, 13 pt; "make the notification count badges a bit
   bigger on the filter and other places where they're listed").
-- **Ghost Messaging for Windows, and Mac and Windows downloads on ghost-sms.com** (2026-11-15; Matt, 2026-11-14: "Add a
+- **Uplink for Windows, and Mac and Windows downloads on ghost-sms.com** (2026-11-15; Matt, 2026-11-14: "Add a
   mac and windows build to ghost-sms.com"). The desktop app builds for Windows (`windows/`, built on GitHub's Windows
   runners by .github/workflows/messaging-windows.yml, which also installs it silently and checks it opens a window)
   into an Inno Setup installer (`windows/installer.iss`: per person, no administrator, Start menu, uninstaller).
@@ -1160,7 +1179,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   2026-11-16: "also make a way to invite friends from the app into spaces and invite people into spaces through the
   app"; "the chatbar doesn't move up when in the chat section of a space"). Every Invite (each call design, the space's
   page, its menu's "Invite people", its settings) opens one sheet, `showSpaceInvite` (`lib/ui/space_invite.dart`):
-  friends on Ghost Messaging to tick and send (`Voice.share`), and for anyone else "Text an invite" (a new text with
+  friends on Uplink to tick and send (`Voice.share`), and for anyone else "Text an invite" (a new text with
   the link written in), "Copy invite link" and "Share link…". A friend sent a space sees "<name> invited you to
   <space>" with Join and Not now (the ring card). Only roles that may invite see it, and a group's call is never
   offered. In the Voice chat design's chat on a phone the message bar now stands just above the keyboard.
@@ -1270,7 +1289,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
     browser (SSO to a 127.0.0.1 listener, which matrix.org's authentication service allows) or a password; encrypted
     rooms decrypt and sends are encrypted; the recovery key, optional, verifies this device and restores the key
     backup so older messages open. DMs and groups, replies, reactions, deletes, files both ways, invites. Blocking is
-    Ghost's own list.
+    Uplink's own list.
   - **WhatsApp** (`lib/inbox/whatsapp.dart`, helper `sidecar/whatsapp` on whatsmeow, MPL-2.0;
     `tool/build-whatsappsidecar.sh`): linked as a device the way WhatsApp Web is, by QR code or WhatsApp's 8-character
     phone-number code; WhatsApp's history sync brings recent chats. **The warning** (`whatsAppWarning`): WhatsApp
@@ -1339,7 +1358,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   kept for friends by username from the moment you have a username (lib/main.dart), not only once you have a friend,
   so a first request reaches you. Not yet: a chat with a friend by username on Android. Tests: buddies_test's
   "on Contacts" group; screens_test's `15-contacts-friends` picture.
-- **Ghost Messaging on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
+- **Uplink on iPhone, without SMS** (not released; Matt, 2026-11-15: "port the app to work on iOS as well,
   investigate if we can within apples rules make a bridge for messaging through RCS like we're doing with mautrix on
   android and if not we'll want to roll a version of the app that works without sms"; "it's unlikely the user will
   ever have two phones").
@@ -1364,18 +1383,18 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **The walkthrough, as Ghost Keyboard's and Ghost.md's** (0.7.26; Matt, 2026-11-15: "Look at how we do onboarding
   on Ghost KBD and Ghost Markdown with the optional voice guide through the elevenlabs key and the vibrant colors and
   iconography for each step, mimick this on the setup of Ghost Messaging"). `lib/onboarding`: each page a band of
-  vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of Ghost
+  vivid colour with its sign and four drifting glass tiles (band.dart, Ghost.md's `HueBand` by way of Uplink
   Keyboard), a title, its words, and its step; dots and the Next button take the page's colour.
-  - **Six pages, Ghost as one messenger** (0.7.27; Matt, 2026-11-15: "Rework the onboarding to be a bit
+  - **Six pages, Uplink as one messenger** (0.7.27; Matt, 2026-11-15: "Rework the onboarding to be a bit
     shorter and have it focus on the fact that ghost is an all in one messenger look at branding from things like
     discord telegram etc and find our own voice amoung those"): Everyone, in one place · Start with your texts ·
     Texts and chats, side by side · Drop in, out loud · On every screen · You're in (a look, then "Say hi"). The
-    voice: where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Ghost
+    voice: where Discord is a loud hangout, Telegram fast and powerful, Signal principled and WhatsApp plain, Uplink
     is calm and sure of itself, in short sentences with a little wit; "all your people, one quiet app". Contacts and
     notifications are asked for as the app opens, as before the walkthrough.
   - **Start with your texts** is the old setup screen as a step (`TextsStep`, lib/ui/setup.dart): the default SMS
     app, or beside Google Messages, and RCS first where it is coming from another app. Next waits there, and Skip
-    appears, only once Ghost can send texts.
+    appears, only once Uplink can send texts.
   - **The voice** is ElevenLabs' (Jessica, Eleven v4), made once at build time with the key in ~/.elevenlabs-key by
     `tool/onboarding_voice.py` from narration.dart, kept as assets/onboarding/*.mp3 (420 KB, 52 seconds); only a
     page whose words changed is spoken again. Played on the phone by GuideVoice.kt; Voice on and off at the top, kept.
@@ -1406,7 +1425,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   setting changed through the phone (`Me.setListed` asks `Me.forComputer` "listed", and "state" says it), moving
   at once and going back, with the phone's reason, if the phone refuses or cannot be reached. The phone needs 0.7.24
   too.
-- **Ghost Messaging for Windows updates itself** (0.7.24; Matt, 2026-11-15: "also we need an auto
+- **Uplink for Windows updates itself** (0.7.24; Matt, 2026-11-15: "also we need an auto
   updated for windows"). The Mac's updater (`lib/desktop/updates.dart`) with Windows' own half,
   `WindowsUpdateHost`, in Dart alone: it reads `ghost-sms.com/windows.json` as the app opens and every six hours,
   brings the installer down, holds it to the size and SHA-256 given there, and Restart to update runs it with
@@ -1724,7 +1743,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 - **On a Mac** (built 2026-11-13, not released; [docs/desktop.md](docs/desktop.md); Matt: "a companion desktop app
   that can proxy messages encrypted from my phone to my desktop and then send back to the phone to send again", and
   "I'd like to support both a relay server and local networking, it should attempt to use local networking by
-  default and show the option for both in the setup wizard"). Ghost Messaging for the Mac shows the phone's
+  default and show the option for both in the setup wizard"). Uplink for the Mac shows the phone's
   conversations beside the one open, shows a new text as it arrives, and sends what is typed there through the
   phone, which stays the only thing that texts. The two are paired by a QR code the Mac shows: the phone's own
   camera opens it in the app, which asks first ("Pair with Matt's MacBook Pro?"), or Settings › Computers › Pair a
@@ -1785,7 +1804,7 @@ flutter test --update-goldens test/screens_test.dart          # every screen, li
 flutter test --update-goldens test/desk_screens_test.dart     # the Mac's screens, written to test/shots/mac-*
 cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered,
                                                               # the sealing with a computer, a computer's connection, the WebSocket client, a QR code read
-flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Ghost Messaging.app
+flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Uplink.app
 (cd relay && dart test && dart run bin/relay.dart)            # the relay: its tests, then ws://127.0.0.1:8787
 flutter test integration_test/desk_live_test.dart -d macos    # the real Mac app against the phone app on an emulator (the file says how)
 ```

@@ -115,7 +115,7 @@ open class MainActivity : FlutterActivity() {
     private lateinit var store: Store
 
     /**
-     * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Ghost is
+     * One engine for the app's life, not the screen's (Matt, 2026-11-16, on Signal and Telegram messages while Uplink is
      * out of sight: "Yes, build them"): Dart, and with it Signal's helper and Telegram's TDLib, goes on when Android
      * closes the screen (swiped away from Recents), for as long as NetworksService keeps the process. A screen opened
      * again takes up the running app where it was.
@@ -433,7 +433,7 @@ open class MainActivity : FlutterActivity() {
                 "e2ePlainSeen" -> bg { E2e.plainSeen(applicationContext, call.argument<String>("address")!!); Bus.changed(-1); null }
                 "e2eVerify" -> bg { E2e.setVerified(applicationContext, call.argument<String>("address")!!, call.argument<Boolean>("verified") ?: true); null }
                 "e2eReset" -> bg { E2e.reset(applicationContext); Bus.changed(-1); null }
-                // A Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
+                // An Uplink account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts"):
                 // this phone's key to seal into its backup, a restored key put in its place, the account's words kept
                 // in the Keystore-sealed vault (AccountVault.kt), and a clean restart once a device has signed in.
                 "identityExport" -> bg { E2e.exportScalar(applicationContext) }
@@ -442,7 +442,7 @@ open class MainActivity : FlutterActivity() {
                 "secretRead" -> bg { AccountVault.read(applicationContext, call.argument<String>("name")!!) }
                 // The app's own lock (AppLock.kt, GMFB-46): the fingerprint or face, and the app switcher kept blank.
                 "lockBioCan" -> result.success(AppLock.canBiometric(this))
-                "lockBioAsk" -> AppLock.askBiometric(this, call.argument<String>("reason") ?: "Unlock Ghost Messaging") { ok -> try { result.success(ok) } catch (_: Exception) {} }
+                "lockBioAsk" -> AppLock.askBiometric(this, call.argument<String>("reason") ?: "Unlock Uplink") { ok -> try { result.success(ok) } catch (_: Exception) {} }
                 "lockSecure" -> { AppLock.secure(this, call.argument<Boolean>("on") ?: false); result.success(null) }
                 "restartApp" -> {
                     // Every choice on the disk first (an empty commit writes what apply() still holds), then this task
@@ -505,7 +505,7 @@ open class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
-                // A bubble's "Open in Ghost Messaging": the whole app, on the same conversation, as its notification
+                // A bubble's "Open in Uplink": the whole app, on the same conversation, as its notification
                 // opens it. The bubble folds away as the app comes up.
                 "openInApp" -> {
                     val t = call.argument<Number>("thread")?.toLong() ?: -1
@@ -556,7 +556,7 @@ open class MainActivity : FlutterActivity() {
                 }
                 "cancelInbox" -> bg { Notifier.cancelInbox(applicationContext, call.argument<String>("key")!!); null }
                 "keepNetworks" -> { NetworksService.keep(applicationContext, call.argument<List<String>>("names").orEmpty(), call.argument<Boolean>("calls") ?: false); result.success(null) }
-                // Ghost's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
+                // Uplink's own lists of what was deleted beside Google Messages, kept on the account too (lib/kept_lists.dart).
                 "hiddenLists" -> bg { mapOf("threads" to store.hiddenThreads().mapKeys { it.key.toString() }, "msgs" to store.hiddenMessages().toList()) }
                 "addHiddenLists" -> bg {
                     val threads = (call.argument<Map<String, Number>>("threads") ?: emptyMap()).mapNotNull { (k, v) -> k.toLongOrNull()?.let { it to v.toLong() } }.toMap()
@@ -848,7 +848,7 @@ open class MainActivity : FlutterActivity() {
         // A circle's invite link (https://gogho.st/join/#c.…) opened here: the app raises the circle's invite, with Join
         // and Not now (lib/ui/circles/circle_invite_card.dart). Matt, 2026-11-17: "Finish the missing pieces that went
         // unfinished". A shared text holding one is still a text to send, as any shared text is.
-        // The invite page's Open in Ghost Messaging (site/join): ghostmsg://join/#c.…, the https link's words.
+        // The invite page's Open in Uplink (site/join): ghostmsg://join/#c.…, the https link's words.
         intent.data?.let { link ->
             if (link.scheme.equals("ghostmsg", ignoreCase = true) && link.host == "join") {
                 setIntent(Intent(intent).setData(null))
@@ -1009,7 +1009,7 @@ open class MainActivity : FlutterActivity() {
             "notifications" to (android.os.Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS)),
             "phone" to granted(Manifest.permission.READ_PHONE_NUMBERS),
             // Beside Google Messages (GmBridge): whether it is there, whether its notifications may be read, and
-            // whether the SMS database may be read and texts sent (granted by asking, when Ghost is not the default).
+            // whether the SMS database may be read and texts sent (granted by asking, when Uplink is not the default).
             "gmInstalled" to GmBridge.isInstalled(this),
             "bridge" to GmBridge.hasAccess(this),
             "gmDefault" to GmBridge.isGmDefault(this),
