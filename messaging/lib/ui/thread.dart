@@ -216,11 +216,21 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     });
   }
 
+  /// The conversation a text just sent is in, as the phone said: where this page is a stand-in for people nobody had
+  /// texted yet (below zero, nothing in it: beside Google Messages Android lets only the default app make a
+  /// conversation, android Store.threadFor), the page gives its place to the real one that the first text made.
+  void _follow(int thread) {
+    if (!mounted || widget.thread >= 0 || thread <= 0 || thread == widget.thread || (_messages?.isNotEmpty ?? false)) return;
+    final shell = AppShell.maybeOf(context);
+    if (shell != null) return shell.openThread(thread, _people);
+    Navigator.of(context).pushReplacement(PageRouteBuilder<void>(pageBuilder: (context, _, _) => ThreadScreen(thread: thread, people: _people)));
+  }
+
   /// Sends [body] as words alone: a text to the people here, or in a group of friends to each member by the app's
   /// routes, which is the only way one is written to. Throws [_NotSent] where the group can't be written to or reached.
   Future<void> _sendWords(String body) async {
     if (!_isGhost) {
-      await Sms.instance.send(_people.map((p) => p.address).toList(), body);
+      _follow(await Sms.instance.send(_people.map((p) => p.address).toList(), body));
       return;
     }
     final closed = _closed;
@@ -619,7 +629,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                   ? Friends.instance.lastRefusal ?? 'no connection. A friend by username is reached over the internet, through the relay'
                   : 'a friend by username is written to from the phone itself, or from a computer with an account of its own');
         }
-        if (!byRoute && !asCard) await Sms.instance.send(to, body, attachments: files);
+        if (!byRoute && !asCard) _follow(await Sms.instance.send(to, body, attachments: files));
       }
       // No sound for one's own message going: only one coming in is heard (Matt, 2026-11-18: "remove the sound for
       // sending a message we only need to hear when were sent a message not when we send one").
