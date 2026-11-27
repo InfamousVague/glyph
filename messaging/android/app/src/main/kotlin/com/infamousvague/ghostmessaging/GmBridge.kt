@@ -450,6 +450,12 @@ object GmBridge {
     /** A thread number of the bridge's own, below zero so it is never one of Android's. */
     fun syntheticThread(conv: String): Long = -1L - (conv.hashCode().toLong() and 0x7fffffffL)
 
+    /** A stand-in conversation for people nobody has texted yet, below zero and the same for the same people. */
+    fun pendingThread(addresses: List<String>): Long = syntheticThread("to:" + addresses.map { it.trim() }.sorted().joinToString(","))
+
+    /** The bridge's conversation with exactly these people, where it has one. */
+    fun threadOfPeople(context: Context, addresses: List<String>): Long? = try { convFor(Db.get(context), addresses)?.thread } catch (_: Exception) { null }
+
     /**
      * Answers [conv] through Google Messages' own Reply, so an RCS chat is answered as RCS; false where there is no
      * Reply kept (Google Messages took the notification away, or the app was started since).

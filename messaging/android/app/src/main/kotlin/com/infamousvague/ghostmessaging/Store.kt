@@ -571,8 +571,21 @@ class Store(private val context: Context) {
         return emptyList()
     }
 
-    /** The conversation with exactly these people, made in Android's database where there is none yet. */
-    fun threadFor(addresses: List<String>): Long = Telephony.Threads.getOrCreateThreadId(context, addresses.toSet())
+    /**
+     * The conversation with exactly these people, made in Android's database where there is none yet.
+     *
+     * Beside Google Messages (not the default SMS app) Android finds a conversation that exists but lets no app but the
+     * default make one, and asking threw "Unable to find or allocate a thread ID" (Matt, 2026-11-26: "I can't open a new
+     * text message conversation"). There the conversation is the bridge's where it has one with these people, else a
+     * stand-in of its own ([GmBridge.pendingThread], below zero), empty, which the app leaves for the real one once the
+     * first text has made it (lib/ui/thread.dart).
+     */
+    fun threadFor(addresses: List<String>): Long = try {
+        Telephony.Threads.getOrCreateThreadId(context, addresses.toSet())
+    } catch (e: Exception) {
+        if (GmBridge.isDefault(context)) throw e
+        GmBridge.threadOfPeople(context, addresses) ?: GmBridge.pendingThread(addresses)
+    }
 
     // --- messages ----------------------------------------------------------------------------------------------------
 
