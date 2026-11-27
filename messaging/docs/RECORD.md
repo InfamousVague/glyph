@@ -481,7 +481,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   (Ghost.md, Ghost Keyboard). **The icon** is `art/app-icon.png`, Matt's `UplinkLogo.png`, and
   `python3 tool/app_icon.py` writes every platform's from it, Windows', Linux's, the iPhone's and the extension's
   now too; the picture is cleaned first, and the tool refuses one a round home-screen mask would cut.
-- **A circle's picture and banner: positioned, sharp, and sent whole** (after 0.12.51; `lib/ui/circles/circle_picture.dart`,
+- **A circle's picture and banner: positioned, sharp, and sent whole** (0.12.52; `lib/ui/circles/circle_picture.dart`,
   `lib/me/picture_make.dart`, `lib/ui/circles/circle_face.dart`, `lib/circles/circle.dart`; Matt, 2026-11-27: "uploading
   the banner from my desktop to AlphaTesters circle says 'cannot use image'", then "uploading the pictures for banners
   and the circle profile picture should use a cropping / zooming tool and upload at full resolution, right now they're
