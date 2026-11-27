@@ -1,4 +1,4 @@
-<p>Ghost Messaging's relay is one small program. Anyone can run it on a server of their own and point their app at it under <ui>Settings › Routes › Relay server</ui>. This page is for whoever runs that server: what you get and what you give up, how to run it with Docker or as a single program, calls through your own TURN server, a link helper, and how to check it and keep it updated.</p>
+<p>Uplink's relay is one small program. Anyone can run it on a server of their own and point their app at it under <ui>Settings › Routes › Relay server</ui>. This page is for whoever runs that server: what you get and what you give up, how to run it with Docker or as a single program, calls through your own TURN server, a link helper, and how to check it and keep it updated.</p>
 
 <note kind="warn" title="Read this first">
 <p>The app talks to one relay at a time for everything that goes through a relay. Moving to your own changes who you can reach and what still works. The next section says how, plainly. It suits a group that moves together, such as a family or a team.</p>
@@ -18,7 +18,7 @@
   <tr><td>Circle invite words (<code>gogho.st/c/…</code>)</td><td>Kept on each relay apart. A word made on your relay works typed into <b>Join a circle</b> by people on your relay; the gogho.st page only knows gogho.st's words.</td></tr>
   <tr><td>Files spaces</td><td>Kept on your relay's disk, for people on your relay.</td></tr>
   <tr><td>Texts (SMS), encrypted ones included</td><td>Unchanged. They go over the phone network, not through any relay.</td></tr>
-  <tr><td>The Marketplace</td><td>Always Ghost Messaging's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay.</td></tr>
+  <tr><td>The Marketplace</td><td>Always Uplink's, read from gogho.st whatever relay you use. Submitting a plugin needs a username claimed on gogho.st, so it doesn't work from your relay.</td></tr>
   <tr><td>Verifying your number; linking Discord, X, Telegram</td><td>Off unless you set up your own Twilio Verify service and your own apps with those networks.</td></tr>
   <tr><td>Waking a closed iPhone</td><td>Not possible. It needs Apple's push key for the app, which only the app's publisher holds. An iPhone gets what was held for it the next time the app is opened.</td></tr>
   <tr><td>Share feedback</td><td>Goes to your relay where you set up a board for it; where you didn't, the app sends it to gogho.st instead, since it is about the app.</td></tr>
@@ -114,7 +114,7 @@ sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now ghost-relay<
   <tr><td><code>GHOST_DISCORD_ID</code>, <code>GHOST_DISCORD_SECRET</code>, <code>GHOST_X_ID</code>, <code>GHOST_X_SECRET</code>, <code>GHOST_TELEGRAM_BOT</code>, <code>GHOST_TELEGRAM_TOKEN</code>, <code>GHOST_GITHUB_TOKEN</code></td><td>Linking accounts in <ui>Settings › Me</ui>. Each needs your own app registered with that network. A network left empty is "not set up" in the app.</td></tr>
   <tr><td><code>GHOST_ADMIN_USER</code>, <code>GHOST_ADMIN_HASH</code></td><td>The admin page. Of little use on your relay: the app shows it only to one built-in username.</td></tr>
   <tr><td><code>GHOST_MARKET_…</code></td><td>The Marketplace's limits. Leave them alone with <code>GHOST_MARKET_ON=0</code>.</td></tr>
-  <tr><td><code>GHOST_APNS_…</code>, <code>GHOST_NOTION_…</code>, <code>GHOST_BOUNTY_KEY</code></td><td>Only Ghost Messaging's own relay can use these. Leave them empty.</td></tr>
+  <tr><td><code>GHOST_APNS_…</code>, <code>GHOST_NOTION_…</code>, <code>GHOST_BOUNTY_KEY</code></td><td>Only Uplink's own relay can use these. Leave them empty.</td></tr>
 </table>
 <p>The sample file says what each one is, with its default.</p>
 
@@ -150,7 +150,7 @@ GHOST_TURN_URLS=turn:relay.example.com:3478?transport=udp,turn:relay.example.com
 
 <h2 id="link-helper">A link helper</h2>
 <p>Optional. The apps can also make <a href="/docs/routes/#direct">direct links</a> between a person's own devices and their friends' devices. Two devices on one network link by themselves. Across networks they need a <b>link helper</b>: a server both can reach, which tells each the address the internet sees it at, passes their first packets, and carries their traffic for as long as no straight path can be made.</p>
-<p>It is iroh's relay server, <code>iroh-relay</code>. It is not the Ghost Messaging relay, and the two know nothing of each other. The app ships with none: it uses the ones its relay names, and with none named its devices link only on one network. A link helper sees which device ids link, from which addresses, and how much they send. It never sees an account's name or what is said.</p>
+<p>It is iroh's relay server, <code>iroh-relay</code>. It is not the Uplink relay, and the two know nothing of each other. The app ships with none: it uses the ones its relay names, and with none named its devices link only on one network. A link helper sees which device ids link, from which addresses, and how much they send. It never sees an account's name or what is said.</p>
 <steps>
 <step title="Build it">
 <p><code>tool/build-link.sh host</code> on the server itself (Rust 1.91 or later) gives <code>build/link/host/iroh-relay</code>. Nothing prebuilt is fetched.</p>
@@ -178,7 +178,7 @@ cd native/link-check
 cargo run -- https://relay.example.com:7843          # two devices sign in, link through it and straight; exits 0</code></pre>
 <note kind="info" title="Before relying on it">
 <ul>
-<li><b>Anyone who knows the address can link through it</b>, Ghost Messaging or not. What bounds it is the limit in its settings (one device may send 256 KiB a second through it, after a first megabyte) and the service's memory and processor.</li>
+<li><b>Anyone who knows the address can link through it</b>, Uplink or not. What bounds it is the limit in its settings (one device may send 256 KiB a second through it, after a first megabyte) and the service's memory and processor.</li>
 <li><b>A network that lets nothing out but ports 80 and 443</b> cannot reach a helper on 7843. Devices there link only where they can reach each other as they are; the relay carries everything else, as it always did.</li>
 </ul>
 </note>
@@ -212,7 +212,7 @@ journalctl -u ghost-relay -f                    # or: docker compose logs -f rel
   </m-section>
 </m-screen>
 
-<p>The app connects and waits for the hub's greeting. If a Ghost Messaging relay doesn't answer, nothing changes and it says why. If one does, it says what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press.</p>
+<p>The app connects and waits for the hub's greeting. If an Uplink relay doesn't answer, nothing changes and it says why. If one does, it says what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press.</p>
 <p>Everyone you want in a circle, a space or a call with has to set the same address. More about this screen is on <a href="/docs/routes/#own-relay">the Routes page</a>.</p>
 
 <h2 id="update">Keep it updated</h2>

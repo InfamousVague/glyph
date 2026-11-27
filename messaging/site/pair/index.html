@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Scan this code · Ghost Messaging</title>
-<meta name="description" content="Shows the QR code your phone's Ghost Messaging made, for Google Messages or Signal on that phone to scan.">
+<title>Scan this code · Uplink</title>
+<meta name="description" content="Shows the QR code your phone's Uplink made, for Google Messages or Signal on that phone to scan.">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#040406">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="/icon.png">
 <!--
@@ -20,43 +21,57 @@
   2026-11-16: "Sharing the telgram pair link for another computer doesn't work"). Each code's address now says which
   app it is for, and the page reads as that app's.
 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/uplink.css">
+<script>try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}</script>
 <style>
-  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; } }
-  * { box-sizing: border-box; }
-  /* A hidden box stays hidden whatever its own display says (GMFB-15: the empty QR box showed as a white bar). */
-  [hidden] { display: none !important; }
-  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
-  main { max-width: 34rem; margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem 2rem; }
-  header { display: flex; align-items: center; gap: 0.75rem; }
-  header img { width: 2.25rem; height: 2.25rem; border-radius: 0.65rem; }
-  h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing: -0.03em; line-height: 1.15; margin: 1.6rem 0 0.4rem; }
-  p { color: var(--ink2); margin: 0 0 1rem; }
-  .qr { background: #fff; border-radius: 1.25rem; padding: 1rem; display: grid; place-items: center; margin: 1rem 0; }
+  /* In Uplink's look (/uplink.css). The code itself always sits on white, for the camera. */
+  .page { position: relative; min-height: 100vh; min-height: 100dvh; }
+  .page > .u-slot--bg { position: fixed; }
+  .page > .u-slot--bg::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,4,6,.55), rgba(4,4,6,.85)); }
+  main { position: relative; z-index: 1; max-width: 34rem; margin: 0 auto; padding: 2.5rem var(--u-gutter) max(3rem, env(safe-area-inset-bottom)); }
+  h1 { font-family: var(--u-display); font-style: italic; font-weight: 900; text-transform: uppercase; font-size: clamp(1.9rem, 7vw, 2.8rem); line-height: .98; letter-spacing: -.01em; margin: 0 0 .8rem; }
+  main > p { color: var(--u-ink-2); margin: 0 0 1.2rem; }
+  .qr { position: relative; background: #fff; border-radius: var(--u-r); padding: 1.1rem; display: grid; place-items: center; margin: 1.4rem 0; box-shadow: var(--u-shadow); }
+  .qr::after { content: ""; position: absolute; inset: var(--u-inset); border: 1.25px solid #040406; border-radius: calc(var(--u-r) - 3px); pointer-events: none; opacity: .5; }
   .qr svg, .qr img { width: min(80vw, 22rem); height: auto; image-rendering: pixelated; }
-  ol { color: var(--ink2); padding-left: 1.2rem; }
-  .missing { background: var(--card); border-radius: 1rem; padding: 1rem; }
+  ol { list-style: none; counter-reset: step; margin: 0 0 1.2rem; padding: 0; display: grid; gap: .6rem; color: var(--u-ink-2); }
+  ol li { counter-increment: step; display: flex; gap: .8rem; align-items: baseline; }
+  ol li::before { content: counter(step); flex: none; display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1.5px solid var(--u-ink); border-radius: var(--u-r-sm); transform: skewX(var(--u-slant)); font: italic 800 .9rem/1 var(--u-display); color: var(--u-ink); }
+  ol strong { color: var(--u-ink); }
+  .missing { margin: 1.4rem 0; }
+  #state { color: var(--u-ink-3); font-size: .95rem; }
 </style>
 </head>
 <body>
+<div class="page">
+<div class="u-slot u-slot--bg u-stars" aria-hidden="true"><img class="u-slot-img" src="/art/space/join.webp" alt="" loading="lazy" onerror="this.remove()"></div>
+<header class="u-bar">
+  <div class="u-wrap">
+    <a class="u-brand" href="/"><img src="/art/uplink-logo.webp" width="1200" height="918" alt="Uplink"></a>
+    <a class="u-btn u-btn--line u-btn--sm u-push" href="/docs/"><span>Help</span></a>
+  </div>
+</header>
 <main>
-  <header><img src="/icon.png" alt=""><strong>Ghost Messaging</strong></header>
+  <span class="u-kicker">Pair on this phone</span>
   <h1 id="title">Scan this with your phone</h1>
-  <p id="lede">Ghost on your phone made this code so it can reach an app on that same phone.</p>
+  <p id="lede">Uplink on your phone made this code so it can reach an app on that same phone.</p>
   <div id="qr" class="qr" hidden></div>
-  <div id="missing" class="missing" hidden>This link has no code in it. Open the link Ghost shared from your phone, whole.</div>
+  <div id="missing" class="missing u-sticker" hidden>This link has no code in it. Open the link Uplink shared from your phone, whole.</div>
   <ol id="steps-gm" hidden>
-    <li>On your phone, open <strong>Google Messages</strong>.</li>
-    <li>Tap your profile picture, then <strong>Device pairing</strong>, then <strong>QR code scanner</strong>.</li>
-    <li>Point the phone at this code. Ghost says when it is paired.</li>
+    <li><span>On your phone, open <strong>Google Messages</strong>.</span></li>
+    <li><span>Tap your profile picture, then <strong>Device pairing</strong>, then <strong>QR code scanner</strong>.</span></li>
+    <li><span>Point the phone at this code. Uplink says when it is paired.</span></li>
   </ol>
   <ol id="steps-signal" hidden>
-    <li>On your phone, open <strong>Signal</strong>.</li>
-    <li>Open <strong>Settings</strong>, then <strong>Linked devices</strong>, then <strong>Link new device</strong>.</li>
-    <li>Point the phone at this code. Ghost says when it is linked.</li>
+    <li><span>On your phone, open <strong>Signal</strong>.</span></li>
+    <li><span>Open <strong>Settings</strong>, then <strong>Linked devices</strong>, then <strong>Link new device</strong>.</span></li>
+    <li><span>Point the phone at this code. Uplink says when it is linked.</span></li>
   </ol>
   <p id="state">Waiting for your phone…</p>
 </main>
+</div>
 <script src="qrcode.js"></script>
 <script type="module">
   import { identity, connectHub, unhex, hex, splitRelay } from '../join/voice.js';
@@ -85,8 +100,8 @@
     const key = await crypto.subtle.importKey('raw', await derive(s, 'gmpair key'), 'AES-GCM', false, ['decrypt']);
     // Which app a code is for, by its address: Google Messages' pairing codes are https, Signal's sgnl://linkdevice.
     const APPS = {
-      gm: { title: 'Scan this with Google Messages', lede: 'Ghost on your phone made this code so it can reach Google Messages on that same phone.', fresh: 'A fresh code comes from your phone about every half minute.', done: 'Paired. You can close this page.' },
-      signal: { title: 'Scan this with Signal', lede: 'Ghost on your phone made this code so it can become one of your Signal devices, as Signal Desktop is.', fresh: 'When Signal makes a new code, it comes here from your phone.', done: 'Linked. You can close this page.' },
+      gm: { title: 'Scan this with Google Messages', lede: 'Uplink on your phone made this code so it can reach Google Messages on that same phone.', fresh: 'A fresh code comes from your phone about every half minute.', done: 'Paired. You can close this page.' },
+      signal: { title: 'Scan this with Signal', lede: 'Uplink on your phone made this code so it can become one of your Signal devices, as Signal Desktop is.', fresh: 'When Signal makes a new code, it comes here from your phone.', done: 'Linked. You can close this page.' },
     };
     const appFor = (url) => (url.startsWith('sgnl://linkdevice') ? 'signal' : url.startsWith('https://') ? 'gm' : null);
     let app = null;
@@ -95,7 +110,7 @@
       const words = APPS[app];
       document.getElementById('title').textContent = words.title;
       document.getElementById('lede').textContent = words.lede;
-      document.title = words.title + ' · Ghost Messaging';
+      document.title = words.title + ' · Uplink';
       document.getElementById('steps-gm').hidden = app !== 'gm';
       document.getElementById('steps-signal').hidden = app !== 'signal';
       const qr = qrcode(0, 'M');
@@ -120,7 +135,7 @@
       hub.json.add((m) => { if (m.closed) state.textContent = 'The connection closed. Reload this page.'; });
       hub.say({ join: room, token });
       // Nothing from the phone yet: say what to do rather than wait in silence.
-      setTimeout(() => { if (box.hidden && app === null) state.textContent = 'Nothing has come from your phone yet. Keep Ghost open on your phone, on the screen that showed the code, and this page fills in.'; }, 10000);
+      setTimeout(() => { if (box.hidden && app === null) state.textContent = 'Nothing has come from your phone yet. Keep Uplink open on your phone, on the screen that showed the code, and this page fills in.'; }, 10000);
     } catch (e) {
       state.textContent = e.message;
     }

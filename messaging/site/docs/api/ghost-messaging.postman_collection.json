@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Ghost Messaging",
+    "name": "Uplink",
     "description": "The app's API and the relay server's HTTP routes. Made by tool/build-docs.mjs from the app's own method registry and docs-src/api/relay-routes.mjs; the reference is at https://gogho.st/docs/developer/api/. The hub and pairing channels are WebSockets and are documented at https://gogho.st/docs/developer/hub/.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

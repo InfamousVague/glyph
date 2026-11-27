@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>How the app is built · Ghost Messaging developer docs</title>
-<meta name="description" content="The major parts of Ghost Messaging, where each lives in the source, and what it talks to.">
+<title>How the app is built · Uplink developer docs</title>
+<meta name="description" content="The major parts of Uplink, where each lives in the source, and what it talks to.">
+<meta name="theme-color" content="#040406">
 <link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:ital,wght@0,500;0,600;0,700;1,700;1,800;1,900&amp;display=swap">
 <link rel="stylesheet" href="/docs/glacier-tokens.css">
 <link rel="stylesheet" href="/docs/docs.css">
 <script>try{var t=localStorage.getItem('docs-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
@@ -14,7 +19,7 @@
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top">
   <button class="menu-btn" type="button" aria-label="Open the list of pages" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#menu"/></svg></button>
-  <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28"><span>Ghost Messaging</span></a>
+  <a class="brand" href="/"><img src="/art/uplink-logo.webp" alt="Uplink" width="1200" height="918"></a>
   <a class="brand-docs" href="/docs/developer/">Developer docs</a>
   <div class="search">
     <svg class="i" aria-hidden="true"><use href="/docs/icons.svg#search"/></svg>
@@ -22,15 +27,15 @@
     <div class="results" id="results" role="listbox" hidden></div>
   </div>
   <button class="theme-btn" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#sun-moon"/></svg></button>
-  <a class="get" href="/#get">Get the app</a>
+  <a class="get" href="/#get"><span>Get Uplink</span></a>
 </header>
 <div class="frame">
   <aside class="sidebar" id="sidebar"><div class="nav-group"><div class="nav-title">The source</div><a href="/docs/developer/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#braces"/></svg><span>Developer docs</span></a><a href="/docs/developer/architecture/" aria-current="page"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#network"/></svg><span>How the app is built</span></a><a href="/docs/developer/flows/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#workflow"/></svg><span>How the parts work together</span></a><a href="/docs/developer/build/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#terminal"/></svg><span>Build, test and run it</span></a></div><div class="nav-group"><div class="nav-title">APIs</div><a href="/docs/developer/api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#book-open"/></svg><span>API overview and Postman</span></a><a href="/docs/developer/app-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#code"/></svg><span>App API</span></a><a href="/docs/developer/relay-api/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#globe"/></svg><span>Relay server API</span></a><a href="/docs/developer/hub/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#share-2"/></svg><span>The hub and pairing protocols</span></a></div><a class="nav-other" href="/docs/"><svg class="i" aria-hidden="true"><use href="/docs/icons.svg#arrow-left"/></svg><span>Back to the docs</span></a></aside>
   <main id="main" class="page">
-    <div class="crumb">The source</div>
+    <div class="crumb"><span class="needle" aria-hidden="true"></span>The source</div>
     <h1>How the app is built</h1>
-    <p class="lede">The major parts of Ghost Messaging, where each lives in the source, and what it talks to.</p>
-    <p>Ghost Messaging is one Flutter app for Android, iPhone, Mac, Windows, Linux and the browser, a small relay server, and a few helper programs. This page is a map of the source for someone about to read or change it: what each part is for, where it lives, and what it talks to. Paths are from the repository's root (<a href="https://github.com/InfamousVague/ghost-messaging">github.com/InfamousVague/ghost-messaging</a>).</p>
+    <p class="lede">The major parts of Uplink, where each lives in the source, and what it talks to.</p>
+    <p>Uplink is one Flutter app for Android, iPhone, Mac, Windows, Linux and the browser, a small relay server, and a few helper programs. This page is a map of the source for someone about to read or change it: what each part is for, where it lives, and what it talks to. Paths are from the repository's root (<a href="https://github.com/InfamousVague/ghost-messaging">github.com/InfamousVague/ghost-messaging</a>).</p>
 
 <div class="arch" role="img" aria-label="The app's layers: screens, the app's services, the routes, then the relay server and the phone network; native code and helper programs beside them.">
   <div class="arch-row"><div class="arch-box wide"><b>Screens</b><small>lib/ui, lib/kit, packages/glacier; lib/web starts them in a browser</small></div></div>
@@ -103,7 +108,7 @@
 </table>
 
 <h2 id="routes">Routes: how apps reach each other</h2>
-<p>Everything between two Ghost apps (a friend's message, a call's setup, a space's chat) goes through <code>lib/net</code>. Its idea is the <b>route</b>: one way of getting bytes to another install, behind an interface (<code>Carrier</code>, <code>lib/net/carrier.dart</code>) so a new one can be added without the app above knowing.</p>
+<p>Everything between two Uplink apps (a friend's message, a call's setup, a space's chat) goes through <code>lib/net</code>. Its idea is the <b>route</b>: one way of getting bytes to another install, behind an interface (<code>Carrier</code>, <code>lib/net/carrier.dart</code>) so a new one can be added without the app above knowing.</p>
 <table>
   <tr><th>Part</th><th>Where</th><th>What it does</th></tr>
   <tr><td>Envelope and packet</td><td><code>lib/net/packet.dart</code></td><td>An envelope is a small JSON message with a kind (<code>text</code>, <code>call</code>, <code>room</code>, <code>hello</code>…). A packet is an envelope as a route carries it: a byte of version and flags, the sender's 16-byte name, then the envelope, sealed. The flags say whether it is sealed, a part, sealed for forward secrecy, or passed on unopened by another device of the account. Long ones cross a short route in parts.</td></tr>
@@ -133,7 +138,7 @@
 <p>The direct route (<code>P2pCarrier</code>, id <code>p2p</code>, shown as Direct) carries the same sealed packets between devices themselves. The relay still comes first: it is the fast path and the one that keeps things for someone who is away. Direct is a way through when the relay can't carry something, and what the relay is <a href="#check">checked</a> over.</p>
 <table>
   <tr><th>Part</th><th>Where</th><th>What it does</th></tr>
-  <tr><td>The core</td><td><code>native/p2p</code> (Rust, on iroh)</td><td>A node: a key made on the device, whose public half is its node id. It dials, gets through NATs, falls back to a <b>link helper</b> (iroh's relay server, which is not Ghost's relay), and turns away any node the app has not allowed. It publishes nothing and looks nobody up.</td></tr>
+  <tr><td>The core</td><td><code>native/p2p</code> (Rust, on iroh)</td><td>A node: a key made on the device, whose public half is its node id. It dials, gets through NATs, falls back to a <b>link helper</b> (iroh's relay server, which is not Uplink's relay), and turns away any node the app has not allowed. It publishes nothing and looks nobody up.</td></tr>
   <tr><td>The contract</td><td><code>lib/net/p2p/node.dart</code></td><td><code>P2pNode</code>: what the Dart above relies on. The real one is <code>IrohNode</code> over <code>dart:ffi</code> (<code>node_ffi.dart</code>, <code>node_ffi_io.dart</code>), made by <code>makeP2pNode()</code> (<code>node_factory.dart</code>); tests use a stand-in mesh (<code>test/support/fake_p2p.dart</code>); a browser has none. On Android <code>P2pCore.kt</code> loads the library when the first node starts, and not before.</td></tr>
   <tr><td>Device cards</td><td><code>lib/net/p2p/card.dart</code></td><td><code>DeviceCard</code>: an account's signed word that a node id is one of its devices. Anyone can check one with nothing but the card.</td></tr>
   <tr><td>Who links, and when</td><td><code>lib/net/p2p/p2p.dart</code></td><td><code>P2p</code>: links only with the account's own devices and with friends. Cards and whereabouts are told in sealed envelopes of kind <code>p2p</code> (<code>card</code>, <code>card?</code>, <code>meet</code>). <code>P2pPolicy</code> says when a node runs: a computer's stays up, a phone's is started for something to say and stopped two minutes after its last stream closes.</td></tr>
@@ -156,7 +161,7 @@
   <li><b>A home record</b> (<code>HomeRecord</code>, <code>lib/net/home_record.dart</code>; the relay's twin is <code>relay/lib/home_record.dart</code>) is an account's signed statement of the relay addresses it lives at, with a count that only goes up. Both sides are held to <code>test/home_record_vectors.json</code>.</li>
   <li><code>Homes</code> (<code>lib/net/homes.dart</code>) makes this account's record, gives it to the relay as the app signs in, and keeps friends' records. Friends tell each other theirs in a sealed envelope of kind <code>home</code> (<code>lib/friends/buddies.dart</code>).</li>
   <li><code>@maya@relay.example</code> names someone on another relay. <code>Homes.whois</code> asks the app's own relay, which asks the other over a link. Where its own relay doesn't link with others, the app asks the other relay itself, under a key made for that one question (<code>whoisAt</code>, <code>lib/net/relay_ask.dart</code>).</li>
-  <li><code>lib/net/relay_choice.dart</code> is moving to another relay: what a typed address becomes, and whether a Ghost relay answers there before the app moves.</li>
+  <li><code>lib/net/relay_choice.dart</code> is moving to another relay: what a typed address becomes, and whether an Uplink relay answers there before the app moves.</li>
 </ul>
 <p>Every packet still goes through the app's own relay. The passing on is <a href="#relay">the relay's work</a>. Usernames, account backups, circles, spaces and calls stay on the relay they were made on.</p>
 
@@ -198,7 +203,7 @@
 </table>
 <p>The cookies an account helper signs in with come one of two ways. Pasted: a request copied from the browser's developer tools, read by <code>lib/inbox/cookie_paste.dart</code>. Or synced: <a href="/docs/browser-extension/">the browser extension</a> (<code>extension/</code>) reads them, seals them with a key only the account's devices have, and keeps them on the relay; each device reads them back and signs in (<code>CurlSync</code>, <code>lib/inbox/curl_sync.dart</code>).</p>
 <p><code>lib/inbox/human_check.dart</code> holds a first message from someone new on a chosen network until its sender answers a small question. Several networks are also cards in the Marketplace, sharing one switch with Settings (<code>lib/plugins/networks.dart</code>).</p>
-<p>No chat from these networks goes through Ghost's relay. The sealed cookies are the one thing of theirs it keeps, and it can't read them. A browser has no helper programs, so the web client has none of these networks.</p>
+<p>No chat from these networks goes through Uplink's relay. The sealed cookies are the one thing of theirs it keeps, and it can't read them. A browser has no helper programs, so the web client has none of these networks.</p>
 
 <h2 id="link">Paired computers</h2>
 <p>A computer paired with a phone shows the phone's texts by asking the phone for them. The computer's half is <code>lib/desktop/link</code> (<code>PhoneLink</code>, <code>LinkSession</code>); the phone's is <code>DeskSession.kt</code>. They connect over the local network where they can and through the relay's pairing channel where they can't, and either way every frame is sealed with keys made from the pairing, so the relay passes bytes it can't read. What the computer has read is kept sealed on its disk (<code>lib/desktop/cache.dart</code>).</p>

@@ -4,9 +4,9 @@ export const sections = [
   {
     title: 'Getting started',
     pages: [
-      { slug: 'index', icon: 'ghost', title: 'Welcome', summary: 'What Ghost Messaging is, and where to start.' },
-      { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Ghost Messaging before it launches: what to install, and how to join the testers\' circle.' },
-      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Ghost Messaging on an Android phone, a Mac, a Windows PC or a Linux computer.' },
+      { slug: 'index', icon: 'rocket', title: 'Welcome', summary: 'What Uplink is, and where to start.' },
+      { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Uplink before it launches: what to install, and how to join the testers\' circle.' },
+      { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Uplink on an Android phone, a Mac, a Windows PC or a Linux computer.' },
       { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'A username and a password, your recovery words, and on Android your texts.' },
       { slug: 'account', icon: 'key-round', title: 'Your account', summary: 'Create an account, keep your recovery words safe, and sign in on another device.' },
       { slug: 'how-accounts-work', icon: 'badge-check', title: 'How your account works', summary: 'Recovery words, your password, the account address, and being the same you on every device.' },
@@ -50,7 +50,7 @@ export const sections = [
       { slug: 'quick-actions', icon: 'calendar-plus', title: 'Quick actions', summary: 'Dates, addresses, tracking numbers and phone numbers become buttons.' },
       { slug: 'replies', icon: 'reply', title: 'Replies', summary: 'Suggested replies, and reminders to follow up.' },
       { slug: 'cleaner', icon: 'brush-cleaning', title: 'Cleaner', summary: 'Delete conversations in bulk by kind.' },
-      { slug: 'discord', icon: 'bot', title: 'Discord servers', summary: 'Link a Discord server, see who is in its voice channels, and talk in them from Ghost.' },
+      { slug: 'discord', icon: 'bot', title: 'Discord servers', summary: 'Link a Discord server, see who is in its voice channels, and talk in them from Uplink.' },
     ],
   },
   // Plugins from other developers (Matt, 2026-11-20: "Please include documents on how users can develop plugins"). The
@@ -75,7 +75,7 @@ export const sections = [
     title: 'Messaging',
     pages: [
       { slug: 'texts', icon: 'message-square', title: 'Texts and conversations', summary: 'Sending, reactions, edits, ticks, stickers, effects and conversation settings.' },
-      { slug: 'google-messages', icon: 'message-circle', title: 'Beside Google Messages', summary: 'Keep Google Messages for RCS and use Ghost for everything else.' },
+      { slug: 'google-messages', icon: 'message-circle', title: 'Beside Google Messages', summary: 'Keep Google Messages for RCS and use Uplink for everything else.' },
       { slug: 'friends', icon: 'user-plus', title: 'Friends', summary: 'Add friends by username, and friends by number.' },
       { slug: 'networks', icon: 'send', title: 'Telegram, Signal and more', summary: 'Your other chats in one inbox: linking Telegram, Signal, WhatsApp and Matrix.' },
       { slug: 'encryption', icon: 'lock', title: 'Encrypted texts', summary: 'Seal texts with one person end to end, and check it is really them.' },
@@ -84,7 +84,7 @@ export const sections = [
   {
     title: 'Computers',
     pages: [
-      { slug: 'computers', icon: 'laptop', title: 'Mac, Windows and Linux apps', summary: 'Ghost Messaging on a computer, with or without your phone.' },
+      { slug: 'computers', icon: 'laptop', title: 'Mac, Windows and Linux apps', summary: 'Uplink on a computer, with or without your phone.' },
       { slug: 'pairing', icon: 'qr-code', title: 'Pair a computer with your phone', summary: 'Your texts on your computer: scan, match the six digits, and keep it connected.' },
       { slug: 'browser-extension', icon: 'puzzle', title: 'The browser extension', summary: 'Sign in to your chat networks once, in your browser, and every device of yours is signed in too.' },
     ],
@@ -96,7 +96,7 @@ export const sections = [
       { slug: 'settings', icon: 'settings', title: 'Settings, at a glance', summary: 'Every section of Settings, and what it holds.' },
       { slug: 'appearance', icon: 'palette', title: 'Looks, colours and fonts', summary: 'The app\'s looks, making and sharing your own, and the Readable font.' },
       { slug: 'keyboard-shortcuts', icon: 'keyboard', title: 'Keyboard shortcuts', summary: 'Jump to a conversation, format what you write, mute a call, and change any shortcut\'s keys.' },
-      { slug: 'routes', icon: 'globe', title: 'Routes', summary: 'How messages travel between Ghost apps: the relay, your own relay, texts, and testing them.' },
+      { slug: 'routes', icon: 'globe', title: 'Routes', summary: 'How messages travel between Uplink apps: the relay, your own relay, texts, and testing them.' },
       // For whoever runs the server (GMFB-25, "Self-hosting the relay, documented"): docs/SELF_HOSTING.md as a page of the site.
       { slug: 'self-hosting', icon: 'hard-drive', title: 'Run your own relay', summary: 'Run the relay on a server of your own: what you give up, Docker or a single program, TLS, TURN for calls, and its settings.' },
       { slug: 'coming-soon', icon: 'clock', title: 'Coming soon', summary: 'What is built but not out yet.', soon: true },
@@ -114,8 +114,8 @@ export const developer = [
   {
     title: 'The source',
     pages: [
-      { slug: 'developer', icon: 'braces', title: 'Developer docs', summary: 'For people reading, building or scripting Ghost Messaging: how it is built, and both of its APIs.' },
-      { slug: 'developer/architecture', icon: 'network', title: 'How the app is built', summary: 'The major parts of Ghost Messaging, where each lives in the source, and what it talks to.' },
+      { slug: 'developer', icon: 'braces', title: 'Developer docs', summary: 'For people reading, building or scripting Uplink: how it is built, and both of its APIs.' },
+      { slug: 'developer/architecture', icon: 'network', title: 'How the app is built', summary: 'The major parts of Uplink, where each lives in the source, and what it talks to.' },
       { slug: 'developer/flows', icon: 'workflow', title: 'How the parts work together', summary: 'Things followed from the tap to the wire: a text, a message to a friend, a call, an open space\'s floor, pairing a computer, adding a plugin, and more.' },
       { slug: 'developer/build', icon: 'terminal', title: 'Build, test and run it', summary: 'Running the app and the relay from source, the tests, the scripts, and how the code is commented.' },
     ],

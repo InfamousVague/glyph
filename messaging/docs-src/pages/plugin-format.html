@@ -6,7 +6,7 @@
   <tr><td><code>format</code></td><td>The format</td><td>Required. Exactly <code>"ghost-plugin/1"</code>.</td></tr>
   <tr><td><code>id</code></td><td>Your plugin's id</td><td>Required. 3 to 24 lower-case letters and digits, starting with a letter; not one the app keeps (<a href="#ids">below</a>).</td></tr>
   <tr><td><code>version</code></td><td>This version, like <code>1.0.0</code></td><td>Required. Three whole numbers with dots between, each 0 to 99999 with no leading zero. Compared number by number: 1.10.0 is newer than 1.9.0.</td></tr>
-  <tr><td><code>name</code></td><td>What it's called</td><td>Required. 1 to 32 characters, one line. Not a built-in plugin's name nor Ghost Messaging's.</td></tr>
+  <tr><td><code>name</code></td><td>What it's called</td><td>Required. 1 to 32 characters, one line. Not a built-in plugin's name nor Uplink's.</td></tr>
   <tr><td><code>tagline</code></td><td>Its short line, under its name</td><td>Required. 1 to 60, one line.</td></tr>
   <tr><td><code>description</code></td><td>What it does, on its page</td><td>Required. 1 to 1,500; line breaks allowed.</td></tr>
   <tr><td><code>icon</code></td><td>Its picture</td><td>A square PNG in base64 (<a href="#icon">below</a>). Not needed in Developer mode; needed to submit it.</td></tr>
@@ -20,7 +20,7 @@
   <tr><td><code>developer</code></td><td>Your username</td><td>Needed to submit it; the form puts yours in. 3 to 20 lower-case letters, digits, dots and underscores, starting with a letter or digit, with no <code>..</code> and none of ghost, gogho, official, verified or support in it.</td></tr>
   <tr><td><code>support</code></td><td>Where people get help with it</td><td>Needed to submit it. An https address or an email address (<a href="#addresses">below</a>), at most 200 characters. Shown on its page for anyone to see.</td></tr>
   <tr><td><code>whatsNew</code></td><td>What this version changed</td><td>0 to 500 characters; line breaks allowed.</td></tr>
-  <tr><td><code>minApp</code></td><td>The oldest Ghost Messaging it works in</td><td>A version, as <code>version</code>. An older app refuses it (<code>needs_newer_app</code>).</td></tr>
+  <tr><td><code>minApp</code></td><td>The oldest Uplink it works in</td><td>A version, as <code>version</code>. An older app refuses it (<code>needs_newer_app</code>).</td></tr>
   <tr><td><code>settings</code></td><td>Its own settings</td><td>0 to 24 (<a href="#settings">below</a>); <code>[]</code> if left out.</td></tr>
   <tr><td><code>rules</code></td><td>What it does</td><td>Required. <code>{"tags", "sections", "actions", "incoming"}</code>, each optional, with at least one tag rule or one section (<code>empty_pack</code>). <a href="/docs/plugin-rules/">Tags, tabs and buttons</a>.</td></tr>
 </table>

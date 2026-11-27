@@ -8,7 +8,7 @@
   <tr><td>Public key</td><td>33 bytes, compressed: <code>02</code> or <code>03</code>, then x. Sent as base64 in the sign-in, <code>whois</code> and <code>acct-put</code>; as 66 lowercase hex digits for a read-only room's <code>owner</code>.</td></tr>
   <tr><td>Name (id)</td><td>The first 16 bytes of SHA-256 of those 33 bytes, as 32 lowercase hex digits. In binary frames it is the 16 raw bytes.</td></tr>
   <tr><td>Signature</td><td>ECDSA over SHA-256 of the message, as 64 raw bytes: r, then s, big-endian. Not DER. Sent as base64 in the sign-in and in <code>bind</code>; as 128 lowercase hex digits in a read-only room's grants.</td></tr>
-  <tr><td>Account address</td><td>A <a href="/docs/how-accounts-work/">Ghost account</a> is a second key, secp256k1, known by an Ethereum-style address: <code>0x</code> and 40 hex digits. Only the <a href="#dir-accounts">account messages</a> use it.</td></tr>
+  <tr><td>Account address</td><td>An <a href="/docs/how-accounts-work/">Uplink account</a> is a second key, secp256k1, known by an Ethereum-style address: <code>0x</code> and 40 hex digits. Only the <a href="#dir-accounts">account messages</a> use it.</td></tr>
 </table>
 <p>All hex the server reads is lowercase.</p>
 
@@ -270,7 +270,7 @@
 </table>
 
 <h3 id="dir-accounts">Accounts</h3>
-<p>A <a href="/docs/how-accounts-work/">Ghost account</a> is an address holding two sealed backups of one identity: one sealed by the password, one by the recovery words. The server can open neither. Four of these messages must be signed by the account's key, and come in an envelope:</p>
+<p>An <a href="/docs/how-accounts-work/">Uplink account</a> is an address holding two sealed backups of one identity: one sealed by the password, one by the recovery words. The server can open neither. Four of these messages must be signed by the account's key, and come in an envelope:</p>
 <pre><code>{"dir": "acct-put", "body": "{\"op\":\"put\",\"a\":\"0x…\",\"by\":\"&lt;your id&gt;\",\"at\":1763900000000,…}", "sig": "&lt;130 hex&gt;"}</code></pre>
 <ul>
   <li><code>body</code> is a JSON object written as a string, 196,608 characters at most (2,048 for <code>acct-devices</code>). It always holds <code>op</code> (<code>put</code>, <code>seed</code>, <code>devices</code> or <code>delete</code>), <code>a</code> (the address), <code>by</code> (the name of the connection saying it) and <code>at</code> (the time in milliseconds, within 10 minutes of the server's clock).</li>
