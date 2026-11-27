@@ -204,7 +204,7 @@ class SpaceKindBadge extends StatelessWidget {
           final t = context.tokens;
           final bevel = isBevelChrome(t);
           // Dial-Up settles every hue into black: there the kind keeps a colour of the era's sixteen (green, navy,
-          // olive; their bright twins on After Hours' black), so voice, texting and files still read apart.
+          // olive; their bright twins on Runestone's dark stone), so voice, texting and files still read apart.
           final colour = bevel ? Color(switch (kind) {
             SpaceKind.voice => t.isDark ? 0xFF00FF00 : 0xFF008000,
             SpaceKind.text => t.isDark ? 0xFF8080FF : 0xFF000080,

@@ -50,7 +50,7 @@ Widget _form(List<Widget> children) => Builder(
     );
 
 /// The hues as round swatches, the chosen one ringed and ticked. Each swatch is its hue's own colour
-/// ([AppColors.hueSwatch]), not the look's settling of it: in Phosphor, Dial-Up and Mist the look's hues fold into one
+/// ([AppColors.hueSwatch]), not the look's settling of it: in Dial-Up, Runestone and Mist the look's hues fold into one
 /// or a few, and a picker of twelve identical swatches could not be read. Where the look does fold them, a line says
 /// that this look draws circles in its own colours and others see the one picked.
 class CircleHuePicker extends StatelessWidget {

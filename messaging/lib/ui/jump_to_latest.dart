@@ -557,7 +557,7 @@ class _JumpToLatestState extends State<JumpToLatest> {
 
 /// The arrow itself: a button a step up from the page's paper, with a hairline and a soft shadow, so it reads over
 /// bubbles and a chat background alike; round where the look's corners are round and square where they are square
-/// (Phosphor, Sharp), as the bubbles and the composer are; under Dial-Up one of its raised square buttons. A count of
+/// (Sharp), as the bubbles and the composer are; under Dial-Up one of its raised square buttons. A count of
 /// new messages on its corner.
 class _Arrow extends StatelessWidget {
   const _Arrow({super.key, required this.unread, required this.onPressed, required this.tokens});
@@ -576,8 +576,8 @@ class _Arrow extends StatelessWidget {
       // Its face 40 square, its press target 48 (RetroButton.target), as the composer's own buttons are.
       button = RetroButton(onPressed: onPressed, icon: Lucide.arrowDown, semanticLabel: label, padding: EdgeInsets.zero);
     } else {
-      // The look's corners (lib/backgrounds.dart lookCorner): a circle on a 44 box where they are round, square on
-      // Phosphor, where a circle beside square bubbles looked borrowed from another look.
+      // The look's corners (lib/backgrounds.dart lookCorner): a circle on a 44 box where they are round, squarer
+      // where the look's are, where a circle beside square bubbles looked borrowed from another look.
       final corner = lookCorner(t, '22px', most: 1);
       button = GlacierPressable(
         onPressed: onPressed,

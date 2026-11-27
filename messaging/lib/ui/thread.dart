@@ -2250,7 +2250,7 @@ class _Bubble extends StatelessWidget {
     final (mine, onMine) = myBubble(t, app, thread);
     final ground = out ? (failed ? t.failedGround : mine) : theirBubble(t, onBackground: onBackground);
     final ink = out && !failed ? onMine : t.color('app-ink');
-    // A look that rims bubbles (Sharp, Phosphor) rims a failed one of yours in the failure's red, as its dark half's
+    // A look that rims bubbles (Sharp) rims a failed one of yours in the failure's red, as its dark half's
     // near-black failed ground already got a rim and its light half's pink one did not.
     final failedRim = failed && theirRim(t) != null ? Border.all(color: t.danger, width: 1.5) : null;
     final maxWidth = MediaQuery.sizeOf(context).width * (desk ? 0.62 : 0.76);

@@ -560,8 +560,8 @@ class GhostLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final side = size ?? t.lenOf('2.75rem');
-    // In a look of its own (Mist, Lamplight, Sharp, Phosphor) the mark is the look's ink on its paper, in its corners:
-    // the black tile was the one pure black on Mist's aqua page and the one white ghost on Phosphor's green screen.
+    // In a look of its own (Sharp, and Ghost's packs Mist and Lamplight) the mark is the look's ink on its paper, in
+    // its corners: the black tile was the one pure black on Mist's aqua page.
     // Ghost's, and Dial-Up's on its desktop, are the app's own black tile.
     final own = t.attrs['theme-preset'] != null && t.attrs['theme-preset'] != 'dialup';
     return Container(

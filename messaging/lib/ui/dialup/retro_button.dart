@@ -12,7 +12,7 @@ import 'bevel.dart';
 ///
 /// Give it a [label] (words, 15px), an [icon], or a [child] of your own; [semanticLabel] is what a screen reader says
 /// and is needed where there are no words. [primary] adds the dark frame the era put round the button Enter presses
-/// (Send). Off ([onPressed] null), the words are grey with a white emboss, in Daytime.
+/// (Send). Off ([onPressed] null), the words are grey with a white emboss (none on a dark chrome).
 class RetroButton extends StatelessWidget {
   const RetroButton({
     super.key,
@@ -76,7 +76,7 @@ class RetroButton extends StatelessWidget {
         final ink = off ? c.disabled : c.onChrome;
         final style = pageText(t, 15, weight: bold ? 'bold' : 'regular', color: ink).copyWith(
           // The era's grey words on a disabled button had a white copy one pixel down and right under them.
-          shadows: off && !c.afterHours ? [Shadow(color: c.hi, offset: const Offset(1, 1))] : null,
+          shadows: off && !c.night ? [Shadow(color: c.hi, offset: const Offset(1, 1))] : null,
         );
         final top = child ??
             Row(
@@ -153,7 +153,7 @@ class RetroSegment extends StatelessWidget {
           style: held ? BevelStyle.pressed : BevelStyle.raised,
           kind: BevelKind.button,
           // The chosen one on the bevel's inner light, as the taskbar draws the page shown (nav_bar.dart): a shade
-          // lighter in Daytime, and grey in After Hours, whose held and raised bevels are drawn alike, so an
+          // lighter than the face, so an
           // icon-only toggle (the Files view, the list's tabs) still shows which is chosen.
           color: look.selected ? c.lo : null,
           padding: EdgeInsets.symmetric(horizontal: look.padding),

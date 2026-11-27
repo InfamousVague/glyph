@@ -46,7 +46,7 @@ class DialupColors {
         onTooltip = t.colorOf('var(--app-on-tooltip, var(--app-ink))'),
         highlight = t.colorOf('var(--app-highlight, var(--app-ink))'),
         onHighlight = t.colorOf('var(--app-on-highlight, var(--app-paper))'),
-        afterHours = t.isDark;
+        night = t.isDark;
 
   /// The window's silver face and the words on it.
   final Color chrome, onChrome;
@@ -76,8 +76,9 @@ class DialupColors {
   /// The desktop behind the windows (wide gutters only), the hover tip and its words, and a chosen row and its words.
   final Color desktop, tooltip, onTooltip, highlight, onHighlight;
 
-  /// After Hours, where a disabled label has no white emboss under it.
-  final bool afterHours;
+  /// A dark chrome (Runestone's; Dial-Up's own dark half, After Hours, until it was taken out), where a disabled
+  /// label has no white emboss under it.
+  final bool night;
 
   /// The colour [address] keeps in a room of many: one of [names], picked by the address alone, so a person is the
   /// same colour in every room and on every phone.

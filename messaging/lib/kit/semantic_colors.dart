@@ -43,8 +43,8 @@ extension AppColors on Tokens {
   Color get failedGround => colorOf('color-mix(in srgb, var(--app-danger, #dd3a30) 18%, var(--app-paper-2))');
 
   /// [hue]'s own colour (one of lib/kit/settings_css.dart's `data-hue` names), whatever the look: for a colour picker,
-  /// whose swatches must show the colour picked even where a look settles hues into its own (Phosphor draws every hue
-  /// in its green, Dial-Up in black, Mist folds blue, purple and indigo into its teal). A name it doesn't know draws
+  /// whose swatches must show the colour picked even where a look settles hues into its own (Runestone draws every hue
+  /// in its orange, Dial-Up in black, Mist folds blue, purple and indigo into its teal). A name it doesn't know draws
   /// in the page's ink.
   Color hueSwatch(String hue) {
     final pair = _hueSwatches[hue];

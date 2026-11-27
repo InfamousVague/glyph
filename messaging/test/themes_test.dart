@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_messaging/custom_theme.dart';
 import 'package:ghost_messaging/ui/composer_box.dart';
 import 'package:ghost_messaging/accent.dart';
 import 'package:ghost_messaging/app_state.dart';
@@ -136,13 +137,104 @@ void main() {
     expect(app.choice('theme_bubble', ''), 'orange', reason: 'the keyboard is told the nearest of its own colours');
     app.setLook(Look.ghost);
     expect(app.bubble, 'white');
-    app.setLook(Look.phosphor);
+    app.setLook(Look.sharp);
     app.setBubble('blue');
     app.setLook(Look.ghost);
     expect(app.bubble, 'blue', reason: 'a colour chosen after the look stays');
     for (final look in Look.values) {
       expect(bubbleColors.map((b) => b.id), contains(look.keyboard), reason: 'a colour Ghost Keyboard knows');
     }
+  });
+
+  // Matt, 2026-11-27: "I think we should add texture packs to all themes, but remove the phosphor entirely and remove
+  // the dark dial uptheme, also remove lamplight and mist and make them texture packs for the Ghost theme".
+  group('looks and their packs', () {
+    test('four looks are offered; Mist and Lamplight are Ghost\'s packs, and Dial-Up is its light half alone', () {
+      _answerChannel();
+      expect(Look.offered, [Look.ghost, Look.sharp, Look.dialup, Look.runestone]);
+      expect(Look.ghost.packs, [Look.mist, Look.lamplight]);
+      expect([Look.mist.family, Look.lamplight.family], [Look.ghost, Look.ghost]);
+      for (final look in Look.offered) {
+        expect([look.isPack, look.family], [false, look], reason: look.name);
+      }
+      expect([Look.sharp.packs, Look.dialup.packs, Look.runestone.packs], [isEmpty, isEmpty, isEmpty]);
+      expect([for (final l in Look.values) if (l.pictures) l], [Look.runestone], reason: 'a resource pack\'s pictures are Runestone\'s alone');
+      // Dial-Up is drawn light whatever Theme says.
+      expect(Look.dialup.forced, 'light');
+      final app = AppState()
+        ..setTheme('dark')
+        ..setLook(Look.dialup);
+      expect(ghostAttrs(app, 'mobile')['theme'], 'light');
+      // Nothing of Phosphor's, or of Dial-Up's dark half, is left to stamp.
+      final css = File('assets/css/app.css').readAsStringSync();
+      expect(css, isNot(contains("data-theme-preset='phosphor'")));
+      expect(css, isNot(contains("[data-theme-preset='dialup'][data-theme='dark']")));
+      expect(Look.values.map((l) => l.name), isNot(contains('phosphor')));
+      expect(Look.named('phosphor'), Look.ghost);
+    });
+
+    test('a pack is drawn as the look it was: its own preset, brightness and bubbles, under Ghost', () {
+      _answerChannel();
+      final app = AppState()..setTheme('dark');
+      app.setLook(Look.mist);
+      expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile', 'theme': 'light', 'theme-preset': 'mist'});
+      expect(app.bubble, 'theme', reason: 'your bubbles are the pack\'s teal');
+      expect([app.look, app.look.family], [Look.mist, Look.ghost]);
+      app.setLook(Look.lamplight);
+      expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile', 'theme': 'dark', 'theme-preset': 'lamplight'});
+      expect(app.bubble, 'theme');
+      // Ghost's own again: no preset, Theme's brightness, and the bubbles you had.
+      app.setLook(Look.ghost);
+      expect(ghostAttrs(app, 'mobile'), {'platform': 'mobile', 'theme': 'dark'});
+      expect(app.bubble, 'white');
+    });
+
+    test('a look keeps the pack it was last in, and choosing its own lets the pack go', () {
+      _answerChannel();
+      final app = AppState()..setLook(Look.lamplight);
+      expect(Look.last(app, Look.ghost), Look.lamplight);
+      app.setLook(Look.sharp);
+      expect(Look.last(app, Look.ghost), Look.lamplight, reason: 'Ghost is still in Lamplight after a while in Sharp');
+      expect([Look.last(app, Look.sharp), Look.last(app, Look.dialup)], [Look.sharp, Look.dialup]);
+      app.setLook(Look.last(app, Look.ghost));
+      expect(app.look, Look.lamplight);
+      app.setLook(Look.ghost);
+      expect(Look.last(app, Look.ghost), Look.ghost, reason: 'Ghost\'s own, chosen');
+      // Mist chosen as a look, before packs were noted: still Mist when Ghost is chosen again.
+      final old = AppState()..set(Look.pref, 'mist');
+      old.setLook(Look.runestone);
+      expect(Look.last(old, Look.ghost), Look.mist);
+    });
+
+    test('Phosphor, taken out, is Ghost as if Ghost had been chosen', () async {
+      Future<AppState> opened(Map<String, String> kept) async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (call) async => call.method == 'prefs' ? kept : null);
+        final app = AppState();
+        await app.load();
+        return app;
+      }
+
+      // Your bubbles were the look's green: the colour they had before it comes back.
+      var app = await opened({'look': 'phosphor', 'bubble': 'theme', 'bubble_before_look': 'pink', 'theme_bubble': 'green'});
+      expect([app.look, app.choice(Look.pref, ''), app.bubble, app.choice('theme_bubble', '')], [Look.ghost, 'ghost', 'pink', 'white']);
+      // None noted: white, as Ghost starts.
+      app = await opened({'look': 'phosphor', 'bubble': 'theme'});
+      expect([app.look, app.bubble], [Look.ghost, 'white']);
+      // A colour chosen under it stays.
+      app = await opened({'look': 'phosphor', 'bubble': 'blue'});
+      expect([app.look, app.bubble], [Look.ghost, 'blue']);
+      // A look of one's own over it keeps its bubbles: they wear its accent.
+      const dusk = CustomTheme(name: 'Dusk', dark: true, paper: Color(0xFF101418), surface: Color(0xFF1A2026), ink: Color(0xFFE8EEF2), accent: Color(0xFF4FC3F7));
+      app = await opened({'look': 'phosphor', 'bubble': 'theme', CustomTheme.usedPref: dusk.code});
+      expect([app.look, app.bubble, CustomTheme.used(app)?.name], [Look.ghost, 'theme', 'Dusk']);
+      // Any other look is left exactly as it was kept, a pack among them.
+      app = await opened({'look': 'lamplight', 'bubble': 'theme'});
+      expect([app.look, app.bubble], [Look.lamplight, 'theme']);
+      // And Dial-Up kept in its dark half is Dial-Up, light.
+      app = await opened({'look': 'dialup', 'theme': 'dark', 'bubble': 'theme'});
+      expect([app.look, ghostAttrs(app, 'mobile')['theme']], [Look.dialup, 'light']);
+    });
   });
 
   test('a look\'s own bubbles leave its accent alone; a colour chosen still wins over it', () {

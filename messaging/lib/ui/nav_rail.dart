@@ -161,7 +161,7 @@ class _CircleRing extends StatelessWidget {
         onLongPress: onMenu,
         semanticLabel: '${circle.name}${unread > 0 ? ', $unread unread' : ''}${open ? ', open' : ''}',
         toggled: open,
-        face: open && !c.afterHours ? c.lo : null,
+        face: open && !c.night ? c.lo : null,
         faceHeight: ring,
         minFaceWidth: ring,
         padding: EdgeInsets.zero,

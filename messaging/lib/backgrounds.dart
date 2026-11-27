@@ -371,7 +371,7 @@ Color theirBubble(Tokens t, {required bool onBackground}) {
   return t.color(t.isDark ? 'app-paper-3' : (onBackground ? 'app-paper' : 'app-paper-2'));
 }
 
-/// The line round someone else's bubble where a look draws one (`--app-bubble-rim`: Sharp's and Phosphor's), else
+/// The line round someone else's bubble where a look draws one (`--app-bubble-rim`: Sharp's, Dial-Up's and Runestone's), else
 /// null: Ghost's own bubbles have none.
 Border? theirRim(Tokens t) => (t.raw('app-bubble-rim') ?? '').isEmpty ? null : Border.all(color: t.color('app-bubble-rim'), width: 1.5);
 
@@ -381,13 +381,13 @@ Border? lookRim(Tokens t) => (t.raw('app-bubble-rim') ?? '').isEmpty ? null : Bo
 
 /// A corner the app draws at a fixed length (a bubble's, the composer's, a row's) under the look's radius scale,
 /// as the kit's own radii are: Ghost's scale is 1, so its corners are as they were, Sharp's 0.55 softens them and
-/// Phosphor's and Dial-Up's 0 square them (the review of the looks, 2026-11-16: bubbles stayed pills in every look).
+/// Dial-Up's and Runestone's 0 square them (the review of the looks, 2026-11-16: bubbles stayed pills in every look).
 /// [most] caps the scale for a corner that is already a pill, which a rounder look (Mist's 1.5) would only blur.
 double lookCorner(Tokens t, String length, {double most = double.infinity}) => t.lenOf(length) * t.number('glacier-radius-scale').clamp(0.0, most);
 
 /// The fill and words of a strong control that is not your bubble (a space's Join voice, an Owner's badge): Ghost's
-/// ink on paper, where ink is its accent, and a look's own accent otherwise, since in Mist, Lamplight or Phosphor an
-/// ink-filled pill was a near-black (or second green) blob beside everything else that is pressed or chosen.
+/// ink on paper, where ink is its accent, and a look's own accent otherwise, since in Mist or Lamplight an ink-filled
+/// pill was a near-black blob beside everything else that is pressed or chosen.
 (Color, Color) strongFill(Tokens t) => t.attrs['theme-preset'] == null ? (t.color('app-ink'), t.color('app-paper')) : (t.color('app-accent'), t.color('app-on-accent'));
 
 /// Small words that sit straight on a conversation's background (a day's heading, "Delivered", a sender's name):

@@ -456,6 +456,27 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
+- **Looks and their packs** (after 0.12.48; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
+  `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
+  0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
+  add texture packs to all themes, but remove the phosphor entirely and remove the dark dial uptheme, also remove
+  lamplight and mist and make them texture packs for the Ghost theme"). Four looks are offered: Ghost, Sharp, Dial-Up and
+  Runestone. Settings › Appearance has **Textures** under every look: the look as it comes, then its packs, the one in use
+  ticked. A pack is one of two kinds. Mist and Lamplight are Ghost's: each is still a value of `Look` with its own preset
+  in the stylesheet (`Look.family`, `isPack`, `packs`), so everything that goes by the look in use draws them exactly as
+  it did; they are only chosen under Ghost, whose tile is ringed and drawn in the pack. A look keeps the pack it was
+  last in (`look_pack_<look>`), so Ghost is still in Lamplight after a while in Sharp. Runestone's are resource packs'
+  pictures, and it has a usual one, Duckscape (`ResourcePacks.usual`): the pack chosen until another is, or plain stone,
+  and fetched by itself the first time Runestone is the look, as the app starts in it or as it is chosen, and never
+  before. Its row says Fetching while it is on its way and Try again where it couldn't be fetched, and the look is flat
+  stone until it is here. Plain stone is kept as a choice (`resource_pack` empty), and nothing is fetched behind it.
+  Sharp and Dial-Up have no pack yet, and say so. Phosphor is gone (its rules, and `Look.retired`: a device kept in it
+  opens in Ghost with the bubbles it had before), and so is Dial-Up's dark half, After Hours: Dial-Up is always light.
+  Tests: themes_test (looks and their packs), look_packs_test (the picker, and Textures under each look),
+  resource_pack_test (the usual pack against a stand-in hub: fetched once, not before Runestone is the look, failing
+  quietly, plain stone kept). Run for real on the emulator: Runestone chosen, and the app started in it with no pack on
+  the device, each fetched Duckscape from the hub (539 KB) and drew with it. Not tried on the Mac app or an iPhone, and
+  the section's new words are in English only.
 - **Look: Runestone, and resource packs** (0.12.48; `lib/looks.dart`, `lib/packs/`, `lib/ui/resource_packs_ui.dart`,
   `lib/art/pixel_emoji.dart`, `lib/art/pixel_icons.g.dart`, Runestone's block in `assets/css/app.css`; Matt, 2026-11-27: "make a
   theme in Ghost that fits this with the runescape font and everything", of the Dark Vanilla resource pack for an old
@@ -482,7 +503,9 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   with Duckscape, Dark Vanilla and no pack; not tried on a phone, and fetching from the real hub was not run.
 - **Looks: Dial-Up, Mist, Lamplight, Sharp and Phosphor** (0.8.4; `lib/looks.dart`, `lib/ui/look_picker.dart`,
   `lib/ui/dialup/`, `lib/ui/message_line.dart`, the look blocks at the end of `assets/css/app.css`; Matt, 2026-11-16: "spend
-  some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). Settings › Appearance has
+  some time making a few themes for ghost, base one of them heavily on the old AOL chatrooms"). As it was then: since
+  "Looks and their packs", above, Phosphor and Dial-Up's dark half are gone and Mist and Lamplight are Ghost's packs.
+  Settings › Appearance has
   a Look picker above Theme. Ghost is the app as it was. Mist is a pale aqua page with deep teal ink (light only),
   Lamplight a warm amber dark for late reading, Sharp high contrast in either brightness (its dark half true black), and
   Phosphor a green-screen terminal in JetBrains Mono with square corners. Dial-Up is a late-90s online chat room: silver

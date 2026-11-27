@@ -320,7 +320,7 @@ class _RingState extends State<_Ring> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: t.color(state.hovered || state.pressed ? 'app-paper-2' : 'glacier-bg'),
-                      // The kit's pill radius rather than a circle, so a look's own (Phosphor's 0.25rem keys) reaches it.
+                      // The kit's pill radius rather than a circle, so a look's own (`--glacier-radius-full`) reaches it.
                       borderRadius: BorderRadius.circular(t.radius('full')),
                       border: Border.all(color: t.color('glacier-border-strong'), width: t.len('app-line')),
                     ),
@@ -382,7 +382,7 @@ extension on _RingState {
         onLongPress: onMenu,
         semanticLabel: item.count > 0 ? '${item.label}, ${item.count}' : item.label,
         toggled: shown,
-        face: shown && !c.afterHours ? c.lo : null,
+        face: shown && !c.night ? c.lo : null,
         faceHeight: side,
         minFaceWidth: side,
         padding: EdgeInsets.zero,
@@ -408,7 +408,7 @@ extension on _RingState {
       onLongPress: onMenu,
       semanticLabel: item.count > 0 ? '${item.label}, ${item.count}' : item.label,
       toggled: shown,
-      face: shown && !c.afterHours ? c.lo : null,
+      face: shown && !c.night ? c.lo : null,
       faceHeight: RetroButton.target,
       // As wide as its share of the strip.
       minFaceWidth: double.infinity,
@@ -536,7 +536,7 @@ class _HoverTipState extends State<HoverTip> {
               offset: widget.beside ? Offset(t.space(3), 0) : Offset(0, widget.below ? t.space(2) : -t.space(3)),
               child: IgnorePointer(
                 child: ExcludeSemantics(
-                  // Dial-Up's tip is the era's pale yellow in a thin black line (in After Hours black in a white one).
+                  // Dial-Up's tip is the era's pale yellow in a thin black line, and Runestone's the game's (`--app-tooltip`).
                   child: isBevelChrome(t)
                       ? Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

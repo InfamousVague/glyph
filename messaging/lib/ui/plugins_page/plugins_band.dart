@@ -1,7 +1,7 @@
 /// The Plugins page's head (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
 /// marketplace like look how ghostmd has"): a band in colour, its name and what plugins are, how many there are and
 /// how many are added, with the plugins' tiles scattered at its end, as Ghost.md's Market opens. Its colours are four
-/// of Settings' hues, so each look settles them (Phosphor's band is its green, Mist's turns teal); under Dial-Up it
+/// of Settings' hues, so each look settles them (Lamplight's band is its amber, Mist's turns teal); under Dial-Up it
 /// is a window of the era instead, its tiles a row of toolbar buttons.
 library;
 

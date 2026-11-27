@@ -4,49 +4,110 @@ import 'package:glacier/glacier.dart';
 import '../app_state.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
+import '../custom_theme.dart';
 import '../kit/settings_kit.dart';
 import '../l10n/words.dart';
 import '../packs/resource_pack.dart';
 import 'common.dart';
 
-/// Choosing the resource pack the look Runestone draws with (lib/packs/resource_pack.dart; Matt, 2026-11-27: "see how
-/// we can get the dark vanilla texture pack", then "let's try the duckscape theme instead and bring in the pixelated
-/// looks"): the packs kept on this device, one of them in use or none, and the hub's list to fetch another from.
+/// Textures: what the look in use is drawn with, under every look in Settings › Appearance (Matt, 2026-11-27: "I think
+/// we should add texture packs to all themes, but remove the phosphor entirely and remove the dark dial uptheme, also
+/// remove lamplight and mist and make them texture packs for the Ghost theme").
+///
+/// A look's packs are of two kinds (lib/looks.dart): sets of rules that are part of the app, which were looks of
+/// their own before (Mist and Lamplight, Ghost's), and a resource pack's pictures, fetched to the device (Runestone's:
+/// lib/packs/resource_pack.dart; Matt, 2026-11-27: "see how we can get the dark vanilla texture pack", then "let's
+/// try the duckscape theme instead and bring in the pixelated looks", and, of the look in flat stone on his phone, "I
+/// see the runestone theme but I wanted it to use the duckscape look"). The section lists the look's own first, then
+/// each pack, the one in use ticked; a look nobody has made a pack for yet says so.
 
-/// Settings › Appearance's section, shown while the look is Runestone on a device that can have packs.
-PaneSection resourcePackSection(BuildContext context, AppState app) {
+/// Settings › Appearance's section for the look in use, whichever it is.
+PaneSection texturesSection(BuildContext context, AppState app) {
   final t = context.tokens;
+  final look = app.look, family = look.family;
   final packs = ResourcePacks.instance;
-  final chosen = app.choice(ResourcePacks.pref, '');
-  Widget tick(bool on) => on ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : const SizedBox.shrink();
+  // A look drawn with a resource pack's pictures, on a device that can fetch one (not a browser).
+  final pictures = family.pictures && ResourcePacks.here;
+  final chosen = pictures ? ResourcePacks.chosen(app) : '';
+  // The packs kept on this device, and the one drawn with where it is not among them (one read from elsewhere).
+  final used = pictures ? packs.usedBy(app)?.entry : null;
+  final onDisk = pictures ? packs.installed() : const <PackEntry>[];
+  final kept = [...onDisk, if (used != null && !onDisk.any((e) => e.id == used.id)) used];
+  Widget? tick(bool on) => on ? AppIcon(Lucide.check, size: 18, color: t.color('app-ink')) : null;
+
+  // The pack chosen where it is not on this device: Runestone's usual one before it has been fetched, on its way, or
+  // not fetched for want of a connection. Named from the app until the hub has been asked.
+  SettingRow away(String id) {
+    final wanted = chosen == id;
+    final name = id == ResourcePacks.usual ? ResourcePacks.usualName : id;
+    final fetching = packs.fetching == id, failed = wanted && packs.failed == id;
+    return SettingRow(
+      key: ValueKey('pack-$id'),
+      icon: AppIcon(Lucide.image, size: 18),
+      label: name,
+      hint: fetching
+          ? const Tr('Fetching it from the packs\' hub')
+          : failed
+              ? const Tr('It couldn\'t be fetched. Check the connection and try again.')
+              : (id == ResourcePacks.usual ? const Tr('The pack Runestone comes with') : const Tr('Not on this device')),
+      value: Text(fetching ? 'Fetching'.t : (failed ? 'Try again'.t : 'Get'.t)),
+      disabled: packs.fetching != null,
+      onPress: () => wanted ? packs.fetch(app, id) : packs.use(app, id),
+    );
+  }
+
   return PaneSection(
     title: 'Textures',
-    footer: const Tr('Runestone can draw its windows, buttons and chat parchment from a resource pack: pixel art that players of the game it is modelled on have made for it. A pack is its artist\'s own work. It is fetched to this device from the packs\' own hub and is not part of this app.'),
+    footer: pictures
+        ? const Tr('Runestone draws its windows, buttons and chat parchment from a resource pack: pixel art that players of the game it is modelled on have made for it. It comes with Duckscape, fetched to this device from the packs\' own hub on GitHub the first time the look is used; choose another, or plain stone, here. A pack is its artist\'s own work and is not part of this app.')
+        : family.packs.isNotEmpty
+            ? Text('What {look} is drawn with. Each pack brings its own colours, and is light or dark by itself.'.tf({'look': family.label}))
+            : Text((family.pictures ? 'Packs for {look} are fetched by the app on a phone or a computer, not in a browser.' : 'Nobody has made a pack for {look} yet.').tf({'look': family.label})),
     children: [
+      // The look's own, with no pack: for Runestone, plain stone.
       SettingRow(
         key: const ValueKey('pack-none'),
-        icon: AppIcon(Lucide.square, size: 18),
-        label: 'Plain stone',
-        hint: const Tr('No pack: flat colours'),
-        value: tick(chosen.isEmpty),
-        onPress: () => packs.use(app, ''),
+        icon: AppIcon(family.pictures ? Lucide.square : family.icon, size: 18),
+        label: family.pictures ? 'Plain stone' : family.label,
+        hint: family.pictures ? const Tr('No pack: flat colours') : const Tr('The look as it comes, with no pack'),
+        value: tick(look == family && chosen.isEmpty),
+        onPress: () {
+          if (look != family) CustomTheme.chooseLook(app, family);
+          if (pictures) packs.use(app, '');
+        },
       ),
-      for (final e in packs.installed())
+      // Its packs that are part of the app: each a look's whole set of colours, chosen here.
+      for (final pack in family.packs)
         SettingRow(
-          key: ValueKey('pack-${e.id}'),
-          icon: AppIcon(Lucide.image, size: 18),
-          label: e.name,
-          hint: Text(e.author.isEmpty ? 'A resource pack'.t : '${'By'.t} ${e.author}'),
-          value: tick(chosen == e.id),
-          onPress: () => chosen == e.id ? _packMenu(context, app, e) : packs.use(app, e.id),
+          key: ValueKey('pack-${pack.name}'),
+          icon: AppIcon(pack.icon, size: 18),
+          label: pack.label,
+          hint: Text(pack.description.t),
+          value: tick(look == pack),
+          onPress: () => CustomTheme.chooseLook(app, pack),
         ),
-      SettingRow(
-        key: const ValueKey('pack-get'),
-        icon: AppIcon(Lucide.download, size: 18),
-        label: 'Get a resource pack',
-        hint: const Tr('Choose one from the hub to fetch'),
-        onPress: () => push<void>(context, (_) => ResourcePackHubScreen(app: app)),
-      ),
+      // A resource pack's pictures: the ones kept on this device, the usual one where it is not among them, and the
+      // hub to fetch another from.
+      if (pictures) ...[
+        for (final e in kept)
+          SettingRow(
+            key: ValueKey('pack-${e.id}'),
+            icon: AppIcon(Lucide.image, size: 18),
+            label: ResourcePacks.nameOf(e),
+            hint: Text(e.author.isEmpty ? 'A resource pack'.t : '${'By'.t} ${e.author}'),
+            value: tick(chosen == e.id),
+            onPress: () => chosen == e.id ? _packMenu(context, app, e) : packs.use(app, e.id),
+          ),
+        if (!kept.any((e) => e.id == ResourcePacks.usual)) away(ResourcePacks.usual),
+        if (chosen.isNotEmpty && chosen != ResourcePacks.usual && !kept.any((e) => e.id == chosen)) away(chosen),
+        SettingRow(
+          key: const ValueKey('pack-get'),
+          icon: AppIcon(Lucide.download, size: 18),
+          label: 'Get a resource pack',
+          hint: const Tr('Choose one from the hub to fetch'),
+          onPress: () => push<void>(context, (_) => ResourcePackHubScreen(app: app)),
+        ),
+      ],
     ],
   );
 }
@@ -54,7 +115,7 @@ PaneSection resourcePackSection(BuildContext context, AppState app) {
 /// The pack in use, pressed: stop using it, or take it off this device.
 void _packMenu(BuildContext context, AppState app, PackEntry e) {
   final packs = ResourcePacks.instance;
-  showChoices(context, title: e.name, choices: [
+  showChoices(context, title: ResourcePacks.nameOf(e), choices: [
     Choice('Use plain stone', Lucide.square, () => packs.use(app, '')),
     Choice('Remove from this device', Lucide.trash2, () => packs.remove(app, e.id)),
   ]);
@@ -104,10 +165,10 @@ class _ResourcePackHubScreenState extends State<ResourcePackHubScreen> {
     try {
       await _packs.install(widget.app, e);
       if (!mounted) return;
-      toast(context, '${e.name}: ${'in use'.t}');
+      toast(context, '${ResourcePacks.nameOf(e)}: ${'in use'.t}');
       Navigator.of(context).maybePop();
     } catch (_) {
-      if (mounted) toast(context, '${e.name}: ${'couldn\'t be fetched'.t}', tone: GlacierToastTone.danger);
+      if (mounted) toast(context, '${ResourcePacks.nameOf(e)}: ${'couldn\'t be fetched'.t}', tone: GlacierToastTone.danger);
     } finally {
       if (mounted) setState(() => _getting = null);
     }
@@ -157,7 +218,7 @@ class _ResourcePackHubScreenState extends State<ResourcePackHubScreen> {
                     SettingRow(
                       key: ValueKey('hub-${e.id}'),
                       icon: AppIcon(Lucide.image, size: 18),
-                      label: e.name,
+                      label: ResourcePacks.nameOf(e),
                       hint: Text(e.author.isEmpty ? 'A resource pack'.t : '${'By'.t} ${e.author}'),
                       value: Text(_getting == e.id ? 'Fetching'.t : (have[e.id] == null ? 'Get'.t : (have[e.id] == e.commit ? 'Use'.t : 'Update'.t))),
                       disabled: _getting != null && _getting != e.id,

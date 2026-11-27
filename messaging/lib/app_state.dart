@@ -15,6 +15,8 @@ class AppState extends ChangeNotifier {
     try {
       _prefs.addAll(await Sms.instance.prefs());
     } catch (_) {}
+    // A look that has been taken out of the app is Ghost from here on (lib/looks.dart).
+    Look.settle(this);
   }
 
   /// Read again from Android, which changed some itself: a chat background that someone shared.
@@ -95,9 +97,15 @@ class AppState extends ChangeNotifier {
   /// it. The look already chosen changes nothing, so a tap on its card keeps a colour picked under it. Ghost Keyboard
   /// is told the nearest of its colours first (`theme_bubble`, AccentSync.kt), so the 'theme' that follows already has
   /// a colour it knows.
+  ///
+  /// Each look keeps the pack it was last drawn in ([Look.packPref]), noted as it is left and as it is chosen, so
+  /// choosing the look again brings its pack back ([Look.last]): Ghost in Lamplight is still in Lamplight after a
+  /// while in Sharp.
   void setLook(Look l) {
     if (l == look) return;
     if (look == Look.ghost && bubble != 'theme') set('bubble_before_look', bubble);
+    keep(Look.packPref(look.family), look.isPack ? look.name : '');
+    keep(Look.packPref(l.family), l.isPack ? l.name : '');
     set('theme_bubble', l.keyboard);
     set(Look.pref, l.name);
     if (l != Look.ghost) {
