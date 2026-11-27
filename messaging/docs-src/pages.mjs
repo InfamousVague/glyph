@@ -4,7 +4,7 @@ export const sections = [
   {
     title: 'Getting started',
     pages: [
-      { slug: 'index', icon: 'ghost', title: 'Welcome', summary: 'What Uplink is, and where to start.' },
+      { slug: 'index', icon: 'rocket', title: 'Welcome', summary: 'What Uplink is, and where to start.' },
       { slug: 'alpha', icon: 'flask-conical', title: 'Join the alpha', summary: 'Try Uplink before it launches: what to install, and how to join the testers\' circle.' },
       { slug: 'install', icon: 'download', title: 'Install the app', summary: 'Get Uplink on an Android phone, a Mac, a Windows PC or a Linux computer.' },
       { slug: 'first-run', icon: 'rocket', title: 'The first time you open it', summary: 'A username and a password, your recovery words, and on Android your texts.' },

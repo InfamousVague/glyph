@@ -456,7 +456,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
-- **Looks and their packs** (after 0.12.48; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
+- **Looks and their packs** (0.12.50; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
   `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
   0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
   add texture packs to all themes, but remove the phosphor entirely and remove the dark dial uptheme, also remove

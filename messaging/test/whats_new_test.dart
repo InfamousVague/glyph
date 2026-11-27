@@ -99,6 +99,9 @@ void main() {
 
   test('each note has a mark for what it is about, its name first (Matt, 2026-11-19: "use iconography and smaller text on release notes")', () {
     expect(noteIcon('Record call: record a space\'s call to one video file'), Lucide.circleDot, reason: 'by its name, not the "video" in its words');
+    expect(noteIcon('Runestone comes with its textures: the look draws its buttons from a pack'), Lucide.scrollText, reason: 'Runestone\'s own notes keep its scroll');
+    expect(noteIcon('Textures for every look: Settings › Appearance has the packs'), Lucide.palette);
+    expect(noteIcon('Four looks: Uplink, Sharp, Dial-Up and Runestone. Phosphor is gone'), Lucide.palette, reason: 'by its name, not the looks it lists');
     expect(noteIcon('Scribe: a recorded call written out'), Lucide.scrollText);
     expect(noteIcon('Live captions: in a call, see what everyone says'), Lucide.text);
     expect(noteIcon('Watch together: play a video'), Lucide.film);

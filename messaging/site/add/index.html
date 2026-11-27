@@ -6,6 +6,7 @@
 <title>Add a friend · Uplink</title>
 <meta name="description" content="Add someone as a friend on Uplink.">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#040406">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!--
@@ -15,32 +16,48 @@
   asks before sending the request (lib/friends/add_link.dart). What follows # (the start of their account's name) is
   carried into the app as it is, and no server ever sees it.
 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/uplink.css">
+<script>try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (_) {}</script>
 <style>
-  :root { color-scheme: light dark; --bg: #fdfdfd; --card: #f1f1f1; --ink: #0e0e10; --ink2: #55565c; --red: #dd3a30; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #111113; --ink: #f2f2f3; --ink2: #a3a4ab; } }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; font: 17px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
-  main { max-width: 30rem; margin: 0 auto; min-height: 100%; padding: 1.5rem 1rem; display: flex; flex-direction: column; justify-content: center; text-align: center; }
-  img { width: 3.5rem; height: 3.5rem; border-radius: 1rem; margin: 0 auto 1.25rem; }
-  h1 { font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 0.4rem; overflow-wrap: anywhere; }
-  p { color: var(--ink2); margin: 0 0 1.25rem; }
-  .err { color: var(--red); }
-  .row { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
-  a.btn { display: inline-block; background: var(--ink); color: var(--bg); font-weight: 650; padding: 0.8rem 1.5rem; border-radius: 999px; text-decoration: none; }
-  a.btn.quiet { background: var(--card); color: var(--ink); }
+  /* An invite page in Uplink's look (/uplink.css): one sticker card over the join picture's starfield. */
+  :root { --red: #ff6b5e; }
+  :root[data-theme="light"] { --red: #c8322a; }
+  .page { position: relative; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  .page > .u-slot--bg { position: fixed; }
+  .page > .u-slot--bg::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 55% at 50% 48%, rgba(4,4,6,.72), rgba(4,4,6,.2) 75%); }
+  main { position: relative; z-index: 1; flex: 1; display: grid; place-items: center; padding: 3rem var(--u-gutter) 3.5rem; }
+  .card { width: 100%; max-width: 30rem; text-align: center; padding: 2.4rem 1.6rem 2rem; }
+  .card .u-needle { left: 86%; bottom: 58%; height: calc(42% + 4.5rem); width: 2px; opacity: .8; }
+  .card .logo { width: 7.5rem; height: auto; margin: 0 auto 1.4rem; }
+  .card .u-kicker { margin-bottom: .6rem; }
+  h1 { font-family: var(--u-display); font-style: italic; font-weight: 900; font-size: clamp(1.9rem, 7vw, 2.6rem); line-height: 1.02; letter-spacing: -.01em; margin: 0 0 .7rem; overflow-wrap: anywhere; }
+  .card p { margin: 0 auto 1.6rem; max-width: 24rem; }
+  .card p.err { color: var(--red); }
+  .card .u-btns { justify-content: center; padding-left: 0; }
+  .foot { position: relative; z-index: 1; text-align: center; font-size: .84rem; color: var(--u-ink-3); padding: 0 var(--u-gutter) 1.5rem; }
+  .foot a { color: var(--u-ink-2); }
 </style>
 </head>
 <body>
+<div class="page">
+<div class="u-slot u-slot--bg u-stars" aria-hidden="true"><img class="u-slot-img" src="/art/space/join.webp" alt="" loading="lazy" onerror="this.remove()"></div>
 <main>
-  <img src="/icon.png" alt="">
-  <h1 id="title">Add a friend</h1>
-  <p id="line">On Uplink.</p>
-  <div class="row">
-    <a class="btn" id="open" href="/">Open in Uplink</a>
-    <a class="btn quiet" href="/">Get the app</a>
+  <div class="card u-sticker">
+    <i class="u-needle u-needle--glow" aria-hidden="true"></i>
+    <img class="logo" src="/art/uplink-logo.webp" width="1200" height="918" alt="Uplink">
+    <span class="u-kicker">Friend request</span>
+    <h1 id="title">Add a friend</h1>
+    <p id="line">On Uplink.</p>
+    <div class="u-btns">
+      <a class="u-btn u-btn--solid" id="open" href="/"><span>Open in Uplink</span></a>
+      <a class="u-btn u-btn--line" href="/"><span>Get Uplink</span></a>
+    </div>
   </div>
 </main>
+<p class="foot">Uplink: text, voice and video in one app. <a href="/">gogho.st</a> · <a href="/docs/">Help</a></p>
+</div>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);

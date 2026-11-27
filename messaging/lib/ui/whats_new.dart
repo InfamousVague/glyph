@@ -70,6 +70,9 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['open space'], Lucide.compass),
   // The look Runestone and its textures (Matt, 2026-11-27): a quest's scroll, as the look's own mark is.
   (['runestone'], Lucide.scrollText),
+  // The looks and what each is drawn with (Matt, 2026-11-27: "add texture packs to all themes"): a palette, as making
+  // a look of your own is marked. After Runestone's, so its own notes keep the scroll.
+  (['textures', 'four looks'], Lucide.palette),
   (['ai model'], Lucide.wandSparkles),
   (['language'], LucideMore.languages),
   (['fixes'], Lucide.listChecks),
