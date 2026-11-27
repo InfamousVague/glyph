@@ -456,7 +456,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
-- **Look: Runestone, and resource packs** (not released yet; `lib/looks.dart`, `lib/packs/`, `lib/ui/resource_packs_ui.dart`,
+- **Look: Runestone, and resource packs** (0.12.48; `lib/looks.dart`, `lib/packs/`, `lib/ui/resource_packs_ui.dart`,
   `lib/art/pixel_emoji.dart`, `lib/art/pixel_icons.g.dart`, Runestone's block in `assets/css/app.css`; Matt, 2026-11-27: "make a
   theme in Ghost that fits this with the runescape font and everything", of the Dark Vanilla resource pack for an old
   adventure game's interface, then "let's try the duckscape theme instead and bring in the pixelated looks"). A dark look
