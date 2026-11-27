@@ -65,7 +65,9 @@ const BACKUPS = '/opt/ghost-sms-releases';
 const ZIP = 'ghost-messaging-mac.zip';
 const DMG = 'ghost-messaging-mac.dmg';
 const FEED = 'mac.json';
-const APP = 'Ghost Messaging.app';
+const APP = 'Uplink.app';
+// What the app's file was called until 2026-11-27. A copy installed then keeps that name: it updates itself in place.
+const APP_BEFORE = 'Ghost Messaging.app';
 const BUNDLE_ID = 'com.infamousvague.ghostmessaging.mac';
 const TEAM = 'F6ZAL7ANAD';
 const IDENTITY = process.env.GHOST_MAC_IDENTITY ?? `Developer ID Application: Matt Wisniewski (${TEAM})`;
@@ -410,6 +412,8 @@ say(`ok Uplink for the Mac ${info.version} (${info.versionCode}), ${(info.bytes 
 if (has('install')) {
   const folder = resolve(flag('install-to') ?? '/Applications');
   const dest = join(folder, APP);
+  const before = join(folder, APP_BEFORE);
+  if (existsSync(before) && !existsSync(dest)) fail(`${before} is there, under the app's earlier name. Rename it to ${APP} (it keeps updating itself under any name) or remove it first: two copies would both take the app's links.`);
   let aside = null;
   if (existsSync(dest)) {
     if (!has('replace')) fail(`${dest} is there already. It updates itself; --replace takes its place with this build.`);

@@ -19,7 +19,7 @@ import Security
 ///   no team takes nothing, since it could not tell a real update from any other app.
 ///
 /// HOW IT IS PUT IN PLACE: unpacked beside the running app, in a hidden folder of the same folder
-/// (`/Applications/.Ghost Messaging.app-update`), so the swap is a rename on one volume. `restart` swaps the two
+/// (`/Applications/.Uplink.app-update`, named for the installed copy's own file, whatever that is called), so the swap is a rename on one volume. `restart` swaps the two
 /// bundles in one step (`renamex_np` with `RENAME_SWAP`: there is never a moment with no app at the path), starts a
 /// small shell helper, and quits. The helper waits for this process to end, opens the app at the same path (now the
 /// new version), and waits for it to say it opened (it writes `launched-<build>` as this file's `settle` runs). Only
@@ -83,7 +83,7 @@ final class UpdatesChannel: NSObject {
   /// Dart empties.
   static var state: URL? { cache?.appendingPathComponent("update-install", isDirectory: true) }
 
-  /// The hidden folder an update is unpacked into, beside [app]: `.Ghost Messaging.app-update`.
+  /// The hidden folder an update is unpacked into, beside [app]: `.Uplink.app-update`, or `.Ghost Messaging.app-update` beside a copy installed under that name.
   static func folder(beside app: URL) -> URL {
     app.deletingLastPathComponent().appendingPathComponent(".\(app.lastPathComponent)-update", isDirectory: true)
   }

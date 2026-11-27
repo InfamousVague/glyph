@@ -66,7 +66,7 @@ class StandaloneCalls implements SmsCalls {
 
   static Future<bool> _restartHere() async {
     if (PlatformInfo.environment.containsKey('FLUTTER_TEST') || !PlatformInfo.isMacOS) return false;
-    // …/Ghost Messaging.app/Contents/MacOS/Ghost Messaging, three folders up (the app's file keeps its earlier name).
+    // …/Uplink.app/Contents/MacOS/Uplink, three folders up.
     final app = File(PlatformInfo.resolvedExecutable).parent.parent.parent.path;
     if (!app.endsWith('.app')) return false;
     await Process.start('/bin/sh', ['-c', 'sleep 1; /usr/bin/open -n "\$0"', app], mode: ProcessStartMode.detached);

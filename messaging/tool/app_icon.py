@@ -139,7 +139,7 @@ def mac_icon(picture, size):
     blue, and main() refuses to write a Mac icon that is all grey.
 
     The test is the app as built, since an .icns beside it is not read: `python3 tool/app_icon.py --check
-    "build/macos/Build/Products/Release/Ghost Messaging.app"` says how its catalog stored the icon, and
+    "build/macos/Build/Products/Release/Uplink.app"` says how its catalog stored the icon, and
     `NSWorkspace.shared.icon(forFile:)` on it is what the Dock draws.
     """
     from PIL import ImageFilter

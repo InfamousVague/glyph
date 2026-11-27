@@ -208,7 +208,7 @@ UpdatesChannel.swift` in the repository's root, where they have run since 2026-1
   library, strictly (`macos/Runner/UpdatesChannel.swift`). Only Matt's Developer ID signs as that team, so nothing
   the server or the network says can stand in for it, and there is no second key to keep or lose.
 - **How it is put in place.** Unpacked beside the running app in a hidden folder
-  (`/Applications/.Ghost Messaging.app-update`), then the two trade places in one step, the app quits, and a small
+  (`/Applications/.Uplink.app-update`, named for the installed copy's own file), then the two trade places in one step, the app quits, and a small
   helper opens the new one and removes the old only once the new one has said it opened; if it has not in two
   minutes the old one is put back. A bar over every page offers Restart to update; quitting swaps it in as well, so
   the next launch is the new version either way.
@@ -265,7 +265,7 @@ flutter test                                    # sealing held to test/desk_vect
 cd android && ./gradlew :app:testDebugUnitTest  # the phone's sealing (the same examples), its session, its WebSocket
                                                 # client, a QR code read from a frame
 cd relay && dart test                           # the relay
-flutter build macos                             # build/macos/Build/Products/Release/Ghost Messaging.app
+flutter build macos                             # build/macos/Build/Products/Release/Uplink.app
 ```
 
 Against an emulator, the real Mac app and the real phone app (`integration_test/desk_live_test.dart` says how):
@@ -279,7 +279,7 @@ it small on a grey plate of its own. Not for its outline, which was redrawn thre
 black and white and nothing else, Xcode's asset catalog stores a picture with no colour in it as greyscale, and
 macOS puts a greyscale icon on a plate whatever its outline (one pixel that is not grey, and the same picture is
 drawn whole). `tool/app_icon.py` gives the Mac icon's black two parts in 255 of blue and refuses to write one that
-is all grey; `python3 tool/app_icon.py --check "build/macos/Build/Products/Release/Ghost Messaging.app"` says how
+is all grey; `python3 tool/app_icon.py --check "build/macos/Build/Products/Release/Uplink.app"` says how
 the built app's catalog stored it. macOS keeps the picture it made for an app at a path: `touch` the app after a
 rebuild (or move it) and the Dock draws it again. Seen whole on the app as built, by `NSWorkspace`'s icon for it.
 
