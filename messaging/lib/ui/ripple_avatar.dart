@@ -5,6 +5,7 @@ import 'package:glacier/glacier.dart';
 
 import '../kit/settings_type.dart';
 import '../kit/semantic_colors.dart';
+import 'dialup/parts.dart' show VoiceFace, voiceCorner;
 
 /// A face in a call, with wobbly rings going out from it while they talk (Matt, 2026-11-15: "make the profile
 /// picture habe wobbly ripples going out when talking"). [level] is how loud they are now, 0 to 1 (lib/voice/rtc.dart
@@ -13,7 +14,7 @@ class RippleAvatar extends StatelessWidget {
   const RippleAvatar({super.key, required this.name, required this.level, this.size = 44, this.color, this.muted = false, this.ringed = false, this.child});
 
   /// Drawn as the face in the initial's place, where given: their picture (lib/ui/open_space_view.dart). It is clipped
-  /// to the face's circle.
+  /// to the face's shape.
   final Widget? child;
 
   /// A green ring round the face even while quiet: a call that is on.
@@ -32,6 +33,28 @@ class RippleAvatar extends StatelessWidget {
     final t = context.tokens;
     final ink = color ?? t.online;
     final letter = (name.replaceAll('@', '').trim().characters.firstOrNull ?? '?').toUpperCase();
+    // Dial-Up's and Runestone's: square, or a squircle in the pack's frame, and the rings and the green line with it
+    // (lib/ui/dialup/parts.dart's voiceCorner).
+    final corner = voiceCorner(t, size);
+    if (corner != null) {
+      final face = VoiceFace(
+        size: size,
+        child: child ?? ColoredBox(color: t.color('app-paper-3'), child: Center(child: Text(letter, style: pageText(t, size * 0.4, weight: 'bold', color: t.color('app-ink'))))),
+      );
+      return SizedBox.square(
+        dimension: size,
+        child: VoiceRipples(
+          level: level,
+          muted: muted,
+          color: ink,
+          reach: size / 2 * 0.6,
+          corner: corner,
+          builder: (context, strength) => strength <= 0.05 && !ringed
+              ? face
+              : TalkingLine(corner: corner, color: strength > 0.05 ? ink.withValues(alpha: (0.4 + strength * 0.6).clamp(0, 1)) : ink, width: 2.5, child: face),
+        ),
+      );
+    }
     // As big as the face: the rings spill past it, over what is around, rather than holding a row apart.
     return SizedBox.square(
       dimension: size,
@@ -58,6 +81,32 @@ class RippleAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The green line round a square or squircle face ([corner], as lib/ui/dialup/parts.dart's voiceCorner gives it) that
+/// is talking or in a call. On a square it is over the face's edge; round a squircle, which is in a resource pack's
+/// textured frame, it is just outside it, so the frame is still seen, and takes no room there.
+class TalkingLine extends StatelessWidget {
+  const TalkingLine({super.key, required this.corner, required this.color, required this.width, required this.child});
+  final double corner;
+  final Color color;
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final out = corner > 0 ? width : 0.0;
+    return Stack(clipBehavior: Clip.none, children: [
+      child,
+      Positioned(
+        left: -out,
+        top: -out,
+        right: -out,
+        bottom: -out,
+        child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(corner > 0 ? corner + out : 0), border: Border.all(color: color, width: width)))),
+      ),
+    ]);
   }
 }
 
