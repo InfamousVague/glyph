@@ -456,6 +456,25 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
   Featured, a card each with Add or Added, and a page for each plugin (what it does, what it reads, its settings).
   Translations are kept in memory only, not on disk. Tests: plugins/translate_test, plugins_page_test, themes_test
   screens. Not tried on a phone; the whole suite was not run.
+- **The app is Uplink** (0.12.51; Matt, 2026-11-27: "Update all the language in the app to replace ghost and ghost
+  messaging with Uplink we're going to push it to the Satellite-im/uplink repo", then "when you're done also update the
+  logo to the uplink logo on the desktop and deploy to all platforms"). Every word someone reads says Uplink: the
+  app's strings and its 27 translations, each platform's own half (the name under the icon, window titles,
+  notifications, what the system asks permission with), the relay's and the Discord bot's messages, the browser
+  extension, the site and the docs, and the comments. The Mac app is `Uplink.app` and the Start menu's entry is
+  Uplink. **What keeps its old name**, because a program or an install depends on it and nobody reads it:
+  identifiers and file names in the source (`GhostLogo`, `ghost_messaging`, `ghost-mark.png`), the package and
+  bundle ids, gogho.st, the `ghostmsg:` scheme, `.ghostplugin` and `.ghostlook`, every wire constant, the files
+  server's `Authorization: Ghost <token>`, a file card's `Ghost file: ` mark, the relay's greeting
+  `Ghost Messaging relay` (an app of any version looks for it), Windows' install folder and `ghost_messaging.exe`
+  (an install is found there by its own update), Linux's `ghost-messaging` command and package, and every platform's
+  data folder, so nobody's messages move. A Mac copy installed before keeps its file's name, and so its name in
+  Finder and the Dock, until it is renamed: the updater swaps the new app into wherever the running one is
+  (`macos/Runner/UpdatesChannel.swift`). Still saying Ghost on purpose: the walkthrough's recorded voice
+  (`lib/onboarding/narration.dart`), the sticker pack of ghosts and the Ghost Ring decoration, and other products
+  (Ghost.md, Ghost Keyboard). **The icon** is `art/app-icon.png`, Matt's `UplinkLogo.png`, and
+  `python3 tool/app_icon.py` writes every platform's from it, Windows', Linux's, the iPhone's and the extension's
+  now too; the picture is cleaned first, and the tool refuses one a round home-screen mask would cut.
 - **Looks and their packs** (0.12.50; `lib/looks.dart`, `lib/app_state.dart`, `lib/packs/resource_pack.dart`,
   `lib/ui/resource_packs_ui.dart`, `lib/ui/look_picker.dart`, the look blocks in `assets/css/app.css`; Matt, 2026-11-27, of
   0.12.48 on his phone: "I see the runestone theme but I wanted it to use the duckscape look", then "I think we should
@@ -1785,7 +1804,7 @@ flutter test --update-goldens test/screens_test.dart          # every screen, li
 flutter test --update-goldens test/desk_screens_test.dart     # the Mac's screens, written to test/shots/mac-*
 cd android && ./gradlew :app:testDebugUnitTest                # the MMS encoder and decoder, the encryption, a background as a text, the codes offered,
                                                               # the sealing with a computer, a computer's connection, the WebSocket client, a QR code read
-flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Ghost Messaging.app
+flutter build macos                                           # the Mac app: build/macos/Build/Products/Release/Uplink.app
 (cd relay && dart test && dart run bin/relay.dart)            # the relay: its tests, then ws://127.0.0.1:8787
 flutter test integration_test/desk_live_test.dart -d macos    # the real Mac app against the phone app on an emulator (the file says how)
 ```

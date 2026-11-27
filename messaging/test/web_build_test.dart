@@ -179,14 +179,32 @@ void main() {
     // points at the box, as gogho.st's does (before that Caddy's retries for its certificate back off for hours).
     expect(script, contains(r'''printf '%s\\n' '${BLOCK.replace('''));
     expect(script, contains(r'''[ "$WITH_APP" = 0 ] || printf '%s\\n' '${APP_BLOCK.replace('''));
-    // And its block is taken out only where a new one goes in: with the DNS not checked, the one it has stays.
-    expect(script, contains(r'''if [ "$WITH_APP" = 1 ]; then START='^(www[.])?${dom}[ ,{]'; else START='^(www[.])?${domSite}[ ,{]'; fi'''));
+    // And its block is taken out only where a new one goes in: with the DNS not checked, the one it has stays. The
+    // two names that are always written again are gogho.st's and ghost-sms.com's.
+    expect(script, contains(r"NAMES='${domCore}'"));
+    expect(script, contains(r'''[ "$WITH_APP" = 0 ] || NAMES="$NAMES|${escaped(APP_HOST)}"'''));
+    expect(script, contains(r'''START="^(www[.])?($NAMES)[ ,{]"'''));
     expect(script, contains(r'''$SUDO awk -v start="$START" '$0 ~ start { skip = 1; next }'''));
-    final domSite = RegExp(r'const domSite = `([^`]+)`;').firstMatch(script)?.group(1);
-    expect(domSite, isNotNull);
-    expect(domSite, isNot(contains('APP_HOST')));
+    final domCore = RegExp(r'const domCore = ([^;]+);').firstMatch(script)?.group(1);
+    expect(domCore, isNotNull);
+    expect(domCore, isNot(contains('APP_HOST')));
+    expect(domCore, isNot(contains('ALSO')));
     expect(script, contains(r'''if [ -n "$APP_IP" ] && [ "$APP_IP" = "$SITE_IP" ]; then WITH_APP=1;'''));
-    expect(script, contains(r"${APP_HOST.replaceAll('.', '[.]')}"));
+    expect(script, contains('[DOMAIN, OLD, ...ALSO, APP_HOST].map(escaped)'));
+    // The site's other names serve it themselves (Matt, 2026-11-27: "update the box so satellite.im and
+    // deepspaceshipping.co don't redirect simply serve the uplink page"): a block each, the site's folder at its root,
+    // the release's files, and nothing sent on but what is gogho.st's alone. Each only once its DNS points at the box,
+    // and its old block taken out only then.
+    expect(script, contains("const ALSO = ['satellite.im', 'deepspaceshipping.co'];"));
+    final also = RegExp(r'const alsoBlock = \(name\) => `\n(\$\{name\} \{\n[\s\S]*?\n\})\n`;').firstMatch(script)?.group(1);
+    expect(also, isNotNull, reason: 'tool/deploy-site.mjs has no alsoBlock written as this reads it');
+    expect(also, contains('\thandle {\n\t\troot * \${SITE}\n'));
+    expect(also, contains('\t@release path \${RELEASED}\n'));
+    expect(also, isNot(contains('reverse_proxy')));
+    expect(RegExp(r'\bredir ').allMatches(also!), hasLength(1), reason: 'only what is gogho.st\'s alone is sent there');
+    expect(also, contains(r'redir https://${DOMAIN}{uri}'));
+    expect(script, contains(r'''if points "$n"; then ALSO_IN="$ALSO_IN $n";'''));
+    expect(script, contains(r'''for n in $ALSO_IN; do NAMES="$NAMES|$(printf '%s' "$n" | sed 's/[.]/[.]/g')"; done'''));
   });
 
   // Matt: "the full web client". What the page says of itself, to whoever adds it to a home screen: nothing it can't do.

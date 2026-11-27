@@ -88,7 +88,7 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['custom css'], Lucide.palette),
   (['chat map'], Lucide.zoomIn),
   (['developer mode'], Lucide.braces),
-  (['icons', 'phosphor'], Lucide.shapes),
+  (['icons', 'app icon', 'phosphor'], Lucide.shapes),
   (['sign up', 'sign-up', 'signing in'], Lucide.userPlus),
   (['souls', 'flame'], Lucide.flame),
   (['badge'], LucideMore.badgeCheck),
@@ -120,6 +120,10 @@ final List<(List<String>, LucideIcon)> _noteIcons = [
   (['voice', 'call', 'sound'], LucideMore.headphones),
   (['circle', 'space'], Lucide.users),
   (['message', 'chat'], LucideMore.messageCircle),
+  // The app's own name (Matt, 2026-11-27: "replace ghost and ghost messaging with Uplink"): a name's tag. Last, so a
+  // note that only mentions the app keeps the mark of what it is about; a note named for it ("Uplink: …") is found
+  // by its name first.
+  (['uplink'], Lucide.tag),
 ];
 
 /// The notes of each release under its version: each a small tile with its mark, its name in bold where it has one

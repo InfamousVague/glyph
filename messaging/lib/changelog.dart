@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.51', '2026-11-27', [
+    'Uplink: Ghost Messaging has a new name. The app says Uplink everywhere now: on your home screen, in its own pages, and in what your phone or computer asks you. Your account, your chats, your friends and your settings are just as they were, and the people you talk to reach you as before.',
+    'A new app icon: the Uplink logo, on your home screen, in the Dock, on the taskbar and inside the app.',
+    'Uplink on a Mac: a copy that was already installed keeps its old name in Finder and the Dock until you rename it to Uplink in Applications. It goes on updating itself either way, and a fresh download is Uplink from the start.',
+  ]),
   ReleaseNotes('0.12.50', '2026-11-27', [
     'Runestone comes with its textures: the look draws its buttons, windows and parchment from the Duckscape resource pack, and fetches it to this device by itself the first time you use the look. Choose another pack, or plain stone, in Settings › Appearance › Textures. Not in a browser.',
     'Textures for every look: Settings › Appearance has the packs of the look you are using, under the looks. Mist and Lamplight are Uplink\'s packs now and are chosen there, and a look keeps its pack while you use another.',
