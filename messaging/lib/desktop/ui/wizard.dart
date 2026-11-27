@@ -122,14 +122,14 @@ class _PairWizardState extends State<PairWizard> {
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
-                    padding: EdgeInsets.fromLTRB(t.space(6), t.space(8), t.space(6), t.space(4)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(6), t.space(8), t.space(6), t.space(4)),
                     children: [
                       for (var i = 0; i < body.length; i++) ...[if (i > 0) SizedBox(height: t.space(4)), body[i]],
                     ],
                   ),
                 ),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(t.space(6), 0, t.space(6), t.space(6)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(6), 0, t.space(6), t.space(6)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
                     for (var i = 0; i < buttons.length; i++) ...[if (i > 0) SizedBox(height: t.space(3)), buttons[i]],
                   ]),

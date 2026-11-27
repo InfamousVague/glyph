@@ -88,7 +88,7 @@ class MembersDrawer extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), foot + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), foot + t.space(3)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: math.max(t.lenOf('12rem'), MediaQuery.sizeOf(context).height - pad.top - foot - t.space(8))),
           child: _Frame(
@@ -98,7 +98,7 @@ class MembersDrawer extends StatelessWidget {
               // Add people at the top: the drawer gives way to the invite drawer, raised from where this one was.
               if (add != null)
                 Padding(
-                  padding: EdgeInsets.fromLTRB(DrawerHead.gutter(t), t.space(2), DrawerHead.gutter(t), t.space(2)),
+                  padding: EdgeInsetsDirectional.fromSTEB(DrawerHead.gutter(t), t.space(2), DrawerHead.gutter(t), t.space(2)),
                   child: _AddPeopleButton(
                     onPressed: mayAdd
                         ? () {
@@ -192,7 +192,7 @@ class CircleMembersList extends StatelessWidget {
         // in only by their own padding.
         return ListView(
           shrinkWrap: true,
-          padding: EdgeInsets.fromLTRB(DrawerHead.gutter(t), t.space(3), DrawerHead.gutter(t), t.space(4)),
+          padding: EdgeInsetsDirectional.fromSTEB(DrawerHead.gutter(t), t.space(3), DrawerHead.gutter(t), t.space(4)),
           children: [
             Padding(
               padding: EdgeInsets.only(bottom: t.space(3)),

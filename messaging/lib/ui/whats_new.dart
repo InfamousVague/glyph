@@ -130,7 +130,7 @@ class WhatsNewList extends StatelessWidget {
     final small = t.fontSize('sm');
     return ListView(
       shrinkWrap: true,
-      padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)),
+      padding: EdgeInsetsDirectional.fromSTEB(gutter, t.space(3), gutter, t.space(4)),
       children: [
         for (final r in notes) ...[
           if (notes.length > 1) DrawerHeading(r.version),
@@ -141,7 +141,7 @@ class WhatsNewList extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 28,
-                  margin: EdgeInsets.only(right: t.space(3)),
+                  margin: EdgeInsetsDirectional.only(end: t.space(3)),
                   decoration: BoxDecoration(color: t.color('app-accent').withValues(alpha: 0.14), borderRadius: BorderRadius.circular(8)),
                   alignment: Alignment.center,
                   child: AppIcon(noteIcon(line), size: 15, wash: false, color: t.color('app-accent')),

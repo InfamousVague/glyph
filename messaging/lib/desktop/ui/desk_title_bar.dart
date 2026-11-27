@@ -45,7 +45,7 @@ class DeskTitleBar extends StatelessWidget {
         key: const ValueKey('desk-title-bar'),
         height: height,
         decoration: BoxDecoration(color: ground, border: Border(bottom: BorderSide(color: t.color('app-rule')))),
-        padding: EdgeInsets.only(left: MacChrome.lightsRoom, right: t.space(2)),
+        padding: EdgeInsetsDirectional.only(start: MacChrome.lightsRoom, end: t.space(2)),
         child: Row(children: [
           Expanded(
             child: Center(
@@ -62,10 +62,10 @@ class DeskTitleBar extends StatelessWidget {
               ),
             ),
           ),
-          for (final make in extras) Padding(padding: EdgeInsets.only(left: room), child: make(context, navigator)),
+          for (final make in extras) Padding(padding: EdgeInsetsDirectional.only(start: room), child: make(context, navigator)),
           // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19).
           Padding(
-            padding: EdgeInsets.only(left: room),
+            padding: EdgeInsetsDirectional.only(start: room),
             child: SoulsChip(
               side: 28,
               onOpen: () {
@@ -75,7 +75,7 @@ class DeskTitleBar extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: EdgeInsets.only(left: room),
+            padding: EdgeInsetsDirectional.only(start: room),
             child: FeedbackButton(
               side: 28,
               onOpen: () {

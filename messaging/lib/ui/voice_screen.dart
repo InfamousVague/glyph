@@ -89,10 +89,10 @@ class VoiceScreen extends StatelessWidget {
           session: s,
           child: Stack(children: [
             ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), 120 + MediaQuery.paddingOf(context).bottom),
               children: [CallPanel(session: s)],
             ),
-            Positioned(left: 0, right: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
+            PositionedDirectional(start: 0, end: 0, bottom: MediaQuery.paddingOf(context).bottom + NavPill.inset(t), child: Center(child: CallDock(session: s))),
           ]),
         ),
       );
@@ -101,7 +101,7 @@ class VoiceScreen extends StatelessWidget {
       title: 'Spaces',
       actions: [IconTap(icon: Lucide.plus, label: 'New space', onPressed: () => push(context, (_) => const NewChannelScreen()))],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           if (v.channels.isEmpty)
             SettingsCallout(child: const Tr('Every group of friends has a space. Make one of your own with + and share it with friends you added by username.'))
@@ -245,7 +245,7 @@ class CallPanel extends StatelessWidget {
                     onLongPress: () => showPerson(context, session, p.id, p.name),
                     onSecondaryTap: () => showPerson(context, session, p.id, p.name),
                     child: Padding(
-                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(2), t.space(2)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(2), t.space(2)),
                     child: Row(children: [
                       // A little larger on a computer (Matt, 2026-11-15: "make the voice chat avatars a little larger on desktop").
                       LinkBadge(
@@ -277,8 +277,8 @@ class CallPanel extends StatelessWidget {
                           LinkWords(id: p.id),
                         ]),
                       ),
-                      if (p.video != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
-                      if (p.muted) Padding(padding: EdgeInsets.only(right: t.space(3)), child: AppIcon(mutedMark(all: p.all, mine: p.mine), size: 16, wash: false, color: t.danger)),
+                      if (p.video != null) Padding(padding: EdgeInsetsDirectional.only(end: t.space(2)), child: AppIcon(Lucide.video, size: 16, color: t.color('app-ink-3'))),
+                      if (p.muted) Padding(padding: EdgeInsetsDirectional.only(end: t.space(3)), child: AppIcon(mutedMark(all: p.all, mine: p.mine), size: 16, wash: false, color: t.danger)),
                     ]),
                   )),
                 if (coming > 0)
@@ -286,7 +286,7 @@ class CallPanel extends StatelessWidget {
                     key: const ValueKey('call-coming'),
                     label: coming == 1 ? '1 person in the call' : '$coming people in the call',
                     child: Padding(
-                      padding: EdgeInsets.only(left: t.space(4), right: t.space(2)),
+                      padding: EdgeInsetsDirectional.only(start: t.space(4), end: t.space(2)),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < coming; i++) SkeletonPeople.row(t, i, face: face, second: false)]),
                     ),
                   ),
@@ -471,10 +471,10 @@ class _Tile extends StatelessWidget {
           // One renderer per stream (GMFB-5): when the tiles shift, as they do when someone turns video off, a renderer
           // never carries on drawing whoever stood in that place before.
           if (stream != null) StreamView(key: ObjectKey(stream), stream: stream!, mirror: mirror, contain: screen || whole),
-          Positioned(
-            left: t.space(2),
+          PositionedDirectional(
+            start: t.space(2),
             bottom: t.space(2),
-            right: t.space(2),
+            end: t.space(2),
             child: Row(children: [
               Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
               if (muted) ...[SizedBox(width: t.space(1)), AppIcon(mark, size: 14, wash: false, color: t.danger)],
@@ -543,9 +543,9 @@ class _TileToolsState extends State<TileTools> {
       child: Stack(fit: StackFit.expand, children: [
         widget.child,
         if (shown)
-          Positioned(
+          PositionedDirectional(
             top: 8,
-            right: 8,
+            end: 8,
             child: Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: [
               for (final x in widget.tools)
                 GlacierPressable(
@@ -853,7 +853,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
         finder: SettingsFinder(),
         child: StatefulBuilder(
           builder: (context, set) => ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               PaneSection(title: 'Name', children: [
                 SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Space name'.t, ariaLabel: 'Space name', autoFocus: true, autoCapitalize: TextCapitalization.words, size: GlacierFieldSize.md)),
@@ -901,7 +901,7 @@ class RingCard extends StatelessWidget {
         final r = v.ringing;
         if (r == null) return const SizedBox.shrink();
         return Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), MediaQuery.paddingOf(context).top + t.space(2), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), MediaQuery.paddingOf(context).top + t.space(2), t.space(3), 0),
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -1137,7 +1137,7 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                   child: Container(
-                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(1) + 2, t.space(1) + 2, t.space(1) + 2),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1) + 2, t.space(1) + 2, t.space(1) + 2),
                     decoration: BoxDecoration(
                       color: Color.alphaBlend(green.withValues(alpha: state.pressed ? 0.24 : 0.16), t.colorOf('color-mix(in srgb, var(--glacier-bg) 88%, transparent)')),
                       borderRadius: radius,
@@ -1167,7 +1167,7 @@ class _CallBannerState extends State<CallBanner> with SingleTickerProviderStateM
                         ]),
                       ),
                       for (final (id, name) in talking.take(3))
-                        Padding(padding: EdgeInsets.only(left: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
+                        Padding(padding: EdgeInsetsDirectional.only(start: t.space(1)), child: RippleAvatar(name: name, level: loud[id] ?? 0, size: 26)),
                       SizedBox(width: t.space(2)),
                       // The picture closed for this call: brought back over the app from here (GMFB-64).
                       if (CallFloat.instance.canPopOut) ...[
@@ -1247,7 +1247,7 @@ class _PersonSheet extends StatelessWidget {
         child: GestureDetector(
           onTap: () {},
           child: Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: t.lenOf('30rem')),
               child: ClipRRect(
@@ -1350,7 +1350,7 @@ class _PersonSheet extends StatelessWidget {
                                 final words = db.abs() < 0.5 ? 'Auto leveler: as they are' : 'Auto leveler: ${db > 0 ? 'up' : 'down'} ${db.abs().toStringAsFixed(0)} dB';
                                 return Padding(
                                   key: const ValueKey('leveler-line'),
-                                  padding: EdgeInsets.only(left: 18 + t.space(3), bottom: t.space(2)),
+                                  padding: EdgeInsetsDirectional.only(start: 18 + t.space(3), bottom: t.space(2)),
                                   child: Text(words, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                                 );
                               },
@@ -1447,12 +1447,12 @@ class VolumeSlider extends StatelessWidget {
           onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
           child: SizedBox(
             height: 32,
-            child: Stack(alignment: Alignment.centerLeft, children: [
+            child: Stack(alignment: AlignmentDirectional.centerStart, children: [
               Container(height: 6, decoration: BoxDecoration(color: t.color('app-paper-3'), borderRadius: BorderRadius.circular(3))),
               Container(width: w * frac, height: 6, decoration: BoxDecoration(color: t.color('app-accent'), borderRadius: BorderRadius.circular(3))),
-              Positioned(left: w / 2 - 1, child: Container(width: 2, height: 12, color: t.color('app-ink-4'))),
-              Positioned(
-                left: (w * frac - 11).clamp(0.0, w - 22),
+              PositionedDirectional(start: w / 2 - 1, child: Container(width: 2, height: 12, color: t.color('app-ink-4'))),
+              PositionedDirectional(
+                start: (w * frac - 11).clamp(0.0, w - 22),
                 child: Container(
                   width: 22,
                   height: 22,
@@ -1523,7 +1523,7 @@ class _DevicePillState extends State<DevicePill> {
           builder: (context, state) => Container(
             width: ring - 6,
             height: ring,
-            padding: const EdgeInsets.only(left: 6),
+            padding: const EdgeInsetsDirectional.only(start: 6),
             alignment: Alignment.center,
             child: AppIcon(widget.icon, size: t.lenOf('1.15rem'), wash: false, color: ink),
           ),
@@ -1543,7 +1543,7 @@ class _DevicePillState extends State<DevicePill> {
             builder: (context, state) => Container(
               width: 24,
               height: ring,
-              padding: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsetsDirectional.only(end: 6),
               alignment: Alignment.center,
               child: AppIcon(Lucide.chevronUp, size: 14, strokeWidth: 2.4, wash: false, color: ink.withValues(alpha: 0.75)),
             ),
@@ -1595,13 +1595,13 @@ class SpaceLiveBar extends StatelessWidget {
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
               child: Container(
-                padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(1), t.space(1)),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(1), t.space(1)),
                 foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
                 decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
                   SizedBox(width: t.space(2)),
-                  for (final id in inIt.take(3)) Padding(padding: EdgeInsets.only(right: 2), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 22)),
+                  for (final id in inIt.take(3)) Padding(padding: EdgeInsetsDirectional.only(end: 2), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 22)),
                   SizedBox(width: t.space(1)),
                   ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.4),
@@ -1661,8 +1661,8 @@ class LinkBadge extends StatelessWidget {
           label: words,
           child: Stack(clipBehavior: Clip.none, children: [
             child,
-            Positioned(
-              left: -2,
+            PositionedDirectional(
+              start: -2,
               bottom: -2,
               child: Container(
                 key: ValueKey('link-$id-${link.name}'),

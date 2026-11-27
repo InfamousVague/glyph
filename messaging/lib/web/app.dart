@@ -292,13 +292,13 @@ class WebApp extends StatelessWidget {
             builder: (context, child) {
               final wide = MediaQuery.sizeOf(context).width >= AppShell.wideAt;
               Sms.browserWide = wide;
-              return GlacierTheme(
+              return Directionality(textDirection: Words.instance.direction, child: GlacierTheme(
                 sheet: accents.of(state),
                 attrs: ghostAttrs(state, wide ? 'desktop' : 'mobile'),
                 typography: ghostTypography(state.emoji),
                 // The text size chosen in Settings, over every page, sheet and toast (GMFB-41, lib/ui/text_scale.dart).
                 child: AppTextScale(child: InkOverrides(child: GlacierToastProvider(child: child!))),
-              );
+              ));
             },
             home: const WebHome(),
             // Whatever the address says after its # (a link, a bookmark), the app opens on its first page: no page of

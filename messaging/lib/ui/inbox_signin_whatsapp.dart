@@ -194,7 +194,7 @@ class _WhatsAppLinkScreenState extends State<WhatsAppLinkScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 ...sections,

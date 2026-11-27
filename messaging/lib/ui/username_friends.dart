@@ -59,7 +59,7 @@ class _UsernameFriendsState extends State<UsernameFriends> {
       builder: (context, _) {
         final b = _buddies;
         Widget heading(String words) => Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(1)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(4), t.space(4), t.space(1)),
               child: Text(words, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'))),
             );
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [

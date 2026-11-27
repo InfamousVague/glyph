@@ -40,7 +40,7 @@ class ArrangeCircleSpacesScreen extends StatelessWidget {
           ],
           body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(2)),
               child: Text(
                 edit ? 'Drag a space by its handle to move it. Press one to rename it, give it a heading or another kind, or take it out.' : 'Only the circle\'s owner and the admins they made can arrange its spaces.',
                 style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4),

@@ -119,8 +119,8 @@ class _Sticker extends StatelessWidget {
     if (count <= 1) return Text(emoji, style: style);
     return Stack(clipBehavior: Clip.none, children: [
       Text(emoji, style: style),
-      Positioned(
-        right: -t.lenOf('0.35rem'),
+      PositionedDirectional(
+        end: -t.lenOf('0.35rem'),
         bottom: -t.lenOf('0.1rem'),
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: t.lenOf('0.25rem')),
@@ -165,7 +165,7 @@ class ReactionPickRow extends StatelessWidget {
                   child: Container(
                     width: side,
                     height: side,
-                    margin: EdgeInsets.only(right: t.space(1)),
+                    margin: EdgeInsetsDirectional.only(end: t.space(1)),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: mine.contains(emoji) ? t.chosenWash : t.color('app-paper-3'),

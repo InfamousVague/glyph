@@ -150,9 +150,9 @@ class OriginalCard extends StatelessWidget {
     final card = v.card;
     final heading = Text.rich(
       TextSpan(children: [
-        WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsets.only(right: t.space(1) + 1), child: AppIcon(LucideMore.languages, size: 12 * scale, strokeWidth: 2.2, wash: false, color: accent))),
+        WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsetsDirectional.only(end: t.space(1) + 1), child: AppIcon(LucideMore.languages, size: 12 * scale, strokeWidth: 2.2, wash: false, color: accent))),
         TextSpan(text: v.heading ?? ''),
-        if (v.shown.busy) WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsets.only(left: t.space(2)), child: SizedBox.square(dimension: 12 * scale, child: GhostSpinner(size: 12 * scale)))),
+        if (v.shown.busy) WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsetsDirectional.only(start: t.space(2)), child: SizedBox.square(dimension: 12 * scale, child: GhostSpinner(size: 12 * scale)))),
       ]),
       style: small,
     );
@@ -193,7 +193,7 @@ class OriginalCard extends StatelessWidget {
       ),
     );
     return Padding(
-      padding: EdgeInsets.only(bottom: rim != null ? 0 : t.space(1) / 2, left: mine ? 0 : inset, right: mine ? inset : 0),
+      padding: EdgeInsetsDirectional.only(bottom: rim != null ? 0 : t.space(1) / 2, start: mine ? 0 : inset, end: mine ? inset : 0),
       child: Semantics(
         button: v.canFlip,
         label: [v.heading, card].whereType<String>().join(': '),

@@ -174,7 +174,7 @@ class HeldRow extends StatelessWidget {
           if (held.isEmpty) return const SizedBox.shrink();
           final t = context.tokens;
           return Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(1)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(1)),
             child: GlacierPressable(
               key: const ValueKey('humancheck-held-row'),
               onPressed: () => push<void>(context, (_) => HeldPage(check: check, inbox: inbox)),
@@ -247,7 +247,7 @@ class HeldList extends StatelessWidget {
                   return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     InboxChatRow(key: ValueKey('humancheck-held-${h.network.id}:${h.id}'), chat: chat, onPress: () => _choose(context, h, chat)),
                     Padding(
-                      padding: EdgeInsets.fromLTRB(t.space(4) + t.lenOf('3rem') + t.space(3), 0, t.space(4), t.space(2)),
+                      padding: EdgeInsetsDirectional.fromSTEB(t.space(4) + t.lenOf('3rem') + t.space(3), 0, t.space(4), t.space(2)),
                       child: Text(heldWords(h.record), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                     ),
                   ]);

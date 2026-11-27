@@ -506,7 +506,7 @@ class _LanguagePageState extends State<_LanguagePage> {
     return GhostPage(
       title: widget.title,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           GlacierSearchField(placeholder: 'Search languages'.t, onValueChange: (v) => setState(() => _query = v)),
           SizedBox(height: t.space(3)),

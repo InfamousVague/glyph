@@ -124,7 +124,7 @@ class _NotionTokenScreenState extends State<NotionTokenScreen> {
     final t = context.tokens;
     final c = Circles.instance.bySeed(widget.seed);
     final had = c != null && NotionCircle.tokenOf(c) != null;
-    final pad = EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
+    final pad = EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
     return GhostPage(
       title: 'Notion token',
       body: SettingsPaneScope(
@@ -166,7 +166,7 @@ class _NotionTokenScreenState extends State<NotionTokenScreen> {
             Padding(
               padding: EdgeInsets.only(top: t.space(3)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+                Padding(padding: EdgeInsetsDirectional.only(end: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
                 Expanded(child: Text(_problem!, key: const ValueKey('notion-token-problem'), style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
               ]),
             ),

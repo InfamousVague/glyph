@@ -245,11 +245,11 @@ class CleanerSheetState extends State<CleanerSheet> {
             child: Container(
               height: 8,
               color: t.color('app-paper-3'),
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               // As far along as the deleting is, sliding as each one goes.
               child: AnimatedFractionallySizedBox(
                 duration: const Duration(milliseconds: 180),
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 heightFactor: 1,
                 widthFactor: total == 0 ? 0 : ((done + failed) / total).clamp(0.0, 1.0),
                 child: ColoredBox(color: red),
@@ -276,7 +276,7 @@ class CleanerSheetState extends State<CleanerSheet> {
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
             child: ClipRRect(

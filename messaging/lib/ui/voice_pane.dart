@@ -255,7 +255,7 @@ class _Level extends StatelessWidget {
         SizedBox(width: t.space(3)),
         SizedBox(
           width: t.lenOf('3.5rem'),
-          child: Text('$value%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), weight: value > 100 ? 'bold' : 'regular', color: value > 100 ? t.colorOf('#e08a1e') : t.color('app-ink-3'))),
+          child: Text('$value%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), weight: value > 100 ? 'bold' : 'regular', color: value > 100 ? t.colorOf('#e08a1e') : t.color('app-ink-3'))),
         ),
       ]),
     );

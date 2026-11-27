@@ -198,7 +198,7 @@ class _ScreenChoicesState extends State<ScreenChoices> {
     final t = context.tokens;
     final found = _found;
     Widget words(String s) => Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(2)),
           child: Text(s, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
         );
     if (found == null) return words('Looking for your screens and windows…');
@@ -209,9 +209,9 @@ class _ScreenChoicesState extends State<ScreenChoices> {
             ? 'No screens or windows were found. Your Mac has to allow it: open System Settings › Privacy & Security › Screen & System Audio Recording and turn on Ghost Messaging. If macOS asks, quit and reopen Ghost Messaging, then try again.'
             : 'No screens or windows were found. Try again; if there is still nothing, close Ghost Messaging, open it again and share from there.'),
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: GlacierPressable(
               onPressed: _retry,
               semanticLabel: 'Try again',
@@ -238,7 +238,7 @@ class _ScreenChoicesState extends State<ScreenChoices> {
     final mac = widget.mac ?? PlatformInfo.isMacOS;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Padding(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(1)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(1)),
         child: ValueListenableBuilder<bool>(
           valueListenable: sound,
           builder: (context, on, _) => Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -271,7 +271,7 @@ class ScreenPicker extends StatelessWidget {
     final screens = [for (final s in sources) if (!s.window) s];
     final windows = [for (final s in sources) if (s.window) s];
     Widget heading(String words) => Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(1)),
           child: Text(words, style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
         );
     Widget grid(List<ScreenSource> list) => Padding(
@@ -463,7 +463,7 @@ class _ScreenStageState extends State<ScreenStage> {
 
   /// A round button over the picture.
   Widget _tool(Tokens t, LucideIcon icon, String label, VoidCallback onPressed, {bool on = false, Key? key}) => Padding(
-        padding: EdgeInsets.only(right: t.space(2)),
+        padding: EdgeInsetsDirectional.only(end: t.space(2)),
         child: GlacierPressable(
           key: key,
           onPressed: onPressed,
@@ -502,7 +502,7 @@ class _ScreenStageState extends State<ScreenStage> {
           SizedBox(width: t.space(2)),
           Expanded(child: _StageSlider(key: const ValueKey('stage-sound-volume'), value: sound.volume / 100, label: 'Loudness of this screen\'s sound', onChanged: (x) => sound.onVolume((x * 100).round()))),
           SizedBox(width: t.space(2)),
-          SizedBox(width: t.lenOf('2.6rem'), child: Text('${sound.volume}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('xs'), color: const Color(0xFFFFFFFF)))),
+          SizedBox(width: t.lenOf('2.6rem'), child: Text('${sound.volume}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: const Color(0xFFFFFFFF)))),
         ]),
       );
 
@@ -537,15 +537,15 @@ class _ScreenStageState extends State<ScreenStage> {
                         // One renderer per stream (GMFB-5). A camera is drawn whole too: large, nothing of it cut off.
                         : StreamView(key: ObjectKey(s), stream: s, mirror: widget.mirror, contain: true)),
               ),
-              Positioned(
+              PositionedDirectional(
                 top: top + t.space(2),
-                left: t.space(3),
-                right: t.space(3),
+                start: t.space(3),
+                end: t.space(3),
                 child: Row(children: [
                   // The name has the room the buttons leave, so they stand at the edge, over the loudness they open.
                   Expanded(
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: Container(
                         padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
                         decoration: BoxDecoration(color: const Color(0x99000000), borderRadius: BorderRadius.circular(999)),
@@ -576,7 +576,7 @@ class _ScreenStageState extends State<ScreenStage> {
                 ]),
               ),
               if (sound != null && _soundOpen)
-                Positioned(top: top + t.space(2) + 44, right: t.space(3), left: t.space(3), child: Align(alignment: Alignment.centerRight, child: _loudness(t, sound))),
+                PositionedDirectional(top: top + t.space(2) + 44, end: t.space(3), start: t.space(3), child: Align(alignment: AlignmentDirectional.centerEnd, child: _loudness(t, sound))),
             ]),
           ),
         ),
@@ -621,10 +621,10 @@ class _StageSlider extends StatelessWidget {
             onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
             child: SizedBox(
               height: 28,
-              child: Stack(alignment: Alignment.centerLeft, children: [
+              child: Stack(alignment: AlignmentDirectional.centerStart, children: [
                 Container(height: 4, decoration: BoxDecoration(color: const Color(0x55FFFFFF), borderRadius: BorderRadius.circular(2))),
                 Container(width: w * frac, height: 4, decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(2))),
-                Positioned(left: (w * frac - 8).clamp(0.0, w - 16), child: Container(width: 16, height: 16, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFFFFF)))),
+                PositionedDirectional(start: (w * frac - 8).clamp(0.0, w - 16), child: Container(width: 16, height: 16, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFFFFF)))),
               ]),
             ),
           );

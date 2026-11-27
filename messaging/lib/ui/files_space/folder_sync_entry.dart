@@ -112,7 +112,7 @@ class _FolderSyncEntryState extends State<FolderSyncEntry> {
         final here = widget.sync.heldHere.length, there = widget.sync.heldThere.length, held = here + there;
         return Padding(
           key: const ValueKey('folder-sync'),
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(2)),
           child: SettingsCallout(
             icon: const AppIcon(Lucide.folderInput, size: 18),
             action: root == null

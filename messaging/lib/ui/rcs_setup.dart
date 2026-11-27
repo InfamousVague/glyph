@@ -26,7 +26,7 @@ class RcsSetupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GhostPage(
         title: 'Set up RCS',
-        body: ListView(padding: EdgeInsets.fromLTRB(context.tokens.space(4), 0, context.tokens.space(4), context.tokens.space(10)), children: const [RcsSteps()]),
+        body: ListView(padding: EdgeInsetsDirectional.fromSTEB(context.tokens.space(4), 0, context.tokens.space(4), context.tokens.space(10)), children: const [RcsSteps()]),
       );
 }
 

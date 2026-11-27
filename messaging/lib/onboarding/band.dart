@@ -131,8 +131,8 @@ class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: AlignmentDirectional.topStart,
+                end: AlignmentDirectional.bottomEnd,
                 colors: colours,
                 stops: [for (var i = 0; i < colours.length; i++) i / (colours.length - 1)],
               ),
@@ -176,8 +176,8 @@ class _HueBandState extends State<HueBand> with SingleTickerProviderStateMixin {
         child: mark(size),
       ),
     );
-    return Positioned(
-      left: x * width - size / 2,
+    return PositionedDirectional(
+      start: x * width - size / 2,
       top: y * height - size / 2,
       child: AnimatedBuilder(
         animation: _drift,

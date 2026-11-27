@@ -1382,18 +1382,18 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
             color: t.color('glacier-bg'),
             child: Stack(children: [
               if (railed)
-                Positioned(
+                PositionedDirectional(
                   key: const ValueKey('shell-rail'),
-                  left: 0,
+                  start: 0,
                   top: 0,
                   bottom: 0,
                   width: railW,
                   child: Offstage(offstage: covered, child: TickerMode(enabled: !covered, child: _rail())),
                 ),
-              if (railed) Positioned(key: const ValueKey('shell-rail-rule'), left: railW, top: 0, bottom: 0, width: 1, child: Offstage(offstage: covered, child: ColoredBox(color: t.color('app-rule')))),
-              Positioned(
+              if (railed) PositionedDirectional(key: const ValueKey('shell-rail-rule'), start: railW, top: 0, bottom: 0, width: 1, child: Offstage(offstage: covered, child: ColoredBox(color: t.color('app-rule')))),
+              PositionedDirectional(
                 key: const ValueKey('shell-side'),
-                left: railW + (railed ? 1 : 0),
+                start: railW + (railed ? 1 : 0),
                 top: 0,
                 bottom: 0,
                 width: hidden ? 0 : side - (railed ? 1 : 0),
@@ -1431,9 +1431,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         // screen; the list leaves it room (AppShell.pillRoom). Not on a wide phone, where it
                         // stands at the window's right.
                         // On a phone Settings is a page over the list, with its own way back and no bar under it.
-                        Positioned(
-                            left: docked ? null : 0,
-                            right: docked ? edges.right : 0,
+                        PositionedDirectional(
+                            start: docked ? null : 0,
+                            end: docked ? edges.right : 0,
                             // Dial-Up's taskbar is silver down to the screen's edge, under the bar at its foot.
                             bottom: dialup ? 0 : edges.bottom,
                             child: IgnorePointer(
@@ -1495,9 +1495,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
                         // Beside the call's own space in the pane (SpaceSplit) the call is there to see: the banner is for
                         // looking at another space.
                         if (_showing != 'voice' && !(!wide && (settingsOpen || marketOpen || _open != null)) && !(wide && (_paneShowsCall || OpenSpaces.isCall(Voice.instance.session))))
-                          Positioned(
-                            left: t.space(3),
-                            right: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
+                          PositionedDirectional(
+                            start: t.space(3),
+                            end: docked ? edges.right + NavPill.railWidth(t) : t.space(3),
                             bottom: edges.bottom + (railed ? t.space(3) : dialup ? NavPill.taskbarHeight + t.space(2) : docked ? NavPill.inset(t) : (NavPill.clearance(t) - NavPill.inset(t)) * (Sms.computer ? pillScrolledScale : 1) + t.space(2)),
                             child: CallBanner(onOpen: openCall),
                           ),
@@ -1511,13 +1511,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // divider line that we have on the dial up theme to the right of the sidebar, instead we should just use
               // the normal border here wrapping the whole sidebar in the standard border like we do for the rest of
               // elements").
-              if (wide && !dialup && !hidden) Positioned(key: const ValueKey('shell-rule'), left: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
-              Positioned(
+              if (wide && !dialup && !hidden) PositionedDirectional(key: const ValueKey('shell-rule'), start: railW + side, top: 0, bottom: 0, width: 1, child: ColoredBox(color: t.color('app-rule'))),
+              PositionedDirectional(
                 key: const ValueKey('shell-pane'),
-                left: wide ? railW + side + (dialup || hidden ? 0 : 1) : 0,
+                start: wide ? railW + side + (dialup || hidden ? 0 : 1) : 0,
                 top: 0,
                 bottom: 0,
-                right: 0,
+                end: 0,
                 // With nothing open on a narrow screen the pane is empty air over the list: touches go through.
                 // Over all of a narrow window, a page is at the window's left too.
                 // With the list put away the pane is at the window's left, and leaves the Mac's three buttons room.
@@ -1539,9 +1539,9 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // The line between the list and the pane, dragged to make the list wider or narrower; double clicked,
               // as it was made. Over both, so the pointer finds it on either side of the line.
               if (wide && !hidden)
-                Positioned(
+                PositionedDirectional(
                   key: const ValueKey('shell-split'),
-                  left: railW + side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
+                  start: railW + side + (dialup ? 0 : 0.5) - SplitHandle.widthOf(context) / 2,
                   top: 0,
                   bottom: 0,
                   width: SplitHandle.widthOf(context),
@@ -1559,13 +1559,13 @@ class AppShellState extends State<AppShell> with SingleTickerProviderStateMixin 
               // and the pane, under a call ringing.
               Positioned.fill(child: CallFloatLayer(onOpen: openCall)),
               // A group calling (lib/voice): over everything, until joined or put away.
-              const Positioned(left: 0, right: 0, top: 0, child: RingCard()),
+              const PositionedDirectional(start: 0, end: 0, top: 0, child: RingCard()),
               // A friend's invite into a circle, or a circle's link opened from outside the app: said over everything
               // as it comes, with Join and Not now (lib/ui/circles/circle_invite_card.dart); it gives way to a call.
-              const Positioned(left: 0, right: 0, top: 0, child: CircleInviteBanner()),
+              const PositionedDirectional(start: 0, end: 0, top: 0, child: CircleInviteBanner()),
               // The quick switcher (KeyCommand.quickSwitch): it takes no room here and draws over everything while up.
-              Positioned(
-                left: 0,
+              PositionedDirectional(
+                start: 0,
                 top: 0,
                 width: 0,
                 height: 0,

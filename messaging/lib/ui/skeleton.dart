@@ -270,11 +270,11 @@ class _Line extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         heightFactor: 1,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: most),
-          child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: share.clamp(0.0, 1.0), child: Bone(height: height)),
+          child: FractionallySizedBox(alignment: AlignmentDirectional.centerStart, widthFactor: share.clamp(0.0, 1.0), child: Bone(height: height)),
         ),
       );
 }
@@ -366,11 +366,11 @@ class SkeletonChat extends StatelessWidget {
       final rows = tall[i % tall.length];
       final shape = FractionallySizedBox(
         widthFactor: (_share(i, salt: 2) + (rows > 1 ? 0.12 : 0)).clamp(0.2, 0.78),
-        alignment: own ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: own ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
         child: Bone(height: 20.0 + rows * 18, radius: 18),
       );
       return Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 3, t.space(3), i > 0 && mine[(i - 1) % mine.length] == own ? 3 : t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 3, t.space(3), i > 0 && mine[(i - 1) % mine.length] == own ? 3 : t.space(3)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           if (faces && !own) ...[const Bone.face(28), SizedBox(width: t.space(2))],
           Expanded(child: shape),
@@ -380,7 +380,7 @@ class SkeletonChat extends StatelessWidget {
 
     // A run's lines of words under its face, name and time, where they stand in a channel ([FlatLine]).
     Widget run(int i) => Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), 2),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), 2),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Bone.face(FlatLine.faceSize(t)),
             SizedBox(width: t.space(3)),

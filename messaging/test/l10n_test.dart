@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/app_state.dart';
 import 'package:ghost_messaging/kit/settings_kit.dart';
 import 'package:ghost_messaging/l10n/words.dart';
+import 'package:ghost_messaging/art/app_icon.dart';
+import 'package:ghost_messaging/art/lucide.g.dart';
 import 'package:ghost_messaging/ui/settings.dart' show SettingsScreen, SettingsSectionScreen;
 
 import '../tool/l10n.dart' as l10n;
@@ -61,6 +63,34 @@ void main() {
       expect(there.length / en.length, greaterThan(0.95), reason: '${there.length} of ${en.length}');
     });
   }
+
+  test('a language written right to left draws the app right to left, and words someone wrote keep their own direction', () {
+    for (final l in ['ar', 'fa', 'he', 'ur']) {
+      Words.instance.setForTest(l, const {});
+      expect(Words.instance.direction, TextDirection.rtl, reason: l);
+    }
+    expect(ownDirection('are you coming tonight?'), TextDirection.ltr);
+    expect(ownDirection('مرحبا! hello'), TextDirection.rtl);
+    expect(ownDirection('123 ...'), isNull, reason: 'no letter: the line\'s own way');
+    expect(ownWords('thanks!'), '\u2068thanks!\u2069');
+    for (final l in ['en', 'es', 'ja']) {
+      Words.instance.setForTest(l, const {});
+      expect(Words.instance.direction, TextDirection.ltr, reason: l);
+    }
+    expect(ownDirection('are you coming tonight?'), isNull, reason: 'left to right: drawn as ever');
+    expect(ownWords('thanks!'), 'thanks!');
+  });
+
+  testWidgets('an icon that points a way points the other way right to left; one that doesn\'t is left as it is', (tester) async {
+    Future<bool> flipped(LucideIcon icon, TextDirection d) async {
+      await tester.pumpWidget(Directionality(textDirection: d, child: Center(child: AppIcon(icon))));
+      return find.byType(Transform).evaluate().isNotEmpty;
+    }
+
+    expect(await flipped(Lucide.chevronLeft, TextDirection.rtl), isTrue);
+    expect(await flipped(Lucide.chevronLeft, TextDirection.ltr), isFalse);
+    expect(await flipped(Lucide.search, TextDirection.rtl), isFalse);
+  });
 
   test('the language meant: the one chosen, else the device\'s where the app has it, else English', () {
     expect(Words.meant('es'), 'es');

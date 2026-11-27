@@ -128,9 +128,9 @@ class _NoRoomYet extends StatelessWidget {
     final t = context.tokens;
     return Stack(children: [
       Positioned.fill(child: SkeletonChat(label: 'Connecting to $name', faces: true, bottom: bottom)),
-      Positioned(
-        left: t.space(4),
-        right: t.space(4),
+      PositionedDirectional(
+        start: t.space(4),
+        end: t.space(4),
         top: t.space(3),
         child: Center(heightFactor: 1, child: ConnectingPill(key: const ValueKey('space-connecting'), title: 'Connecting to $name…', detail: 'Reaching the relay server')),
       ),
@@ -181,7 +181,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
 
   /// The call or the chat, on a phone: the people in the call, or the space's messages.
   Widget _callOrChat(Tokens t) => Padding(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
         child: GlacierSegmentedControl(
           fullWidth: true,
           size: GlacierSegmentedSize.md,
@@ -291,7 +291,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
                 // The circle's key changed and this device hasn't got the new one yet (GMFB-26): what is written waits.
                 ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Padding(
-                      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
+                      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(1)),
                       child: Text('Waiting for the circle\'s new key. What you write goes once it arrives.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                     ),
                     Expanded(child: HangoutChat(room: room, bottom: bottom)),
@@ -310,11 +310,11 @@ class _HangoutScreenState extends State<HangoutScreen> {
           // Dial-Up: on the window's silver, and only who is in voice, since "People Here" under it counts the room.
           final dialup = isDialup(context);
           final row = Padding(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
             child: Row(children: [
               // Who is connected: their faces, then their names.
               for (final id in inVoice.take(4))
-                Padding(padding: EdgeInsets.only(right: t.space(1)), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 30)),
+                Padding(padding: EdgeInsetsDirectional.only(end: t.space(1)), child: RippleAvatar(name: v.nameOf(id), level: 0, size: 30)),
               if (inVoice.isNotEmpty) SizedBox(width: t.space(1)),
               Expanded(
                 child: Text(
@@ -377,7 +377,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
               // The call's buttons at the floor's left foot and the chat's box at its right, on one line (Matt,
               // 2026-11-23: "left justify the call controls and right justify the compose input").
               OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t), sayBeside: dockAt),
-              Positioned(left: t.space(3), bottom: dockAt, child: CallDock(session: s)),
+              PositionedDirectional(start: t.space(3), bottom: dockAt, child: CallDock(session: s)),
             ]),
           );
         }
@@ -391,7 +391,7 @@ class _HangoutScreenState extends State<HangoutScreen> {
               _callOrChat(t),
               Expanded(child: _tab == 'chat' ? chat : OpenSpaceFloor(session: s, bottomInset: dockAt + NavPill.clearance(t))),
             ]),
-            if (_tab != 'chat') Positioned(left: 0, right: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
+            if (_tab != 'chat') PositionedDirectional(start: 0, end: 0, bottom: dockAt, child: Center(child: CallDock(session: s))),
           ]),
         );
       },
@@ -463,19 +463,19 @@ class _HangoutStageState extends State<HangoutStage> {
                     flex: 3,
                     child: Stack(children: [
                       Positioned.fill(child: OpenSpaceFloor(session: s!, bottomInset: t.space(3) + NavPill.clearance(t), sayBeside: t.space(3))),
-                      Positioned(left: t.space(3), bottom: t.space(3), child: CallDock(session: s)),
+                      PositionedDirectional(start: t.space(3), bottom: t.space(3), child: CallDock(session: s)),
                     ]),
                   ),
                   if (videos) ...[
                     Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
-                    SizedBox(height: 200, child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)), child: CallVideos(session: s))),
+                    SizedBox(height: 200, child: Padding(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(2)), child: CallVideos(session: s))),
                   ],
                   Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
                   Expanded(flex: 2, child: chat),
                 ])
               : videos
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(child: Padding(padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)), child: CallVideos(session: s))),
+                  Expanded(child: Padding(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)), child: CallVideos(session: s))),
                   Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
                   Expanded(child: chat),
                 ])
@@ -550,10 +550,10 @@ class _SpaceSplitState extends State<SpaceSplit> {
           if (shown) Container(height: t.len('glacier-hairline'), color: t.color('app-rule')),
           if (shown) Expanded(key: const ValueKey('space-split-chat'), child: widget.chat),
         ]),
-        if (shown) Positioned(
+        if (shown) PositionedDirectional(
           key: const ValueKey('space-split-handle'),
-          left: 0,
-          right: 0,
+          start: 0,
+          end: 0,
           top: top - grip / 2,
           height: grip,
           child: SplitHandle(
@@ -597,7 +597,7 @@ class _WhoIsTalking extends StatelessWidget {
       onPressed: busy ? null : onJoin,
       semanticLabel: busy ? 'Joining the call' : 'Join the call with ${ids.length} in it',
       builder: (context, state) => ListView(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + NavPill.clearance(t) + t.space(4)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), MediaQuery.paddingOf(context).bottom + NavPill.clearance(t) + t.space(4)),
       children: [
         Row(children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),
@@ -1171,9 +1171,9 @@ class _HangoutChatState extends State<HangoutChat> {
     final flat = room.channel.circle != null;
     return Padding(
       key: ValueKey('going-${o.id}'),
-      padding: EdgeInsets.only(top: t.space(2), left: flat ? FlatLine.wordsLeft(t) : 0),
+      padding: EdgeInsetsDirectional.only(top: t.space(2), start: flat ? FlatLine.wordsLeft(t) : 0),
       child: Align(
-        alignment: flat ? Alignment.centerLeft : Alignment.centerRight,
+        alignment: flat ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
         child: SpaceOutgoing(
           message: o,
           maxWidth: MediaQuery.sizeOf(context).width * 0.72,
@@ -1250,9 +1250,9 @@ class _HangoutChatState extends State<HangoutChat> {
             final o = going[at];
             return Padding(
               key: ValueKey('going-${o.id}'),
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+              padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment: AlignmentDirectional.centerEnd,
                 child: SpaceOutgoing(message: o, maxWidth: 280, ground: c.paper, ink: c.ink, rim: Border.all(color: c.shadow), onRetry: () => room.retry(o, _uploads), onDiscard: () => room.discard(o, _uploads)),
               ),
             );
@@ -1325,7 +1325,7 @@ class _HangoutChatState extends State<HangoutChat> {
           color: c.chrome,
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(child: transcript),
-            SizedBox(width: 200, child: Padding(padding: const EdgeInsets.fromLTRB(0, 4, 6, 4), child: _DialupPeople(people: people, panel: true))),
+            SizedBox(width: 200, child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(0, 4, 6, 4), child: _DialupPeople(people: people, panel: true))),
           ]),
         );
       }
@@ -1333,7 +1333,7 @@ class _HangoutChatState extends State<HangoutChat> {
         color: c.chrome,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _DialupPeopleStrip(people: people, open: _peopleOpen, onToggle: () => setState(() => _peopleOpen = !_peopleOpen)),
-          if (_peopleOpen) Padding(padding: const EdgeInsets.fromLTRB(6, 0, 6, 2), child: SizedBox(height: math.min(people.length, 4) * 44.0 + 8, child: _DialupPeople(people: people))),
+          if (_peopleOpen) Padding(padding: const EdgeInsetsDirectional.fromSTEB(6, 0, 6, 2), child: SizedBox(height: math.min(people.length, 4) * 44.0 + 8, child: _DialupPeople(people: people))),
           Expanded(child: transcript),
         ]),
       );
@@ -1408,7 +1408,7 @@ class _HangoutChatState extends State<HangoutChat> {
                     child: ChatListView.builder(
                     controller: _scroll,
                     reverse: true,
-                    padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
                     chat: _spot,
                     // A message by its id, a note by what it says of whom and when, one still going up by itself.
                     idOf: (i) {
@@ -1801,7 +1801,7 @@ class _DialupPeople extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(
         height: 32,
-        child: Align(alignment: Alignment.centerLeft, child: Text('People Here: ${people.length}', style: pageText(t, lineSize(context, 15), weight: 'bold', color: c.onChrome))),
+        child: Align(alignment: AlignmentDirectional.centerStart, child: Text('People Here: ${people.length}', style: pageText(t, lineSize(context, 15), weight: 'bold', color: c.onChrome))),
       ),
       Expanded(child: list),
     ]);
@@ -2045,7 +2045,7 @@ class _Message extends StatelessWidget {
           // by their role's colour alone (Matt, 2026-11-18: "Remove the crown icon just use role colors").
           if (first && !mine)
             Padding(
-              padding: EdgeInsets.only(left: faceGap + t.space(3), bottom: 2),
+              padding: EdgeInsetsDirectional.only(start: faceGap + t.space(3), bottom: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Flexible(child: _toPerson(Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: spaceNameInk(t, room, m.from) ?? t.color('app-accent'))))),
                 VerifiedBadge(id: m.from, username: room.usernames[m.from], me: m.from == room.me, size: 12),
@@ -2062,7 +2062,7 @@ class _Message extends StatelessWidget {
           ]),
           if (last)
             Padding(
-              padding: EdgeInsets.only(top: 2, left: faceGap + t.space(2), right: t.space(2)),
+              padding: EdgeInsetsDirectional.only(top: 2, start: faceGap + t.space(2), end: t.space(2)),
               child: Text(clock(DateTime.fromMillisecondsSinceEpoch(m.at)), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
         ]),
@@ -2227,7 +2227,7 @@ class SpaceMembers extends StatelessWidget {
         // The count line and the headings on the drawer's gutter, where its head and Add people start.
         return ListView(
           shrinkWrap: shrinkWrap,
-          padding: EdgeInsets.fromLTRB(DrawerHead.gutter(t), t.space(3), DrawerHead.gutter(t), t.space(4) + bottom),
+          padding: EdgeInsetsDirectional.fromSTEB(DrawerHead.gutter(t), t.space(3), DrawerHead.gutter(t), t.space(4) + bottom),
           children: [
             Padding(
               padding: EdgeInsets.only(bottom: t.space(3)),
@@ -2363,7 +2363,7 @@ class _AboutPageState extends State<_AboutPage> {
     return GhostPage(
       title: 'Description',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(
             description: const Tr('Shown under the space\'s name, to everyone in it. Leave it empty to show none.'),
@@ -2418,7 +2418,7 @@ class RolesScreen extends StatelessWidget {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (settings) ...[
                 _hued('blue', PaneSection(title: 'Space', children: [
@@ -2589,7 +2589,7 @@ class _RoleScreenState extends State<RoleScreen> {
         return GhostPage(
           title: role.name,
           body: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (admin) SettingsCallout(child: const Tr('Admins may do everything, and give out every role but admin. The owner makes admins.')),
               if (edit && !builtIn)
@@ -2941,7 +2941,7 @@ class _SlowModeLine extends StatelessWidget {
     final waiting = left > Duration.zero;
     return Padding(
       key: ValueKey(waiting ? 'slow-mode-wait' : 'slow-mode-on'),
-      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), t.space(1)),
       child: Row(children: [
         AppIcon(Lucide.hourglass, size: 13, color: t.color('app-ink-3')),
         SizedBox(width: t.space(1) + 2),

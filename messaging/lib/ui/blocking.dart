@@ -201,8 +201,8 @@ class _BlockedListState extends State<BlockedList> {
           child: Stack(clipBehavior: Clip.none, children: [
             Avatar(people: people, size: 30),
             if (badge != null)
-              Positioned(
-                right: -3,
+              PositionedDirectional(
+                end: -3,
                 bottom: -3,
                 child: Container(
                   padding: const EdgeInsets.all(1.5),
@@ -232,7 +232,7 @@ class BlockedScreen extends StatelessWidget {
     return GhostPage(
       title: 'Blocked',
       onBack: onBack,
-      body: ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom), children: const [BlockedList()]),
+      body: ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom), children: const [BlockedList()]),
     );
   }
 }

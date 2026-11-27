@@ -178,7 +178,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), (keyboard > 0 ? keyboard : pad.bottom) + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), (keyboard > 0 ? keyboard : pad.bottom) + t.space(3)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: t.lenOf('30rem')),
           child: ClipRRect(
@@ -188,7 +188,7 @@ class _AddFriendDrawerState extends State<AddFriendDrawer> {
               child: ListenableBuilder(
                 listenable: Listenable.merge([_buddies, _me]),
                 builder: (context, _) => Padding(
-                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(4)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(4), t.space(4), t.space(4)),
                   child: _me.username == null ? _username(t) : _search(t),
                 ),
               ),

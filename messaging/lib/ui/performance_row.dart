@@ -216,7 +216,7 @@ class PerformanceLogPage extends StatelessWidget {
           return ListView.builder(
             key: const ValueKey('perf-log'),
             reverse: true,
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(6) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(6) + MediaQuery.paddingOf(context).bottom),
             itemCount: lines.length,
             itemBuilder: (context, i) {
               final line = lines[lines.length - 1 - i];

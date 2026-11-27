@@ -23,16 +23,16 @@ class CallMovedNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final note = this.note ?? Voice.instance.movedAway;
-    return Stack(fit: StackFit.passthrough, alignment: Alignment.topLeft, children: [
+    return Stack(fit: StackFit.passthrough, alignment: AlignmentDirectional.topStart, children: [
       child,
       ValueListenableBuilder<MovedCall?>(
         valueListenable: note,
         builder: (context, moved, _) {
           if (moved == null) return const SizedBox.shrink();
           final t = context.tokens;
-          return Positioned(
-            left: t.space(4),
-            right: t.space(4),
+          return PositionedDirectional(
+            start: t.space(4),
+            end: t.space(4),
             top: t.space(2) + (MediaQuery.maybeViewPaddingOf(context)?.top ?? 0),
             child: Align(
               alignment: Alignment.topCenter,

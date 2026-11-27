@@ -112,7 +112,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     return ListenableBuilder(
       listenable: _n,
       builder: (context, _) {
-        final pad = EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
+        final pad = EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
         return GhostPage(
           title: 'Sign in to ${_s.name}',
           body: SettingsPaneScope(
@@ -165,7 +165,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
             Container(
               width: t.lenOf('1.6rem'),
               height: t.lenOf('1.6rem'),
-              margin: EdgeInsets.only(right: t.space(3)),
+              margin: EdgeInsetsDirectional.only(end: t.space(3)),
               decoration: BoxDecoration(shape: BoxShape.circle, color: current ? t.color('app-ink') : t.color('app-paper-3')),
               alignment: Alignment.center,
               // 0: the extension's way, before the numbered steps.
@@ -246,7 +246,7 @@ class _HelperSignInScreenState extends State<HelperSignInScreen> {
     Widget errorRow() => Padding(
           padding: EdgeInsets.only(top: t.space(3)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+            Padding(padding: EdgeInsetsDirectional.only(end: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
             Expanded(child: Text(error!, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
           ]),
         );

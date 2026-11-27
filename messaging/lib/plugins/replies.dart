@@ -252,7 +252,7 @@ class ReplyChips extends StatelessWidget {
     final t = context.tokens;
     final thread = PluginThread.of(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), t.space(2)),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
@@ -325,9 +325,9 @@ class _SmartReplyChipsState extends State<SmartReplyChips> {
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (summary != null && !_shut)
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), 0),
           child: Container(
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
             decoration: BoxDecoration(
               color: t.color('app-paper-2'),
               borderRadius: BorderRadius.circular(t.radius('lg')),
@@ -374,9 +374,9 @@ class _PromiseChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), t.space(2)),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: GlacierPressable(
           onPressed: () async {
             final ok = await Sms.instance.remind(thread: thread, title: 'Follow up${who.isEmpty ? '' : ' with $who'}', body: words, at: at);

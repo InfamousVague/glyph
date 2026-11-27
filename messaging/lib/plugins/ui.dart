@@ -235,7 +235,7 @@ class _FilterButtonState extends State<FilterButton> with WidgetsBindingObserver
                   minFaceWidth: size,
                   padding: EdgeInsets.zero,
                 ),
-                if (widget.hidden > 0) Positioned(right: 0, top: 0, child: ExcludeSemantics(child: DialupCount(count: widget.hidden))),
+                if (widget.hidden > 0) PositionedDirectional(end: 0, top: 0, child: ExcludeSemantics(child: DialupCount(count: widget.hidden))),
               ])
             : GlacierPressable(
               onPressed: trigger.toggle,
@@ -256,8 +256,8 @@ class _FilterButtonState extends State<FilterButton> with WidgetsBindingObserver
                     child: ExcludeSemantics(child: AppIcon(LucideMore.funnel, size: 16, strokeWidth: 2.2, wash: false, color: ink)),
                   ),
                   if (widget.hidden > 0)
-                    Positioned(
-                      right: -6,
+                    PositionedDirectional(
+                      end: -6,
                       top: -6,
                       child: ExcludeSemantics(
                         child: Container(
@@ -409,7 +409,7 @@ class PluginNote extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
       child: Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
     );
   }

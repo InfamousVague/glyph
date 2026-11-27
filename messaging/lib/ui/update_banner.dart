@@ -80,18 +80,18 @@ class _UpdateCardState extends State<UpdateCard> {
               final said = line(_update, short: narrow);
               return Padding(
                 // As wide as the search field and the cards under it.
-                padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), 0),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(2), 0),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     // Indigo to violet to pink: the one thing on the page that is not the page's own colours.
-                    gradient: const LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Color(0xFF4F5BD5), Color(0xFF8B5CF6), Color(0xFFEC4899)]),
+                    gradient: const LinearGradient(begin: AlignmentDirectional.centerStart, end: AlignmentDirectional.centerEnd, colors: [Color(0xFF4F5BD5), Color(0xFF8B5CF6), Color(0xFFEC4899)]),
                     borderRadius: BorderRadius.circular(t.radius('xl')),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(t.radius('xl')),
                     child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Padding(
-                        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+                        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
                         child: Row(children: [
                           Container(
                             width: t.lenOf('2rem'),
@@ -107,7 +107,7 @@ class _UpdateCardState extends State<UpdateCard> {
                               onPressed: () => _update.phase == 'ready' ? Sms.instance.updateInstall() : Sms.instance.updateCheck(install: true),
                               semanticLabel: 'Update now',
                               builder: (context, state) => Container(
-                                margin: EdgeInsets.only(left: t.space(2)),
+                                margin: EdgeInsetsDirectional.only(start: t.space(2)),
                                 padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
                                 decoration: BoxDecoration(color: white.withValues(alpha: state.pressed ? 0.8 : 1), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
                                 child: Text('Update now', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: const Color(0xFF4F3FC4))),
@@ -120,7 +120,7 @@ class _UpdateCardState extends State<UpdateCard> {
                       ),
                       if (_update.phase == 'downloading')
                         Align(
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           child: FractionallySizedBox(widthFactor: (_update.progress ?? 0.04).clamp(0.04, 1.0), child: Container(height: 3, color: white)),
                         ),
                     ]),

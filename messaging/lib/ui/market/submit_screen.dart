@@ -770,7 +770,7 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
           final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
           return ListView(
             key: const ValueKey('market-submit-list-view'),
-            padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               if (server) ...[
@@ -1048,8 +1048,8 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
           ),
         ),
         if (s.kept)
-          Positioned(
-            left: t.space(1),
+          PositionedDirectional(
+            start: t.space(1),
             bottom: t.space(1),
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: 1),
@@ -1057,9 +1057,9 @@ class _SubmitPluginScreenState extends State<SubmitPluginScreen> with WidgetsBin
               child: Text('Kept', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-2'))),
             ),
           ),
-        Positioned(
+        PositionedDirectional(
           top: t.space(1),
-          right: t.space(1),
+          end: t.space(1),
           child: Container(
             decoration: BoxDecoration(color: t.color('app-paper'), shape: BoxShape.circle),
             child: IconTap(key: ValueKey('market-submit-shot-remove-$i'), icon: Lucide.x, label: 'Remove screenshot ${i + 1}', size: 14, box: t.lenOf('1.75rem'), onPressed: _sending ? null : () => _removeShot(i)),
@@ -1105,7 +1105,7 @@ Future<Uint8List?> samplesPicture(BuildContext context, PluginPack pack) async {
   if (overlay == null) return null;
   final key = GlobalKey();
   // Off the screen to the left: drawn and painted as any other entry, never seen.
-  final entry = OverlayEntry(builder: (context) => Positioned(left: -6000, top: 0, width: 400, child: RepaintBoundary(key: key, child: _SampleRows(pack: pack, rows: rows))));
+  final entry = OverlayEntry(builder: (context) => PositionedDirectional(start: -6000, top: 0, width: 400, child: RepaintBoundary(key: key, child: _SampleRows(pack: pack, rows: rows))));
   overlay.insert(entry);
   try {
     await WidgetsBinding.instance.endOfFrame;

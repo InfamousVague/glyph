@@ -451,7 +451,7 @@ class _HandoverApproveScreenState extends State<HandoverApproveScreen> {
       title: 'Sign in a new device',
       actions: [docsButton('account')],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: _spaced(t, children),
       ),

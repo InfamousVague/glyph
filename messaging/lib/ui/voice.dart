@@ -148,7 +148,7 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
         Expanded(
           child: Container(
             constraints: BoxConstraints(minHeight: t.lenOf('2.75rem')),
-            padding: EdgeInsets.only(left: t.space(4), right: t.lenOf('0.25rem'), top: t.lenOf('0.25rem'), bottom: t.lenOf('0.25rem')),
+            padding: EdgeInsetsDirectional.only(start: t.space(4), end: t.lenOf('0.25rem'), top: t.lenOf('0.25rem'), bottom: t.lenOf('0.25rem')),
             decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1.375rem'))),
             child: Row(children: [
               Semantics(
@@ -184,7 +184,7 @@ class _VoiceRecorderState extends State<VoiceRecorder> {
       ]),
       if (note != null)
         Padding(
-          padding: EdgeInsets.only(top: t.space(1), left: t.space(3), right: t.space(3)),
+          padding: EdgeInsetsDirectional.only(top: t.space(1), start: t.space(3), end: t.space(3)),
           child: Text(note, textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
         ),
     ]),
@@ -331,7 +331,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
           SizedBox(width: t.space(3)),
         ],
         Padding(
-          padding: EdgeInsets.only(right: t.space(2)),
+          padding: EdgeInsetsDirectional.only(end: t.space(2)),
           child: Text(said, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink)),
         ),
       ]),

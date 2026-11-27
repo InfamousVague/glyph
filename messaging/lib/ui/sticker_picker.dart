@@ -72,7 +72,7 @@ class _StickerSheetState extends State<StickerSheet> {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(t.radius('xl')),
           child: ColoredBox(
@@ -84,7 +84,7 @@ class _StickerSheetState extends State<StickerSheet> {
                 // The packs: each a tab, named, with its first sticker for a face. Up to four share the sheet's width,
                 // so all are in reach on the narrowest screen; more than that and the row slides.
                 Padding(
-                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(1)),
                   child: LayoutBuilder(builder: (context, box) {
                     final all = packs ?? const <StickerPack>[];
                     final gap = t.lenOf('0.4rem');
@@ -150,7 +150,7 @@ class _StickerSheetState extends State<StickerSheet> {
                 ),
                 if (widget.encrypted)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), 0),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), 0),
                     child: Text('Stickers go as picture messages, which aren\'t encrypted.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                   ),
                 Expanded(
@@ -158,7 +158,7 @@ class _StickerSheetState extends State<StickerSheet> {
                       ? Center(child: Text(packs == null ? '' : 'No stickers in this copy of the app.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))
                       : GridView.builder(
                           key: ValueKey(pack.id),
-                          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(3)),
+                          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), t.space(3)),
                           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: t.lenOf('6rem'), mainAxisSpacing: t.space(1), crossAxisSpacing: t.space(1)),
                           itemCount: pack.stickers.length,
                           itemBuilder: (context, i) {

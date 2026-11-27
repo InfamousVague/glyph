@@ -98,7 +98,7 @@ class _RecordingBannerState extends State<RecordingBanner> {
         final lines = <Widget>[];
         // [icon] before the words: Stop has its square (Matt, 2026-11-19: "use icons for starting and stopping recording").
         Widget pill(String label, VoidCallback onPressed, {bool solid = false, LucideIcon? icon}) => Padding(
-              padding: EdgeInsets.only(left: t.space(2)),
+              padding: EdgeInsetsDirectional.only(start: t.space(2)),
               child: GlacierPressable(
                 onPressed: onPressed,
                 semanticLabel: label,
@@ -182,14 +182,14 @@ class RecordingsScreen extends StatelessWidget {
         return GhostPage(
           title: 'Recordings',
           body: kept.isEmpty
-              ? ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(10), t.space(4), 0), children: [
+              ? ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(10), t.space(4), 0), children: [
                   SettingsEmpty(
                     icon: AppIcon(Lucide.circleDot, size: 28, color: t.color('app-ink-3')),
                     title: 'No recordings yet',
                     body: const Tr('Record a call from its menu. Each voice is a track of its own, named, and only the voices of people who say yes are in it.'),
                   ),
                 ])
-              : ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
+              : ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
                   PaneSection(children: [
                     for (final r in kept)
                       SettingRow(
@@ -294,7 +294,7 @@ class TranscriptScreen extends StatelessWidget {
       ],
       body: words == null
           ? const Center(child: Tr('No words written out yet.'))
-          : ListView(padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
+          : ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)), children: [
               if (words.summary != null) ...[SettingsCallout(child: Text(words.summary!)), SizedBox(height: t.space(4))],
               if (words.lines.isEmpty) const Tr('Nobody\'s words could be made out.'),
               for (final l in words.lines)

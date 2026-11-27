@@ -48,7 +48,7 @@ import 'plugins_page/plugin_art.dart' show PluginHues;
 InlineSpan noteIconSpan(Tokens t, ({LucideIcon icon, bool red, String words}) mark, TextStyle style) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsetsDirectional.only(end: 5),
         child: AppIcon(mark.icon, key: ValueKey(mark.red ? 'note-icon-started' : 'note-icon-stopped'), size: (style.fontSize ?? 14) * 1.05, color: mark.red ? t.danger : style.color),
       ),
     );

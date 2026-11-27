@@ -345,7 +345,7 @@ class _PairComputerScreenState extends State<PairComputerScreen> {
       title: 'Pair a computer',
       actions: [docsButton('pairing')],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
           for (var i = 0; i < children.length; i++) ...[if (i > 0) SizedBox(height: t.space(4)), children[i]],

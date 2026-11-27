@@ -229,7 +229,7 @@ class SoulsSheet extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: t.lenOf('26rem')),
           child: Container(

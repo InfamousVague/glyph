@@ -417,10 +417,10 @@ class _ProfileCardState extends State<_ProfileCard> {
       SizedBox(
         height: bannerH + face / 2 + ringW,
         child: Stack(clipBehavior: Clip.none, children: [
-          Positioned(
+          PositionedDirectional(
             key: const ValueKey('profile-banner'),
-            left: 0,
-            right: 0,
+            start: 0,
+            end: 0,
             top: 0,
             height: bannerH,
             // Their chosen banner (GMFB-34), else a band in their colour.
@@ -428,11 +428,11 @@ class _ProfileCardState extends State<_ProfileCard> {
               id: dress.banner,
               // Their own picture as the banner, where they set one (a friend's, or this person's own).
               picture: g == null ? '' : (g.me ? Me.instance.banner : (g.buddy?.banner ?? '')),
-              fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+              fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [hues.start, hues.end]))),
             ),
           ),
-          Positioned(
-            left: t.space(4) - ringW,
+          PositionedDirectional(
+            start: t.space(4) - ringW,
             top: bannerH - face / 2 - ringW,
             child: Container(
               key: const ValueKey('profile-face'),
@@ -442,16 +442,16 @@ class _ProfileCardState extends State<_ProfileCard> {
             ),
           ),
           if (known)
-            Positioned(
-              right: t.space(4),
+            PositionedDirectional(
+              end: t.space(4),
               top: bannerH + t.space(2),
               child: _BadgeTray(id: g.id, username: g.username, me: g.me),
             ),
-          if (_looking) Positioned(right: t.space(3), top: t.space(3), child: const GhostSpinner(size: 16)),
+          if (_looking) PositionedDirectional(end: t.space(3), top: t.space(3), child: const GhostSpinner(size: 16)),
         ]),
       ),
       Padding(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(2)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Flexible(
@@ -494,7 +494,7 @@ class _ProfileCardState extends State<_ProfileCard> {
             Container(
               key: const ValueKey('profile-panel'),
               margin: EdgeInsets.only(top: t.space(3)),
-              padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(3)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), t.space(3)),
               decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg'))),
               // Empty where nothing is known beyond the name: the panel's own padding then is all there is, which
               // reads as a thin rule; so it is left out unless it has something.

@@ -31,10 +31,10 @@ class AccountOffer extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 560),
           child: ListView(
             shrinkWrap: true,
-            padding: EdgeInsets.fromLTRB(t.space(6), t.space(8), t.space(6), t.space(6)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(6), t.space(8), t.space(6), t.space(6)),
             children: [
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: Container(
                   width: t.lenOf('4rem'),
                   height: t.lenOf('4rem'),
@@ -82,10 +82,10 @@ class LinkOffer extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 560),
           child: ListView(
             shrinkWrap: true,
-            padding: EdgeInsets.fromLTRB(t.space(6), t.space(8), t.space(6), t.space(6)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(6), t.space(8), t.space(6), t.space(6)),
             children: [
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: Container(
                   width: t.lenOf('4rem'),
                   height: t.lenOf('4rem'),

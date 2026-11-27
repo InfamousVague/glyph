@@ -135,7 +135,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
     Widget heading(int section, String words) => SliverToBoxAdapter(
           child: Padding(
             key: _headings.putIfAbsent(section, GlobalKey.new),
-            padding: EdgeInsets.fromLTRB(t.space(1), t.space(3), t.space(1), t.space(1)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(1), t.space(3), t.space(1), t.space(1)),
             child: Text(words.toUpperCase(), style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'))),
           ),
         );
@@ -180,7 +180,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
         child: Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(t.radius('xl')),
               child: ColoredBox(
@@ -191,7 +191,7 @@ class _EmojiSheetState extends State<EmojiSheet> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     // The search, and the skin tone: a hand in it, which offers the six.
                     Padding(
-                      padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+                      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(1)),
                       child: Row(children: [
                         Expanded(
                           child: GlacierInput(

@@ -422,7 +422,7 @@ class _Strip extends StatelessWidget {
     return Container(
       width: width,
       decoration: BoxDecoration(color: isMix ? _Studio.bar : _Studio.lane, border: const Border(right: BorderSide(color: _Studio.edge))),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(2), t.space(2)),
       child: Column(children: [
         // The fader's decibels, or the mix's loudest peak now.
         SizedBox(

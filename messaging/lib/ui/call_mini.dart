@@ -67,7 +67,7 @@ class _CallMiniFrameState extends State<CallMiniFrame> {
                   enabled: !on,
                   child: ClipRect(
                     child: OverflowBox(
-                      alignment: Alignment.topLeft,
+                      alignment: AlignmentDirectional.topStart,
                       minWidth: on ? full.width : null,
                       maxWidth: on ? full.width : null,
                       minHeight: on ? full.height : null,
@@ -113,7 +113,7 @@ class CallMiniView extends StatelessWidget {
                 WindowDragArea(
                   child: Container(
                     height: 34,
-                    padding: EdgeInsets.only(left: t.space(3), right: t.space(1)),
+                    padding: EdgeInsetsDirectional.only(start: t.space(3), end: t.space(1)),
                     decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule')))),
                     child: Row(children: [
                       Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: t.online)),

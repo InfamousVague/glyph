@@ -114,22 +114,22 @@ class _Preview extends StatelessWidget {
           SizedBox(
             height: bannerH + face / 2,
             child: Stack(clipBehavior: Clip.none, children: [
-              Positioned(
-                left: 0,
-                right: 0,
+              PositionedDirectional(
+                start: 0,
+                end: 0,
                 top: 0,
                 height: bannerH,
                 child: CosmeticBanner(id: cosmetics.banner, picture: banner, fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: hues)))),
               ),
-              Positioned(
-                left: t.space(4),
+              PositionedDirectional(
+                start: t.space(4),
                 top: bannerH - face / 2,
                 child: DressedFace(size: face, cosmetics: cosmetics, face: ProfileFace(name: name, picture: picture, size: face)),
               ),
             ]),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(3)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(3)),
             child: NameEffectText(name.isEmpty ? 'You' : name, id: cosmetics.name, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
           ),
         ]),
@@ -161,7 +161,7 @@ class CosmeticPickerScreen extends StatelessWidget {
           final mine = kind == CosmeticKind.banner ? me.banner : '';
           final worn = mine.isNotEmpty ? null : me.cosmetics.of(kind);
           return GridView.builder(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: wide ? t.lenOf('14rem') : t.lenOf('8rem'),
               mainAxisSpacing: t.space(3),

@@ -421,7 +421,7 @@ class _NumberScreenState extends State<NumberScreen> {
         body: SettingsPaneScope(
           finder: SettingsFinder(),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               PaneSection(
@@ -613,7 +613,7 @@ class _ProofScreenState extends State<ProofScreen> {
         body: SettingsPaneScope(
           finder: SettingsFinder(),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               PaneSection(
@@ -717,7 +717,7 @@ class _JoinedRow extends StatelessWidget implements PaneRow {
     return SettingRow(
       icon: NetworkMark(n),
       label: '@${joined.handle}',
-      labelAfter: joined.seen ? null : Padding(padding: const EdgeInsets.only(left: 8), child: const GlacierPill(size: GlacierPillSize.sm, child: Tr('New'))),
+      labelAfter: joined.seen ? null : Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: const GlacierPill(size: GlacierPillSize.sm, child: Tr('New'))),
       hint: Text('${n.name} · joined ${_when(joined.at)}'),
       onPress: () => showChoices(context, title: '@${joined.handle} from ${n.name} is on Ghost Messaging. Ask them for their number there to start a conversation here.', choices: [
         if (page != null) Choice('Open their ${n.name} profile', Lucide.externalLink, () => Sms.instance.openLink(page)),
@@ -821,7 +821,7 @@ class _AddWatchScreenState extends State<AddWatchScreen> {
         body: SettingsPaneScope(
           finder: SettingsFinder(),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               PaneSection(
@@ -905,7 +905,7 @@ class WatchListScreen extends StatelessWidget {
             body: SettingsPaneScope(
               finder: SettingsFinder(),
               child: ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
                 children: [
                   PaneSection(
                     children: [

@@ -397,7 +397,7 @@ class PluginDetail extends StatelessWidget {
           children: [
             Positioned.fill(child: hueGlow(c, radius: radius)),
             // Faint, low and mostly past the end, beyond the words' width: it ran under the line in every look.
-            Positioned(right: -t.space(16), bottom: -t.space(12), child: AppIcon(plugin.icon, size: t.lenOf('12rem'), strokeWidth: 1.4, color: c.faint, wash: false)),
+            PositionedDirectional(end: -t.space(16), bottom: -t.space(12), child: AppIcon(plugin.icon, size: t.lenOf('12rem'), strokeWidth: 1.4, color: c.faint, wash: false)),
             Padding(
               padding: EdgeInsets.all(t.space(5)),
               child: Column(
@@ -631,7 +631,7 @@ class PluginDetailPage extends StatelessWidget {
     return GhostPage(
       title: title,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [Builder(builder: body)],
       ),
     );

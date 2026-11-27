@@ -139,7 +139,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
             Container(
               width: t.lenOf('1.6rem'),
               height: t.lenOf('1.6rem'),
-              margin: EdgeInsets.only(right: t.space(3)),
+              margin: EdgeInsetsDirectional.only(end: t.space(3)),
               decoration: BoxDecoration(shape: BoxShape.circle, color: current ? t.color('app-ink') : t.color('app-paper-3')),
               alignment: Alignment.center,
               child: Text('$n', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: current ? t.color('app-paper') : t.color('app-ink-3'))),
@@ -260,7 +260,7 @@ class _GoogleSignInFlowState extends State<GoogleSignInFlow> {
           Padding(
             padding: EdgeInsets.only(top: t.space(3)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+              Padding(padding: EdgeInsetsDirectional.only(end: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
               Expanded(child: Text(_error ?? widget.problem!, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4))),
             ]),
           ),

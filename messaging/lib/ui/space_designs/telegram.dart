@@ -137,9 +137,9 @@ class _TelegramCallState extends State<TelegramCall> {
         ),
       ]),
       if (chat)
-        Positioned(
+        PositionedDirectional(
           key: const ValueKey('tg-chat-split'),
-          left: voice - grip / 2,
+          start: voice - grip / 2,
           top: 0,
           bottom: 0,
           width: grip,
@@ -195,9 +195,9 @@ class _VoicePanelState extends State<_VoicePanel> {
       ]),
       if (_menu) ...[
         Positioned.fill(child: GestureDetector(onTap: () => setState(() => _menu = false), child: const ColoredBox(color: Color(0x00000000)))),
-        Positioned(
+        PositionedDirectional(
           top: 58,
-          right: context.tokens.space(3),
+          end: context.tokens.space(3),
           child: _Menu(call: call, close: () => setState(() => _menu = false)),
         ),
       ],
@@ -399,7 +399,7 @@ class _People extends StatelessWidget {
       final list = line + 48 + (call.people.length + call.coming) * (_faceSize + rowPad * 2 + 1) + t.space(1) + t.space(3) * 2 + 2;
       final room = box.maxHeight - list;
       return ListView(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(3)),
         children: [
           // What the call is still waiting for, above its people: "Connecting… Starting the microphone" with an arc
           // turning, from the press on Join until someone can be heard, then "Connected" for a moment
@@ -422,7 +422,7 @@ class _People extends StatelessWidget {
             child: Column(children: [
               _InviteRow(onPressed: call.onInvite == null ? null : () => call.onInvite!(context)),
               for (final p in call.people) ...[
-                Container(height: 1, margin: const EdgeInsets.only(left: _textStart), color: t.color('app-rule')),
+                Container(height: 1, margin: const EdgeInsetsDirectional.only(start: _textStart), color: t.color('app-rule')),
                 _PersonRow(call: call, person: p, role: p.roleLabel(roster), pad: rowPad, last: identical(p, call.people.last)),
               ],
               // Those in the call who are not here yet, while it is being come into: in bones (SpaceCall.coming).
@@ -432,9 +432,9 @@ class _People extends StatelessWidget {
                   label: call.coming == 1 ? '1 person in the call' : '${call.coming} people in the call',
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     for (var i = 0; i < call.coming; i++) ...[
-                      Container(height: 1, margin: const EdgeInsets.only(left: _textStart), color: t.color('app-rule')),
+                      Container(height: 1, margin: const EdgeInsetsDirectional.only(start: _textStart), color: t.color('app-rule')),
                       Padding(
-                        padding: EdgeInsets.fromLTRB(_rowLeft, rowPad - t.space(2), 14, rowPad - t.space(2)),
+                        padding: EdgeInsetsDirectional.fromSTEB(_rowLeft, rowPad - t.space(2), 14, rowPad - t.space(2)),
                         child: SkeletonPeople.row(t, i, face: _faceSize, second: false),
                       ),
                     ],
@@ -503,7 +503,7 @@ class _InviteRow extends StatelessWidget {
             color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
             borderRadius: BorderRadius.vertical(top: Radius.circular(t.radius('xl') - 1)),
           ),
-          padding: const EdgeInsets.fromLTRB(_rowLeft, 12, 14, 12),
+          padding: const EdgeInsetsDirectional.fromSTEB(_rowLeft, 12, 14, 12),
           child: Row(children: [
             SizedBox(width: _faceSize, child: Center(child: AppIcon(Lucide.link, size: 22, wash: false, color: ink))),
             const SizedBox(width: _faceGap),
@@ -565,7 +565,7 @@ class _PersonRow extends StatelessWidget {
               color: state.hovered || state.pressed ? t.color('app-paper-3') : null,
               borderRadius: last ? BorderRadius.vertical(bottom: Radius.circular(t.radius('xl') - 1)) : null,
             ),
-            padding: EdgeInsets.fromLTRB(_rowLeft, pad, 14, pad),
+            padding: EdgeInsetsDirectional.fromSTEB(_rowLeft, pad, 14, pad),
             child: Row(children: [
               ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-face-${p.id}'), call: call, person: p, size: _faceSize)),
               const SizedBox(width: _faceGap),
@@ -584,7 +584,7 @@ class _PersonRow extends StatelessWidget {
                 ])),
               ),
               const SizedBox(width: 8),
-              if (p.video) Padding(padding: const EdgeInsets.only(right: 10), child: AppIcon(Lucide.video, size: 18, wash: false, color: t.color('app-ink-3'))),
+              if (p.video) Padding(padding: const EdgeInsetsDirectional.only(end: 10), child: AppIcon(Lucide.video, size: 18, wash: false, color: t.color('app-ink-3'))),
               _MicMark(icon: s.icon, color: s.color, level: level),
             ]),
           );
@@ -733,9 +733,9 @@ class _VideoTile extends StatelessWidget {
                   fallback: LayoutBuilder(builder: (context, box) {
                     final above = math.max(0.0, box.maxHeight - 30);
                     return Stack(children: [
-                      Positioned(
-                        left: 0,
-                        right: 0,
+                      PositionedDirectional(
+                        start: 0,
+                        end: 0,
                         top: 0,
                         height: above,
                         child: Center(child: ExcludeSemantics(child: SpaceFace(key: ValueKey('tg-tile-${p.id}'), call: call, person: p, size: math.min(56.0, above / 1.85)))),
@@ -744,14 +744,14 @@ class _VideoTile extends StatelessWidget {
                   }),
                 ),
                 // The name on a flat chip of the page's paper, readable over a picture too.
-                Positioned(
-                  left: 8,
+                PositionedDirectional(
+                  start: 8,
                   bottom: 8,
-                  right: 8,
+                  end: 8,
                   child: Row(children: [
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
+                        padding: const EdgeInsetsDirectional.fromSTEB(7, 3, 9, 3),
                         decoration: BoxDecoration(color: t.color('glacier-bg').withValues(alpha: 0.9), borderRadius: BorderRadius.circular(t.radius('full'))),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           AppIcon(s.icon, size: 14, wash: false, color: s.words == 'listening' ? t.color('app-ink-2') : s.color),
@@ -789,7 +789,7 @@ class _Controls extends StatelessWidget {
       Widget slot(String key, Widget child) => SizedBox(key: ValueKey('tg-slot-$key'), width: _slot, child: Center(child: child));
       return Container(
         key: const ValueKey('tg-controls'),
-        padding: EdgeInsets.fromLTRB(8, 8, 8, bottom + 14),
+        padding: EdgeInsetsDirectional.fromSTEB(8, 8, 8, bottom + 14),
         // In a pane too narrow for the group, it shrinks rather than spill.
         child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           slot('video', _RoundButton(icon: SpaceWords.videoIcon(call), label: SpaceWords.video(call), on: call.video, onPressed: call.videoLocked ? null : call.onVideo)),
@@ -805,7 +805,7 @@ class _Controls extends StatelessWidget {
     // No rule above the controls: it stopped short of the page's edges (Matt, 2026-11-17: "the border at the bottom for the
     // controls should span the full width of the page or remove the border completely").
     return Container(
-      padding: EdgeInsets.fromLTRB(8, 8, 8, bottom + 14),
+      padding: EdgeInsetsDirectional.fromSTEB(8, 8, 8, bottom + 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         side(_RoundButton(
           icon: SpaceWords.videoIcon(call),
