@@ -55,6 +55,29 @@
   .hero .note { margin: 1.2rem 0 0; font-size: .88rem; color: var(--u-ink-3); display: flex; gap: .6rem 1.2rem; flex-wrap: wrap; }
   .hero .note span { display: inline-flex; align-items: center; gap: .4rem; }
   .hero .note .u-i { width: 1rem; height: 1rem; color: var(--u-ink); }
+  /* One button for the platform this is, and the rest under its arrow (Matt, 2026-11-27: "convert the download buttons
+     to an automatic platofrm detection with a down arrow to see other versions"). */
+  .getit { position: relative; display: inline-flex; align-items: stretch; gap: 3px; max-width: 100%; }
+  .getit--center { margin: 0 auto; }
+  .getit, .final > .getit[data-getit] { z-index: 20; }
+  .getit.up .getit-menu { top: auto; bottom: calc(100% + .5rem); }
+  .getit-main { min-width: 0; }
+  .getit-face { display: flex; align-items: center; gap: .7rem; }
+  .getit-face b { font-weight: 700; }
+  .getit-more { padding-inline: .9rem; }
+  .getit-more .u-i { transition: transform .2s; }
+  .getit-more[aria-expanded="true"] .u-i { transform: rotate(180deg); }
+  .getit-menu { position: absolute; z-index: 30; top: calc(100% + .5rem); left: 0; width: min(22rem, calc(100vw - 32px)); padding: .4rem; display: grid; gap: 2px; background: var(--u-paper); }
+  .getit--center .getit-menu { left: 50%; transform: translateX(-50%); }
+  .getit-menu[hidden] { display: none; }
+  .getit-menu > span[hidden], .getit-item[hidden] { display: none; }
+  .getit-item { display: flex; align-items: center; gap: .75rem; padding: .6rem .7rem; border-radius: var(--u-r-sm); color: var(--u-ink); text-decoration: none; text-align: left; }
+  .getit-item:hover, .getit-item:focus-visible { background: color-mix(in srgb, var(--u-ink) 9%, transparent); outline: none; }
+  .getit-item .u-i { width: 1.15rem; height: 1.15rem; flex: none; color: var(--u-ink-2); }
+  .getit-item span { display: flex; flex-direction: column; font-weight: 600; font-size: .95rem; }
+  .getit-item small { font-weight: 400; font-size: .8rem; color: var(--u-ink-3); }
+  .getit-item small:empty { display: none; }
+  .getit-item.picked { display: none; }
   a.dl small:empty { display: none; }
 
   /* the exploded conversation: the app's own layers, lifted apart */
@@ -169,15 +192,12 @@
   .privacy-grid { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
 
   /* get it: the last band, night */
-  .final { position: relative; overflow: hidden; margin: 0 var(--u-gutter) 3rem; border: 1px solid var(--u-rule); border-radius: var(--u-r-lg); text-align: center; padding: 5rem var(--u-gutter) 4.5rem; }
+  .final { position: relative; margin: 0 var(--u-gutter) 3rem; border: 1px solid var(--u-rule); border-radius: var(--u-r-lg); text-align: center; padding: 5rem var(--u-gutter) 4.5rem; }
   @media (max-width: 700px) { .final { margin: 0 .5rem 2.5rem; padding: 4rem var(--u-gutter) 3.5rem; } }
   .final > :not(.u-needle) { position: relative; z-index: 1; }
-  .final .u-needle { left: 18%; height: 140%; opacity: .35; }
-  .final .u-needle + .u-needle { left: 86%; height: 90%; opacity: .2; }
   .final-logo { width: 9rem; height: auto; margin: 0 auto 1.6rem; filter: drop-shadow(0 0 1px rgba(255,255,255,.9)); }
   .final .u-sub { margin: 0 auto 2.2rem; }
   .final .u-btns { justify-content: center; }
-  .final .linux-other { margin-top: 1.4rem; font-size: .95rem; }
   .install { max-width: 48rem; margin: 2.8rem auto 0; text-align: left; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
   .install .u-sticker { font-size: .93rem; }
   .install b { display: flex; align-items: center; gap: .55rem; margin-bottom: .5rem; font-family: var(--u-display); font-style: italic; font-weight: 800; font-size: 1.1rem; text-transform: uppercase; }
@@ -207,6 +227,7 @@
     <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
     <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
     <symbol id="i-check2" viewBox="0 0 24 24"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
@@ -258,13 +279,18 @@
       <span class="u-tag"><b id="now">New</b><span>Your all-in-one messenger</span></span>
       <h1 class="u-h1">High-quality text, voice and video. <em>In one app.</em></h1>
       <p class="u-lede">Messages with reactions and effects that land. Voice at 510 kb/s stereo with noise suppression that clears the room. Video up to 4K. Your Telegram and Signal chats sit right beside your texts, and chats and calls with friends are end-to-end encrypted, on your phone and your computer.</p>
-      <div class="u-btns">
-        <a class="dl main u-btn u-btn--solid" href="/ghost-messaging.apk" data-feed="apk"><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-phone"/></svg><span>Get Uplink for Android<small data-version="apk">Free, straight from us</small></span></span></a>
-        <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-mac.dmg" data-feed="mac" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></span></a>
-        <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-monitor"/></svg><span>Windows<small data-version="windows"></small></span></span></a>
-        <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-linux.deb" data-feed="linux" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-monitor"/></svg><span>Linux<small data-version="linux"></small></span></span></a>
-        <a class="dl alt u-btn u-btn--line" href="/app/" target="_blank" rel="noopener"><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-globe"/></svg><span>Open in browser<small>No download, nothing to install</small></span></span></a>
-        <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-keys.zip" download><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-puzzle"/></svg><span>Chrome extension<small>Link your chat networks once</small></span></span></a>
+      <div class="getit" data-getit>
+        <a class="dl main u-btn u-btn--solid getit-main" href="/app/"><span class="getit-face"><svg class="u-i"><use href="#i-down"/></svg><span><b class="getit-name">Get Uplink</b><small class="getit-ver">Free, straight from us</small></span></span></a>
+        <button class="u-btn u-btn--solid getit-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Other downloads"><span><svg class="u-i"><use href="#i-chev"/></svg></span></button>
+        <div class="getit-menu u-sticker" role="menu" hidden>
+          <a class="getit-item" role="menuitem" href="/ghost-messaging.apk" data-feed="apk" data-os="android"><svg class="u-i"><use href="#i-phone"/></svg><span>Android<small  data-version="apk"></small></span></a>
+          <a class="getit-item" role="menuitem" href="/ghost-messaging-mac.dmg" data-feed="mac" data-os="mac" hidden><svg class="u-i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
+          <a class="getit-item" role="menuitem" href="/ghost-messaging-setup.exe" data-feed="windows" data-os="windows" hidden><svg class="u-i"><use href="#i-monitor"/></svg><span>Windows<small data-version="windows"></small></span></a>
+          <a class="getit-item" role="menuitem" href="/ghost-messaging-linux.deb" data-feed="linux" data-os="linux" hidden><svg class="u-i"><use href="#i-monitor"/></svg><span>Linux · Ubuntu, Debian<small data-version="linux"></small></span></a>
+          <span data-feed="linux" hidden><a class="getit-item" role="menuitem" href="/ghost-messaging-linux-x64.tar.gz" data-feed="linux-tar"><svg class="u-i"><use href="#i-monitor"/></svg><span>Linux · any, as .tar.gz<small>Unpack it and run ghost-messaging</small></span></a></span>
+          <a class="getit-item" role="menuitem" href="/app/" target="_blank" rel="noopener" data-os="web"><svg class="u-i"><use href="#i-globe"/></svg><span>Open in browser<small>No download, nothing to install</small></span></a>
+          <a class="getit-item" role="menuitem" href="/ghost-messaging-keys.zip" download><svg class="u-i"><use href="#i-puzzle"/></svg><span>Chrome extension<small>Link your chat networks once</small></span></a>
+        </div>
       </div>
       <p class="note"><span><svg class="u-i"><use href="#i-lock"/></svg>Encrypted chats and calls</span><span><svg class="u-i"><use href="#i-user"/></svg>No account needed</span><span><svg class="u-i"><use href="#i-zap"/></svg>Updates itself</span></p>
     </div>
@@ -442,19 +468,22 @@
 </section>
 
 <div class="final u-night u-stars" id="get">
-  <i class="u-needle u-needle--glow" aria-hidden="true"></i><i class="u-needle" aria-hidden="true"></i>
   <img class="final-logo" src="/art/uplink-logo.webp" width="1200" height="918" alt="" loading="lazy">
   <h2 class="u-h2">Get Uplink</h2>
   <p class="u-sub">Free, on your Android phone and your Mac, PC or Linux computer.</p>
-  <div class="u-btns">
-    <a class="dl main u-btn u-btn--solid" href="/ghost-messaging.apk" data-feed="apk"><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-down"/></svg><span>Download for Android<small data-version="apk">Free, straight from us</small></span></span></a>
-    <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-mac.dmg" data-feed="mac" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-laptop"/></svg><span>Download for Mac<small data-version="mac"></small></span></span></a>
-    <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-setup.exe" data-feed="windows" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-monitor"/></svg><span>Download for Windows<small data-version="windows"></small></span></span></a>
-    <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-linux.deb" data-feed="linux" hidden><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-monitor"/></svg><span>Download for Linux<small data-version="linux"></small></span></span></a>
-    <a class="dl alt u-btn u-btn--line" href="/app/" target="_blank" rel="noopener"><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-globe"/></svg><span>Open in browser<small>No download, nothing to install</small></span></span></a>
-    <a class="dl alt u-btn u-btn--line" href="/ghost-messaging-keys.zip" download><span style="display:flex;align-items:center;gap:.7rem"><svg class="u-i"><use href="#i-puzzle"/></svg><span>Chrome extension<small>Link your chat networks once</small></span></span></a>
+  <div class="getit getit--center" data-getit>
+    <a class="dl main u-btn u-btn--solid getit-main" href="/app/"><span class="getit-face"><svg class="u-i"><use href="#i-down"/></svg><span><b class="getit-name">Get Uplink</b><small class="getit-ver">Free, straight from us</small></span></span></a>
+    <button class="u-btn u-btn--solid getit-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Other downloads"><span><svg class="u-i"><use href="#i-chev"/></svg></span></button>
+    <div class="getit-menu u-sticker" role="menu" hidden>
+      <a class="getit-item" role="menuitem" href="/ghost-messaging.apk" data-feed="apk" data-os="android"><svg class="u-i"><use href="#i-phone"/></svg><span>Android<small  data-version="apk"></small></span></a>
+      <a class="getit-item" role="menuitem" href="/ghost-messaging-mac.dmg" data-feed="mac" data-os="mac" hidden><svg class="u-i"><use href="#i-laptop"/></svg><span>Mac<small data-version="mac"></small></span></a>
+      <a class="getit-item" role="menuitem" href="/ghost-messaging-setup.exe" data-feed="windows" data-os="windows" hidden><svg class="u-i"><use href="#i-monitor"/></svg><span>Windows<small data-version="windows"></small></span></a>
+      <a class="getit-item" role="menuitem" href="/ghost-messaging-linux.deb" data-feed="linux" data-os="linux" hidden><svg class="u-i"><use href="#i-monitor"/></svg><span>Linux · Ubuntu, Debian<small data-version="linux"></small></span></a>
+      <span data-feed="linux" hidden><a class="getit-item" role="menuitem" href="/ghost-messaging-linux-x64.tar.gz" data-feed="linux-tar"><svg class="u-i"><use href="#i-monitor"/></svg><span>Linux · any, as .tar.gz<small>Unpack it and run ghost-messaging</small></span></a></span>
+      <a class="getit-item" role="menuitem" href="/app/" target="_blank" rel="noopener" data-os="web"><svg class="u-i"><use href="#i-globe"/></svg><span>Open in browser<small>No download, nothing to install</small></span></a>
+      <a class="getit-item" role="menuitem" href="/ghost-messaging-keys.zip" download><svg class="u-i"><use href="#i-puzzle"/></svg><span>Chrome extension<small>Link your chat networks once</small></span></a>
+    </div>
   </div>
-  <p class="u-sub linux-other" data-feed="linux" hidden>Not on Ubuntu or Debian? <a href="/ghost-messaging-linux-x64.tar.gz" data-feed="linux-tar">Download the .tar.gz</a> for any Linux, unpack it and run <code>ghost-messaging</code>.</p>
   <div class="install">
     <div class="u-sticker"><b><svg class="u-i"><use href="#i-phone"/></svg>On Android</b><ol><li>Download the APK on your phone and open it. Allow your browser to install apps if Android asks.</li><li>Open Uplink and choose "Set as default SMS app", or let it work beside your current one.</li></ol></div>
     <div class="u-sticker"><b><svg class="u-i"><use href="#i-laptop"/></svg>On a computer</b><ol><li>Download for Mac, Windows or Linux and install it.</li><li>On your phone, Settings › Computers, and pair.</li></ol></div>
@@ -492,8 +521,57 @@
           for (const a of document.querySelectorAll('[data-feed="linux-tar"]')) a.href = '/' + info.tar.url;
         }
         if (id === 'apk') document.getElementById('now').textContent = info.version;
+        pick();
       })
       .catch(() => {});
+  }
+
+  // Which download is this device's: the main button says it, and the arrow beside it lists the rest. An iPhone, or
+  // anything else, is given the app in the browser. Read again as each release's feed arrives (its button shows then).
+  const os = (() => {
+    const ua = navigator.userAgent, p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua) || (/mac/i.test(p) && navigator.maxTouchPoints > 1)) return 'web';
+    if (/mac/i.test(p) || /mac os x/i.test(ua)) return 'mac';
+    if (/win/i.test(p) || /windows/i.test(ua)) return 'windows';
+    if (/linux|x11|cros/i.test(p + ' ' + ua)) return /cros/i.test(ua) ? 'web' : 'linux';
+    return 'web';
+  })();
+  const named = { android: 'Download for Android', mac: 'Download for Mac', windows: 'Download for Windows', linux: 'Download for Linux', web: 'Open Uplink in your browser' };
+  const getits = [...document.querySelectorAll('[data-getit]')];
+  const pick = () => {
+    for (const g of getits) {
+      const items = [...g.querySelectorAll('.getit-item[data-os]')];
+      const want = items.find((a) => a.dataset.os === os && !a.hidden) || items.find((a) => a.dataset.os === 'web');
+      const main = g.querySelector('.getit-main');
+      main.href = want.href;
+      for (const at of ['target', 'rel']) { if (want.hasAttribute(at)) main.setAttribute(at, want.getAttribute(at)); else main.removeAttribute(at); }
+      main.querySelector('.getit-name').textContent = named[want.dataset.os] || 'Get Uplink';
+      main.querySelector('.getit-ver').textContent = want.querySelector('small').textContent;
+      main.querySelector('use').setAttribute('href', want.dataset.os === 'web' ? '#i-globe' : '#i-down');
+      for (const a of items) a.classList.toggle('picked', a === want);
+    }
+  };
+  pick();
+  for (const g of getits) {
+    const more = g.querySelector('.getit-more'), menu = g.querySelector('.getit-menu');
+    const shut = () => { menu.hidden = true; more.setAttribute('aria-expanded', 'false'); };
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = menu.hidden;
+      for (const other of getits) if (other !== g) { other.querySelector('.getit-menu').hidden = true; other.querySelector('.getit-more').setAttribute('aria-expanded', 'false'); }
+      menu.hidden = !open;
+      more.setAttribute('aria-expanded', String(open));
+      // Up, where the hero would cut it off below (it hides what spills out of it).
+      if (open) {
+        g.classList.remove('up');
+        const box = g.closest('.hero');
+        if (box && menu.offsetHeight + 16 > box.getBoundingClientRect().bottom - g.getBoundingClientRect().bottom && g.getBoundingClientRect().top > menu.offsetHeight + 16) g.classList.add('up');
+      }
+      if (open) menu.querySelector('.getit-item:not([hidden]):not(.picked)')?.focus();
+    });
+    document.addEventListener('click', (e) => { if (!g.contains(e.target)) shut(); });
+    g.addEventListener('keydown', (e) => { if (e.key === 'Escape') { shut(); more.focus(); } });
   }
 
   // Dark or light: the page's colours and the app's own screenshots in that theme (tool/site-layers.py cuts both).

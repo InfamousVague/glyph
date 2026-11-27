@@ -120,7 +120,10 @@ code { font-family: var(--u-mono); font-size: .9em; background: var(--u-rule); p
   font-size: .84rem; font-weight: 600; color: var(--u-ink-2); transform: skewX(var(--u-slant));
 }
 .u-tag > * { transform: skewX(calc(var(--u-slant) * -1)); }
-.u-tag b { background: var(--u-ink); color: var(--u-bg); padding: .08rem .5rem; border-radius: 2px; font-family: var(--u-display); font-style: italic; font-weight: 800; letter-spacing: .02em; }
+.u-tag b { position: relative; isolation: isolate; color: var(--u-bg); padding: .08rem .55rem; font-family: var(--u-display); font-style: italic; font-weight: 800; letter-spacing: .02em; }
+/* Its badge leans with it: the box is drawn slanted behind the words, which keep their own italic (Matt, 2026-11-27:
+   "this tag should be slanted to fit the style of the container"). */
+.u-tag b::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--u-ink); border-radius: 2px; transform: skewX(var(--u-slant)); }
 
 /* --- buttons: they lean as the sticker does; their words stand upright --- */
 .u-btn {
