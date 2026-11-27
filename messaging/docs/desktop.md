@@ -97,7 +97,11 @@ happened (`ev`).
   phone hands over. A recording is in the temporary directory only until it is stopped.
 - Conversations cross a lot at a time, newest first, as 0.6.1's own list reads them: the newest forty and the
   pinned at once, the rest behind them, never more than 250 in one answer. An answer too long for one frame is
-  refused in words ("Too much to send at once") and the connection stands.
+  refused in words ("Too much to send at once") and the connection stands. Every lot is whole in itself (each row
+  with its conversation's newest words, Google Messages' bridge's among them, and where its lot ends as `floor`),
+  and the first also carries the newest few unread ones from further down. A conversation that comes twice in one
+  reading is kept as the copy with the newer message, so a phone on an older build, whose later lots carry a
+  conversation as Android alone has it, does not put its last SMS over a newer RCS message.
 - "Are you there" (`ping`) is answered where it arrives; the list is read on one thread, a text sent on another,
   the rest on a third. A long read or a slow send holds nothing else up, and never makes the Mac think the phone
   has gone.

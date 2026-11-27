@@ -183,10 +183,18 @@ class Store(private val context: Context) {
     /**
      * Conversations, the newest first, a lot at a time (Matt, 2026-11-13: "see if we can load by most recent first
      * so that things are faster"): [limit] of them from the [offset]th row of Android's list, or all of them where
-     * [limit] is 0. Answers with `items`, and with `next`: the row the next lot starts at, or null at the end.
+     * [limit] is 0. Answers with `items`, with `next` (the row the next lot starts at, or null at the end), and with
+     * `floor`: where more follow, the date of the last row taken in order, so everything newer than it is here.
      *
-     * [pinnedToo] adds the pinned conversations wherever they are in the list, for the first lot: they head the
-     * screen however old they are. [only]: these conversations alone (the archived ones' page, or one by its id).
+     * [pinnedToo] adds what heads the screen however old it is, for the first lot: the pinned conversations, and the
+     * newest few unread ones ([UNREAD_TOO]; the list shows unread ones first, and they used to arrive lot by lot under
+     * the eyes). [only]: these conversations alone (the archived ones' page, or one by its id).
+     *
+     * Every lot is whole in itself (Matt, 2026-11-26: "they don't always show the last message"): each row has the
+     * newest words of its conversation whether Android's database or Google Messages' bridge holds them, and a
+     * conversation the bridge has newer words for is on the lot its newest message's date falls in. Only the first lot
+     * used to be brought up to date by the bridge, and a later lot's row for the same conversation, as Android has it
+     * (its last SMS, however old), was then laid over it.
      */
     fun conversationsPage(limit: Int = 0, offset: Int = 0, pinnedToo: Boolean = false, only: Set<Long>? = null): Map<String, Any?> {
         val out = ArrayList<Map<String, Any?>>()
@@ -203,79 +211,108 @@ class Store(private val context: Context) {
         val blocked = blockedKeys()
         // The newest of each RCS group's stand-in threads, left out of the list, for its group's row.
         val carried = Newest()
+        // Google Messages' conversations as the bridge has them (GmBridge), read once for the lot.
+        val bridged = try { GmBridge.Db.get(context).conversations().distinctBy { it.thread } } catch (_: Exception) { emptyList() }
+        // The dates this lot lies between: the row before its first ([upper]; null for the first lot) and the last row
+        // it took in order ([floor]; null where it took the last there is).
+        var upper: Long? = null
+        var floor: Long? = null
         readCanonical()
         // No projection: OEM providers (Samsung's among them) differ in the columns they keep, and naming one they
         // lack fails the whole query. Each column is read if it is there.
         try {
-            resolver.query(uri, null, only?.let { "_id IN (${it.joinToString(",")})" }, null, "date DESC")?.use { c ->
-                fun col(name: String) = c.getColumnIndex(name)
-                val iId = col("_id"); val iDate = col("date"); val iCount = col("message_count"); val iRec = col("recipient_ids")
-                val iSnip = col("snippet"); val iRead = col("read"); val iErr = col("error"); val iAtt = col("has_attachment")
-                // The groups of friends this phone is in, by their conversations (Groups.kt): who is in one, and what
-                // it is called, are read from its record, not from who Android holds the conversation to be with.
-                val groups = Groups.byThread(context)
-                fun row(): Map<String, Any?>? {
-                    val id = c.getLong(iId)
-                    // A store that takes no notice of which were asked for is held to them here.
-                    if (only != null && id !in only) return null
-                    val count = if (iCount >= 0) c.getInt(iCount) else 1
-                    // A count of nothing is believed only where the conversation holds nothing: some phones' stores
-                    // do not keep the count, and every conversation would be left out.
-                    if (count == 0 && !hasMessages(id)) return null
-                    val group = groups[id]
-                    val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (iRec >= 0) c.getString(iRec) else null)
-                    val date = if (iDate >= 0) c.getLong(iDate) else 0L
-                    // Deleted beside Google Messages, and nothing newer since (hideThread).
-                    if (hidden[id]?.let { date <= it } == true) return null
-                    // An RCS group's stand-in, already found to be a group the bridge shows (withBridge).
-                    val standIn = group == null && recipients.isNotEmpty() && recipients.all(::isRcsStandIn)
-                    val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (iSnip >= 0) c.getString(iSnip) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
-                    // Its messages are its group's (messages()), so its newest is the group's newest too, where it is
-                    // newer: the list said the group's older words while the group showed these (Matt, 2026-11-26: "The
-                    // most recent message doesnt match what's actually sent as the last message on chats").
-                    if (standIn && id in standIns) {
-                        carried.carry(standIns.getValue(id), date, summary.ifBlank { latestSnippet(id, "$date:$count") }, iRead >= 0 && c.getInt(iRead) == 0)
-                        return null
-                    }
-                    val people = recipients.map { contact(it) }
-                    return mapOf(
-                        "id" to id,
-                        "date" to date,
-                        "count" to count,
-                        "people" to people,
-                        // What someone not in the contacts last sent, for sorting the conversation by (lib/plugins):
-                        // the newest message may be your own reply, which says nothing of what they are (Matt,
-                        // 2026-11-14: "Health insurance sales people are not getting caught by the sales filter").
-                        "heard" to if (group == null && people.size == 1 && people[0]["name"] == null) latestHeard(id, "$date:$count") else null,
-                        // A picture message's summary in Android's list is its subject, often empty: its words, or
-                        // what it is, instead.
-                        "snippet" to summary.ifBlank { latestSnippet(id, "$date:$count") },
-                        "encrypted" to (group != null || (recipients.size == 1 && E2e.isOn(context, recipients[0]))),
-                        "group" to group?.optString("id"),
-                        "unread" to (iRead >= 0 && c.getInt(iRead) == 0),
-                        "error" to (iErr >= 0 && c.getInt(iErr) != 0),
-                        "attachment" to (iAtt >= 0 && c.getInt(iAtt) != 0),
-                        "archived" to archived.contains(id),
-                        "pinned" to pinned.contains(id),
-                        "muted" to muted.contains(id),
-                        "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id) ?: if (standIn) rcsGroupName(recipients) else null),
-                        "draft" to drafts[id.toString()],
-                        "blocked" to (group == null && recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
-                    )
+            // The groups of friends this phone is in, by their conversations (Groups.kt): who is in one, and what
+            // it is called, are read from its record, not from who Android holds the conversation to be with.
+            val groups = Groups.byThread(context)
+            fun row(c: Cursor, k: Cols): Map<String, Any?>? {
+                val id = c.getLong(k.id)
+                // A store that takes no notice of which were asked for is held to them here.
+                if (only != null && id !in only) return null
+                val count = if (k.count >= 0) c.getInt(k.count) else 1
+                // A count of nothing is believed only where the conversation holds nothing: some phones' stores
+                // do not keep the count, and every conversation would be left out.
+                if (count == 0 && !hasMessages(id)) return null
+                val group = groups[id]
+                val recipients = if (group != null) Groups.people(context, group) else recipientsOf(if (k.recipients >= 0) c.getString(k.recipients) else null)
+                val date = k.dateOf(c)
+                // Deleted beside Google Messages, and nothing newer since (hideThread).
+                if (hidden[id]?.let { date <= it } == true) return null
+                // An RCS group's stand-in, already found to be a group the bridge shows (withBridge).
+                val standIn = group == null && recipients.isNotEmpty() && recipients.all(::isRcsStandIn)
+                val summary = E2e.preview(context, if (group != null) null else recipients.singleOrNull(), if (k.snippet >= 0) c.getString(k.snippet) ?: "" else "").let { if (BackgroundWire.valueIn(it) != null) "Chat background" else it }
+                // Its messages are its group's (messages()), so its newest is the group's newest too, where it is
+                // newer: the list said the group's older words while the group showed these (Matt, 2026-11-26: "The
+                // most recent message doesnt match what's actually sent as the last message on chats").
+                if (standIn && id in standIns) {
+                    carried.carry(standIns.getValue(id), date, summary.ifBlank { latestSnippet(id, "$date:$count") }, k.unread(c))
+                    return null
                 }
+                val people = recipients.map { contact(it) }
+                return mapOf(
+                    "id" to id,
+                    "date" to date,
+                    "count" to count,
+                    "people" to people,
+                    // What someone not in the contacts last sent, for sorting the conversation by (lib/plugins):
+                    // the newest message may be your own reply, which says nothing of what they are (Matt,
+                    // 2026-11-14: "Health insurance sales people are not getting caught by the sales filter").
+                    "heard" to if (group == null && people.size == 1 && people[0]["name"] == null) latestHeard(id, "$date:$count") else null,
+                    // A picture message's summary in Android's list is its subject, often empty: its words, or
+                    // what it is, instead.
+                    "snippet" to summary.ifBlank { latestSnippet(id, "$date:$count") },
+                    "encrypted" to (group != null || (recipients.size == 1 && E2e.isOn(context, recipients[0]))),
+                    "group" to group?.optString("id"),
+                    "unread" to k.unread(c),
+                    "error" to (k.error >= 0 && c.getInt(k.error) != 0),
+                    "attachment" to (k.attachment >= 0 && c.getInt(k.attachment) != 0),
+                    "archived" to archived.contains(id),
+                    "pinned" to pinned.contains(id),
+                    "muted" to muted.contains(id),
+                    "name" to (group?.optString("name")?.takeIf { it.isNotBlank() } ?: threadName(id) ?: if (standIn) rcsGroupName(recipients) else null),
+                    "draft" to drafts[id.toString()],
+                    "blocked" to (group == null && recipients.size == 1 && E2e.norm(recipients[0]) in blocked),
+                )
+            }
+            resolver.query(uri, null, only?.let { "_id IN (${it.joinToString(",")})" }, null, "date DESC")?.use { c ->
+                val k = Cols(c)
                 if (offset <= 0 || c.moveToPosition(offset - 1)) {
+                    if (offset > 0) upper = k.dateOf(c)
+                    var last: Long? = null
                     while (c.moveToNext()) {
                         if (limit > 0 && out.size >= limit) { next = c.position; break }
-                        row()?.let { out += it }
+                        last = k.dateOf(c)
+                        row(c, k)?.let { out += it }
                     }
+                    if (next != null) floor = last
                 }
-                // The pinned ones further down: the cursor stands on the first row not taken.
-                if (pinnedToo && next != null && pinned.isNotEmpty()) {
+                // What heads the screen from further down: the cursor stands on the first row not taken. The pinned
+                // ones wherever they are, and the newest unread ones the list brings up (not a muted or an archived
+                // one, which it does not).
+                if (pinnedToo && next != null) {
                     val have = out.mapTo(HashSet()) { it["id"] as Long }
+                    var pinnedLeft = pinned.count { it !in have }
+                    var unreadLeft = UNREAD_TOO
                     do {
-                        val id = c.getLong(iId)
-                        if (id in pinned && id !in have) row()?.let { out += it }
+                        if (pinnedLeft <= 0 && unreadLeft <= 0) break
+                        val id = c.getLong(k.id)
+                        if (id in have) continue
+                        if (id in pinned) {
+                            pinnedLeft--
+                            row(c, k)?.let { out += it }
+                        } else if (unreadLeft > 0 && k.unread(c) && id !in muted && id !in archived) {
+                            row(c, k)?.let { out += it; unreadLeft-- }
+                        }
                     } while (c.moveToNext())
+                }
+            }
+            // Android's own row of each conversation the bridge has newer words for, which belongs on this lot by them
+            // though Android lists it further down (its last SMS is old): brought up, to be given those words below.
+            if (only == null) {
+                val have = out.mapTo(HashSet()) { it["id"] as Long }
+                val wanted = bridgedOnLot(bridged.map { it.thread to it.time }, have, floor, upper).filter { it > 0 }
+                if (wanted.isNotEmpty()) resolver.query(uri, null, "_id IN (${wanted.joinToString(",")})", null, null)?.use { c ->
+                    val k = Cols(c)
+                    while (c.moveToNext()) row(c, k)?.let { out += it }
                 }
             }
         } catch (e: Exception) {
@@ -284,28 +321,40 @@ class Store(private val context: Context) {
             android.util.Log.e("GhostMessaging", "conversations", e)
             out.clear()
             next = null
+            floor = null
+            upper = null
             if (offset <= 0) out += conversationsFromTexts(archived, pinned, muted, drafts).filter { only == null || (it["id"] as Long) in only }
         }
+        withBridge(out, bridged, only, lower = floor, upper = upper)
+        // After the bridge's own rows are in: an RCS group's row is one of them, where Android has none for it.
         carried.into(out)
-        if (offset <= 0) withBridge(out, only, lastShown = if (next != null) out.lastOrNull()?.get("date") as Long? else null)
         withReadHere(out)
-        return mapOf("items" to out, "next" to next)
+        return mapOf("items" to out, "next" to next, "floor" to floor)
+    }
+
+    /** The columns of Android's list of conversations a row is read from, each where [c]'s store has it. */
+    private class Cols(c: Cursor) {
+        val id = c.getColumnIndex("_id"); val date = c.getColumnIndex("date"); val count = c.getColumnIndex("message_count")
+        val recipients = c.getColumnIndex("recipient_ids"); val snippet = c.getColumnIndex("snippet"); val read = c.getColumnIndex("read")
+        val error = c.getColumnIndex("error"); val attachment = c.getColumnIndex("has_attachment")
+        fun dateOf(c: Cursor): Long = if (date >= 0) c.getLong(date) else 0L
+        fun unread(c: Cursor): Boolean = read >= 0 && c.getInt(read) == 0
     }
 
     /**
-     * Google Messages' conversations as the bridge has them (GmBridge): one whose thread is in [out] brings its newer
-     * words and its unread; one Android's database does not have (an RCS chat) is added. Only on the first page, and
-     * only those as new as the page's oldest where there are more pages after it ([lastShown]).
+     * Google Messages' conversations as the bridge has them ([bridged]; GmBridge) brought into a lot of the list: one
+     * whose thread is in [out] brings its newer words and its unread; one Android's database does not have (an RCS
+     * chat) is added on the lot its date falls on (from [lower], below [upper]; null is no bound).
      */
-    private fun withBridge(out: ArrayList<Map<String, Any?>>, only: Set<Long>?, lastShown: Long?) {
-        val bridged = try { GmBridge.Db.get(context).conversations() } catch (_: Exception) { return }
+    private fun withBridge(out: ArrayList<Map<String, Any?>>, bridged: List<GmBridge.Conv>, only: Set<Long>?, lower: Long?, upper: Long?) {
         if (bridged.isEmpty()) return
         val at = HashMap<Long, Int>()
         out.forEachIndexed { i, row -> at[row["id"] as Long] = i }
         val archived = archivedThreads(); val pinned = threadFlags("pinned"); val muted = threadFlags("muted")
         var added = false
         val hidden = hiddenThreads()
-        for (b in bridged.distinctBy { it.thread }) {
+        val drafts = drafts()
+        for (b in bridged) {
             if (only != null && b.thread !in only) continue
             if (hidden[b.thread]?.let { b.time <= it } == true) continue
             val i = at[b.thread]
@@ -321,13 +370,13 @@ class Store(private val context: Context) {
                 }
                 continue
             }
-            if (lastShown != null && b.time < lastShown) continue
+            if (!onLot(b.time, lower, upper)) continue
             val people = if (b.addresses.isNotEmpty()) b.addresses.map { contact(it) } else listOf(mapOf("address" to (b.title ?: ""), "name" to b.title))
             out += mapOf(
                 "id" to b.thread, "date" to b.time, "count" to 1, "people" to people, "heard" to null, "snippet" to said,
                 "encrypted" to false, "group" to null, "unread" to (b.unread > 0), "error" to false, "attachment" to false,
                 "archived" to archived.contains(b.thread), "pinned" to pinned.contains(b.thread), "muted" to muted.contains(b.thread),
-                "name" to (threadName(b.thread) ?: if (b.group) b.title else null), "draft" to null, "blocked" to false, "bridged" to true,
+                "name" to (threadName(b.thread) ?: if (b.group) b.title else null), "draft" to drafts[b.thread.toString()], "blocked" to false, "bridged" to true,
             )
             added = true
         }
@@ -1384,6 +1433,22 @@ class Store(private val context: Context) {
 
         /** The longest name a conversation can be given. */
         const val NAME_MOST = 60
+
+        /** How many unread conversations from beyond the first lot come with it: enough to fill the top of the screen. */
+        const val UNREAD_TOO = 20
+
+        /**
+         * Whether a conversation whose newest message is dated [time] belongs on the lot of the list that runs from
+         * [lower] to just below [upper] (null: no bound that side; conversationsPage).
+         */
+        fun onLot(time: Long, lower: Long?, upper: Long?): Boolean = (lower == null || time >= lower) && (upper == null || time < upper)
+
+        /**
+         * The bridge's conversations ([bridged]: each one's thread and its newest message's time) that belong on a lot
+         * by that time and are not among the rows it [have]s: Android's own row of each is brought up for it.
+         */
+        fun bridgedOnLot(bridged: List<Pair<Long, Long>>, have: Set<Long>, lower: Long?, upper: Long?): List<Long> =
+            bridged.filter { (thread, time) -> thread !in have && onLot(time, lower, upper) }.map { it.first }
 
         /** A picture message's announcement: being brought down, or it could not be (Android's own two numbers). */
         const val NOTICE_DOWNLOADING = 129

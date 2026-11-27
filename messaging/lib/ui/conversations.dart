@@ -10,6 +10,7 @@ import 'package:glacier/glacier.dart';
 import '../keys.dart';
 import '../message_format.dart';
 import '../app_state.dart';
+import '../conversation_feed.dart';
 import '../art/app_icon.dart';
 import '../art/ghost_icons.dart';
 import '../art/lucide.g.dart';
@@ -48,6 +49,7 @@ import 'shell.dart';
 import 'skeleton.dart';
 import 'swipe_actions.dart';
 import 'inbox_ui.dart';
+import 'list_order.dart';
 import '../inbox/inbox.dart';
 import '../friends/groups.dart';
 import 'thread.dart';
@@ -121,8 +123,7 @@ abstract class ConversationList {
   Future<void> markShownRead();
 }
 
-/// Whether [row] of the list (a conversation, a network's chat or a space) holds something not read yet that its
-/// person has not asked to hear nothing of: a muted one is not brought up the list for what is said in it.
+/// A row brought up in the list: a conversation with something unread that is not muted, a space with unread messages.
 bool isUnreadRow(Object row) => switch (row) {
       Conversation c => c.unread && !c.muted,
       InboxChat c => c.unread > 0 && !c.muted,
@@ -130,14 +131,19 @@ bool isUnreadRow(Object row) => switch (row) {
       _ => false,
     };
 
-/// [rows] of the list with the unread ones first (Matt, 2026-11-24: "sort unread messages at the top in the app, new
-/// messages should come first (before unreads)"). Each part keeps the order it came in, which is the newest first:
-/// so what was written last is at the very top, older unread ones under it, and everything read after those.
-List<Object> unreadRowsFirst(List<Object> rows) => [for (final r in rows) if (isUnreadRow(r)) r, for (final r in rows) if (!isUnreadRow(r)) r];
+/// [row] as the list's order sees it (lib/ui/list_order.dart): its own name, when its newest message was written
+/// ([at], for a space, whose time is its newest message's or its call's), and whether it is brought up.
+ListEntry listEntry(Object row, {bool pinned = false, DateTime? at}) => switch (row) {
+      Conversation c => ListEntry(row: c, key: ListEntry.textKey(c.id), at: at ?? c.date, unread: isUnreadRow(c), pinned: pinned),
+      InboxChat c => ListEntry(row: c, key: ListEntry.chatKey(c.network, c.id), at: at ?? c.date, unread: isUnreadRow(c), pinned: pinned),
+      VoiceChannel v => ListEntry(row: v, key: ListEntry.spaceKey(v.room), at: at ?? DateTime.fromMillisecondsSinceEpoch(0), unread: isUnreadRow(v), pinned: pinned),
+      _ => throw ArgumentError('not a row of the list: $row'),
+    };
 
-class _ConversationsScreenState extends State<ConversationsScreen> implements ConversationList {
+class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsBindingObserver implements ConversationList {
+  /// The conversations of texts in the order they are drawn: what the keys that step through them go by.
   @override
-  List<Conversation> get order => _shown;
+  List<Conversation> get order => _drawn.isEmpty ? _shown : [for (final r in _drawn) if (r is Conversation) r];
 
   @override
   List<Conversation> get every => [for (final c in _all ?? const <Conversation>[]) if (!c.archived) c];
@@ -148,32 +154,38 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
   @override
   Future<void> markShownRead() => _markAllRead(_section);
 
-  List<Conversation>? _all;
+  /// The conversations and how the reading of them stands (lib/conversation_feed.dart): read there, drawn here.
+  late final ConversationFeed _feed = ConversationFeed(archived: widget.archived, onRead: (lot) => _plugins.take(lot))..addListener(_fed);
+  List<Conversation>? get _all => _feed.items;
   String _query = '';
   StreamSubscription<int>? _changes;
-  Timer? _debounce;
+  StreamSubscription<int>? _readHere;
 
   /// Why the last read failed, in Android's words; null when it did not.
-  String? _error;
+  String? get _error => _feed.error;
 
   /// A read has been going for long enough to say so.
-  bool _slow = false;
-  Timer? _slowTimer;
-  int _reads = 0;
+  bool get _slow => _feed.slow;
 
   /// Older conversations are still being read behind the ones shown.
-  bool _more = false;
-
-  /// A whole read is under way, and a text came or went meanwhile: the newest are read again once it ends.
-  bool _reading = false;
-  bool _stale = false;
+  bool get _more => _feed.more;
 
   /// How many conversations are archived, for the row that leads to them.
   int _archived = 0;
+  int _counted = 0;
 
-  /// The first lot: what fills the screen a few times over. And each lot after it.
-  static const _first = 40;
-  static const _lot = 250;
+  /// The whole readings acted on, and when the last one was asked for.
+  int _wholeSeen = 0;
+  DateTime _loadedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// The rows held where they are though they have been read (lib/ui/list_order.dart), the view they were held in
+  /// (the tab, and whether a search is on), and the rows as last drawn.
+  final ListHold _hold = ListHold();
+  String? _view;
+  List<Object> _drawn = const [];
+
+  /// The conversation open in the frame's pane as the list last knew: its row is read again as it gives way.
+  int? _openWas;
 
   /// The conversations chosen, while several are being chosen. Empty: not choosing.
   final Set<int> _selected = {};
@@ -210,10 +222,52 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
   /// The section whose chip is chosen; null is the main list.
   String? _section;
 
-  /// Back at the list from what was open: everything it shows is read again.
+  /// Back at the list from what was open, or something else opened in its place: the row of the conversation that
+  /// was open is read again (it was read, written in, muted, archived or deleted there), with the newest ones and the
+  /// archive's count. Everything was read again here, lot after lot, at each conversation opened.
   void _back() {
     _look();
-    _load();
+    final was = _openWas;
+    _openWas = _shell?.thread;
+    _countArchived();
+    _feed.changed(was ?? -1);
+  }
+
+  /// The reading moved on (lib/conversation_feed.dart): drawn, and what a whole reading says is acted on once.
+  void _fed() {
+    if (!mounted) return;
+    final items = _feed.items ?? const <Conversation>[];
+    final whole = _feed.whole != _wholeSeen;
+    _wholeSeen = _feed.whole;
+    setState(() {
+      if (!whole) return;
+      // A conversation that has gone is no longer chosen.
+      _selected.removeWhere((id) => !items.any((c) => c.id == id));
+      // Opened to choose them all: once, as they first arrive.
+      if (widget.archived && widget.selectAll && !_choseAll) {
+        _choseAll = true;
+        _selected.addAll(items.map((c) => c.id));
+      }
+    });
+    // The Archive ring's menu says how many are here; its number, how many of them are unread (GMFB-14).
+    if (whole && widget.archived) {
+      _shell?.archived.value = items.length;
+      _shell?.archivedUnread.value = items.where((c) => c.unread).length;
+    }
+  }
+
+  /// The app or its window was left, or come back to. Left: the rows held where they were go to their own places
+  /// while nobody is looking (lib/ui/list_order.dart). Come back to after a while: everything is read again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final watching = state == AppLifecycleState.resumed;
+    if (watching == _hold.watching) return;
+    _hold.watching = watching;
+    if (!watching) {
+      if (_hold.settle() && mounted) setState(() {});
+    } else if (DateTime.now().difference(_loadedAt) > const Duration(minutes: 1)) {
+      _load();
+    }
   }
 
   @override
@@ -234,13 +288,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     _wanted();
     // Telegram's and Bluesky's chats (lib/inbox): each signed-in network is a tab, and its chats come into it.
     _inbox.addListener(_summed);
+    WidgetsBinding.instance.addObserver(this);
+    _hold.watching = (WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed) == AppLifecycleState.resumed;
+    _openWas = _shell?.thread;
     _load();
     _look();
-    _changes = Sms.instance.changes.stream.listen((_) {
-      _debounce?.cancel();
-      // A text came or went: it is among the newest, so only those are read again.
-      _debounce = Timer(const Duration(milliseconds: 250), _newest);
-    });
+    // A text came or went: it is among the newest, so those are read again, and its conversation by itself where it
+    // is not among them.
+    _changes = Sms.instance.changes.stream.listen(_feed.changed);
+    // A conversation was marked read from here: its row alone.
+    _readHere = Sms.instance.reads.stream.listen(_feed.refresh);
   }
 
   final Listenable _inbox = Inbox.instance.changes;
@@ -280,10 +337,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     ConversationsScreen.wantTab.removeListener(_wanted);
     _inbox.removeListener(_summed);
     _shell?.closed.removeListener(_back);
+    WidgetsBinding.instance.removeObserver(this);
     _plugins.dispose();
     _changes?.cancel();
-    _debounce?.cancel();
-    _slowTimer?.cancel();
+    _readHere?.cancel();
+    _feed
+      ..removeListener(_fed)
+      ..dispose();
     super.dispose();
   }
 
@@ -301,113 +361,33 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     } catch (_) {}
   }
 
-  /// Reads the conversations, the newest first (Matt, 2026-11-13: "Users with a ton of messages stored on their phone
-  /// are taking forever to load, see if we can load by most recent first so that things are faster"): the first
-  /// [_first] and the pinned ones at once, which is the screen, then the rest a lot at a time behind them. What was
-  /// shown before stays until it is read again, and what the whole read did not find has gone.
-  Future<void> _load() async {
-    final read = ++_reads;
-    _reading = true;
-    // Said only once it has taken a moment: a quick read would only flicker.
-    _slowTimer?.cancel();
-    _slowTimer = Timer(const Duration(milliseconds: 350), () {
-      if (mounted && read == _reads) setState(() => _slow = true);
-    });
-    void quiet() {
-      _slowTimer?.cancel();
-      if (mounted && _slow) setState(() => _slow = false);
-    }
-
-    try {
-      if (widget.archived) {
-        // The archived ones are asked for by name, all at once: there are few.
-        final page = await Sms.instance.conversationsPage(archived: true);
-        if (!mounted || read != _reads) return;
-        setState(() {
-          _all = page.items;
-          _error = null;
-          _selected.removeWhere((id) => !page.items.any((c) => c.id == id));
-          // Opened to choose them all: once, as they first arrive.
-          if (widget.selectAll && !_choseAll) {
-            _choseAll = true;
-            _selected.addAll(page.items.map((c) => c.id));
-          }
-        });
-        // The Archive ring's menu says how many are here; its number, how many of them are unread (GMFB-14).
-        _shell?.archived.value = page.items.length;
-        _shell?.archivedUnread.value = page.items.where((c) => c.unread).length;
-        return;
-      }
-      Sms.instance.archivedCount().then((n) {
-        if (!mounted || read != _reads) return;
-        setState(() => _archived = n);
-        _shell?.archived.value = n;
-      }).catchError((_) {});
-      unawaited(_shell?.countArchivedUnread());
-      final seen = <int>{};
-      int? at = 0;
-      while (at != null) {
-        final page = await Sms.instance.conversationsPage(limit: at == 0 ? _first : _lot, offset: at, pinned: at == 0);
-        if (!mounted || read != _reads) return;
-        seen.addAll(page.items.map((c) => c.id));
-        final last = page.next == null;
-        _plugins.take(page.items);
-        setState(() {
-          _all = mergeConversations(_all, page.items, only: last ? seen : null);
-          _error = null;
-          _more = !last;
-          // A conversation that has gone is no longer chosen.
-          if (last) _selected.removeWhere((id) => !seen.contains(id));
-        });
-        // The screen has its conversations: the rest arrive without a word.
-        if (at == 0) quiet();
-        at = page.next;
-      }
-    } catch (e) {
-      if (!mounted || read != _reads) return;
-      setState(() {
-        _all ??= const [];
-        _error = '$e';
-        _more = false;
-      });
-    } finally {
-      if (read == _reads) {
-        quiet();
-        _reading = false;
-        if (_stale && mounted) {
-          _stale = false;
-          _newest();
-        }
-      }
-    }
+  /// Reads the conversations again, all of them (lib/conversation_feed.dart: the first lot at once, the rest behind
+  /// it), and how many are archived.
+  Future<void> _load() {
+    _loadedAt = DateTime.now();
+    _countArchived();
+    return _feed.load();
   }
 
-  /// Reads the newest conversations again and lays them over the ones held: what a text that has just come or gone
-  /// changes. A whole read under way is left to finish, and this follows it.
-  Future<void> _newest() async {
-    if (widget.archived || _all == null) return _load();
-    if (_reading) {
-      _stale = true;
-      return;
-    }
-    final read = _reads;
-    try {
-      final page = await Sms.instance.conversationsPage(limit: _first, pinned: true);
-      if (!mounted || read != _reads) return;
-      _plugins.take(page.items);
-      setState(() {
-        _all = mergeConversations(_all, page.items);
-        _error = null;
-      });
-    } catch (_) {
-      // The list shown stands; the next whole read says what is wrong.
-    }
+  /// How many are archived, for the row and the ring that lead to them: asked of the phone, which knows before every
+  /// conversation has been read.
+  void _countArchived() {
+    if (widget.archived) return;
+    final asked = ++_counted;
+    Sms.instance.archivedCount().then((n) {
+      if (!mounted || asked != _counted) return;
+      setState(() => _archived = n);
+      _shell?.archived.value = n;
+    }).catchError((_) {});
+    unawaited(_shell?.countArchivedUnread());
   }
 
-  /// The main list with Telegram's and Bluesky's chats among the texts, newest first, after the pinned conversations
-  /// (Matt, 2026-11-15: "Id like the telegram chats to be mixed into the normal text messages (same with bluesky) just
-  /// add a telegram icon in thr corner of the bubble"). While older texts are still being read, a chat older than the
-  /// oldest text held waits for them, so the list does not jump.
+  /// The list's rows in their order: the texts with Telegram's and Bluesky's chats and the spaces among them (Matt,
+  /// 2026-11-15: "Id like the telegram chats to be mixed into the normal text messages (same with bluesky) just add a
+  /// telegram icon in thr corner of the bubble"), every kind ordered by the one rule (lib/ui/list_order.dart): the
+  /// pinned first, what is unread before what is not, the newest first, and a row that has been read held where it
+  /// was. While older texts are still being read, a read chat older than the texts held so far waits for them, so the
+  /// list does not jump.
   List<Object> _mixed(List<Conversation> shown) {
     // Codes: a Telegram sign-in code is there among the texted ones (Matt, 2026-11-15: "proxy telegram codes through to
     // the codes tab as well"); any other section is the texts' own.
@@ -441,26 +421,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       for (final v in Voice.instance.channels)
         if (v.hangout && v.circle == null && Voice.instance.archived(v) == widget.archived && (q.isEmpty || v.name.toLowerCase().contains(q) || (Voice.instance.lastMessage(v)?.summary.toLowerCase().contains(q) ?? false))) (_spaceDate(v), v as Object),
     ];
-    if (chats.isEmpty && spaces.isEmpty) {
-      // [_shown] has the pinned ones first where this is the main list: unread first among them, and among the rest.
-      if (_section != null) return unreadRowsFirst(shown);
-      return [...unreadRowsFirst([for (final c in shown) if (c.pinned) c]), ...unreadRowsFirst([for (final c in shown) if (!c.pinned) c])];
-    }
-    if (_section != null) {
-      return unreadRowsFirst(([for (final c in shown) (c.date, c as Object), for (final c in chats) (c.date, c as Object)]..sort((a, b) => b.$1.compareTo(a.$1))).map((e) => e.$2).toList());
-    }
-    bool pinnedChat(InboxChat c) => Inbox.instance.named(c.network)?.isPinned(c) ?? false;
-    final pinned = <(DateTime, Object)>[for (final c in shown) if (c.pinned) (c.date, c), for (final c in chats) if (pinnedChat(c)) (c.date, c)]..sort((a, b) => b.$1.compareTo(a.$1));
-    final rest = [for (final c in shown) if (!c.pinned) c];
-    final oldest = _more && rest.isNotEmpty ? rest.last.date : null;
-    final waiting = [for (final c in chats) if (!pinnedChat(c) && (oldest == null || !c.date.isBefore(oldest))) c];
-    final merged = <(DateTime, Object)>[
-      for (final c in rest) (c.date, c),
-      for (final c in waiting) (c.date, c),
-      for (final v in spaces) if (oldest == null || !v.$1.isBefore(oldest)) v,
-    ]
-      ..sort((a, b) => b.$1.compareTo(a.$1));
-    return [...unreadRowsFirst([for (final m in pinned) m.$2]), ...unreadRowsFirst([for (final m in merged) m.$2])];
+    // In a section its own conversations stand newest first whether pinned or not; in the main list the pinned ones
+    // head it, a network's among the texts'.
+    final main = _section == null;
+    bool pinnedChat(InboxChat c) => main && (Inbox.instance.named(c.network)?.isPinned(c) ?? false);
+    // The date everything newer than which is held, while older texts are still being read.
+    final floor = main ? _feed.floor : null;
+    bool here(ListEntry e) => floor == null || e.pinned || e.unread || !e.at.isBefore(floor);
+    final entries = <ListEntry>[
+      for (final c in shown) listEntry(c, pinned: main && c.pinned),
+      for (final e in [for (final c in chats) listEntry(c, pinned: pinnedChat(c)), for (final v in spaces) listEntry(v.$2, at: v.$1)])
+        if (here(e)) e,
+    ];
+    return [for (final e in arranged(entries, held: _hold.follow(entries))) e.row];
   }
 
   /// Snoozed conversations out of the list until their time, and those back from a snooze at its top until opened
@@ -921,7 +894,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     }
     // Shown at once: the dots go as the button is let go, not as the phone gets round to each.
     final ids = {for (final c in unread) c.id};
-    setState(() => _all = [for (final c in _all ?? const <Conversation>[]) ids.contains(c.id) ? c.copyWith(unread: false) : c]);
+    _feed.patchAll(ids, (c) => c.copyWith(unread: false));
     var failed = 0;
     for (final c in unread) {
       try {
@@ -1010,7 +983,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       return;
     }
     await push<void>(context, (_) => ThreadScreen(thread: c.id, people: c.people));
-    _load();
+    // Back from it: its row as it stands now, and the newest ones.
+    _countArchived();
+    _feed.changed(c.id);
   }
 
   Future<void> _compose() async {
@@ -1049,9 +1024,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
 
   /// What the list holds of one conversation is changed at once, before Android has answered: the row moves as the
   /// finger lets go, not when the read that follows comes back.
-  void _patch(int id, Conversation Function(Conversation) change) {
-    setState(() => _all = [for (final c in _all ?? const <Conversation>[]) c.id == id ? change(c) : c]);
-  }
+  void _patch(int id, Conversation Function(Conversation) change) => _feed.patch(id, change);
 
   /// Archives [c], or takes it back out: from its menu, or by dragging its row to the left.
   Future<void> _archive(Conversation c) async {
@@ -1093,7 +1066,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       try {
         await Sms.instance.deleteThread(c.id);
         // Gone from the list at once, where it used to stay until every conversation had been read again.
-        if (mounted) setState(() => _all = _all?.where((x) => x.id != c.id).toList());
+        _feed.remove([c.id]);
         if (mounted) toast(context, 'Conversation deleted');
       } catch (e) {
         if (mounted) toast(context, 'Couldn\'t delete: ${e is PlatformException ? (e.message ?? e.code) : e}', tone: GlacierToastTone.danger);
@@ -1127,10 +1100,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
           try {
             await Sms.instance.deleteThreads(ids);
             if (mounted) {
-              setState(() {
-                _selected.clear();
-                _all = _all?.where((x) => !ids.contains(x.id)).toList();
-              });
+              setState(_selected.clear);
+              _feed.remove(ids);
             }
             await _load();
             if (mounted) toast(context, '${_count(ids.length)} deleted');
@@ -1192,6 +1163,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       WidgetsBinding.instance.addPostFrameCallback((_) => ConversationsScreen.shownTab.value = now);
     }
     final shown = _shown;
+    // Another tab, or a search begun or ended: the rows held where they were are let go, each to its own place.
+    final view = '$_section\u001f${_query.trim().isEmpty}';
+    if (view != _view) {
+      _view = view;
+      _hold.settle();
+    }
+    _drawn = const [];
     // What the list holds: conversations, the voice channels in their tab, or a network's chats in its.
     final List<Object> rows = inbox != null && inbox.state == InboxState.ready
         // A network's own tab leaves out what the filters hide from Messages, as Messages does (Matt, 2026-11-16: "Fix
@@ -1211,7 +1189,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
             : [
                 // Circle invites waiting, at the top of Messages where the rail has taken the Circles tab's place.
                 if (railed && _section == null && _query.isEmpty && !widget.archived && !_selecting) ...circleInviteRows(context, Circles.instance.invites),
-                ..._snoozing(_mixed(shown)),
+                ..._snoozing(_drawn = _mixed(shown)),
               ];
     // Android's own count, where it has answered: the ones held are not all of them until the read ends.
     final archivedCount = widget.archived ? 0 : (_more ? _archived : (_all ?? const <Conversation>[]).where((c) => c.archived).length) + Inbox.instance.ready.fold<int>(0, (n, net) => n + net.archivedChats.length);
@@ -1232,6 +1210,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
     final partDue = !widget.archived && _query.isEmpty && !_selecting && _section == null && app.flag('history_partial', fallback: false);
     // The conversation open in the pane, and whether that is beside the list: its row is marked for it there.
     final open = AppShell.threadOf(context);
+    // Noted for when it gives way (_back): one opened into an empty pane closes nothing, so nothing else says it.
+    if (open != null) _openWas = open;
     final beside = AppShell.wideOf(context) ? open : null;
     // A Signal or Telegram chat open beside the list is marked as a conversation of texts is (Matt, 2026-11-17:
     // "clicking on a telegram or signal chat does not highlight it as selected in the sidebar").
@@ -1336,7 +1316,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> implements Co
       final hiddenNow = !widget.archived && _query.isEmpty && !_selecting && _section == null ? _plugins.hiddenCount : 0;
       final foot = hiddenNow > 0;
       body = RefreshableList(
-        onRefresh: _load,
+        // Pulled down to read it again: put straight too (lib/ui/list_order.dart).
+        onRefresh: () {
+          _hold.settle();
+          return _load();
+        },
         itemCount: extras + rows.length + (foot ? 1 : 0) + (tail ? 1 : 0) + (coming ? 1 : 0) + 1,
         itemBuilder: (context, i) {
           if (lead != null && i == 0) return lead;

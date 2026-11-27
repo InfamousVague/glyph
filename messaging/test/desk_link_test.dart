@@ -388,6 +388,31 @@ void main() {
     expect(await Sms.instance.archivedCount(), 1);
   });
 
+  test('a conversation the first lot has newer words for is not put back by a later lot\'s older copy of it', () async {
+    // A phone on a build before every lot was whole (android Store.conversationsPage): its first lot carries the
+    // conversation as Google Messages' bridge has it, the newest RCS message, and a later lot carries it again as
+    // Android has it, its last SMS. The list said the SMS (Matt, 2026-11-26: "they don't always show the last message").
+    final link = mac(MemoryStore());
+    await pair(link, 'local');
+    phone.conversations = [
+      for (var i = 0; i < 300; i++)
+        {'id': 1000 + i, 'date': 1700000000000 - i * 60000, 'people': [{'address': '+1555${(100000 + i)}', 'name': 'Person $i', 'photo': null}], 'snippet': 'Text $i', 'unread': false, 'error': false, 'archived': false},
+    ];
+    phone.firstToo = [
+      {'id': 1280, 'date': 1700000300000, 'people': [{'address': '+1555100280', 'name': 'Person 280', 'photo': null}], 'snippet': 'The RCS message, just now', 'unread': true, 'error': false, 'archived': false, 'bridged': true},
+    ];
+    final bridge = LinkCalls(link, DeskStore(Directory.systemTemp.createTempSync('ghost-desk-test'), keychain: false));
+    await bridge.init();
+    Sms.calls = bridge;
+    final all = await Sms.instance.conversations();
+    expect(all.length, 300);
+    expect([all.first.id, all.first.snippet, all.first.unread], [1280, 'The RCS message, just now', true]);
+    expect(all.where((c) => c.id == 1280), hasLength(1));
+    // And the list's own reading of what the computer keeps: the same.
+    final page = await Sms.instance.conversationsPage(limit: 40, pinned: true);
+    expect([page.items.first.id, page.items.first.snippet], [1280, 'The RCS message, just now']);
+  });
+
   // --- what was read is kept (lib/desktop/cache.dart; Matt, 2026-11-14: "cache messages on the desktop app so that
   // we don't need to fetch them all from the phone every time, just fetching updates in the background") ------------
 

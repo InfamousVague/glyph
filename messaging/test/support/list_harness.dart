@@ -16,6 +16,14 @@ class ListPhone {
   /// As Android hands them over: `id`, `date`, `people`, `snippet`, `unread`, `archived`, `muted`.
   final List<Map<String, Object?>> conversations;
   final asked = <String>[];
+
+  /// The conversations asked for one by one (`conversation`), and how many times each lot of the list was asked for
+  /// (`conversationsPage`, by the row it starts at).
+  final alone = <int>[];
+  final lots = <int>[];
+
+  /// Each conversation's messages, as `messages` gives them (newest first); none where it is not here.
+  final messages = <int, List<Map<String, Object?>>>{};
   final copied = <String>[];
   final prefs = <String, String>{};
 
@@ -52,10 +60,17 @@ class ListPhone {
       switch (call.method) {
         case 'conversationsPage':
           if (args['archived'] == true) return {'items': conversations.where((c) => c['archived'] == true).toList(), 'next': null};
+          lots.add((args['offset'] as num?)?.toInt() ?? 0);
           final from = ((args['offset'] as num?)?.toInt() ?? 0).clamp(0, conversations.length);
           final limit = (args['limit'] as num?)?.toInt() ?? 0;
           final to = limit == 0 ? conversations.length : (from + limit).clamp(0, conversations.length);
           return {'items': conversations.sublist(from, to), 'next': to < conversations.length ? to : null};
+        case 'conversation':
+          final id = (args['thread'] as num).toInt();
+          alone.add(id);
+          return conversations.where((c) => c['id'] == id).firstOrNull;
+        case 'messages':
+          return messages[(args['thread'] as num).toInt()] ?? const [];
         case 'archivedCount':
           return conversations.where((c) => c['archived'] == true).length;
         case 'markRead':

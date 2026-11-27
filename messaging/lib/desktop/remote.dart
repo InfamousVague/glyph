@@ -276,8 +276,15 @@ class LinkCalls implements SmsCalls, CapableCalls {
       all.addAll(page['items'] as List);
       at = (page['next'] as num?)?.toInt();
     }
-    // Once each (a pinned one comes with the first lot and again in its place), newest first.
-    final byId = <Object?, dynamic>{for (final c in all) (c as Map)['id']: c};
+    // Once each (a pinned one comes with the first lot and again in its place), newest first: of two copies, the one
+    // with the newer message. A phone's later lot used to carry a conversation as Android has it (its last SMS,
+    // however old) over the first lot's copy with the newer RCS message (Matt, 2026-11-26: "they don't always show the
+    // last message"); a phone that has not been updated still does.
+    final byId = <Object?, dynamic>{};
+    for (final c in all) {
+      final had = byId[(c as Map)['id']];
+      if (had == null || (((had as Map)['date'] as num?) ?? 0) <= ((c['date'] as num?) ?? 0)) byId[c['id']] = c;
+    }
     final next = byId.values.toList()..sort((x, y) => (((y as Map)['date'] as num?) ?? 0).compareTo(((x as Map)['date'] as num?) ?? 0));
     final had = _conversations;
     for (final c in had ?? const []) {

@@ -47,6 +47,10 @@ class FakePhone {
   /// Every hello this phone answered, by how it arrived.
   final hellos = <String>[];
 
+  /// What the first lot also carries, beyond its own rows: a conversation as Google Messages' bridge has it, with
+  /// words newer than Android's own row of it further down (android Store.conversationsPage).
+  List<Map<String, dynamic>> firstToo = [];
+
   List<Map<String, dynamic>> conversations = [
     {'id': 7, 'date': 1700000000000, 'people': [{'address': '+15550100', 'name': 'Maya', 'photo': null}], 'snippet': 'See you at 7', 'unread': true, 'error': false, 'archived': false},
     {'id': 9, 'date': 1690000000000, 'people': [{'address': '+15550111', 'name': 'Dad', 'photo': null}], 'snippet': 'Call me', 'unread': false, 'error': false, 'archived': false},
@@ -233,7 +237,7 @@ class FakePhone {
         final limit = ((a['limit'] as num?)?.toInt() ?? 250).clamp(1, 250);
         final end = (offset + limit).clamp(0, conversations.length);
         asked.add((offset: offset, limit: limit));
-        return {'items': conversations.sublist(offset.clamp(0, conversations.length), end), 'next': end < conversations.length ? end : null};
+        return {'items': [...conversations.sublist(offset.clamp(0, conversations.length), end), if (offset == 0) ...firstToo], 'next': end < conversations.length ? end : null};
       case 'conversation':
         return conversations.where((c) => c['id'] == a['thread']).firstOrNull;
       case 'archivedCount':

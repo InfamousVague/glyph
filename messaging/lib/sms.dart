@@ -171,9 +171,14 @@ class Attachment {
 
 /// A lot of conversations, and the row of Android's list the next lot starts at: null at the end.
 class ConversationPage {
-  const ConversationPage(this.items, this.next);
+  const ConversationPage(this.items, this.next, {this.floor});
   final List<Conversation> items;
   final int? next;
+
+  /// Where more follow: the date every conversation newer than which is in this lot or one before it. A first lot also
+  /// holds older ones (the pinned, the newest unread), so the oldest of its conversations does not say. Null at the
+  /// end, and from a phone whose build does not say it.
+  final DateTime? floor;
 }
 
 /// What is shown of [fresh] laid over [old]: a conversation read again replaces the one held, and all of them stand
@@ -845,6 +850,12 @@ class Sms {
   /// The conversation that changed, each time one does (-1: some conversation, which is not known).
   final changes = StreamController<int>.broadcast();
 
+  /// A conversation marked read from here, once the phone has done it: the list reads its row again
+  /// (lib/conversation_feed.dart). Not said on [changes], which an open conversation answers by reading itself and
+  /// marking itself read again; and beside Google Messages the phone says nothing of a conversation read, since
+  /// Android's own database is not written.
+  final reads = StreamController<int>.broadcast();
+
   /// Something outside the app asked for a conversation to be opened, while the app was running.
   final opens = StreamController<OpenRequest>.broadcast();
 
@@ -1146,11 +1157,17 @@ class Sms {
       [for (final c in (await _calls.invokeMethod<List>('conversations')) ?? const []) Conversation.from(c as Map)];
 
   /// Conversations, the newest first, a lot at a time (Matt, 2026-11-13: "see if we can load by most recent first so
-  /// that things are faster"): [limit] of them from the [offset]th row of Android's list. [pinned] adds the pinned
-  /// ones wherever they are, for the first lot. [archived]: the archived ones alone, all at once.
+  /// that things are faster"): [limit] of them from the [offset]th row of Android's list. [pinned] adds what heads
+  /// the screen however old it is, for the first lot: the pinned ones, and the newest few unread ones (android
+  /// Store.conversationsPage). [archived]: the archived ones alone, all at once.
   Future<ConversationPage> conversationsPage({int limit = 0, int offset = 0, bool pinned = false, bool archived = false}) async {
     final answer = (await _calls.invokeMethod<Map>('conversationsPage', {'limit': limit, 'offset': offset, 'pinned': pinned, 'archived': archived})) ?? const {};
-    return ConversationPage([for (final c in (answer['items'] as List?) ?? const []) Conversation.from(c as Map)], (answer['next'] as num?)?.toInt());
+    final floor = (answer['floor'] as num?)?.toInt();
+    return ConversationPage(
+      [for (final c in (answer['items'] as List?) ?? const []) Conversation.from(c as Map)],
+      (answer['next'] as num?)?.toInt(),
+      floor: floor == null ? null : DateTime.fromMillisecondsSinceEpoch(floor),
+    );
   }
 
   /// One conversation as the list has it, or null where it is gone.
@@ -1208,7 +1225,10 @@ class Sms {
   /// Asks again for the picture messages announced and never fetched; answers how many.
   Future<int> mmsRetry() async => ((await _calls.invokeMethod('mmsRetry')) as num?)?.toInt() ?? 0;
 
-  Future<void> markRead(int thread) => _calls.invokeMethod('markRead', {'thread': thread});
+  Future<void> markRead(int thread) async {
+    await _calls.invokeMethod('markRead', {'thread': thread});
+    reads.add(thread);
+  }
 
   /// Takes away the notification shown for [thread] and leaves the conversation as it is: unread, and not muted, so
   /// the next text notifies as ever (MainActivity's cancelChat, Notifier.cancel; a computer's own calls take it too).
