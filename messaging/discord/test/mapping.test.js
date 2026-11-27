@@ -22,25 +22,25 @@ test('dc people: everyone in that channel but the bot, by name, with speaking fr
   assert.deepEqual(dcPeople(g, 'v9', { botId: BOT }), []);
 });
 
-test('nickname: "Ghost · <name>" for one, "Ghost · N people" for more, none for nobody; at most 32 characters', () => {
-  assert.equal(nicknameFor(['Matt']), 'Ghost · Matt');
-  assert.equal(nicknameFor(['Matt', 'Casper']), 'Ghost · 2 people');
-  assert.equal(nicknameFor(['a', 'b', 'c']), 'Ghost · 3 people');
+test('nickname: "Uplink · <name>" for one, "Uplink · N people" for more, none for nobody; at most 32 characters', () => {
+  assert.equal(nicknameFor(['Matt']), 'Uplink · Matt');
+  assert.equal(nicknameFor(['Matt', 'Casper']), 'Uplink · 2 people');
+  assert.equal(nicknameFor(['a', 'b', 'c']), 'Uplink · 3 people');
   assert.equal(nicknameFor([]), null);
-  assert.equal(nicknameFor(['']), 'Ghost · someone');
+  assert.equal(nicknameFor(['']), 'Uplink · someone');
   const long = nicknameFor(['A really very long display name here']);
   assert.equal(long.length, 32);
-  assert.ok(long.startsWith('Ghost · A really') && long.endsWith('…'));
+  assert.ok(long.startsWith('Uplink · A really') && long.endsWith('…'));
 });
 
 const msg = (extra = {}) => ({ author: { id: 'u1', bot: false, username: 'amy_', globalName: 'Amy' }, member: { nickname: null }, content: 'hello', attachments: [], webhookId: null, ...extra });
 
-test('Discord -> Ghost: the author\'s name and the text, attachments as links; nothing from the bot or its webhooks', () => {
+test('Discord -> Uplink: the author\'s name and the text, attachments as links; nothing from the bot or its webhooks', () => {
   const opts = { botId: BOT, webhookIds: new Set(['w1']), appId: '200000000000000002' };
   assert.deepEqual(discordToGhost(msg(), opts), { name: 'Amy', text: 'hello' });
   assert.deepEqual(discordToGhost(msg({ member: { nickname: 'Ames' } }), opts), { name: 'Ames', text: 'hello' });
   assert.deepEqual(discordToGhost(msg({ content: '', attachments: new Map([['a', { url: 'https://cdn.discordapp.com/x.png' }]]) }), opts), { name: 'Amy', text: 'https://cdn.discordapp.com/x.png' });
-  assert.equal(discordToGhost(msg({ author: { id: BOT, bot: true, username: 'Ghost' } }), opts), null, 'the bot itself');
+  assert.equal(discordToGhost(msg({ author: { id: BOT, bot: true, username: 'Uplink' } }), opts), null, 'the bot itself');
   assert.equal(discordToGhost(msg({ webhookId: 'w1', author: { id: 'w1', bot: true, username: 'Matt' } }), opts), null, 'the bridge\'s webhook');
   assert.equal(discordToGhost(msg({ webhookId: 'w2', applicationId: '200000000000000002' }), opts), null, 'any webhook of this app');
   assert.deepEqual(discordToGhost(msg({ webhookId: 'w9', author: { id: 'w9', bot: true, username: 'GitHub' } }), opts), { name: 'GitHub', text: 'hello' }, 'someone else\'s webhook is channel content');
@@ -49,12 +49,12 @@ test('Discord -> Ghost: the author\'s name and the text, attachments as links; n
   assert.equal(discordToGhost(msg({ content: 'x'.repeat(5000) }), opts).text.length, 4000);
 });
 
-test('Ghost -> Discord: a webhook post under the sender\'s name that pings nobody; without webhooks, the name in bold', () => {
+test('Uplink -> Discord: a webhook post under the sender\'s name that pings nobody; without webhooks, the name in bold', () => {
   assert.deepEqual(ghostToWebhook({ name: 'Matt', text: 'hi @everyone' }), { username: 'Matt', content: 'hi @everyone', allowedMentions: { parse: [] } });
   assert.equal(ghostToWebhook({ name: 'Matt', text: 'x'.repeat(2500) }).content.length, 2000);
   assert.equal(webhookName('My Discord pal'), 'My D1scord pal');
   assert.equal(webhookName('clyde'), 'Clyd3');
-  assert.equal(webhookName('   '), 'Ghost');
+  assert.equal(webhookName('   '), 'Uplink');
   assert.equal(webhookName('x'.repeat(100)).length, 80);
   assert.deepEqual(ghostToBotMessage({ name: 'M*tt_', text: 'hi' }), { content: '**M\\*tt\\_:** hi', allowedMentions: { parse: [] } });
 });

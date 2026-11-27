@@ -251,7 +251,7 @@ class SoulsSheet extends StatelessWidget {
                   ]),
                   SizedBox(height: t.space(3)),
                   Text(
-                    'Souls are Ghost Messaging\'s thank-you for helping make it better. Report a bug with Share feedback and say your username, and you may be given some.',
+                    'Souls are Uplink\'s thank-you for helping make it better. Report a bug with Share feedback and say your username, and you may be given some.',
                     style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2'), height: 1.45),
                   ),
                   SizedBox(height: t.space(2)),
@@ -296,12 +296,12 @@ class SoulsSheet extends StatelessWidget {
   }
 }
 
-/// On the Souls page while the app uses a relay other than Ghost Messaging's own (GMFB-25: "features that only exist on
+/// On the Souls page while the app uses a relay other than Uplink's own (GMFB-25: "features that only exist on
 /// gogho.st (marketplace, souls) fall back cleanly"): souls are counted by each relay apart, so the count shown is that
-/// relay's, and the ones given on Ghost Messaging's are still there. Null on ours, where there is nothing to say.
+/// relay's, and the ones given on Uplink's are still there. Null on ours, where there is nothing to say.
 String? soulsRelayWords(String hubUrl) {
   if (hubUrl == Net.defaultHub) return null;
   final u = Uri.tryParse(hubUrl);
   final host = u == null || u.host.isEmpty ? 'the relay you chose' : u.host;
-  return 'Each relay counts souls apart. This is your count on $host, and souls go only between people on it. The ones you were given on Ghost Messaging\'s relay are still yours there, and show again when you go back to it. Bug bounties are given on Ghost Messaging\'s relay.';
+  return 'Each relay counts souls apart. This is your count on $host, and souls go only between people on it. The ones you were given on Uplink\'s relay are still yours there, and show again when you go back to it. Bug bounties are given on Uplink\'s relay.';
 }

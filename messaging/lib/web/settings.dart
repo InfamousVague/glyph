@@ -14,8 +14,8 @@ import '../l10n/words.dart';
 /// What is not in a browser yet, as About says it: each is absent from the page's screens, not broken in them. Calls
 /// are there where the build has them (Sms.browserCalls), without what needs the app's native halves.
 String get notInBrowserYet => Sms.callsHere
-    ? 'Voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone; and in a call, recording, the voice changer, noise removal beyond the browser\'s own and sharing your screen. They are in Ghost Messaging on a phone or a computer.'
-    : 'Calls, voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Ghost Messaging on a phone or a computer.';
+    ? 'Voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone; and in a call, recording, the voice changer, noise removal beyond the browser\'s own and sharing your screen. They are in Uplink on a phone or a computer.'
+    : 'Calls, voice messages and sounds, ${Sms.filesHere ? 'files in a space\'s chat' : 'Files spaces'}, plugins and the Marketplace, chats on other networks, and texts through a phone. They are in Uplink on a phone or a computer.';
 
 /// What the browser keeps, as About says it (lib/web/store.dart says it at length): all of it sealed, and the words and
 /// the password's key not at all.
@@ -36,9 +36,9 @@ List<SettingsSection> browserSettings() => [
         icon: const AppIcon(Lucide.info, size: 18),
         hue: 'graphite',
         group: 'app',
-        summary: (m) => 'Ghost Messaging in a browser $appVersion',
+        summary: (m) => 'Uplink in a browser $appVersion',
         page: (context, m) => [
-          PaneSection(title: 'Ghost Messaging in a browser', children: [
+          PaneSection(title: 'Uplink in a browser', children: [
             const SettingRow(icon: AppIcon(Lucide.ghost, size: 18), label: 'Version', value: Text(appVersion)),
             // The release notes again (lib/ui/whats_new.dart).
             SettingRow(icon: const AppIcon(Lucide.sparkles, size: 18), label: 'What\'s new', hint: const Tr('What the last update brought.'), onPress: () => showWhatsNew(context)),

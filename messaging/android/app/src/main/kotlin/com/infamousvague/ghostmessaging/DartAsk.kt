@@ -19,7 +19,7 @@ object DartAsk {
     private val main = Handler(Looper.getMainLooper())
 
     /** There is no engine to ask: its message is the computer's to show. */
-    class NotOpen : IllegalStateException("Open Ghost Messaging on your phone, then try again.")
+    class NotOpen : IllegalStateException("Open Uplink on your phone, then try again.")
 
     /**
      * Calls [method] in Dart on the main thread and waits here for its answer, [seconds] at most. Throws, in words for
@@ -35,10 +35,10 @@ object DartAsk {
                 ch.invokeMethod(method, args, object : MethodChannel.Result {
                     override fun success(result: Any?) { answer = result; done.countDown() }
                     override fun error(code: String, message: String?, details: Any?) { problem = message ?: "That did not work."; done.countDown() }
-                    override fun notImplemented() { problem = "Update Ghost Messaging on your phone first."; done.countDown() }
+                    override fun notImplemented() { problem = "Update Uplink on your phone first."; done.countDown() }
                 })
             } catch (e: Exception) {
-                problem = "Open Ghost Messaging on your phone, then try again."
+                problem = "Open Uplink on your phone, then try again."
                 done.countDown()
             }
         }

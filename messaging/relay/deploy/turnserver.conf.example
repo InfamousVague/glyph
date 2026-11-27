@@ -1,4 +1,4 @@
-# coturn for Ghost Messaging calls (docs/SELF_HOSTING.md). Optional: without it, calls go straight between the two
+# coturn for Uplink calls (docs/SELF_HOSTING.md). Optional: without it, calls go straight between the two
 # devices, and a call between two that can't reach each other directly doesn't connect.
 #
 # Copy to /etc/turnserver.conf (or deploy/turnserver.conf for compose.yaml's coturn), fill in the three values, and

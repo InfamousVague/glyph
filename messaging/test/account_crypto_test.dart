@@ -9,7 +9,7 @@ import 'package:ghost_relay/keccak.dart' as relay_keccak;
 import 'package:ghost_relay/secp256k1.dart';
 import 'package:pointycastle/export.dart' show Argon2BytesGenerator, Argon2Parameters;
 
-/// A Ghost account's cryptography (lib/account/account_crypto.dart; Matt, 2026-11-17: "i also want accounts to be
+/// An Uplink account's cryptography (lib/account/account_crypto.dart; Matt, 2026-11-17: "i also want accounts to be
 /// generated based on ethereum type addresses with a recovery seed we can back up") held to the published vectors, so
 /// the words written down open the same address in any BIP-39 wallet, and to the relay's own arithmetic, so what the
 /// app signs is what the relay recovers.
@@ -31,7 +31,7 @@ void main() {
       expect(AccountCrypto.entropyOf(abandon), Uint8List(16));
     });
 
-    test('the seed (Trezor\'s vectors, passphrase TREZOR; and none, as Ghost uses it)', () {
+    test('the seed (Trezor\'s vectors, passphrase TREZOR; and none, as Uplink uses it)', () {
       expect(NetCrypto.hex(AccountCrypto.seedOf(abandon, passphrase: 'TREZOR')),
           'c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04');
       expect(NetCrypto.hex(AccountCrypto.seedOf(abandon)),
@@ -107,7 +107,7 @@ void main() {
   });
 
   group('what the seed makes', () {
-    test('the same words make the same Ghost identity, and other words another', () {
+    test('the same words make the same Uplink identity, and other words another', () {
       final seed = AccountCrypto.seedOf(abandon);
       final a = AccountCrypto.identityOf(seed), b = AccountCrypto.identityOf(seed);
       expect(a.id, b.id);

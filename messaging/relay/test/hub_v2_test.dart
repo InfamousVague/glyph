@@ -77,7 +77,7 @@ void main() {
     expect((await signIn(hub, old)).answer, {'ok': true, 'held': 0}, reason: 'an app from before, on a hub that takes v2');
     expect((await signIn(hub, upgraded, host: 'gogho.st')).answer['ok'], isTrue);
     expect(hub.signsV2(Hub.nameOf(P256.publicOf(upgraded))), isTrue);
-    final refused = {'ok': false, 'err': 'This account signs in a newer way now: update Ghost Messaging on this device.'};
+    final refused = {'ok': false, 'err': 'This account signs in a newer way now: update Uplink on this device.'};
     expect((await signIn(hub, upgraded)).answer, refused);
     expect((await signIn(hub, upgraded, peek: true)).answer, refused);
     expect((await signIn(hub, old)).answer, {'ok': true, 'held': 0});

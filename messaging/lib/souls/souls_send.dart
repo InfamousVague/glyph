@@ -80,7 +80,7 @@ class SoulsCard {
   }
 }
 
-/// The relay's receipt for a sending: its name, when, from whom, to whom (Ghost ids), and how many.
+/// The relay's receipt for a sending: its name, when, from whom, to whom (Uplink ids), and how many.
 class SoulsReceipt {
   const SoulsReceipt({required this.id, required this.at, required this.from, required this.to, required this.souls});
   final String id;
@@ -145,13 +145,13 @@ class SoulsApi {
   final SoulsTransport _transport;
   final DateTime Function() _now;
 
-  /// This account's Ghost id, which the relay keeps its souls under; '' signed out.
+  /// This account's Uplink id, which the relay keeps its souls under; '' signed out.
   String get me => signer?.id ?? '';
 
   /// The last signed time sent: two requests in one millisecond would replay each other.
   int _last = 0;
 
-  /// Sends [souls] to the Ghost id [to] under the name [id] ([SoulsCard.newId]): the relay's receipt, and this
+  /// Sends [souls] to the Uplink id [to] under the name [id] ([SoulsCard.newId]): the relay's receipt, and this
   /// account's souls after. Safe to ask again with the same [id]: the relay answers the first receipt and moves
   /// nothing more. Throws a [SoulsSendError] where nothing was sent, or (unreachable) where it can't be known.
   Future<({SoulsReceipt receipt, int n})> send({required String to, required int souls, required String id}) async {
@@ -227,7 +227,7 @@ class SoulsApi {
   }
 }
 
-/// Sends [souls] to the friend whose Ghost id is [to], then writes the card into the conversation with [write] (true
+/// Sends [souls] to the friend whose Uplink id is [to], then writes the card into the conversation with [write] (true
 /// where the message went). The souls first: a card is only ever written for a receipt the relay gave. Where the
 /// relay's answer is lost on the way it is asked once more under the same [id], which can't send twice.
 ///
@@ -320,7 +320,7 @@ class SoulsReceipts extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Where [card] stands as one from [from] to [to] (Ghost ids).
+  /// Where [card] stands as one from [from] to [to] (Uplink ids).
   SoulsCardState stateOf(SoulsCard card, {required String from, required String to}) {
     final line = _line(from, to, card.souls);
     final kept = _all[card.id];

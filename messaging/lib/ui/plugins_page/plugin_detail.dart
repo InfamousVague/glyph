@@ -118,8 +118,8 @@ class PackPage {
 /// a review this build can't check; a pack this build can't run; or one this device couldn't load.
 String stuckWords(String? problem, {String? why, required String here}) => switch (problem) {
       'revoked' => 'Withdrawn from the Marketplace${why == null || why.isEmpty ? '' : ': $why'}. It\'s off, and does nothing until you remove it.',
-      'bad_approval' || 'untrusted_key' => 'This version of Ghost Messaging can\'t check its review, so it\'s off. An update may fix it.',
-      'invalid' || 'needs_newer_app' => 'This version of Ghost Messaging can\'t run it. Update Ghost Messaging.',
+      'bad_approval' || 'untrusted_key' => 'This version of Uplink can\'t check its review, so it\'s off. An update may fix it.',
+      'invalid' || 'needs_newer_app' => 'This version of Uplink can\'t run it. Update Uplink.',
       _ => 'It couldn\'t be loaded on this $here.',
     };
 
@@ -234,7 +234,7 @@ class PluginDetail extends StatelessWidget {
             ? MarketButton(key: ValueKey('plugins-adding-${plugin.id}'), label: 'Adding…', look: MarketButtonLook.filled, color: c.start, onColor: c.on, large: true, onPress: null)
             : MarketButton(
                 key: ValueKey('plugins-add-${plugin.id}'),
-                label: 'Add to Ghost Messaging',
+                label: 'Add to Uplink',
                 semantics: 'Add ${plugin.name}',
                 icon: Lucide.plus,
                 look: MarketButtonLook.filled,
@@ -248,7 +248,7 @@ class PluginDetail extends StatelessWidget {
       else
         MarketButton(
           key: ValueKey(added ? 'plugins-remove-${plugin.id}' : 'plugins-add-${plugin.id}'),
-          label: added ? 'Remove' : 'Add to Ghost Messaging',
+          label: added ? 'Remove' : 'Add to Uplink',
           semantics: '${added ? 'Remove' : 'Add'} ${plugin.name}',
           icon: added ? Lucide.minus : Lucide.plus,
           look: added ? MarketButtonLook.ring : MarketButtonLook.filled,
@@ -368,7 +368,7 @@ class PluginDetail extends StatelessWidget {
     final words = switch (p?.kind) {
       null => 'Built in',
       PackKind.dev => [if (dev != null) 'By @$dev', 'In development · not reviewed'].join(' · '),
-      _ when p!.reviewed => [if (dev != null) 'By @$dev', 'Reviewed by Ghost Messaging'].join('\n'),
+      _ when p!.reviewed => [if (dev != null) 'By @$dev', 'Reviewed by Uplink'].join('\n'),
       _ => dev == null ? 'From the Marketplace' : 'By @$dev',
     };
     return Text(words, key: const ValueKey('plugins-detail-source'), style: style);

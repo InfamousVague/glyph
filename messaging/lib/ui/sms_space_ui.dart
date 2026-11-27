@@ -105,7 +105,7 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
               child: Text(texter == null
                   ? 'This isn\'t an SMS space.'
                   : mine
-                      ? 'Your phone texts for ${widget.space.name}: what is written here goes to each person below by text, from your number and on your plan, and what they text back comes in here. Keep Ghost Messaging running for it to carry on.'
+                      ? 'Your phone texts for ${widget.space.name}: what is written here goes to each person below by text, from your number and on your plan, and what they text back comes in here. Keep Uplink running for it to carry on.'
                       : '${Voice.instance.nameOf(texter)}\'s phone texts for ${widget.space.name}: people without the app are in it by text, and what they send comes in marked 📱. Only that phone knows their numbers.'),
             ),
             // Everyone in the circle, you first, and how each gets the space's messages (Matt, 2026-11-19: "I created an
@@ -126,7 +126,7 @@ class _TextedPeopleScreenState extends State<TextedPeopleScreen> {
             if (mine) ...[
               SizedBox(height: t.space(5)),
               PaneSection(title: 'In it by text', children: [
-                if (people.isEmpty) const SettingRowBox(child: Tr('Nobody yet. Members whose number is linked to Ghost Messaging are added by themselves when they come in; add anyone else below. Each gets a text saying how it works and how to leave.')),
+                if (people.isEmpty) const SettingRowBox(child: Tr('Nobody yet. Members whose number is linked to Uplink are added by themselves when they come in; add anyone else below. Each gets a text saying how it works and how to leave.')),
                 for (final p in people)
                   SettingRow(
                     key: ValueKey('texted-${p.number}'),

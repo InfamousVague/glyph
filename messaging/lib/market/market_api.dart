@@ -20,7 +20,7 @@ import '../plugins/pack/pack.dart' show InstalledPlugins, PackIssue, PackLimits,
 import '../web/http.dart' show pageHttp;
 import 'market_models.dart';
 
-/// Whether [hubUrl] is Ghost Messaging's own relay: its host is gogho.st or ghost-sms.com.
+/// Whether [hubUrl] is Uplink's own relay: its host is gogho.st or ghost-sms.com.
 bool marketIsOwn(String hubUrl) {
   final host = Uri.tryParse(hubUrl.trim())?.host.toLowerCase() ?? '';
   return host == 'gogho.st' || host == 'ghost-sms.com';
@@ -79,7 +79,7 @@ class MarketApi {
       : _transport = transport ?? (PlatformInfo.isWeb ? pageHttp : _http),
         _now = now ?? DateTime.now;
 
-  /// Ghost Messaging's own relay whatever net_hub says (Net.instance.hubUrl where marketIsOwn, else Net.defaultHub):
+  /// Uplink's own relay whatever net_hub says (Net.instance.hubUrl where marketIsOwn, else Net.defaultHub):
   /// plugins are reviewed there, and withdrawals are read from there; signer: Net.instance.hub?.signer.
   factory MarketApi.live() {
     final hub = Net.instance.hubUrl;
@@ -91,7 +91,7 @@ class MarketApi {
   final MarketTransport _transport;
   final DateTime Function() _now;
 
-  /// The same, at another relay: Ghost Messaging's own, for its withdrawals, where this one is another of ours.
+  /// The same, at another relay: Uplink's own, for its withdrawals, where this one is another of ours.
   MarketApi at(String hub) => MarketApi(hubUrl: hub, signer: signer, transport: _transport, now: _now);
 
   /// The last signed time sent: two requests in one millisecond would replay each other.
@@ -211,9 +211,9 @@ class MarketApi {
 
   // --- how a call is made --------------------------------------------------------------------------------------------
 
-  static String get _submitting => 'Submitting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.';
-  static String get _reporting => 'Reporting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
-  static String get _reviewing => 'Reviewing needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
+  static String get _submitting => 'Submitting needs your Uplink identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.';
+  static String get _reporting => 'Reporting needs your Uplink identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
+  static String get _reviewing => 'Reviewing needs your Uplink identity on this ${packHere()}. Become the same you as your phone in Settings › Me.';
 
   static const _tooLarge = MarketError('too_large', 'The Marketplace sent more than the app reads.');
 

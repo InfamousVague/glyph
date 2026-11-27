@@ -50,7 +50,7 @@ mode once instead of spawning `chmod`.
 ### 2. The conversation list rebuilds whole on any network, voice or summary change, with O(N) work each time
 
 **Fixed 2026-11-20** (Matt: "fix all the performance issues found above"; `test/perf_lists_test.dart`): a network's
-shown and archived chats are made once for each change and each state of Ghost's own lists (`InboxNetwork.stamp`,
+shown and archived chats are made once for each change and each state of Uplink's own lists (`InboxNetwork.stamp`,
 `shownChats`), and one of those lists is read from its kept form once (`localList`); Telegram marks its lists stale on
 an update and makes them when next read, once, and TDLib's JSON is read in its own isolate; a chat's scam signs are
 remembered; a tab's conversations are worked out once a build. Still as it was: the list is one `State` that builds
@@ -168,7 +168,7 @@ blur off: an option for the Linux build); game sensing does not run on Linux.
 
 # The phone's battery: calls and a paired computer (2026-11-24)
 
-Matt, 2026-11-24, with Android's battery page showing Ghost Messaging at 17.1% for the day under "High CPU usage":
+Matt, 2026-11-24, with Android's battery page showing Uplink at 17.1% for the day under "High CPU usage":
 "please see what you can do about the high CPU usage on the app run some profiling on an emulator on this machine",
 and "I suspect a large cost is in the voice calling so make sure we test every part of the app". Read at 0.12.25.
 

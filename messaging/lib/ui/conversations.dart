@@ -109,7 +109,7 @@ class ConversationsScreen extends StatefulWidget {
   State<ConversationsScreen> createState() => _ConversationsScreenState();
 }
 
-/// What the keyboard's commands ask of the main list (ConversationsScreen.live): the texts and Ghost's own
+/// What the keyboard's commands ask of the main list (ConversationsScreen.live): the texts and Uplink's own
 /// conversations, which have a thread; another network's chats are not among them.
 abstract class ConversationList {
   /// The tab shown, in the order it is drawn, whatever is typed in its search.
@@ -1060,7 +1060,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
   void _confirmDelete(Conversation c, {bool slid = false}) {
     // A swipe can ask for this where the menu would not offer it: a computer paired with a phone that is behind.
     if (!Sms.can('deleteThreads')) {
-      toast(context, 'Update Ghost Messaging on your phone to delete from here.');
+      toast(context, 'Update Uplink on your phone to delete from here.');
       return;
     }
     Future<void> delete() async {
@@ -1298,7 +1298,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
                       ? 'There are no texts in Android\'s store. Chats that were RCS in ${_arriving.app} stay in that app, where no other app can read them: they are not deleted.'
                       // Texts passed by in the walkthrough: the list is friends' chats alone until they are turned on.
                       : Sms.textsOff && !Sms.remote && !Sms.standalone
-                          ? 'Your texts are off, so chats with friends on Ghost show here. Turn texts on to see your texts too.'
+                          ? 'Your texts are off, so chats with friends on Uplink show here. Turn texts on to see your texts too.'
                           : framed
                           ? 'Start one with New chat, the first button below.'
                           : 'Start one with the new message button at the top.'),
@@ -1800,7 +1800,7 @@ class ConversationRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'),
               // Its corners under the look's radius scale (square in Dial-Up), and in a look that rules its shapes
-              // (Sharp) a line round the card where Ghost keeps the room for one clear.
+              // (Sharp) a line round the card where Uplink keeps the room for one clear.
               borderRadius: BorderRadius.circular(lookCorner(t, '1rem')),
               border: Border.all(color: selected ? t.color('app-ink') : (lookRim(t) == null ? const Color(0x00000000) : t.color('glacier-border-subtle')), width: 2),
             ),
@@ -1848,7 +1848,7 @@ class ConversationRow extends StatelessWidget {
                         Expanded(
                           child: Row(children: [
                             Flexible(child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: unread ? 'bold' : 'semibold', color: t.color('app-ink')))),
-                            // Texts with this person go sealed (Ghost Messaging's own encryption).
+                            // Texts with this person go sealed (Uplink's own encryption).
                             if (c.encrypted) ...[
                               SizedBox(width: t.space(1)),
                               Semantics(label: 'Encrypted', child: AppIcon(Lucide.lock, size: 12, strokeWidth: 2.4, wash: false, color: t.color('app-ink-3'))),

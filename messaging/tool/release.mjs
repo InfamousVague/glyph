@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds, checks and publishes a Ghost Messaging release to the box (the server Ghost.md and Ghost Keyboard deploy
+ * Builds, checks and publishes an Uplink release to the box (the server Ghost.md and Ghost Keyboard deploy
  * to), where installed copies find it and update themselves (android/.../Updater.kt). Ghost Keyboard's
  * tool/release.mjs, for this app (Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the
  * domain to the same server ghost kbd uses").
@@ -186,7 +186,7 @@ if (deploy && live && live.version === versionName && !args.includes('--again'))
 }
 // The guard tests (tool/lib/guards.mjs): what the source must keep for every build, read before one is made.
 requireGuards(ROOT, fail);
-say(`> Building Ghost Messaging ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
+say(`> Building Uplink ${versionName} (code ${versionCode}; live is ${live ? `${live.version} (${live.versionCode})` : 'nothing yet'})`);
 
 // The Google Messages sidecar for the phone (sidecar/gmessages, AGPL-3.0; android GmWeb.kt), built fresh into
 // jniLibs, only once its source is public (sidecar/gmessages/SOURCE_URL), as the computers' are.
@@ -282,7 +282,7 @@ const info = {
   build: new Date().toISOString().replace(/\D/g, '').slice(0, 14),
 };
 writeFileSync(join(out, 'apk.json'), `${JSON.stringify(info, null, 2)}\n`);
-say(`ok Ghost Messaging ${info.version} (code ${info.versionCode}), ${(info.bytes / 1e6).toFixed(1)} MB, in build/release`);
+say(`ok Uplink ${info.version} (code ${info.versionCode}), ${(info.bytes / 1e6).toFixed(1)} MB, in build/release`);
 if (!deploy) process.exit(0);
 
 // --- publishing, with Ghost.md's box ------------------------------------------------------------------------------
@@ -334,7 +334,7 @@ if (said?.sha256 !== info.sha256) {
 }
 if (!keepConnection) box.close();
 const head = await fetch(`${HOST_URL}/${APK}`, { method: 'HEAD' });
-say(`ok live: ${HOST_URL}/ — Ghost Messaging ${info.version}, APK served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
+say(`ok live: ${HOST_URL}/ — Uplink ${info.version}, APK served at ${head.headers.get('content-length')} bytes (${info.bytes} expected)`);
 
 // The source, published as this release has it (tool/publish-source.mjs; Matt, 2026-11-15: "update the notes on claude
 // so that each release runs this automatically"). The release is live either way: a failure here is said, not fatal.

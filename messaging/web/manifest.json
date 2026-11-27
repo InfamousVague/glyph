@@ -1,7 +1,7 @@
 {
-    "name": "Ghost Messaging",
-    "short_name": "Ghost Messaging",
-    "description": "Ghost Messaging in your browser: write to your friends and your circles, sealed end to end.",
+    "name": "Uplink",
+    "short_name": "Uplink",
+    "description": "Uplink in your browser: write to your friends and your circles, sealed end to end.",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#000000",

@@ -166,7 +166,7 @@ void main() {
     // No identity of its own, and the app's own Marketplace when none is given: said, never thrown.
     await show(tester, panel(MarketApi(hubUrl: 'https://relay.test', transport: relay.call)));
     await signIn(tester);
-    expect(hint(tester, 'admin-market-key'), 'This device has no Ghost identity of its own: review from your phone.');
+    expect(hint(tester, 'admin-market-key'), 'This device has no Uplink identity of its own: review from your phone.');
     expect(_key('admin-market-retire'), findsNothing);
     await show(tester, panel(null));
     await signIn(tester);
@@ -178,7 +178,7 @@ void main() {
     Sms.calls = _Followed();
     expect(Sms.followsPhone, isTrue);
     await show(tester, GhostPage(title: 'Admin', body: ListView(children: [AdminPanel(ask: ask, market: api)])));
-    expect(find.text('Reviewing needs your Ghost identity on this computer. Become the same you as your phone in Settings › Me.'), findsOneWidget);
+    expect(find.text('Reviewing needs your Uplink identity on this computer. Become the same you as your phone in Settings › Me.'), findsOneWidget);
     expect(_key('admin-same-you'), findsOneWidget);
     expect(_key('admin-sign-in'), findsNothing);
   });
@@ -268,7 +268,7 @@ void main() {
     relay.store.submissions[sid]!['version'] = '1.0.0';
     // No identity of its own.
     await show(tester, ReviewItemScreen(sid, api: MarketApi(hubUrl: 'https://relay.test', transport: relay.call), ask: ask));
-    expect(find.textContaining('Reviewing needs your Ghost identity on this'), findsOneWidget);
+    expect(find.textContaining('Reviewing needs your Uplink identity on this'), findsOneWidget);
     // Pinned: the approval is over the package's own id and version and the SHA-256 worked out here, by the key that
     // signs the request.
     await show(tester, ReviewItemScreen(sid, api: api, ask: ask));

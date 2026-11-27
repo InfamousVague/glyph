@@ -23,7 +23,7 @@ import '../sms.dart';
 import '../sounds.dart';
 import 'vouches.dart';
 
-/// Someone added by their username on Ghost Messaging, with no phone number between the two (Matt, 2026-11-14:
+/// Someone added by their username on Uplink, with no phone number between the two (Matt, 2026-11-14:
 /// "create a profile and username under "me" to register a username and add friends on the platform").
 @immutable
 class Buddy {
@@ -294,12 +294,12 @@ class Buddies extends ChangeNotifier {
   List<Buddy> get requests => [for (final b in all) if (b.state == 'invited') b];
   List<Buddy> get asked => [for (final b in all) if (b.state == 'asked') b];
 
-  /// Ghost people this phone blocked (GMFB-40: "Reporting a person also offers to block them").
+  /// Uplink people this phone blocked (GMFB-40: "Reporting a person also offers to block them").
   List<Buddy> get blocked => [for (final b in all) if (b.state == 'blocked') b];
 
   bool isBlocked(String id) => byId(id)?.state == 'blocked';
 
-  /// Blocks the Ghost person [id] ([username], [key] where known): no longer friends (they are told, as removing a
+  /// Blocks the Uplink person [id] ([username], [key] where known): no longer friends (they are told, as removing a
   /// friend tells them), and their friend requests and messages are dropped here from now on. Asking them to be friends
   /// again ([add]) takes the block away.
   Future<void> block(String id, {String username = '', String key = ''}) async {
@@ -1292,7 +1292,7 @@ class Buddies extends ChangeNotifier {
         // Without their record no relay knows where to pass a packet for them; and a relay that passes nothing on
         // reaches nobody elsewhere, whatever their app.
         if (!found.talks) throw MeError('@$name is on $host, which doesn\'t pass messages to other relays.');
-        if (rec == null) throw MeError('@$name@$host can\'t be reached from another relay yet. They need a newer version of Ghost Messaging.');
+        if (rec == null) throw MeError('@$name@$host can\'t be reached from another relay yet. They need a newer version of Uplink.');
         name = '$name@$host';
       }
       home = rec?.toJson();

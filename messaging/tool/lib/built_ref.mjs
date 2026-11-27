@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 /**
- * A GitHub runner builds what GitHub has at a branch, not what is on this computer. Ghost Messaging 0.12.24 and
+ * A GitHub runner builds what GitHub has at a branch, not what is on this computer. Uplink 0.12.24 and
  * 0.12.25 went out for Windows and Linux as 0.12.23's code under their numbers: each was released from the release
  * checkout while main, which the runners build, had not been given it (found 2026-11-24, as 0.12.26 was released,
  * in `gh run list`: both builds were of main at the 0.12.23 merge).

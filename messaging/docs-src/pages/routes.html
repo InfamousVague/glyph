@@ -14,15 +14,15 @@
 <p>Uplink's relay server (at gogho.st) passes sealed packets between apps: friends, circles, spaces and calls' setup. It can't read them; it sees only which installs are talking, as any server would. It's also where your username, your sealed account backup and a circle's sealed files are kept.</p>
 
 <h2 id="own-relay">Your own relay server</h2>
-<p>Anyone can run the relay on a server of their own and use it in place of ours. Under <ui>Settings › Routes › Relay server</ui>, type its address (<code>relay.example.com</code> is enough) and press <b>Check it and use it</b>. Nothing changes unless an Uplink relay answers there; when one does, the app tells you what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Ghost Messaging's relay</b> switches back in one press. Running the server itself is on <a href="/docs/self-hosting/">Run your own relay</a>.</p>
+<p>Anyone can run the relay on a server of their own and use it in place of ours. Under <ui>Settings › Routes › Relay server</ui>, type its address (<code>relay.example.com</code> is enough) and press <b>Check it and use it</b>. Nothing changes unless an Uplink relay answers there; when one does, the app tells you what moving means and switches only when you say so. The section always shows which relay is in use, and <b>Go back to Uplink's relay</b> switches back in one press. Running the server itself is on <a href="/docs/self-hosting/">Run your own relay</a>.</p>
 
 <m-screen title="Routes" back caption="Settings › Routes on a relay of your own.">
   <m-section title="Relay server" foot="Relays can pass messages to each other. Add a friend on another relay as @name@their.relay. Everything else is still kept on each relay apart.">
     <m-row icon="globe" hue="blue" label="Your own relay: relay.example.com" hint="In use · connected"/>
     <m-row icon="network" hue="green" label="Passes messages to other relays" hint="A friend on another relay, added as @name@their.relay, is reached through this one."/>
-    <m-row icon="undo-2" hue="blue" label="Go back to Ghost Messaging's relay" hint="gogho.st, where everyone else is." chev tap/>
+    <m-row icon="undo-2" hue="blue" label="Go back to Uplink's relay" hint="gogho.st, where everyone else is." chev tap/>
     <m-field label="Another relay server's address" placeholder="relay.example.com"/>
-    <m-row icon="check" hue="green" label="Check it and use it" hint="Nothing changes unless a Ghost Messaging relay answers there." chev/>
+    <m-row icon="check" hue="green" label="Check it and use it" hint="Nothing changes unless an Uplink relay answers there." chev/>
   </m-section>
 </m-screen>
 
@@ -90,7 +90,7 @@
 
 <h2 id="local">Local network</h2>
 <p>A third way between Uplink apps: straight between devices on the same Wi-Fi or wired network, with no server and no internet at all. It comes after the relay server and Direct, as the way through when neither can carry something, and by itself it keeps you talking where there is a network and no internet: a cabin, a plane's Wi-Fi with nothing behind it, an office whose line is down.</p>
-<p><b>It starts off.</b> Switch it on under <ui>Settings › Routes</ui> on an Android phone or a computer (the Mac, Windows or Linux); it isn't in the iPhone app or the browser. The first time, a Mac asks whether Ghost Messaging may find devices on your local network, and Windows asks whether it may be reached on private networks: say yes, or the route stays down and Settings says so.</p>
+<p><b>It starts off.</b> Switch it on under <ui>Settings › Routes</ui> on an Android phone or a computer (the Mac, Windows or Linux); it isn't in the iPhone app or the browser. The first time, a Mac asks whether Uplink may find devices on your local network, and Windows asks whether it may be reached on private networks: say yes, or the route stays down and Settings says so.</p>
 
 <m-screen title="Routes" back caption="Settings › Routes, with the local network switched on.">
   <m-section title="Routes" foot="The ways this phone reaches another, tried from the top.">
@@ -99,7 +99,7 @@
     <m-row icon="message-square" hue="green" label="SMS" hint="As data texts over the phone network. Each counts as a text on your plan." switch="on"/>
   </m-section>
   <m-section title="Local network" foot="Anyone else on the network sees that a copy of the app is at this address, never who you are.">
-    <m-row icon="wifi" hue="teal" label="Found 2 devices on this network" hint="Your own devices and your friends', while they have Ghost Messaging open on the same network with this route switched on."/>
+    <m-row icon="wifi" hue="teal" label="Found 2 devices on this network" hint="Your own devices and your friends', while they have Uplink open on the same network with this route switched on."/>
     <m-row icon="link-2" hue="teal" label="Linked to 2 devices now" hint="Maya Chen at 192.168.1.20. Your other devices at 192.168.1.14."/>
   </m-section>
 </m-screen>
@@ -128,7 +128,7 @@
 
 <m-screen title="Routes" back caption="Settings › Routes, Checking the relay, in a build with Direct.">
   <m-section title="Checking the relay" foot="What is compared is which messages went and came, and when: never their words.">
-    <m-row icon="shield-check" hue="green" label="Last checked 5 min ago, with 3 devices" hint="Of Ghost Messaging's relay (gogho.st), over direct links with your friends' devices."/>
+    <m-row icon="shield-check" hue="green" label="Last checked 5 min ago, with 3 devices" hint="Of Uplink's relay (gogho.st), over direct links with your friends' devices."/>
     <m-row icon="check" hue="green" label="212 messages matched this week" hint="1 came straight after the relay didn't bring it."/>
     <m-row icon="circle-alert" hue="red" label="Maya's device says the relay passed on a message to you, and it never came by the relay" hint="21 Nov"/>
     <m-row icon="refresh-cw" hue="blue" label="Check now" hint="Dials the friends the relay says are here, and compares." chev/>

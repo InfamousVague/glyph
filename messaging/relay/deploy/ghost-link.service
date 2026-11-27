@@ -1,4 +1,4 @@
-# A link helper for Ghost Messaging's direct links as a systemd service (docs/SELF_HOSTING.md, "A link helper for
+# A link helper for Uplink's direct links as a systemd service (docs/SELF_HOSTING.md, "A link helper for
 # direct links"): iroh's relay server, with the settings in deploy/link-helper.toml.example.
 #
 #   tool/build-link.sh host                # on the server (Rust 1.91 or later); or `tool/build-link.sh` elsewhere, with zig
@@ -16,7 +16,7 @@
 # tool/deploy-link.mjs writes this file to our own server: what changes here changes there.
 
 [Unit]
-Description=Ghost Messaging link helper: iroh's relay server, for direct links between devices
+Description=Uplink link helper: iroh's relay server, for direct links between devices
 After=network.target
 # Started without its settings the program runs on its own defaults (plain HTTP, port 80): no file, no start.
 AssertPathExists=/etc/ghost-link/config.toml

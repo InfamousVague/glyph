@@ -149,7 +149,7 @@ class VoiceChannel {
   /// The owner's key follows the name, so the browser knows whose roles to believe; a texting or Files space ends with
   /// its kind (`.text`, `.files`), which can't be taken for a name or a key, so the page knows not to offer voice.
   ///
-  /// Made while the app uses a relay other than Ghost Messaging's own, it ends with that relay's host after an `@`
+  /// Made while the app uses a relay other than Uplink's own, it ends with that relay's host after an `@`
   /// (lib/invites/link_relay.dart; GMFB-25).
   String get link => LinkRelay.mark('https://gogho.st/join/#$seed.${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}${owner.isEmpty ? '' : '.$owner'}${kind == SpaceKind.voice ? '' : '.${kind.wire}'}');
 
@@ -428,7 +428,7 @@ class VoiceMember {
   /// They want the call's words as captions ('cw'): each device that can then writes out its own voice.
   final bool captions;
 
-  /// Their username on Ghost Messaging, where they have one and said it: to add them as a friend.
+  /// Their username on Uplink, where they have one and said it: to add them as a friend.
   final String? username;
   final bool muted;
   final bool video;

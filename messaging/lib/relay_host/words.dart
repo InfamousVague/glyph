@@ -12,7 +12,7 @@ const hostOffHint = 'A relay of your own, the same one gogho.st runs, for you an
 const hostSeesWords = 'Whoever runs a relay sees which installs connect to it and when, and who sends to whom. Never what is said: everything is sealed on each device before it leaves. Running this one, that is you.';
 
 /// What someone joining a relay hosted from an app is told before they move to it, and while they are on it.
-const joinHostedWords = 'This relay runs in someone\'s Ghost Messaging app. They see which installs connect to it and when, and who sends to whom, never what is said. It is up only while their app is open. $keepsNoAccountsWords $closedPhoneWords';
+const joinHostedWords = 'This relay runs in someone\'s Uplink app. They see which installs connect to it and when, and who sends to whom, never what is said. It is up only while their app is open. $keepsNoAccountsWords $closedPhoneWords';
 
 /// What a relay hosted from an app doesn't keep, and so what doesn't work while on it.
 const keepsNoAccountsWords = 'It keeps no accounts, usernames or invite words: while you are on it, adding a device, refreshing your backup, deleting your account and finding friends by username don\'t work.';
@@ -25,19 +25,19 @@ const hostedNotLinkedWords = 'It can\'t be used yet: until its public relay lets
 
 /// How long it runs, on a phone or a computer.
 String hostRunsWords({required bool phone}) =>
-    '${phone ? 'It runs while you use the app on this phone, and stops a minute after you put the app away.' : 'It runs for as long as Ghost Messaging is open on this computer.'} $whenItStopsWords';
+    '${phone ? 'It runs while you use the app on this phone, and stops a minute after you put the app away.' : 'It runs for as long as Uplink is open on this computer.'} $whenItStopsWords';
 
 /// What the people on it see when it stops, and what waits.
 const whenItStopsWords = 'When it stops, everyone on it sees their relay as unreachable, and their app tries it again by itself until it is back. What they write to friends waits in their app and goes again, for up to three days; what the relay was keeping for them in memory goes with it.';
 
 /// The relay it stays linked to, chosen.
-const viaChoiceWords = 'Its people are reached through the relay it stays linked to: Ghost Messaging\'s own unless you choose another, which must let relays hosted from an app stay.';
+const viaChoiceWords = 'Its people are reached through the relay it stays linked to: Uplink\'s own unless you choose another, which must let relays hosted from an app stay.';
 
 /// What this computer's firewall will ask as the relay first listens, said before it does ([os]: PlatformInfo's
 /// operatingSystem). Nothing on a phone.
 String firewallWords(String os, int port) => switch (os) {
-      'macos' => 'macOS may ask whether Ghost Messaging may accept incoming connections: choose Allow, or devices on this network can\'t reach it.',
-      'windows' => 'Windows will ask whether Ghost Messaging may communicate on your networks: allow private networks, or devices on this network can\'t reach it.',
+      'macos' => 'macOS may ask whether Uplink may accept incoming connections: choose Allow, or devices on this network can\'t reach it.',
+      'windows' => 'Windows will ask whether Uplink may communicate on your networks: allow private networks, or devices on this network can\'t reach it.',
       'linux' => 'If this computer has a firewall, it must let port $port in for devices on this network to reach it.',
       _ => '',
     };

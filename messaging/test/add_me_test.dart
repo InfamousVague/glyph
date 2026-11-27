@@ -161,7 +161,7 @@ void main() {
     expect(addMeLink('maya'), 'https://gogho.st/add/maya');
     expect(addLinkUsername('https://gogho.st/add/maya'), 'maya');
     expect(addLinkUsername('https://gogho.st/add/@Maya.Chen/'), 'maya.chen');
-    expect(addLinkUsername('ghostmsg://add/maya_c'), 'maya_c', reason: 'the page\'s Open in Ghost Messaging');
+    expect(addLinkUsername('ghostmsg://add/maya_c'), 'maya_c', reason: 'the page\'s Open in Uplink');
     expect(addLinkUsername('https://gogho.st/add/ab'), isNull, reason: 'too short to be a username');
     expect(addLinkUsername('https://evil.example/add/maya'), isNull);
     expect(addLinkUsername('https://gogho.st/c/maya'), isNull, reason: 'a circle\'s invite word');
@@ -169,7 +169,7 @@ void main() {
 
   // GMFB-25: a username is a name on one relay, and a link named none, so on a relay of one's own it found whoever held
   // the name there, or nobody.
-  test('a link from someone on a relay of their own says which, after the key; one that names none is Ghost Messaging\'s', () {
+  test('a link from someone on a relay of their own says which, after the key; one that names none is Uplink\'s', () {
     final id = 'ab' * 16;
     expect(addMeLink('maya', id: id), 'https://gogho.st/add/maya#$id');
     expect(addMeLink('maya', id: id, relay: 'Relay.Example.com'), 'https://gogho.st/add/maya#$id@relay.example.com');
@@ -193,12 +193,12 @@ void main() {
     expect(relayHostForLinks('ghost-relay://${'c' * 32}?n=${'d' * 64}'), isNull);
   });
 
-  test('where a link\'s person is asked for: here where they are on this app\'s relay, of their own relay where they are on another, and of Ghost Messaging\'s after this one where the link names none', () {
+  test('where a link\'s person is asked for: here where they are on this app\'s relay, of their own relay where they are on another, and of Uplink\'s after this one where the link names none', () {
     const own = 'wss://relay.example.com/hub';
     bool nowhere(String _) => false;
-    // On Ghost Messaging's relay, a link that names none: as ever.
+    // On Uplink's relay, a link that names none: as ever.
     expect(addPlan('maya', theirs: null, mine: null, onDefault: true, hubUrl: 'wss://gogho.st/hub', hasKey: true, here: nowhere), (ask: 'maya', then: null, note: null));
-    // On Ghost Messaging's relay, a link from someone on their own.
+    // On Uplink's relay, a link from someone on their own.
     final other = addPlan('maya', theirs: 'relay.example.com', mine: null, onDefault: true, hubUrl: 'wss://gogho.st/hub', hasKey: true, here: nowhere);
     expect([other.ask, other.then], ['maya@relay.example.com', null]);
     expect(other.note, '@maya is on relay.example.com, another relay than yours. The request goes from your relay to theirs, where both pass messages to each other; if they don\'t yet, it is sent again by itself for two weeks.');
@@ -206,10 +206,10 @@ void main() {
     expect(addPlan('maya', theirs: 'relay.example.com', mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: nowhere), (ask: 'maya', then: null, note: null));
     // The same relay under another of its names.
     expect(addPlan('maya', theirs: 'www.relay.example.com', mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: (h) => h == 'www.relay.example.com').ask, 'maya');
-    // On a relay of one's own, a link that names none: here first, then Ghost Messaging's, both held to the key.
+    // On a relay of one's own, a link that names none: here first, then Uplink's, both held to the key.
     final unnamed = addPlan('maya', theirs: null, mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: true, here: nowhere);
     expect([unnamed.ask, unnamed.then], ['maya', 'maya@gogho.st']);
-    expect(unnamed.note, contains('this link names no relay. @maya is looked for there first, then on Ghost Messaging\'s relay'));
+    expect(unnamed.note, contains('this link names no relay. @maya is looked for there first, then on Uplink\'s relay'));
     // With no key to hold an answer to (a link from before): here alone, with the warning there always was.
     final old = addPlan('maya', theirs: null, mine: 'relay.example.com', onDefault: false, hubUrl: own, hasKey: false, here: nowhere);
     expect([old.ask, old.then, old.note], ['maya', null, addMeElsewhereWords(own, 'maya')]);

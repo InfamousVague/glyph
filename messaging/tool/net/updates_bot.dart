@@ -18,7 +18,7 @@ import 'package:ghost_messaging/net/hub_carrier.dart';
 import 'package:ghost_messaging/voice/hangout.dart';
 import 'package:ghost_messaging/voice/voice.dart';
 
-/// "Ghost Bugfixes": an identity of its own that posts the progress of bug fixes in the Alpha testers circle's Updates
+/// "Uplink Bugfixes": an identity of its own that posts the progress of bug fixes in the Alpha testers circle's Updates
 /// space (Matt, 2026-11-21: "add a updates channel only admins can post to in the alpha testers and post progerss of
 /// bugfixes there", then "A bot identity"). Run as the live relay checks are:
 ///
@@ -53,7 +53,7 @@ const who = String.fromEnvironment('WHO');
 const pictures = String.fromEnvironment('PICTURES');
 const dry = String.fromEnvironment('DRY');
 const hub = String.fromEnvironment('HUB', defaultValue: 'wss://gogho.st/hub');
-const botName = 'Ghost Bugfixes';
+const botName = 'Uplink Bugfixes';
 
 /// Where the bot's key and its circle are kept, and that file read (empty where there is none yet) and written
 /// (readable by this user alone).
@@ -211,7 +211,7 @@ void main() {
   // A store of the app's that asks the phone: no phone here.
   setUpAll(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ghost_messaging/sms'), (_) async => null));
 
-  test('Ghost Bugfixes: $doing', () async {
+  test('Uplink Bugfixes: $doing', () async {
     final pics = doing == 'post' ? picturesOf(pictures) : const <BotPicture>[];
     if (doing == 'post' && dry.isNotEmpty && dry != '0') {
       // Everything a post does but the relay: the words and each picture read and checked, and what would go said.

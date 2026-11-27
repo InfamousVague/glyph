@@ -45,7 +45,7 @@ class SignUpProfile {
   final String from;
   final String name;
 
-  /// Tidied to what a Ghost username may be ('' where it can't be one).
+  /// Tidied to what an Uplink username may be ('' where it can't be one).
   final String username;
   final String status;
   final String bio;
@@ -56,7 +56,7 @@ class SignUpProfile {
   bool get isEmpty => name.isEmpty && username.isEmpty && status.isEmpty && picture == null;
 }
 
-/// [handle] as a Ghost username: lower case, letters, numbers, dots and underscores; '' where it can't be made one.
+/// [handle] as an Uplink username: lower case, letters, numbers, dots and underscores; '' where it can't be made one.
 String usernameFrom(String handle) {
   final t = tidyHandle(handle).replaceAll(RegExp(r'[^a-z0-9._]'), '');
   final cut = t.length > 20 ? t.substring(0, 20) : t;

@@ -1,4 +1,4 @@
-// The bridge's way onto Ghost's relay hub: its key pair (kept, so its hub id stays the same across restarts), the
+// The bridge's way onto Uplink's relay hub: its key pair (kept, so its hub id stays the same across restarts), the
 // signed sign-in, rooms joined and left, and sealed room packets. As voice.js's identity() and connectHub(), with
 // node:crypto for the key and Node 22's own WebSocket; it reconnects by itself and joins its rooms again.
 //

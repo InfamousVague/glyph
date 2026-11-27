@@ -33,14 +33,14 @@ class MentionAlerts {
   final void Function(MentionAlert alert) notify;
   final void Function(String key) cancel;
 
-  /// Whether Ghost is on the screen.
+  /// Whether Uplink is on the screen.
   final bool Function() inFront;
 
   /// Whether mentions are to be notified (the person's choice).
   final bool Function() on;
 
   /// The space whose chat is on the screen, by its seed (set by its page, lib/ui/hangout_screen.dart): not notified
-  /// while Ghost is in front.
+  /// while Uplink is in front.
   static String? showing;
 
   /// The app's own, once watching (lib/main.dart).

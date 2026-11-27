@@ -72,7 +72,7 @@ import '../l10n/words.dart';
 /// and looks at once.
 Duration? deskResizeSettle = const Duration(milliseconds: 120);
 
-/// Ghost Messaging on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
+/// Uplink on a computer (Matt, 2026-11-13: "a companion desktop app that can proxy messages encrypted from
 /// my phone to my desktop and then send back to the phone to send again"; docs/desktop.md). The phone's screens,
 /// with the link to the phone where the phone has Android: paired by a QR code, sealed between the two, over the
 /// local network first and a relay when that fails.
@@ -109,7 +109,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   );
   final calls = LinkCalls(link, store);
   await calls.init();
-  // With no phone linked, the computer is Ghost Messaging of its own, as an iPhone is (lib/standalone; Matt, 2026-11-18:
+  // With no phone linked, the computer is Uplink of its own, as an iPhone is (lib/standalone; Matt, 2026-11-18:
   // "a user can use the app without linking the phone since some people may be joining just to enter circles or use
   // telegram and signal but not SMS"): friends by username, circles, Telegram and Signal, answered here. Linking a
   // phone later is a step of its own, and the app opens again on its link (restartApp).
@@ -160,7 +160,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // The app's lock (GMFB-46, lib/app_lock), read before the app is drawn: with a PIN set it opens locked, once the
   // splash is done. Its record is kept as the pairing's key is: the Keychain in a release build, else the app's folder.
   await AppLock.start(state, folder: store.dir, keychain: store.keychain);
-  final step = ValueNotifier<SplashStep>((words: 'Starting Ghost Messaging', progress: null));
+  final step = ValueNotifier<SplashStep>((words: 'Starting Uplink', progress: null));
   runApp(_SplashApp(sheet: accents.of(state), state: state, step: step));
   // The app's own updates, looked for before anything else, as Discord does: a version found is brought down and
   // restarted into from the splash. Offline, or with nothing new, the app opens as it is and goes on looking every few
@@ -168,7 +168,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // folder's new archive, or for the .deb says the command that installs it (GMFB-32).
   final macUpdates = updates && (PlatformInfo.isMacOS || PlatformInfo.isWindows || PlatformInfo.isLinux) ? MacUpdates.fromEnvironment(env, windows: PlatformInfo.isWindows, linux: PlatformInfo.isLinux) : null;
   if (macUpdates != null) await checkAtLaunch(macUpdates, step);
-  step.value = (words: 'Starting Ghost Messaging', progress: null);
+  step.value = (words: 'Starting Uplink', progress: null);
   // Google Messages on this computer (gm_web.dart): its helper started where this copy carries it, and what changes
   // there told to the screens as the phone's changes are.
   GmWeb.instance.changed.stream.listen(Sms.instance.changes.add);
@@ -224,7 +224,7 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // folder beside everything else this computer keeps: GHOST_DESK_DIR's when it is set, as the store's is.
   InstalledPlugins.instance = InstalledPlugins(root: Directory('${store.dir.path}${PlatformInfo.pathSeparator}plugins'));
   await InstalledPlugins.instance.load(state, appVersion: appVersion);
-  // Which plugins are on, synced across the Ghost account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
+  // Which plugins are on, synced across the Uplink account's devices (GMFB-9: lib/plugins/plugin_sync.dart): the
   // person's switches heard from here on; the account's list is met once the relay is reached.
   PluginSync.instance.start(state);
   // Sign-ins synced across the account (the browser extension's, and those made on another device): never set up on a
@@ -299,7 +299,7 @@ void _handover(PhoneLink link, LinkCalls calls, DeskOwnCalls? own, Directory own
       synced = DateTime.now();
     } catch (e) {
       // Asked again as the link comes and goes, and every little while; why it failed is shown in Settings › Me
-      // (DartAsk's words: most often "Open Ghost Messaging on your phone, then try again.").
+      // (DartAsk's words: most often "Open Uplink on your phone, then try again.").
       if (own == null) say('failed', '$e'.replaceFirst(RegExp(r'^[A-Za-z]*(Exception|Error)(\([^)]*\))?: ?'), ''));
     } finally {
       busy = false;
@@ -394,7 +394,7 @@ class _DesktopAppState extends State<DesktopApp> {
         child: ListenableBuilder(
           listenable: state,
           builder: (context, _) => WidgetsApp(
-            title: 'Ghost Messaging',
+            title: 'Uplink',
             color: const Color(0xFF4F5BD5),
             debugShowCheckedModeBanner: false,
             navigatorKey: _navigator,
@@ -599,7 +599,7 @@ class _SplashApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => WidgetsApp(
-        title: 'Ghost Messaging',
+        title: 'Uplink',
         color: const Color(0xFF4F5BD5),
         debugShowCheckedModeBanner: false,
         builder: (context, _) => Directionality(textDirection: Words.instance.direction, child: GlacierTheme(

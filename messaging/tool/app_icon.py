@@ -1,26 +1,33 @@
 #!/usr/bin/env python3
 """
-Ghost Messaging's app icon from one square picture (art/app-icon.png), as Ghost Keyboard's tool/app_icon.py makes its.
+Uplink's app icon from one square picture (art/app-icon.png), as Ghost Keyboard's tool/app_icon.py makes its.
 
-Matt, 2026-11-13: "update the icon to use the one from the desktop" (the white ghost that is a speech bubble, on
-black, ~/Desktop/ghost_messenger.png).
+Matt, 2026-11-27: "update the logo to the uplink logo on the desktop" (~/Desktop/UplinkLogo.png: a white speech
+bubble with UP LINK cut out of it, on black). Until then it was the white ghost that is a speech bubble (Matt,
+2026-11-13: "update the icon to use the one from the desktop", ~/Desktop/ghost_messenger.png), which is why the
+files this writes are still named for a ghost: the app's code names them, and a name is not what anyone sees.
 
-    python3 tool/app_icon.py ~/Desktop/ghost_messenger.png    copies it to art/app-icon.png, then writes every icon
+    python3 tool/app_icon.py ~/Desktop/UplinkLogo.png         copies it to art/app-icon.png, then writes every icon
     python3 tool/app_icon.py                                  writes every icon from art/app-icon.png
     python3 tool/app_icon.py --check <the built Mac app>      says whether macOS will draw its icon whole (mac_icon)
 
-Android's adaptive icon (minSdk 29, so no legacy PNGs): the foreground is the picture shrunk so the ghost, its tail
-included, sits inside the mask's 66dp safe circle, its black carried on past the edges to the full 108dp, over a black
-background; the monochrome layer is the ghost alone (its brightness as alpha), for themed icons. The notification's
-small icon is the same shape, white on nothing, cut to its own edges. The site's icons are the full square, and so are
-the icons of the app in a browser (web/), but for the two a home screen may cut to a shape of its own (web_icons).
+The picture is cleaned first (clean): its black made black and its white white.
+
+Android's adaptive icon (minSdk 29, so no legacy PNGs): the foreground is the picture shrunk so the mark, its
+corners included, sits inside the mask's 66dp safe circle, its black carried on past the edges to the full 108dp,
+over a black background; the monochrome layer is the mark alone (its brightness as alpha), for themed icons. The
+notification's small icon is the same shape, white on nothing, cut to its own edges. The site's icons are the full
+square, and so are the icons of the app in a browser (web/), but for the two a home screen may cut to a shape of its
+own (web_icons). The Mac's is the picture in macOS's own outline (mac_icon), and Linux's is that one again; Windows'
+and the iPhone's are the full square at the sizes each asks for, and the browser extension's is the square with its
+corners rounded (extension/icons).
 """
 
 import os
 import shutil
 import sys
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ART = os.path.join(ROOT, 'art', 'app-icon.png')
@@ -28,14 +35,52 @@ RES = os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
 SITE = os.path.join(ROOT, 'site')
 MAC = os.path.join(ROOT, 'macos', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset')
 WEB = os.path.join(ROOT, 'web')
-# The ghost's farthest point (the tip of its tail) is 39% of the picture from its centre: 42dp of the 108. At 0.74 it is
-# 31dp, inside the safe circle's 33.
-SCALE = 0.74
+# The mark's farthest point (the bubble's lower left corner) is 48.1% of the picture from its centre: 52dp of the
+# 108. At 0.63 it is 32.7dp, inside the safe circle's 33. main() measures the picture it is given and refuses one
+# this would cut.
+SCALE = 0.63
+SAFE_DP, FULL_DP = 33, 108
 BACKGROUND = (0, 0, 0)
 DENSITIES = {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}
 # The status bar's icon is 24dp.
 SMALL = {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96}
 LANCZOS = Image.Resampling.LANCZOS
+
+
+def clean(picture):
+    """
+    The picture with its black made black and its white white, the greys of its edges between them kept.
+
+    A picture that came out of a drawing made by a model has a faint grain in both (this one: its black anything up
+    to 13 of 255, its white anything down to 246, and a trace of colour in each). No eye sees it in the picture, but
+    it shows as a box round the mark where the picture's black meets a black that is the system's own (Android's
+    background behind the foreground, a browser's behind a maskable icon), and as a mottled mark where brightness
+    is used as alpha (the themed icon, the notification's, the mark in the app).
+
+    A picture with real colour in it keeps its colour: only one that is grey all over but for that trace is made
+    grey outright.
+    """
+    def level(v):
+        return 0 if v <= 16 else 255 if v >= 240 else round((v - 16) * 255 / 224)
+    red, green, blue = picture.convert('RGB').split()
+    trace = max(ImageChops.difference(red, green).getextrema()[1], ImageChops.difference(red, blue).getextrema()[1])
+    if trace <= 24:
+        grey = picture.convert('L').point(level)
+        return Image.merge('RGB', (grey, grey, grey))
+    return Image.merge('RGB', (red.point(level), green.point(level), blue.point(level)))
+
+
+def farthest(picture):
+    """How far the mark reaches from the picture's middle, as a share of the picture's width (0.5 is its edge)."""
+    import math
+    small = picture.convert('L').resize((512, 512), LANCZOS).point(lambda v: 255 if v > 40 else 0)
+    pixels = small.load()
+    far = 0.0
+    for y in range(512):
+        for x in range(512):
+            if pixels[x, y]:
+                far = max(far, math.hypot(x + 0.5 - 256, y + 0.5 - 256))
+    return far / 512
 
 
 # The picture at SCALE in the middle of a square of `size`, for Android's adaptive icon: as 'foreground' on the
@@ -94,7 +139,7 @@ def mac_icon(picture, size):
     blue, and main() refuses to write a Mac icon that is all grey.
 
     The test is the app as built, since an .icns beside it is not read: `python3 tool/app_icon.py --check
-    "build/macos/Build/Products/Release/Ghost Messaging.app"` says how its catalog stored the icon, and
+    "build/macos/Build/Products/Release/Uplink.app"` says how its catalog stored the icon, and
     `NSWorkspace.shared.icon(forFile:)` on it is what the Dock draws.
     """
     from PIL import ImageFilter
@@ -140,8 +185,8 @@ def check_built(app):
 
 
 def silhouette(picture, size):
-    """The ghost alone, white with its brightness as alpha, cut to its own edges and centred in a square of [size]."""
-    # What is all but black is nothing: a faint box would show round the ghost wherever it is drawn over a colour.
+    """The mark alone, white with its brightness as alpha, cut to its own edges and centred in a square of [size]."""
+    # What is all but black is nothing: a faint box would show round the mark wherever it is drawn over a colour.
     grey = picture.convert('L').point(lambda v: 0 if v < 24 else v)
     box = grey.point(lambda v: 255 if v > 40 else 0).getbbox()
     shape = grey.crop(box)
@@ -158,9 +203,10 @@ def silhouette(picture, size):
 
 
 # A "maskable" icon is cut to whatever shape the home screen has, and only a circle four fifths of its width is sure
-# to show: 40% of the icon from its middle. The tip of the ghost's tail, the farthest thing from the middle, measures
-# 44% of this picture from it; at 0.8 it is 35%, inside that circle.
+# to show: 40% of the icon from its middle. The bubble's lower left corner, the farthest thing from the middle,
+# measures 48.1% of this picture from it; at 0.8 it is 38.5%, inside that circle.
 WEB_SAFE = 0.8
+WEB_SURE = 0.40
 
 
 def web_icons(picture):
@@ -179,13 +225,56 @@ def web_icons(picture):
         cut.save(os.path.join(WEB, 'icons', f'Icon-maskable-{size}.png'), optimize=True)
 
 
+# The sizes Windows draws an app's icon at: its lists, the taskbar, Alt-Tab, the Start menu's tiles.
+WINDOWS_SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+
+def windows_icon(picture):
+    """The Windows app's icon (windows/runner/resources/app_icon.ico): the full square, each size made from the
+    whole picture and kept as a PNG inside the file."""
+    picture.save(os.path.join(ROOT, 'windows', 'runner', 'resources', 'app_icon.ico'), format='ICO',
+                 sizes=[(n, n) for n in WINDOWS_SIZES])
+
+
+def ios_icons(picture):
+    """The iPhone app's icon (ios/Runner): the full square, with no alpha, at each size its catalog names. iOS rounds
+    the corners itself."""
+    import json
+    folder = os.path.join(ROOT, 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset')
+    for entry in json.load(open(os.path.join(folder, 'Contents.json')))['images']:
+        side = round(float(entry['size'].split('x')[0]) * int(entry['scale'][0]))
+        picture.resize((side, side), LANCZOS).save(os.path.join(folder, entry['filename']), optimize=True)
+
+
+def extension_icons(picture):
+    """The browser extension's icon (extension/icons, and the copy its store page shows): the square with its
+    corners rounded, as a browser's toolbar and its extensions page draw nothing round an icon themselves."""
+    from PIL import ImageDraw
+    folder = os.path.join(ROOT, 'extension', 'icons')
+    big = 4
+    for size in (16, 48, 128):
+        mask = Image.new('L', (size * big, size * big), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * big - 1, size * big - 1), radius=round(size * big * 0.2), fill=255)
+        icon = picture.resize((size, size), LANCZOS).convert('RGBA')
+        icon.putalpha(mask.resize((size, size), LANCZOS))
+        icon.save(os.path.join(folder, f'{size}.png'), optimize=True)
+    shutil.copyfile(os.path.join(folder, '128.png'), os.path.join(ROOT, 'extension', 'store', 'promo', 'icon-128.png'))
+
+
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == '--check':
         return check_built(sys.argv[2])
     if len(sys.argv) > 1:
         os.makedirs(os.path.dirname(ART), exist_ok=True)
         shutil.copyfile(os.path.expanduser(sys.argv[1]), ART)
-    picture = Image.open(ART).convert('RGB')
+    picture = clean(Image.open(ART))
+    far = farthest(picture)
+    if far * SCALE * FULL_DP > SAFE_DP:
+        raise SystemExit(f'the mark reaches {far:.1%} of the picture from its middle: at SCALE {SCALE} that is '
+                         f'{far * SCALE * FULL_DP:.1f}dp, outside the {SAFE_DP}dp a home screen is sure to show')
+    if far * WEB_SAFE > WEB_SURE:
+        raise SystemExit(f'the mark reaches {far:.1%} of the picture from its middle: at WEB_SAFE {WEB_SAFE} a home '
+                         f'screen that cuts icons to a circle would cut it')
     for density, size in DENSITIES.items():
         folder = os.path.join(RES, 'mipmap-' + density)
         os.makedirs(folder, exist_ok=True)
@@ -209,6 +298,13 @@ def main():
         if not has_colour(icon):
             raise SystemExit(f'the Mac icon at {size} is all grey: macOS would draw it small on a plate (mac_icon)')
         icon.save(os.path.join(MAC, f'app_icon_{size}.png'), optimize=True)
+        # Linux's menus and docks draw an icon as it is, so its is the Mac's, outline and shadow and all
+        # (the package puts it in hicolor/512x512: .github/workflows/messaging-linux.yml).
+        if size == 512:
+            icon.save(os.path.join(ROOT, 'linux', 'packaging', 'ghost-messaging.png'), optimize=True)
+    windows_icon(picture)
+    ios_icons(picture)
+    extension_icons(picture)
     print('icons written from', ART)
 
 

@@ -57,7 +57,7 @@ class NetworkPlugin extends GhostPlugin implements OwnSwitch {
 
   @override
   List<PluginReach> get reaches => [
-        PluginReach(Lucide.messageSquare, 'Your $name chats, on this device', 'They go between this device and $name only. Ghost\'s own server never sees them.'),
+        PluginReach(Lucide.messageSquare, 'Your $name chats, on this device', 'They go between this device and $name only. Uplink\'s own server never sees them.'),
         PluginReach(Lucide.userRound, 'Your $name sign-in, kept on this device', 'Removing the plugin signs you out and forgets it.'),
         if (caution != null) PluginReach(Lucide.info, 'Not an official $name app', caution),
       ];

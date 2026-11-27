@@ -93,7 +93,7 @@ void main() {
   testWidgets('a phone set up before notes were kept is shown the newest release\'s', (tester) async {
     await open(tester, seen: '', current: changelog.first.version);
     expect(find.text('What\'s new'), findsOneWidget);
-    expect(find.text('Ghost Messaging ${changelog.first.version}'), findsOneWidget);
+    expect(find.text('Uplink ${changelog.first.version}'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
   });
 
@@ -101,7 +101,11 @@ void main() {
     expect(noteIcon('Record call: record a space\'s call to one video file'), Lucide.circleDot, reason: 'by its name, not the "video" in its words');
     expect(noteIcon('Runestone comes with its textures: the look draws its buttons from a pack'), Lucide.scrollText, reason: 'Runestone\'s own notes keep its scroll');
     expect(noteIcon('Textures for every look: Settings › Appearance has the packs'), Lucide.palette);
-    expect(noteIcon('Four looks: Ghost, Sharp, Dial-Up and Runestone. Phosphor is gone'), Lucide.palette, reason: 'by its name, not the looks it lists');
+    expect(noteIcon('Four looks: Uplink, Sharp, Dial-Up and Runestone. Phosphor is gone'), Lucide.palette, reason: 'by its name, not the looks it lists');
+    expect(noteIcon('Uplink: Ghost Messaging has a new name. Your chats are as they were'), Lucide.tag, reason: 'by its name, not the chats it mentions');
+    expect(noteIcon('Uplink on a Mac: a copy already installed keeps its old name in Finder'), Lucide.tag);
+    expect(noteIcon('A new app icon: the Uplink logo, on your home screen'), Lucide.shapes);
+    expect(noteIcon('Voice messages are louder in Uplink'), LucideMore.headphones, reason: 'a note that only mentions the app keeps its own mark');
     expect(noteIcon('Scribe: a recorded call written out'), Lucide.scrollText);
     expect(noteIcon('Live captions: in a call, see what everyone says'), Lucide.text);
     expect(noteIcon('Watch together: play a video'), Lucide.film);

@@ -42,7 +42,7 @@ class _Net extends InboxNetwork {
   Future<void> signOut() async {}
 }
 
-/// Ghost's notifications for Signal and Telegram (lib/inbox/alerts.dart; Matt, 2026-11-16: "Yes, build them").
+/// Uplink's notifications for Signal and Telegram (lib/inbox/alerts.dart; Matt, 2026-11-16: "Yes, build them").
 void main() {
   final began = DateTime(2026, 11, 16, 12);
   InboxChat chat(String id, {int unread = 1, int minutes = 5, bool mine = false, bool muted = false, bool group = false, String text = 'are you around later?', bool stranger = false}) =>
@@ -79,7 +79,7 @@ void main() {
     expect(cancelled, ['signal:1']);
   });
 
-  test('what was unread before Ghost watched is not news, nor a chat loaded later with old messages', () {
+  test('what was unread before Uplink watched is not news, nor a chat loaded later with old messages', () {
     watch([chat('1', unread: 4)]);
     expect(told, isEmpty, reason: 'unread on the first look');
     signal.set([chat('1', unread: 4), chat('2', unread: 3, minutes: -60)]);
@@ -88,7 +88,7 @@ void main() {
     expect(told.single.key, 'signal:3', reason: 'a chat new since, with a new message');
   });
 
-  test('not your own, not muted, not spam, not the chat on the screen while Ghost is in front', () {
+  test('not your own, not muted, not spam, not the chat on the screen while Uplink is in front', () {
     watch([chat('1', unread: 0), chat('2', unread: 0), chat('3', unread: 0), chat('4', unread: 0)]);
     InboxAlerts.showing = 'signal:4';
     front = true;
@@ -99,7 +99,7 @@ void main() {
       chat('4', unread: 1),
     ]);
     expect(told, isEmpty);
-    // The same chat with Ghost out of sight is told.
+    // The same chat with Uplink out of sight is told.
     front = false;
     signal.set([chat('1', unread: 1, mine: true), chat('2', unread: 1, muted: true), chat('3', unread: 1, stranger: true, text: 'Hiya! ✨ What a pleasant 😍 surprise!'), chat('4', unread: 2)]);
     expect(told.single.key, 'signal:4');

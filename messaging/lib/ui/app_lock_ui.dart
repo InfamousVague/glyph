@@ -381,7 +381,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
       child: Semantics(
         container: true,
         explicitChildNodes: true,
-        label: 'Ghost Messaging is locked',
+        label: 'Uplink is locked',
         child: Stack(children: [
           Positioned.fill(
             child: LayoutBuilder(
@@ -415,7 +415,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       AppIcon(Lucide.lock, size: 28, wash: false, color: t.color('app-ink')),
       SizedBox(height: t.space(3)),
-      Text('Ghost Messaging is locked', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
+      Text('Uplink is locked', textAlign: TextAlign.center, style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
       SizedBox(height: t.space(2)),
       Text(line, key: const ValueKey('lock-line'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: waiting || _wrong ? t.danger : t.color('app-ink-2'), height: 1.4)),
       SizedBox(height: t.space(5)),
@@ -459,7 +459,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, key: const ValueKey('lock-forgot-page'), children: [
       Text('Forgot your PIN?', style: pageText(t, t.fontSize('lg'), weight: 'bold', color: t.color('app-ink'))),
       SizedBox(height: t.space(3)),
-      words('The app keeps only a scrambled check of your PIN, so nobody can read it back or reset it, not even Ghost Messaging.'),
+      words('The app keeps only a scrambled check of your PIN, so nobody can read it back or reset it, not even Uplink.'),
       if (Sms.standalone) ...[
         // What signing out with everything deleted says where it is asked in Settings › Me (lib/ui/account_screens.dart).
         words('The way back in is to sign out and delete everything on this device: your conversations here, your spaces and your choices, your sign-ins to other networks here (Telegram, Signal and the rest) and its call recordings. Your friends and circles stay with your account, and come back when you sign in again.'),
@@ -471,11 +471,11 @@ class _AppLockScreenState extends State<AppLockScreen> {
           PairButton(key: const ValueKey('lock-forgot-sure'), label: _deleting ? 'Deleting…' : 'Yes, delete everything here', icon: Lucide.trash2, onPressed: _deleting ? null : _deleteAll),
         ],
       ] else if (!kIsWeb && PlatformInfo.isAndroid)
-        words('The way back in is to delete what the app keeps on this phone: open Android\'s Settings, then Apps, Ghost Messaging, Storage, and clear its storage. That signs this phone out and deletes its conversations with friends and other networks, its spaces and its choices. Your texts are kept by Android and stay. Your friends and circles stay with your account, and come back when you sign in again.')
+        words('The way back in is to delete what the app keeps on this phone: open Android\'s Settings, then Apps, Uplink, Storage, and clear its storage. That signs this phone out and deletes its conversations with friends and other networks, its spaces and its choices. Your texts are kept by Android and stay. Your friends and circles stay with your account, and come back when you sign in again.')
       else if (!kIsWeb && PlatformInfo.isIOS)
-        words('The way back in is to delete Ghost Messaging from this iPhone and install it again, then pair it with your phone again. Your phone keeps everything of its own.')
+        words('The way back in is to delete Uplink from this iPhone and install it again, then pair it with your phone again. Your phone keeps everything of its own.')
       else
-        words('The way back in is to close Ghost Messaging and delete its folder on this computer${folder == null ? '' : ' ($folder)'}, then open it and pair it with your phone again. That deletes everything the app keeps here. Your phone keeps everything of its own.'),
+        words('The way back in is to close Uplink and delete its folder on this computer${folder == null ? '' : ' ($folder)'}, then open it and pair it with your phone again. That deletes everything the app keeps here. Your phone keeps everything of its own.'),
       SizedBox(height: t.space(2)),
       PairButton(
         key: const ValueKey('lock-forgot-back'),
@@ -607,7 +607,7 @@ class _AppLockPaneState extends State<AppLockPane> {
   Future<void> _setBiometric(bool on) async {
     final lock = _lock;
     // Switched on only once the device has taken a fingerprint or a face, so it is known to work here.
-    if (on && !await lock.askBiometric('Unlock Ghost Messaging with your fingerprint or face')) {
+    if (on && !await lock.askBiometric('Unlock Uplink with your fingerprint or face')) {
       if (mounted) toast(context, 'Your fingerprint or face wasn\'t taken, so this stays off.');
       return;
     }

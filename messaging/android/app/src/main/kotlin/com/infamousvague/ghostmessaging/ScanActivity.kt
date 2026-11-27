@@ -174,7 +174,7 @@ class ScanActivity : Activity() {
                     // A computer's pairing code, or a new device's sign-in code (GMFB-45; lib/account/handover.dart):
                     // whoever opened the camera tells the two apart.
                     if (text != null && (DeskCrypto.isOffer(text) || text.trim().startsWith(SIGN_IN_TAG))) found(text)
-                    else if (text != null) runOnUiThread { hint.text = "That code isn't one of Ghost Messaging's" }
+                    else if (text != null) runOnUiThread { hint.text = "That code isn't one of Uplink's" }
                 } catch (e: Exception) { Log.w(TAG, "frame", e) } finally { image.close() }
             }, background)
             val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {

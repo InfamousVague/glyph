@@ -432,7 +432,7 @@ enum LosslessWhy {
   /// In plain words, for this device's person.
   String get words => switch (this) {
         off => 'Lossless music is off on this device.',
-        old => 'The DJ\'s version of Ghost Messaging doesn\'t send it.',
+        old => 'The DJ\'s version of Uplink doesn\'t send it.',
         device => 'This device can\'t play it without loss: it hears the high quality stream.',
         speakers => 'On speakers your microphone would send the music back to the call. Wear headphones for lossless.',
         unknown => 'This device can\'t tell whether you wear headphones. On speakers your microphone would send the music back to the call.',
@@ -441,7 +441,7 @@ enum LosslessWhy {
         slow => 'The connection to the DJ can\'t keep up with lossless right now. It is tried again by itself.',
         full => 'As many people as the DJ\'s connection can send lossless to have it already.',
         sink => 'The player on this device couldn\'t be opened.',
-        version => 'The DJ\'s version sends lossless in a way this one doesn\'t know. Update Ghost Messaging.',
+        version => 'The DJ\'s version sends lossless in a way this one doesn\'t know. Update Uplink.',
       };
 }
 

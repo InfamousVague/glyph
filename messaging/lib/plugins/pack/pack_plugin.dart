@@ -474,7 +474,7 @@ class PackPlugin extends GhostPlugin {
       case 'toggle':
         var hint = s.hint;
         // A computer or a paired iPhone never runs a pack's incoming rules (ListPlugins._arrived): its switch says so.
-        if (Sms.remote && pack.rules.incoming.any((r) => r.setting == s.key)) hint = [?hint, 'Switch it on in Ghost Messaging on your phone: it does nothing here.'].join(' ');
+        if (Sms.remote && pack.rules.incoming.any((r) => r.setting == s.key)) hint = [?hint, 'Switch it on in Uplink on your phone: it does nothing here.'].join(' ');
         return PluginSetting.toggle(key: s.key!, label: s.label, hint: hint, fallback: s.fallback, icon: icon);
       case 'choice':
         return PluginSetting.choice(key: s.key!, label: s.label, hint: s.hint, icon: icon, options: s.options, choice: s.choice!);

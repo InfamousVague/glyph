@@ -145,7 +145,7 @@
 
   <!-- A circle's link: circles open in the app (lib/circles/circle.dart). Get the app copies the invite, which the app
        finds the first time it is set up and opens the circle with (lib/circles/pending_link.dart); with the app here,
-       Open in Ghost Messaging hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
+       Open in Uplink hands it over (ghostmsg://join/#c.…). Matt, 2026-11-19: "make a route to allow people to
        click a link on their phone or desktop to join a circle, have it prompt them to download the app if it's not
        downloaded already and then have it redirect to the circle after they sign up for their account". -->
   <section id="circle" class="center" hidden>
@@ -293,7 +293,7 @@ if (circle) {
   if (iphone) $('circle-open').hidden = true;
   $('circle-open').href = own;
   const say = (words) => { $('circle-note').textContent = words; };
-  // A circle on a relay other than Ghost Messaging's (the link says which, lib/invites/link_relay.dart): the app has to
+  // A circle on a relay other than Uplink's (the link says which, lib/invites/link_relay.dart): the app has to
   // use that relay to join it, and says so itself where it doesn't.
   if (circle.relay) say(circle.name + ' is on the relay ' + circle.relay + '. In Uplink, use that relay first (Settings › Routes › Relay server), then open this link.');
   // Get the app: the invite copied as it goes, for the app to find once it is set up.

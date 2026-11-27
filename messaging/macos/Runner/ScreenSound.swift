@@ -77,7 +77,7 @@ final class ScreenSound: NSObject {
       link = l
     }
     let ours = Bundle.main.bundleIdentifier ?? "com.infamousvague.ghostmessaging"
-    let s = sound as? SpotifySound ?? SpotifySound(feed: link!.feed, what: .allBut(ours), name: "Ghost Messaging screen sound", cant: "What this Mac plays could not be taken.")
+    let s = sound as? SpotifySound ?? SpotifySound(feed: link!.feed, what: .allBut(ours), name: "Uplink screen sound", cant: "What this Mac plays could not be taken.")
     sound = s
     s.start { why in
       DispatchQueue.main.async {

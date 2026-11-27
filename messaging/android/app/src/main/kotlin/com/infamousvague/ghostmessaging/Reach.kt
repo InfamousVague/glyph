@@ -59,15 +59,15 @@ object Reach {
         try {
             val nm = context.getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Open the app to be reachable", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "After the phone restarts, Ghost Messaging has to be opened once before a friend's call can ring."
+                description = "After the phone restarts, Uplink has to be opened once before a friend's call can ring."
                 setShowBadge(false)
             })
             val open = PendingIntent.getActivity(context, NOTIFICATION, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             nm.notify(NOTIFICATION, Notification.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_ghost)
-                .setContentTitle("Open Ghost Messaging to be reachable")
+                .setContentTitle("Open Uplink to be reachable")
                 .setContentText("Calls from friends can't ring until it has been opened once since the phone started.")
-                .setStyle(Notification.BigTextStyle().bigText("Calls from friends can't ring until Ghost Messaging has been opened once since the phone started. Tap to open it."))
+                .setStyle(Notification.BigTextStyle().bigText("Calls from friends can't ring until Uplink has been opened once since the phone started. Tap to open it."))
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(true)

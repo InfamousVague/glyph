@@ -1,4 +1,4 @@
-; Ghost Messaging for Windows: the installer (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com").
+; Uplink for Windows: the installer (Matt, 2026-11-14: "Add a mac and windows build to ghost-sms.com").
 ; Built by .github/workflows/messaging-windows.yml after `flutter build windows`, with the version passed in:
 ;   iscc /DAppVersion=0.7.21 /DSource=build\windows\x64\runner\Release windows\installer.iss
 ; and, where it signs, /DSign "/Sghost=pwsh -NoProfile -File <messaging>\windows\sign.ps1 $f" as well.
@@ -15,14 +15,18 @@
 
 [Setup]
 AppId={{B97205D6-26C4-4B1D-B648-5E26BB43325D}
-AppName=Ghost Messaging
+AppName=Uplink
 AppVersion={#AppVersion}
-AppVerName=Ghost Messaging {#AppVersion}
+AppVerName=Uplink {#AppVersion}
 AppPublisher=MattsSoftware
 AppPublisherURL=https://gogho.st
 AppSupportURL=https://gogho.st
+; The folder keeps the app's earlier name (it was Ghost Messaging until 0.12.50): an install is found there by its
+; own update (lib/desktop/updates.dart), and a new one goes where an old one is.
 DefaultDirName={localappdata}\Programs\Ghost Messaging
-DefaultGroupName=Ghost Messaging
+DefaultGroupName=Uplink
+; The Start menu's entry under the new name, whatever group an earlier install chose.
+UsePreviousGroup=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\build\windows-installer
@@ -43,17 +47,22 @@ SignedUninstaller=yes
 #endif
 
 [Tasks]
-Name: "desktopicon"; Description: "Put Ghost Messaging on the desktop"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "desktopicon"; Description: "Put Uplink on the desktop"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
 Source: "..\{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; The shortcuts an install under the earlier name left: the Start menu's group and the desktop's.
+Type: filesandordirs; Name: "{userprograms}\Ghost Messaging"
+Type: files; Name: "{userdesktop}\Ghost Messaging.lnk"
+
 [Icons]
-Name: "{group}\Ghost Messaging"; Filename: "{app}\ghost_messaging.exe"
-Name: "{userdesktop}\Ghost Messaging"; Filename: "{app}\ghost_messaging.exe"; Tasks: desktopicon
+Name: "{group}\Uplink"; Filename: "{app}\ghost_messaging.exe"
+Name: "{userdesktop}\Uplink"; Filename: "{app}\ghost_messaging.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\ghost_messaging.exe"; Description: "Open Ghost Messaging"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\ghost_messaging.exe"; Description: "Open Uplink"; Flags: nowait postinstall skipifsilent
 ; The app's own update (lib/desktop/updates.dart, WindowsUpdateHost) runs this silently with /RELAUNCH and quits:
 ; open it again. Any other silent install (the build's own check) leaves it closed.
 Filename: "{app}\ghost_messaging.exe"; Flags: nowait runasoriginaluser; Check: Relaunch

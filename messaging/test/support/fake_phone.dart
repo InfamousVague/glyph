@@ -327,7 +327,7 @@ class FakePhone {
       case 'me' when !old:
         final what = (a['what'] as Map).cast<String, Object?>();
         meAsked.add(what);
-        if (me == null) throw 'Open Ghost Messaging on your phone, then try again.';
+        if (me == null) throw 'Open Uplink on your phone, then try again.';
         return me!(what);
       default:
         throw 'The phone doesn\'t do "$method" for a computer';

@@ -169,7 +169,7 @@ void main() {
 
   test('what the Mac answers is what is said: refused, or a copy that cannot replace itself', () async {
     description = says();
-    var mac = _FakeMac(here(), answer: 'the download is not signed by Ghost Messaging’s developer');
+    var mac = _FakeMac(here(), answer: 'the download is not signed by Uplink’s developer');
     var updates = await looked(mac);
     expect(updates.phase, MacUpdatePhase.failed);
     expect(updates.problem, contains('not signed by'));
@@ -177,10 +177,10 @@ void main() {
     mac.answer = 'ready';
     await updates.check();
     expect(updates.phase, MacUpdatePhase.ready);
-    mac = _FakeMac(here(), answer: 'manual: Ghost Messaging can’t write to /Applications.');
+    mac = _FakeMac(here(), answer: 'manual: Uplink can’t write to /Applications.');
     updates = await looked(mac);
     expect(updates.phase, MacUpdatePhase.manual);
-    expect(updates.problem, 'Ghost Messaging can’t write to /Applications.');
+    expect(updates.problem, 'Uplink can’t write to /Applications.');
     final asked = zipAsked;
     await updates.check();
     expect(zipAsked, asked, reason: 'what this copy cannot take is not fetched again each time');

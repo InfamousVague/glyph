@@ -13,7 +13,7 @@ import 'package:ghost_relay/sha256.dart';
 import 'package:ghost_relay/texts.dart';
 import 'package:test/test.dart';
 
-/// Ghost accounts on the relay (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to existing accounts.
+/// Uplink accounts on the relay (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to existing accounts.
 /// We might need to add password based authentication as well as SMS verification for verified numbers"): sealed
 /// blobs kept by address, found by username, handed over after a texted code where a number is verified, and written
 /// only by the account's own signature.
@@ -28,7 +28,7 @@ String pwBlob(String c) => jsonEncode({'v': 1, 'k': 'argon2id', 'm': 65536, 't':
 List<int> _proof(String password) => sha256(utf8.encode('proof|$password'));
 final right = hexOf(_proof('right'));
 
-/// A Ghost identity (P-256, as the hub knows it) with an account key (secp256k1, as the address is made).
+/// An Uplink identity (P-256, as the hub knows it) with an account key (secp256k1, as the address is made).
 class Who {
   Who() : identity = _bytes(32), account = _bytes(32);
   final List<int> identity;
@@ -148,7 +148,7 @@ void main() {
     // One account to an identity: a second address for Maya's identity is refused.
     await ask(maya.id, maya.put(maya.id));
     final same = _SameIdentity(maya, Who());
-    expect(err(await ask(maya.id, same.put(maya.id))), 'This Ghost identity already has an account.');
+    expect(err(await ask(maya.id, same.put(maya.id))), 'This Uplink identity already has an account.');
     // Written from another connection (a restored device with another hub name) is fine, so long as it says so.
     expect(await ask(sam.id, maya.put(sam.id, pw: pwBlob('from elsewhere'))), containsPair('ok', true));
   });

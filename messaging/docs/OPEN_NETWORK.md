@@ -446,7 +446,7 @@ address and nothing else, but for the two things it sends over plain HTTP, from 
 (`GHOST_APP_ORIGIN=https://app.gogho.st`: `Access-Control-Allow-Origin` on `/market/abuse` and `/feedback` alone,
 `relay/lib/relay.dart`). A relay anyone runs can serve the same app from its own `/app/` (`--web`, `GHOST_WEB_DIR`),
 built without a hub, which then speaks to the hub beside it; feedback goes to that relay, beside the page, and a
-report can't go from there (reports go to Ghost Messaging's review, at another address its policy doesn't name), so
+report can't go from there (reports go to Uplink's review, at another address its policy doesn't name), so
 the report sheet says where to report from instead: app.gogho.st, or the app on a phone or a computer. Feedback from a
 browser is words alone: a page can't choose a picture yet.
 

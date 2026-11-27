@@ -45,7 +45,7 @@ Future<void> _main(List<String> args) async {
   }
 
   if (args.contains('--help') || args.contains('-h')) {
-    stdout.writeln('Ghost Messaging relay\n  --host <address>  where to listen (127.0.0.1)\n  --port <number>   (8787, or \$PORT)\n  --data <folder>   where channels.json is kept (relay-data)\n  --web <folder>    the app built for a browser, served under /app/ (\$GHOST_WEB_DIR; none)\n  --verbose         say when an end joins or leaves (never an address)');
+    stdout.writeln('Uplink relay\n  --host <address>  where to listen (127.0.0.1)\n  --port <number>   (8787, or \$PORT)\n  --data <folder>   where channels.json is kept (relay-data)\n  --web <folder>    the app built for a browser, served under /app/ (\$GHOST_WEB_DIR; none)\n  --verbose         say when an end joins or leaves (never an address)');
     return;
   }
   final host = option('host', '127.0.0.1');
@@ -65,7 +65,7 @@ Future<void> _main(List<String> args) async {
   // Invites waiting for someone not on the app yet, kept by a hash of their number and taken only by the install that
   // verified it (invites.dart; Matt, 2026-11-17: "a link that eventually follows through after they setup their account").
   final invites = Invites(dataDir: data, phoneKeyOf: handles.phoneKeyOf, whoOf: handles.whoOf, verbose: verbose);
-  // Ghost accounts' sealed backups, by address (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to
+  // Uplink accounts' sealed backups, by address (accounts.dart; Matt, 2026-11-17: "We need to have a way to login to
   // existing accounts"): usernames and the texted code for a verified number are handles'.
   final accounts = Accounts(dataDir: data, handles: handles, verbose: verbose);
   // The account each identity belongs to, on the admin page (handles.dart, accountOf).
@@ -120,7 +120,7 @@ Future<void> _main(List<String> args) async {
   final appOrigin = Relay.appOriginFrom(Platform.environment);
   final relay = Relay(dataDir: data, verbose: verbose, hub: hub, files: files, feedback: feedback, market: market, bounty: Bounty(key: Bounty.keyFrom(Platform.environment), give: handles.giveBounty), souls: SoulsSend(send: handles.sendSouls, receiptOf: handles.soulsReceipt, soulsOf: handles.soulsOf), web: web, appOrigin: appOrigin);
   final got = await relay.start(host: host, port: port);
-  stdout.writeln('Ghost Messaging relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; connections hold at most ${WireBudget.shared.most >> 20} MB together; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}${appOrigin == null ? '' : ', and at $appOrigin'}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; held for people away: ${keepHeld ? 'kept on disk too' : 'in memory'}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
+  stdout.writeln('Uplink relay listening on ws://$host:$got (${relay.channelCount} pairings kept; ${handles.linked} handles linked; ${files.spaces} Files spaces; ${market.listed} plugins listed; call relay: ${turn.on ? turn.urls.join(' ') : 'off'}; link helpers: ${hub.helpers.isEmpty ? 'none' : hub.helpers.join(' ')}; connections hold at most ${WireBudget.shared.most >> 20} MB together; the app in a browser: ${web == null ? 'off' : (web.there ? '/app/' : 'no index.html in $webDir')}${appOrigin == null ? '' : ', and at $appOrigin'}; sign-ins bound to: ${hub.names.isEmpty ? 'none' : hub.names.join(' ')}; held for people away: ${keepHeld ? 'kept on disk too' : 'in memory'}; other relays: ${federation == null ? 'off' : '${fedConfig.mode.name}, this one is ${federation.id}'}; sign-ins: ${handles.ways.entries.where((e) => e.value == 'signin').map((e) => e.key).join(', ').padRight(1, '-')})');
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
       await relay.stop();

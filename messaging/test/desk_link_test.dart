@@ -275,7 +275,7 @@ void main() {
     final later = Me.forTest();
     await later.followPhone(Sms.instance.me);
     expect(later.ready, isFalse);
-    expect(later.phoneSaid, contains('Open Ghost Messaging on your phone'));
+    expect(later.phoneSaid, contains('Open Uplink on your phone'));
   });
 
   test('a phone whose app is older does none of the newer things, and the screens offer none', () async {
@@ -298,7 +298,7 @@ void main() {
     expect(await Sms.instance.ownNumber(), isNull);
     final me = Me.forTest();
     await me.followPhone(Sms.instance.me);
-    expect(me.phoneSaid, contains('Update Ghost Messaging on your phone'));
+    expect(me.phoneSaid, contains('Update Uplink on your phone'));
     // What it always did, it still does.
     expect(await Sms.instance.send(['+15550100'], 'still texts'), 7);
   });

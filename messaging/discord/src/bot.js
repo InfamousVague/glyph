@@ -1,6 +1,6 @@
-// Ghost Messaging's Discord bot: one gateway connection, the /ghost commands, the HTTP routes in http.js on 127.0.0.1,
-// and the bridge (bridge/): when a Ghost user presses a linked server's voice channel, the bot joins that channel and
-// the matching Ghost space and carries sound and the channel's chat both ways.
+// Uplink's Discord bot: one gateway connection, the /ghost commands, the HTTP routes in http.js on 127.0.0.1,
+// and the bridge (bridge/): when an Uplink user presses a linked server's voice channel, the bot joins that channel and
+// the matching Uplink space and carries sound and the channel's chat both ways.
 //
 // Intents: Guilds and GuildVoiceStates, and for the chat GuildMessages and MessageContent (privileged: switched on in
 // the Developer Portal). If Discord refuses MessageContent the bot connects again without the two and carries no
@@ -12,7 +12,7 @@
 //   DISCORD_DATA     where links.json and bridges.json live, default ./data
 //   GHOST_HUB        the relay's hub, default ws://127.0.0.1:18787/hub (the relay on the same box)
 //   GHOST_BRIDGE     "off" to run as the presence bot only
-//   GHOST_RTC_PORTS  optional "min-max": the UDP ports WebRTC uses towards Ghost apps (for a firewall)
+//   GHOST_RTC_PORTS  optional "min-max": the UDP ports WebRTC uses towards Uplink apps (for a firewall)
 import { createServer } from 'node:http';
 import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { Bridges } from './bridge/bridge.js';
@@ -81,7 +81,7 @@ const guilds = {
   },
 };
 
-// The bridge: one connection to Ghost's hub under the bridge's own kept key, and the bridges themselves. The Discord
+// The bridge: one connection to Uplink's hub under the bridge's own kept key, and the bridges themselves. The Discord
 // half is made for whichever client is current (a new one if Discord refused the chat's intent).
 const me = makeIdentity(bridgeStore.identityPem(() => makeIdentity().pem));
 const hub = new Hub({ url: HUB, me, log });
@@ -207,7 +207,7 @@ const server = createServer(createHandler({ codes, store, guilds, bridge, appId:
 server.headersTimeout = 10_000;
 server.requestTimeout = 30_000;
 server.listen(PORT, '127.0.0.1', () => {
-  log(`listening on 127.0.0.1:${PORT}; bridge ${BRIDGE ? `on (Ghost hub id ${me.id.slice(0, 6)}…)` : 'off'}`);
+  log(`listening on 127.0.0.1:${PORT}; bridge ${BRIDGE ? `on (Uplink hub id ${me.id.slice(0, 6)}…)` : 'off'}`);
   log(`invite: ${inviteUrl(APP_ID)}`);
 });
 

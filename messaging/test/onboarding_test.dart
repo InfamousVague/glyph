@@ -75,7 +75,7 @@ void main() {
     expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('before Ghost can send texts there is no Skip and Continue waits', (tester) async {
+  testWidgets('before Uplink can send texts there is no Skip and Continue waits', (tester) async {
     status = {'isDefault': false, 'contacts': false, 'notifications': false, 'phone': true};
     addTearDown(() => status = {'isDefault': true, 'contacts': true, 'notifications': true, 'phone': true});
     var done = 0;

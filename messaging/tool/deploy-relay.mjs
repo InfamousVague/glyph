@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Puts Ghost Messaging's relay on the box (Matt, 2026-11-14: "Deploy the relay"): relay/, which is the pairings'
+ * Puts Uplink's relay on the box (Matt, 2026-11-14: "Deploy the relay"): relay/, which is the pairings'
  * relay at /relay/<channel> (a phone and the computer it is paired with) and the hub at /hub (where two people's
  * apps find each other: docs/network.md). One program, one service, listening on the box alone; the web server
  * that holds ghost-sms.com's certificate passes those two addresses to it (tool/deploy-site.mjs --caddy writes
@@ -83,7 +83,7 @@ const KNOWN = {
   GHOST_TEXT_TO: /^\+[0-9]{1,6}(,\+[0-9]{1,6})*$/,
   GHOST_TEXTS_A_DAY: /^[0-9]{1,6}$/,
   // The admin page's sign-in (tool/admin-password.mjs; relay/lib/handles.dart HandlesConfig.adminUser): a username,
-  // the password's salted hash, and the Ghost usernames that may sign in.
+  // the password's salted hash, and the Uplink usernames that may sign in.
   GHOST_ADMIN_USER: /^[a-z0-9-]{3,40}$/,
   GHOST_ADMIN_HASH: /^[0-9a-f]{32}:[0-9a-f]{64}$/,
   GHOST_ADMIN_NAMES: /^[a-z0-9._]{3,20}(,[a-z0-9._]{3,20})*$/,
@@ -255,7 +255,7 @@ const sum = createHash('sha256').update(program).digest('hex');
 console.log(`  ${(program.length / 1e6).toFixed(1)} MB, sha256 ${sum.slice(0, 16)}…`);
 
 const SERVICE = `[Unit]
-Description=Ghost Messaging relay: pairings at /relay, the hub at /hub (ghost-sms.com)
+Description=Uplink relay: pairings at /relay, the hub at /hub (ghost-sms.com)
 After=network.target
 
 [Service]

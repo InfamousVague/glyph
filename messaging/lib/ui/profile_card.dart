@@ -49,7 +49,7 @@ import '../kit/picture_decode.dart';
 
 /// Who a profile card is about (Matt, 2026-11-19: "when clicking on a @mention anywhere including signal and telegram
 /// chats show this profile popup with actions available for the user in context of where it's placed"): someone on
-/// Ghost, by their id on the hub or their username, or someone on another network ([network]), by its own id or
+/// Uplink, by their id on the hub or their username, or someone on another network ([network]), by its own id or
 /// username. [room] is the space it was opened in, for what makes sense there.
 class ProfileSubject {
   const ProfileSubject.ghost({this.id = '', this.username = '', this.name = '', this.room, this.onMention, this.detail = ''}) : network = null;
@@ -68,7 +68,7 @@ class ProfileSubject {
   final String detail;
 }
 
-/// A mention's [id] as the message lines carry it, made a subject: a Ghost id in a space ([room]), `u:<name>` for a
+/// A mention's [id] as the message lines carry it, made a subject: an Uplink id in a space ([room]), `u:<name>` for a
 /// username written in the words, `n:<id>` for someone a network named.
 ProfileSubject subjectOfMention(String id, {String words = '', InboxNetwork? network, HangoutRoom? room, VoidCallback? onMention}) {
   final name = words.startsWith('@') ? words.substring(1) : words;
@@ -81,7 +81,7 @@ ProfileSubject subjectOfMention(String id, {String words = '', InboxNetwork? net
 }
 
 /// Opens [who]'s profile: their picture, name, username, status and line, what can be done with them from here, and
-/// for someone on Ghost a small field to write to them straight away.
+/// for someone on Uplink a small field to write to them straight away.
 Future<void> showProfile(BuildContext context, ProfileSubject who, {List<Choice> more = const []}) {
   final ghost = who.network == null ? _ghostOf(who) : null;
   final choices = <Choice>[
@@ -92,7 +92,7 @@ Future<void> showProfile(BuildContext context, ProfileSubject who, {List<Choice>
   return showChoices(context, header: _ProfileCard(who: who, ghost: ghost), choices: choices);
 }
 
-/// What is known here of someone on Ghost: a friend's own profile, else what they said in the space, else their
+/// What is known here of someone on Uplink: a friend's own profile, else what they said in the space, else their
 /// username alone.
 class _Ghost {
   _Ghost({required this.id, required this.username, required this.name, this.buddy, this.status = '', this.pictureHash = '', this.me = false, this.game, this.cosmetics = Cosmetics.none});
@@ -190,7 +190,7 @@ Future<void> _addFriend(BuildContext context, String username) async {
   }
 }
 
-/// Opens the conversation with a friend on Ghost, addressed by their username.
+/// Opens the conversation with a friend on Uplink, addressed by their username.
 Future<void> _openGhostChat(BuildContext context, _Ghost g) async {
   final address = UsernameChats.addressOf(g.username);
   final person = Person(address: address, name: g.name);
@@ -237,7 +237,7 @@ Future<void> _openNetworkChat(BuildContext context, ProfileSubject who) async {
   }
 }
 
-/// The card at the top of the sheet: picture, name, username and status, the line about them, and on Ghost the field
+/// The card at the top of the sheet: picture, name, username and status, the line about them, and on Uplink the field
 /// to write to them.
 class _ProfileCard extends StatefulWidget {
   const _ProfileCard({required this.who, this.ghost});
@@ -280,7 +280,7 @@ class _ProfileCardState extends State<_ProfileCard> {
   }
 
   /// Fetches what the card shows beyond what was handed in: a network's profile (ten seconds at most), or the
-  /// picture of someone on Ghost.
+  /// picture of someone on Uplink.
   Future<void> _look() async {
     final who = widget.who, g = widget.ghost;
     try {
@@ -326,9 +326,9 @@ class _ProfileCardState extends State<_ProfileCard> {
     final username = n?.username.isNotEmpty == true ? n!.username : (g?.username ?? who.username);
     final status = n?.status.isNotEmpty == true ? n!.status : (g?.status ?? '');
     final bio = n?.bio.isNotEmpty == true ? n!.bio : (g?.me == true ? Me.instance.bio : (g?.buddy?.bio ?? ''));
-    final where = who.network?.name ?? 'Ghost';
+    final where = who.network?.name ?? 'Uplink';
     final sub = [if (username.isNotEmpty) '@$username', where, if (n != null && n.seen.isNotEmpty) n.seen, if (n != null && n.bot) 'bot'].join(' · ');
-    // What they shared beyond Ghost: their number and the accounts they linked (Me.shareLinks), or a network's number.
+    // What they shared beyond Uplink: their number and the accounts they linked (Me.shareLinks), or a network's number.
     final links = <(String, String)>[
       for (final e in (g?.buddy?.links ?? const <String, String>{}).entries) (e.key == 'phone' ? 'Phone' : (Inbox.instance.named(e.key)?.name ?? _titled(e.key)), e.value),
       if (n != null && n.number.isNotEmpty) ('Phone', n.number),
@@ -336,14 +336,14 @@ class _ProfileCardState extends State<_ProfileCard> {
     // The links they typed for their profile (GMFB-34; lib/me/own_links.dart): theirs by their word alone, so they are
     // set apart from the accounts above and say so.
     final own = g == null ? const <OwnLink>[] : (g.me ? Me.instance.ownLinks : (g.buddy?.state == 'yes' ? g.buddy!.own : const <OwnLink>[]));
-    // On Ghost, by their id or, for an "@name" written in a message, their username: the verified mark and the badges
+    // On Uplink, by their id or, for an "@name" written in a message, their username: the verified mark and the badges
     // are asked of the relay either way (lib/me/verified_numbers.dart), so a mention by name shows them too.
     final known = g != null && (g.id.isNotEmpty || g.username.isNotEmpty);
     // Shaped as Discord's profile (Matt, 2026-11-20: "display badges on the users profile popup and redesign the
     // profile popup to be more like discords"): a banner in their colour, the face over its lower edge in a ring of the
     // card's own colour, their badges' marks in a small tray to its right, the name large, then a panel of what is
     // known of them, About me, Badges by name, Where (this circle) and their links, and the field to write to them.
-    // What their profile wears (GMFB-34): only someone on Ghost has any.
+    // What their profile wears (GMFB-34): only someone on Uplink has any.
     final dress = g?.cosmetics ?? Cosmetics.none;
     final face = t.lenOf('5rem');
     final ringW = t.lenOf('0.375rem');
@@ -389,7 +389,7 @@ class _ProfileCardState extends State<_ProfileCard> {
             Row(children: [
               Expanded(child: Text(Did.short(did), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink')))),
               IconTap(key: const ValueKey('profile-did-copy'), icon: Lucide.copy, label: 'Copy the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => _copy(context, did)),
-              IconTap(key: const ValueKey('profile-did-share'), icon: Lucide.share2, label: 'Share the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => unawaited(Sms.instance.shareText('A Ghost Messaging account key', did))),
+              IconTap(key: const ValueKey('profile-did-share'), icon: Lucide.share2, label: 'Share the account key', size: 16, box: t.lenOf('2rem'), onPressed: () => unawaited(Sms.instance.shareText('An Uplink account key', did))),
             ]),
             Text(g!.me ? didWords : theirDidWords(name.isEmpty ? 'This person' : name), style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'), height: 1.4)),
           ]),
@@ -621,7 +621,7 @@ class ProfileFace extends StatelessWidget {
   }
 }
 
-/// The "@username"s written in [text] as plain words (a Ghost username's shape: three to twenty letters, numbers, dots
+/// The "@username"s written in [text] as plain words (an Uplink username's shape: three to twenty letters, numbers, dots
 /// or underscores, not inside an email address), as mentions whose id is `u:<username>` ([subjectOfMention]): in a
 /// conversation, where nothing says who an "@" means, the name written is who is meant.
 List<Mention> handleMentions(String text) {

@@ -75,7 +75,7 @@ class HelperService {
 
   /// What the person is told before signing in, and in its Settings. None of these services allows other apps.
   String get warning =>
-      '$name doesn\'t support or allow other apps. Ghost signs in as you, with the session of a browser signed in to your account, through the open-source $library library, and behaves as the website does. $name may ask you to confirm it\'s you, sign that session out, or restrict accounts it finds using unofficial apps.${also.isEmpty ? '' : ' $also'}';
+      '$name doesn\'t support or allow other apps. Uplink signs in as you, with the session of a browser signed in to your account, through the open-source $library library, and behaves as the website does. $name may ask you to confirm it\'s you, sign that session out, or restrict accounts it finds using unofficial apps.${also.isEmpty ? '' : ' $also'}';
 }
 
 /// Facebook Messenger, Instagram and LinkedIn (Matt, 2026-11-20: "Let's do the feasible ones but skip X and google
@@ -91,7 +91,7 @@ const messengerService = HelperService(
   optional: ['sb', 'fr', 'wd', 'presence', 'oo', 'dpr'],
   copyFrom: 'any request to www.messenger.com (or www.facebook.com)',
   // sidecar/messenger: encrypted chats need a device of their own on the account (README, "End-to-end encrypted chats").
-  also: 'To read end-to-end encrypted chats Ghost is added to your account as another device, which Messenger lists among your devices; encrypted messages from before you sign in stay in Messenger.',
+  also: 'To read end-to-end encrypted chats Uplink is added to your account as another device, which Messenger lists among your devices; encrypted messages from before you sign in stay in Messenger.',
 );
 const instagramService = HelperService(
   id: 'instagram',
@@ -144,7 +144,7 @@ const xService = HelperService(
   optional: [],
   copyFrom: 'any request to x.com/i/api',
   passcode: true,
-  also: 'X\'s messages are end-to-end encrypted (X Chat): Ghost asks for your 4-digit X Chat passcode once, to open their keys. X locks X Chat after a few wrong passcodes.',
+  also: 'X\'s messages are end-to-end encrypted (X Chat): Uplink asks for your 4-digit X Chat passcode once, to open their keys. X locks X Chat after a few wrong passcodes.',
 );
 const slackService = HelperService(
   id: 'slack',
@@ -351,7 +351,7 @@ class AccountHelper extends InboxNetwork {
     return cookies;
   }
 
-  /// Told of a sign-in made on this device by what was pasted (not one that came synced), so every device on the Ghost
+  /// Told of a sign-in made on this device by what was pasted (not one that came synced), so every device on the Uplink
   /// account is signed in too (CurlSync.share; Matt, 2026-11-21: "if i login to discord or something the curl should
   /// automatically be applied to all devices using the same ghost messaging account"). Null in a test.
   static void Function(String serviceId, Map<String, String> cookies)? onShare;

@@ -4,14 +4,14 @@ import 'app_state.dart';
 import 'me/me.dart';
 import 'sms.dart';
 
-/// Ghost's own lists of what was archived or deleted where the network itself could not do it, kept on the person's
-/// Ghost account too (Matt, 2026-11-15: "if we can't actually delete telegram messages add them to a ignore or
+/// Uplink's own lists of what was archived or deleted where the network itself could not do it, kept on the person's
+/// Uplink account too (Matt, 2026-11-15: "if we can't actually delete telegram messages add them to a ignore or
 /// archive list on my ghost account specifically"): a network's chats archived, deleted, pinned or with messages
-/// deleted in Ghost alone (lib/inbox/inbox.dart's lists), and the conversations and texts deleted beside Google
+/// deleted in Uplink alone (lib/inbox/inbox.dart's lists), and the conversations and texts deleted beside Google
 /// Messages that Android would not let go of (android Store.kt's hidden_threads and hidden_msgs).
 ///
 /// Kept on the relay sealed with a key only this install has (Me.keep), so the relay holds what it can't read. Read
-/// back as Ghost reaches the relay and joined with what is here: an item deleted on either side stays deleted.
+/// back as Uplink reaches the relay and joined with what is here: an item deleted on either side stays deleted.
 class KeptLists {
   KeptLists._();
   static final KeptLists instance = KeptLists._();

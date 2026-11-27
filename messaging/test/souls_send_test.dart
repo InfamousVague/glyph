@@ -28,7 +28,7 @@ import 'support/space_call_harness.dart';
 class _Relay {
   _Relay(this.souls);
 
-  /// Souls by Ghost id, and the receipts by their names.
+  /// Souls by Uplink id, and the receipts by their names.
   final Map<String, int> souls;
   final Map<String, Map<String, Object?>> receipts = {};
 

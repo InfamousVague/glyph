@@ -1,4 +1,4 @@
-# Ghost Messaging: a recording with video, made on Windows and kept to be looked at (GMFB-42; Matt, 2026-11-26:
+# Uplink: a recording with video, made on Windows and kept to be looked at (GMFB-42; Matt, 2026-11-26:
 # "Build Windows too"). Nobody here has a PC, so this is where windows/runner/call_video.cpp is compiled and run
 # before a release carries it: the app's own test (messaging/integration_test/recording_video_native_test.dart) is
 # sent a voice, a camera and a second picture by a Chromium with stand-in devices
@@ -6,7 +6,7 @@
 # `windows-video-check`: recording.mp4 to read with ffprobe and look at frames of.
 #
 # Run by pushing the branch `windows-video-check`, or by hand. It publishes nothing and signs nothing.
-name: Ghost Messaging · Windows video recording check
+name: Uplink · Windows video recording check
 
 on:
   workflow_dispatch:

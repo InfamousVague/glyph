@@ -1,5 +1,5 @@
 /// A message's words as a plugin shows them ([ShownText]: the Translate plugin, lib/plugins/translate.dart), drawn the
-/// same way by every conversation that has bubbles: texts and Ghost (lib/ui/thread.dart), Telegram and Signal
+/// same way by every conversation that has bubbles: texts and Uplink (lib/ui/thread.dart), Telegram and Signal
 /// (lib/ui/inbox_ui.dart) and a space's chat (lib/ui/hangout_screen.dart). Matt, 2026-11-17: "add a translate plugin
 /// which can automatically translate texts when detected from another language and show the original text dimmed in a
 /// card with the translated text for the actual message bubble".

@@ -55,7 +55,7 @@ object DevLog {
             return "${if (m["ok"] == true) "worked" else "failed"}: ${m["detail"]} (${stamp.format(Date(m["at"] as Long))})"
         }
         val head = listOf(
-            "Ghost Messaging $version",
+            "Uplink $version",
             "${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
             "Carrier: ${mms["carrier"] ?: "not said"} · mobile data: ${when (mms["dataOn"]) { true -> "on"; false -> "off"; else -> "not said" }} · picture messages allowed: ${when (mms["allowed"]) { true -> "yes"; false -> "no"; else -> "not said" }} · largest: ${(mms["maxBytes"] as Int?)?.let { "${it / 1024} KB" } ?: "not said"}",
             "Last picture message sent: ${last("lastSend")}",

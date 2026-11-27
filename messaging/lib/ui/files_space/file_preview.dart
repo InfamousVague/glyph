@@ -256,7 +256,7 @@ class _FilePreviewScreenState extends State<FilePreviewScreen> {
       return _note(t, _error!.offline ? Lucide.wifiOff : Lucide.circleAlert, _error!.message, action: _Pill(label: 'Try again', icon: Lucide.refreshCw, onPressed: () => setState(_bring)));
     }
     if (_streamed && f.kind == FileKind.audio) return _AudioPlayer(key: ValueKey('stream ${f.id}'), file: f, stream: () => _store.stream(widget.channel, widget.file));
-    if (_tooBig) return _other(t, f, '', note: 'Too big to show in a browser (${fileSize(f.size)}). Download it, or open it in Ghost Messaging on a phone or a computer.');
+    if (_tooBig) return _other(t, f, '', note: 'Too big to show in a browser (${fileSize(f.size)}). Download it, or open it in Uplink on a phone or a computer.');
     final path = _path;
     if (path == null) {
       final coming = _store.downloading(f);

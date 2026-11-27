@@ -1,7 +1,7 @@
 /* gogho.st/docs, in Uplink's look (site/uplink.css): near-black space, white type, forward-leaning Saira headings,
    small radii, sticker cards with a thin inset line, and the needle (the uplink beam) as the accent. Dark is the default,
    as on the landing page; the bar's switch gives black on paper. Glacier's tokens (glacier-tokens.css, the app's own)
-   give sizes and motion. The mocks are drawn as the app draws its Ghost look, in its own colours. */
+   give sizes and motion. The mocks are drawn as the app draws its Uplink look, in its own colours. */
 
 :root {
   color-scheme: dark;
@@ -23,7 +23,7 @@
   --blue: #7cc4ff;
   --danger: #ff7a6e;
   --amber: #f0b44c;
-  /* The app's own surfaces, for the mocks (Ghost look, dark). */
+  /* The app's own surfaces, for the mocks (Uplink look, dark). */
   --teal: #3cc9bb;
   --teal-ink: #6fdacd;
   --on-teal: #04211f;
@@ -233,7 +233,7 @@ h1 .badge { font-size: .8rem; vertical-align: .5em; }
 .step h3 { margin: .1rem 0 .35rem !important; font-size: 1.1rem; }
 .step-body > p:first-of-type { margin-top: 0; }
 
-/* --- the mocks: the app as it draws itself (Ghost look) ------------------------------------------------------------- */
+/* --- the mocks: the app as it draws itself (Uplink look) ------------------------------------------------------------- */
 .mock { margin: 1rem 0 .4rem; display: flex; flex-direction: column; align-items: flex-start; }
 .mock figcaption { color: var(--ink-3); font-size: .82rem; margin: .5rem .2rem 0; max-width: 22rem; }
 .m-screen {

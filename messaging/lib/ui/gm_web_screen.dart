@@ -20,11 +20,11 @@ import '../invites/link_relay.dart';
 import '../l10n/words.dart';
 
 /// Google Messages' web connection on this phone (android GmWeb.kt; Matt, 2026-11-15: "Can you build the on phone
-/// google messages connection too?"): Google Messages' conversations whole in Ghost, with pictures, reactions and
+/// google messages connection too?"): Google Messages' conversations whole in Uplink, with pictures, reactions and
 /// delivered and read marks, and no need for its notifications.
 ///
 /// Paired by a QR code Google Messages on this phone scans; the phone cannot scan its own screen, so the code is
-/// shown on another: a link (gogho.st/pair) shared from here whose secret, after the #, gives a room on Ghost's relay
+/// shown on another: a link (gogho.st/pair) shared from here whose secret, after the #, gives a room on Uplink's relay
 /// and the key for it. Each new code (one about every half minute) is said there sealed, and the page draws it.
 class GmWebScreen extends StatefulWidget {
   const GmWebScreen({super.key});
@@ -139,12 +139,12 @@ class _GmWebScreenState extends State<GmWebScreen> {
     final problem = s['problem'] as String?;
     final children = <Widget>[];
     if (s['available'] != true) {
-      children.add(SettingsCallout(child: const Tr('This copy of Ghost has no Google Messages helper. Update Ghost to get it.')));
+      children.add(SettingsCallout(child: const Tr('This copy of Uplink has no Google Messages helper. Update Uplink to get it.')));
     } else if (_paired) {
       final inactive = s['inactive'] == true;
       children.add(PaneSection(
         title: 'Connected to Google Messages',
-        footer: const Tr('Ghost now has Google Messages\' conversations whole: RCS and texts, pictures, reactions, and when your messages are delivered and read. Google Messages\' own notifications can be turned off altogether; Ghost shows its own. Google Messages has one web session at a time: if a computer or messages.google.com takes it, this phone takes it back.'),
+        footer: const Tr('Uplink now has Google Messages\' conversations whole: RCS and texts, pictures, reactions, and when your messages are delivered and read. Google Messages\' own notifications can be turned off altogether; Uplink shows its own. Google Messages has one web session at a time: if a computer or messages.google.com takes it, this phone takes it back.'),
         children: [
           SettingRow(
             icon: icon(s['connected'] == true && !inactive ? Lucide.circleCheck : Lucide.triangleAlert),
@@ -154,8 +154,8 @@ class _GmWebScreenState extends State<GmWebScreen> {
           SettingRow(
             icon: icon(Lucide.unlink),
             label: 'Unpair',
-            hint: const Tr('Ghost goes back to reading Google Messages\' notifications.'),
-            onPress: () => showChoices(context, title: 'Unpair Google Messages from Ghost on this phone?', choices: [
+            hint: const Tr('Uplink goes back to reading Google Messages\' notifications.'),
+            onPress: () => showChoices(context, title: 'Unpair Google Messages from Uplink on this phone?', choices: [
               Choice('Unpair', Lucide.unlink, () async {
                 final s = await Sms.instance.gmWebUnpair();
                 if (mounted) setState(() => _s = s);
@@ -169,9 +169,9 @@ class _GmWebScreenState extends State<GmWebScreen> {
       // up google messages a onboarding flow that is all in one place"): QR pairing is gone where Google Messages is
       // signed in to an account.
       children.add(PaneSection(
-        title: 'Set up Google Messages in Ghost',
-        description: const Tr('Ghost then has every conversation, with pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
-        footer: const Tr('It is done by an open-source helper built on mautrix-gmessages (GNU AGPL), talking to Google directly, never through Ghost\'s servers.'),
+        title: 'Set up Google Messages in Uplink',
+        description: const Tr('Uplink then has every conversation, with pictures, reactions, and when your messages are delivered and read, without needing Google Messages\' notifications.'),
+        footer: const Tr('It is done by an open-source helper built on mautrix-gmessages (GNU AGPL), talking to Google directly, never through Uplink\'s servers.'),
         children: [
           SettingRowBox(child: Padding(
             padding: EdgeInsets.symmetric(vertical: t.space(2)),
@@ -199,7 +199,7 @@ class _GmWebScreenState extends State<GmWebScreen> {
         footer: Text(s['qr'] == null ? 'Getting a code from Google…' : 'A fresh code goes to the page about every half minute, for five minutes.'),
         children: [
           SettingRowBox(child: Padding(padding: EdgeInsets.all(t.space(2)), child: Text(link, style: pageText(t, t.fontSize('sm'), mono: true, color: t.color('app-ink-2'))))),
-          SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('Pair Ghost with Google Messages', link)),
+          SettingRow(icon: icon(Lucide.share2), label: 'Share the link', onPress: () => Sms.instance.shareText('Pair Uplink with Google Messages', link)),
           if (problem != null) SettingRow(icon: icon(Lucide.triangleAlert), label: 'It stopped', hint: Text(problem), onPress: _pair),
         ],
       ));

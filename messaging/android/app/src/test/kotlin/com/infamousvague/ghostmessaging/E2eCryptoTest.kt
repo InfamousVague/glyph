@@ -48,7 +48,7 @@ class E2eCryptoTest {
     @Test
     fun aKeyTravelsInATextAndComesBackTheSameKey() {
         assertEquals(33, a.size)
-        val text = "Ghost Messaging encryption key.\n" + E2eCrypto.keyText(a)
+        val text = "Uplink encryption key.\n" + E2eCrypto.keyText(a)
         assertArrayEquals(a, E2eCrypto.keyIn(text))
         assertEquals(alice.public, E2eCrypto.publicFrom(a))
         // Many keys, so both parities of y are met.

@@ -1,7 +1,7 @@
 /// The Marketplace as this device knows it (Matt, 2026-11-20: "I would like users to be able to develop and submit their
 /// own plugins to our plugin marketplace and I'd like to be able to verify them for the store through a review
 /// process"): the catalog, each listed package fetched and checked before anything of it is shown, the updates waiting
-/// for the store packs on this device, the withdrawals read from Ghost Messaging's own relay, and a developer's own
+/// for the store packs on this device, the withdrawals read from Uplink's own relay, and a developer's own
 /// submissions, heard of without opening their page.
 ///
 /// A listing is only ever what checked out: its package's SHA-256 is the catalog's, its approval verifies with a key
@@ -101,7 +101,7 @@ class MarketState extends ChangeNotifier {
   ({String code, DateTime at})? problem;
 
   /// Each store pack on this device, running or not, whose checked listing is newer and by the same developer, and that
-  /// this app can install: one that needs a newer Ghost Messaging would be counted on the ring and refused at every
+  /// this app can install: one that needs a newer Uplink would be counted on the ring and refused at every
   /// press until the app itself is updated (review, 2026-11-20), so it waits until then.
   List<({InstalledPack installed, ListingPlugin listing})> get updates {
     final out = <({InstalledPack installed, ListingPlugin listing})>[];
@@ -213,7 +213,7 @@ class MarketState extends ChangeNotifier {
     }
     if (off) _listings = const [];
     _say();
-    // The withdrawals: from where the catalog came, and from Ghost Messaging's own relay too where that is another
+    // The withdrawals: from where the catalog came, and from Uplink's own relay too where that is another
     // (a relay can withhold them; ours is read whatever net_hub says).
     await _takeRevoked(api);
     if (marketUrlFor(api.hubUrl).toString() != _defaultMarket) await _takeRevoked(api.at(Net.defaultHub));

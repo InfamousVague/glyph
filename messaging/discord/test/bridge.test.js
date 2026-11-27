@@ -63,7 +63,7 @@ async function setup() {
   return { fake, me, hub, timers, discord, store, bridges, tickers, logs };
 }
 
-/** A Ghost app in the space: joins the call's room (and the chat room) and records what it hears. */
+/** An Uplink app in the space: joins the call's room (and the chat room) and records what it hears. */
 async function app(fake, id, seed, { name = 'Matt' } = {}) {
   const k = spaceKeys(seed);
   const b = fake.browser(id);
@@ -94,7 +94,7 @@ test('ensure: joins Discord voice and the space once, answers the seed and the b
   hub.stop();
 });
 
-test('leave: 30 s with nobody from Ghost and the bridge leaves both sides; someone there keeps it', async () => {
+test('leave: 30 s with nobody from Uplink and the bridge leaves both sides; someone there keeps it', async () => {
   const { bridges, discord, timers, fake, me, hub } = await setup();
   const { seed } = await bridges.ensure(G, C);
   const k = spaceKeys(seed);
@@ -148,17 +148,17 @@ test('dc: the Discord people said to the space at once, on speaking changes, and
   hub.stop();
 });
 
-test('nickname: "Ghost · Matt" for one person from Ghost, "Ghost · 2 people" for two, reset when the bridge leaves', async () => {
+test('nickname: "Uplink · Matt" for one person from Uplink, "Uplink · 2 people" for two, reset when the bridge leaves', async () => {
   const { bridges, discord, timers, fake, hub } = await setup();
   const { seed } = await bridges.ensure(G, C);
   await app(fake, 'a1'.repeat(16), seed, { name: 'Matt' });
   await until(() => bridges.find(G, C).names.includes('Matt'), 2000, 'name');
   timers.advance(100);
-  assert.deepEqual(discord.nicknames, ['Ghost · Matt']);
+  assert.deepEqual(discord.nicknames, ['Uplink · Matt']);
   const casper = await app(fake, 'b2'.repeat(16), seed, { name: 'Casper' });
   await until(() => bridges.find(G, C).names.length === 2 && bridges.find(G, C).names.every(Boolean), 2000, 'two');
   timers.advance(100);
-  assert.deepEqual(discord.nicknames, ['Ghost · Matt', 'Ghost · 2 people']);
+  assert.deepEqual(discord.nicknames, ['Uplink · Matt', 'Uplink · 2 people']);
   timers.advance(100);
   assert.equal(discord.nicknames.length, 2, 'unchanged: not set again');
   casper.leave();
@@ -173,10 +173,10 @@ test('chat: Discord -> the space as from the author; the space -> Discord with t
   const { seed } = await bridges.ensure(G, C);
   const matt = await app(fake, 'a1'.repeat(16), seed);
   await until(() => bridges.find(G, C).space.inChat, 2000, 'chat');
-  assert.equal(bridges.discordText(G, C, { name: 'Amy', text: 'hello Ghost' }), true);
+  assert.equal(bridges.discordText(G, C, { name: 'Amy', text: 'hello Uplink' }), true);
   await until(() => matt.heard.some((m) => m.t === 'msg'), 2000, 'msg');
   const m = matt.heard.find((x) => x.t === 'msg');
-  assert.deepEqual([m.n, m.x], ['Amy', 'hello Ghost']);
+  assert.deepEqual([m.n, m.x], ['Amy', 'hello Uplink']);
   assert.match(m.id, /^[0-9a-f]{16}$/);
   assert.equal(discord.posts.length, 0, 'what Discord said is not posted back to Discord');
   matt.say(matt.k.chatRoom, { t: 'msg', id: '0123456789abcdef', x: 'hello Discord', at: 5, n: 'Matt' });
@@ -231,7 +231,7 @@ test('failures: Discord voice failing is a "voice" error and leaves nothing behi
   await app(fake, 'a1'.repeat(16), seed);
   await until(() => bridges.find(G, C).space.members.size === 1, 2000, 'member');
   await assert.rejects(bridges.ensure(G, C2), (e) => e.code === 'busy');
-  // With nobody from Ghost in it, the other channel gives way.
+  // With nobody from Uplink in it, the other channel gives way.
   bridges.find(G, C).space.members.clear();
   await bridges.ensure(G, C2);
   assert.equal(bridges.find(G, C), null);

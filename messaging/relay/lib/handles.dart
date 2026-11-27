@@ -100,7 +100,7 @@ class Handles {
   // install -> the hash of the username it holds.
   final Map<String, String> _nameOf = {};
 
-  /// What each install keeps here for itself, sealed with a key only it has: Ghost's own lists of what was archived
+  /// What each install keeps here for itself, sealed with a key only it has: Uplink's own lists of what was archived
   /// or deleted where the network itself could not do it (Matt, 2026-11-15: "add them to a ignore or archive list on
   /// my ghost account specifically"). This server can't read it; one blob per install, [maxKept] at most.
   final Map<String, String> _kept = {};
@@ -150,7 +150,7 @@ class Handles {
   final Map<String, List<String>> _was = {};
   static const wasKept = 10;
 
-  /// The Ghost account an install's identity belongs to (relay/lib/accounts.dart, Accounts.accountOf), for the admin page:
+  /// The Uplink account an install's identity belongs to (relay/lib/accounts.dart, Accounts.accountOf), for the admin page:
   /// the same person across a reinstall or another device, where they signed back in to it. Set by bin/relay.dart.
   String? Function(String id)? accountOf;
 
@@ -507,7 +507,7 @@ class Handles {
 
   /// Usernames nobody may claim: ones that would read as the service or its staff, and a few words with a meaning of
   /// their own (everyone, here, null).
-  static const reserved = {'admin', 'administrator', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
+  static const reserved = {'admin', 'administrator', 'uplink', 'ghost', 'ghostmessaging', 'ghost_messaging', 'support', 'help', 'official', 'staff', 'moderator', 'mod', 'system', 'root', 'security', 'team', 'everyone', 'here', 'null', 'undefined'};
   int get listed => _listed.length;
   int get watched => _watch.values.fold(0, (n, s) => n + s.length);
 
@@ -1303,7 +1303,7 @@ class Handles {
   /// puts in it.
   static String _page(String title, String words) => '''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ghost Messaging</title>
+<title>Uplink</title>
 <style>
   :root { color-scheme: light dark; --bg: #fdfdfd; --ink: #0e0e10; --ink2: #55565c; }
   @media (prefers-color-scheme: dark) { :root { --bg: #000; --ink: #f2f2f3; --ink2: #a3a4ab; } }
@@ -1328,10 +1328,10 @@ class Handles {
     await request.response.close();
   }
 
-  Future<void> _sorry(HttpRequest request, String why) => _html(request, HttpStatus.badRequest, 'That didn\'t work', '<p>${const HtmlEscape().convert(why)}</p><p>Go back to Ghost Messaging and try again.</p>');
+  Future<void> _sorry(HttpRequest request, String why) => _html(request, HttpStatus.badRequest, 'That didn\'t work', '<p>${const HtmlEscape().convert(why)}</p><p>Go back to Uplink and try again.</p>');
 
   Future<void> _thanks(HttpRequest request, String network, String handle) => _html(request, HttpStatus.ok, 'Linked',
-      '<p>${const HtmlEscape().convert('@$handle')} on ${const HtmlEscape().convert(nameOf(network))} is linked to your Ghost Messaging.</p><p>You can close this page and go back to the app.</p>');
+      '<p>${const HtmlEscape().convert('@$handle')} on ${const HtmlEscape().convert(nameOf(network))} is linked to your Uplink.</p><p>You can close this page and go back to the app.</p>');
 
   /// A network's name as people write it.
   static String nameOf(String network) => switch (network) {

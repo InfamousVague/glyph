@@ -1,6 +1,6 @@
 /// The Plugins page (Matt, 2026-11-17: "redo how the plugins look with their own dedicated plugins page with a
-/// marketplace like look how ghostmd has"): Ghost.md's Market (its lib/market/market_screen.dart) for Ghost
-/// Messaging's plugins. A band in colour with the plugins' tiles on it, a search, a chip for each shelf, a few
+/// marketplace like look how ghostmd has"): Ghost.md's Market (its lib/market/market_screen.dart) for Uplink's
+/// plugins. A band in colour with the plugins' tiles on it, a search, a chip for each shelf, a few
 /// featured plugins, and then every plugin on a card: those added, and those to discover. A plugin's own page says
 /// what it does, what it reads and keeps, has Add or Remove, and once it is added its settings.
 ///
@@ -424,7 +424,7 @@ class _PluginsPageState extends State<PluginsPage> {
       return switch (problem.code) {
         'unreachable' => line('Plugins from other developers couldn\'t be loaded.', const ValueKey('market-catalog-problem'), then: MarketButton(label: 'Try again', look: MarketButtonLook.ring, onPress: () => unawaited(m.refresh(force: true)))),
         'off' => line('The Marketplace isn\'t open just now.', const ValueKey('market-catalog-problem')),
-        _ => line('This version of Ghost Messaging can\'t check plugins from other developers. Update it to see them.', const ValueKey('market-catalog-problem')),
+        _ => line('This version of Uplink can\'t check plugins from other developers. Update it to see them.', const ValueKey('market-catalog-problem')),
       };
     }
     if (m.checking > 0) return line('Checking ${m.checking} ${m.checking == 1 ? 'plugin' : 'plugins'} from other developers…', const ValueKey('market-catalog-checking'));

@@ -1,9 +1,9 @@
-// Ghost Messaging's Slack helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-slack and its slack-go fork, on
+// Uplink's Slack helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-slack and its slack-go fork, on
 // whose Slack client it is built.
 //
 // It signs in to one Slack workspace as the person, with the token and cookie of a browser signed in to it, behaves
 // as Slack's website does (its API with the browser's session, and its live RTM stream), and speaks JSON lines over
-// standard input and output: the protocol all of Ghost's account helpers share (../ACCOUNT_HELPERS.md). Requests,
+// standard input and output: the protocol all of Uplink's account helpers share (../ACCOUNT_HELPERS.md). Requests,
 // each with an "id" its answer carries back:
 //
 //	{"id":1,"op":"status"}                                       → {"linked","connected","me","name","handle"}
@@ -67,7 +67,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
-// request is one line Ghost sends: an op, and whichever of the other fields that op takes.
+// request is one line Uplink sends: an op, and whichever of the other fields that op takes.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -173,7 +173,7 @@ func main() {
 	serve(os.Stdin)
 }
 
-// setup makes the session's folder and the log: [errOut] (Ghost's developer log) and slack.log beside the session,
+// setup makes the session's folder and the log: [errOut] (Uplink's developer log) and slack.log beside the session,
 // never stdout.
 func setup(errOut io.Writer) {
 	_ = os.MkdirAll(dir, 0o700)
@@ -208,7 +208,7 @@ func serve(in io.Reader) {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

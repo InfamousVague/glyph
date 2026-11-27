@@ -132,7 +132,7 @@ class DeskSettings extends ChangeNotifier {
           icon: const AppIcon(Lucide.info, size: 18),
           hue: 'graphite',
           group: 'app',
-          summary: (m) => 'Ghost Messaging for $desktopName ${link.app}',
+          summary: (m) => 'Uplink for $desktopName ${link.app}',
           page: (context, m) => _aboutPage(context, this, m.app),
         ),
       ];
@@ -226,7 +226,7 @@ class _GmPageState extends State<_GmPage> {
                   SettingRow(
                     icon: _icon(LucideMore.smartphone),
                     label: 'Your phone has Google Messages for now',
-                    hint: const Tr('Google Messages keeps one web session at a time, and Ghost on your phone holds it. This computer shows the same conversations through your phone.'),
+                    hint: const Tr('Google Messages keeps one web session at a time, and Uplink on your phone holds it. This computer shows the same conversations through your phone.'),
                   ),
                 SettingRow(
                   icon: _icon(gm.connected ? Lucide.circleCheck : Lucide.triangleAlert),
@@ -254,7 +254,7 @@ class _GmPageState extends State<_GmPage> {
             // would be really cool"): said, rather than asking for this computer to be set up again.
             PaneSection(
               title: 'RCS through your phone',
-              description: const Tr('Your phone has Google Messages set up in Ghost, so every conversation there, RCS and texts, already shows on this computer through it.'),
+              description: const Tr('Your phone has Google Messages set up in Uplink, so every conversation there, RCS and texts, already shows on this computer through it.'),
               footer: const Tr('Your phone needs to be on and online for them to arrive. Set up this computer as well if you want it to reach Google Messages without your phone being on.'),
               children: [
                 SettingRow(
@@ -274,7 +274,7 @@ class _GmPageState extends State<_GmPage> {
             PaneSection(
               title: 'Set up Google Messages on this computer',
               description: const Tr('Every conversation in Google Messages shows here, RCS and texts, with their history, pictures and reactions. It takes a couple of minutes, once.'),
-              footer: const Tr('The connection is this computer\'s alone: messages go between it and Google, never through Ghost\'s servers. The helper is open source, built on mautrix-gmessages (GNU AGPL).'),
+              footer: const Tr('The connection is this computer\'s alone: messages go between it and Google, never through Uplink\'s servers. The helper is open source, built on mautrix-gmessages (GNU AGPL).'),
               children: [
                 SettingRowBox(child: Padding(
                   padding: EdgeInsets.symmetric(vertical: t.space(2)),
@@ -315,13 +315,13 @@ List<Widget> _phonePage(BuildContext context, DeskSettings d) {
     return [
       PaneSection(
         title: 'Texts from an Android phone',
-        description: Text('Optional. Link Ghost Messaging on your Android phone and this $computerWord shows your texts and sends through it. Friends, circles, Telegram and Signal work without one.'),
+        description: Text('Optional. Link Uplink on your Android phone and this $computerWord shows your texts and sends through it. Friends, circles, Telegram and Signal work without one.'),
         children: [
           SettingRow(
             key: const ValueKey('link-phone'),
             icon: _icon(LucideMore.qrCode),
             label: 'Link an Android phone',
-            hint: const Tr('Scan a code with the phone. Ghost Messaging opens again once it is linked.'),
+            hint: const Tr('Scan a code with the phone. Uplink opens again once it is linked.'),
             onPress: () => push<void>(context, (_) => const GhostPage(title: 'Link an Android phone', body: PairWizard())),
           ),
         ],
@@ -475,7 +475,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
   final busy = u.phase == MacUpdatePhase.checking || u.phase == MacUpdatePhase.downloading || u.phase == MacUpdatePhase.restarting;
   return [
     PaneSection(
-      title: 'Ghost Messaging for $desktopName',
+      title: 'Uplink for $desktopName',
       footer: const Tr('It updates itself from gogho.st: a newer version is fetched behind the screens and put in place when you restart, or the next time you quit.'),
       children: [
         SettingRow(icon: _icon(Lucide.ghost), label: 'This version', value: Text('${here.version} (${here.build})')),
@@ -497,7 +497,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
             hint: Text(u.installCommand!),
             onPress: () {
               Clipboard.setData(ClipboardData(text: u.installCommand!));
-              toast(context, 'Copied. Paste it into a terminal, then open Ghost Messaging again.');
+              toast(context, 'Copied. Paste it into a terminal, then open Uplink again.');
             },
           ),
       ],
@@ -509,7 +509,7 @@ List<Widget> _updatesPage(BuildContext context, DeskSettings d) {
 
 List<Widget> _aboutPage(BuildContext context, DeskSettings d, AppState app) {
   return [
-    PaneSection(title: 'Ghost Messaging for $desktopName', children: [
+    PaneSection(title: 'Uplink for $desktopName', children: [
       SettingRow(icon: _icon(Lucide.ghost), label: 'Version', value: Text(d.link.app), onPress: () => versionTapped(context, app)),
       // The release notes again (lib/ui/whats_new.dart).
       SettingRow(icon: _icon(Lucide.sparkles), label: 'What\'s new', hint: const Tr('What the last update brought.'), onPress: () => showWhatsNew(context)),

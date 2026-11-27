@@ -41,7 +41,7 @@ enum ReportReason {
   static ReportReason? of(Object? wire) => values.where((r) => r.wire == wire).firstOrNull;
 }
 
-/// One message in a report: who sent it (a Ghost id, or a username chat's `@name`), their name as shown, when, its
+/// One message in a report: who sent it (an Uplink id, or a username chat's `@name`), their name as shown, when, its
 /// words, and whether it is the one reported (the rest are what was said round it).
 class ReportedMessage {
   const ReportedMessage({required this.from, required this.name, required this.at, required this.text, this.reported = false, this.mine = false});
@@ -88,7 +88,7 @@ class AbuseReport {
   final ReportReason reason;
   final String note;
 
-  /// Who is reported: their Ghost id where it is known ('' where only their username is), their username, their name
+  /// Who is reported: their Uplink id where it is known ('' where only their username is), their username, their name
   /// as the reporter sees it.
   final String subjectId, subjectUsername, subjectName;
 
@@ -247,7 +247,7 @@ class OpenedReport {
   final Uint8List reporterKey;
   final bool verified;
 
-  /// The reporter's Ghost id (NetCrypto.idOf their key).
+  /// The reporter's Uplink id (NetCrypto.idOf their key).
   String get reporterId => NetCrypto.idOf(reporterKey);
 }
 

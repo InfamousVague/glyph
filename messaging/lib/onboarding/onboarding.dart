@@ -3,10 +3,10 @@
 /// elevenlabs key and the vibrant colors and iconography for each step, mimick this on the setup of Ghost
 /// Messaging"): a page at a time, each with a band of vivid colour and its icons (band.dart), a title, the words a
 /// friendly voice says aloud (ElevenLabs, made at build time with the key: narration.dart, tool/onboarding_voice.py),
-/// and the step itself where there is one: Ghost as the texting app (or beside Google Messages), and a look.
+/// and the step itself where there is one: Uplink as the texting app (or beside Google Messages), and a look.
 ///
-/// Shown on first launch, until Ghost can send and receive texts and the walkthrough is finished; Settings › About
-/// replays it. On the texts page Next waits until Ghost can send texts, and Skip appears once it can.
+/// Shown on first launch, until Uplink can send and receive texts and the walkthrough is finished; Settings › About
+/// replays it. On the texts page Next waits until Uplink can send texts, and Skip appears once it can.
 library;
 
 import '../ui/whats_new.dart' show changelogSeenKey;
@@ -43,7 +43,7 @@ class GuideLook {
 
 /// The pages, in order: an id (narration.dart's, and its voice's file), a title, and a look. The texts step alone since
 /// 2026-11-20 (Matt: "rework the onboarding flow to be very simple and just ask for a username and password"; "Yes,
-/// replace it"): the tour of Ghost's features is gone, the look is Settings' to choose, and the username and password
+/// replace it"): the tour of Uplink's features is gone, the look is Settings' to choose, and the username and password
 /// come next (lib/standalone/welcome.dart, from lib/main.dart). Contacts and notifications are asked for as the app
 /// opens (lib/main.dart).
 const List<(String, String, GuideLook)> guidePages = [
@@ -94,7 +94,7 @@ Future<void> openOnboarding(BuildContext context) => Navigator.of(context, rootN
     );
 
 /// The walkthrough a new install opens with: its pages ([guidePages]) one at a time, each with its band, its words
-/// (read aloud where the voice is on) and its step. Shown by lib/main.dart until Ghost can send texts or they are
+/// (read aloud where the voice is on) and its step. Shown by lib/main.dart until Uplink can send texts or they are
 /// passed by, and again from Settings › About ([replay]).
 class Onboarding extends StatefulWidget {
   const Onboarding({super.key, this.onDone, this.replay = false, this.voice = const GuideVoice(), this.initialStatus});
@@ -122,7 +122,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
   /// The voice, on unless switched off; kept, as Ghost.md keeps its own.
   bool get _voiceOn => AppState.of(context).flag('guide_voice');
 
-  /// Ghost can send and receive texts: the default, or beside Google Messages.
+  /// Uplink can send and receive texts: the default, or beside Google Messages.
   bool get _usable => widget.replay || (_status?.usable ?? false);
 
   @override
@@ -181,7 +181,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
   }
 
   /// Texts passed by (Matt, 2026-11-20: "rework the onboarding on mobile so that SMS is not required and you can 'skip
-  /// this step'"): Ghost opens without them, friends, circles and the networks all there, texts off until they are
+  /// this step'"): Uplink opens without them, friends, circles and the networks all there, texts off until they are
   /// turned on in Settings › Texts.
   bool get _textsSkipped => AppState.of(context).flag(textsSkippedKey, fallback: false);
 
@@ -191,7 +191,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     _next();
   }
 
-  /// Next waits on the texts page until Ghost can send texts, or they are skipped.
+  /// Next waits on the texts page until Uplink can send texts, or they are skipped.
   bool get _canGoOn => guidePages[_page].$1 != 'texts' || _usable || _textsSkipped;
 
   void _next() {
@@ -243,7 +243,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
                   },
                 ),
                 const Spacer(),
-                // Once Ghost can send texts there is nothing left that must be done.
+                // Once Uplink can send texts there is nothing left that must be done.
                 if (_usable || _textsSkipped) GuideButton(key: const ValueKey('guide-skip'), label: widget.replay ? 'Close' : 'Skip', look: GuideButtonLook.word, onPress: _finish),
               ]),
             ),
@@ -329,15 +329,15 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
     Widget hint(String words) => Text(words, style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3')));
     switch (id) {
       case 'texts':
-        if (widget.replay) return [done('Ghost can send and receive your texts.')];
-        if (widget.initialStatus != null && _usable) return [done(_status!.isDefault ? 'Ghost is your texting app.' : 'Ghost is working beside Google Messages.')];
+        if (widget.replay) return [done('Uplink can send and receive your texts.')];
+        if (widget.initialStatus != null && _usable) return [done(_status!.isDefault ? 'Uplink is your texting app.' : 'Uplink is working beside Google Messages.')];
         return [
           TextsStep(hue: look.hue, onDone: _look),
           if (!_usable) ...[
             SizedBox(height: t.space(4)),
             Center(child: GuideButton(key: const ValueKey('guide-skip-texts'), label: 'Skip this step', look: GuideButtonLook.word, onPress: _skipTexts)),
             SizedBox(height: t.space(1)),
-            Center(child: hint('Ghost works without your texts: friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.')),
+            Center(child: hint('Uplink works without your texts: friends, circles, Telegram and Signal. Turn texts on any time in Settings › Texts.')),
           ],
         ];
       case 'everywhere':

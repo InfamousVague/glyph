@@ -4,7 +4,7 @@
 /// friends on ghost first").
 ///
 /// One sheet for both (showSpaceInvite, and the circle's showCircleInvite through [InviteTarget.circle]): a search,
-/// then everyone who could be asked, friends on Ghost Messaging first with the app's mark beside them, then the
+/// then everyone who could be asked, friends on Uplink first with the app's mark beside them, then the
 /// phone's contacts, each with a check to choose them. Friends by username are sent the place at once in the app, as
 /// before; anyone else is texted from your own phone, one text each, with the link (on a paired computer, through the
 /// phone; on an iPhone of its own, which has no texts, the share sheet opens with the words). Texts are asked about
@@ -75,7 +75,7 @@ class InviteTarget {
         kind: 'circle',
         name: c.name,
         link: c.link,
-        words: 'Join my circle ${c.name} on Ghost Messaging: ${c.link}',
+        words: 'Join my circle ${c.name} on Uplink: ${c.link}',
         sendToFriends: (friends) => (send ?? Circles.instance.share)(c, friends),
         face: CircleFace.of(c, size: 40),
         line: 'Whoever has the link is in the circle.',
@@ -115,7 +115,7 @@ class InviteCandidate {
   final String? number;
   final String? photo;
 
-  /// On Ghost Messaging: a friend by username, or a phone contact who is a friend by number (lib/friends/friends.dart).
+  /// On Uplink: a friend by username, or a phone contact who is a friend by number (lib/friends/friends.dart).
   /// A friend by number with no username friend to send it to in the app is texted, and the text's link opens in the
   /// app they have.
   final bool ghost;
@@ -127,7 +127,7 @@ class InviteCandidate {
 }
 
 /// The phone's contacts, put together with the networks' as Contacts does (lib/inbox/people.dart), those with a number
-/// alone: a text needs one. Friends by number are marked as on Ghost Messaging.
+/// alone: a text needs one. Friends by number are marked as on Uplink.
 Future<List<Someone>> appInviteContacts() async {
   final found = await Sms.instance.searchContacts('');
   final phone = [
@@ -279,7 +279,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
     return _buddies.friends.where((f) => f.id == id).firstOrNull;
   }
 
-  /// Everyone offered, friends on Ghost Messaging first and by name, then the contacts in the phone's order; each
+  /// Everyone offered, friends on Uplink first and by name, then the contacts in the phone's order; each
   /// narrowed by the search. A whole number typed that nobody has is offered too, to text.
   List<InviteCandidate> _candidates([String? search]) {
     final query = search ?? _query;
@@ -417,7 +417,7 @@ class _InvitePeopleSheetState extends State<InvitePeopleSheet> {
                     final others = [for (final c in all) if (!c.ghost) c];
                     final friendless = _buddies.friends.isEmpty && _query.trim().isEmpty;
                     final rows = <Widget>[
-                      if (ghost.isNotEmpty || friendless) const _Heading('On Ghost Messaging'),
+                      if (ghost.isNotEmpty || friendless) const _Heading('On Uplink'),
                       if (friendless) ...[
                         Padding(
                           padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(1)),
@@ -684,7 +684,7 @@ class _Heading extends StatelessWidget {
   }
 }
 
-/// Someone to choose: their face, name, the Ghost mark where they are on the app, how they would be reached, and a
+/// Someone to choose: their face, name, the Uplink mark where they are on the app, how they would be reached, and a
 /// check while chosen. A friend already in the place says so instead.
 class _PersonRow extends StatelessWidget {
   const _PersonRow({super.key, required this.candidate, required this.chosen, required this.onPress, this.inside = false, this.insideWord = ''});
@@ -709,7 +709,7 @@ class _PersonRow extends StatelessWidget {
                 : '${c.number} · by text';
     return GlacierPressable(
       onPressed: inside ? null : onPress,
-      semanticLabel: inside ? '${c.name}, ${insideWord.toLowerCase()}' : '${c.name}${c.ghost ? ', on Ghost Messaging' : ''}${chosen ? ', chosen' : ''}',
+      semanticLabel: inside ? '${c.name}, ${insideWord.toLowerCase()}' : '${c.name}${c.ghost ? ', on Uplink' : ''}${chosen ? ', chosen' : ''}',
       builder: (context, state) => ColoredBox(
         color: state.pressed ? t.color('app-paper-3') : const Color(0x00000000),
         child: Padding(
@@ -726,7 +726,7 @@ class _PersonRow extends StatelessWidget {
                   Flexible(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink')))),
                   if (c.ghost) ...[
                     SizedBox(width: t.space(1) * 1.5),
-                    Semantics(label: 'On Ghost Messaging', child: const ExcludeSemantics(child: GhostLogo(size: 16))),
+                    Semantics(label: 'On Uplink', child: const ExcludeSemantics(child: GhostLogo(size: 16))),
                   ],
                 ]),
                 Text(under, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
@@ -843,7 +843,7 @@ class _Ask extends StatelessWidget {
     final friends = picked.length - texts;
     final question = canText ? 'Send ${texts == 1 ? 'an invite' : '$texts invites'} by text?' : 'Share the invite with ${texts == 1 ? picked.firstWhere((c) => c.byText).name : '$texts people'}?';
     final how = canText
-        ? '${Sms.paired ? 'Sent from your phone' : 'From your number'}, one text each${friends > 0 ? ', and $friends ${friends == 1 ? 'friend' : 'friends'} invited in the app' : ''}. Once they set up Ghost Messaging, the invite will be waiting.'
+        ? '${Sms.paired ? 'Sent from your phone' : 'From your number'}, one text each${friends > 0 ? ', and $friends ${friends == 1 ? 'friend' : 'friends'} invited in the app' : ''}. Once they set up Uplink, the invite will be waiting.'
         : 'This phone can\'t send texts: the share sheet opens with the invite written, for you to send.';
     return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(3)),

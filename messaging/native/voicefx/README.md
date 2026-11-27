@@ -1,6 +1,6 @@
 # voicefx
 
-What Ghost Messaging does to the microphone in a call before Opus (Matt, 2026-11-15: "build in like krisp noise
+What Uplink does to the microphone in a call before Opus (Matt, 2026-11-15: "build in like krisp noise
 supression or other fancy noise suppression tools, add a volume slider for input and output volume with
 overboosting"; RNNoise + DeepFilterNet chosen). One C library for every platform, run inside flutter_webrtc's capture
 post-processing hook, 10 ms at a time, in place, on WebRTC's own floats (the 16-bit scale):

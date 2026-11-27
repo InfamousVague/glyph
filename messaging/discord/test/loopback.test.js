@@ -1,5 +1,5 @@
 // End to end on this machine, nothing faked but Discord and the hub: the whole bridge (real WebRTC through werift,
-// real Opus, the real 20 ms ticker) in a space with a stand-in Ghost app that does what lib/voice/rtc.dart does (it
+// real Opus, the real 20 ms ticker) in a space with a stand-in Uplink app that does what lib/voice/rtc.dart does (it
 // joins after the bridge, so it offers: sound and a picture, Opus asked for at its highest). The app sends a 400 Hz
 // tone and a pretend Discord speaker a 650 Hz one (whole cycles in 20 ms, so one never leaks into the other's
 // measure): Discord must get 400, the app 650 and never its own 400.
@@ -47,7 +47,7 @@ function level(frames, hz) {
   return total / frames.length;
 }
 
-test('a Ghost app and a Discord speaker hear each other through the bridge, and the app never hears itself', { timeout: 30_000 }, async () => {
+test('an Uplink app and a Discord speaker hear each other through the bridge, and the app never hears itself', { timeout: 30_000 }, async () => {
   const fake = new FakeHub();
   const me = makeIdentity();
   const hub = new Hub({ url: 'ws://fake', me, connect: () => fake.connect() });

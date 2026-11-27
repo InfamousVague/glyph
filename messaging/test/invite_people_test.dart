@@ -65,7 +65,7 @@ const _friends = [
   Buddy(username: 'riley', id: 'riley-id', key: 'k', name: 'Riley Fox'),
 ];
 
-/// The phone's contacts: one a friend by number (on Ghost Messaging), the rest not on it.
+/// The phone's contacts: one a friend by number (on Uplink), the rest not on it.
 final _contacts = gather(const [
   PhoneContact(address: '+15550100142', name: 'Alex Rivera', label: 'Mobile'),
   PhoneContact(address: '(555) 010-0177', name: 'Bea Okafor'),
@@ -232,8 +232,8 @@ void main() {
     });
 
     test('the text says who invited them, to what, and the link; without a name, nobody\'s', () {
-      expect(inviteText(me: 'Matt', name: 'Friday hang', link: 'L'), 'Matt invited you to join Friday hang on Ghost Messaging: L');
-      expect(inviteText(me: ' ', name: 'Book club', link: 'L'), 'You\'re invited to join Book club on Ghost Messaging: L');
+      expect(inviteText(me: 'Matt', name: 'Friday hang', link: 'L'), 'Matt invited you to join Friday hang on Uplink: L');
+      expect(inviteText(me: ' ', name: 'Book club', link: 'L'), 'You\'re invited to join Book club on Uplink: L');
     });
   });
 
@@ -385,14 +385,14 @@ void main() {
       }
     }
 
-    testWidgets('friends on Ghost Messaging first, marked, then the contacts; a search narrows both', (tester) async {
+    testWidgets('friends on Uplink first, marked, then the contacts; a search narrows both', (tester) async {
       await open(tester);
       final order = [for (final name in ['Maya Chen', 'Riley Fox', 'Sam Ortiz', 'Theo Park', 'Alex Rivera', 'Bea Okafor', 'Callum Reid', 'Dana Whit']) tester.getTopLeft(find.text(name)).dy];
       expect(order, [...order]..sort(), reason: 'friends (by username and by number) by name, then the contacts');
-      expect(find.text('On Ghost Messaging'), findsOneWidget);
+      expect(find.text('On Uplink'), findsOneWidget);
       expect(find.text('Contacts · invited by text'), findsOneWidget);
       expect(find.byType(GhostLogo), findsNWidgets(4), reason: 'the mark beside each on the app');
-      expect(find.bySemanticsLabel(RegExp(r'^Theo Park, on Ghost Messaging')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Theo Park, on Uplink')), findsOneWidget);
       expect(find.text('In the space'), findsOneWidget, reason: 'Riley is in it');
       await tester.enterText(find.byType(EditableText), 'bea');
       await tester.pump(const Duration(milliseconds: 100));
@@ -551,9 +551,9 @@ void main() {
     });
   });
 
-  // The pictures: friends first, contacts, three chosen, and the question before the texts, in Ghost light and dark and
+  // The pictures: friends first, contacts, three chosen, and the question before the texts, in Uplink light and dark and
   // Dial-Up, on a phone, a Fold open and a computer's window. Each drawn without an exception (an overflow is one).
-  testWidgets('drawn in Ghost light and dark and Dial-Up, at a phone\'s, a Fold\'s and a computer\'s width', (tester) async {
+  testWidgets('drawn in Uplink light and dark and Dial-Up, at a phone\'s, a Fold\'s and a computer\'s width', (tester) async {
     final shots = Platform.environment['THEME_SHOTS'] == '1';
     await tester.runAsync(_fonts);
     final sheet = (await tester.runAsync(() => loadTokenSheet(more: const ['assets/css/ink.css', 'assets/css/app.css'])))!;

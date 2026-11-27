@@ -293,7 +293,7 @@ class Hub {
   /// Circles' invite words (invite_words.dart): the `{"dir": …}` messages it names ([InviteWords.dirs]).
   final InviteWords? words;
 
-  /// Ghost accounts (accounts.dart): the `{"dir": "acct-…"}` messages ([Accounts.dirs]) are its to answer. None where
+  /// Uplink accounts (accounts.dart): the `{"dir": "acct-…"}` messages ([Accounts.dirs]) are its to answer. None where
   /// null, and they are then answered that there are none. An app from before accounts never says them.
   final Accounts? accounts;
 
@@ -486,7 +486,7 @@ class Hub {
   final WireBudget wire;
 
   /// What an app from before is told when its account signs in with v2 here.
-  static const refusedOld = 'This account signs in a newer way now: update Ghost Messaging on this device.';
+  static const refusedOld = 'This account signs in a newer way now: update Uplink on this device.';
 
   /// How long the answer to an app from before refused again within the hour waits ([_holdRefusal]), and how many may
   /// wait at once (past that it is answered at once).

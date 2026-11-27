@@ -58,7 +58,7 @@ class _PerformanceUnderState extends State<PerformanceUnder> {
     if (on == _on) return;
     _on = on;
     if (on) {
-      _usage.about = 'Ghost Messaging $appVersion on ${defaultTargetPlatform.name}';
+      _usage.about = 'Uplink $appVersion on ${defaultTargetPlatform.name}';
       _usage.start();
     } else {
       _usage.stop();

@@ -131,7 +131,7 @@ void main() {
   Future<void> prove(String id, String network, String handle) async {
     await h.said(id, {'dir': 'proof', 'p': network, 'handle': handle});
     final code = last(id, 'proof')!['code'] as String;
-    net.bios['$network:${Handles.tidy(network, handle)}'] = 'I am on Ghost Messaging $code';
+    net.bios['$network:${Handles.tidy(network, handle)}'] = 'I am on Uplink $code';
     await h.said(id, {'dir': 'check', 'p': network, 'handle': handle});
   }
 

@@ -32,7 +32,7 @@ enum Texted {
 }
 
 /// Twilio Verify (twilio.com/docs/verify/api). One service there, named for the app: its name is what the text
-/// says ("Your Ghost Messaging verification code is: 482913").
+/// says ("Your Uplink verification code is: 482913").
 ///
 /// [sid] and [token] sign every request: the account's SID and auth token, or better an API key's SID and its
 /// secret, which can be taken back alone. [service] is the Verify service's SID ("VA…").

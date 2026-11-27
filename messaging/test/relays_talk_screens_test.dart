@@ -80,7 +80,7 @@ void main() {
     await look(tester, '@maya@b.test');
     expect(find.text('On b.test: Add asks that relay'), findsOneWidget, reason: 'the relay they are on is named, and nobody is asked until Add is pressed');
     expect(net.asked, isEmpty);
-    expect(find.text('On Ghost Messaging'), findsNothing);
+    expect(find.text('On Uplink'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('add-found')));
     // (The request is a greeting nobody answers: the route waits four seconds for an answer before it says "sent".)
     await turns(tester, done: () => find.text('Friend request sent to @maya@b.test').evaluate().isNotEmpty, most: 1200);
@@ -116,7 +116,7 @@ void main() {
     expect(find.text('On b.test: Add asks that relay'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('add-found')));
     await turns(tester, done: () => find.textContaining('newer version').evaluate().isNotEmpty);
-    expect(find.text('@oldie@b.test can\'t be reached from another relay yet. They need a newer version of Ghost Messaging.'), findsOneWidget);
+    expect(find.text('@oldie@b.test can\'t be reached from another relay yet. They need a newer version of Uplink.'), findsOneWidget);
     expect(alex.buddies.all, isEmpty);
     await tester.runAsync(old.stop);
     await closeAll(tester);

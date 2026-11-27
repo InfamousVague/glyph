@@ -37,7 +37,7 @@ if (process.argv[1] && process.argv[1].endsWith('admin-password.mjs')) {
   const kept = before.split('\n').filter((l) => l.trim() && !/^GHOST_ADMIN_(USER|HASH)=/.test(l));
   writeFileSync(envFile, [...kept, `GHOST_ADMIN_USER=${user}`, `GHOST_ADMIN_HASH=${hash}`, ''].join('\n'), { mode: 0o600 });
   chmodSync(envFile, 0o600);
-  writeFileSync(outFile, `Ghost Messaging admin page (Settings › Developer › Admin, signed in as @matt)\nusername: ${user}\npassword: ${pass}\n`, { mode: 0o600 });
+  writeFileSync(outFile, `Uplink admin page (Settings › Developer › Admin, signed in as @matt)\nusername: ${user}\npassword: ${pass}\n`, { mode: 0o600 });
   chmodSync(outFile, 0o600);
   console.log(`ok the sign-in is in ${outFile} (this Mac's user alone may read it); ${envFile} has GHOST_ADMIN_USER and GHOST_ADMIN_HASH`);
   console.log(`  next: node tool/deploy-relay.mjs --env ${envFile}`);

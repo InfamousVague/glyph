@@ -1,5 +1,5 @@
-// The bridges: for each Discord voice channel a Ghost user has pressed, the bot in that channel and the bridge in the
-// matching Ghost space at once, with sound and chat carried both ways. Nothing here imports discord.js: the bot hands
+// The bridges: for each Discord voice channel an Uplink user has pressed, the bot in that channel and the bridge in the
+// matching Uplink space at once, with sound and chat carried both ways. Nothing here imports discord.js: the bot hands
 // in `discord`, which does the Discord half (voice.js), and everything else is this folder's.
 //
 //   discord.joinVoice(guildId, channelId, { opus(userId, packet), speaking(userId, on), lost() })
@@ -14,7 +14,7 @@ import { nicknameFor } from './mapping.js';
 import { GhostSpace } from './space.js';
 import { BridgeStore } from './store.js';
 
-/** How long a bridge stays with nobody from Ghost in its space. */
+/** How long a bridge stays with nobody from Uplink in its space. */
 export const LEAVE_AFTER_MS = 30_000;
 /** How often the Discord channel's people are told to the space again, besides at every change. */
 export const PEOPLE_EVERY_MS = 5_000;
@@ -33,7 +33,7 @@ const withTimeout = (promise, ms, onTimeout) => {
   return Promise.race([promise, new Promise((_, fail) => { timer = setTimeout(() => fail(onTimeout()), ms); })]).finally(() => clearTimeout(timer));
 };
 
-/** One bridged channel: the bot's voice connection there, the bridge's place in the Ghost space, and the sound
+/** One bridged channel: the bot's voice connection there, the bridge's place in the Uplink space, and the sound
  * engine between them. owner: the Bridges, for the things handed in (hub, codec, discord, timers, log). */
 class Bridge {
   constructor(owner, guildId, channelId, seed) {
@@ -41,7 +41,7 @@ class Bridge {
     this.guildId = guildId;
     this.channelId = channelId;
     this.seed = seed;
-    // speaking: the Discord users talking now. names: the Ghost members in the space, for the bot's nickname.
+    // speaking: the Discord users talking now. names: the Uplink members in the space, for the bot's nickname.
     // speakingOut: whether the bot shows as speaking on Discord.
     this.speaking = new Set();
     this.names = [];
@@ -56,7 +56,7 @@ class Bridge {
     return `${this.guildId}/${this.channelId}`;
   }
 
-  /** Joins the Discord channel and the Ghost space at once. If either fails, or the bridge is stopped meanwhile, the
+  /** Joins the Discord channel and the Uplink space at once. If either fails, or the bridge is stopped meanwhile, the
    * other is left again and a BridgeError thrown; once both are in, the sound, the people list and the leave clock
    * start. */
   async start() {
@@ -106,7 +106,7 @@ class Bridge {
     this.armLeave();
   }
 
-  /** Every 20 ms: the Ghost mix played into Discord (or the bot shown quiet), and each Ghost member sent their mix.
+  /** Every 20 ms: the Uplink mix played into Discord (or the bot shown quiet), and each Uplink member sent their mix.
    * A failure is logged once in 500, so a broken stream cannot fill the log. */
   tick() {
     if (this.stopped || !this.voice) return;
@@ -144,21 +144,21 @@ class Bridge {
     this.sendPeople();
   }
 
-  /** The Ghost members in the space changed: the leave clock and the bot's nickname follow. */
+  /** The Uplink members in the space changed: the leave clock and the bot's nickname follow. */
   membersChanged(list) {
     this.names = list.map((m) => m.name);
     this.armLeave();
     this.owner.nicknameChanged(this.guildId);
   }
 
-  /** No Ghost member in the call: leave in 30 s unless one comes. Someone there: stay. */
+  /** No Uplink member in the call: leave in 30 s unless one comes. Someone there: stay. */
   armLeave() {
     if (this.stopped) return;
     const empty = !this.space || this.space.members.size === 0;
     if (empty && !this.leaveTimer) {
       this.leaveTimer = this.owner.setTimer(() => {
         this.leaveTimer = null;
-        if (this.space?.members.size === 0) this.stop('nobody from Ghost for 30 s');
+        if (this.space?.members.size === 0) this.stop('nobody from Uplink for 30 s');
       }, LEAVE_AFTER_MS);
     } else if (!empty && this.leaveTimer) {
       this.owner.clearTimer(this.leaveTimer);
@@ -175,9 +175,9 @@ class Bridge {
     this.armLeave();
   }
 
-  /** A Ghost member's message, posted in the Discord channel; a failure is logged and nothing more. */
+  /** An Uplink member's message, posted in the Discord channel; a failure is logged and nothing more. */
   fromGhostChat({ name, text }) {
-    this.owner.discord.postText(this.guildId, this.channelId, { name: name || 'Ghost', text }).catch((e) => this.owner.log(`bridge ${this.tag}: posting to Discord failed: ${e?.code ?? e?.message ?? e}`));
+    this.owner.discord.postText(this.guildId, this.channelId, { name: name || 'Uplink', text }).catch((e) => this.owner.log(`bridge ${this.tag}: posting to Discord failed: ${e?.code ?? e?.message ?? e}`));
   }
 
   /** A Discord message, said in the space's chat. */
@@ -241,7 +241,7 @@ export class Bridges {
     let starting = this.starting.get(key)?.done;
     if (!starting) {
       // A bot is in one voice channel per server at most: another bridged channel there gives way only when nobody
-      // from Ghost is in it.
+      // from Uplink is in it.
       for (const k of this.starting.keys()) if (k.startsWith(`${guildId}:`)) throw new BridgeError('busy', 'another channel on this server is being bridged');
       for (const b of [...this.bridges.values()]) {
         if (b.guildId !== guildId || b.channelId === channelId || b.stopped) continue;
@@ -282,7 +282,7 @@ export class Bridges {
     return this.find(guildId, channelId)?.fromDiscordChat(message) ?? false;
   }
 
-  /** The bot's nickname on a server, for everyone from Ghost in its calls there; changed at most once a delay. */
+  /** The bot's nickname on a server, for everyone from Uplink in its calls there; changed at most once a delay. */
   nicknameChanged(guildId) {
     if (this.nicknameTimers.has(guildId)) return;
     this.nicknameTimers.set(guildId, this.setTimer(() => {

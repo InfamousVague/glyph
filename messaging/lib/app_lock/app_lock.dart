@@ -231,7 +231,7 @@ class AppLock extends ChangeNotifier {
   /// given, was put away, or this device has none: the PIN is always the other way in.
   Future<bool> unlockWithBiometric() async {
     if (!_locked || !biometric || !canBiometric || _asking) return false;
-    if (!await askBiometric('Unlock Ghost Messaging')) return false;
+    if (!await askBiometric('Unlock Uplink')) return false;
     if (!isSet) return false;
     _open();
     return true;

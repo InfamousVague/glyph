@@ -39,7 +39,7 @@ import 'package:ghost_messaging/web/settings.dart';
 import 'package:ghost_messaging/web/store.dart';
 import 'package:glacier/glacier.dart';
 
-/// Ghost Messaging in a web page (lib/web; Matt: "the full web client"), as far as it can be held without a browser:
+/// Uplink in a web page (lib/web; Matt: "the full web client"), as far as it can be held without a browser:
 /// what the page keeps and how, being the one tab, where its hub is, what it says in the app's place, and what the
 /// screens leave out and call themselves there. The page itself in real browser engines is tool/web/e2e.mjs.
 void main() {
@@ -277,9 +277,9 @@ void main() {
 
   group('in the app\'s place', () {
     testWidgets('a browser that can\'t run it is told why, and nothing is started', (tester) async {
-      await webMain(browser: MemoryBrowser(unfit: 'Ghost Messaging needs a secure address to run in a browser: one that starts with https.'));
+      await webMain(browser: MemoryBrowser(unfit: 'Uplink needs a secure address to run in a browser: one that starts with https.'));
       await tester.pump();
-      expect(find.text('Ghost Messaging needs a secure address to run in a browser: one that starts with https.'), findsOneWidget);
+      expect(find.text('Uplink needs a secure address to run in a browser: one that starts with https.'), findsOneWidget);
       expect(find.byKey(const ValueKey('web-notice-action')), findsNothing);
       expect(Sms.browser, isFalse);
       expect(Sms.standalone, isFalse);
@@ -291,7 +291,7 @@ void main() {
       await MemoryBrowser(profile: profile).holdTab(onAsked: () async {});
       await webMain(browser: MemoryBrowser(profile: profile));
       await tester.pump();
-      expect(find.text('Ghost Messaging is open in another tab.'), findsOneWidget);
+      expect(find.text('Uplink is open in another tab.'), findsOneWidget);
       expect(find.text('Use it here'), findsOneWidget);
       expect(tester.getSemantics(find.byKey(const ValueKey('web-notice-action')).first), isNotNull);
       // Nothing was started, and nothing of the other tab's was touched.
@@ -349,7 +349,7 @@ void main() {
       // Tried again a moment apart, on the real clock.
       await tester.runAsync(() => webMain(browser: browser));
       await tester.pump();
-      expect(find.text('Ghost Messaging couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
+      expect(find.text('Uplink couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
       expect(profile.store.sealed, kept);
       expect(profile.store.wipes, 0);
       expect(browser.reloads, 0);
@@ -363,7 +363,7 @@ void main() {
       profile.store.failWrites = true;
       await tester.runAsync(() => webMain(browser: MemoryBrowser(profile: profile)));
       await tester.pump();
-      expect(find.text('Ghost Messaging couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
+      expect(find.text('Uplink couldn\'t read what this browser keeps for it just now.'), findsOneWidget);
       expect(profile.store.plain[WebStandaloneStore.stateName], contains('dark'));
       expect(tester.takeException(), isNull);
     });
@@ -371,7 +371,7 @@ void main() {
     testWidgets('the button is pressed once while what it does runs', (tester) async {
       var runs = 0;
       await tester.pumpWidget(WebNotice(
-        words: 'Ghost Messaging is open in another tab.',
+        words: 'Uplink is open in another tab.',
         action: 'Use it here',
         onAction: () async {
           runs++;
@@ -456,7 +456,7 @@ void main() {
       // What it does have.
       expect(shown, containsAll(['me', 'appearance', 'emoji', 'messages', 'blocked']));
       final about = settingsSections.firstWhere((s) => s.id == 'browser-about');
-      expect(about.summary!(model), 'Ghost Messaging in a browser $appVersion');
+      expect(about.summary!(model), 'Uplink in a browser $appVersion');
       // Keyboard shortcuts with no push to talk, and none of the calls' commands.
       expect(shortcutsSummary(model), 'Every command and its keys');
       // On a phone or a computer they are there as they were.
@@ -504,7 +504,7 @@ void main() {
       final sheet = await _sheet(tester);
       asAPage();
       await tester.pumpWidget(_Themed(sheet: sheet, child: const FilesNotHere(channel: VoiceChannel(seed: 'aa', name: 'Shelf', kind: SpaceKind.files))));
-      expect(find.text('Files spaces aren\'t in the browser yet. This one opens in Ghost Messaging on a phone or a computer.'), findsOneWidget);
+      expect(find.text('Files spaces aren\'t in the browser yet. This one opens in Uplink on a phone or a computer.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

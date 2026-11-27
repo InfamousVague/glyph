@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_messaging/sms.dart';
 
-/// Ghost beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I'd like to have a way that people can
+/// Uplink beside Google Messages (android GmBridge.kt; Matt, 2026-11-15: "I'd like to have a way that people can
 /// reliably get text in and out of ghost without needing to switch the default messaging app"): when the app runs.
 void main() {
   SmsStatus said(Map<String, Object> m) => SmsStatus.from({'contacts': true, 'notifications': true, 'phone': true, ...m});

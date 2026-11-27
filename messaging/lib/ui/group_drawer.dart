@@ -77,7 +77,7 @@ class _GroupDrawerState extends State<GroupDrawer> {
       if (!mounted) return;
       setState(() {
         _g = g;
-        _problem = g == null ? 'This isn\'t a group ${widget.network.name} lets Ghost change.' : null;
+        _problem = g == null ? 'This isn\'t a group ${widget.network.name} lets Uplink change.' : null;
         if (g != null) {
           _title.text = g.title;
           _about.text = g.description;

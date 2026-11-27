@@ -355,7 +355,7 @@ void main() {
       await host.setOn(true);
       await host.setPass('a phrase of the person signing out');
       expect(await host.useHere(), isNull);
-      expect(k.choices[RelayHost.beforeKey], '', reason: 'it came from Ghost Messaging\'s own, kept as nothing chosen');
+      expect(k.choices[RelayHost.beforeKey], '', reason: 'it came from Uplink\'s own, kept as nothing chosen');
       await host.signedOut();
       expect([host.on, host.state, host.hasPass, k.secrets[RelayHost.passKey], k.hubUrl], [false, HostState.off, false, '', Net.defaultHub]);
       expect(File('${dir.path}/relay-key.json').existsSync(), isTrue);

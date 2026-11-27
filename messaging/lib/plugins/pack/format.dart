@@ -52,9 +52,9 @@ abstract final class PackLimits {
 final RegExp packIdPattern = RegExp(r'^[a-z][a-z0-9]{2,23}$');
 final RegExp packVersionPattern = RegExp(r'^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$');
 final RegExp packUsernamePattern = RegExp(r'^[a-z0-9][a-z0-9._]{2,19}$');   // and no "..", and none of reservedDeveloperWords
-const List<String> reservedDeveloperWords = ['ghost', 'gogho', 'official', 'verified', 'support'];
+const List<String> reservedDeveloperWords = ['uplink', 'ghost', 'gogho', 'official', 'verified', 'support'];
 
-/// Ids no pack may have: the built-ins' and their sections', and the app's own words. Any id with ghost or gogho in it
+/// Ids no pack may have: the built-ins' and their sections', and the app's own words. Any id with uplink, ghost or gogho in it
 /// is refused too.
 const Set<String> reservedPackIds = {'notion', 'spotify', 'codes', 'kinds', 'spam', 'embeds', 'actions', 'replies', 'quiet', 'strangers', 'cleaner', 'translate', 'recordcall', 'scribe', 'captions', 'watch', 'debt', 'political', 'sales', 'scams', 'reminders', 'food', 'deliveries', 'appointments', 'notices', 'other', 'ghost', 'ghostmessaging', 'official', 'admin', 'system', 'market', 'marketplace', 'store', 'plugin', 'plugins', 'settings', 'messages'};
 
@@ -103,7 +103,14 @@ String? packIdOf(String registryId) {
   return packIdPattern.hasMatch(id) && !_reservedId(id) ? id : null;
 }
 
-bool _reservedId(String id) => reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho');
+bool _reservedId(String id) => reservedPackIds.contains(id) || ownWordIn(id);
+
+/// Whether [folded] (an id, or a name through [packFold]) holds one of the app's own words: its name, the name it had
+/// until 2026-11-27, or its site's. Nobody else's plugin, id or section may read as the app's.
+///
+/// The name is looked for with i and l as one letter: in most faces nobody tells "UpIink", written with a capital i,
+/// from the app's own.
+bool ownWordIn(String folded) => folded.replaceAll('i', 'l').contains('upllnk') || folded.contains('ghost') || folded.contains('gogho');
 
 /// A pack's section [key] as the registry knows it: its keys are letters only, so the last 0 parses back.
 String sectionIdOf(String packId, String key) => 'x${packId}0$key';
@@ -134,14 +141,14 @@ String packHere() => Sms.remote ? (PlatformInfo.isIOS ? 'iPhone' : 'computer') :
 
 /// Whether a pack is shown [f] at all. A pack reads texts from a number not in the phone's contacts, one to one, and
 /// nothing else: a stranger's rules never see a contact's words, the person's own, a group's (whose last words may be
-/// anyone's, and whose sender who matches nobody reads as not a contact), a text sent with Ghost Messaging's own
+/// anyone's, and whose sender who matches nobody reads as not a contact), a text sent with Uplink's own
 /// encryption, another network's chat, or a circle's or a space's message.
 bool packSees(MessageFacts f) =>
     !f.contact &&                                   // never anyone in the phone's contacts
     (!f.contactByName || MessageFacts.contactsReadable) && // and only where "not a contact" can be told: without Contacts no number has a name, so everyone would read as a stranger (review, 2026-11-20)
     f.outgoing == false &&                          // words known to be theirs: never the person's own, nor a list row whose words may be either
     !f.group &&                                     // never a group: its last words may be anyone's, and a sender who matches nobody reads as not a contact
-    !f.encrypted &&                                 // never a text sent with Ghost Messaging's own encryption
+    !f.encrypted &&                                 // never a text sent with Uplink's own encryption
     f.thread >= 0 &&                                // a texts conversation: other networks' chats are ListPlugins.chatThread (below -2^40), inbox and space messages -1, bridged ones below -1
     (f.network == null || f.network == 'sms') &&    // texts only
     f.senders.length == 1 &&
@@ -334,7 +341,7 @@ List<PluginReach> packReaches(PluginPack pack, {String? here}) {
   final host = pack.links.isEmpty ? null : Uri.tryParse(pack.links.first)?.host;
   return [
     // Without Contacts no number has a name, and a stranger can't be told from a contact: it then reads nothing.
-    PluginReach(Lucide.eye, 'Reads texts from numbers not in your contacts', 'Their words and who they\'re from, on this $at, to sort them. Never your contacts\' texts, group texts, texts sent with Ghost Messaging\'s encryption, your own, chats on other networks, or circles and spaces. Nothing at all while Ghost Messaging can\'t read your contacts.'),
+    PluginReach(Lucide.eye, 'Reads texts from numbers not in your contacts', 'Their words and who they\'re from, on this $at, to sort them. Never your contacts\' texts, group texts, texts sent with Uplink\'s encryption, your own, chats on other networks, or circles and spaces. Nothing at all while Uplink can\'t read your contacts.'),
     if (pack.rules.sections.isNotEmpty) const PluginReach(Lucide.listFilter, 'Sorts texts into its own tabs and kinds', 'They leave Messages for its tab while it\'s added. Remove it and they\'re back. Texts with a sign-in code in them are never sorted.'),
     if (verbs.contains('move')) const PluginReach(Lucide.folderInput, 'Moves a conversation when you ask', 'Only when you press its button, into its own tabs or back to Messages.'),
     if (phone && (verbs.contains('markread') || asks.contains('markread')))

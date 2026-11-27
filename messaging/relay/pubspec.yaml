@@ -1,5 +1,5 @@
 name: ghost_relay
-description: "Ghost Messaging's relay: passes sealed frames between a phone and the computer it is paired with."
+description: "Uplink's relay: passes sealed frames between a phone and the computer it is paired with."
 publish_to: 'none'
 version: 0.1.0
 

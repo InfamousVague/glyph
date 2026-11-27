@@ -1,6 +1,6 @@
-# Ghost Messaging's Matrix helper
+# Uplink's Matrix helper
 
-A small program Ghost Messaging runs beside itself (on the phone and on a computer) to reach the person's Matrix
+A small program Uplink runs beside itself (on the phone and on a computer) to reach the person's Matrix
 account as a device of its own, as Element does: signed in with the browser (single sign-on, which is how matrix.org
 signs people in since it moved to Matrix Authentication Service) or with a password where the server takes one, then
 direct messages and group rooms, replies, reactions, deletes, read receipts, pictures and files, and invites.
@@ -11,12 +11,12 @@ with it, as they do with any new device. With the person's recovery key (Element
 account's secret storage: it signs itself with the account's cross-signing keys, so other devices trust it, and brings
 down the key backup, so messages from before it was signed in decrypt too.
 
-Messages go between this device and the person's own Matrix server only. Ghost's servers never see them.
+Messages go between this device and the person's own Matrix server only. Uplink's servers never see them.
 
 It is built on [mautrix-go](https://github.com/mautrix/go) by Tulir Asokan and contributors (MPL-2.0), with its pure-Go
 Olm and Megolm (`goolm`), so no C library is needed for the encryption. LICENSE lists everything it uses.
 
-Ghost Messaging starts it (`matrix-sidecar --dir <folder>`) and talks to it over its standard input and output, one JSON
+Uplink starts it (`matrix-sidecar --dir <folder>`) and talks to it over its standard input and output, one JSON
 object a line (PROTOCOL.md). The folder holds:
 
 - `session.json`: the homeserver, user id, device id and access token, and the key the store's secrets are encrypted

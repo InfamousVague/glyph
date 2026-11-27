@@ -211,7 +211,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     final off = textOf(tester, const ValueKey('host-words'));
-    expect(off, contains('This app goes back to Ghost Messaging\'s relay (gogho.st) first.'));
+    expect(off, contains('This app goes back to Uplink\'s relay (gogho.st) first.'));
     expect(off, contains(keptWords));
     await tap(tester, find.text('Stop hosting'));
     await until(tester, () => host.state == HostState.off && Net.instance.hubUrl == Net.defaultHub, 'it never stopped, or this app never went back');

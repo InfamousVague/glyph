@@ -35,7 +35,7 @@ class GhostMarkTest {
         assertFalse(GhostMark.mayCarry("❤️ to \"See you at 7\""))
         // This app's own texts.
         assertFalse(GhostMark.mayCarry("ghost:bg1:preset:dusk"))
-        assertFalse(GhostMark.mayCarry("Ghost Messaging encryption key.\nghost:k1:A5/eqOmibtM2OjJPdsSplFFwxOYeUu9eDqXfbBUfI5rC"))
+        assertFalse(GhostMark.mayCarry("Uplink encryption key.\nghost:k1:A5/eqOmibtM2OjJPdsSplFFwxOYeUu9eDqXfbBUfI5rC"))
         assertFalse(GhostMark.mayCarry("   "))
     }
 }

@@ -1,4 +1,4 @@
-// Where the extension keeps a signed-in Ghost account between one click and the next. Two places, the person's choice
+// Where the extension keeps a signed-in Uplink account between one click and the next. Two places, the person's choice
 // ("Stay signed in"):
 //
 // - Off (the default): chrome.storage.session — the browser holds it in memory and empties it when it closes. The

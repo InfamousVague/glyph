@@ -1,4 +1,4 @@
-# nginx in front of a Ghost Messaging relay (docs/SELF_HOSTING.md). Replace relay.example.com with your domain and
+# nginx in front of an Uplink relay (docs/SELF_HOSTING.md). Replace relay.example.com with your domain and
 # get a certificate for it first (for example `certbot --nginx -d relay.example.com`). The relay listens on
 # 127.0.0.1:8787 (deploy/ghost-relay.service). Put this in /etc/nginx/conf.d/ghost-relay.conf.
 

@@ -292,8 +292,8 @@ void main() {
   });
 
   group('names like the app\'s own', () {
-    test('name_reserved for Codes, a Cyrillic \u0421odes, fullwidth Ｃｏｄｅｓ, Kinds of text, Ghost Helper and a section called Spam', () {
-      for (final name in ['Codes', '\u0421odes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Ghost Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
+    test('name_reserved for Codes, a Cyrillic \u0421odes, fullwidth Ｃｏｄｅｓ, Kinds of text, Uplink Helper and a section called Spam', () {
+      for (final name in ['Codes', '\u0421odes', 'Ｃｏｄｅｓ', 'Kinds of text', 'Uplink Helper', 'UpIink tools', 'Up1ink', 'Ghost Helper', 'Códes', 'C o d e s', 'Gh0st Helper', 'Spam filter', 'GOGHO']) {
         expectError(check(bills()..['name'] = name), 'name_reserved', 'name');
       }
       expectError(check(bills()..['rules']['sections'][0]['label'] = 'Spam'), 'name_reserved', 'rules.sections[0].label');
@@ -313,7 +313,7 @@ void main() {
   });
 
   group('addresses', () {
-    test('bad_url for an address, a punycode host, a local name, Ghost Messaging\'s own, and more', () {
+    test('bad_url for an address, a punycode host, a local name, Uplink\'s own, and more', () {
       final withLink = parcels();
       for (final bad in ['https://192.168.1.1/x', 'https://xn--pple-43d.com', 'https://printer.local/', 'https://gogho.st/join/x', 'https://a.ghost-sms.com/', 'http://example.com/', 'https://example.com:8443/', 'https://me@example.com/', 'https://example.com/#top', 'https://localhost/', 'https://example.com/{x}', 'https://192.168.257/', 'https://exa mple.com/']) {
         final p = check(parcels()

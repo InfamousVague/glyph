@@ -536,7 +536,7 @@ class Net extends ChangeNotifier implements PeerBook {
   /// The key this account's devices seal copies to each other with (GMFB-21; Friends.copyKind), once read.
   Uint8List? _mineKey;
 
-  /// This account's own other devices, as one peer: this install's name and the account's key. Null where no Ghost
+  /// This account's own other devices, as one peer: this install's name and the account's key. Null where no Uplink
   /// account is signed in to here (or the routes aren't set up).
   Future<Peer?> mine() async {
     final me = id;
@@ -569,7 +569,7 @@ class Net extends ChangeNotifier implements PeerBook {
   Future<void> start(AppState app, {List<Carrier>? carriers}) async {
     if ((Sms.paired && !Sms.ownNetwork) || _board != null) return;
     _app = app;
-    // The relay the invite links made here name, where it is not Ghost Messaging's own (lib/invites/link_relay.dart).
+    // The relay the invite links made here name, where it is not Uplink's own (lib/invites/link_relay.dart).
     LinkRelay.here = () => relayHostForLinks(hubUrl);
     final wantDirect = directOn;
     // This install's own name among its identity's devices, made once and kept. Where the choices it is kept with came
@@ -1164,10 +1164,10 @@ class Net extends ChangeNotifier implements PeerBook {
     notifyListeners();
   }
 
-  /// Whether the relay in use is Ghost Messaging's own default one.
+  /// Whether the relay in use is Uplink's own default one.
   bool get onDefaultHub => hubUrl == defaultHub;
 
-  /// Moves to the relay at [typed] (GMFB-25; relay_choice.dart), but only once a Ghost Messaging relay answers there:
+  /// Moves to the relay at [typed] (GMFB-25; relay_choice.dart), but only once an Uplink relay answers there:
   /// the address is tidied ([tidyRelayAddress]), asked ([checkRelay]), and [confirm], where given, asked with the
   /// tidied address before anything changes. Empty, or our own address, is ours again and needs no check. Says why
   /// it didn't move, or null where it did (or the person said no at [confirm]: then declined is true).

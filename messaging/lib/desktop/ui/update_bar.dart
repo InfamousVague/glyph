@@ -7,10 +7,10 @@ String updateLine(MacUpdates u) {
   return switch (u.phase) {
     MacUpdatePhase.idle => u.checked == null ? 'Not looked for yet' : 'Up to date',
     MacUpdatePhase.checking => 'Looking for a newer version…',
-    MacUpdatePhase.downloading => u.progress >= 1 ? 'Putting Ghost Messaging $version in place…' : 'Getting Ghost Messaging $version · ${(u.progress * 100).round()}%',
-    MacUpdatePhase.ready => 'Ghost Messaging $version is ready',
-    MacUpdatePhase.restarting => 'Restarting as Ghost Messaging $version…',
-    MacUpdatePhase.manual => 'Ghost Messaging $version is out, and this copy can\'t update itself. ${u.problem ?? ''}'.trim(),
+    MacUpdatePhase.downloading => u.progress >= 1 ? 'Putting Uplink $version in place…' : 'Getting Uplink $version · ${(u.progress * 100).round()}%',
+    MacUpdatePhase.ready => 'Uplink $version is ready',
+    MacUpdatePhase.restarting => 'Restarting as Uplink $version…',
+    MacUpdatePhase.manual => 'Uplink $version is out, and this copy can\'t update itself. ${u.problem ?? ''}'.trim(),
     MacUpdatePhase.failed => 'The update didn\'t come: ${u.problem ?? 'no reason given'}. It is tried again later.',
   };
 }

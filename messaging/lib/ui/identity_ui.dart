@@ -98,7 +98,7 @@ class _AccountKeySectionState extends State<AccountKeySection> {
                         toast(context, 'Copied your account key');
                       },
               ),
-              SettingRow(key: const ValueKey('did-share'), icon: _icon(Lucide.share2), label: 'Share it', disabled: did == null, onPress: did == null ? null : () => Sms.instance.shareText('My Ghost Messaging account key', did)),
+              SettingRow(key: const ValueKey('did-share'), icon: _icon(Lucide.share2), label: 'Share it', disabled: did == null, onPress: did == null ? null : () => Sms.instance.shareText('My Uplink account key', did)),
               if (address != null)
                 SettingRow(
                   key: const ValueKey('did-address'),
@@ -203,7 +203,7 @@ class SignStatementScreen extends StatefulWidget {
 }
 
 class _SignStatementScreenState extends State<SignStatementScreen> {
-  late final _words = TextEditingController(text: Me.instance.username == null ? 'This is my Ghost Messaging account.' : 'I am @${Me.instance.username} on Ghost Messaging');
+  late final _words = TextEditingController(text: Me.instance.username == null ? 'This is my Uplink account.' : 'I am @${Me.instance.username} on Uplink');
   final _block = TextEditingController();
   String? _problem;
   bool _busy = false;
@@ -256,7 +256,7 @@ class _SignStatementScreenState extends State<SignStatementScreen> {
               description: const Tr('Say which account elsewhere is yours, and paste the signed block there: in a bio, a post or a page. It shows the words came from this account, and when.'),
               footer: Text(_problem ?? (left >= 0 ? '$left characters left' : '${-left} too many'), style: TextStyle(color: _problem != null || left < 0 ? t.danger : t.color('app-ink-3'))),
               children: [
-                _Words(controller: _words, placeholder: 'I am @maya on Ghost Messaging'.t, fieldKey: const ValueKey('proof-words')),
+                _Words(controller: _words, placeholder: 'I am @maya on Uplink'.t, fieldKey: const ValueKey('proof-words')),
                 SettingRow(key: const ValueKey('proof-make'), icon: _icon(Lucide.penLine), label: _busy ? 'Signing…' : 'Sign it', disabled: _busy || left < 0, onPress: _sign),
               ],
             ),
@@ -264,7 +264,7 @@ class _SignStatementScreenState extends State<SignStatementScreen> {
               SizedBox(height: t.space(6)),
               PaneSection(
                 title: 'Your signed statement',
-                description: const Tr('Paste all of it, from the first line to the last. Anyone can check it in Ghost Messaging, or with standard tools: the page "How accounts work" says how.'),
+                description: const Tr('Paste all of it, from the first line to the last. Anyone can check it in Uplink, or with standard tools: the page "How accounts work" says how.'),
                 children: [
                   _Words(controller: _block, placeholder: ''.t, readOnly: true, fieldKey: const ValueKey('proof-block')),
                   SettingRow(
@@ -276,7 +276,7 @@ class _SignStatementScreenState extends State<SignStatementScreen> {
                       toast(context, 'Copied your signed statement');
                     },
                   ),
-                  SettingRow(icon: _icon(Lucide.share2), label: 'Share it', onPress: () => Sms.instance.shareText('A statement signed by my Ghost Messaging account', block)),
+                  SettingRow(icon: _icon(Lucide.share2), label: 'Share it', onPress: () => Sms.instance.shareText('A statement signed by my Uplink account', block)),
                 ],
               ),
             ],

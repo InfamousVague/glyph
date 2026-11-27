@@ -10,7 +10,7 @@ import 'inbox.dart';
 /// them set as coming soon until we get the API keys setup").
 ///
 /// A direct message on Mastodon is a post seen only by the people it names (`visibility: direct`); the server groups
-/// them into conversations (`/api/v1/conversations`). Signing in is the server's own OAuth: Ghost registers itself on
+/// them into conversations (`/api/v1/conversations`). Signing in is the server's own OAuth: Uplink registers itself on
 /// the person's server as it is asked (`/api/v1/apps`, nothing registered ahead), the person approves it on their
 /// server's page in the browser, and pastes the code it shows back here (the out-of-band redirect, as apps without a
 /// web address of their own use). Only the access token and the account are kept (AppState `mastodon_session`).
@@ -25,7 +25,7 @@ class Mastodon extends InboxNetwork {
   @override
   final bool soon;
 
-  // The out-of-band redirect (the server shows the code for the person to paste), what Ghost asks leave to do, and
+  // The out-of-band redirect (the server shows the code for the person to paste), what Uplink asks leave to do, and
   // how often the conversations and the open one are asked for.
   static const _oob = 'urn:ietf:wg:oauth:2.0:oob';
   static const _scopes = 'read write';
@@ -41,7 +41,7 @@ class Mastodon extends InboxNetwork {
   InboxState _state = InboxState.signedOut;
   String? _error;
 
-  /// The server (`https://mastodon.social`), the app Ghost registered there, the token, and who signed in.
+  /// The server (`https://mastodon.social`), the app Uplink registered there, the token, and who signed in.
   String? _server, _clientId, _clientSecret, _token, _me, _handle;
   List<InboxChat> _chats = const [];
   final Map<String, List<InboxMessage>> _messages = {};
@@ -90,18 +90,18 @@ class Mastodon extends InboxNetwork {
     return s.replaceAll(RegExp(r'/+$'), '');
   }
 
-  /// Registers Ghost on the server [said] and answers the page to approve it on, where the code comes from.
+  /// Registers Uplink on the server [said] and answers the page to approve it on, where the code comes from.
   Future<String?> begin(String said) async {
     _error = null;
     _state = InboxState.signingIn;
     notifyListeners();
     try {
       final server = serverOf(said);
-      final app = await _call('POST', '$server/api/v1/apps', body: {'client_name': 'Ghost Messaging', 'redirect_uris': _oob, 'scopes': _scopes, 'website': 'https://gogho.st'}, auth: false);
+      final app = await _call('POST', '$server/api/v1/apps', body: {'client_name': 'Uplink', 'redirect_uris': _oob, 'scopes': _scopes, 'website': 'https://gogho.st'}, auth: false);
       _server = server;
       _clientId = app['client_id'] as String?;
       _clientSecret = app['client_secret'] as String?;
-      if (_clientId == null) throw const _Said('That server did not let Ghost sign in.');
+      if (_clientId == null) throw const _Said('That server did not let Uplink sign in.');
       notifyListeners();
       return Uri.parse('$server/oauth/authorize').replace(queryParameters: {'client_id': _clientId!, 'redirect_uri': _oob, 'response_type': 'code', 'scope': _scopes}).toString();
     } catch (e) {
@@ -318,7 +318,7 @@ class Mastodon extends InboxNetwork {
     notifyListeners();
   }
 
-  /// Your own posts can be deleted for everyone; anyone else's only left out here (Ghost's own list).
+  /// Your own posts can be deleted for everyone; anyone else's only left out here (Uplink's own list).
   @override
   bool canDeleteForEveryone(String chatId, InboxMessage message) => message.mine;
 
@@ -376,7 +376,7 @@ class Mastodon extends InboxNetwork {
   static String _plain(Object e) {
     if (e is _Said) return e.message;
     if (e is _Status) {
-      if (e.code == 401 || e.code == 403) return e.error ?? 'Mastodon did not let Ghost in. Sign in again.';
+      if (e.code == 401 || e.code == 403) return e.error ?? 'Mastodon did not let Uplink in. Sign in again.';
       if (e.code == 404) return 'That server doesn\'t look like a Mastodon server.';
       if (e.code == 429) return 'Mastodon asks to slow down. Try again in a minute.';
       return e.error ?? 'Mastodon answered ${e.code}.';

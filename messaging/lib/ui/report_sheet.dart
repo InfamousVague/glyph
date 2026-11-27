@@ -3,7 +3,7 @@
 /// the reviewer reads it (lib/safety/abuse_report.dart) and sent to the Marketplace's review on the relay. Reporting a
 /// person offers to block them too.
 ///
-/// Offered from a message's press-and-hold menu in a username chat or a space, and from a Ghost person's profile card.
+/// Offered from a message's press-and-hold menu in a username chat or a space, and from an Uplink person's profile card.
 /// What was reported is listed in Settings › Privacy › Reports you've made, on this device alone.
 library;
 
@@ -42,7 +42,7 @@ import '../l10n/words.dart';
 class ReportTarget {
   const ReportTarget({required this.id, this.username = '', required this.name, required this.place, this.placeName = '', this.messages = const []});
 
-  /// Their Ghost id where it is known ('' for a username chat whose friend isn't known here), their username, their
+  /// Their Uplink id where it is known ('' for a username chat whose friend isn't known here), their username, their
   /// name as shown.
   final String id;
   final String username;
@@ -71,25 +71,25 @@ class ReportTarget {
 /// Sends a sealed report: its id on the relay. The app's is [sendReportLive]; a test gives its own.
 typedef ReportSend = Future<String> Function(AbuseReport report);
 
-/// Seals [report] to the review keys this build trusts and sends it to Ghost Messaging's own relay.
+/// Seals [report] to the review keys this build trusts and sends it to Uplink's own relay.
 Future<String> sendReportLive(AbuseReport report) async {
   final api = MarketApi.live();
   final signer = api.signer ?? Voice.instance.signer;
-  if (signer == null) throw const MarketError('no_identity', 'Reporting needs your Ghost identity on this device. Become the same you as your phone in Settings › Me.');
+  if (signer == null) throw const MarketError('no_identity', 'Reporting needs your Uplink identity on this device. Become the same you as your phone in Settings › Me.');
   final here = InstalledPlugins.instance;
   final keys = [for (final k in here.reviewKeys) if (!here.retiredKeys.contains(k)) k];
   final sealed = await sealReport(report, signer: signer, reviewKeys: keys);
   return api.reportPerson(sealed, signer: signer);
 }
 
-/// Whether a report can go from here: from anywhere but a page made for a relay other than Ghost Messaging's own.
-/// Reports go to Ghost Messaging's own review ([sendReportLive], MarketApi.live). A page reaches it only where its
+/// Whether a report can go from here: from anywhere but a page made for a relay other than Uplink's own.
+/// Reports go to Uplink's own review ([sendReportLive], MarketApi.live). A page reaches it only where its
 /// build names gogho.st's hub, as app.gogho.st's does: its policy names the review's address (tool/lib/web_site.mjs),
 /// and the relay lets that page read the answer (relay/lib/relay.dart, GHOST_APP_ORIGIN). A page from another relay
 /// may speak to that relay alone, and its sheet says where to report from instead ([ReportForm]).
 bool reportsGoFromHere({bool? browser, String? hub}) => !(browser ?? Sms.browser) || marketIsOwn(hub ?? Net.instance.hubUrl);
 
-/// Blocks a Ghost person: Buddies.block in the app; a test gives its own.
+/// Blocks an Uplink person: Buddies.block in the app; a test gives its own.
 typedef ReportBlock = Future<void> Function(ReportTarget target);
 
 /// The app's own [ReportBlock].
@@ -102,7 +102,7 @@ const reportsMadeKey = 'reports_made';
 Future<void> showReportSheet(BuildContext context, ReportTarget target, {ReportSend? send, ReportBlock? block}) => showMembersDrawer(
       context,
       title: target.isMessage ? 'Report message' : 'Report ${target.shown}',
-      subtitle: 'Only the Ghost Messaging reviewer can read it',
+      subtitle: 'Only the Uplink reviewer can read it',
       list: (_) => ReportForm(key: const ValueKey('report-drawer'), target: target, send: send, block: block),
     );
 
@@ -127,7 +127,7 @@ class _ReportFormState extends State<ReportForm> {
 
   ReportTarget get _t => widget.target;
 
-  /// Only a Ghost person, known by their id, not already blocked, is offered Block here.
+  /// Only an Uplink person, known by their id, not already blocked, is offered Block here.
   bool get _canBlock => _t.id.isNotEmpty && !Buddies.instance.isBlocked(_t.id);
 
   @override
@@ -216,7 +216,7 @@ class _ReportFormState extends State<ReportForm> {
               key: const ValueKey('report-not-here'),
               icon: AppIcon(Lucide.flag, size: 18),
               label: 'Report from the app or app.gogho.st',
-              hint: Text('Reports go to the Ghost Messaging reviewer, which this page can\'t reach: it was made for ${host.isEmpty ? 'another server' : host}. Report ${_t.shown} from app.gogho.st, or from Ghost Messaging on your phone or computer.'),
+              hint: Text('Reports go to the Uplink reviewer, which this page can\'t reach: it was made for ${host.isEmpty ? 'another server' : host}. Report ${_t.shown} from app.gogho.st, or from Uplink on your phone or computer.'),
             ),
           ]),
           if (_canBlock) ...[
@@ -337,7 +337,7 @@ class _ReportFormState extends State<ReportForm> {
                 key: const ValueKey('report-send'),
                 icon: AppIcon(Lucide.send, size: 18),
                 label: _sending ? 'Sending…' : 'Send report',
-                hint: Text(_reason == null ? 'Choose why first.' : 'It goes to the Ghost Messaging reviewer.'),
+                hint: Text(_reason == null ? 'Choose why first.' : 'It goes to the Uplink reviewer.'),
                 disabled: !_ready,
                 onPress: _ready ? () => unawaited(_send()) : null,
               ),
@@ -385,7 +385,7 @@ class ReportsMadeList extends StatelessWidget {
     final list = MadeReport.readAll(AppState.of(context).choice(reportsMadeKey, '[]'));
     return PaneSection(
       title: 'Reports you\'ve made',
-      description: const Tr('Kept on this device alone. Each went sealed to the Ghost Messaging reviewer; the person wasn\'t told who reported them.'),
+      description: const Tr('Kept on this device alone. Each went sealed to the Uplink reviewer; the person wasn\'t told who reported them.'),
       children: [
         if (list.isEmpty) const SettingRow(key: ValueKey('reports-made-none'), label: 'You haven\'t reported anyone'),
         for (final r in list.take(math.min(list.length, MadeReport.most)))

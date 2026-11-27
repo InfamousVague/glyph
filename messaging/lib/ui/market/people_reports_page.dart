@@ -237,7 +237,7 @@ class PeopleReportScreen extends StatelessWidget {
         padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(title: 'Who', children: [
-            SettingRow(icon: const AppIcon(Lucide.userRound, size: 18), label: r.subjectUsername.isNotEmpty ? '@${r.subjectUsername}' : (r.subjectName.isEmpty ? 'Unknown' : r.subjectName), hint: Text([if (r.subjectName.isNotEmpty) r.subjectName, if (r.subjectId.isNotEmpty) 'Ghost id ${r.subjectId}'].join(' · ')), onPress: r.subjectId.isEmpty ? null : () => copy(r.subjectId)),
+            SettingRow(icon: const AppIcon(Lucide.userRound, size: 18), label: r.subjectUsername.isNotEmpty ? '@${r.subjectUsername}' : (r.subjectName.isEmpty ? 'Unknown' : r.subjectName), hint: Text([if (r.subjectName.isNotEmpty) r.subjectName, if (r.subjectId.isNotEmpty) 'Uplink id ${r.subjectId}'].join(' · ')), onPress: r.subjectId.isEmpty ? null : () => copy(r.subjectId)),
             SettingRow(icon: const AppIcon(Lucide.flag, size: 18), label: r.reason.label, hint: Text(r.note.isEmpty ? 'No note' : r.note)),
             SettingRow(icon: const AppIcon(Lucide.messageSquare, size: 18), label: _whereOf(r), hint: Text('Reported ${_time(r.at)}')),
           ]),
@@ -262,7 +262,7 @@ class PeopleReportScreen extends StatelessWidget {
             SettingRow(
               icon: AppIcon(o.verified ? Lucide.circleCheck : Lucide.circle, size: 18),
               label: r.reporterUsername.isNotEmpty ? '@${r.reporterUsername}' : 'No username',
-              hint: Text('Ghost id ${o.reporterId} · ${o.verified ? 'their signature checks out' : 'their signature does NOT check out'}${r.platform.isEmpty ? '' : ' · ${r.platform} ${r.version}'}'),
+              hint: Text('Uplink id ${o.reporterId} · ${o.verified ? 'their signature checks out' : 'their signature does NOT check out'}${r.platform.isEmpty ? '' : ' · ${r.platform} ${r.version}'}'),
               onPress: () => copy(o.reporterId),
             ),
           ]),

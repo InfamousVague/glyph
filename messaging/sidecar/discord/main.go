@@ -1,8 +1,8 @@
-// Ghost Messaging's Discord helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-discord, whose way of signing in
+// Uplink's Discord helper (README.md, PROTOCOL.md). AGPL-3.0, as mautrix-discord, whose way of signing in
 // as a person (beeper's discordgo fork, speaking as Discord's website does) it is built on.
 //
 // It signs in to Discord as the person, with the token of a browser signed in to their account, behaves as the
-// website does, and speaks JSON lines over standard input and output: the protocol all of Ghost's account helpers
+// website does, and speaks JSON lines over standard input and output: the protocol all of Uplink's account helpers
 // share (../ACCOUNT_HELPERS.md). Requests, each with an "id" its answer carries back:
 //
 //	{"id":1,"op":"status"}                                     → {"linked","connected","me","name","handle"}
@@ -66,7 +66,7 @@ type quote struct {
 	TS     int64  `json:"ts"`
 }
 
-// request is one line Ghost sends: an op, and whichever of the other fields that op takes.
+// request is one line Uplink sends: an op, and whichever of the other fields that op takes.
 type request struct {
 	ID      int64             `json:"id"`
 	Op      string            `json:"op"`
@@ -157,7 +157,7 @@ func main() {
 		os.Exit(2)
 	}
 	_ = os.MkdirAll(dir, 0o700)
-	// The log goes to standard error (Ghost's developer log) and discord.log beside the session; never stdout.
+	// The log goes to standard error (Uplink's developer log) and discord.log beside the session; never stdout.
 	log = zerolog.New(zerolog.MultiLevelWriter(os.Stderr, logFile())).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	out.SetEscapeHTML(false)
 	serve(os.Stdin)
@@ -195,7 +195,7 @@ func serve(in io.Reader) {
 			handle(r)
 		}()
 	}
-	// Ghost closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
+	// Uplink closed its end: the app is quitting. What was asked is answered first, for a few seconds at most.
 	waited := make(chan struct{})
 	go func() {
 		inflight.Wait()

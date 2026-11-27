@@ -1,7 +1,7 @@
 package com.infamousvague.ghostmessaging
 
 /**
- * A chat's background as it travels between phones that both run Ghost Messaging (Matt, 2026-11-13: "I want the
+ * A chat's background as it travels between phones that both run Uplink (Matt, 2026-11-13: "I want the
  * background to sync for everyone in a chat if they're all using ghost messaging"). There is no server: it goes as a
  * text in the conversation itself, which this app draws as a line ("Maya changed the chat background") and wears,
  * and which any other app would show as its letters. Pure JVM, so [BackgroundWireTest] holds it.
@@ -16,7 +16,7 @@ package com.infamousvague.ghostmessaging
  */
 object BackgroundWire {
     const val TAG = "ghost:bg1:"
-    const val NOTE = "Ghost Messaging chat background (gogho.st)"
+    const val NOTE = "Uplink chat background (gogho.st)"
 
     private val pattern = Regex("ghost:bg1:([a-z]+(?::[A-Za-z0-9#,]+)?)")
     private val hex = Regex("#[0-9A-Fa-f]{6}")

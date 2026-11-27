@@ -152,7 +152,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     showChoices(context, title: 'Message ${s.name} with', choices: [
       for (final r in s.reaches)
         if (r.contact == null)
-          Choice(s.friend ? 'Ghost' : 'Text message', s.friend ? Lucide.userCheck : Lucide.messageSquare, () => _reach(s, r), hint: s.friend ? '${r.address} · over the internet' : r.address)
+          Choice(s.friend ? 'Uplink' : 'Text message', s.friend ? Lucide.userCheck : Lucide.messageSquare, () => _reach(s, r), hint: s.friend ? '${r.address} · over the internet' : r.address)
         else
           Choice(
             Inbox.instance.named(r.contact!.network)?.name ?? r.contact!.network,
@@ -173,7 +173,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   /// The networks whose contacts the list has, signed in now: each is a filter.
   List<InboxNetwork> get _networks => [for (final n in Inbox.instance.ready) if (n.contacts.isNotEmpty) n];
 
-  /// What the list shows: the people added on Ghost Messaging (friends) first, under their own heading, then everyone
+  /// What the list shows: the people added on Uplink (friends) first, under their own heading, then everyone
   /// else (Matt, 2026-11-15: "Contacts added on Ghost Messaging should render at the top instead of the normal
   /// contacts"), the phone's contacts and Telegram's and Signal's put together, narrowed by the filter and a search.
   List<_Row> _rows(List<Map<String, String?>> found) {
@@ -201,7 +201,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final contacts = [for (final n in _networks) ...n.contacts];
     // The phone answered the search itself; the networks' contacts are searched here.
     var people = [for (final s in gather(phone, contacts)) if (s.inPhone || s.friend || answers(s, _query)) s];
-    // Friends by username are on Ghost Messaging as much as friends by number are, so they are among them under the
+    // Friends by username are on Uplink as much as friends by number are, so they are among them under the
     // one heading, not a section of their own (Matt, 2026-11-19: "friends by username and friends on ghost messaging
     // are about equal, just show the On Ghost Messaging and remove the Friends by username section on the contacts
     // page"). A press opens their chat, as one from Messages does.
@@ -218,18 +218,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
     // Under Friends everyone is one, so no heading says so.
     if (friends.isEmpty || _filter == 'friends') return [for (final s in people) _Row(someone: s)];
     return [
-      const _Row(heading: 'On Ghost Messaging'),
+      const _Row(heading: 'On Uplink'),
       for (final s in friends) _Row(someone: s),
       if (rest.isNotEmpty) const _Row(heading: 'Contacts'),
       for (final s in rest) _Row(someone: s),
     ];
   }
 
-  /// Whether the filters are offered: with a network linked, or anyone added on Ghost Messaging to narrow to (with
+  /// Whether the filters are offered: with a network linked, or anyone added on Uplink to narrow to (with
   /// neither, All and Phone would be the same list).
   bool _filtersShown(List<InboxNetwork> networks) => networks.isNotEmpty || Friends.instance.friends.isNotEmpty || Buddies.instance.friends.isNotEmpty;
 
-  /// The filters: everyone, friends on Ghost Messaging (Matt, 2026-11-17: "add the ability to sort contacts by friends
+  /// The filters: everyone, friends on Uplink (Matt, 2026-11-17: "add the ability to sort contacts by friends
   /// in ghost"), the phone's contacts, and each linked network's, with its mark.
   Widget _filters(Tokens t, List<InboxNetwork> networks) {
     final dialup = isBevelChrome(t);
@@ -319,7 +319,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ]),
         ),
         // A filter for each linked network with contacts, beside All, Friends and Phone; none until a network is linked
-        // or someone is added on Ghost Messaging. A filter whose chip has gone goes back to All.
+        // or someone is added on Uplink. A filter whose chip has gone goes back to All.
         ListenableBuilder(
           listenable: Listenable.merge([Inbox.instance.changes, Friends.instance]),
           builder: (context, _) {
@@ -354,7 +354,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     final rows = _rows(found);
                     // Friend requests and the ones sent first (lib/ui/username_friends.dart; Matt, 2026-11-16: "We need a
                     // way to add friends on the network by username on the contacts page and see friend requests"), while
-                    // nothing is searched for; the friends themselves are On Ghost Messaging below.
+                    // nothing is searched for; the friends themselves are On Uplink below.
                     final friends = _query.isEmpty;
                     return rows.isEmpty
                   ? ListView(padding: EdgeInsets.only(bottom: t.space(6)), children: [
@@ -366,9 +366,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         title: _query.isEmpty ? (_filter == 'friends' ? 'No friends yet' : 'No contacts') : 'Nobody found',
                         body: Text(_query.isEmpty
                             ? (_filter == 'friends'
-                                ? 'People you add on Ghost Messaging appear here.'
+                                ? 'People you add on Uplink appear here.'
                                 : _filter == 'all' || _filter == 'phone'
-                                    ? (Sms.browser ? 'People you add on Ghost Messaging appear here.' : 'People in the phone\'s contacts appear here.')
+                                    ? (Sms.browser ? 'People you add on Uplink appear here.' : 'People in the phone\'s contacts appear here.')
                                     : 'Nobody in your ${Inbox.instance.named(_filter)?.name ?? ''} contacts yet.')
                             : 'No name or number in your contacts matches "$_query".'),
                       ),
@@ -384,7 +384,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         if (i == rows.length) {
                           return Padding(
                             padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), 0),
-                            child: Text(Sms.browser ? 'Your friends on Ghost Messaging. Add another by their username.' : 'The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
+                            child: Text(Sms.browser ? 'Your friends on Uplink. Add another by their username.' : 'The people you text most. Search to find anyone else.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
                           );
                         }
                         final row = rows[i];
@@ -405,7 +405,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ].join(' · ');
                         return GlacierPressable(
                           onPressed: () => _pressed(someone),
-                          semanticLabel: '${someone.name}, ${[for (final k in someone.kinds) k == 'phone' ? (someone.friend ? 'Ghost' : 'text') : Inbox.instance.named(k)?.name ?? k].join(', ')}',
+                          semanticLabel: '${someone.name}, ${[for (final k in someone.kinds) k == 'phone' ? (someone.friend ? 'Uplink' : 'text') : Inbox.instance.named(k)?.name ?? k].join(', ')}',
                           builder: (context, state) => ColoredBox(
                             color: state.pressed || state.hovered ? t.color('app-paper-2') : const Color(0x00000000),
                             child: Padding(
@@ -421,11 +421,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   ]),
                                 ),
                                 SizedBox(width: t.space(2)),
-                                // Where they can be written to: a friend's Ghost tick or the phone, then each network's mark.
+                                // Where they can be written to: a friend's Uplink tick or the phone, then each network's mark.
                                 Row(mainAxisSize: MainAxisSize.min, spacing: t.space(1) + 2, children: [
                                   for (final k in someone.kinds)
                                     if (k == 'phone')
-                                      Semantics(label: someone.friend ? 'On Ghost Messaging' : 'Text message', child: AppIcon(someone.friend ? Lucide.userCheck : Lucide.messageSquare, size: 16, wash: false, color: t.color('app-ink-3')))
+                                      Semantics(label: someone.friend ? 'On Uplink' : 'Text message', child: AppIcon(someone.friend ? Lucide.userCheck : Lucide.messageSquare, size: 16, wash: false, color: t.color('app-ink-3')))
                                     else
                                       _mark(k, 18),
                                 ]),

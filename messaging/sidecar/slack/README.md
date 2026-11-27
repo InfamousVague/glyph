@@ -1,13 +1,13 @@
-# Ghost Messaging's Slack helper
+# Uplink's Slack helper
 
-A small program Ghost Messaging runs beside itself to reach the person's Slack messages in one workspace: signed in
+A small program Uplink runs beside itself to reach the person's Slack messages in one workspace: signed in
 with the session of a browser signed in to it, then the chats with the newest messages (channels, private channels,
 direct messages and group DMs), their history, messages as they arrive, sending (words, replies in threads, files),
 reactions, taking a message back, read marks, and the names and pictures of the people met.
 
 **This is not an official Slack app.** It signs in with the token and cookie of the person's own browser session and
 behaves as Slack's website does. Slack does not support other programs doing so. A workspace admin can see the session
-and sign it out, and Slack may sign it out on its own; the person then signs in again. Ghost says so, and asks the
+and sign it out, and Slack may sign it out on its own; the person then signs in again. Uplink says so, and asks the
 person to agree, before signing in.
 
 It is built on [mautrix-slack](https://github.com/mautrix/slack) (v0.2611.0) by Tulir Asokan and contributors: its
@@ -17,7 +17,7 @@ under the GNU Affero General Public License 3.0, and this helper's own source is
 licence asks that whoever is given the program can have its source: SOURCE_URL is where it is published. No cgo: the
 session is a JSON file, not a database.
 
-Ghost Messaging itself is a separate program: it starts this one (`slack-sidecar --dir <folder>`) and talks to it over
+Uplink itself is a separate program: it starts this one (`slack-sidecar --dir <folder>`) and talks to it over
 its standard input and output, one JSON object a line (../ACCOUNT_HELPERS.md, and PROTOCOL.md for what is Slack's
 own). The folder holds `session.json` (the token and cookies, readable by the person alone), `slack.log` and cached
 pictures (`avatars/`). Nothing a message says is logged at info level; nothing but the protocol is written to standard

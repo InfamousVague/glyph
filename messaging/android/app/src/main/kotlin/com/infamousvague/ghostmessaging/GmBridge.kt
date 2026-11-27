@@ -22,11 +22,11 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Ghost beside Google Messages (Matt, 2026-11-15: "I'd like to see if there is a way we can proxy messages from google
+ * Uplink beside Google Messages (Matt, 2026-11-15: "I'd like to see if there is a way we can proxy messages from google
  * messages to ghost so we can support RCS and other features ... I'd like to have a way that people can reliably get
  * text in and out of ghost without needing to switch the default messaging app"; the notifications bridge first).
  *
- * Google Messages stays the default SMS app and keeps RCS. Ghost, given notification access, reads what Google
+ * Google Messages stays the default SMS app and keeps RCS. Uplink, given notification access, reads what Google
  * Messages shows in its notifications (Android's MessagingStyle: the conversation, who said what, and when) into a
  * small database of its own, and answers through the notification's own Reply, as a watch or a car does, so an RCS
  * chat is answered as RCS. Texts (SMS, MMS) are in Android's database too, which an app that is not the default can
@@ -61,14 +61,14 @@ object GmBridge {
         else -> null
     }
 
-    /** Whether the person has given Ghost notification access (Settings › Notifications › Device & app notifications). */
+    /** Whether the person has given Uplink notification access (Settings › Notifications › Device & app notifications). */
     fun hasAccess(context: Context): Boolean {
         val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
         val mine = ComponentName(context, GmListener::class.java).flattenToString()
         return enabled.split(':').any { it == mine }
     }
 
-    /** Android's page for granting it, opened at Ghost where Android allows. */
+    /** Android's page for granting it, opened at Uplink where Android allows. */
     fun accessIntent(context: Context): Intent =
         Intent("android.settings.NOTIFICATION_LISTENER_DETAIL_SETTINGS")
             .putExtra("android.provider.extra.NOTIFICATION_LISTENER_COMPONENT_NAME", ComponentName(context, GmListener::class.java).flattenToString())
@@ -96,7 +96,7 @@ object GmBridge {
     // see thr ones coming through ghost instead"; then "Let's do our best given these options and push out an update").
     //
     // No app but the system's own, or a companion device's, may change another app's notification settings, and a
-    // notification is heard before Ghost can take it away. So the person makes Google Messages silent; Ghost watches
+    // notification is heard before Uplink can take it away. So the person makes Google Messages silent; Uplink watches
     // the channel each of its message notifications comes on (a listener is shown each one's settings) and says which
     // still make a sound or pop up: its "Incoming messages" and any conversation given a channel of its own, which
     // overrides that one. As of the last notification on each: a change is seen when the next one comes.
@@ -266,7 +266,7 @@ object GmBridge {
             val words = if (mime != null && standIn(text)) "" else text
             heard += Heard(words, time, if (out) null else senderName, address, out, mime, uri)
         }
-        // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Ghost can notify
+        // Every message hidden (a one-time code, Android 15+): the conversation is still read, so Uplink can notify
         // from Android's own copy of the text.
         if (heard.isEmpty() && messages.isEmpty()) return null
         val group = looksLikeGroup(flagged, title, heard.filter { !it.out }.mapNotNull { it.sender })
@@ -389,21 +389,21 @@ object GmBridge {
     }
 
     /**
-     * Ghost's notifications in place of Google Messages' (Matt, 2026-11-15: "make the app work without needing to be
+     * Uplink's notifications in place of Google Messages' (Matt, 2026-11-15: "make the app work without needing to be
      * the default sms app so it can work in tandem and I can turn off notifications from google messages or hide them
      * and proxy everything through ghost"). On unless turned off in Settings › Notifications (`gm_proxy`).
      *
-     * Google Messages' own must stay allowed (silent is best): they are what Ghost reads. Each of its message
-     * notifications is taken away as it comes and Ghost's own put up, whose Reply goes back through Google Messages.
+     * Google Messages' own must stay allowed (silent is best): they are what Uplink reads. Each of its message
+     * notifications is taken away as it comes and Uplink's own put up, whose Reply goes back through Google Messages.
      */
     fun proxying(context: Context): Boolean =
         !isDefault(context) && context.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("gm_proxy", "on") != "off" &&
-            // Never hidden where Ghost could not show its own: the person would be told of nothing at all.
+            // Never hidden where Uplink could not show its own: the person would be told of nothing at all.
             context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
 
     /**
      * The conversation's thread in Android's database where its people are known: the same thread its texts are in,
-     * so its RCS and its SMS are one conversation in Ghost. Where they are not known, a thread of its own below zero.
+     * so its RCS and its SMS are one conversation in Uplink. Where they are not known, a thread of its own below zero.
      */
     fun threadFor(context: Context, r: Read): Long {
         if (r.addresses.isNotEmpty()) {
@@ -474,14 +474,14 @@ object GmBridge {
         }
     }
 
-    /** Whether Ghost is the default SMS app; beside Google Messages it is not. */
+    /** Whether Uplink is the default SMS app; beside Google Messages it is not. */
     fun isDefault(context: Context): Boolean = try {
         val role = context.getSystemService(android.app.role.RoleManager::class.java)
         role.isRoleAvailable(android.app.role.RoleManager.ROLE_SMS) && role.isRoleHeld(android.app.role.RoleManager.ROLE_SMS)
     } catch (_: Exception) { false }
 
     /**
-     * Sends from Ghost while Google Messages is the default (Messaging.send asks this first then):
+     * Sends from Uplink while Google Messages is the default (Messaging.send asks this first then):
      *  1. a conversation Google Messages notified about is answered through its Reply, as RCS where it is RCS;
      *  2. else words to one number go as SMS, which an app that is not the default may send (Android keeps the copy);
      *  3. else (a group, a picture) Google Messages opens with the words filled in, to send from there.
@@ -821,8 +821,8 @@ class GmListener : NotificationListenerService() {
                 return
             }
             if (kept == null) return
-            // Ghost's own first; Google Messages' taken away only once it is up (Matt, 2026-11-15, a code text that
-            // showed nowhere: Ghost had taken Google Messages' away and had nothing of its own yet). A text Android
+            // Uplink's own first; Google Messages' taken away only once it is up (Matt, 2026-11-15, a code text that
+            // showed nowhere: Uplink had taken Google Messages' away and had nothing of its own yet). A text Android
             // hid from the bridge (a code) is read from Android's database, which Google Messages may write a moment
             // after notifying: asked again for a few seconds. With the on-phone connection up, it notifies (GmWeb).
             val key = sbn.key
@@ -841,16 +841,16 @@ class GmListener : NotificationListenerService() {
                             thread = found
                         }
                         shown = try { Notifier.incoming(context, thread) } catch (e: Exception) {
-                            DevLog.add(context, "bridge", "Ghost's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}"); false
+                            DevLog.add(context, "bridge", "Uplink's notification could not be shown: ${e.javaClass.simpleName}: ${e.message}"); false
                         }
                         if (shown) break
                     }
                 } else if (!kept.incoming && !kept.hidden) {
-                    // An update to one already shown (a reply of yours shown back): Ghost's stands as it is.
+                    // An update to one already shown (a reply of yours shown back): Uplink's stands as it is.
                     shown = true
                 }
                 if (shown) try { cancelNotification(key) } catch (_: Exception) {}
-                else DevLog.add(context, "bridge", "Google Messages' notification left up: Ghost had nothing to show for it")
+                else DevLog.add(context, "bridge", "Google Messages' notification left up: Uplink had nothing to show for it")
             }.start()
         } catch (e: Exception) {
             DevLog.add(context, "bridge", "A Google Messages notification could not be read: ${e.javaClass.simpleName}")
@@ -858,8 +858,8 @@ class GmListener : NotificationListenerService() {
     }
 
     /**
-     * Android's SMS database, watched while Ghost is not the default: Google Messages writes the texts there, and
-     * nothing else tells Ghost a text came or went. Changes close together are told once.
+     * Android's SMS database, watched while Uplink is not the default: Google Messages writes the texts there, and
+     * nothing else tells Uplink a text came or went. Changes close together are told once.
      */
     private var watcher: android.database.ContentObserver? = null
 

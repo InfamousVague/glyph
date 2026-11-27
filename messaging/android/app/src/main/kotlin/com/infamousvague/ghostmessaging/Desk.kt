@@ -185,7 +185,7 @@ object Desk : DeskHost {
         } catch (_: Exception) { emptyList() }
     }
 
-    /** What the phone calls itself on the local network: `Ghost-` and six letters that say nothing of whose it is. */
+    /** What the phone calls itself on the local network: `Uplink-` and six letters that say nothing of whose it is. */
     fun serviceName(): String {
         val p = prefs()
         p.getString("nsd", null)?.let { return it }
@@ -222,7 +222,7 @@ object Desk : DeskHost {
 
     /** What a code offers, before anything is done with it: the computer's name and how it would connect. */
     fun peek(code: String): Map<String, Any?> {
-        val offer = DeskCrypto.parseOffer(code) ?: throw IllegalArgumentException("That isn't a Ghost Messaging pairing code")
+        val offer = DeskCrypto.parseOffer(code) ?: throw IllegalArgumentException("That isn't an Uplink pairing code")
         return mapOf("name" to offer.name, "mode" to offer.mode, "relay" to offer.relay)
     }
 
@@ -232,7 +232,7 @@ object Desk : DeskHost {
      * from then on; left out, it is what the computer offered.
      */
     fun begin(code: String, mode: String?): Map<String, Any?> {
-        val offer = DeskCrypto.parseOffer(code) ?: throw IllegalArgumentException("That isn't a Ghost Messaging pairing code")
+        val offer = DeskCrypto.parseOffer(code) ?: throw IllegalArgumentException("That isn't an Uplink pairing code")
         val chosen = mode?.takeIf { it in DeskCrypto.MODES } ?: offer.mode
         pending?.session?.close()
         val pair = E2eCrypto.newKeyPair()

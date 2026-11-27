@@ -1,4 +1,4 @@
-// What starts Flutter's engine and then the app, for Ghost Messaging in a browser. `flutter build web` writes this
+// What starts Flutter's engine and then the app, for Uplink in a browser. `flutter build web` writes this
 // file into the build with the two pieces in double braces filled in (its own loader, and what it built).
 //
 // Two things are said here that Flutter would otherwise decide for itself:

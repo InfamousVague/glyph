@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ships gogho.st (before 2026-11-15, ghost-sms.com), Ghost Messaging's site (site/), to the box in one ssh session, as Ghost Keyboard's
+ * Ships gogho.st (before 2026-11-15, ghost-sms.com), Uplink's site (site/), to the box in one ssh session, as Ghost Keyboard's
  * tool/deploy-site.mjs ships ghostkbd.com (Matt, 2026-11-13: "serve it over ghost-sms.com I'll point the domain to
  * the same server ghost kbd uses").
  *
@@ -33,7 +33,7 @@
  * It uses Ghost.md's box account and its own deploy code, as tool/release.mjs does (this app lives in Ghost.md's
  * repository, so the checkout is the folder above; --glyph <path> or GLYPH_ROOT say otherwise). THE CADDYFILE IS
  * SHARED (attack.fm, ghostmarkdown.com, ghostkbd.com and more), so --caddy is glyph's scripts/deploy-landing.mjs
- * procedure, line for line: it touches only this site's own blocks (gogho.st's, ghost-sms.com's, satellite.im's, app.gogho.st's); a timestamped backup; every other site asked
+ * procedure, line for line: it touches only this site's own blocks (gogho.st's, ghost-sms.com's, app.gogho.st's, and those of the site's other names, satellite.im and deepspaceshipping.co, which serve the site themselves); a timestamped backup; every other site asked
  * for its page before; the block written; `caddy validate`; a reload; every other site asked again; a failed
  * validate, or any site answering differently, puts the backup back. Caddy gets the certificate by itself, once the
  * domain's DNS points at the box. The box counts logins: this spends one.
@@ -64,9 +64,14 @@ const DOMAIN = 'gogho.st';
 // the relay's sign-in pages (/link/*, whose addresses Discord, X and Telegram were given); anything else there goes
 // to the same address on gogho.st. /discord/* answers on both names (the Discord presence bot, tool/deploy-discord.mjs).
 const OLD = 'ghost-sms.com';
-// Another name for the site, sent on to gogho.st (Matt, 2026-11-20: "link satellite.im to the list of domains and point it
-// to the gogho.st page"). Its DNS has to point at the box (as gogho.st's does) before Caddy can get it a certificate.
-const ALSO = 'satellite.im';
+// Other names the site answers under itself, the same pages with nothing sent on (Matt, 2026-11-27: "update the box so
+// satellite.im and deepspaceshipping.co don't redirect simply serve the uplink page"). satellite.im was sent on to
+// gogho.st until then, as he first asked (2026-11-20: "link satellite.im to the list of domains and point it to the
+// gogho.st page"). A name's DNS has to point at the box (as gogho.st's does) before Caddy can get it a certificate, so
+// each gets its block only once it does (alsoBlock, and ALSO_IN on the box).
+const ALSO = ['satellite.im', 'deepspaceshipping.co'];
+// The release's own files, as every block that serves them names them.
+const RELEASED = `/${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json`;
 const args = process.argv.slice(2);
 const withCaddy = args.includes('--caddy');
 const printOnly = args.includes('--print');
@@ -120,7 +125,7 @@ ${DOMAIN} {
 	# The release's own files (tool/release.mjs, tool/release-mac.mjs), so a release updates this site's download
 	# and version. Installed copies update from these addresses (the phone's Updater.BASE, the Mac's macFeed): they
 	# must never stop answering.
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
+	@release path ${RELEASED}
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -257,7 +262,7 @@ www.${DOMAIN} {
 }
 ${OLD} {
 	encode zstd gzip
-	@release path /${APK} /apk.json /${MAC_ZIP} /${MAC_DMG} /mac.json /ghost-messaging-setup.exe /windows.json /ghost-messaging-linux.deb /ghost-messaging-linux-x64.tar.gz /linux.json
+	@release path ${RELEASED}
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -292,11 +297,39 @@ ${OLD} {
 www.${OLD} {
 	redir https://${DOMAIN}{uri} permanent
 }
-${ALSO} {
-	redir https://${DOMAIN}{uri} permanent
+`;
+
+// One of the site's other names (ALSO): the site's own pages, its docs and the release's files, under that name and
+// with nothing sent on. What can only be gogho.st's goes there: the app in a browser (its page's policy, and the
+// account a browser keeps, are gogho.st's), the pages an app's link opens (an invite, an add-me link, a circle's word,
+// a pairing code: the apps write those links with gogho.st, and the pages speak to the relay from it), and the relay
+// itself. Not the matcher's name the two blocks above share, and nothing passed to the relay from here.
+const alsoBlock = (name) => `
+${name} {
+	encode zstd gzip
+	@release path ${RELEASED}
+	handle @release {
+		root * ${RELEASE}
+		header Cache-Control "no-cache"
+		file_server
+	}
+	@gogho path /app /app/* /join /join/* /add /add/* /c /c/* /pair /pair/* /hub /relay/* /link/* /word/* /market /market/* /files /files/* /feedback /bounty /souls/* /discord /discord/*
+	handle @gogho {
+		redir https://${DOMAIN}{uri}
+	}
+	handle {
+		root * ${SITE}
+		header Cache-Control "no-cache"
+		header X-Content-Type-Options "nosniff"
+		header Referrer-Policy "strict-origin-when-cross-origin"
+		file_server
+	}
 }
-www.${ALSO} {
-	redir https://${DOMAIN}{uri} permanent
+`;
+// Its www, sent to the name itself, where that has a DNS record of its own pointing here.
+const alsoWwwBlock = (name) => `
+www.${name} {
+	redir https://${name}{uri} permanent
 }
 `;
 
@@ -359,10 +392,12 @@ const CLEAR_WANTED = 'Clear-Site-Data: "storage"';
 
 // Every name's block is this site's (app.gogho.st's too, kept apart from gogho.st's own): each is taken out and
 // written again.
-const dom = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')}|${APP_HOST.replaceAll('.', '[.]')})`;
-// The same without app.gogho.st's: what is taken out where its new block can't go in (its DNS not checked), so the
-// block it has, if any, stays as it is.
-const domSite = `(${DOMAIN.replace('.', '[.]')}|${OLD.replace('.', '[.]')}|${ALSO.replace('.', '[.]')})`;
+const escaped = (name) => name.replaceAll('.', '[.]');
+const dom = `(${[DOMAIN, OLD, ...ALSO, APP_HOST].map(escaped).join('|')})`;
+// The two that are always written again. app.gogho.st's block and each other name's (ALSO) are taken out only where a
+// new one goes in: with a name's DNS not pointing here just now (or a lookup that failed for a moment) the block it
+// has, if any, stays as it is.
+const domCore = [DOMAIN, OLD].map(escaped).join('|');
 // Run on the box. Reads the site as a tarball on stdin; with --app, the site under site/ and the app under app/.
 const REMOTE = `set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
@@ -413,6 +448,13 @@ APP_IP=$(getent ahostsv4 ${APP_HOST} 2>/dev/null | awk 'NR==1 { print $1 }')
 SITE_IP=$(getent ahostsv4 ${DOMAIN} 2>/dev/null | awk 'NR==1 { print $1 }')
 WITH_APP=0
 if [ -n "$APP_IP" ] && [ "$APP_IP" = "$SITE_IP" ]; then WITH_APP=1; else echo "! ${APP_HOST}'s DNS record doesn't point at this box yet (${APP_HOST}: \${APP_IP:-none}, ${DOMAIN}: \${SITE_IP:-none}): its block is left out. Run --caddy again once it does."; fi
+# The site's other names (${ALSO.join(', ')}), for the same reason: each gets its block only once its own DNS record
+# points at this box, and one that doesn't yet is left as it is. A name's www likewise, apart from the name.
+points() { ip=$(getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1 { print $1 }'); [ -n "$ip" ] && [ -n "$SITE_IP" ] && [ "$ip" = "$SITE_IP" ]; }
+ALSO_IN=""
+for n in ${ALSO.join(' ')}; do
+  if points "$n"; then ALSO_IN="$ALSO_IN $n"; else echo "! $n's DNS record doesn't point at this box yet ($n: \${ip:-none}, ${DOMAIN}: \${SITE_IP:-none}): it is left as it is. Point its A record at \${SITE_IP:-the box} and run --caddy again."; fi
+done
 BACKUP="$CF.bak-$(date +%Y%m%d-%H%M%S)"
 $SUDO cp -a "$CF" "$BACKUP"
 echo "ok backup $BACKUP"
@@ -426,10 +468,17 @@ restore() { echo "x $1: putting $BACKUP back"; $SUDO cp -a "$BACKUP" "$CF"; $SUD
 # and the new ones on the end.
 # app.gogho.st's block is taken out only where a new one goes in: with its DNS not checked just now (a lookup that failed
 # for a moment) the block it has stays, where once --caddy took a live app's block away (third review).
-if [ "$WITH_APP" = 1 ]; then START='^(www[.])?${dom}[ ,{]'; else START='^(www[.])?${domSite}[ ,{]'; fi
+NAMES='${domCore}'
+[ "$WITH_APP" = 0 ] || NAMES="$NAMES|${escaped(APP_HOST)}"
+for n in $ALSO_IN; do NAMES="$NAMES|$(printf '%s' "$n" | sed 's/[.]/[.]/g')"; done
+START="^(www[.])?($NAMES)[ ,{]"
 $SUDO awk -v start="$START" '$0 ~ start { skip = 1; next } skip && /^}/ { skip = 0; next } !skip' "$CF" | $SUDO tee "$CF.next" >/dev/null
 printf '%s\\n' '${BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
 [ "$WITH_APP" = 0 ] || printf '%s\\n' '${APP_BLOCK.replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
+${ALSO.map((name) => `case " $ALSO_IN " in *" ${name} "*)
+  printf '%s\\n' '${alsoBlock(name).replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null
+  if points "www.${name}"; then printf '%s\\n' '${alsoWwwBlock(name).replace(/'/g, "'\\''")}' | $SUDO tee -a "$CF.next" >/dev/null; fi ;;
+esac`).join('\n')}
 # Copied onto the Caddyfile rather than moved over it, so the file keeps its owner and its mode.
 $SUDO cp "$CF.next" "$CF"; $SUDO rm -f "$CF.next"
 echo "the new blocks:"; $SUDO awk -v start='^(www[.])?${dom}[ ,{]' '$0 ~ start { on = 1 } on { print "  " $0 } on && /^}/ { on = 0 }' "$CF"
@@ -443,6 +492,18 @@ if [ "$FEEDS" = "$(printf '/apk.json 200\\n/${APK} 200')" ]; then
   [ "$(feeds)" = "$FEEDS" ] || restore "https://${OLD}/apk.json or /${APK} no longer answers, and copies installed before gogho.st update from them"
   echo "ok /apk.json and /${APK} answer as before"
 fi
+# Each other name answers the site's own page under itself: the very page ${DOMAIN} gives, not a redirect to it and
+# not another site's. A name new to the box waits for its certificate first (two minutes at most).
+page() { curl -s --max-time 10 --resolve "$1:443:127.0.0.1" "https://$1/" | sha256sum | awk '{ print $1 }'; }
+for n in $ALSO_IN; do
+  ok=0
+  for i in $(seq 1 30); do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$n:443:127.0.0.1" "https://$n/" || true)" = 200 ] && [ "$(page "$n")" = "$(page ${DOMAIN})" ]; then ok=1; break; fi
+    sleep 4
+  done
+  [ "$ok" = 1 ] || restore "https://$n does not answer with ${DOMAIN}'s page"
+  echo "ok https://$n answers with the site's page itself"
+done
 # app.gogho.st as a visitor gets it, once Caddy has its certificate (waited for, two minutes at most): every header on
 # the list on the page, on a 404 and on the worker, whose policy only the header can give it. Any missing, or no answer
 # at all, puts the Caddyfile back.
@@ -532,6 +593,13 @@ const example = curl(['-o', '/dev/null', '-w', '%{http_code} %{content_type}', `
 console.log(`  https://${DOMAIN}/docs/examples/bills.ghostplugin answers ${example || 'nothing yet'} (200 application/json once the block from --caddy is live)`);
 console.log(`  https://${DOMAIN}/ answers ${page || 'nothing yet'}; /apk.json ${info || 'nothing yet'}; /${APK} ${apk || 'nothing yet'} (404 for those two until the first tool/release.mjs)`);
 if (page !== '200') console.log('  (a certificate can take a minute, or longer while the domain\'s DNS settles: Caddy keeps trying.)');
+// The site's other names, from here as a visitor: the page itself (200), never sent on.
+if (withCaddy) {
+  for (const name of ALSO) {
+    const got = curl(['-o', '/dev/null', '-w', '%{http_code} %{redirect_url}', `https://${name}/`]).stdout.trim();
+    console.log(`  https://${name}/ answers ${got && !got.startsWith('000') ? got : 'nothing (its DNS record does not point at the box, or its certificate is still coming)'}`);
+  }
+}
 if (APP_BUILD || withCaddy) {
   // And from here, as a visitor: every header on the list, on the page, a 404 and the worker.
   for (const path of ['/', '/argon2id.js', '/no-such-file-here.js']) {

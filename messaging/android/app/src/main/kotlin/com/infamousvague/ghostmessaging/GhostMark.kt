@@ -1,7 +1,7 @@
 package com.infamousvague.ghostmessaging
 
 /**
- * How two phones with Ghost Messaging find each other (Matt, 2026-11-13: "I'd like to instead be able to detect if
+ * How two phones with Uplink find each other (Matt, 2026-11-13: "I'd like to instead be able to detect if
  * both users are using ghost messaging and enable encryption in the chat", then "If we detect both users are using
  * ghost it should show a banner that can be dismissed asking the user to enable encryption for better security").
  * There is no server to ask, so the app says it is there in the texts themselves: three invisible characters at the

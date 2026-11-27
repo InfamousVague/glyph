@@ -19,7 +19,7 @@ namespace {
 constexpr ULONG_PTR kLinkMessage = 0x47484C4B;  // "GHLK"
 // How a running copy's window is found: its class (win32_window.cpp) and its title (main.cpp).
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
-constexpr const wchar_t kWindowTitle[] = L"Ghost Messaging";
+constexpr const wchar_t kWindowTitle[] = L"Uplink";
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 // Links that came before the app asked for them, and whether it has asked yet.
@@ -106,7 +106,7 @@ void RegisterLinkScheme() {
   if (n == 0 || n >= MAX_PATH) return;
   // Written at every start, so the scheme follows the app to wherever it now is.
   const std::wstring root = L"Software\\Classes\\ghostmsg";
-  SetKey(HKEY_CURRENT_USER, root, nullptr, L"URL:Ghost Messaging");
+  SetKey(HKEY_CURRENT_USER, root, nullptr, L"URL:Uplink");
   SetKey(HKEY_CURRENT_USER, root, L"URL Protocol", L"");
   SetKey(HKEY_CURRENT_USER, root + L"\\DefaultIcon", nullptr, std::wstring(L"\"") + exe + L"\",0");
   SetKey(HKEY_CURRENT_USER, root + L"\\shell\\open\\command", nullptr, std::wstring(L"\"") + exe + L"\" \"%1\"");

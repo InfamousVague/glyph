@@ -5,7 +5,7 @@ import android.util.Log
 import java.io.File
 
 /**
- * Who is known to have Ghost Messaging, and the backgrounds they share ([BackgroundWire]).
+ * Who is known to have Uplink, and the backgrounds they share ([BackgroundWire]).
  *
  * A number is known to have the app once a text only the app writes has come from it: an encryption key, a sealed
  * text, or a background. A background is synced by itself only with people known to have it, since to anyone else
@@ -22,14 +22,14 @@ object Backgrounds {
     private fun ui(context: Context) = context.applicationContext.getSharedPreferences("ui", Context.MODE_PRIVATE)
     private fun peers(context: Context) = context.applicationContext.getSharedPreferences(PEERS, Context.MODE_PRIVATE)
 
-    /** A text only Ghost Messaging writes came from [address]. */
+    /** A text only Uplink writes came from [address]. */
     fun sawGhost(context: Context, address: String) {
         val key = E2e.norm(address)
         if (key.isEmpty() || peers(context).contains(key)) return
         peers(context).edit().putBoolean(key, true).apply()
     }
 
-    /** Whether [body], as it arrived, is one of the texts only Ghost Messaging writes. */
+    /** Whether [body], as it arrived, is one of the texts only Uplink writes. */
     fun isGhostText(body: String): Boolean = E2eCrypto.keyIn(body) != null || E2eCrypto.isSealed(body) || BackgroundWire.valueIn(body) != null
 
     /** Whether everyone in [addresses] is known to have the app: a text of its own came from them, or their key is here. */

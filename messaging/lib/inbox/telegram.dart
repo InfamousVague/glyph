@@ -311,7 +311,7 @@ class Telegram extends InboxNetwork {
       'system_language_code': 'en',
       'device_model': PlatformInfo.isMacOS ? 'Mac' : 'Android',
       'system_version': PlatformInfo.operatingSystemVersion,
-      'application_version': const String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: 'Ghost Messaging'),
+      'application_version': const String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: 'Uplink'),
     });
   }
 
@@ -415,7 +415,7 @@ class Telegram extends InboxNetwork {
       final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListMain'}, 'limit': 100});
       if (r['@type'] == 'error') break;
     }
-    // And Telegram's archive, which Ghost's Archived page shows among archived texts.
+    // And Telegram's archive, which Uplink's Archived page shows among archived texts.
     for (var i = 0; i < 20; i++) {
       final r = await _ask({'@type': 'loadChats', 'chat_list': {'@type': 'chatListArchive'}, 'limit': 100});
       if (r['@type'] == 'error') break;
@@ -492,7 +492,7 @@ class Telegram extends InboxNetwork {
         final name = [u['first_name'], u['last_name']].whereType<String>().where((s) => s.isNotEmpty).join(' ');
         _users[(u['id'] as num).toInt()] = name.isEmpty ? 'Someone' : name;
       case 'updateChatBlockList':
-        // Blocked or unblocked, here or in Telegram's own app: Ghost's list follows Telegram's.
+        // Blocked or unblocked, here or in Telegram's own app: Uplink's list follows Telegram's.
         final id = (m['chat_id'] as num).toInt();
         final on = (m['block_list'] as Map?)?['@type'] == 'blockListMain';
         if (on != isBlocked('$id')) {
@@ -671,7 +671,7 @@ class Telegram extends InboxNetwork {
     await super.block(chatId, name: name, on: on);
   }
 
-  /// Telegram's own list, as its Settings › Privacy › Blocked users shows it: Ghost's list is made the same.
+  /// Telegram's own list, as its Settings › Privacy › Blocked users shows it: Uplink's list is made the same.
   @override
   Future<void> refreshBlocked() async {
     if (_state != InboxState.ready) return;
@@ -682,7 +682,7 @@ class Telegram extends InboxNetwork {
       final user = (s as Map)['user_id'];
       if (user is num) there['${user.toInt()}'] = _users[user.toInt()] ?? '${_chatsById[user.toInt()]?['title'] ?? ''}';
     }
-    // Only a full list says who is no longer blocked: past a hundred, the ones beyond are left as Ghost has them.
+    // Only a full list says who is no longer blocked: past a hundred, the ones beyond are left as Uplink has them.
     final whole = ((r['total_count'] as num?) ?? 0) <= there.length;
     for (final id in localList('blocked')) {
       if (whole && !there.containsKey(id)) keepBlocked(id, on: false);
@@ -766,7 +766,7 @@ class Telegram extends InboxNetwork {
               _people[((c['type'] as Map)['user_id'] as num?)?.toInt()]?['is_contact'] == false),
       cold: type == 'chatTypePrivate' && const {'chatActionBarReportSpam', 'chatActionBarReportAddBlock'}.contains((c['action_bar'] as Map?)?['@type']),
       flag: type == 'chatTypePrivate' ? _flagOf(((c['type'] as Map)['user_id'] as num?)?.toInt()) : null,
-      // Muted in Telegram for now: no notification from Ghost either. A chat on Telegram's default for its kind is not
+      // Muted in Telegram for now: no notification from Uplink either. A chat on Telegram's default for its kind is not
       // taken as muted (the default is rarely muted, and is not kept per chat).
       muted: _muted(c['notification_settings'] as Map?),
       // Telegram's own account (777000, which sends its sign-in codes) and bots.
@@ -1224,12 +1224,12 @@ class Telegram extends InboxNetwork {
     for (final (i, path) in paths.indexed) {
       final words = i == paths.length - 1 && caption.trim().isNotEmpty ? {'caption': {'@type': 'formattedText', 'text': caption.trim()}} : const <String, Object?>{};
       final file = {'@type': 'inputFileLocal', 'path': path};
-      // A sticker of Ghost's goes as a Telegram sticker (WEBP is what Telegram takes for one), so it arrives as one
+      // A sticker of Uplink's goes as a Telegram sticker (WEBP is what Telegram takes for one), so it arrives as one
       // there and comes back as one here; one in another format goes as the picture it is.
       final content = sticker && path.toLowerCase().endsWith('.webp')
           ? {'@type': 'inputMessageSticker', 'sticker': file, 'width': 512, 'height': 512}
           : voice
-          // Ghost records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
+          // Uplink records AAC in .m4a; Telegram's voice messages are Opus, so it goes as a sound named for what it is.
           ? {'@type': 'inputMessageAudio', 'audio': file, 'title': 'Voice message', ...words}
           : switch (kindOf(path)) {
               'photo' => {'@type': 'inputMessagePhoto', 'photo': file, ...words},
@@ -1282,7 +1282,7 @@ class Telegram extends InboxNetwork {
       'messageChecklist' => 'Checklist',
       // Something newer than this app knows (Matt, 2026-11-17: "A bunch of telegram messages are just showing as
       // \"Message\""): said so, rather than a word that reads like what was written.
-      _ => 'A kind of message Ghost can\'t show yet: open Telegram to see it',
+      _ => 'A kind of message Uplink can\'t show yet: open Telegram to see it',
     };
   }
 
@@ -1572,7 +1572,7 @@ class Telegram extends InboxNetwork {
 @visibleForTesting
 String telegramPlain(Map e) => Telegram._plain(e);
 
-/// What a member made admin from Ghost may do: as Telegram's apps give a new admin, short of adding admins.
+/// What a member made admin from Uplink may do: as Telegram's apps give a new admin, short of adding admins.
 const telegramAdminRights = <String, Object?>{
   '@type': 'chatAdministratorRights',
   'can_manage_chat': true,
@@ -1640,7 +1640,7 @@ GroupDetails telegramGroupDetails({required Map chat, required Map mine, String 
 }
 
 /// A message's reactions as TDLib gives them (messageInteractionInfo.reactions), as kinds: the emoji ones, how many each,
-/// and whether this account gave it. Paid stars and custom emoji are left out: Ghost has no way to draw them.
+/// and whether this account gave it. Paid stars and custom emoji are left out: Uplink has no way to draw them.
 List<InboxReaction> telegramReactions(Map? interaction) {
   final list = ((interaction?['reactions'] as Map?)?['reactions'] as List?) ?? const [];
   return [

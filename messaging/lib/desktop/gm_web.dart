@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart';
 /// Paired once by a QR code scanned in Google Messages on the phone, the computer has the person's Google Messages
 /// conversations whole: RCS and texts, history, pictures and reactions. It is done by the sidecar (sidecar/gmessages,
 /// a separate program under the AGPL, built on mautrix-gmessages' libgm), which this starts and talks to over its
-/// standard input and output, one JSON object a line. Nothing of it is linked into Ghost.
+/// standard input and output, one JSON object a line. Nothing of it is linked into Uplink.
 ///
 /// Its conversations are folded into what the desktop shows (lib/desktop/remote.dart): each under a thread number
 /// of its own below [threadBase], and a conversation the phone also has (the same people) is shown once, from here.

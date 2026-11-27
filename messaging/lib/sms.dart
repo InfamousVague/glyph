@@ -165,7 +165,7 @@ class Attachment {
     };
   }
 
-  /// One of Ghost Messaging's stickers (android Sender.sendSticker names them so): drawn small, on the page.
+  /// One of Uplink's stickers (android Sender.sendSticker names them so): drawn small, on the page.
   bool get isSticker => isImage && (name ?? '').split('/').last.startsWith('ghost-sticker');
 }
 
@@ -240,7 +240,7 @@ class Message {
   final bool edited;
   final String? original;
 
-  /// It travelled sealed by Ghost Messaging's own encryption and was opened here.
+  /// It travelled sealed by Uplink's own encryption and was opened here.
   final bool encrypted;
 
   /// Not words to show in a bubble: 'key' (it carried an encryption key) or 'undecryptable' (sealed, and the key to
@@ -324,7 +324,7 @@ class MmsStatus {
 
   /// All of it as text, to copy and send to whoever is helping.
   String report(String version) => [
-        'Ghost Messaging $version, picture messages',
+        'Uplink $version, picture messages',
         'Carrier: ${carrier ?? 'not said'}',
         'SIM for texts: ${sim ? 'yes' : 'none'}',
         'Mobile data: ${dataOn == null ? 'not said' : (dataOn! ? 'on' : 'off')}',
@@ -388,8 +388,8 @@ class SmsStatus {
   final bool notifications;
   final bool phone;
 
-  /// Beside Google Messages (android GmBridge.kt): whether it is on the phone, whether Ghost may read its
-  /// notifications, and whether Ghost may read the SMS database and send texts without being the default.
+  /// Beside Google Messages (android GmBridge.kt): whether it is on the phone, whether Uplink may read its
+  /// notifications, and whether Uplink may read the SMS database and send texts without being the default.
   final bool gmInstalled;
   final bool bridge;
   final bool sms;
@@ -401,7 +401,7 @@ class SmsStatus {
   /// conversations the person chose), 'none', or null where the phone has none (before Android 11, or a computer).
   final String? bubbles;
 
-  /// Ghost beside Google Messages, not the default: its RCS chats come through its notifications.
+  /// Uplink beside Google Messages, not the default: its RCS chats come through its notifications.
   bool get beside => !isDefault && bridge && sms;
 
   /// The app can run: the default, or beside Google Messages.
@@ -421,7 +421,7 @@ class SmsStatus {
       );
 }
 
-/// Where Ghost Messaging's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
+/// Where Uplink's own encryption stands with one person (android/.../E2e.kt): none, offered (your key sent,
 /// theirs awaited), pending (theirs here, your yes awaited), on.
 class E2eState {
   const E2eState({this.address = '', this.state = 'none', this.verified = false, this.changed = false, this.safety, this.person, this.hasGhost = false, this.declined = false, this.plain = 0, this.friend = '', this.id, this.otherIds = const []});
@@ -450,7 +450,7 @@ class E2eState {
   final String? safety;
   final Person? person;
 
-  /// They are known to have Ghost Messaging: a text only the app writes has come from them (its invisible hello,
+  /// They are known to have Uplink: a text only the app writes has come from them (its invisible hello,
   /// a key, a background).
   final bool hasGhost;
 
@@ -489,7 +489,7 @@ class E2eState {
         otherIds: [for (final x in (m['others'] is List ? m['others'] as List : const [])) if (_isId(x)) x as String],
       );
 
-  /// Whether [x] is a Ghost id: 32 hex digits.
+  /// Whether [x] is an Uplink id: 32 hex digits.
   static bool _isId(Object? x) => x is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(x);
 }
 
@@ -677,7 +677,7 @@ abstract class OwnNetworkCalls {}
 abstract class PhoneSide {}
 
 /// Calls that reach the phone from somewhere else (a computer's link) and say what the phone at their other end can
-/// do: an older Ghost Messaging there does less. [caps] names what it does beyond the first few (android
+/// do: an older Uplink there does less. [caps] names what it does beyond the first few (android
 /// DeskCalls.CAPS), so a screen offers only what will work ([Sms.can]).
 abstract class CapableCalls {
   Set<String> get caps;
@@ -923,7 +923,7 @@ class Sms {
   }
 
   /// The networks signed in ([names]), and whether a friend's call is to ring while the app is closed ([calls]): Android
-  /// keeps Ghost running while there is either, and stops when there is neither (android NetworksService.kt;
+  /// keeps Uplink running while there is either, and stops when there is neither (android NetworksService.kt;
   /// lib/keep_running.dart).
   Future<void> keepNetworks(List<String> names, {bool calls = false}) async {
     if (remote || !PlatformInfo.isAndroid) return;
@@ -1011,7 +1011,7 @@ class Sms {
   /// This phone's signature over [message], r then s.
   Future<Uint8List> netSign(List<int> message) async => (await _calls.invokeMethod('netSign', {'message': Uint8List.fromList(message)})) as Uint8List;
 
-  // --- a Ghost account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts") ----------
+  // --- an Uplink account (lib/account; Matt, 2026-11-17: "We need to have a way to login to existing accounts") ----------
 
   /// This install's identity's private key, 32 bytes, for an account's sealed backup: an account made on an install
   /// that had its own key keeps that key, and a new device signing in gets it back. Asked only to seal it.
@@ -1117,13 +1117,13 @@ class Sms {
   Future<SmsStatus> status() async => SmsStatus.from(await _calls.invokeMethod('status') as Map);
   Future<bool> requestDefault() async => await _calls.invokeMethod<bool>('requestDefault') ?? false;
 
-  /// Beside Google Messages: Android's page for notification access, opened at Ghost (android GmBridge.kt).
+  /// Beside Google Messages: Android's page for notification access, opened at Uplink (android GmBridge.kt).
   Future<void> openBridgeAccess() => _calls.invokeMethod<bool>('bridgeAccess');
 
   /// Opens Google Messages, or its Play Store page where it is not on the phone.
   Future<void> openGm() => _calls.invokeMethod<bool>('openGm');
 
-  /// Google Messages' notification channels as Ghost last saw them (android GmBridge.channelList), loudest first.
+  /// Google Messages' notification channels as Uplink last saw them (android GmBridge.channelList), loudest first.
   Future<List<GmChannel>> gmChannels() async =>
       [for (final c in ((await _calls.invokeMethod<List>('gmChannels')) ?? const [])) GmChannel.from(c as Map)];
 
@@ -1139,7 +1139,7 @@ class Sms {
   /// Android's settings for one of Google Messages' channels.
   Future<void> openGmChannel(GmChannel c) => _calls.invokeMethod<bool>('openGmChannel', {'id': c.id, 'conversation': c.conversation});
 
-  /// Android's notification settings for Google Messages, to make them silent (Ghost then shows its own).
+  /// Android's notification settings for Google Messages, to make them silent (Uplink then shows its own).
   Future<void> openGmNotifications() => _calls.invokeMethod<bool>('openGmNotifications');
 
   /// Beside Google Messages: reading the SMS database and sending texts, asked for.
@@ -1236,7 +1236,7 @@ class Sms {
 
   /// Tries again to bring down a picture message that could not be ([Message.state] `pending_download`).
   Future<void> retryDownload(Message m) => _calls.invokeMethod('retryDownload', {'id': m.id});
-  // Deleted beside Google Messages, a conversation or text may be one Ghost only leaves out: that list is kept on the
+  // Deleted beside Google Messages, a conversation or text may be one Uplink only leaves out: that list is kept on the
   // account too (lib/kept_lists.dart).
   Future<void> deleteThread(int thread) => _calls.invokeMethod('deleteThread', {'thread': thread}).then((_) => KeptLists.instance.changed());
   Future<void> deleteThreads(List<int> threads) => _calls.invokeMethod('deleteThreads', {'threads': threads}).then((_) => KeptLists.instance.changed());
@@ -1556,7 +1556,7 @@ class Sms {
   /// its own, so this is a computer's alone ([remote]).
   Future<void> emojiPanel() => _calls.invokeMethod('emoji');
 
-  /// The conversations (with when each was deleted) and texts deleted beside Google Messages that Android kept: Ghost's
+  /// The conversations (with when each was deleted) and texts deleted beside Google Messages that Android kept: Uplink's
   /// own lists, kept on the account too (lib/kept_lists.dart). Nothing on a computer.
   Future<Map<String, Object?>> hiddenLists() async {
     if (remote) return const {};
@@ -1691,7 +1691,7 @@ class Sms {
   /// offered to it and to nothing else.
   Future<bool> keyboardHere() async => await _calls.invokeMethod<bool>('keyboardHere') ?? false;
 
-  /// Whether everyone in [addresses] is known to have Ghost Messaging (android/.../Backgrounds.kt): a text only the
+  /// Whether everyone in [addresses] is known to have Uplink (android/.../Backgrounds.kt): a text only the
   /// app writes has come from each of them.
   Future<bool> ghostPeers(List<String> addresses) async => await _calls.invokeMethod<bool>('ghostPeers', {'addresses': addresses}) ?? false;
 

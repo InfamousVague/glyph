@@ -1,5 +1,5 @@
-# A link helper for Ghost Messaging's direct links (docs/SELF_HOSTING.md, "A link helper for direct links"): the
-# settings of iroh's relay server, `iroh-relay` 1.5.0, which tool/build-link.sh builds. It is not the Ghost Messaging
+# A link helper for Uplink's direct links (docs/SELF_HOSTING.md, "A link helper for direct links"): the
+# settings of iroh's relay server, `iroh-relay` 1.5.0, which tool/build-link.sh builds. It is not the Uplink
 # relay: it helps two devices find each other across networks, and carries their sealed traffic where no straight
 # path can be made. It sees which devices link, from which addresses and how much they send; never who they are or
 # what is said.

@@ -52,10 +52,10 @@ String marketDate(int ms) {
 /// The words a Marketplace that couldn't be reached is said in, on every screen that reads it.
 const String marketUnreachableWords = 'Couldn\'t reach the Marketplace. Try again in a moment.';
 
-/// Where the app's hub isn't Ghost Messaging's own: plugins are reviewed on ours alone (MarketApi.live), so the line
+/// Where the app's hub isn't Uplink's own: plugins are reviewed on ours alone (MarketApi.live), so the line
 /// names the server this app uses and where to switch back: Settings › Routes, as that section has been called since
 /// Matt renamed it (2026-11-19: "Rename 'Network' to 'Routes'"), which is on the phone alone.
-String marketServerWords(String hub) => 'Plugins are reviewed on Ghost Messaging\'s own server, and this app uses ${Uri.tryParse(hub)?.host.ifEmpty(hub) ?? hub}. Switch back in Settings › Routes${Sms.remote ? ' on your phone' : ''} to submit.';
+String marketServerWords(String hub) => 'Plugins are reviewed on Uplink\'s own server, and this app uses ${Uri.tryParse(hub)?.host.ifEmpty(hub) ?? hub}. Switch back in Settings › Routes${Sms.remote ? ' on your phone' : ''} to submit.';
 
 /// The first [most] of [issues] a line each, and one saying how many more where there are more: a stranger's package
 /// held tens of thousands of problems, and a line drawn for each froze the screen of the one device that holds the
@@ -89,18 +89,18 @@ class MarketBlock extends StatelessWidget {
       ]);
 }
 
-/// The block for a device with no Ghost identity of its own (a computer that follows its phone): submitting, like
+/// The block for a device with no Uplink identity of its own (a computer that follows its phone): submitting, like
 /// reviewing, is signed with this device's own key.
 Widget marketWhoBlock(BuildContext context, {required Key key, required Key rowKey}) => MarketBlock(
       key: key,
-      words: 'Submitting needs your Ghost identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.',
+      words: 'Submitting needs your Uplink identity on this ${packHere()}. Become the same you as your phone in Settings › Me, or submit from your phone.',
       icon: Lucide.keyRound,
       action: 'Open Settings › Me',
       actionKey: rowKey,
       onAction: () => openSettingsMe(context, 'Become the same you as your phone'),
     );
 
-/// Whether the app's hub ([hub], else Net's) is someone else's server than Ghost Messaging's own, where the Marketplace
+/// Whether the app's hub ([hub], else Net's) is someone else's server than Uplink's own, where the Marketplace
 /// is.
 bool marketHubIsOther(String? hub) => !marketIsOwn(hub ?? Net.instance.hubUrl);
 

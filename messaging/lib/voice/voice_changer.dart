@@ -13,7 +13,7 @@
 /// run a sentence behind.
 ///
 /// - The person's own ElevenLabs key, and the voice chosen from their own account's list (GET /v2/voices: ElevenLabs'
-///   own voices and any they made). Nothing of Ghost's is in between and no key ships in the app: the recording goes
+///   own voices and any they made). Nothing of Uplink's is in between and no key ships in the app: the recording goes
 ///   from this device to ElevenLabs and comes back.
 /// - The key, the voice and the list are kept in one file only this account reads (0600), never among the app's other
 ///   choices, which a paired computer is shown.

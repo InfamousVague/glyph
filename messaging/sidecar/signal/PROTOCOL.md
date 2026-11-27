@@ -1,4 +1,4 @@
-# Ghost's Signal helper: the protocol
+# Uplink's Signal helper: the protocol
 
 Matt, 2026-11-15: "Lets wire it up for signal through the mautrix". A helper process, `signal-sidecar`, built on
 mautrix-signal's signalmeow (AGPL) and Signal's libsignal, linked to the person's Signal account as a secondary device
@@ -15,7 +15,7 @@ Every request has `id` (a number the app picks) and `op`. Each is answered by on
 | op | fields | result |
 | --- | --- | --- |
 | `status` | | `{"linked": bool, "connected": bool, "aci": "<uuid>", "number": "+1…", "name": "…"}` |
-| `link` | `name` (the device name Signal shows, "Ghost Messaging") | `null` at once; then `qr` and `linked` / `link_failed` events |
+| `link` | `name` (the device name Signal shows, "Uplink") | `null` at once; then `qr` and `linked` / `link_failed` events |
 | `unlink` | | `null`; forgets everything |
 | `contacts` | | `[{"aci": "<uuid>", "name": "…", "number": "+1…", "avatar": "<path or null>"}]` (from Signal's contact sync, and their Signal profile where the sync names them not) |
 | `groups` | | `[{"id": "<group id, base64>", "title": "…", "members": ["<aci>", …], "avatar": "<path or null>"}]` |

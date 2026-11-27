@@ -55,7 +55,7 @@ List<Choice> reachChoices(BuildContext context, String name, List<Reach> reaches
     for (final r in reaches)
       if (r.contact == null)
         friends.contains(Friends.digits(r.address!))
-            ? Choice('New chat on Ghost', Lucide.userCheck, () => openReach(context, name, r), hint: '${r.address} · over the internet')
+            ? Choice('New chat on Uplink', Lucide.userCheck, () => openReach(context, name, r), hint: '${r.address} · over the internet')
             : Choice('New text message', Lucide.messageSquare, () => openReach(context, name, r), hint: r.address)
       else
         Choice(

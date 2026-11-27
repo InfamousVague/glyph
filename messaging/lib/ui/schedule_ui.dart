@@ -149,7 +149,7 @@ class _ScheduleTimePageState extends State<ScheduleTimePage> {
             style: pageText(t, t.fontSize('md'), weight: 'medium', color: _ahead ? t.color('app-ink') : t.danger),
           ),
           SizedBox(height: t.space(2)),
-          Text('Ghost sends it then if it\'s open, or as soon as it opens.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+          Text('Uplink sends it then if it\'s open, or as soon as it opens.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
           SizedBox(height: t.space(6)),
           PairButton(key: const ValueKey('schedule-confirm'), label: 'Schedule', icon: Lucide.clock, onPressed: _ahead ? () => Navigator.of(context).pop(_at) : null),
         ],

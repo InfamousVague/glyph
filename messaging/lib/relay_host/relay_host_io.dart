@@ -129,7 +129,7 @@ class RelayHost extends ChangeNotifier implements RelayHosting {
   @override
   final bool phone;
 
-  /// The public relay it stays linked to unless the person chose another: Ghost Messaging's own.
+  /// The public relay it stays linked to unless the person chose another: Uplink's own.
   final String _defaultVia;
 
   @override

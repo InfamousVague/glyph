@@ -13,7 +13,7 @@ import 'common.dart';
 import '../kit/semantic_colors.dart';
 import '../l10n/words.dart';
 
-/// Signing in to Microsoft Teams (lib/inbox/teams.dart): Microsoft's device code. Ghost shows a short code, opens
+/// Signing in to Microsoft Teams (lib/inbox/teams.dart): Microsoft's device code. Uplink shows a short code, opens
 /// microsoft.com/devicelogin in the browser, and waits there while the person types the code and approves.
 class TeamsSignInScreen extends StatefulWidget {
   const TeamsSignInScreen({super.key, required this.network});
@@ -84,7 +84,7 @@ class _TeamsSignInScreenState extends State<TeamsSignInScreen> {
                 PaneSection(
                   title: code == null ? 'Your work or school account' : 'Your code',
                   description: Text(code == null
-                      ? 'Teams chats can be read here with a work or school account only: personal Microsoft accounts (Teams free) aren\'t supported by Microsoft. Some organisations need their IT admin to approve Ghost Messaging first.'
+                      ? 'Teams chats can be read here with a work or school account only: personal Microsoft accounts (Teams free) aren\'t supported by Microsoft. Some organisations need their IT admin to approve Uplink first.'
                       : 'Microsoft\'s page has opened. Type this code there (it\'s copied already), choose your work or school account and approve. This screen carries on by itself.'),
                   footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
@@ -120,7 +120,7 @@ class _TeamsSignInScreenState extends State<TeamsSignInScreen> {
                 ],
                 SizedBox(height: t.space(4)),
                 const SettingsFootnote(
-                  child: Tr('Your messages go between this device and Microsoft only. Ghost\'s servers never see them; only the sign-in Microsoft gives back is kept on this device.'),
+                  child: Tr('Your messages go between this device and Microsoft only. Uplink\'s servers never see them; only the sign-in Microsoft gives back is kept on this device.'),
                 ),
               ],
             ),

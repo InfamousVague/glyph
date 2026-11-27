@@ -1,4 +1,4 @@
-/// An invite to a space or circle, kept on the relay for someone not on Ghost Messaging yet, sealed so the relay holds
+/// An invite to a space or circle, kept on the relay for someone not on Uplink yet, sealed so the relay holds
 /// what it can't read (Matt, 2026-11-17: "if they're not on ghost yet it should send them a text saying they've been
 /// invited to join a space in ghost with a link that eventually follows through after they setup their account").
 ///
@@ -170,4 +170,4 @@ String inviteTag(String e164, String link) => NetCrypto.hex(NetCrypto.derive(_ta
 /// The words of the text an invite goes as (Matt, 2026-11-17: "send them a text saying they've been invited to join a
 /// space in ghost with a link"). [me] is the inviter's name; without one the text says nobody's.
 String inviteText({required String me, required String name, required String link}) =>
-    me.trim().isEmpty ? 'You\'re invited to join $name on Ghost Messaging: $link' : '${me.trim()} invited you to join $name on Ghost Messaging: $link';
+    me.trim().isEmpty ? 'You\'re invited to join $name on Uplink: $link' : '${me.trim()} invited you to join $name on Uplink: $link';

@@ -3,7 +3,7 @@ import '../net/crypto.dart';
 import '../net/hub_carrier.dart' show KeysSigner, NetSigner;
 import '../voice/voice.dart' show SpaceKind, VoiceChannel;
 
-/// My files: a private drive for each Ghost account, tied to no space or circle (GMFB-37, @matt: "A private file drive
+/// My files: a private drive for each Uplink account, tied to no space or circle (GMFB-37, @matt: "A private file drive
 /// for each account, not tied to any space").
 ///
 /// It is a Files space like any other to the relay (relay/lib/files.dart) and to the store (FilesStore): the same
@@ -63,7 +63,7 @@ class Drive {
   /// Whether [c] is an account's drive.
   static bool isDrive(VoiceChannel c) => signerOf(c) != null;
 
-  /// This account's drive; null where no Ghost account is signed in to on this device.
+  /// This account's drive; null where no Uplink account is signed in to on this device.
   static Future<VoiceChannel?> mine() async {
     final key = await Me.instance.mineKey();
     return key == null ? null : channelOf(key);

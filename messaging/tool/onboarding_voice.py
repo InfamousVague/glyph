@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Speaks the walkthrough's words with ElevenLabs, once, at build time: Ghost Keyboard's tool/onboarding_voice.py (itself
-Ghost.md's) for Ghost Messaging, with the same voice (Jessica), model (Eleven v4, else multilingual v2) and settings.
+Ghost.md's) for Uplink, with the same voice (Jessica), model (Eleven v4, else multilingual v2) and settings.
 
 The words live in lib/onboarding/narration.dart; this writes assets/onboarding/<page>.mp3 (mono, 64 kbps, as
 ElevenLabs makes it) and assets/onboarding/narration.json saying which words, model and voice made each file, and

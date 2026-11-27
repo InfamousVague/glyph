@@ -289,7 +289,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                         'pending' => _e2e.changed ? '${people.first.label} sent a NEW key. Review it before accepting.' : '${people.first.label} sent their key and waits for your yes.',
                         'offered' => 'Your key was sent. It starts when ${people.first.label} accepts.',
                         _ when !Sms.can('e2eOffer') => 'Off. It is turned on from the phone.',
-                        _ => _e2e.hasGhost ? '${people.first.label} has Ghost Messaging too: your texts can go sealed so only your two phones read them.' : 'Off. It needs ${people.first.label} to have Ghost Messaging too.',
+                        _ => _e2e.hasGhost ? '${people.first.label} has Uplink too: your texts can go sealed so only your two phones read them.' : 'Off. It needs ${people.first.label} to have Uplink too.',
                       }),
                       // Keys are made, sent and agreed to by the phone that holds them: a computer asks it to (Sms.can), or shows
                       // where it stands where its phone's app is from before it could.
@@ -306,7 +306,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                           'yes' => 'What you write to ${people.first.label} goes over the internet, encrypted, and as a text only where it can\'t. Tap to stop being friends.',
                           'invited' => '${people.first.label} asked. Friends chat over the internet, encrypted, not by text.',
                           'want' || 'asked' => 'Waiting for ${people.first.label} to accept. Tap to take it back.',
-                          _ => '${people.first.label} has Ghost Messaging too. Friends chat over the internet, encrypted, not by text.',
+                          _ => '${people.first.label} has Uplink too. Friends chat over the internet, encrypted, not by text.',
                         }),
                         onPress: () => _friend(people.first),
                       ),

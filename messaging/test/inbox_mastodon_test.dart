@@ -8,7 +8,7 @@ import 'package:ghost_messaging/inbox/inbox.dart';
 import 'package:ghost_messaging/inbox/mastodon.dart';
 
 /// Mastodon's direct messages (lib/inbox/mastodon.dart; Matt, 2026-11-15: "Wire up mastadon and bluesky and have them
-/// set as coming soon") against a stand-in Mastodon server on this computer: Ghost registered on it, the code
+/// set as coming soon") against a stand-in Mastodon server on this computer: Uplink registered on it, the code
 /// exchanged for a token, the conversations and one's thread read, a reply sent naming the others, read, deleted.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

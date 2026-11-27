@@ -11,7 +11,7 @@ import '../sms.dart';
 import 'common.dart';
 import '../l10n/words.dart';
 
-/// Signing in to Google Chat (lib/inbox/google_chat.dart): Google's own page opens in the browser, and Ghost waits for
+/// Signing in to Google Chat (lib/inbox/google_chat.dart): Google's own page opens in the browser, and Uplink waits for
 /// the browser to come back to it on this device (a listener on 127.0.0.1, closed as soon as it has).
 class GoogleChatSignInScreen extends StatefulWidget {
   const GoogleChatSignInScreen({super.key, required this.network});
@@ -77,8 +77,8 @@ class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
                 PaneSection(
                   title: waiting ? 'Waiting for Google' : 'Your Google account',
                   description: Text(waiting
-                      ? 'Allow Ghost Messaging on Google\'s page in your browser. Ghost carries on here by itself once you have.'
-                      : 'Google Chat works here with Google Workspace accounts (work or school), not personal Gmail accounts. Google\'s own page opens in your browser to let Ghost read and send your chats. Your organisation\'s admin may need to allow Ghost Messaging first.'),
+                      ? 'Allow Uplink on Google\'s page in your browser. Uplink carries on here by itself once you have.'
+                      : 'Google Chat works here with Google Workspace accounts (work or school), not personal Gmail accounts. Google\'s own page opens in your browser to let Uplink read and send your chats. Your organisation\'s admin may need to allow Uplink first.'),
                   footer: n.error == null ? null : Text(n.error!, style: TextStyle(color: t.danger)),
                   children: [
                     if (n.state == InboxState.unavailable)
@@ -92,7 +92,7 @@ class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
                   ],
                 ),
                 SizedBox(height: t.space(4)),
-                const SettingsFootnote(child: Tr('Your messages go between this device and Google only. Ghost\'s servers never see them; only the sign-in Google gives back is kept on this device.')),
+                const SettingsFootnote(child: Tr('Your messages go between this device and Google only. Uplink\'s servers never see them; only the sign-in Google gives back is kept on this device.')),
               ],
             ),
           ),

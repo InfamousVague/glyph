@@ -164,7 +164,7 @@ void main() {
     expect(await maya.me.heldName(), Me.nameKeyOf('maya'));
   });
 
-  test('someone who used a relay of their own before this was kept keeps the name they hold there; on Ghost Messaging\'s relay nothing is asked or changed at all', () async {
+  test('someone who used a relay of their own before this was kept keeps the name they hold there; on Uplink\'s relay nothing is asked or changed at all', () async {
     // Their choices from before: a username, and no word of which relay it was claimed on.
     final sam = install();
     await sam.on(urlB);
@@ -175,7 +175,7 @@ void main() {
     await sam.on(urlB);
     expect([sam.me.username, sam.me.nameTaken], ['sam', null]);
     expect(jsonDecode(sam.store.choice(Me.namesName, '{}'))[urlB], 'sam');
-    // On Ghost Messaging's own relay the first greeting only notes which relay it is.
+    // On Uplink's own relay the first greeting only notes which relay it is.
     final me = Me.forTest();
     final store = MemoryMeStore()..set('me_username', 'matt');
     await me.start(store, ChangeNotifier(), () => null);

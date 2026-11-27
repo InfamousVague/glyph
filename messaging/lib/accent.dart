@@ -55,7 +55,7 @@ class AccentSheets {
   final Map<Look, ({Color light, Color dark})> _pages = {};
 
   /// The paper of [look]'s light and dark page, as its rules say: a navy, silver or tinted page is not the near
-  /// white and near black the check once took for granted. Ghost keeps the fixed near white and near black it was always checked
+  /// white and near black the check once took for granted. Uplink keeps the fixed near white and near black it was always checked
   /// against: its computed dark paper is a shade darker than the constant, which moved the cutoff for a dark wallpaper colour.
   ({Color light, Color dark}) pagesOf(Look look) => _pages[look] ??= look == Look.ghost
       ? (light: _lightPage, dark: _darkPage)
@@ -129,7 +129,7 @@ double _contrast(Color a, Color b) {
 
 /// The bubble colour [id] as the accent on the light page and on the dark: the colour and the words on it, or null
 /// where it is the page's own ink or would not be seen. [lightPage] and [darkPage] are the look's own papers
-/// ([AccentSheets.pagesOf]); Ghost's, near white and near black, where not given.
+/// ([AccentSheets.pagesOf]); Uplink's, near white and near black, where not given.
 ///
 /// A look's own bubbles ('theme') are never laid over it: the look's rules name its accent themselves, and the
 /// default white bubble would otherwise turn the accent white on every dark look.

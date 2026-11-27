@@ -136,7 +136,7 @@ jobs:
         run: |
           tag="relay-$VERSION"
           cat > notes.md <<EOF
-          The Ghost Messaging relay, built from the same source as Ghost Messaging $VERSION.
+          The Uplink relay, built from the same source as Uplink $VERSION.
 
           - **The program**, for Linux: \`ghost-relay-$VERSION-linux-x64.tar.gz\` or \`-linux-arm64.tar.gz\` below, each with its SHA-256. Inside: \`ghost-relay\`, and \`deploy/\` with a compose file, a Caddyfile, a systemd unit and \`relay.env.example\`.
           - **A container**: \`docker pull $IMAGE:$VERSION\` (or \`:latest\`), for amd64 and arm64.
@@ -181,8 +181,8 @@ jobs:
           context: relay
           platforms: ${{ matrix.platform }}
           labels: |
-            org.opencontainers.image.title=Ghost Messaging relay
-            org.opencontainers.image.description=The relay server of Ghost Messaging: sealed packets between apps, nothing it can read.
+            org.opencontainers.image.title=Uplink relay
+            org.opencontainers.image.description=The relay server of Uplink: sealed packets between apps, nothing it can read.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.url=https://gogho.st/docs/self-hosting/
             org.opencontainers.image.licenses=AGPL-3.0-only

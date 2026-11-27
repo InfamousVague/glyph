@@ -10,10 +10,10 @@
 <meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="/icon.png">
 <!--
-  Pairing Ghost on a phone with Google Messages on the same phone (Matt, 2026-11-15: "Can you build the on phone
-  google messages connection too?"). The phone cannot scan its own screen, so Ghost shares a link to this page with a
-  secret after the #, which a browser never sends to a server. From the secret come a room on Ghost's relay and the key
-  for what is said in it, as a hangout's (../join/voice.js): Ghost on the phone says each new QR code there, sealed,
+  Pairing Uplink on a phone with Google Messages on the same phone (Matt, 2026-11-15: "Can you build the on phone
+  google messages connection too?"). The phone cannot scan its own screen, so Uplink shares a link to this page with a
+  secret after the #, which a browser never sends to a server. From the secret come a room on Uplink's relay and the key
+  for what is said in it, as a hangout's (../join/voice.js): Uplink on the phone says each new QR code there, sealed,
   about every half minute; this page opens it and draws it with qrcode.js (Kazuhiko Arase, MIT). The relay sees only
   that two are in some room.
   Signal's Link new device uses the same room (lib/net/pair_room.dart). Its code is a sgnl://linkdevice address, not
@@ -76,7 +76,7 @@
 <script type="module">
   import { identity, connectHub, unhex, hex, splitRelay } from '../join/voice.js';
   const enc = new TextEncoder(), dec = new TextDecoder();
-  // After the secret, the relay the phone's app uses where it is not Ghost Messaging's own (#SECRET@relay.example.com,
+  // After the secret, the relay the phone's app uses where it is not Uplink's own (#SECRET@relay.example.com,
   // lib/invites/link_relay.dart): the room is on that relay, so its hub is the one dialled.
   const { rest: secret, relay } = splitRelay(location.hash.slice(1));
   // Leave no copy behind in the address bar.

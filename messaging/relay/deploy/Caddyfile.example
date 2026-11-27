@@ -1,4 +1,4 @@
-# Caddy in front of a Ghost Messaging relay (docs/SELF_HOSTING.md). Caddy gets and renews the certificate itself.
+# Caddy in front of an Uplink relay (docs/SELF_HOSTING.md). Caddy gets and renews the certificate itself.
 # Replace relay.example.com with your domain. The whole site is the relay: every path goes to it.
 #
 # With deploy/compose.yaml the relay is at relay:8787. Running Caddy on the host beside the systemd service

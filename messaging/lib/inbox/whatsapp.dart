@@ -23,7 +23,7 @@ abstract class WhatsAppLink {
 /// What the person is told before linking WhatsApp, and in WhatsApp's settings (Matt, 2026-11-17: "enable whatsapp
 /// but warn the user that it's unsupported by whatsapp").
 const whatsAppWarning =
-    'WhatsApp doesn\'t support or allow other apps. Ghost links as another of your devices, the way WhatsApp Web does, through the open-source whatsmeow library. WhatsApp may suspend or ban accounts it finds using unofficial apps. Use it at your own risk.';
+    'WhatsApp doesn\'t support or allow other apps. Uplink links as another of your devices, the way WhatsApp Web does, through the open-source whatsmeow library. WhatsApp may suspend or ban accounts it finds using unofficial apps. Use it at your own risk.';
 
 /// WhatsApp, linked to the person's account as another device, as WhatsApp Web is (Matt, 2026-11-17: "enable whatsapp
 /// but warn the user that it's unsupported by whatsapp"): the helper `whatsapp-sidecar` (sidecar/whatsapp, on
@@ -162,7 +162,7 @@ class WhatsApp extends InboxNetwork {
     _state = InboxState.signingIn;
     notifyListeners();
     try {
-      await _ask('link', {'name': 'Ghost Messaging'});
+      await _ask('link', {'name': 'Uplink'});
     } catch (e) {
       _error = '$e';
       _state = InboxState.signedOut;
@@ -597,7 +597,7 @@ class WhatsApp extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      // A WhatsApp sticker (its pointer is one), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      // A WhatsApp sticker (its pointer is one), or one of Uplink's sent from here: drawn on its own, with no bubble.
       kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true || (a['pointer'] as Map?)?['kind'] == 'sticker'),
       fileId: key,
       path: _files[key],
@@ -749,7 +749,7 @@ class WhatsApp extends InboxNetwork {
   @override
   bool get canBlock => true;
 
-  /// Blocked on WhatsApp itself through the helper, then in Ghost's list. A one-to-one chat's id is the person's JID.
+  /// Blocked on WhatsApp itself through the helper, then in Uplink's list. A one-to-one chat's id is the person's JID.
   @override
   Future<void> block(String chatId, {required String name, bool on = true}) async {
     if (_groups.contains(chatId)) throw StateError('Only a person can be blocked');
@@ -757,7 +757,7 @@ class WhatsApp extends InboxNetwork {
     await super.block(chatId, name: name, on: on);
   }
 
-  /// WhatsApp's block list: Ghost's list is made the same.
+  /// WhatsApp's block list: Uplink's list is made the same.
   @override
   Future<void> refreshBlocked() async {
     if (state != InboxState.ready) return;

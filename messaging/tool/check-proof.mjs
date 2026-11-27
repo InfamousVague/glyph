@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Checks a Ghost Messaging proof (docs/proofs.md) with nothing but Node's own library: no server is asked anything.
+// Checks an Uplink proof (docs/proofs.md) with nothing but Node's own library: no server is asked anything.
 //
 //   node tool/check-proof.mjs proof.txt
 //   pbpaste | node tool/check-proof.mjs

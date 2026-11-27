@@ -756,7 +756,7 @@ void main() {
       addTearDown(() => Sms.calls = was);
       expect(Sms.remote, isTrue);
       final b = PackPlugin(bills, source: PluginSource.dev);
-      expect(b.settings[0].hint, 'As they come: texts that say a payment went through. Switch it on in Ghost Messaging on your phone: it does nothing here.');
+      expect(b.settings[0].hint, 'As they come: texts that say a payment went through. Switch it on in Uplink on your phone: it does nothing here.');
       expect(b.settings[1].hint, 'A text with any of these goes to Bills too.');
       expect(b.adds.last, 'Settings of its own, on its page');
       expect(b.adds, contains('On your phone it can also mark read or silence texts as they come; not on this computer.'));
@@ -775,7 +775,7 @@ void main() {
 
     test('what it reaches and what it adds, word for word, on a phone and on a computer', () {
       String line(PluginReach r) => '${r.label} | ${r.hint}';
-      const eye = 'Reads texts from numbers not in your contacts | Their words and who they\'re from, on this phone, to sort them. Never your contacts\' texts, group texts, texts sent with Ghost Messaging\'s encryption, your own, chats on other networks, or circles and spaces. Nothing at all while Ghost Messaging can\'t read your contacts.';
+      const eye = 'Reads texts from numbers not in your contacts | Their words and who they\'re from, on this phone, to sort them. Never your contacts\' texts, group texts, texts sent with Uplink\'s encryption, your own, chats on other networks, or circles and spaces. Nothing at all while Uplink can\'t read your contacts.';
       const sort = 'Sorts texts into its own tabs and kinds | They leave Messages for its tab while it\'s added. Remove it and they\'re back. Texts with a sign-in code in them are never sorted.';
       const copy = 'Copies to your clipboard when you ask | Only when you press its button.';
       const shield = 'Can\'t reach the internet | It has no way to send anything over the internet itself. A button you press can open its page in your browser or copy words to your clipboard.';

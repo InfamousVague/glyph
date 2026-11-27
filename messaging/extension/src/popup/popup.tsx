@@ -71,7 +71,7 @@ function Popup() {
     <Stack gap={4} className="popup" aria-live="polite">
       <Row justify="between" align="center">
         <Heading level={1} visualLevel={4} noMargin>
-          Ghost keys
+          Uplink keys
         </Heading>
         {status?.signedIn && (
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => void act(() => send({ type: 'signOut' }))}>
@@ -91,7 +91,7 @@ function Popup() {
 
 type Act = (run: () => Promise<Status>, ok?: string) => Promise<Status | null>;
 
-/** Signing in to the Ghost account: username and password, and a texted code where the account has a verified
+/** Signing in to the Uplink account: username and password, and a texted code where the account has a verified
  *  number. The recovery words are not offered here. */
 function SignIn({ busy, act, say }: { busy: boolean; act: Act; say: (s: Said) => void }) {
   const [username, setUsername] = useState('');
@@ -120,7 +120,7 @@ function SignIn({ busy, act, say }: { busy: boolean; act: Act; say: (s: Said) =>
     <form onSubmit={(e) => void signIn(e)}>
       <Stack gap={3}>
         <Text tone="muted" size="sm">
-          Sign in with your Ghost account. Your sign-ins to other networks then sync, sealed, to every device on it.
+          Sign in with your Uplink account. Your sign-ins to other networks then sync, sealed, to every device on it.
         </Text>
         <Field label="Username">
           <Input value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} />
@@ -132,7 +132,7 @@ function SignIn({ busy, act, say }: { busy: boolean; act: Act; say: (s: Said) =>
           <Card elevation={0} variant="wash">
             <Stack gap={3}>
               <Text size="sm" tone="muted">
-                This account has a verified phone number: Ghost texts it a code before it lets you in.
+                This account has a verified phone number: Uplink texts it a code before it lets you in.
               </Text>
               <Field label="That phone number">
                 <Input type="tel" value={number} onChange={(e) => setNumber(e.currentTarget.value)} autoComplete="tel" placeholder="+1 555 010 0199" />
@@ -209,12 +209,12 @@ function SignedIn({ status, busy, act }: { status: Status; busy: boolean; act: A
               </Pill>
             </Row>
             <Text size="sm" tone="muted">
-              Signs in to Google in a private window and hands that sign-in to your devices, so setting up Google Messages in Ghost is one tap there (and
+              Signs in to Google in a private window and hands that sign-in to your devices, so setting up Google Messages in Uplink is one tap there (and
               the emoji on your phone). Nothing is read from this browser&apos;s own Google sign-in.
             </Text>
             {!g.incognito && (
               <Callout tone="warning">
-                First, in chrome://extensions › Ghost Messaging keys › Details, turn on <b>Allow in Incognito</b>.
+                First, in chrome://extensions › Uplink keys › Details, turn on <b>Allow in Incognito</b>.
               </Callout>
             )}
             <Row gap={2}>

@@ -10,8 +10,8 @@ import 'package:ghost_messaging/voice/voice.dart';
 
 /// Which relay an invite link's circle or space is on (lib/invites/link_relay.dart; GMFB-25: "The app works fully
 /// against a self-hosted hub"). A circle and a space are rooms on one relay and their links named none, so someone on
-/// another relay joined the same rooms there, alone, and was told nothing. A link made on a relay other than Ghost
-/// Messaging's now ends with its host; one made on ours is as it always was.
+/// another relay joined the same rooms there, alone, and was told nothing. A link made on a relay other than Uplink's
+/// now ends with its host; one made on ours is as it always was.
 
 void main() {
   final seed = 'ab' * 32, owner = '02${'cd' * 32}';
@@ -32,7 +32,7 @@ void main() {
     expect(LinkRelay.split('https://user@gogho.st/join/#c.$seed').relay, isNull);
   });
 
-  test('made on Ghost Messaging\'s relay, or with nothing said of the relay, a link is exactly as it always was', () {
+  test('made on Uplink\'s relay, or with nothing said of the relay, a link is exactly as it always was', () {
     final c = Circle.fromLink(circleLink)!, s = VoiceChannel.fromLink(spaceLink)!;
     expect([c.link, s.link], [circleLink, spaceLink]);
     LinkRelay.here = () => null;
@@ -53,7 +53,7 @@ void main() {
   });
 
   test('a circle\'s link is found among other words with the relay it names, and not with the full stop after it', () {
-    expect(Circles.linkIn('Join my circle Book club on Ghost Messaging: $circleLink@relay.example.com'), '$circleLink@relay.example.com');
+    expect(Circles.linkIn('Join my circle Book club on Uplink: $circleLink@relay.example.com'), '$circleLink@relay.example.com');
     expect(Circles.linkIn('It is $circleLink@relay.example.com. See you there'), '$circleLink@relay.example.com');
     expect(Circles.linkIn('It is $circleLink@relay.example.com:8443, see you'), '$circleLink@relay.example.com:8443');
     expect(Circles.linkIn('It is $circleLink. See you there'), circleLink);
@@ -74,11 +74,11 @@ void main() {
     expect(LinkRelay.elsewhere('$circleLink@relay.example.com', mine: 'relay.example.com'), isNull);
     expect(LinkRelay.elsewhere('$circleLink@www.relay.example.com', mine: 'relay.example.com', isHere: here), isNull, reason: 'the same relay under another of its names');
     expect(LinkRelay.elsewhere('$circleLink@other.example.org', mine: 'relay.example.com', isHere: here), 'other.example.org');
-    expect(LinkRelay.elsewhereWords('relay.example.com', mine: 'Ghost Messaging\'s relay (gogho.st)'),
-        'This circle is on the relay relay.example.com, and you use Ghost Messaging\'s relay (gogho.st). A circle and its spaces are on the relay they were made on: to join, use that relay first (Settings › Routes › Relay server).');
+    expect(LinkRelay.elsewhereWords('relay.example.com', mine: 'Uplink\'s relay (gogho.st)'),
+        'This circle is on the relay relay.example.com, and you use Uplink\'s relay (gogho.st). A circle and its spaces are on the relay they were made on: to join, use that relay first (Settings › Routes › Relay server).');
     expect(LinkRelay.elsewhereWords('relay.example.com', mine: 'x', space: true), startsWith('This space is on the relay relay.example.com'));
-    // As the app asks, on Ghost Messaging's relay (no routes are set up under this test: the relay is ours).
+    // As the app asks, on Uplink's relay (no routes are set up under this test: the relay is ours).
     expect(circleLinkElsewhere(circleLink), isNull);
-    expect(circleLinkElsewhere('$circleLink@relay.example.com'), contains('is on the relay relay.example.com, and you use Ghost Messaging\'s relay (gogho.st)'));
+    expect(circleLinkElsewhere('$circleLink@relay.example.com'), contains('is on the relay relay.example.com, and you use Uplink\'s relay (gogho.st)'));
   });
 }

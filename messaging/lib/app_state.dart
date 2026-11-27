@@ -15,7 +15,7 @@ class AppState extends ChangeNotifier {
     try {
       _prefs.addAll(await Sms.instance.prefs());
     } catch (_) {}
-    // A look that has been taken out of the app is Ghost from here on (lib/looks.dart).
+    // A look that has been taken out of the app is Uplink from here on (lib/looks.dart).
     Look.settle(this);
   }
 
@@ -35,7 +35,7 @@ class AppState extends ChangeNotifier {
   /// What was chosen under [key], or [fallback] where nothing was.
   String choice(String key, String fallback) => _prefs[key] ?? fallback;
 
-  /// The choices whose keys start with [prefix] (Ghost's own lists of a network's chats: lib/kept_lists.dart).
+  /// The choices whose keys start with [prefix] (Uplink's own lists of a network's chats: lib/kept_lists.dart).
   Map<String, String> withPrefix(String prefix) => {for (final e in _prefs.entries) if (e.key.startsWith(prefix)) e.key: e.value};
 
   /// A switch: on unless it was switched off ([fallback] false: off unless switched on).
@@ -88,18 +88,18 @@ class AppState extends ChangeNotifier {
   String get bubble => choice('bubble', 'white');
   void setBubble(String v) => set('bubble', v);
 
-  /// The look of the whole app (lib/looks.dart): Ghost, the app's own, where none was chosen.
+  /// The look of the whole app (lib/looks.dart): Uplink, the app's own, where none was chosen.
   Look get look => Look.of(this);
 
-  /// Choosing a look makes your bubbles the look's own ('theme'); going back to Ghost puts back the colour they had
-  /// under Ghost (white where none was chosen), unless a colour was chosen since. Leaving Ghost keeps that colour
+  /// Choosing a look makes your bubbles the look's own ('theme'); going back to Uplink puts back the colour they had
+  /// under Uplink (white where none was chosen), unless a colour was chosen since. Leaving Uplink keeps that colour
   /// (`bubble_before_look`), where it was thrown away and Pink came back as white, and Ghost Keyboard's enter key with
   /// it. The look already chosen changes nothing, so a tap on its card keeps a colour picked under it. Ghost Keyboard
   /// is told the nearest of its colours first (`theme_bubble`, AccentSync.kt), so the 'theme' that follows already has
   /// a colour it knows.
   ///
   /// Each look keeps the pack it was last drawn in ([Look.packPref]), noted as it is left and as it is chosen, so
-  /// choosing the look again brings its pack back ([Look.last]): Ghost in Lamplight is still in Lamplight after a
+  /// choosing the look again brings its pack back ([Look.last]): Uplink in Lamplight is still in Lamplight after a
   /// while in Sharp.
   void setLook(Look l) {
     if (l == look) return;

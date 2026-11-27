@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds Ghost Messaging for a browser and publishes it at gogho.st/app (GMFB-30, "Full web client"), so the web client
+ * Builds Uplink for a browser and publishes it at gogho.st/app (GMFB-30, "Full web client"), so the web client
  * follows the app's releases instead of being deployed by hand. tool/release.mjs runs it after a release is live
  * (--no-web there leaves it out); it can be run by itself as well, as the chain's other scripts are.
  *

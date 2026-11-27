@@ -128,7 +128,7 @@ class LookPicker extends StatelessWidget {
       // The look as pressing the tile gives it: in the pack it is in, or the one it was last in (Look.last).
       // Under a look of one's own no tile is ringed, and the look beneath it is still the one its tile gives.
       final look = app.look.family == family ? app.look : Look.last(app, family);
-      // Ghost's preview wears the bubbles Ghost would: yours where Ghost is the look, else white, which choosing Ghost
+      // Uplink's preview wears the bubbles Uplink would: yours where Uplink is the look, else white, which choosing Uplink
       // goes back to.
       final bubble = look != Look.ghost ? 'theme' : (on ? app.bubble : 'white');
       return tile(label: family.label, on: on, side: side, preview: LookPreview(look: look, bubble: bubble, width: side), onPressed: () => CustomTheme.chooseLook(app, look));

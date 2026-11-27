@@ -12,7 +12,7 @@ import 'account_helper.dart';
 import 'inbox.dart';
 
 /// The third-party sign-in cookies ("cURL entries") a Chrome extension captures on one device, synced to the rest
-/// through the Ghost account so a service signed in once is signed in everywhere (Matt, 2026-11-21: "make a chrome
+/// through the Uplink account so a service signed in once is signed in everywhere (Matt, 2026-11-21: "make a chrome
 /// plugin that works with ghost messaging to handle getting all the curl keys ... sync the cURL entries across all
 /// devices so we don't need to login to things like instagram on every device if we're already logged into a ghost
 /// account").
@@ -23,7 +23,7 @@ import 'inbox.dart';
 /// back as it reaches the relay ([pull]) and, for each service it is not already signed in to, switches that plugin
 /// on and signs it in with the cookies — the same path a pasted sign-in takes (AccountHelper.signIn).
 ///
-/// The relay holds only the sealed blob; it cannot read the cookies. One blob per account (keyed by the shared Ghost
+/// The relay holds only the sealed blob; it cannot read the cookies. One blob per account (keyed by the shared Uplink
 /// identity), last writer wins, so the extension reads-modifies-writes it, and so does [share] (a sign-in made in the
 /// app, for the account's other devices).
 class CurlSync {

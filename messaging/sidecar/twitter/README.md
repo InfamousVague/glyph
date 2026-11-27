@@ -1,13 +1,13 @@
-# Ghost Messaging's X helper
+# Uplink's X helper
 
-A small program Ghost Messaging runs beside itself to reach the person's X (Twitter) direct messages: signed in with
+A small program Uplink runs beside itself to reach the person's X (Twitter) direct messages: signed in with
 the cookies of a browser signed in to their account and their X Chat passcode, then the inbox's chats, their history,
 messages as they arrive, sending (words, replies, pictures, GIFs, videos and voice messages), reactions, taking a
 message back, read marks, and the names and pictures of the people met.
 
 **X does not support this, and does not allow it.** X has no API for other apps to read or send direct messages
 this way, and its terms forbid programs that act as its website. It may ask the person to confirm it is them, sign
-the session out, lock the account, or restrict or suspend it. Ghost says so, and asks the person to agree, before
+the session out, lock the account, or restrict or suspend it. Uplink says so, and asks the person to agree, before
 signing in.
 
 X's direct messages are now X Chat: encrypted end to end, with the keys guarded by a 4-digit passcode the person
@@ -22,7 +22,7 @@ Affero General Public License 3.0, and this helper's own source is under the sam
 that project's connector for opening the keys. The licence asks that whoever is given the program can have its
 source: SOURCE_URL is where it is published. No cgo: the session is a JSON file, not a database.
 
-Ghost Messaging itself is a separate program: it starts this one (`twitter-sidecar --dir <folder>`) and talks to it
+Uplink itself is a separate program: it starts this one (`twitter-sidecar --dir <folder>`) and talks to it
 over its standard input and output, one JSON object a line (../ACCOUNT_HELPERS.md, and PROTOCOL.md for what is X's
 own). The folder holds `session.json` (the cookies and the X Chat keys, readable by the person alone), `twitter.log`
 and cached pictures (`avatars/`). Nothing a message says is logged; nothing but the protocol is written to standard

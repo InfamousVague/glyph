@@ -20,13 +20,13 @@ class InboxAlert {
   final int count;
 }
 
-/// Notifications for new Signal and Telegram messages, and the phone kept connected to them while Ghost is out of
+/// Notifications for new Signal and Telegram messages, and the phone kept connected to them while Uplink is out of
 /// sight (Matt, 2026-11-16, on "Ghost doesn't notify you about Signal messages yet": "Yes, build them").
 ///
 /// Each signed-in network's list is watched: a chat whose unread count rises, whose newest message is not this
 /// account's and is newer than the watching began, is notified, unless it is muted on the network, looks like spam
 /// (scams.dart), is archived or deleted here ([InboxNetwork.shownChats]), or is open on the screen. A chat read to
-/// nothing has its notification taken away. What was unread before Ghost started watching is never notified: the
+/// nothing has its notification taken away. What was unread before Uplink started watching is never notified: the
 /// chats a network loads as it starts, and the messages Signal holds for it while it was closed, are not news.
 class InboxAlerts {
   InboxAlerts({required this.notify, required this.cancel, required this.keepAlive, required this.inFront, DateTime Function()? now}) : _now = now ?? DateTime.now;
@@ -34,14 +34,14 @@ class InboxAlerts {
   final void Function(InboxAlert alert) notify;
   final void Function(String key) cancel;
 
-  /// The names of the networks signed in, as they change: Android keeps Ghost running while there are any.
+  /// The names of the networks signed in, as they change: Android keeps Uplink running while there are any.
   final void Function(List<String> names) keepAlive;
 
-  /// Whether Ghost is on the screen.
+  /// Whether Uplink is on the screen.
   final bool Function() inFront;
   final DateTime Function() _now;
 
-  /// The chat on the screen (`network:chat`), set by its page (lib/ui/inbox_ui.dart): not notified while Ghost is in
+  /// The chat on the screen (`network:chat`), set by its page (lib/ui/inbox_ui.dart): not notified while Uplink is in
   /// front.
   static String? showing;
 

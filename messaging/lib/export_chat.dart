@@ -50,7 +50,7 @@ String chatMarkdown(String title, List<ExportLine> lines, {DateTime? now, String
   final at = now ?? DateTime.now();
   out.writeln('# $title');
   out.writeln();
-  out.writeln('Exported from Ghost Messaging on ${_day(at)} at ${_time(at)}${where == null ? '' : ' · $where'} · ${lines.length == 1 ? '1 message' : '${lines.length} messages'}');
+  out.writeln('Exported from Uplink on ${_day(at)} at ${_time(at)}${where == null ? '' : ' · $where'} · ${lines.length == 1 ? '1 message' : '${lines.length} messages'}');
   String? day;
   for (final i in _oldestFirst(lines)) {
     final l = lines[i];
@@ -83,7 +83,7 @@ String chatMarkdown(String title, List<ExportLine> lines, {DateTime? now, String
 String chatJson(String title, List<ExportLine> lines, {DateTime? now, String? where, ExportLinks? links}) {
   final at = now ?? DateTime.now();
   return const JsonEncoder.withIndent('  ').convert({
-    'app': 'Ghost Messaging',
+    'app': 'Uplink',
     'format': 1,
     'title': title,
     'where': ?where,

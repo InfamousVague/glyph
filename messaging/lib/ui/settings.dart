@@ -1,4 +1,4 @@
-/// Ghost Messaging's Settings, in Ghost Keyboard's shape (its lib/settings/settings_screen.dart; Matt, 2026-11-13:
+/// Uplink's Settings, in Ghost Keyboard's shape (its lib/settings/settings_screen.dart; Matt, 2026-11-13:
 /// "make the settings page more like ghost kbd where it's nested sections and expand on the settings available"):
 /// a search field over a list of sections in groups, each a row with its icon on a chip in the section's colour, its
 /// name and a line of its state, opening the section's page; a page is the kit's cards (kit/settings_kit.dart) under

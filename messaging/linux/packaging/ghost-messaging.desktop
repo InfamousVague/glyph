@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Ghost Messaging
+Name=Uplink
 GenericName=Messaging
 Comment=Your texts, friends, circles and spaces, sealed end to end
 Exec=ghost-messaging %u

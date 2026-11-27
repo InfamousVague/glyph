@@ -428,7 +428,7 @@ class _Checker {
     }
     final top = _keyed(json);
     if (top['format'] != packFormat) {
-      error('format_unknown', 'format', top.containsKey('format') ? 'is "$packFormat" for this version of Ghost Messaging, not ${top['format'] is String ? '"${top['format']}"' : 'that'}.' : 'is needed: "$packFormat".');
+      error('format_unknown', 'format', top.containsKey('format') ? 'is "$packFormat" for this version of Uplink, not ${top['format'] is String ? '"${top['format']}"' : 'that'}.' : 'is needed: "$packFormat".');
       return done();
     }
     return done(_pack(top, json));
@@ -558,8 +558,8 @@ class _Checker {
   /// A name or a label that reads as one of the app's own, once folded ([packFold]), is refused.
   void reserved(String v, String p) {
     final folded = packFold(v);
-    if (reservedPluginNames.contains(folded) || folded.contains('ghost') || folded.contains('gogho')) {
-      error('name_reserved', p, '"$v" reads as one of Ghost Messaging\'s own names: choose one of your own.');
+    if (reservedPluginNames.contains(folded) || ownWordIn(folded)) {
+      error('name_reserved', p, '"$v" reads as one of Uplink\'s own names: choose one of your own.');
     }
   }
 
@@ -574,7 +574,7 @@ class _Checker {
     if (id != null) {
       if (!packIdPattern.hasMatch(id)) {
         error('bad_id', 'id', '"$id": an id is 3 to 24 lower-case letters and digits, starting with a letter.');
-      } else if (reservedPackIds.contains(id) || id.contains('ghost') || id.contains('gogho')) {
+      } else if (reservedPackIds.contains(id) || ownWordIn(id)) {
         error('id_reserved', 'id', '"$id" is kept for the app itself: choose another.');
       } else if (submission && examplePackIds.contains(id)) {
         error('id_example', 'id', 'That\'s the example\'s id: give your plugin an id of its own.');
@@ -617,7 +617,7 @@ class _Checker {
       if (!packTextOk(links[i])) {
         error('bad_text', 'links[$i]', 'holds a character an address can\'t.');
       } else if (packAddressIssue(links[i]) != null) {
-        error('bad_url', 'links[$i]', '"${links[i]}" isn\'t an address a plugin can open: https, a name (no numbers for an address, no punycode, nothing local), no port, nothing after a #, at most ${PackLimits.address} characters, and not Ghost Messaging\'s own.');
+        error('bad_url', 'links[$i]', '"${links[i]}" isn\'t an address a plugin can open: https, a name (no numbers for an address, no punycode, nothing local), no port, nothing after a #, at most ${PackLimits.address} characters, and not Uplink\'s own.');
       }
     }
 
@@ -648,7 +648,7 @@ class _Checker {
         error('bad_version', 'minApp', '"$minApp": a version is three numbers with dots between them, as 0.10.1.');
       } else if (checkMinApp) {
         final app = _leadingVersion.firstMatch(appVersion)?.group(0);
-        if (app != null && compareVersions(minApp, app) > 0) error('needs_newer_app', 'minApp', 'It needs Ghost Messaging $minApp or newer: this is $app.');
+        if (app != null && compareVersions(minApp, app) > 0) error('needs_newer_app', 'minApp', 'It needs Uplink $minApp or newer: this is $app.');
       }
     }
 

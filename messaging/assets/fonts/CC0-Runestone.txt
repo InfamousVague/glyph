@@ -8,7 +8,7 @@ What tool/runestone_font.py adds (the family's name, a bold flag, the curly quot
 quotes, the en dash, the bullet and the shade) is given to the public domain under the same terms.
 
 RuneScape and Old School RuneScape are trademarks of Jagex Ltd, which made the game these letters were drawn for.
-Ghost Messaging is not affiliated with Jagex, and CC0 gives no trademark rights (its section 4a).
+Uplink is not affiliated with Jagex, and CC0 gives no trademark rights (its section 4a).
 
 --------------------------------------------------------------------------------
 

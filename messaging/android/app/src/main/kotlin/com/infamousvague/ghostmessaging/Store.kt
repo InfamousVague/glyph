@@ -1089,7 +1089,7 @@ class Store(private val context: Context) {
      * showing "deleted" over something that was not.
      */
     /**
-     * Conversations deleted while Ghost is not the default SMS app, each with the time it was deleted at: left out of
+     * Conversations deleted while Uplink is not the default SMS app, each with the time it was deleted at: left out of
      * the list until something newer arrives in them. Android lets only the default SMS app delete texts.
      */
     /** When each conversation was last read here: what came before then is read, whatever Android's database says. */
@@ -1123,8 +1123,8 @@ class Store(private val context: Context) {
     fun deleteThread(thread: Long) {
         // Beside Google Messages, where Android lets only it delete texts (Matt, 2026-11-15: "I also need to be able to
         // proxy deleting conversations when ghost is not the default messaging app"): Google Messages deletes it,
-        // through its web connection where Ghost is paired with it (GmWeb), which deletes it from Android's store and
-        // every device; and Ghost leaves it out of its list until something newer arrives, paired or not.
+        // through its web connection where Uplink is paired with it (GmWeb), which deletes it from Android's store and
+        // every device; and Uplink leaves it out of its list until something newer arrives, paired or not.
         if (!GmBridge.isDefault(context)) {
             GmWeb.deleteThread(thread)
             hideThread(thread)
@@ -1142,7 +1142,7 @@ class Store(private val context: Context) {
             try { gone += resolver.delete(Telephony.Mms.CONTENT_URI, "thread_id = ?", arrayOf(thread.toString())) } catch (_: Exception) {}
             DevLog.add(context, "del", "a conversation was not deleted the usual way; asked for its messages by conversation instead ($gone gone)")
         }
-        if (hasMessages(thread)) throw IllegalStateException("Android did not delete it. Is Ghost Messaging still the default SMS app?")
+        if (hasMessages(thread)) throw IllegalStateException("Android did not delete it. Is Uplink still the default SMS app?")
         snippets.remove(thread)
     }
 
@@ -1151,7 +1151,7 @@ class Store(private val context: Context) {
     fun hiddenMessages(): Set<String> = prefs.getStringSet("hidden_msgs", emptySet())!!
 
     /**
-     * Joins [threads] (each with when it was deleted) and [msgs] from the Ghost account into the lists here
+     * Joins [threads] (each with when it was deleted) and [msgs] from the Uplink account into the lists here
      * (lib/kept_lists.dart): the later time for a conversation in both. True where any was new.
      */
     fun addHidden(threads: Map<Long, Long>, msgs: Collection<String>): Boolean {
@@ -1171,7 +1171,7 @@ class Store(private val context: Context) {
     }
 
     fun deleteMessage(kind: String, id: Long) {
-        // One the bridge read from Google Messages (GmBridge): deleted in Google Messages where Ghost is paired with
+        // One the bridge read from Google Messages (GmBridge): deleted in Google Messages where Uplink is paired with
         // its web connection (Matt, 2026-11-15: "if possible proxy the archive and delete messages too"), and
         // forgotten here either way.
         if (kind == "rcs") {
@@ -1181,7 +1181,7 @@ class Store(private val context: Context) {
             return
         }
         // Beside Google Messages Android lets only it delete texts: Google Messages deletes its copy (found by the
-        // same words and time) where Ghost is paired, and Ghost leaves the text out of its list either way.
+        // same words and time) where Uplink is paired, and Uplink leaves the text out of its list either way.
         if (!GmBridge.isDefault(context) && kind == "sms") {
             try {
                 resolver.query(Telephony.Sms.CONTENT_URI, arrayOf("thread_id", "body", "type", "date"), "_id = ?", arrayOf("$id"), null)?.use { c ->
@@ -1202,7 +1202,7 @@ class Store(private val context: Context) {
             if (gone > 0) DevLog.add(context, "del", "a message was not deleted by its address; deleted by its number instead")
         }
         val still = try { resolver.query(all, arrayOf("_id"), "_id = ?", arrayOf(id.toString()), null)?.use { it.count > 0 } ?: false } catch (_: Exception) { false }
-        if (still) throw IllegalStateException("Android did not delete it. Is Ghost Messaging still the default SMS app?")
+        if (still) throw IllegalStateException("Android did not delete it. Is Uplink still the default SMS app?")
         editsPrefs.edit().remove("$kind:$id").apply()
     }
 
@@ -1351,7 +1351,7 @@ class Store(private val context: Context) {
     fun archivedThreads(): Set<Long> = prefs.getStringSet("archived", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 
     fun setArchived(thread: Long, archived: Boolean) {
-        // Archived in Google Messages too, where Ghost is paired with its web connection (Matt, 2026-11-15: "if
+        // Archived in Google Messages too, where Uplink is paired with its web connection (Matt, 2026-11-15: "if
         // possible proxy the archive and delete messages too"), so the two keep the same archive.
         if (!GmBridge.isDefault(context)) Thread { GmWeb.archiveThread(thread, archived) }.start()
         val s = prefs.getStringSet("archived", emptySet())!!.toMutableSet()

@@ -356,7 +356,7 @@ void main() {
     expect(find.text('Sign in to Matrix'), findsOneWidget);
     expect(find.text('Sign in with your browser'), findsOneWidget);
     expect(find.textContaining(RegExp(r'^Or with a password$', caseSensitive: false)), findsOneWidget);
-    expect(find.textContaining('Ghost\'s servers never see them'), findsOneWidget);
+    expect(find.textContaining('Uplink\'s servers never see them'), findsOneWidget);
 
     await tester.runAsync(() async {
       await m.signInWithPassword('matrix.org', 'matt', 'hunter2');

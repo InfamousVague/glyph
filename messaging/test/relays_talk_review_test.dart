@@ -257,7 +257,7 @@ void main() {
     });
   });
 
-  test('two names of Ghost Messaging\'s own relay are one relay where it names none of its own', () async {
+  test('two names of Uplink\'s own relay are one relay where it names none of its own', () async {
     final signer = KeysSigner(NetKeys.generate());
     final link = _Script();
     final hub = HubCarrier(url: 'wss://gogho.st/hub', signer: signer, dial: (_) async => link);

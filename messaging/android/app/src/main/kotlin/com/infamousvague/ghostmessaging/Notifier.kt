@@ -317,7 +317,7 @@ object Notifier {
         val n = Notification.Builder(context, channel(context))
             .setSmallIcon(R.drawable.ic_stat_ghost)
             .setContentTitle(who)
-            .setContentText("New message. Open Ghost Messaging to read it.")
+            .setContentText("New message. Open Uplink to read it.")
             .setContentIntent(open(context, thread))
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)

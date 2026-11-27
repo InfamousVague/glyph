@@ -110,7 +110,7 @@ void main() {
     // Who sent it, by what stays theirs as the name changes (Matt, 2026-11-20: "tie users names to their accounts ... so
     // that we can give out bug bounties properly"): her id, which the admin page gives souls to, and her account.
     expect(blocks.first['type'], 'callout');
-    expect(blocks.first['callout']['rich_text'][0]['text']['content'], 'Reporter: @maya · Ghost id ${maya.id} · account 0x00000000000000000000000000000000000000aa');
+    expect(blocks.first['callout']['rich_text'][0]['text']['content'], 'Reporter: @maya · Uplink id ${maya.id} · account 0x00000000000000000000000000000000000000aa');
     expect(blocks.last, {'object': 'block', 'type': 'image', 'image': {'type': 'file_upload', 'file_upload': {'id': 'up1'}}});
   });
 

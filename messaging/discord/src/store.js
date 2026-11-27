@@ -1,4 +1,4 @@
-// The links: which Ghost Messaging token reads which server. On disk as SHA-256 hashes of the tokens, never the tokens
+// The links: which Uplink token reads which server. On disk as SHA-256 hashes of the tokens, never the tokens
 // themselves, so the file is no use to whoever reads it. Written whole to a temporary file and renamed over the old.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';

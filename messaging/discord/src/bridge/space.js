@@ -1,4 +1,4 @@
-// The bridge as one member of a Ghost space: in the call's room it answers (or makes) a WebRTC connection with each
+// The bridge as one member of an Uplink space: in the call's room it answers (or makes) a WebRTC connection with each
 // member like any app does, says who it is ({t:'me', n:'Discord'}) and who is on the Discord side ({t:'dc', people});
 // in the chat room it says hello, passes messages both ways and answers history like any member. The protocol is
 // lib/voice/voice.dart's and lib/voice/hangout.dart's (and site/join/voice.js's): everything sealed with the space's
@@ -63,7 +63,7 @@ export class GhostSpace {
     await Promise.all(peers.map((p) => p.close().catch(() => {})));
   }
 
-  /** The Ghost members in the call (not the bridge): [{ id, name }]. */
+  /** The Uplink members in the call (not the bridge): [{ id, name }]. */
   list() {
     return [...this.members].map(([id, m]) => ({ id, name: m.name }));
   }
@@ -199,7 +199,7 @@ export class GhostSpace {
       onState: (state) => {
         const cur = this.members.get(id);
         if (!cur || cur.peer !== peer) return;
-        if (state === 'connected' || state === 'failed') this.log(`a Ghost member's sound ${state}`);
+        if (state === 'connected' || state === 'failed') this.log(`an Uplink member's sound ${state}`);
         if (state === 'connected' && !cur.up) {
           cur.up = true;
           this.on.peerUp?.(id);

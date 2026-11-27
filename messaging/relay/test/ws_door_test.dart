@@ -476,7 +476,7 @@ void main() {
 
       File('${dir.path}/ext.cnf').writeAsStringSync('subjectAltName=DNS:relay.test\nbasicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\n');
       openssl = await run(['ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', 'ca.key']) &&
-          await run(['req', '-x509', '-new', '-sha256', '-key', 'ca.key', '-days', '3650', '-subj', '/CN=Ghost test CA', '-out', 'ca.pem', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign']) &&
+          await run(['req', '-x509', '-new', '-sha256', '-key', 'ca.key', '-days', '3650', '-subj', '/CN=Uplink test CA', '-out', 'ca.pem', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign']) &&
           await run(['ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', 'leaf.key']) &&
           await run(['req', '-new', '-sha256', '-key', 'leaf.key', '-subj', '/CN=relay.test', '-out', 'leaf.csr']) &&
           // (SHA-256, and a year: a certificate signed with SHA-1, or for a server and good for longer, is refused where

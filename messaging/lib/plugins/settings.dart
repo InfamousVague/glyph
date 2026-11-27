@@ -162,7 +162,7 @@ List<Widget> pluginsPane(BuildContext context, AppState app, PluginRegistry regi
     // A card here for each plugin that is on and keeps its settings on this page.
     for (final p in registry.plugins)
       if (registry.isOn(p, store) && p.settingsPage == null) ..._own(context, p, registry, store, title: p.name),
-    // Which are on, synced across the Ghost account's devices (GMFB-9): the app's own plugins', not a test's registry.
+    // Which are on, synced across the Uplink account's devices (GMFB-9): the app's own plugins', not a test's registry.
     if (identical(registry, PluginRegistry.instance)) pluginSyncSection(context, app),
   ];
 }

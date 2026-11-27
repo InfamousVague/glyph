@@ -151,7 +151,7 @@ class Signal extends InboxNetwork {
     _state = InboxState.signingIn;
     notifyListeners();
     try {
-      await _ask('link', {'name': 'Ghost Messaging'});
+      await _ask('link', {'name': 'Uplink'});
     } catch (e) {
       _error = '$e';
       _state = InboxState.signedOut;
@@ -671,7 +671,7 @@ class Signal extends InboxNetwork {
     _pointers[key] = a.cast<String, Object?>();
     final mime = '${a['mime'] ?? ''}';
     return InboxMedia(
-      // A Signal sticker (the helper marks it), or one of Ghost's sent from here: drawn on its own, with no bubble.
+      // A Signal sticker (the helper marks it), or one of Uplink's sent from here: drawn on its own, with no bubble.
       kind: InboxMedia.kindOf(mime, sticker: a['sticker'] == true),
       fileId: key,
       path: _files[key],
@@ -858,7 +858,7 @@ class Signal extends InboxNetwork {
   bool get canBlock => true;
 
   /// Blocked on Signal itself through the helper (sidecar/signal: the same word Signal Desktop sends the phone), then
-  /// in Ghost's list. A one-to-one chat's id is the person's ACI.
+  /// in Uplink's list. A one-to-one chat's id is the person's ACI.
   @override
   Future<void> block(String chatId, {required String name, bool on = true}) async {
     if (_groups.contains(chatId)) throw StateError('Only a person can be blocked');
@@ -866,7 +866,7 @@ class Signal extends InboxNetwork {
     await super.block(chatId, name: name, on: on);
   }
 
-  /// Signal's list as this device knows it (blocked here, or on the phone): Ghost's list is made the same.
+  /// Signal's list as this device knows it (blocked here, or on the phone): Uplink's list is made the same.
   @override
   Future<void> refreshBlocked() async {
     if (state != InboxState.ready) return;

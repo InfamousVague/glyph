@@ -1,6 +1,6 @@
-# Ghost's Slack helper: the protocol
+# Uplink's Slack helper: the protocol
 
-The protocol is the one all of Ghost's account helpers share: [../ACCOUNT_HELPERS.md](../ACCOUNT_HELPERS.md).
+The protocol is the one all of Uplink's account helpers share: [../ACCOUNT_HELPERS.md](../ACCOUNT_HELPERS.md).
 This file says only what is Slack's own.
 
 Run: `slack-sidecar --dir <folder>`. The folder holds `session.json` (mode 0600), `slack.log` and `avatars/`.

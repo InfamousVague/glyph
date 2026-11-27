@@ -8,9 +8,9 @@ import 'inbox.dart';
 /// Microsoft Teams chats, read and answered from here (Matt, 2026-11-17: "Let's add support for matrix, microsoft teams
 /// and google chat").
 ///
-/// Teams through Microsoft Graph (v1.0), on this device alone: nothing goes through Ghost's servers. Signing in is
-/// Microsoft's device code flow with a public client (no secret): Ghost asks for a short code, the person types it on
-/// microsoft.com/devicelogin in the browser and approves, and Ghost is given a token. Only the refresh token and the
+/// Teams through Microsoft Graph (v1.0), on this device alone: nothing goes through Uplink's servers. Signing in is
+/// Microsoft's device code flow with a public client (no secret): Uplink asks for a short code, the person types it on
+/// microsoft.com/devicelogin in the browser and approves, and Uplink is given a token. Only the refresh token and the
 /// account are kept (AppState `teams_session`); the access token is asked for again as it runs out.
 ///
 /// Work and school accounts only: Graph's chat APIs don't serve personal Microsoft accounts (Teams free). Some
@@ -47,7 +47,7 @@ class Teams extends InboxNetwork {
   @override
   final bool soon;
 
-  // What Ghost asks leave to do, the page the code is typed on, and how often the chats and the open one are asked for.
+  // What Uplink asks leave to do, the page the code is typed on, and how often the chats and the open one are asked for.
   static const scopes = 'offline_access User.Read Chat.ReadWrite ChatMessage.Send';
   static const devicePage = 'https://microsoft.com/devicelogin';
   static const _idle = Duration(seconds: 30);
@@ -55,7 +55,7 @@ class Teams extends InboxNetwork {
 
   // What the page says for the two refusals that are not the person's mistake.
   static const workOnly = 'Microsoft Teams works with work and school accounts only. Personal Microsoft accounts (Teams free) can\'t be read by other apps.';
-  static const adminNeeded = 'Your organisation needs its IT admin to approve Ghost Messaging before you can sign in. Ask them to allow it in Microsoft Entra, then try again.';
+  static const adminNeeded = 'Your organisation needs its IT admin to approve Uplink before you can sign in. Ask them to allow it in Microsoft Entra, then try again.';
 
   @override
   String get id => 'teams';
@@ -91,7 +91,7 @@ class Teams extends InboxNetwork {
   String? _watching;
   int _sent = 0;
 
-  /// Graph asked Ghost to wait (429) until then.
+  /// Graph asked Uplink to wait (429) until then.
   DateTime _wait = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -320,7 +320,7 @@ class Teams extends InboxNetwork {
 
   // --- chats ----------------------------------------------------------------------------------------------------------
 
-  /// Asks for the chats again now (unless Graph asked Ghost to wait).
+  /// Asks for the chats again now (unless Graph asked Uplink to wait).
   Future<void> refresh() async {
     if (_state != InboxState.ready || DateTime.now().isBefore(_wait)) return;
     try {
@@ -450,7 +450,7 @@ class Teams extends InboxNetwork {
       }
     }
     if (files.isNotEmpty) text = [if (text.isNotEmpty) text, for (final f in files) '[$f]'].join('\n');
-    if (text.isEmpty && media.isEmpty) text = '[a message Ghost can\'t show]';
+    if (text.isEmpty && media.isEmpty) text = '[a message Uplink can\'t show]';
     return InboxMessage(
       id: mid,
       text: text,
@@ -714,7 +714,7 @@ class Teams extends InboxNetwork {
     return json;
   }
 
-  /// A call to Graph with the access token: renewed once on a 401, and a 429 kept so Ghost waits as Graph asks.
+  /// A call to Graph with the access token: renewed once on a 401, and a 429 kept so Uplink waits as Graph asks.
   Future<Map> _call(String method, String url, {Object? body, bool again = true}) async {
     final req = await _client.openUrl(method, Uri.parse(url));
     req.headers.set('accept', 'application/json');
@@ -760,13 +760,13 @@ class Teams extends InboxNetwork {
   static String _plain(Object e) {
     if (e is _Said) return e.message;
     if (e is _Status) {
-      if (e.code == 401) return 'Microsoft did not let Ghost in. Sign in to Teams again.';
+      if (e.code == 401) return 'Microsoft did not let Uplink in. Sign in to Teams again.';
       if (e.code == 403) {
         if ((e.message ?? '').contains('MSA') || (e.message ?? '').toLowerCase().contains('personal')) return workOnly;
         return e.message ?? 'Microsoft says this account may not do that.';
       }
       if (e.code == 404) return 'Teams can\'t find that chat or message any more.';
-      if (e.code == 429) return 'Microsoft asks Ghost to slow down. It will try again shortly.';
+      if (e.code == 429) return 'Microsoft asks Uplink to slow down. It will try again shortly.';
       return e.message ?? 'Microsoft Graph answered ${e.code}.';
     }
     if (e is SocketException || e is TimeoutException || e is HandshakeException) return 'Microsoft can\'t be reached just now.';

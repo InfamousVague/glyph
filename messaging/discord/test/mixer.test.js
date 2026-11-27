@@ -74,7 +74,7 @@ const rawCodec = {
 };
 const bytes = (f) => Buffer.from(f.buffer.slice(0));
 
-test('engine: Ghost mixed for Discord while someone talks, then five silences, then nothing', () => {
+test('engine: Uplink mixed for Discord while someone talks, then five silences, then nothing', () => {
   const e = new AudioEngine({ codec: rawCodec });
   e.addRecipient('a');
   assert.deepEqual(e.tick(), { discord: null, ghost: new Map([['a', rawCodec.silence]]) });
@@ -93,7 +93,7 @@ test('engine: Ghost mixed for Discord while someone talks, then five silences, t
   assert.equal(outs.at(-1), null);
 });
 
-test('engine: Discord speakers mixed for each Ghost member, plus the other members; dropped people stop', () => {
+test('engine: Discord speakers mixed for each Uplink member, plus the other members; dropped people stop', () => {
   const e = new AudioEngine({ codec: rawCodec });
   e.addRecipient('a');
   e.addRecipient('b');

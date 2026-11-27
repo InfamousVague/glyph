@@ -1,11 +1,11 @@
-# Handoff: Ghost Messaging, 2026-11-13
+# Handoff: Uplink, 2026-11-13
 
 **Since this was written (the same day, on Matt's Mac):** section 1 is done: ghost-sms.com has its Caddy block and
 its certificate, and 0.3.1 was published as the first release, signed with the key now in `~/.config/ghostmessaging/`
 (Matt was told to back it up, and to uninstall the cloud build and install from ghost-sms.com once). Section 2 is
 done in 0.4.0: encryption in the conversation and the list, the nested Settings with its search, the expanded
 settings read where they act, and Updates' plain words. 0.4.0 also has chat backgrounds, asked for that afternoon
-(README). Section 3, the phone, is what is left. The branch is checked out as a worktree at
+(docs/RECORD.md). Section 3, the phone, is what is left. The branch is checked out as a worktree at
 `~/Development/Apps/glyph-messaging`, so the shared checkout stays on main; the scripts are run from there with
 `--glyph ~/Development/Apps/glyph`.
 
@@ -40,7 +40,7 @@ of it: how it works, how to run each part, what was tried on the emulator and wh
 - Three things the design asked Matt and he has not answered by name (docs/desktop.md, its last section).
 - Android 16's local network permission is not asked for (targetSdk 36 does not need it); a later target will.
 
-0.6.0, later still (README has each): what catches people coming from Google Messages (RCS, and Android's
+0.6.0, later still (docs/RECORD.md has each): what catches people coming from Google Messages (RCS, and Android's
 restricted settings), a loading indicator and read errors, choosing several conversations to delete, the invisible
 hello between two copies and the encryption banner, bubble colours, a settings cog in each conversation, the keyboard
 coming back, the new icon, and speed; then the effects' own pictures (twenty sheets Matt made, cut into 240 sprites
@@ -64,13 +64,13 @@ unreadable picture was left out silently; HDR photographs went as JPEGs with a g
 what he met is not known until he tries it: Settings › Developer has the app's log to copy or share, which says
 what each picture was made into and what the carrier answered.
 
-0.6.1, that night: phones with a great many messages (README has the measurements). The list is read the newest
+0.6.1, that night: phones with a great many messages (docs/RECORD.md has the measurements). The list is read the newest
 first and the rest behind, the lookups that were one question to Android per conversation are one for all, and a
 conversation reads older messages as it is scrolled back. `tool/seed_store.py` fills a throwaway emulator's store
 (3,000 conversations in three seconds, as root) to measure against; `setprop log.tag.GhostPerf VERBOSE` times each
 call.
 
-0.5.0, later that day, added two more asks of Matt's (README): a conversation's background synced between phones
+0.5.0, later that day, added two more asks of Matt's (docs/RECORD.md): a conversation's background synced between phones
 that both have the app, as a text in the conversation, and sign-in codes handed to Ghost Keyboard (which needs its
 0.18.0: the `codes` branch of GhostKbd, in `~/Development/Apps/ghost-kbd-codes`, not pushed until Matt says).
 
@@ -78,7 +78,7 @@ Written by the cloud session that built 0.1.0 to 0.3.1, for the session that car
 "give me a full prompt to have another session pick up the work on my mac"). The cloud session had no account on the
 box, no release key, no phone and no emulator, so nothing here has been published or run on a device.
 
-Branch: `ccr-47d364dc-sj9ic1` of InfamousVague/glyph. The app is `messaging/`; read `messaging/README.md` first.
+Branch: `ccr-47d364dc-sj9ic1` of InfamousVague/glyph. The app is `messaging/`; read `messaging/docs/RECORD.md` first (it was the README until 2026-11-27; `README.md` is now the front page for someone meeting the app).
 
 ## 1. Publish (the reason for the move)
 
@@ -170,7 +170,7 @@ and then encrypt all messages so only others with the app can read them".
    - Android (default SMS app, contacts), Updates, About (version, what it is, the emoji sets' licences).
 3. `test/screens_test.dart` then needs the new channel calls answered (`e2e`, `e2eList`, `e2eMine`,
    `blockedNumbers`) and pictures of the settings home, a section page, and an encrypted conversation.
-4. README: an "Encryption" entry and the settings; version 0.4.0 in `pubspec.yaml` and About.
+4. docs/RECORD.md: an "Encryption" entry and the settings; version 0.4.0 in `pubspec.yaml` and About.
 
 ### Say to Matt about the encryption, as it is
 
@@ -179,7 +179,7 @@ and then encrypt all messages so only others with the app can read them".
   call, is what rules that out.
 - No forward secrecy: there is no ratchet. It is not Signal's protocol.
 - A sealed text is longer (base64, plus 28 bytes), so it costs more SMS parts.
-- The other person must have Ghost Messaging; to anything else a sealed text is a line of letters.
+- The other person must have Uplink; to anything else a sealed text is a line of letters.
 
 ## 3. Try it on the phone
 
@@ -200,5 +200,5 @@ closes the conversation before it leaves the app, and a notification opens its c
 - He reads replies on his phone: short, plain, the outcome first.
 - Each build goes to his phone. In the cloud that was a file sent in chat; on the Mac it is the Fold over adb, or
   the release he updates to.
-- Commit messages and READMEs quote his ask and say what was done and where, as the ones in this branch do.
+- Commit messages and the record (docs/RECORD.md) quote his ask and say what was done and where, as the ones in this branch do.
 - The Glacier kit in `packages/glacier/` is a copy: change the kit upstream in Ghost.md, never here.

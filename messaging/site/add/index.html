@@ -75,7 +75,7 @@
   $('line').textContent = `@${name} would like to be friends on Uplink. Open it in the app to send them a request.`;
   // The start of their account's name, after # (never sent to any server, this one included): carried into the app,
   // which refuses the relay's answer for the username where its key doesn't begin so (lib/friends/add_link.dart).
-  // After the key, the relay their username is on where it is not Ghost Messaging's own (#KEY@relay.example.com,
+  // After the key, the relay their username is on where it is not Uplink's own (#KEY@relay.example.com,
   // GMFB-25): carried into the app too, which asks that relay for the name.
   const [key, relay = ''] = location.hash.replace(/^#/, '').toLowerCase().split('@');
   const keyOk = /^[0-9a-f]{8,32}$/.test(key);

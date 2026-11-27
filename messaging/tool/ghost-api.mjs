@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A client for Ghost Messaging's API (lib/api in the app; Settings › API, in developer mode). Matt, 2026-11-17: "build
+ * A client for Uplink's API (lib/api in the app; Settings › API, in developer mode). Matt, 2026-11-17: "build
  * an entire API that we can use to interact with every aspect of the app frontend and backend".
  *
  * On the phone, over USB (Settings › API › Serve the API, then `adb forward tcp:8765 tcp:8765`):

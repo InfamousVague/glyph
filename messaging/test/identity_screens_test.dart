@@ -81,7 +81,7 @@ void main() {
   testWidgets('a statement is signed on screen, copied, and checks out as this account\'s', (tester) async {
     final sheet = await loadSheet(tester);
     await pumpScreen(tester, sheet, SignStatementScreen(publicKey: mine.public, sign: (m) async => NetCrypto.sign(mine, m)), AppState(), size: const Size(412, 1600));
-    await tester.enterText(find.byKey(const ValueKey('proof-words')), 'I am @matt on Ghost Messaging, and @matt_codes elsewhere');
+    await tester.enterText(find.byKey(const ValueKey('proof-words')), 'I am @matt on Uplink, and @matt_codes elsewhere');
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('proof-make')));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -89,7 +89,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('proof-copy')));
     await settle(tester);
     final c = Proof.check(copied.single);
-    expect([c.good, c.statement, c.did], [true, 'I am @matt on Ghost Messaging, and @matt_codes elsewhere', Did.ofKey(mine.public)]);
+    expect([c.good, c.statement, c.did], [true, 'I am @matt on Uplink, and @matt_codes elsewhere', Did.ofKey(mine.public)]);
 
     // Too long: said, and not signed.
     await tester.enterText(find.byKey(const ValueKey('proof-words')), 'x' * 281);
@@ -102,10 +102,10 @@ void main() {
     final sheet = await loadSheet(tester);
     final buddies = (await tester.runAsync(friendsWithMaya))!;
     Future<String> signed(NetKeys k, String words) async => (await tester.runAsync(() => Proof.make(words, publicKey: k.public, sign: (m) async => NetCrypto.sign(k, m))))!;
-    final ofMaya = await signed(maya, 'I am @maya on Ghost Messaging');
-    final ofMine = await signed(mine, 'I am @matt on Ghost Messaging');
+    final ofMaya = await signed(maya, 'I am @maya on Uplink');
+    final ofMine = await signed(mine, 'I am @matt on Uplink');
     final stranger = NetKeys.generate();
-    final ofStranger = await signed(stranger, 'I am @maya on Ghost Messaging');
+    final ofStranger = await signed(stranger, 'I am @maya on Uplink');
     await pumpScreen(tester, sheet, CheckStatementScreen(mine: Uint8List.fromList(mine.public), buddies: buddies), AppState(), size: const Size(412, 1400));
 
     Future<String> check(String pasted) async {

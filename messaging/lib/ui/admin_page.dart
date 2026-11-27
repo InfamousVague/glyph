@@ -43,7 +43,7 @@ bool adminOffered(SettingsModel m) => adminOfferedFor(m.app);
 /// The same from the app's choices alone: the Marketplace's Review queue is offered by it, with no Settings round it.
 bool adminOfferedFor(AppState app) => app.flag('dev_mode', fallback: false) && adminNames.contains(Me.instance.username);
 
-/// The Ghost usernames the admin page is offered to (the relay's GHOST_ADMIN_NAMES says who it answers).
+/// The Uplink usernames the admin page is offered to (the relay's GHOST_ADMIN_NAMES says who it answers).
 const adminNames = {'matt'};
 
 /// Settings › Admin's pane, as Settings lists its panes.
@@ -73,7 +73,7 @@ class AdminUser {
   List<String> special;
   final bool here;
 
-  /// The Ghost account they signed up or signed back in with (0x…), the same on every device and after a reinstall
+  /// The Uplink account they signed up or signed back in with (0x…), the same on every device and after a reinstall
   /// (Matt, 2026-11-20: "tie users names to their accounts when they sign back in later or reconnect to the app so that we
   /// can give out bug bounties properly"); null where they have none.
   final String? account;
@@ -171,7 +171,7 @@ class _AdminSignInState extends State<AdminSignIn> {
 Widget adminSameYou(BuildContext context) => PaneSection(
       title: 'Admin sign-in',
       children: [
-        const SettingRow(icon: AppIcon(Lucide.keyRound, size: 18), label: 'Reviewing needs your Ghost identity on this computer. Become the same you as your phone in Settings › Me.'),
+        const SettingRow(icon: AppIcon(Lucide.keyRound, size: 18), label: 'Reviewing needs your Uplink identity on this computer. Become the same you as your phone in Settings › Me.'),
         SettingRow(key: const ValueKey('admin-same-you'), icon: const AppIcon(Lucide.userCheck, size: 18), label: 'Open Settings › Me', onPress: () => openSettingsMe(context, 'Become the same you as your phone')),
       ],
     );
@@ -185,7 +185,7 @@ class AdminPanel extends StatefulWidget {
   final Future<Map<String, dynamic>> Function(Map<String, Object?> what)? ask;
 
   /// The Marketplace the review rows ask (Matt, 2026-11-20: "I'd like to be able to verify them for the store through a
-  /// review process"): MarketState.instance.api where null, Ghost Messaging's own (MarketApi.live) in the app.
+  /// review process"): MarketState.instance.api where null, Uplink's own (MarketApi.live) in the app.
   final MarketApi? market;
 
   @override
@@ -237,7 +237,7 @@ class _AdminPanelState extends State<AdminPanel> {
       if (mounted) setState(() => _people = q.abuse == 0 ? 'None open' : '${q.abuse} open');
     } on MarketError catch (e) {
       line = switch (e.code) {
-        'no_identity' => 'This device has no Ghost identity of its own: review from your phone.',
+        'no_identity' => 'This device has no Uplink identity of its own: review from your phone.',
         'not_admin' => 'Sign in on Settings › Admin again to see it.',
         _ => 'Couldn\'t reach the Marketplace',
       };
@@ -284,7 +284,7 @@ class _AdminPanelState extends State<AdminPanel> {
   /// check that throws while drawing: a computer that follows its phone has no signer.
   String _keyHint() {
     final signer = _market.signer;
-    if (signer == null) return 'This device has no Ghost identity of its own: review from your phone.';
+    if (signer == null) return 'This device has no Uplink identity of its own: review from your phone.';
     final key = base64Encode(signer.publicKey);
     final here = InstalledPlugins.instance;
     final trusted = isReviewKey(signer.publicKey, keys: here.reviewKeys, retired: here.retiredKeys);
@@ -366,7 +366,7 @@ class _AdminPanelState extends State<AdminPanel> {
             ? 'Asking the relay…'
             : '${users.length} ${users.length == 1 ? 'person' : 'people'} · ${users.where((u) => u.here).length} connected now · ${soulsCount(total)} souls given out'),
         children: [
-          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username, old username, Ghost id or account'.t, ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
+          SettingRowBox(child: GlacierInput(key: const ValueKey('admin-search'), controller: _search, placeholder: 'Search by username, old username, Uplink id or account'.t, ariaLabel: 'Search people', autoCorrect: false, autoCapitalize: TextCapitalization.none, size: GlacierFieldSize.md)),
           SettingRow(icon: AppIcon(Lucide.refreshCw, size: 18), label: 'Refresh', onPress: _refresh),
           if (shown != null)
             for (final u in shown.take(300))
@@ -506,12 +506,12 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
                 SettingRow(
                   key: const ValueKey('admin-person-id'),
                   icon: AppIcon(Lucide.keyRound, size: 18),
-                  label: 'Ghost id',
+                  label: 'Uplink id',
                   hint: Text(u.id),
                   value: const Tr('Copy'),
                   onPress: () {
                     Clipboard.setData(ClipboardData(text: u.id));
-                    toast(context, 'Ghost id copied');
+                    toast(context, 'Uplink id copied');
                   },
                 ),
                 SettingRow(
