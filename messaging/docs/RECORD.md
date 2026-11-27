@@ -1858,6 +1858,14 @@ name (Matt, asked whether every release should update it: "Yes, every release"),
 `.github/`, whose relay workflow would publish builds under that organization's name. That repository's `main` is
 its default branch; the Rust app it held before is on `dev` and in the 1.0.x tags.
 
+And each release is a release on GitHub there too (`node tool/release-github.mjs`, run by the same four scripts
+after the source; Matt, asked whether every release should publish one: "Yes, every release"). It is tagged `v` and
+the version and carries the installers the site's feeds say are out at that version, the very files the site serves
+(checked against each feed's size and SHA-256), under names that say Uplink, with `SHA256SUMS.txt`. It is a draft,
+seen by the repository's own people alone, until every platform is out at that version: the Mac's script makes it,
+the others add to it, and the one that finds all four out publishes it as the latest. `--publish` publishes one of
+fewer platforms; `--no-github` on a release script leaves the step out; run again, it adds only what is missing.
+
 Matt, 2026-11-13: "add auto update and serve it over ghost-sms.com I'll point the domain to the same server ghost kbd
 uses". Both scripts are Ghost Keyboard's, for this app, and use Ghost.md's box account (`tauri/.env`) through
 Ghost.md's own `box.mjs`, so they run where that file is: on the Mac, not in a cloud session.
