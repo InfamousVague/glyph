@@ -15,6 +15,7 @@ import '../app_lock/app_lock.dart';
 import '../app_state.dart';
 import '../kit/settings_css.dart';
 import '../looks.dart';
+import '../packs/resource_pack.dart';
 import '../ui/text_scale.dart';
 import '../main.dart' show InkOverrides, ghostTypography;
 import '../sounds.dart';
@@ -150,6 +151,12 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);
+  // The resource pack the look Runestone draws with (lib/packs/resource_pack.dart), as the phone's app reads it.
+  if (state.look == Look.runestone) {
+    await ResourcePacks.instance.start(state);
+  } else {
+    unawaited(ResourcePacks.instance.start(state));
+  }
   // The app's lock (GMFB-46, lib/app_lock), read before the app is drawn: with a PIN set it opens locked, once the
   // splash is done. Its record is kept as the pairing's key is: the Keychain in a release build, else the app's folder.
   await AppLock.start(state, folder: store.dir, keychain: store.keychain);

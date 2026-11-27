@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart' show GlacierTheme;
 
 import 'icon_wash.dart';
+import 'pixel_icons.g.dart';
 import 'svg_path.dart';
 
 /// One of the app's icons. Since 2026-11-20 every one is Phosphor's duotone (Matt: "switch to using phosphor icons"),
@@ -53,7 +55,13 @@ class AppIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = color ?? inkAt(context);
     final outline = icon.outline;
-    final painter = outline != null
+    // A look that draws its icons in square pixels (`--app-icons: pixel`, Runestone; Matt, 2026-11-27: "find a
+    // pixelated icon pack to go with this theme"): the same icon from lib/art/pixel_icons.g.dart, filled on its 24
+    // grid with hard edges, no wash and no stroke.
+    final pixel = GlacierTheme.maybeOf(context)?.raw('app-icons')?.trim() == 'pixel' ? pixelIcons[icon.name] : null;
+    final painter = pixel != null
+        ? DrawnIconPainter(strokes: const [], washed: const [], fills: [pixel], color: ink, strokeWidth: strokeWidth, crisp: true)
+        : outline != null
         ? DrawnIconPainter(
             strokes: const [],
             washed: wash && (icon.body ?? '').isNotEmpty ? [icon.body!] : const [],
@@ -79,7 +87,7 @@ Color inkAt(BuildContext context) =>
 /// [viewBox] wide scaled to the size it is given. Shared by the kit's icons ([AppIcon]) and the app's own
 /// (icons.dart).
 class DrawnIconPainter extends CustomPainter {
-  const DrawnIconPainter({required this.strokes, required this.washed, required this.color, required this.strokeWidth, this.viewBox = 24, this.evenOdd = false, this.filled = false, this.fills = const [], this.washAlpha, this.cut = const []});
+  const DrawnIconPainter({required this.strokes, required this.washed, required this.color, required this.strokeWidth, this.viewBox = 24, this.evenOdd = false, this.filled = false, this.fills = const [], this.washAlpha, this.cut = const [], this.crisp = false});
 
   /// SVG paths, as written: those drawn as lines, and those filled with the wash under them.
   final List<String> strokes;
@@ -87,6 +95,9 @@ class DrawnIconPainter extends CustomPainter {
 
   /// Shapes filled in the whole ink: a Phosphor icon's outline, which is a filled shape rather than a stroke.
   final List<String> fills;
+
+  /// [fills] with hard edges, none smoothed: an icon made of square pixels, which stay square.
+  final bool crisp;
 
   /// How much of the ink the wash is, when not the app's own third ([iconWash]): Phosphor's duotone is a fifth.
   final double? washAlpha;
@@ -117,6 +128,7 @@ class DrawnIconPainter extends CustomPainter {
     if (fills.isNotEmpty) {
       final ink = Paint()
         ..style = PaintingStyle.fill
+        ..isAntiAlias = !crisp
         ..color = color;
       for (final d in fills) {
         canvas.drawPath(svgPath(d), ink);

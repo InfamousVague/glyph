@@ -223,6 +223,19 @@ class Tokens {
   /// The outer layers of a `box-shadow` token, as Flutter draws them.
   List<BoxShadow> shadow(String name) => _cached('shadow', name, () => cssShadows(name).where((s) => !s.inset).map((s) => s.toBoxShadow()).toList());
 
+  /// The shadow every word here stands on (`--glacier-text-shadow`, written as CSS writes a `text-shadow`: `1px 1px 0
+  /// #000`), or null where no sheet sets one, as the kit's own never do: [textAt] draws its text over it. A local
+  /// addition (VENDORED.md), for a look whose letters each have a hard shadow under them.
+  List<Shadow>? get textShadows {
+    final layers = _cached<List<Shadow>>('text-shadow', '', () {
+      final value = raw('glacier-text-shadow')?.trim() ?? '';
+      if (value.isEmpty || value.toLowerCase() == 'none') return const [];
+      // A blur as Flutter counts one (CssShadow.toBoxShadow): none at all for a hard shadow.
+      return [for (final s in evalShadows(value, ctx: css)) Shadow(offset: s.offset, blurRadius: s.sigma <= 0.5 ? 0 : (s.sigma - 0.5) / 0.57735, color: s.color)];
+    });
+    return layers.isEmpty ? null : layers;
+  }
+
   /// A gradient token made for [size], or null where the token is `none`.
   Gradient? gradient(String name, [Size size = const Size(1, 1)]) => evalGradient(_need(name), ctx: css)?.toGradient(size);
 
@@ -320,6 +333,8 @@ class Tokens {
       fontVariations: [FontVariation('wght', len('glacier-font-weight-$weight')), if (!mono) FontVariation('opsz', px)],
       color: color ?? this.color('glacier-text'),
       decoration: TextDecoration.none,
+      // Under light words only: a dark word over a dark shadow is the same word, smudged.
+      shadows: textShadows == null || (color ?? this.color('glacier-text')).computeLuminance() < 0.18 ? null : textShadows,
     );
     // `line-height: normal` as a browser works it out (line_height.dart), which is not the face's own sum.
     return height != null || px <= 0 ? face : face.copyWith(height: normalLineHeight(face, dpr: css.lineDpr) / px);

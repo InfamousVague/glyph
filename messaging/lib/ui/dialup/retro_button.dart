@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart' show AppIcon, LucideIcon;
+import '../../art/pixel_emoji.dart';
 import '../../kit/settings_type.dart';
 import 'bevel.dart';
 
@@ -83,11 +84,16 @@ class RetroButton extends StatelessWidget {
               children: [
                 if (icon != null) AppIcon(icon!, size: 18, color: ink, wash: false),
                 if (icon != null && label != null) const SizedBox(width: 6),
-                if (label != null) Text(label!, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+                // Its emoji in square pixels where the look draws them so (a reply that is one: lib/art/pixel_emoji.dart).
+                if (label != null)
+                  pixelEmojiOn(t)
+                      ? Text.rich(TextSpan(children: pixelEmojiSpans([TextSpan(text: label)], style)), maxLines: 1, overflow: TextOverflow.ellipsis, style: style)
+                      : Text(label!, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
               ],
             );
         Widget drawn = Bevel(
           style: held ? BevelStyle.pressed : BevelStyle.raised,
+          kind: BevelKind.button,
           color: face,
           padding: padding,
           child: Transform.translate(
@@ -145,6 +151,7 @@ class RetroSegment extends StatelessWidget {
         color: c.onChrome,
         child: Bevel(
           style: held ? BevelStyle.pressed : BevelStyle.raised,
+          kind: BevelKind.button,
           // The chosen one on the bevel's inner light, as the taskbar draws the page shown (nav_bar.dart): a shade
           // lighter in Daytime, and grey in After Hours, whose held and raised bevels are drawn alike, so an
           // icon-only toggle (the Files view, the list's tabs) still shows which is chosen.

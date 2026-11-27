@@ -48,7 +48,9 @@ class LookPreview extends StatelessWidget {
                   borderRadius: BorderRadius.circular(t.radius('md')),
                   border: out ? (bubbleNeedsRim(mine, page) ? Border.all(color: t.color('app-rule')) : null) : (theirRim(t) ?? (bubbleNeedsRim(theirs, page) ? Border.all(color: t.color('app-rule')) : null)),
                 ),
-                child: Text(text, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, strutStyle: strut, style: out ? words.copyWith(color: onMine) : words),
+                // Made in its own colour, not copied into it: a look's shadow under its light words (Runestone's) is
+                // not carried under dark ones on your bubble.
+                child: Text(text, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, strutStyle: strut, style: out ? t.textAt(t.fontSize('xs'), color: onMine) : words),
               ),
             );
         return Container(

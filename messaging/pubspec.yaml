@@ -96,6 +96,14 @@ flutter:
     - family: Arimo
       fonts:
         - asset: assets/fonts/ArimoVariable.ttf
+    # The look Runestone's face (lib/looks.dart): an old adventure game's own square letters, as RuneStar/fonts traced
+    # them and gave them to the public domain (assets/fonts/CC0-Runestone.txt), made into one family, a regular and a
+    # bold, by tool/runestone_font.py. Western Europe's letters only, 18 KB each.
+    - family: Runestone
+      fonts:
+        - asset: assets/fonts/Runestone-Regular.ttf
+        - asset: assets/fonts/Runestone-Bold.ttf
+          weight: 700
     # The Readable font, for anyone who finds letters hard to tell apart (Settings › Appearance; GMFB-41): Atkinson
     # Hyperlegible Next, drawn by the Braille Institute so that no two letters look alike, under the OFL
     # (assets/fonts/OFL-Atkinson.txt). Latin, variable in weight, with its italic: 170 KB.

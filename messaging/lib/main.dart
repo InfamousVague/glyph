@@ -28,6 +28,7 @@ import 'app_state.dart';
 import 'inbox/curl_sync.dart';
 import 'kept_lists.dart';
 import 'looks.dart';
+import 'packs/resource_pack.dart';
 import 'ui/text_scale.dart';
 import 'backgrounds.dart';
 import 'bubble.dart';
@@ -164,6 +165,13 @@ Future<void> main() async {
   final accents = loaded[0]! as AccentSheets;
   final sheet = accents.base;
   installSettingsStyles(sheet);
+  // The resource pack the look Runestone draws with, where the person fetched one (lib/packs/resource_pack.dart):
+  // read before the first page where that is the look, so it is never drawn flat first; else as the app goes on.
+  if (state.look == Look.runestone) {
+    await ResourcePacks.instance.start(state);
+  } else {
+    unawaited(ResourcePacks.instance.start(state));
+  }
   // The app's lock (GMFB-46, lib/app_lock), read before the first page is drawn: with a PIN set the app opens locked.
   // An iPhone keeps the lock's record as a computer does (the Keychain, and a file that says it is set).
   await AppLock.start(state, folder: PlatformInfo.isIOS ? StandaloneCalls.defaultDir() : null, keychain: kReleaseMode);
@@ -246,7 +254,7 @@ GlacierTypography _typography(String emoji) {
   final family = emojiFamilyOf(emoji);
   return GlacierTypography(
     features: const [FontFeature('cv11'), FontFeature('ss01')],
-    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family], 'Atkinson Hyperlegible Next Variable': [family]},
+    fallbacks: family == null ? const {} : {'Inter Variable': [family], 'JetBrains Mono Variable': [family], 'Arimo': [family], 'Runestone': [family], 'Atkinson Hyperlegible Next Variable': [family]},
   );
 }
 

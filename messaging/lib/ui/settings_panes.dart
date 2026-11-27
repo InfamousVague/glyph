@@ -41,6 +41,8 @@ import 'common.dart';
 import 'gm_guide_screen.dart';
 import 'gm_web_screen.dart';
 import 'look_picker.dart';
+import 'resource_packs_ui.dart';
+import '../packs/resource_pack.dart';
 import 'market/dev_plugins.dart' show devPluginsPane;
 import 'rcs_setup.dart';
 import 'voice_pane.dart';
@@ -524,6 +526,8 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
         ),
       ],
     ),
+    // The resource pack Runestone draws with (lib/ui/resource_packs_ui.dart), where that is the look.
+    if (look == Look.runestone && own == null && ResourcePacks.here) resourcePackSection(context, app),
     PaneSection(title: 'Theme', children: [
       if (own != null)
         SettingRow(

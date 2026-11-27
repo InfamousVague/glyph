@@ -12,6 +12,7 @@ import '../message_format.dart';
 import '../app_state.dart';
 import '../conversation_feed.dart';
 import '../art/app_icon.dart';
+import '../art/pixel_emoji.dart';
 import '../art/ghost_icons.dart';
 import '../art/lucide.g.dart';
 import '../backgrounds.dart' show lookCorner, lookRim;
@@ -1989,7 +1990,13 @@ class ConversationRow extends StatelessWidget {
                         Text(listWhen(c.date), style: pageText(t, 12, color: soft)),
                       ],
                     ]),
-                    Text.rich(words, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, 15, color: soft, height: 1.3)),
+                    // Its emoji in square pixels where the look draws them so (lib/art/pixel_emoji.dart).
+                    Text.rich(
+                      pixelEmojiOn(t) ? TextSpan(children: pixelEmojiSpans([words], pageText(t, 15, color: soft, height: 1.3))) : words,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: pageText(t, 15, color: soft, height: 1.3),
+                    ),
                   ]),
                 ),
               ]),

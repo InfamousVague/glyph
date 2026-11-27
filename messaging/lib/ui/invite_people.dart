@@ -628,7 +628,7 @@ class _Pill extends StatelessWidget {
           Text(label, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: ink)),
         ]);
         final inner = EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1) * 1.5);
-        if (bevel) return Bevel(style: state.pressed || on ? BevelStyle.sunken : BevelStyle.raised, padding: inner, child: words);
+        if (bevel) return Bevel(style: state.pressed || on ? BevelStyle.pressed : BevelStyle.raised, kind: BevelKind.button, padding: inner, child: words);
         return Container(
           padding: inner,
           decoration: BoxDecoration(
@@ -897,7 +897,7 @@ class _Primary extends StatelessWidget {
           Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'bold', color: ink))),
         ]);
         final inner = EdgeInsets.symmetric(vertical: t.space(3), horizontal: t.space(3));
-        if (bevel) return Bevel(style: state.pressed && !off ? BevelStyle.sunken : BevelStyle.raised, padding: inner, child: words);
+        if (bevel) return Bevel(style: state.pressed && !off ? BevelStyle.sunken : BevelStyle.raised, kind: BevelKind.button, padding: inner, child: words);
         final fill = off ? 'app-paper-3' : quiet ? (state.pressed ? 'app-paper-3' : 'app-paper') : (state.pressed ? 'app-ink-2' : 'app-ink');
         return Container(
           padding: inner,

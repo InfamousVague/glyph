@@ -19,6 +19,7 @@ import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../sms.dart';
 import 'common.dart';
+import 'dialup/dialup.dart';
 import 'handover_screens.dart' show HandoverApproveScreen;
 import 'settings.dart';
 import '../l10n/words.dart';
@@ -505,6 +506,9 @@ class PairButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // Under the bevelled chrome (Dial-Up, Runestone): a push button as wide as the page, the step's one action in the
+    // frame the era put round the button Enter presses. Filled with ink it was a bar of Runestone's yellow.
+    if (isBevelChrome(t)) return RetroButton(onPressed: onPressed, icon: icon, label: label, primary: !quiet, bold: !quiet, faceHeight: 44, minFaceWidth: double.infinity);
     final off = onPressed == null;
     final ink = quiet ? t.color('app-ink') : t.color('app-paper');
     return GlacierPressable(

@@ -19,6 +19,7 @@ import '../art/lucide.g.dart';
 import '../friends/buddies.dart';
 import '../kit/settings_type.dart';
 import '../me/me.dart';
+import '../packs/pack_paint.dart';
 import '../sms.dart' show Sms;
 import 'circles/circle_picture.dart' show pickProfilePicture;
 import 'common.dart';
@@ -112,10 +113,14 @@ class _ProfileBubbleState extends State<ProfileBubble> {
                         curve: t.curve('glacier-ease-out'),
                         child: Container(
                           // A line of ink round it while its card or the profile is open, as the ring shown is filled.
-                          foregroundDecoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: t.color(lit ? 'app-ink' : 'glacier-border-strong'), width: lit ? 2 : t.len('app-line')),
-                          ),
+                          // Not round a resource pack's orb, which is its own ring (lib/ui/dialup/parts.dart's PackOrb),
+                          // until it is the one open.
+                          foregroundDecoration: !lit && packOf(t)?['other/minimap_orb_frame_small'] != null
+                              ? null
+                              : BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: t.color(lit ? 'app-ink' : 'glacier-border-strong'), width: lit ? 2 : t.len('app-line')),
+                                ),
                           child: ProfileFace(key: const ValueKey('profile-bubble-face'), name: me.shownName, picture: me.pictureOwn, size: ring),
                         ),
                       ),

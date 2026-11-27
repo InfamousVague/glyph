@@ -147,7 +147,7 @@ class MarketCard extends StatelessWidget {
         return DecoratedBox(
           position: DecorationPosition.foreground,
           decoration: BoxDecoration(border: selected ? Border.all(color: c.dark, width: 2) : null),
-          child: Bevel(style: pressed ? BevelStyle.pressed : BevelStyle.raised, padding: padding ?? EdgeInsets.zero, child: child),
+          child: Bevel(style: pressed ? BevelStyle.pressed : BevelStyle.raised, kind: BevelKind.button, padding: padding ?? EdgeInsets.zero, child: child),
         );
       }
       final rim = lookRim(t);

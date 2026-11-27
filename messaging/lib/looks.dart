@@ -36,6 +36,22 @@ enum Look {
     rounding: 'square',
     // Arimo, bundled (assets/fonts/ArimoVariable.ttf): Arial's measures without Arial, which may not be shipped.
     font: 'arimo',
+  ),
+  // Modelled on Old School RuneScape's interface as the Dark Vanilla resource pack draws it (by Nichy, in
+  // melkypie/resource-packs; Matt, 2026-11-27: "make a theme in Ghost that fits this with the runescape font and
+  // everything"). The pack's colours were read off it and none of its pictures are here: the stone is drawn by
+  // Dial-Up's chrome (lib/ui/dialup/) from this look's rules. The names stay in this comment, out of what is shown.
+  runestone(
+    'Runestone',
+    'an old adventure game\'s interface in its players\' dark stone pack; the letters are the game\'s own, traced and given to the public domain by others (assets/fonts/CC0-Runestone.txt), and nothing else of theirs is copied',
+    'Dark stone windows with chiselled edges, yellow and orange words in an old adventure game\'s letters, and chats written on grey parchment.',
+    Lucide.scrollText,
+    light: false,
+    dark: true,
+    keyboard: 'orange',
+    rounding: 'square',
+    // Runestone, bundled (assets/fonts/Runestone-*.ttf, made by tool/runestone_font.py).
+    font: 'runestone',
   );
 
   const Look(

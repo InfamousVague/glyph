@@ -15,6 +15,7 @@ import '../app_state.dart';
 import '../mentions.dart';
 import '../desktop/platform.dart' show MacPlatform;
 import '../art/lucide.g.dart';
+import '../art/pixel_emoji.dart';
 import '../art/lucide_more.dart';
 import '../backgrounds.dart';
 import '../effects.dart';
@@ -1526,7 +1527,15 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
   /// bubbles (Matt, 2026-11-16: "base one of them heavily on the old AOL chatrooms"). The room's own speaker says where
   /// it starts, that it is sealed, what a key or a background was, and where the day turns. What a message does (held
   /// down, tapped to try again, its reactions, its pictures and cards) is as it is in a bubble.
-  Widget _lines(Tokens t, ChatBackground background, String title) {
+  Widget _lines(Tokens t, ChatBackground background, String title) => Transcript(
+        overBackground: !background.isNone,
+        // What is written in the well is written in the well's own tokens, which a look may set apart from its pages'
+        // (Runestone's parchment, `.parchment` in assets/css/app.css): its colours are read inside it, not out here.
+        child: Builder(builder: (well) => _linesIn(well.tokens, title)),
+      );
+
+  /// [_lines]' well, from the inside: every line of the conversation, newest at the foot.
+  Widget _linesIn(Tokens t, String title) {
     final c = DialupColors.of(t);
     final msgs = _folded.messages;
     final items = <Widget>[];
@@ -1646,26 +1655,23 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (_e2e.on) items.add(const HostLine('Messages here are sealed end to end.'));
       items.add(HostLine('*** You are in "$title". ***'));
     }
-    return Transcript(
-      overBackground: !background.isNone,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
-          return false;
-        },
-        // The arrow inside the well, at its corner: a raised square button, as the room's own are.
-        child: JumpToLatest(
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (_older && !_readingOlder && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 900) _readOlder();
+        return false;
+      },
+      // The arrow inside the well, at its corner: a raised square button, as the room's own are.
+      child: JumpToLatest(
+        controller: _scroll,
+        chat: _spot,
+        incoming: _incoming,
+        inset: const EdgeInsets.only(right: 8, bottom: 8),
+        child: ListView(
           controller: _scroll,
-          chat: _spot,
-          incoming: _incoming,
-          inset: const EdgeInsets.only(right: 8, bottom: 8),
-          child: ListView(
-            controller: _scroll,
-            reverse: true,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            children: items,
-          ),
+          reverse: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          children: items,
         ),
       ),
     );
@@ -1703,7 +1709,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
 
   Widget _composer(Tokens t) {
     final editing = _editing != null;
-    final composerText = pageText(t, t.fontSize('md'), color: t.color('app-ink'), height: 1.3);
+    // The field's own tokens for what is typed in it (lib/ui/composer_box.dart): a look may write on another ground there.
+    final typed = composerTokens(t);
+    final composerText = pageText(typed, typed.fontSize('md'), color: typed.color('app-ink'), height: 1.3);
     final composerStrut = StrutStyle.fromTextStyle(composerText, forceStrutHeight: true, leadingDistribution: TextLeadingDistribution.even);
     final canSend = editing ? _text.text.trim().isNotEmpty : (_text.text.trim().isNotEmpty || _attachments.isNotEmpty) && !_sending;
     final isMms = !_isGhost && (_group || _attachments.isNotEmpty);
@@ -1894,7 +1902,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
                         if (_text.text.isEmpty)
-                          composerHint(IgnorePointer(child: Text(hint, style: composerText.copyWith(color: t.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading))),
+                          composerHint(IgnorePointer(child: Text(hint, style: composerText.copyWith(color: typed.color('app-ink-3')), strutStyle: composerStrut, textHeightBehavior: _evenLeading))),
                         // On a computer the paste keys bring in a picture on the clipboard first, then words as ever
                         // (Matt, 2026-11-16: "add the ability to paste images into the chatbar on desktop"; on the Mac
                         // the window catches ⌘V ahead of its Edit menu: lib/ui/paste_images.dart).
@@ -1917,9 +1925,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                           style: composerText,
                           strutStyle: composerStrut,
                           textHeightBehavior: _evenLeading,
-                          cursorColor: t.color('app-ink'),
-                          backgroundCursorColor: t.color('app-ink-3'),
-                          selectionColor: t.textSelection,
+                          cursorColor: typed.color('app-ink'),
+                          backgroundCursorColor: typed.color('app-ink-3'),
+                          selectionColor: typed.textSelection,
                           minLines: 1,
                           maxLines: 6,
                           // Settings › Messages › Enter sends: the keyboard's Enter is Send, and the words still wrap.
@@ -2878,7 +2886,10 @@ class _LinkedTextState extends State<LinkedText> {
         spans.add(TextSpan(text: words, style: style));
       }
     }
-    return spans;
+    // Emoji in square pixels where the look draws them so (lib/art/pixel_emoji.dart). Words drawn with no theme over
+    // them (a test of the words alone) are as they were.
+    final look = GlacierTheme.maybeOf(context);
+    return look != null && pixelEmojiOn(look) ? pixelEmojiSpans(spans, widget.style) : spans;
   }
 
   @override

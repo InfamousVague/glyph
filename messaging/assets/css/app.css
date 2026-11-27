@@ -1314,6 +1314,229 @@ body:has(.app-headerPane) .app-statusScrim {
   --glacier-selection: color-mix(in oklch, #800080 70%, transparent);
 }
 
+/* Runestone: an old adventure game's interface as its players' dark stone packs draw it (Matt, 2026-11-27: "make a
+   theme in Ghost that fits this with the runescape font and everything", of the Dark Vanilla resource pack for Old
+   School RuneScape's interface, by Nichy, in melkypie/resource-packs; then "use the light background for chats like
+   dark vanilla uses"). Charcoal stone windows with chiselled edges, near-black panels, the game's lettering colours
+   (yellow words, orange headings, white on what is pressed, each over a hard black shadow), and a chat written on
+   pale grey parchment in black, blue and dark red, as the pack's chatbox is. Dark only.
+
+   Nothing of the pack's is in the app: its colours were read off it (panels #242424, stone #363636 to #3E3E3E, frame
+   lines #4D4D4D and #171717, the red "new messages" button #401E1E, the chatbox parchment #BCBCBC), and every edge
+   and face is drawn by lib/ui/dialup/, the chrome Dial-Up draws its windows with, from the tokens below
+   (`--app-chrome-style: bevel`). The face is Runestone (assets/fonts/CC0-Runestone.txt).
+   Measured on the panel (#1C1C1C): yellow 16.0:1, orange 7.9:1, the grey of secondary words 8.2:1, red 5.8:1; on the
+   stone (#2E2E2E) white 13.6:1 and red 4.6:1; on the parchment (#BEBEBE) blue 4.6:1 and dark red 5.9:1. */
+:root[data-theme-preset='runestone'] {
+  --glacier-gray-1: #1C1C1C;
+  --glacier-gray-2: #202020;
+  --glacier-gray-3: #272727;
+  --glacier-gray-4: #3A3A3A;
+  --glacier-gray-5: #303030;
+  --glacier-gray-6: #4D4D4D;
+  --glacier-gray-7: #6E6E6E;
+  --glacier-gray-8: #8A8A8A;
+  --glacier-gray-9: #B4B4B4;
+  --glacier-gray-10: #D8D8D8;
+  /* Secondary words are the game's orange and the page's ink its yellow: the scale's light end is its lettering. */
+  --glacier-gray-11: #FF981F;
+  --glacier-gray-12: #FFFF00;
+}
+:root:root:root:root[data-theme-preset='runestone'] {
+  /* The chat-room chrome (lib/ui/dialup/): windows, wells, push buttons and title bars, in stone; and drawn from a
+     resource pack's own pictures where the person has fetched one (lib/packs/), whose colours are then laid over the
+     ones below (ResourcePack.css). */
+  --app-chrome-style: bevel;
+  --app-chrome-sprites: pack;
+  /* No border of its own round the list beside a pane (lib/ui/shell.dart): two panels of one frame. */
+  --app-chrome-frames: none;
+  /* Every icon in square pixels (lib/art/app_icon.dart draws lib/art/pixel_icons.g.dart's), and emoji where they are
+     read (lib/art/pixel_emoji.dart). */
+  --app-icons: pixel;
+  --app-emoji: pixel;
+  /* What a page still loading is sketched in, and what is washed over a pressed row: grey, where the ink is yellow. */
+  --app-skeleton: #D8D8D8;
+  --app-wash: color-mix(in oklch, #FFFFFF 9%, transparent);
+  --app-chrome: #2E2E2E;
+  --app-on-chrome: #FFFFFF;
+  /* A chiselled edge: light from the upper left, the pack's frame lines for the inner ring. */
+  --app-bevel-hi: #5C5C5C;
+  --app-bevel-lo: #434343;
+  --app-bevel-shadow: #171717;
+  --app-bevel-dark: #000000;
+  /* An interface's heading: orange words on the darkest stone, flat, and a red X to close it. */
+  --app-titlebar: #141414;
+  --app-titlebar-end: #141414;
+  --app-titlebar-ink: #FF981F;
+  --app-titlebar-inactive: #1E1E1E;
+  --app-titlebar-inactive-ink: #8A8A8A;
+  --app-titlebar-close: #FF4A3A;
+  /* Names and words on the dark panels (a reply's line over the composer, who is in a space): the colours the game
+     writes chat in over the world. The chat itself is on parchment (`.parchment`, below). */
+  --app-name-mine: #FFFFFF;
+  --app-name-theirs: #00FFFF;
+  --app-name-1: #00FFFF;
+  --app-name-2: #FFFF00;
+  --app-name-3: #00FF00;
+  --app-name-4: #FF981F;
+  --app-name-5: #FF80FF;
+  --app-name-6: #80C0FF;
+  --app-line-mine: #9090FF;
+  --app-line-theirs: #FFFFFF;
+  --app-desktop: #000000;
+  /* The game's hover tip: black words on pale yellow. */
+  --app-tooltip: #FFFFA0;
+  --app-on-tooltip: #000000;
+  /* A chosen row: lighter stone, and white words as under the pointer in the game. */
+  --app-highlight: #4D4D4D;
+  --app-on-highlight: #FFFFFF;
+  --app-danger: #FF6060;
+  --app-unread: #00FF00;
+  --app-chosen: #FFFFFF;
+  --app-info: #00FFFF;
+  --app-online: #00FF00;
+  --app-warn: #FF981F;
+  --app-pinned: #FF981F;
+  --app-count: #B01414;
+  --app-on-count: #FFFFFF;
+  --app-text-selection: color-mix(in srgb, #FF981F 45%, transparent);
+  --app-ink-level: 0.93;
+  --app-raised: var(--app-gray-3);
+  --app-scrim: oklch(0 0 0 / 0.60);
+  --app-rule: var(--app-gray-6);
+  --app-mark: color-mix(in oklch, #FFFF00 30%, transparent);
+  --app-accent: #FF981F;
+  --app-on-accent: #000000;
+  --app-bubble-mine: #FF981F;
+  --app-on-bubble-mine: #000000;
+  --app-bubble-theirs: var(--app-gray-5);
+  --app-bubble-rim: var(--app-gray-6);
+  /* No glass in a stone frame: every pane the kit draws in glass is the window's face. */
+  --glacier-glass-thin: #2E2E2E;
+  --glacier-glass-regular: #2E2E2E;
+  --glacier-glass-thick: #2E2E2E;
+  --glacier-glass-border: #4D4D4D;
+  --glacier-glass-highlight: transparent;
+  --glacier-surface-raised: #2E2E2E;
+  --glacier-overlay: oklch(0 0 0 / 0.60);
+  --glacier-segment-track: #2E2E2E;
+  --glacier-slider-thumb: #5C5C5C;
+  --glacier-border: var(--app-gray-6);
+  --glacier-border-subtle: var(--app-gray-4);
+  --glacier-border-strong: var(--app-gray-8);
+  --glacier-hairline: 1px;
+  --app-line: 1px;
+  --glacier-focus-ring: #FFFFFF;
+  --glacier-selection: color-mix(in oklch, #FF981F 45%, transparent);
+  /* The game's letters: a regular and a bold and nothing between, no tracking, each word over a hard black shadow one
+     pixel down and right (the kit's `--glacier-text-shadow`, a local addition: packages/glacier/VENDORED.md). */
+  --glacier-font-weight-medium: 400;
+  --glacier-font-weight-semibold: 700;
+  --glacier-text-shadow: 1px 1px 0 #000000;
+  --app-tracking-display: 0;
+  --app-tracking-title: 0;
+  --app-tracking-caps: 0;
+  --app-tracking-caps-close: 0;
+  /* Square everything, and nothing moves: the game's windows simply appear (as Dial-Up's do). */
+  --glacier-radius-scale: 0;
+  --glacier-radius-full: 0px;
+  --glacier-duration-instant: 0.01ms;
+  --glacier-duration-fast: 0.01ms;
+  --glacier-duration-normal: 0.01ms;
+  --glacier-duration-slow: 0.01ms;
+  --glacier-duration-slower: 0.01ms;
+  --app-pop: 0.01ms linear;
+  --app-turn: 0.01ms linear;
+  --app-settle: 0.01ms linear;
+}
+/* The chatbox (lib/ui/message_line.dart's Transcript, and every field words are typed in: lib/ui/dialup/parts.dart's
+   DialupWell): pale grey parchment, as Dark Vanilla keeps the game's. Black names, what you say in the game's blue and
+   what is said to you in its dark red, and no shadow under any of it, as the game writes on parchment. Every colour a
+   page or the kit reads is said again here: a scope inherits the page's computed colours, never their recipes. */
+[data-theme-preset='runestone'] .parchment,
+[data-theme-preset='runestone'] .dialup-well {
+  /* What lib/ui/dialup/bevel.dart asks of a well, to draw a pack's chatbox as its ground and frame. */
+  --app-well: parchment;
+  --app-gray-1: #BEBEBE;
+  --app-gray-2: #B8B8B8;
+  --app-gray-3: #B0B0B0;
+  --app-gray-4: #9A9A9A;
+  --app-gray-5: #A4A4A4;
+  --app-gray-6: #8C8C8C;
+  --app-gray-7: #6A6A6A;
+  --app-gray-8: #585858;
+  --app-gray-9: #3C3C3C;
+  --app-gray-10: #2A2A2A;
+  --app-gray-11: #1E1E1E;
+  --app-gray-12: #000000;
+  --app-paper: #BEBEBE;
+  --app-paper-2: #B0B0B0;
+  --app-paper-3: #A4A4A4;
+  --app-rule: #8C8C8C;
+  --app-ink: #000000;
+  --app-ink-2: #1E1E1E;
+  --app-ink-3: #3C3C3C;
+  --app-ink-4: #6A6A6A;
+  --app-wash: color-mix(in oklch, #000000 9%, transparent);
+  --app-raised: #B0B0B0;
+  --glacier-bg: #BEBEBE;
+  --glacier-surface: #B0B0B0;
+  --glacier-surface-raised: #B0B0B0;
+  --glacier-surface-sunken: #B8B8B8;
+  --glacier-hover: #B0B0B0;
+  --glacier-active: #A4A4A4;
+  --glacier-border: #8C8C8C;
+  --glacier-border-subtle: #9A9A9A;
+  --glacier-border-strong: #000000;
+  --glacier-text: #000000;
+  --glacier-text-muted: #1E1E1E;
+  --glacier-text-subtle: #3C3C3C;
+  --glacier-text-disabled: #6A6A6A;
+  --glacier-text-shadow: none;
+  --glacier-focus-ring: #000000;
+  --glacier-selection: color-mix(in oklch, #0000FF 30%, transparent);
+  --app-text-selection: color-mix(in srgb, #0000FF 30%, transparent);
+  --app-mark: color-mix(in oklch, #FFFF00 60%, transparent);
+  /* Everyone's name is black, as the game writes one; in a room of many each person keeps one of six dark inks. */
+  --app-name-mine: #000000;
+  --app-name-theirs: #000000;
+  --app-name-1: #00007F;
+  --app-name-2: #7F0000;
+  --app-name-3: #005000;
+  --app-name-4: #7E007E;
+  --app-name-5: #004F4F;
+  --app-name-6: #6B3E00;
+  --app-line-mine: #0000FF;
+  --app-line-theirs: #7F0000;
+  --app-danger: #8F0000;
+  --app-unread: #7F0000;
+  --app-chosen: #000000;
+  --app-info: #00007F;
+  --app-online: #005000;
+  --app-warn: #6B3E00;
+  --app-pinned: #6B3E00;
+  --app-bubble-theirs: #A4A4A4;
+  --app-bubble-rim: #8C8C8C;
+}
+/* A field in its well: the parchment is its ground and the frame its only edge, as Dial-Up's white one is. */
+[data-theme-preset='runestone'] .dialup-well {
+  --glacier-surface: #BEBEBE;
+  --glacier-border: transparent;
+  --glacier-border-strong: transparent;
+}
+/* What stands on a heading's band, and the stone panel along a page's foot, as Dial-Up's (below). */
+[data-theme-preset='runestone'] .dialup-band {
+  --app-ink: var(--app-titlebar-ink);
+  --app-ink-2: var(--app-titlebar-ink);
+  --app-ink-3: #D8D8D8;
+  --glacier-text: var(--app-titlebar-ink);
+  --glacier-text-muted: #D8D8D8;
+  --glacier-bg: var(--app-titlebar);
+}
+[data-theme-preset='runestone'] .dialup-panel {
+  --glacier-bg: var(--app-chrome);
+}
+
 /* The count on a taskbar button stays red in both halves, as the design asks, where --app-unread is navy or yellow. */
 :root:root:root:root[data-theme-preset='dialup'] {
   --app-count: #B00000;
@@ -1380,10 +1603,21 @@ body:has(.app-headerPane) .app-statusScrim {
   --hue: var(--app-ink);
   --hue-dark: var(--app-ink);
 }
+/* Runestone's icons are its headings' orange: one lettering colour, as the game's side panels keep to. */
+:root:root:root:root[data-theme-preset='runestone'] [data-hue] {
+  --hue: #FF981F;
+  --hue-dark: #FF981F;
+}
 
 /* Dial-Up's face (lib/looks.dart stamps it): Arimo, bundled, drawn to Arial's measures. */
 [data-font='arimo'] {
   --glacier-font-sans: 'Arimo', Arial, Helvetica, sans-serif;
+}
+
+/* Runestone's face (lib/looks.dart stamps it): the game's own square letters, bundled; letters it has none of (it
+   stops at Western Europe's) are Inter's. */
+[data-font='runestone'] {
+  --glacier-font-sans: 'Runestone', 'Inter Variable', sans-serif;
 }
 
 /* A look of one's own in the terminal's face (lib/custom_theme.dart's fonts, GMFB-41): the mono Phosphor draws in. */

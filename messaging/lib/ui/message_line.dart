@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app_state.dart';
+import '../art/pixel_emoji.dart';
 import '../mentions.dart';
 import '../kit/semantic_colors.dart';
 import '../kit/settings_type.dart';
@@ -47,7 +48,10 @@ class Transcript extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DialupColors.of(context.tokens);
-    final well = Padding(padding: const EdgeInsets.fromLTRB(6, 4, 6, 4), child: Sunken(child: child));
+    // The well and all that is written in it are a scope of the tokens (`.parchment`, assets/css/app.css): a look
+    // whose chat is written on another ground than its pages' (Runestone's grey parchment in its dark stone) says its
+    // paper and inks again there. No rule of Dial-Up's asks for it, so its well is the page's white as it was.
+    final well = Padding(padding: const EdgeInsets.fromLTRB(6, 4, 6, 4), child: GlacierScope(classes: const {'parchment'}, child: Sunken(child: child)));
     return overBackground ? well : ColoredBox(color: c.chrome, child: well);
   }
 }
@@ -173,6 +177,9 @@ class MessageLine extends StatefulWidget {
   State<MessageLine> createState() => _MessageLineState();
 }
 
+/// [words] in [style], their emoji in square pixels where the look draws them so (lib/art/pixel_emoji.dart).
+Widget _words(Tokens t, String words, TextStyle style) => pixelEmojiOn(t) ? Text.rich(TextSpan(children: pixelEmojiSpans([TextSpan(text: words)], style)), style: style) : Text(words, style: style);
+
 class _MessageLineState extends State<MessageLine> {
   final _editedTap = TapGestureRecognizer();
   final _nameTap = TapGestureRecognizer();
@@ -197,7 +204,9 @@ class _MessageLineState extends State<MessageLine> {
     final c = DialupColors.of(t);
     final w = widget;
     final px = lineSize(context);
-    final text = pageText(t, px, color: c.ink, height: 1.35);
+    // The words in the page's ink, or in your colour or theirs where the look has one each (DialupColors.wordsMine).
+    final ink = w.mine ? c.wordsMine : c.wordsTheirs;
+    final text = pageText(t, px, color: ink, height: 1.35);
     final nameStyle = pageText(t, px, weight: 'bold', color: w.nameColor, height: 1.35);
     final small = pageText(t, lineSize(context, 12), color: c.inkSoft, height: 1.35);
     _editedTap.onTap = w.onEditedTap;
@@ -222,7 +231,7 @@ class _MessageLineState extends State<MessageLine> {
     } else {
       words = LinkedText(
         w.body,
-        ink: c.ink,
+        ink: ink,
         style: w.italic ? text.copyWith(fontStyle: FontStyle.italic) : text,
         before: [
           TextSpan(text: name, style: nameStyle.copyWith(fontStyle: FontStyle.normal), recognizer: w.onNameTap == null ? null : _nameTap, mouseCursor: w.onNameTap == null ? null : SystemMouseCursors.click),
@@ -249,9 +258,10 @@ class _MessageLineState extends State<MessageLine> {
                 style: state.pressed ? BevelStyle.pressed : BevelStyle.raised,
                 rings: 1,
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                child: Text(
+                child: _words(
+                  t,
                   '${kinds.take(4).join(' ')}${w.reactions.length > kinds.length ? ' ${w.reactions.length}' : ''}',
-                  style: pageText(t, lineSize(context, 14), color: c.onChrome, height: 1.25),
+                  pageText(t, lineSize(context, 14), color: c.onChrome, height: 1.25),
                 ),
               ),
             ),
