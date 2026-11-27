@@ -131,7 +131,7 @@ class CircleInviteBanner extends StatelessWidget {
         if (i == null || Voice.instance.ringing != null || tabUp) return const SizedBox.shrink();
         final t = context.tokens;
         return Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), MediaQuery.paddingOf(context).top + t.space(2), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), MediaQuery.paddingOf(context).top + t.space(2), t.space(3), 0),
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -292,7 +292,7 @@ class CircleInviteCard extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
                   _HueStrip(hue: c.hue),
-                  Padding(padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(3)), child: body),
+                  Padding(padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(3)), child: body),
                 ]),
               ),
             ),
@@ -328,7 +328,7 @@ class CircleInviteRow extends StatelessWidget {
     // The list's own row shape: a card, or Dial-Up's transcript line with its rule under it.
     if (bevel) {
       return Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule'), width: 1))),
         child: row,
       );
@@ -336,7 +336,7 @@ class CircleInviteRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.lenOf('0.1875rem')),
       child: Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.lenOf('1rem'))),
         child: row,
       ),

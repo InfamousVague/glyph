@@ -419,7 +419,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
     // is pressed. A wider window has room for all of it in one row.
     final searchOpen = _searching || _query.isNotEmpty;
     final toolbar = Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(2)),
       child: narrow
           ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (searchOpen) ...[
@@ -480,11 +480,11 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
               shaderCallback: (r) => LinearGradient(colors: const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)], stops: [0, r.width <= 48 ? 0 : 1 - 48 / r.width, 1]).createShader(r),
               child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(8), 0),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(8), 0),
               children: [
                 if (!empty) _FolderChip(key: const ValueKey('folder-all'), label: 'Files', count: all.length, chosen: here == null, icon: Lucide.layoutGrid, onPressed: () => _go(null)),
                 for (final p in line) ...[
-                  Padding(padding: EdgeInsets.only(right: t.space(2)), child: Center(child: AppIcon(Lucide.chevronRight, size: 14, color: t.color('app-ink-3'), wash: false))),
+                  Padding(padding: EdgeInsetsDirectional.only(end: t.space(2)), child: Center(child: AppIcon(Lucide.chevronRight, size: 14, color: t.color('app-ink-3'), wash: false))),
                   _FolderChip(
                     key: ValueKey('crumb-$p'),
                     label: SpaceFile.folderName(p),
@@ -534,7 +534,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
       ?(widget.above ?? _spaceSync(canUpload)),
       if (err != null)
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), t.space(2)),
           child: SettingsCallout(
             icon: AppIcon(err.offline ? Lucide.wifiOff : Lucide.circleAlert, size: 18),
             action: IconTap(icon: Lucide.refreshCw, label: 'Try again', size: 18, onPressed: () => unawaited(space.refresh())),
@@ -588,7 +588,7 @@ class _FilesSpaceScreenState extends State<FilesSpaceScreen> {
         slivers: [
           SliverToBoxAdapter(child: Column(children: head)),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), bottom),
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 172, mainAxisSpacing: t.space(3), crossAxisSpacing: t.space(3), childAspectRatio: 0.78),
               delegate: SliverChildBuilderDelegate(
@@ -702,7 +702,7 @@ class FileRow extends StatelessWidget {
         semanticLabel: '${file.name}, ${file.kind.label}, $sub${here ? ', on this device' : ''}',
         builder: (context, state) => Container(
           margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-          padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(1), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(1), t.space(2)),
           decoration: BoxDecoration(
             color: bevel ? null : (state.pressed || state.hovered ? t.color('app-paper-2') : null),
             borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
@@ -715,7 +715,7 @@ class FileRow extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
                 if (coming != null)
-                  Padding(padding: const EdgeInsets.only(top: 6, right: 8), child: GlacierProgressBar(value: coming.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Coming down'))
+                  Padding(padding: const EdgeInsetsDirectional.only(top: 6, end: 8), child: GlacierProgressBar(value: coming.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Coming down'))
                 else if (!columns) ...[
                   SizedBox(height: 2),
                   Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
@@ -762,7 +762,7 @@ class FolderRow extends StatelessWidget {
         semanticLabel: 'Folder $name, $sub',
         builder: (context, state) => Container(
           margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-          padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(1), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(1), t.space(2)),
           decoration: BoxDecoration(
             color: bevel ? null : (state.pressed || state.hovered ? t.color('app-paper-2') : null),
             borderRadius: bevel ? null : BorderRadius.circular(t.radius('md')),
@@ -820,7 +820,7 @@ class FolderTile extends StatelessWidget {
                     return ColoredBox(color: bevel ? const Color(0x00000000) : settingsHueWash(t), child: Center(child: AppIcon(Lucide.folder, size: 44, color: settingsHue(t))));
                   }),
                 ),
-                if (state.hovered) Positioned(top: 4, right: 4, child: _Corner(child: IconTap(icon: Lucide.ellipsisVertical, label: 'More for $name', size: 16, box: 28, onPressed: onMenu))),
+                if (state.hovered) PositionedDirectional(top: 4, end: 4, child: _Corner(child: IconTap(icon: Lucide.ellipsisVertical, label: 'More for $name', size: 16, box: 28, onPressed: onMenu))),
               ]),
             ),
           ),
@@ -842,7 +842,7 @@ List<Widget> _fileColumns(Tokens t, List<String> words, {bool header = false}) =
         Expanded(
           flex: _columnFlex[i],
           child: Padding(
-            padding: EdgeInsets.only(left: t.space(3)),
+            padding: EdgeInsetsDirectional.only(start: t.space(3)),
             child: Text(w, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: header ? 'semibold' : 'regular', color: t.color('app-ink-3'), tracking: header ? 0.4 : 0)),
           ),
         ),
@@ -860,7 +860,7 @@ class FileColumnsHeader extends StatelessWidget {
     final bevel = isBevelChrome(t);
     return Container(
       margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2)),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(1), 0),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(1), t.space(1), 0),
       child: Row(children: [
         SizedBox(width: 40 + t.space(3)),
         Expanded(flex: 5, child: Text('NAME', style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'), tracking: 0.4))),
@@ -902,13 +902,13 @@ class FileTile extends StatelessWidget {
               child: Stack(fit: StackFit.expand, children: [
                 FileTilePicture(file: file),
                 if (coming != null)
-                  Positioned(left: t.space(2), right: t.space(2), bottom: t.space(2), child: GlacierProgressBar(value: coming.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Coming down')),
+                  PositionedDirectional(start: t.space(2), end: t.space(2), bottom: t.space(2), child: GlacierProgressBar(value: coming.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Coming down')),
                 // What the list says by its tick, the grid says in a corner: on this device. Under a pointer the corner
                 // is the file's menu instead, as the … is in the list (a long press or a right click open it too).
                 if (state.hovered)
-                  Positioned(top: 4, right: 4, child: _Corner(child: IconTap(icon: Lucide.ellipsisVertical, label: 'More for ${file.name}', size: 16, box: 28, onPressed: onMenu)))
+                  PositionedDirectional(top: 4, end: 4, child: _Corner(child: IconTap(icon: Lucide.ellipsisVertical, label: 'More for ${file.name}', size: 16, box: 28, onPressed: onMenu)))
                 else if (coming == null && store.cached(file) != null)
-                  Positioned(top: 6, right: 6, child: _Corner(child: Padding(padding: const EdgeInsets.all(3), child: AppIcon(Lucide.circleCheck, size: 14, color: t.color('app-ink-2'), wash: false, semanticLabel: 'On this device')))),
+                  PositionedDirectional(top: 6, end: 6, child: _Corner(child: Padding(padding: const EdgeInsets.all(3), child: AppIcon(Lucide.circleCheck, size: 14, color: t.color('app-ink-2'), wash: false, semanticLabel: 'On this device')))),
               ]),
             ),
           ),
@@ -982,15 +982,15 @@ class _TransferRow extends StatelessWidget {
     final glyph = done ? Lucide.check : (failed ? Lucide.circleAlert : Lucide.arrowUpToLine);
     return Container(
       margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(1), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(1), t.space(2)),
       child: Row(children: [
         Stack(clipBehavior: Clip.none, children: [
           FileBadge(kind: FileKind.of(x.name, x.mime), size: 40),
           // Its state at a glance: the accent's disc with the glyph in the paper (danger's for a failure, green when
           // done); under Dial-Up a small square of the window's face in a line, not a disc cutting the tile's corner.
           bevel
-              ? Positioned(
-                  right: -2,
+              ? PositionedDirectional(
+                  end: -2,
                   bottom: -2,
                   child: Container(
                     padding: const EdgeInsets.all(1),
@@ -998,8 +998,8 @@ class _TransferRow extends StatelessWidget {
                     child: AppIcon(glyph, size: 12, color: failed ? t.danger : DialupColors.of(t).ink, wash: false),
                   ),
                 )
-              : Positioned(
-                  right: -4,
+              : PositionedDirectional(
+                  end: -4,
                   bottom: -4,
                   child: Container(
                     padding: const EdgeInsets.all(3),
@@ -1017,7 +1017,7 @@ class _TransferRow extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(x.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
             if (x.state == TransferState.running && x.status == null)
-              Padding(padding: const EdgeInsets.only(top: 6, bottom: 4, right: 8), child: GlacierProgressBar(value: x.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Going up')),
+              Padding(padding: const EdgeInsetsDirectional.only(top: 6, bottom: 4, end: 8), child: GlacierProgressBar(value: x.progress * 100, size: GlacierProgressBarSize.sm, ariaLabel: 'Going up')),
             Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: failed ? t.danger : t.color('app-ink-3'))),
           ]),
         ),
@@ -1054,7 +1054,7 @@ class _PartRow extends StatelessWidget {
     final words = '${fileSize(p.have)} of ${fileSize(p.size)} · stopped ${_ago(p.at)}${by == null ? '' : ' · ${by == 'you' ? 'yours' : 'by $by'}'}';
     return Container(
       margin: bevel ? EdgeInsets.zero : EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(1), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(1), t.space(2)),
       child: Row(children: [
         const FileBadge(kind: FileKind.other, size: 40),
         SizedBox(width: t.space(3)),
@@ -1062,7 +1062,7 @@ class _PartRow extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Unfinished upload', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink'))),
             Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 4, right: 8),
+              padding: const EdgeInsetsDirectional.only(top: 6, bottom: 4, end: 8),
               child: GlacierProgressBar(value: p.size <= 0 ? 0 : (p.have / p.size * 100).clamp(0, 100).toDouble(), size: GlacierProgressBarSize.sm, ariaLabel: 'How much of it is up'),
             ),
             Text(words, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
@@ -1093,7 +1093,7 @@ class _FolderChip extends StatelessWidget {
     final words = count == null ? label : '$label  $count';
     if (bevel) {
       return Padding(
-        padding: EdgeInsets.only(right: t.space(1)),
+        padding: EdgeInsetsDirectional.only(end: t.space(1)),
         child: RetroButton(onPressed: onPressed, onLongPress: onLongPress, icon: icon, label: words, toggled: chosen, faceHeight: 32),
       );
     }
@@ -1101,7 +1101,7 @@ class _FolderChip extends StatelessWidget {
     // in Phosphor), so a screen has one kind of chosen, not the accent beside a near-black.
     final (strong, onStrong) = strongFill(t);
     return Padding(
-      padding: EdgeInsets.only(right: t.space(2), top: t.space(1), bottom: t.space(1)),
+      padding: EdgeInsetsDirectional.only(end: t.space(2), top: t.space(1), bottom: t.space(1)),
       child: GlacierPressable(
         onPressed: onPressed,
         onLongPress: onLongPress,
@@ -1294,7 +1294,7 @@ class _QuotaLine extends StatelessWidget {
     final bevel = isBevelChrome(t);
     final share = (used / quota).clamp(0.0, 1.0);
     final line = Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), bottom + t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), bottom + t.space(2)),
       child: Row(children: [
         AppIcon(Lucide.hardDrive, size: 14, color: t.color('app-ink-3'), wash: false),
         SizedBox(width: t.space(2)),
@@ -1426,7 +1426,7 @@ class _WordsPageState extends State<_WordsPage> {
     return GhostPage(
       title: widget.title,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           PaneSection(
             description: widget.hint == null ? null : Text(widget.hint!),

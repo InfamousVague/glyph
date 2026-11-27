@@ -124,12 +124,12 @@ class _StandaloneWelcomeState extends State<StandaloneWelcome> {
         child: ListenableBuilder(
           listenable: me,
           builder: (context, _) => ListView(
-            padding: EdgeInsets.fromLTRB(t.space(6), pad.top + t.space(8), t.space(6), pad.bottom + t.space(8)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(6), pad.top + t.space(8), t.space(6), pad.bottom + t.space(8)),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               // The ghost on black, as the computer's first page has it (lib/desktop/ui/wizard.dart).
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: Container(
                   width: t.lenOf('4rem'),
                   height: t.lenOf('4rem'),

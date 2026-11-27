@@ -76,7 +76,7 @@ class _NewGroupState extends State<NewGroupScreen> {
       back: true,
       actions: [
         Padding(
-          padding: EdgeInsets.only(right: t.space(2)),
+          padding: EdgeInsetsDirectional.only(end: t.space(2)),
           child: GlacierPressable(
             onPressed: ready ? _make : null,
             semanticLabel: 'Create group',
@@ -90,11 +90,11 @@ class _NewGroupState extends State<NewGroupScreen> {
       ],
       body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(3)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(3)),
           child: GlacierInput(controller: _name, placeholder: 'Group name'.t, ariaLabel: 'Group name', size: GlacierFieldSize.md),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
           child: Text(
             _chosen.isEmpty ? 'Choose who is in it. A group is made of friends, and you can add more later.' : '${_chosen.length} chosen. You will be its admin.',
             style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),

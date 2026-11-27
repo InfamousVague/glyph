@@ -166,7 +166,7 @@ class _RecordingPlaybackDrawerState extends State<RecordingPlaybackDrawer> {
                   ]),
                 ),
               ),
-              Positioned(top: t.space(2), right: t.space(2), child: _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Close the mixer', onPressed: _close)),
+              PositionedDirectional(top: t.space(2), end: t.space(2), child: _ToolButton(key: const ValueKey('recording-collapse'), icon: Lucide.chevronDown, label: 'Close the mixer', onPressed: _close)),
             ]);
           },
         ),
@@ -386,7 +386,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // The header: the time as a timecode, what is recorded, the zoom, Live, Stop and the way out of the mixer.
             Container(
-              padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(2), t.space(2)),
               color: _Studio.bar,
               child: LayoutBuilder(builder: (context, head) {
                 // On a phone the header keeps what it must: the time, the zoom, Stop and the way back.
@@ -495,7 +495,7 @@ class _RecordingTimelineState extends State<RecordingTimeline> {
                         child: Column(children: [
                           Container(
                             height: rulerH,
-                            alignment: Alignment.centerLeft,
+                            alignment: AlignmentDirectional.centerStart,
                             padding: EdgeInsets.symmetric(horizontal: t.space(3)),
                             color: _Studio.bar,
                             child: Tr('TRACKS', style: small),

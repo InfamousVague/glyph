@@ -391,7 +391,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           bigTitle: beside ? true : null,
           body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(3)),
               child: GlacierSearchField(placeholder: 'Search settings'.t, size: GlacierFieldSize.md, onValueChange: (v) => setState(() => _query = v)),
             ),
             // The header ends under the search field, as the conversations' does: what hangs under a header (the
@@ -399,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             const HeaderEnd(),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : (AppShell.maybeOf(context) != null && NavStyle.of(AppState.of(context)).unified ? AppShell.pillRoom(context) + t.space(4) : t.space(8)))),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), MediaQuery.paddingOf(context).bottom + (beside && !AppShell.railOf(context) ? NavPill.clearance(t) : (AppShell.maybeOf(context) != null && NavStyle.of(AppState.of(context)).unified ? AppShell.pillRoom(context) + t.space(4) : t.space(8)))),
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 children: [
                   if (query.isEmpty)
@@ -485,7 +485,7 @@ class _SectionPageState extends State<SectionPage> {
                 body: Stack(children: [
                   Positioned.fill(
                     child: ListView(
-                      padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+                      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       children: [Builder(builder: (context) => PaneBody(children: section.page(context, model)))],
                     ),

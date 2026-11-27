@@ -139,7 +139,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final pad = EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
+    final pad = EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom);
     return GhostPage(
       title: 'Spotify',
       body: SettingsPaneScope(
@@ -162,7 +162,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
   Widget _wrong(Tokens t, String words, {Key? key}) => Padding(
         padding: EdgeInsets.only(top: t.space(3)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: EdgeInsets.only(right: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
+          Padding(padding: EdgeInsetsDirectional.only(end: t.space(2), top: 2), child: AppIcon(Lucide.triangleAlert, size: 16, color: t.danger)),
           Expanded(child: Semantics(liveRegion: true, child: Text(words, key: key, style: pageText(t, t.fontSize('sm'), color: t.danger, height: 1.4)))),
         ]),
       );
@@ -258,7 +258,7 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
                 SizedBox(width: t.lenOf('5.5rem'), child: Text('Loudness', style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('app-ink')))),
                 Expanded(child: VolumeSlider(key: const ValueKey('spotify-volume'), value: m.volume / 100, max: 1, label: 'Music loudness', onChanged: (x) => m.setVolume((x * 100).round()))),
                 SizedBox(width: t.space(3)),
-                SizedBox(width: t.lenOf('3rem'), child: Text('${m.volume}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+                SizedBox(width: t.lenOf('3rem'), child: Text('${m.volume}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
               ]),
             ),
           if (!m.mine) ..._heard(t, m),
@@ -395,7 +395,7 @@ class _Progress extends StatelessWidget {
         borderRadius: BorderRadius.circular(2),
         child: Stack(fit: StackFit.expand, children: [
           ColoredBox(color: t.color('app-paper-3')),
-          FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: at.clamp(0.0, 1.0), child: ColoredBox(color: t.color('app-accent'))),
+          FractionallySizedBox(alignment: AlignmentDirectional.centerStart, widthFactor: at.clamp(0.0, 1.0), child: ColoredBox(color: t.color('app-accent'))),
         ]),
       ),
     );

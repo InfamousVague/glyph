@@ -79,7 +79,7 @@ class NavRail extends StatelessWidget {
         // The window's own face under the bevelled chrome, as every strip of buttons stands on there.
         color: isBevelChrome(t) ? DialupColors.of(t).chrome : t.color('glacier-bg'),
         child: Padding(
-          padding: EdgeInsets.only(left: pad.left, top: pad.top + t.space(3), bottom: pad.bottom + t.space(3)),
+          padding: EdgeInsetsDirectional.only(start: pad.left, top: pad.top + t.space(3), bottom: pad.bottom + t.space(3)),
           child: Column(children: [
             NavRing(key: const ValueKey('rail-home'), item: home, shown: active == home.id, onPressed: () => onSelect(home.id)),
             rule,
@@ -236,8 +236,8 @@ class _CircleRing extends StatelessWidget {
                 // icon in the sidebar should show the count in a unread badge same with circles"); red where someone
                 // mentioned you, and then it is the mentions it counts.
                 if (mentions > 0 || (unread > 0 && !open))
-                  Positioned(
-                    right: t.space(3) - 6,
+                  PositionedDirectional(
+                    end: t.space(3) - 6,
                     bottom: 0,
                     child: ExcludeSemantics(
                       child: Container(

@@ -725,7 +725,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
   /// The rows under the search: Mark all read for the tab shown (quiet with nothing unread), and Share feedback (on the
   /// Mac it is in the window's title strip instead).
   Widget _quickRows(Tokens t, int unread) => Padding(
-        padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(2)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           // A plugin's (the cleaner's Clean up, while there is something to clean; Matt, 2026-11-20: "also the clean
           // button is still in the header we should remove that"). Dial-Up keeps them in its title bar.
@@ -779,7 +779,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
     final only = _section != null && (_section == ListPlugins.hiddenView || kinds.any((k) => k.id == _section));
     return Padding(
       // From the search field's edge, which is the cards' edge too.
-      padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(2)),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // As tall as the toggle, which is as tall as the round buttons beside it.
         SizedBox(
@@ -795,7 +795,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
         // One kind shown alone: which, and the way back to everything.
         if (only)
           Padding(
-            padding: EdgeInsets.only(top: t.space(2), left: t.space(2)),
+            padding: EdgeInsetsDirectional.only(top: t.space(2), start: t.space(2)),
             child: Row(children: [
               Expanded(
                 child: Text(_section == ListPlugins.hiddenView ? 'Hidden by the filter' : 'Only ${_plugins.tabName(_section)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
@@ -1524,7 +1524,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
             children: [
               // As wide as the cards under it, edge to edge with them.
               Padding(
-                padding: EdgeInsets.fromLTRB(t.space(2), dialup ? t.space(2) : 0, t.space(2), t.space(2)),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(2), dialup ? t.space(2) : 0, t.space(2), t.space(2)),
                 child: Builder(builder: (context) {
                   final field = GlacierSearchField(
                     // Where the Search command puts the cursor (lib/keys.dart): the conversations' own, not the archive's.
@@ -1545,7 +1545,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
                     Expanded(child: search),
                     // Souls, with their flame, beside Share feedback (lib/ui/souls.dart; Matt, 2026-11-19: "display the
                     // points in the top bar next to the feedback button with a flame icon next to them").
-                    Padding(padding: EdgeInsets.only(left: t.space(2)), child: const SoulsChip()),
+                    Padding(padding: EdgeInsetsDirectional.only(start: t.space(2)), child: const SoulsChip()),
                   ]);
                 }),
               ),
@@ -1555,7 +1555,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
               // In the list's first row (lead above), but in Dial-Up's window, where they stay.
               if (dialup && !widget.archived && !_selecting) _quickRows(t, unreadHere),
               // What the frame keeps under the search: on a computer, how the phone is connected.
-              if (status != null) Padding(padding: EdgeInsets.fromLTRB(gutter, 0, gutter, t.space(2)), child: status),
+              if (status != null) Padding(padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, t.space(2)), child: status),
               // The tabs: "Messages" and each section that has conversations in it, as one toggle, and beside them
               // the button that marks the tab shown as read (_tabsRow).
               if (dialup && !widget.archived && !_selecting) ?_tabsRow(t),
@@ -1578,7 +1578,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> with WidgetsB
                     // The rows in a white well sunk into the window, which ends above the taskbar (or the screen's
                     // foot where there is none).
                     : Padding(
-                        padding: EdgeInsets.fromLTRB(t.space(1), 0, t.space(1), t.space(1) + (framed ? AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom : MediaQuery.paddingOf(context).bottom)),
+                        padding: EdgeInsetsDirectional.fromSTEB(t.space(1), 0, t.space(1), t.space(1) + (framed ? AppShell.pillRoom(context) + MediaQuery.paddingOf(context).bottom : MediaQuery.paddingOf(context).bottom)),
                         child: Sunken(child: body),
                       ),
               ),
@@ -1649,9 +1649,9 @@ class HistoryPartNotice extends StatelessWidget {
     final t = context.tokens;
     return Padding(
       key: const ValueKey('history-part-notice'),
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
       child: Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(1), t.space(3)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.history, size: 18, color: t.color('app-ink-2'))),
@@ -1675,9 +1675,9 @@ class _WordsNotice extends StatelessWidget {
     final t = context.tokens;
     return Padding(
       key: const ValueKey('words-notice'),
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
       child: Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(1), t.space(3)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.keyRound, size: 18, color: t.color('app-ink-2'))),
@@ -1712,9 +1712,9 @@ class _RcsNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(2)),
       child: Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(1), t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(1), t.space(3)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.triangleAlert, size: 18, color: t.warn)),
@@ -1826,8 +1826,8 @@ class ConversationRow extends StatelessWidget {
                     dimension: face,
                     child: Stack(clipBehavior: Clip.none, children: [
                       Avatar(people: c.people, size: face),
-                      Positioned(
-                        right: -3,
+                      PositionedDirectional(
+                        end: -3,
                         bottom: -3,
                         child: Container(
                           padding: const EdgeInsets.all(2),
@@ -1889,13 +1889,13 @@ class ConversationRow extends StatelessWidget {
                                         WidgetSpan(
                                           alignment: PlaceholderAlignment.middle,
                                           child: Padding(
-                                            padding: EdgeInsets.only(right: t.space(1)),
+                                            padding: EdgeInsetsDirectional.only(end: t.space(1)),
                                             child: Semantics(label: 'Summary', child: AppIcon(Lucide.sparkles, size: 13, strokeWidth: 2.2, wash: false, color: t.color('app-ink-2'))),
                                           ),
                                         ),
                                         TextSpan(text: summary),
                                       ])
-                                    : TextSpan(text: c.error ? 'Not sent' : (reactionSnippet(c.snippet) ?? MessageFormat.plain(FileCard.preview(SoulsCard.preview(c.snippet)))).replaceAll('\n', ' ')),
+                                    : TextSpan(text: c.error ? 'Not sent' : ownWords((reactionSnippet(c.snippet) ?? MessageFormat.plain(FileCard.preview(SoulsCard.preview(c.snippet)))).replaceAll('\n', ' '))),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('sm'), weight: unread ? 'medium' : 'regular', color: t.color(unread ? 'app-ink' : 'app-ink-2'), height: 1.35),
@@ -1953,7 +1953,7 @@ class ConversationRow extends StatelessWidget {
               border: Border(bottom: BorderSide(color: t.color('app-rule'), width: 1)),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              padding: const EdgeInsetsDirectional.fromSTEB(8, 6, 8, 6),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
                   padding: const EdgeInsets.only(top: 2),

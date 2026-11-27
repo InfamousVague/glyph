@@ -208,7 +208,7 @@ class _ReportFormState extends State<ReportForm> {
     return SettingsPaneScope(
       finder: SettingsFinder(),
       child: ListView(
-        padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)),
+        padding: EdgeInsetsDirectional.fromSTEB(gutter, t.space(3), gutter, t.space(4)),
         shrinkWrap: true,
         children: [
           PaneSection(children: [
@@ -247,7 +247,7 @@ class _ReportFormState extends State<ReportForm> {
     return SettingsPaneScope(
       finder: SettingsFinder(),
       child: ListView(
-        padding: EdgeInsets.fromLTRB(gutter, t.space(3), gutter, t.space(4)),
+        padding: EdgeInsetsDirectional.fromSTEB(gutter, t.space(3), gutter, t.space(4)),
         shrinkWrap: true,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [

@@ -100,7 +100,7 @@ class SoundPlayedLine extends StatelessWidget {
         final who = p.by == 'me' ? 'You' : Voice.instance.nameOf(p.by);
         final unheard = p.by != 'me' && Soundboard.instance.quiet;
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: Container(
             key: const ValueKey('sound-played'),
             margin: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),

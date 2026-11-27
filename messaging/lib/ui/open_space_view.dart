@@ -363,9 +363,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                   () {
                     final at = onScreen(Offset(g.at.x, g.at.y - (_radius[g.id] ?? floor.radiusOf(g.id))));
                     final n = floor.countIn(g.id);
-                    return Positioned(
+                    return PositionedDirectional(
                       key: ValueKey('open-group-${g.id}'),
-                      left: at.dx - 110,
+                      start: at.dx - 110,
                       top: at.dy - 34,
                       width: 220,
                       child: Center(child: _GroupName(name: g.name, count: n, color: t.hueSwatch(g.hue), onPress: () => _groupMenu(g))),
@@ -388,9 +388,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       builder: (context, loud, _) => widget.figure(context, OpenFigure(id: id, name: name, me: mine, size: face, level: loud[id] ?? 0, muted: muted, facing: place.facing, walking: place.walking, heard: heard), picture),
                     );
                     if (!mine) figure = LinkBadge(id: id, size: face, child: figure);
-                    return Positioned(
+                    return PositionedDirectional(
                       key: ValueKey('open-person-$id'),
-                      left: at.dx - 70,
+                      start: at.dx - 70,
                       top: at.dy - face / 2,
                       width: 140,
                       child: IgnorePointer(
@@ -413,12 +413,12 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       ),
                     );
                   }(),
-                Positioned(
-                  left: t.space(3),
+                PositionedDirectional(
+                  start: t.space(3),
                   top: t.space(3),
-                  right: t.space(3) + 150,
+                  end: t.space(3) + 150,
                   child: Align(
-                    alignment: Alignment.topLeft,
+                    alignment: AlignmentDirectional.topStart,
                     // Gone once this device has walked; the word that the call is coming stays until it has.
                     child: IgnorePointer(
                       child: AnimatedOpacity(
@@ -442,9 +442,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                   if (_bubbles.over(g.id).isNotEmpty)
                     () {
                       final top = onScreen(Offset(g.at.x, g.at.y - (_radius[g.id] ?? floor.radiusOf(g.id))));
-                      return Positioned(
+                      return PositionedDirectional(
                         key: ValueKey('open-bubbles-${g.id}'),
-                        left: top.dx - 150,
+                        start: top.dx - 150,
                         width: 300,
                         // Stacked upwards from just above the group's name.
                         bottom: size.height - (top.dy - 40),
@@ -452,11 +452,11 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                       );
                     }(),
                 if (_bubbles.side.isNotEmpty)
-                  Positioned(
+                  PositionedDirectional(
                     key: const ValueKey('open-bubbles-side'),
                     // Over the chat's box, on whichever side it stands.
-                    left: beside == null ? t.space(3) : null,
-                    right: beside == null ? null : t.space(3),
+                    start: beside == null ? t.space(3) : null,
+                    end: beside == null ? null : t.space(3),
                     width: math.min(320, size.width * 0.62),
                     bottom: (beside ?? t.space(3) + widget.bottomInset) + 60,
                     child: IgnorePointer(child: _BubbleStack(bubbles: _bubbles.side, opacityOf: _bubbles.opacityOf, align: beside == null ? CrossAxisAlignment.start : CrossAxisAlignment.end)),
@@ -466,9 +466,9 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                 // compose input look like the one on the rest of the app"); at the right foot beside the dock in a wide
                 // window ("right justify the compose input").
                 if (room != null && room.mayWrite)
-                  Positioned(
-                    left: beside == null ? t.space(3) : null,
-                    right: beside == null ? null : t.space(3),
+                  PositionedDirectional(
+                    start: beside == null ? t.space(3) : null,
+                    end: beside == null ? null : t.space(3),
                     bottom: beside ?? t.space(3) + widget.bottomInset,
                     width: beside == null ? math.min(300, size.width * 0.62) : math.min(380, size.width * 0.42),
                     child: ListenableBuilder(
@@ -493,8 +493,8 @@ class _OpenSpaceViewState extends State<OpenSpaceView> with SingleTickerProvider
                     ),
                   ),
                 // At the top right, clear of the dock and the chat's box (Matt, 2026-11-23: "move the new group to the top right").
-                Positioned(
-                  right: t.space(3),
+                PositionedDirectional(
+                  end: t.space(3),
                   top: t.space(3),
                   child: GestureDetector(
                     key: const ValueKey('open-new-group'),
@@ -593,7 +593,7 @@ class _NameTag extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 2),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink')))),
-          if (muted) Padding(padding: const EdgeInsets.only(left: 4), child: AppIcon(LucideMore.micOff, size: 11, wash: false, color: t.danger)),
+          if (muted) Padding(padding: const EdgeInsetsDirectional.only(start: 4), child: AppIcon(LucideMore.micOff, size: 11, wash: false, color: t.danger)),
         ]),
       ),
     );
@@ -788,7 +788,7 @@ class _NameGroupPageState extends State<_NameGroupPage> {
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
           children: [
             PaneSection(title: 'Name', description: const Tr('What the group is for: a game, a film, a quiet corner.'), children: [
               SettingRowBox(child: GlacierInput(controller: _name, placeholder: 'Group name'.t, ariaLabel: 'Group name', autoFocus: true, autoCapitalize: TextCapitalization.sentences, size: GlacierFieldSize.md, onSubmitted: (_) => _done())),

@@ -443,7 +443,7 @@ String sealedWords(String hubUrl) {
 }
 
 /// The version this build is, where Android has not said (the screens drawn in tests).
-const appVersion = '0.12.46';
+const appVersion = '0.12.47';
 
 // --- Language ---------------------------------------------------------------------------------------------------------
 
@@ -600,7 +600,7 @@ List<Widget> _appearance(BuildContext context, SettingsModel m) {
           Expanded(child: TextSizeSlider(key: const ValueKey('text-size'), percent: app.textPercent, onChanged: app.setTextPercent)),
           SizedBox(width: t.space(3)),
           // Its own width, whatever the size chosen: the track must not move under the finger that drags it.
-          SizedBox(width: 48, child: Text('${app.textPercent}%', textAlign: TextAlign.right, textScaler: TextScaler.noScaling, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+          SizedBox(width: 48, child: Text('${app.textPercent}%', textAlign: TextAlign.end, textScaler: TextScaler.noScaling, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
         ]),
       ),
       SettingRowBox(child: BackgroundPreview(background: ChatBackground.everyChat(app))),
@@ -634,7 +634,7 @@ List<Widget> _emoji(BuildContext context, SettingsModel m) {
               Row(mainAxisSize: MainAxisSize.min, children: [
                 for (final e in emojiSample)
                   Padding(
-                    padding: EdgeInsets.only(right: t.space(2)),
+                    padding: EdgeInsetsDirectional.only(end: t.space(2)),
                     child: Text(e, style: TextStyle(inherit: false, fontFamily: set.family, fontFamilyFallback: const [], fontSize: t.lenOf('1.35rem'), height: 1.3, color: t.color('app-ink'))),
                   ),
               ]),
@@ -739,7 +739,7 @@ List<Widget> _sounds(BuildContext context, SettingsModel m) {
           child: Row(children: [
             Expanded(child: VolumeSlider(value: s.quiet / 100, max: 1, label: 'Loudness of the other sounds', onChanged: (x) => s.setQuiet((x * 100).round()))),
             SizedBox(width: t.space(3)),
-            SizedBox(width: t.lenOf('3rem'), child: Text('${s.quiet}%', textAlign: TextAlign.right, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
+            SizedBox(width: t.lenOf('3rem'), child: Text('${s.quiet}%', textAlign: TextAlign.end, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')))),
           ]),
         ),
         SettingRow(icon: _icon(Lucide.volume2), label: 'Hear it', hint: const Tr('The sound of a reaction, at this loudness.'), onPress: () => s.play(UiSound.reaction)),

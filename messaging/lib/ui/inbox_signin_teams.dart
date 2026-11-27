@@ -79,7 +79,7 @@ class _TeamsSignInScreenState extends State<TeamsSignInScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
                 PaneSection(
                   title: code == null ? 'Your work or school account' : 'Your code',

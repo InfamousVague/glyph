@@ -144,7 +144,7 @@ class _CircleWelcomeWordsState extends State<CircleWelcomeWords> {
     return GhostPage(
       title: 'Welcome message',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           PaneSection(
             description: const Tr('Each new member sees this at the top of the welcome space. {name} is their name. Leave it empty for none.'),
@@ -204,7 +204,7 @@ class CircleWelcomeCard extends StatelessWidget {
     final words = welcomeFor(circle.manifest.welcomeText, name);
     return Container(
       key: const ValueKey('circle-welcome-card'),
-      margin: EdgeInsets.fromLTRB(0, t.space(3), 0, t.space(3)),
+      margin: EdgeInsetsDirectional.fromSTEB(0, t.space(3), 0, t.space(3)),
       padding: EdgeInsets.all(t.space(4)),
       decoration: BoxDecoration(
         color: t.color('app-paper-2'),
@@ -292,7 +292,7 @@ class ReadOnlyAdminLine extends StatelessWidget {
     final t = context.tokens;
     return Padding(
       key: const ValueKey('read-only-admin'),
-      padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), t.space(1)),
       child: Row(children: [
         AppIcon(Lucide.megaphone, size: 13, color: t.color('app-ink-3')),
         SizedBox(width: t.space(1) + 2),

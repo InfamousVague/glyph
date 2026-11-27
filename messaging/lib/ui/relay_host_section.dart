@@ -197,7 +197,7 @@ Future<void> askToUseHere(BuildContext context, RelayHosting host, Net net) asyn
 Widget _words(BuildContext context, List<String> paragraphs) {
   final t = context.tokens;
   return Padding(
-    padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+    padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
     child: Text(paragraphs.join('\n\n'), key: const ValueKey('host-words'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
   );
 }
@@ -235,7 +235,7 @@ Future<({bool yes, String? pass})> decideRelay(BuildContext context, String url,
     context,
     title: 'Use ${relayInUseWords(url).replaceFirst('Your own relay: ', '')}?',
     header: Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(2)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         Text([movingWords(from ?? Net.instance.hubUrl), if (check.hosted) joinHostedWords, if (url.startsWith('ws://')) lanSeenWords, if (!usable) hostedNotLinkedWords, relayLimitsWords].join('\n\n'), key: const ValueKey('relay-words'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
         if (check.asksPass) ...[

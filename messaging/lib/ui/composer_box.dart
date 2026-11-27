@@ -88,18 +88,18 @@ class _ComposerBoxState extends State<ComposerBox> {
             AnimatedPadding(
               duration: ComposerBox.move,
               curve: ComposerBox.curve,
-              padding: EdgeInsets.only(
-                left: typing || plus == null ? words : _plusWidth + gap,
-                right: typing || widget.ends.isEmpty ? words : _endsWidth,
+              padding: EdgeInsetsDirectional.only(
+                start: typing || plus == null ? words : _plusWidth + gap,
+                end: typing || widget.ends.isEmpty ? words : _endsWidth,
               ),
               child: _inOrder(0, widget.field),
             ),
             // The row the buttons come down into.
             AnimatedContainer(duration: ComposerBox.move, curve: ComposerBox.curve, height: typing ? row + gap : 0),
           ]),
-          if (plus != null) Positioned(left: 0, bottom: 0, child: _inOrder(1, _Measure(onSize: (s) => _measured(true, s), child: plus))),
-          Positioned(
-            right: 0,
+          if (plus != null) PositionedDirectional(start: 0, bottom: 0, child: _inOrder(1, _Measure(onSize: (s) => _measured(true, s), child: plus))),
+          PositionedDirectional(
+            end: 0,
             bottom: 0,
             child: _inOrder(2, AnimatedSwitcher(
               duration: ComposerBox.move,
@@ -107,7 +107,7 @@ class _ComposerBoxState extends State<ComposerBox> {
               // two sets are never drawn over each other.
               switchInCurve: const Interval(0.5, 1, curve: Curves.easeOut),
               switchOutCurve: const Interval(0.5, 1, curve: Curves.easeIn),
-              layoutBuilder: (current, previous) => Stack(alignment: Alignment.bottomRight, children: [...previous, ?current]),
+              layoutBuilder: (current, previous) => Stack(alignment: AlignmentDirectional.bottomEnd, children: [...previous, ?current]),
               child: typing
                   ? Row(key: const ValueKey('below'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: widget.below)
                   : _Measure(
@@ -162,7 +162,7 @@ extension on _ComposerBoxState {
                   child: Sunken(
                     small: true,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Align(alignment: Alignment.centerLeft, child: widget.field),
+                    child: Align(alignment: AlignmentDirectional.centerStart, child: widget.field),
                   ),
                 ),
               ),
@@ -289,7 +289,7 @@ class _ComposerFieldState extends State<ComposerField> with WidgetsBindingObserv
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
         child: Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
             child: Stack(children: [

@@ -169,13 +169,13 @@ class PluginCard extends StatelessWidget {
                 children: [
                   hueGlow(c, radius: 0),
                   // Faint, and mostly past the head's bottom end, clear of its tag.
-                  Positioned(right: -head * 0.3, bottom: -head * 0.45, child: AppIcon(plugin.icon, size: head * 1.15, strokeWidth: 1.6, color: c.faint, wash: false)),
-                  Positioned(
-                    left: t.space(3),
+                  PositionedDirectional(end: -head * 0.3, bottom: -head * 0.45, child: AppIcon(plugin.icon, size: head * 1.15, strokeWidth: 1.6, color: c.faint, wash: false)),
+                  PositionedDirectional(
+                    start: t.space(3),
                     bottom: t.space(3),
                     child: plugin.iconPng == null ? symbol : ClipRRect(borderRadius: BorderRadius.circular(pluginCorner(t, head * 0.12)), child: pluginPicture(plugin, head * 0.42, symbol: symbol)),
                   ),
-                  Positioned(top: t.space(2), right: t.space(2), child: MarketTag(label: plugin.shelf.label, ground: c.tag, ink: c.on, ring: c.tagRing)),
+                  PositionedDirectional(top: t.space(2), end: t.space(2), child: MarketTag(label: plugin.shelf.label, ground: c.tag, ink: c.on, ring: c.tagRing)),
                 ],
               ),
             ),
@@ -240,7 +240,7 @@ class FeaturedPluginCard extends StatelessWidget {
                   hueGlow(c, radius: radius),
                   // Faint, in the empty middle of the card's end and half past it: under the shelf's tag it made the
                   // tag hard to read, and low down it ran under Add.
-                  Positioned(right: -t.space(8), top: t.space(12), child: AppIcon(plugin.icon, size: t.lenOf('6rem'), strokeWidth: 1.5, color: c.faint, wash: false)),
+                  PositionedDirectional(end: -t.space(8), top: t.space(12), child: AppIcon(plugin.icon, size: t.lenOf('6rem'), strokeWidth: 1.5, color: c.faint, wash: false)),
                   Padding(
                     padding: EdgeInsets.all(t.space(4)),
                     child: Column(

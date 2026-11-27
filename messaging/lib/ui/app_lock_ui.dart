@@ -386,7 +386,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, box) => SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(t.space(6), pad.top + t.space(6), t.space(6), pad.bottom + t.space(6)),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(6), pad.top + t.space(6), t.space(6), pad.bottom + t.space(6)),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: (box.maxHeight - pad.vertical - t.space(6) * 2).clamp(0, double.infinity)),
                   child: Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('24rem')), child: _forgot ? _forgotPage(t) : _padPage(t))),
@@ -394,8 +394,8 @@ class _AppLockScreenState extends State<AppLockScreen> {
               ),
             ),
           ),
-          if (widget.dragStrip) const Positioned(left: 0, right: 0, top: 0, height: 40, child: WindowDragArea(child: SizedBox.expand())),
-          Positioned(left: 0, right: 0, top: 0, child: _CallStrip(top: pad.top)),
+          if (widget.dragStrip) const PositionedDirectional(start: 0, end: 0, top: 0, height: 40, child: WindowDragArea(child: SizedBox.expand())),
+          PositionedDirectional(start: 0, end: 0, top: 0, child: _CallStrip(top: pad.top)),
         ]),
       ),
     );
@@ -524,7 +524,7 @@ class _CallStrip extends StatelessWidget {
               ),
             );
         return Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), top + t.space(2), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), top + t.space(2), t.space(3), 0),
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -807,7 +807,7 @@ class _PinSetScreenState extends State<PinSetScreen> {
     return GhostPage(
       title: switch (widget.mode) { PinSetMode.set => 'Set a PIN', PinSetMode.change => 'Change PIN', PinSetMode.off => 'Turn off the lock' },
       body: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(t.space(6), t.space(6), t.space(6), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(6), t.space(6), t.space(6), t.space(8) + MediaQuery.paddingOf(context).bottom),
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(line, key: const ValueKey('pin-set-line'), textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), color: waiting || _problem != null ? t.danger : t.color('app-ink'), height: 1.4)),

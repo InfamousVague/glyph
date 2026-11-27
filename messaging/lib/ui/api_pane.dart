@@ -262,7 +262,7 @@ class _ApiMethodPageState extends State<ApiMethodPage> {
     return GhostPage(
       title: m.name,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
         children: [
           Text(m.summary, style: pageText(t, t.fontSize('md'))),
           if (m.danger) Padding(padding: EdgeInsets.only(top: t.space(2)), child: Text('⚠ It changes or removes something; you are asked before it runs here.', style: pageText(t, t.fontSize('sm'), color: t.danger))),

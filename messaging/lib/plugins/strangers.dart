@@ -108,9 +108,9 @@ class StrangerLine extends StatelessWidget {
           ),
         );
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), 0),
       child: Container(
-        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(1), t.space(2)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(1), t.space(2)),
         decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
         child: Row(children: [
           AppIcon(icon, size: 16, strokeWidth: 2.2, wash: false, color: guess == 'spam' ? t.danger : t.color('app-ink-2')),

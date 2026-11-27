@@ -392,7 +392,7 @@ class _DesktopAppState extends State<DesktopApp> {
             pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
             // Each page that opens asks for a look for a newer version, as on the phone.
             navigatorObservers: [UpdateWatch()],
-            builder: (context, child) => GlacierTheme(
+            builder: (context, child) => Directionality(textDirection: Words.instance.direction, child: GlacierTheme(
               sheet: accents?.of(state) ?? sheet,
               attrs: ghostAttrs(state, 'desktop'),
               typography: ghostTypography(state.emoji),
@@ -420,7 +420,7 @@ class _DesktopAppState extends State<DesktopApp> {
                   ),
                 ),
               )),
-            ),
+            )),
             home: const DeskHome(),
           ),
         ),
@@ -498,7 +498,7 @@ class _DeskHomeState extends State<DeskHome> {
   /// The pairing wizard filling the window, with a strip along its top that the window can be dragged by.
   Widget _wizard({String? skipLabel, VoidCallback? onSkip}) => Stack(children: [
         Positioned.fill(child: PairWizard(skipLabel: skipLabel, onSkip: onSkip)),
-        Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+        PositionedDirectional(start: 0, end: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
       ]);
 
   /// The window small for signing up or in and the offers around it, its own size for the app and the pairing
@@ -535,7 +535,7 @@ class _DeskHomeState extends State<DeskHome> {
                     onSkip: _accountPassedBy,
                   ),
                 ),
-                Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+                PositionedDirectional(start: 0, end: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
               ]));
             }
             return _sized(false, DeskShell(key: ValueKey(link.phone!.id)));
@@ -564,14 +564,14 @@ class _DeskHomeState extends State<DeskHome> {
         if (Me.instance.username == null) {
           return _sized(true, Stack(children: [
             Positioned.fill(child: StandaloneWelcome(onDone: () => setState(() {}))),
-            Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+            PositionedDirectional(start: 0, end: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
           ]));
         }
         if (_offered == null) return ColoredBox(color: context.tokens.color('glacier-bg'));
         if (!_offered!) {
           return _sized(true, Stack(children: [
             Positioned.fill(child: LinkOffer(onLink: () => setState(() => _linking = true), onSkip: _passBy)),
-            Positioned(left: 0, right: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
+            PositionedDirectional(start: 0, end: 0, top: 0, height: 56, child: const WindowDragArea(child: SizedBox.expand())),
           ]));
         }
         return _sized(false, const DeskShell(key: ValueKey('alone')));
@@ -593,11 +593,11 @@ class _SplashApp extends StatelessWidget {
         title: 'Ghost Messaging',
         color: const Color(0xFF4F5BD5),
         debugShowCheckedModeBanner: false,
-        builder: (context, _) => GlacierTheme(
+        builder: (context, _) => Directionality(textDirection: Words.instance.direction, child: GlacierTheme(
           sheet: sheet,
           attrs: ghostAttrs(state, 'desktop'),
           typography: ghostTypography(state.emoji),
           child: LaunchSplash(step: step),
-        ),
+        )),
       );
 }

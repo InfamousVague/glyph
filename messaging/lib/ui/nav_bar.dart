@@ -113,7 +113,7 @@ class NavPill extends StatelessWidget {
         _Ring(key: ValueKey('nav-${item.id}'), item: item, shown: item.id == active, upright: upright, tinted: hue != null, onPressed: () => onSelect(item.id)),
     ];
     return Padding(
-      padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsets.fromLTRB(inset(t), 0, inset(t), inset(t)),
+      padding: upright ? EdgeInsets.symmetric(horizontal: _railRoom(t), vertical: inset(t)) : EdgeInsetsDirectional.fromSTEB(inset(t), 0, inset(t), inset(t)),
       child: SizedBox(
         width: upright ? null : double.infinity,
         child: Semantics(
@@ -164,7 +164,7 @@ extension on NavPill {
           child: DecoratedBox(
             decoration: BoxDecoration(border: Border(top: BorderSide(color: c.lo))),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(pad, pad, pad, pad - 1),
+              padding: const EdgeInsetsDirectional.fromSTEB(pad, pad, pad, pad - 1),
               child: SizedBox(
                 height: RetroButton.target,
                 child: Row(spacing: pad, children: [
@@ -525,8 +525,8 @@ class _HoverTipState extends State<HoverTip> {
         onPointerDown: (_) => _exit(),
         child: OverlayPortal(
           controller: _portal,
-          overlayChildBuilder: (context) => Positioned(
-            left: 0,
+          overlayChildBuilder: (context) => PositionedDirectional(
+            start: 0,
             top: 0,
             child: CompositedTransformFollower(
               link: _link,

@@ -89,7 +89,7 @@ class _CustomCssEditorState extends State<CustomCssEditor> {
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8)),
           children: [
             PaneSection(
               description: const Tr(

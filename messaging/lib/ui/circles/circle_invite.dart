@@ -108,7 +108,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
         child: GestureDetector(
           onTap: () {},
           child: Padding(
-            padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
               child: _Frame(
@@ -127,7 +127,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                         _Heading('Friends on Ghost Messaging'),
                         if (friends.isEmpty) ...[
                           Padding(
-                            padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(1)),
+                            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(1)),
                             child: Text('No friends here yet. Add someone by their username and you can invite them in one press.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'), height: 1.4)),
                           ),
                           _Row(
@@ -148,7 +148,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                               onPress: () => setState(() => _chosen.contains(f.id) ? _chosen.remove(f.id) : _chosen.add(f.id)),
                             ),
                           Padding(
-                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(1)),
+                            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(1)),
                             child: GlacierPressable(
                               key: const ValueKey('circle-invite-send'),
                               onPressed: n == 0 || _sending ? null : () => _send(friends),
@@ -216,7 +216,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
                         ),
                         if (_qr)
                           Padding(
-                            padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), t.space(3)),
+                            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(1), t.space(4), t.space(3)),
                             child: Center(
                               child: Semantics(
                                 label: 'The invite link to ${c.name}, as a QR code',
@@ -260,7 +260,7 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(1)),
       child: Text(text, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-3'))),
     );
   }

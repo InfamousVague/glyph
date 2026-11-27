@@ -125,7 +125,7 @@ class _ProfileBubbleState extends State<ProfileBubble> {
                         ),
                       ),
                     ),
-                    Positioned(right: -2, bottom: -2, child: ModeMark(key: ValueKey('profile-bubble-mode-$mode'), mode: mode, size: math.max(14, ring * 0.36))),
+                    PositionedDirectional(end: -2, bottom: -2, child: ModeMark(key: ValueKey('profile-bubble-mode-$mode'), mode: mode, size: math.max(14, ring * 0.36))),
                   ]),
                 );
               },
@@ -259,20 +259,20 @@ class _PeekState extends State<_Peek> {
           SizedBox(
             height: bannerH + face / 2 + ringW,
             child: Stack(clipBehavior: Clip.none, children: [
-              Positioned(
+              PositionedDirectional(
                 key: const ValueKey('profile-peek-banner'),
-                left: 0,
-                right: 0,
+                start: 0,
+                end: 0,
                 top: 0,
                 height: bannerH,
                 child: CosmeticBanner(
                   id: dress.banner,
                   picture: me.banner,
-                  fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+                  fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [hues.start, hues.end]))),
                 ),
               ),
-              Positioned(
-                right: t.space(2),
+              PositionedDirectional(
+                end: t.space(2),
                 top: t.space(2),
                 child: GlacierPressable(
                   key: const ValueKey('profile-peek-banner-change'),
@@ -287,8 +287,8 @@ class _PeekState extends State<_Peek> {
                   ),
                 ),
               ),
-              Positioned(
-                left: t.space(4) - ringW,
+              PositionedDirectional(
+                start: t.space(4) - ringW,
                 top: bannerH - face / 2 - ringW,
                 child: Stack(clipBehavior: Clip.none, children: [
                   Container(
@@ -296,13 +296,13 @@ class _PeekState extends State<_Peek> {
                     decoration: BoxDecoration(color: ground, shape: BoxShape.circle),
                     child: DressedFace(size: face, cosmetics: dress, face: ProfileFace(name: name, picture: me.pictureOwn, size: face)),
                   ),
-                  Positioned(right: ringW - 2, bottom: ringW - 2, child: ModeMark(key: ValueKey('profile-peek-mark-$mode'), mode: mode, size: 22)),
+                  PositionedDirectional(end: ringW - 2, bottom: ringW - 2, child: ModeMark(key: ValueKey('profile-peek-mark-$mode'), mode: mode, size: 22)),
                 ]),
               ),
             ]),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(4)),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(4)),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Flexible(
@@ -467,7 +467,7 @@ extension on _PeekState {
                 child: CosmeticBanner(
                   id: id,
                   // None: the band in your own colour, as the card draws it then.
-                  fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [hues.start, hues.end]))),
+                  fallback: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [hues.start, hues.end]))),
                 ),
               ),
             ),
@@ -490,7 +490,7 @@ extension on _PeekState {
       maxWidth: t.lenOf('17rem'),
       padding: EdgeInsets.all(t.space(1)),
       trigger: (context, trigger) => Padding(
-        padding: EdgeInsets.only(left: t.space(1)),
+        padding: EdgeInsetsDirectional.only(start: t.space(1)),
         child: GlacierPressable(
           key: const ValueKey('profile-peek-badge'),
           onPressed: trigger.toggle,
@@ -504,7 +504,7 @@ extension on _PeekState {
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(t.space(2), t.space(2), t.space(2), t.space(1)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(2), t.space(2), t.space(1)),
           child: Text('SHOWN BESIDE YOUR NAME', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-ink-3'), tracking: 0.4)),
         ),
         for (final b in mine)

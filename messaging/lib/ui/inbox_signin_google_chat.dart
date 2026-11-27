@@ -72,7 +72,7 @@ class _GoogleChatSignInScreenState extends State<GoogleChatSignInScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
                 PaneSection(
                   title: waiting ? 'Waiting for Google' : 'Your Google account',

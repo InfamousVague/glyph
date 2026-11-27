@@ -287,7 +287,7 @@ class _ReportPageState extends State<_ReportPage> {
     return GhostPage(
       title: 'Report ${widget.plugin.name}',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(title: 'Say more', description: Text(widget.reason.label), children: [
             SettingRowBox(
@@ -390,7 +390,7 @@ class _MarketUpdatesPageState extends State<MarketUpdatesPage> {
           key: const ValueKey('market-updates'),
           title: 'Updates',
           body: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             children: [
               if (ups.isEmpty)
                 Padding(

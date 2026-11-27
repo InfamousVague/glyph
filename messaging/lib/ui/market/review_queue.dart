@@ -158,7 +158,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
       title: 'Review queue',
       actions: [IconTap(key: const ValueKey('market-review-refresh'), icon: Lucide.refreshCw, label: 'Refresh', onPressed: _loading ? null : () => unawaited(_read()))],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: children,
       ),
     );

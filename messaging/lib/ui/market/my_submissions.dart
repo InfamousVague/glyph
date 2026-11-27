@@ -193,7 +193,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
         docsButton('plugin-submit'),
       ],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: children,
       ),
     );
@@ -376,7 +376,7 @@ class _MySubmissionScreenState extends State<MySubmissionScreen> {
       key: ValueKey('market-mine-item-${s.sid}'),
       title: '${s.name.ifEmpty(s.plugin)} ${s.version}',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           PaneSection(children: [
             SettingRow(

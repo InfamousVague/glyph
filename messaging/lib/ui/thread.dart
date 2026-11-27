@@ -13,6 +13,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../app_state.dart';
 import '../mentions.dart';
+import '../l10n/words.dart' show ownDirection;
 import '../desktop/platform.dart' show MacPlatform;
 import '../art/lucide.g.dart';
 import '../art/pixel_emoji.dart';
@@ -1289,14 +1290,14 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         Positioned.fill(child: EffectLayer(key: _effects, style: pageText(t, 26, color: t.color('app-ink')))),
         // At the top: the group's call while others are in it (who, and Join), and messages back from a snooze, pinned
         // until shown (GMFB-36).
-        Positioned(
-          left: 0,
-          right: 0,
+        PositionedDirectional(
+          start: 0,
+          end: 0,
           top: 0,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (_ghost != null && !_ghost!.gone && Sms.callsHere)
               Padding(
-                padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), 0),
+                padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(3), 0),
                 child: SpaceLiveBar(channel: VoiceChannel.ofGroup(_ghost!.id, _ghost!.name), onJoin: () => _voice(VoiceChannel.ofGroup(_ghost!.id, _ghost!.name))),
               ),
             SnoozedReminders(chat: Snoozed.text(widget.thread), onShow: _showMessage),
@@ -1306,7 +1307,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       // Where nothing can be written (a group this phone has left, or one seen from a computer) it says why.
       footer: _closed != null
           ? Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(4) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(4) + MediaQuery.paddingOf(context).bottom),
               child: Text(_closed!, textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
             )
           : ListenableBuilder(
@@ -1392,7 +1393,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           controller: _scroll,
           reverse: true,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
           chat: _spot,
           idOf: (i) => i < msgs.length ? msgs[i].key : null,
           itemCount: msgs.length + tail.length,
@@ -1427,7 +1428,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
         items.add(Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
           child: Align(
-            alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: m.outgoing ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
             child: _fileCard(t, filed, m, maxWidth: MediaQuery.sizeOf(context).width * (AppShell.wideOf(context) ? 0.45 : 0.72), ground: m.outgoing ? mineBg : theirBubble(t, onBackground: !background.isNone), ink: m.outgoing ? mineInk : t.color('app-ink')),
           ),
         ));
@@ -1439,7 +1440,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       if (souls != null) {
         items.add(Padding(
           padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
-          child: Align(alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft, child: _soulsCard(souls, msgs, i, maxWidth: MediaQuery.sizeOf(context).width * 0.8)),
+          child: Align(alignment: m.outgoing ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: _soulsCard(souls, msgs, i, maxWidth: MediaQuery.sizeOf(context).width * 0.8)),
         ));
         if (older == null || !_sameDay(older.date, m.date)) items.add(_DayHeading(date: m.date, busy: busy));
         return items;
@@ -1467,9 +1468,9 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final under = m.state == 'sending' || m.state == 'waiting' ? const <Widget>[] : _plugins.under(context, m);
       if (under.isNotEmpty) {
         items.add(Padding(
-          padding: EdgeInsets.only(left: m.outgoing ? t.lenOf('3rem') : t.space(3) + (_group ? t.lenOf('2.1rem') : 0), right: m.outgoing ? t.space(3) : t.lenOf('3rem'), top: t.space(1), bottom: t.space(1)),
+          padding: EdgeInsetsDirectional.only(start: m.outgoing ? t.lenOf('3rem') : t.space(3) + (_group ? t.lenOf('2.1rem') : 0), end: m.outgoing ? t.space(3) : t.lenOf('3rem'), top: t.space(1), bottom: t.space(1)),
           child: Align(
-            alignment: m.outgoing ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: m.outgoing ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
             child: OnBackground(busy: busy, child: Column(crossAxisAlignment: m.outgoing ? CrossAxisAlignment.end : CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: under)),
           ),
         ));
@@ -1553,7 +1554,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
       final filed = _fileCardOf(m);
       if (filed != null) {
         items.add(Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('${nameOf(m)}:', style: pageText(t, t.fontSize('sm'), weight: 'bold', color: m.outgoing ? c.nameMine : c.nameTheirs)),
             _fileCard(t, filed, m, maxWidth: 280, ground: c.chrome, ink: c.onChrome),
@@ -1798,23 +1799,23 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           // What would stop a picture message going from this phone, said before it is tried.
           if (isMms && !editing && _mms?.obstacle != null)
             Padding(
-              padding: EdgeInsets.only(left: t.space(3), right: t.space(3), bottom: t.space(2)),
+              padding: EdgeInsetsDirectional.only(start: t.space(3), end: t.space(3), bottom: t.space(2)),
               child: Text('${_mms!.obstacle}.', style: pageText(t, t.fontSize('xs'), color: t.danger)),
             ),
           if (_e2e.on && _attachments.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(left: t.space(3), right: t.space(3), bottom: t.space(2)),
+              padding: EdgeInsetsDirectional.only(start: t.space(3), end: t.space(3), bottom: t.space(2)),
               child: Text('Pictures aren\'t encrypted. This goes as an ordinary picture message.', style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
           if (_attachments.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(left: t.space(2), bottom: t.space(2)),
+              padding: EdgeInsetsDirectional.only(start: t.space(2), bottom: t.space(2)),
               child: SizedBox(
                 height: 72,
                 child: ListView(scrollDirection: Axis.horizontal, children: [
                   for (final a in _attachments)
                     Padding(
-                      padding: EdgeInsets.only(right: t.space(2)),
+                      padding: EdgeInsetsDirectional.only(end: t.space(2)),
                       child: Stack(children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(t.radius('md')),
@@ -1827,7 +1828,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                                     height: 72,
                                     color: t.color('app-paper-2'),
                                     padding: const EdgeInsets.all(6),
-                                    alignment: Alignment.bottomLeft,
+                                    alignment: AlignmentDirectional.bottomStart,
                                     child: a.startsWith('content:') || FileKind.mimeOf(a).startsWith('image/')
                                         ? null
                                         : Text(a.split(PlatformInfo.pathSeparator).last.split('/').last, maxLines: 3, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-2'))),
@@ -1835,8 +1836,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                                 : Image.memory(s.data!, width: 72, height: 72, fit: BoxFit.cover, cacheWidth: 216),
                           ),
                         ),
-                        Positioned(
-                          right: 2,
+                        PositionedDirectional(
+                          end: 2,
                           top: 2,
                           child: GlacierPressable(
                             onPressed: () => setState(() => _attachments.remove(a)),
@@ -1857,7 +1858,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
             ),
           if (editing)
             Padding(
-              padding: EdgeInsets.only(left: t.space(3), bottom: t.space(1)),
+              padding: EdgeInsetsDirectional.only(start: t.space(3), bottom: t.space(1)),
               child: Row(children: [
                 AppIcon(Lucide.pencil, size: 14, color: t.color('app-ink-2')),
                 SizedBox(width: t.space(2)),
@@ -1897,7 +1898,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
                       child: ConstrainedBox(
                       constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: Padding(
                         padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                       child: Stack(children: [
@@ -1975,7 +1976,7 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
           }),
           if (!isMms && !editing && parts > 1)
             Padding(
-              padding: EdgeInsets.only(top: t.space(1), right: t.space(3)),
+              padding: EdgeInsetsDirectional.only(top: t.space(1), end: t.space(3)),
               child: Text(sealed ? '$parts texts once encrypted' : '$len · $parts texts', textAlign: TextAlign.end, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3'))),
             ),
         ]),
@@ -2016,8 +2017,8 @@ class _ThreadScreenState extends State<ThreadScreen> with WidgetsBindingObserver
     final width = MediaQuery.sizeOf(context).width;
     final left = (state.contextMenuAnchors.primaryAnchor.dx - 120).clamp(8.0, math.max(8.0, width - 248)).toDouble();
     return Stack(children: [
-      Positioned(
-        left: left,
+      PositionedDirectional(
+        start: left,
         top: (state.contextMenuAnchors.primaryAnchor.dy - 56).clamp(8.0, double.infinity),
         child: Container(
           constraints: BoxConstraints(maxWidth: math.max(0.0, width - left - 8)),
@@ -2070,11 +2071,11 @@ class _E2eBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.only(left: t.space(1), right: t.space(1), bottom: t.space(2)),
+      padding: EdgeInsetsDirectional.only(start: t.space(1), end: t.space(1), bottom: t.space(2)),
       child: GlacierPressable(
         onPressed: onPress,
         builder: (context, state) => Container(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(2), t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), t.space(2), t.space(2)),
           decoration: BoxDecoration(color: t.color(state.pressed ? 'app-paper-3' : 'app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg'))),
           child: Row(children: [
             if (warning) AppIcon(Lucide.triangleAlert, size: 16, color: t.warn, wash: false) else AppIcon(icon ?? Lucide.lock, size: 16, color: t.color('app-ink-2')),
@@ -2389,7 +2390,7 @@ class _Bubble extends StatelessWidget {
             Padding(
               // On the same left edge as the time under the bubble (Matt, 2026-11-16: "Make sure the username and the
               // timestamp are aligned on the same left side of the bubble").
-              padding: EdgeInsets.only(left: (group ? faceSize + t.space(2) : 0) + t.space(2), bottom: 2),
+              padding: EdgeInsetsDirectional.only(start: (group ? faceSize + t.space(2) : 0) + t.space(2), bottom: 2),
               // A sender's name over their bubble in the app's primary colour (Matt, 2026-11-16: "Make the names of people above
               // chat bubbles the primary color"): the accent chosen in Settings, as the read ticks are.
               child: OnBackground(busy: busy, child: Text(sender!, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-accent')))),
@@ -2409,7 +2410,7 @@ class _Bubble extends StatelessWidget {
             GestureDetector(
               onTap: onEditedTap,
               child: Padding(
-                padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2)),
+                padding: EdgeInsetsDirectional.only(top: 3, start: faceGap + t.space(2), end: t.space(2)),
                 child: OnBackground(busy: busy, child: Text(edited!, style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3')))),
               ),
             ),
@@ -2419,7 +2420,7 @@ class _Bubble extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: failed ? onTapFailed : null,
               child: Padding(
-              padding: EdgeInsets.only(top: 3, left: faceGap + t.space(2), right: t.space(2), bottom: failed ? 6 : 0),
+              padding: EdgeInsetsDirectional.only(top: 3, start: faceGap + t.space(2), end: t.space(2), bottom: failed ? 6 : 0),
               child: OnBackground(busy: busy, child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
                 if (failed) ...[Padding(padding: const EdgeInsets.only(top: 2), child: AppIcon(Lucide.circleAlert, size: 12, color: t.danger)), const SizedBox(width: 4)],
                 // It travelled sealed, and was opened here.
@@ -2630,9 +2631,9 @@ class _Viewer extends StatelessWidget {
       onTap: () => Navigator.of(context).pop(),
       child: Stack(children: [
         Positioned.fill(child: InteractiveViewer(maxScale: 5, child: Center(child: Image.memory(bytes)))),
-        Positioned(
+        PositionedDirectional(
           top: pad.top + 8,
-          right: 8,
+          end: 8,
           child: IconTap(icon: Lucide.x, label: 'Close', color: const Color(0xFFFFFFFF), onPressed: () => Navigator.of(context).pop()),
         ),
       ]),
@@ -2671,7 +2672,7 @@ class _ReactionRow extends StatelessWidget {
                   child: Container(
                     width: side,
                     height: side,
-                    margin: EdgeInsets.only(right: t.space(1)),
+                    margin: EdgeInsetsDirectional.only(end: t.space(1)),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: mine.contains(emoji) ? t.chosenWash : t.color('app-paper-3'),
@@ -2900,7 +2901,7 @@ class _LinkedTextState extends State<LinkedText> {
       for (var i = 0; i < _links.length; i++) (_links[i].start, _links[i].end, false, i),
       for (var i = 0; i < _mentions.length; i++) (_mentions[i].start, _mentions[i].end, true, i),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
-    if (!_format.hasItems) return Text.rich(TextSpan(children: [...widget.before, ..._spans(0, text.length, marks), ...widget.after]), style: widget.style);
+    if (!_format.hasItems) return Text.rich(TextSpan(children: [...widget.before, ..._spans(0, text.length, marks), ...widget.after]), style: widget.style, textDirection: ownDirection(text));
     // A list (GMFB-35): the words in parts one under another, each either the lines between two items, drawn as ever,
     // or an item, with its bullet or number (null for lines) and how far in it stands. A paragraph has no hanging
     // indent, so an item is its mark and its words side by side.
@@ -2933,11 +2934,11 @@ class _LinkedTextState extends State<LinkedText> {
           Text.rich(TextSpan(children: spans), style: widget.style)
         else
           Padding(
-            padding: EdgeInsets.only(left: size * 1.1 * depth),
+            padding: EdgeInsetsDirectional.only(start: size * 1.1 * depth),
             child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Numbers each as wide as another, so "9." and "10." keep their words in a line.
               Padding(
-                padding: EdgeInsets.only(left: size * 0.2, right: size * 0.45),
+                padding: EdgeInsetsDirectional.only(start: size * 0.2, end: size * 0.45),
                 child: Text(mark, style: widget.style.copyWith(fontFeatures: const [FontFeature.tabularFigures()]), semanticsLabel: mark == '\u2022' ? 'Bullet' : mark),
               ),
               Flexible(child: Text.rich(TextSpan(children: spans), style: widget.style)),

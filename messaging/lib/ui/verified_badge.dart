@@ -35,7 +35,7 @@ class VerifiedBadge extends StatelessWidget {
         return Row(mainAxisSize: MainAxisSize.min, children: [
           Padding(
             key: ValueKey('verified-$id'),
-            padding: EdgeInsets.only(left: t.space(1)),
+            padding: EdgeInsetsDirectional.only(start: t.space(1)),
             child: Semantics(label: 'Verified phone number', child: AppIcon(LucideMore.badgeCheck, size: size, color: t.color('app-accent'))),
           ),
           special,

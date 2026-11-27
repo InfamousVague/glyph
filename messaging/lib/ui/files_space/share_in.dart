@@ -176,7 +176,7 @@ class IncomingFilesList extends StatelessWidget {
         for (final f in shown)
           Padding(
             key: ValueKey('incoming-${f.source}'),
-            padding: EdgeInsets.fromLTRB(side, gap, side, gap),
+            padding: EdgeInsetsDirectional.fromSTEB(side, gap, side, gap),
             child: Row(children: [
               FileBadge(kind: f.kind, size: 32),
               SizedBox(width: bevel ? 10 : t.space(3)),
@@ -189,7 +189,7 @@ class IncomingFilesList extends StatelessWidget {
           ),
         if (more > 0)
           Padding(
-            padding: EdgeInsets.fromLTRB(side, gap, side, gap),
+            padding: EdgeInsetsDirectional.fromSTEB(side, gap, side, gap),
             child: Row(children: [
               SizedBox(width: 32, child: Center(child: AppIcon(Lucide.ellipsis, size: 16, color: soft, wash: false))),
               SizedBox(width: bevel ? 10 : t.space(3)),
@@ -197,7 +197,7 @@ class IncomingFilesList extends StatelessWidget {
             ]),
           ),
         Padding(
-          padding: EdgeInsets.fromLTRB(side, bevel ? 6 : t.space(2), side, bevel ? 6 : t.space(2)),
+          padding: EdgeInsetsDirectional.fromSTEB(side, bevel ? 6 : t.space(2), side, bevel ? 6 : t.space(2)),
           child: Text(incomingTotal(files), key: const ValueKey('incoming-total'), style: pageText(t, bevel ? 13 : t.fontSize('xs'), weight: 'medium', color: soft)),
         ),
         // Between the files and the spaces to put them in: the era's etched line under Dial-Up, a rule elsewhere.

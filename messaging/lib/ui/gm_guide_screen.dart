@@ -34,7 +34,7 @@ class GmGuideScreen extends StatelessWidget {
             Container(
               width: t.lenOf('1.5rem'),
               height: t.lenOf('1.5rem'),
-              margin: EdgeInsets.only(right: t.space(3)),
+              margin: EdgeInsetsDirectional.only(end: t.space(3)),
               decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('app-ink')),
               alignment: Alignment.center,
               child: Text('$n', style: pageText(t, t.fontSize('xs'), weight: 'bold', color: t.color('app-paper'))),
@@ -47,7 +47,7 @@ class GmGuideScreen extends StatelessWidget {
           padding: EdgeInsets.all(t.space(4)),
           decoration: BoxDecoration(color: t.color('app-paper-2'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: EdgeInsets.only(right: t.space(3), top: 2), child: AppIcon(icon, size: 18)),
+            Padding(padding: EdgeInsetsDirectional.only(end: t.space(3), top: 2), child: AppIcon(icon, size: 18)),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(title, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
@@ -59,7 +59,7 @@ class GmGuideScreen extends StatelessWidget {
         );
     return GhostPage(
       title: 'Google Messages on a computer',
-      body: ListView(padding: EdgeInsets.fromLTRB(t.space(4), 0, t.space(4), t.space(10)), children: [
+      body: ListView(padding: EdgeInsetsDirectional.fromSTEB(t.space(4), 0, t.space(4), t.space(10)), children: [
         para('Ghost Messaging for Mac and Windows has a helper built in that connects to Google Messages the way messages.google.com does. Paired once, the computer shows every Google Messages conversation, RCS and texts, with their history, pictures and reactions, and sends through it. Nothing else to install.'),
         box(LucideMore.smartphone, 'Or no computer at all', 'Your phone can run the same connection itself: Settings › Messages › Google Messages connection on the phone. Then nothing needs to stay on, and the computer shows everything through your phone whenever it is open.'),
         heading('1. Get the app'),

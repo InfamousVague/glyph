@@ -593,14 +593,14 @@ class _FloatState extends State<_Float> {
           child: Stack(fit: StackFit.expand, children: [
             _view(p),
             // Its name along the foot, on a shade so it reads over any picture.
-            Positioned(
-              left: 0,
-              right: 0,
+            PositionedDirectional(
+              start: 0,
+              end: 0,
               bottom: 0,
               child: DecoratedBox(
                 decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x99000000)])),
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(t.space(2), t.space(3), t.space(2), t.space(1) + 2),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(3), t.space(2), t.space(1) + 2),
                   child: Row(children: [
                     Flexible(child: Text(p.label, key: const ValueKey('call-float-name'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: white))),
                     if (p.muted) ...[SizedBox(width: t.space(1)), AppIcon(p.mark, size: 12, wash: false, color: t.danger)],
@@ -618,10 +618,10 @@ class _FloatState extends State<_Float> {
                 child: ColoredBox(
                   color: const Color(0x66000000),
                   child: Stack(children: [
-                    Positioned(top: 6, left: 6, child: _Round(icon: Lucide.maximize, label: FloatWords.back, onPressed: widget.onOpen)),
-                    Positioned(
+                    PositionedDirectional(top: 6, start: 6, child: _Round(icon: Lucide.maximize, label: FloatWords.back, onPressed: widget.onOpen)),
+                    PositionedDirectional(
                       top: 6,
-                      right: 6,
+                      end: 6,
                       child: Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: [
                         if (computer) _Round(icon: large ? LucideMore.shrink : LucideMore.expand, label: large ? FloatWords.smaller : FloatWords.larger, onPressed: () => _toggleSize(app, large)),
                         _Round(icon: Lucide.x, label: FloatWords.close, onPressed: CallFloat.instance.close),

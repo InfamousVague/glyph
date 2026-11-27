@@ -260,7 +260,7 @@ class DevPluginScreen extends StatelessWidget {
           body: d == null
               ? Center(child: Padding(padding: EdgeInsets.all(t.space(6)), child: Text('It isn\'t loaded any more.', style: pageText(t, t.fontSize('md'), color: t.color('app-ink-2')))))
               : ListView(
-                  padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
                   children: [
                     PaneBody(children: [
                       PaneSection(title: 'This copy', children: [

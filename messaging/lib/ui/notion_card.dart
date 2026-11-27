@@ -120,10 +120,10 @@ class _NotionLinkCardState extends State<NotionLinkCard> {
   }
 
   Widget _head(Tokens t, NotionCard card, {String? trailing}) => Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        if (card.icon != null) Padding(padding: EdgeInsets.only(right: t.space(2)), child: Text(card.icon!, style: TextStyle(fontSize: t.fontSize('md'))))
-        else Padding(padding: EdgeInsets.only(right: t.space(2)), child: AppIcon(card.isBoard ? Lucide.squareKanban : Lucide.fileText, size: 16, color: t.color('app-ink-2'), wash: false)),
+        if (card.icon != null) Padding(padding: EdgeInsetsDirectional.only(end: t.space(2)), child: Text(card.icon!, style: TextStyle(fontSize: t.fontSize('md'))))
+        else Padding(padding: EdgeInsetsDirectional.only(end: t.space(2)), child: AppIcon(card.isBoard ? Lucide.squareKanban : Lucide.fileText, size: 16, color: t.color('app-ink-2'), wash: false)),
         Expanded(child: Text(card.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink')))),
-        if (trailing != null) Padding(padding: EdgeInsets.only(left: t.space(2)), child: Text(trailing, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
+        if (trailing != null) Padding(padding: EdgeInsetsDirectional.only(start: t.space(2)), child: Text(trailing, style: pageText(t, t.fontSize('xs'), color: t.color('app-ink-3')))),
       ]);
 
   Widget _source(Tokens t) => Padding(
@@ -184,7 +184,7 @@ class _NotionLinkCardState extends State<NotionLinkCard> {
                 Container(
                   key: ValueKey('notion-column-${c.name}'),
                   width: 168,
-                  margin: EdgeInsets.only(right: i == columns.length - 1 ? 0 : t.space(2)),
+                  margin: EdgeInsetsDirectional.only(end: i == columns.length - 1 ? 0 : t.space(2)),
                   padding: EdgeInsets.all(t.space(2)),
                   decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(lookCorner(t, '0.6rem'))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

@@ -230,7 +230,7 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
           children: [
             // The voice on or off, and the way out.
             Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), 0),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), 0),
               child: Row(children: [
                 GuideButton(
                   key: const ValueKey('guide-voice'),
@@ -262,13 +262,13 @@ class _OnboardingState extends State<Onboarding> with WidgetsBindingObserver {
             ),
             // The dots, and back and next.
             Padding(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(4)),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(4)),
               child: Row(children: [
                 if (guidePages.length > 1)
                   for (var i = 0; i < guidePages.length; i++)
                   AnimatedContainer(
                     duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 220),
-                    margin: EdgeInsets.only(right: t.space(1)),
+                    margin: EdgeInsetsDirectional.only(end: t.space(1)),
                     width: i == _page ? 18 : 7,
                     height: 7,
                     decoration: BoxDecoration(color: i == _page ? look.hue : t.color('app-rule'), borderRadius: BorderRadius.circular(4)),

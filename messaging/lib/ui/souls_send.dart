@@ -144,7 +144,7 @@ class _SendSoulsScreenState extends State<SendSoulsScreen> {
         finder: SettingsFinder(),
         child: LayoutBuilder(builder: (context, box) {
           final side = math.max(t.space(4), (box.maxWidth - 640) / 2);
-          return ListView(padding: EdgeInsets.fromLTRB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: [
+          return ListView(padding: EdgeInsetsDirectional.fromSTEB(side, t.space(2), side, t.space(8) + MediaQuery.paddingOf(context).bottom), children: [
             Padding(
               padding: EdgeInsets.symmetric(vertical: t.space(3)),
               child: Row(children: [

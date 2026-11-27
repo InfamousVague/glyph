@@ -165,7 +165,7 @@ class EmojiSuggestions extends StatelessWidget {
           label: '${found.length} emoji',
           child: Container(
             key: const ValueKey('emoji-suggestions'),
-            margin: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(1)),
+            margin: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(1)),
             padding: EdgeInsets.symmetric(vertical: t.space(1)),
             decoration: BoxDecoration(
               color: t.color('app-paper'),

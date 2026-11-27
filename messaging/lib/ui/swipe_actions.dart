@@ -169,7 +169,7 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
                 child: _inCard(AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   color: ground,
-                  alignment: left ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: left ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
                   padding: EdgeInsets.symmetric(horizontal: t.space(5)),
                   child: AnimatedScale(
                     scale: armed ? 1.12 : 1,

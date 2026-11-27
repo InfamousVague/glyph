@@ -51,7 +51,7 @@ class Transcript extends StatelessWidget {
     // The well and all that is written in it are a scope of the tokens (`.parchment`, assets/css/app.css): a look
     // whose chat is written on another ground than its pages' (Runestone's grey parchment in its dark stone) says its
     // paper and inks again there. No rule of Dial-Up's asks for it, so its well is the page's white as it was.
-    final well = Padding(padding: const EdgeInsets.fromLTRB(6, 4, 6, 4), child: GlacierScope(classes: const {'parchment'}, child: Sunken(child: child)));
+    final well = Padding(padding: const EdgeInsetsDirectional.fromSTEB(6, 4, 6, 4), child: GlacierScope(classes: const {'parchment'}, child: Sunken(child: child)));
     return overBackground ? well : ColoredBox(color: c.chrome, child: well);
   }
 }
@@ -74,7 +74,7 @@ class HostLine extends StatelessWidget {
     final c = DialupColors.of(t);
     final style = pageText(t, lineSize(context, 15), color: c.inkSoft, height: 1.35).copyWith(fontStyle: FontStyle.italic);
     final line = Padding(
-      padding: EdgeInsets.fromLTRB(8, centred ? 6 : 2, 8, centred ? 4 : 2),
+      padding: EdgeInsetsDirectional.fromSTEB(8, centred ? 6 : 2, 8, centred ? 4 : 2),
       child: Text.rich(
         TextSpan(children: [
           if (!centred) TextSpan(text: 'Host: ', style: pageText(t, lineSize(context, 15), weight: 'bold', color: c.inkSoft, height: 1.35).copyWith(fontStyle: FontStyle.italic)),
@@ -289,7 +289,7 @@ class _MessageLineState extends State<MessageLine> {
         border: w.mine ? Border(left: BorderSide(color: c.nameMine, width: 3)) : null,
       ),
       foregroundDecoration: w.highlighted ? BoxDecoration(border: Border.all(color: t.chosen)) : null,
-      padding: EdgeInsets.fromLTRB(w.mine ? 5 : 8, 2, 8, 2),
+      padding: EdgeInsetsDirectional.fromSTEB(w.mine ? 5 : 8, 2, 8, 2),
       child: line,
     );
     if (w.faded) line = Opacity(opacity: 0.6, child: line);

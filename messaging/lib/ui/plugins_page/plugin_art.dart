@@ -71,7 +71,7 @@ class PluginHues {
   final Color light, dark;
 
   /// The colour as a fill, a soft light from its top start corner over it (Ghost.md's tileLight).
-  LinearGradient get gradient => LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [start, Color.lerp(start, end, 0.55)!, end]);
+  LinearGradient get gradient => LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [start, Color.lerp(start, end, 0.55)!, end]);
 
   /// Glass on the colour: a chip, a button.
   Color get glass => on.withValues(alpha: 0.18);

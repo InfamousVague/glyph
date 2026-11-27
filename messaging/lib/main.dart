@@ -288,7 +288,7 @@ class GhostMessagingApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
               PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
-          builder: (context, child) => GlacierTheme(
+          builder: (context, child) => Directionality(textDirection: Words.instance.direction, child: GlacierTheme(
             sheet: accents?.of(state) ?? sheet,
             attrs: ghostAttrs(state, 'mobile'),
             typography: ghostTypography(state.emoji),
@@ -303,7 +303,7 @@ class GhostMessagingApp extends StatelessWidget {
               // The text size chosen in Settings, over every page, sheet and toast (GMFB-41, lib/ui/text_scale.dart).
               child: AppTextScale(child: InkOverrides(child: _SystemBars(child: AppLockGate(child: GlacierToastProvider(child: PerformanceUnder(navigator: _navigator, statusBar: true, child: CallMovedNote(child: CallPipFrame(child: child!)))))))),
             ),
-          ),
+          )),
           home: home ?? const _Home(),
         ),
       ),

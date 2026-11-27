@@ -62,7 +62,7 @@ class PluginsBand extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: height),
         child: DecoratedBox(
-          decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colours, stops: const [0, 0.38, 0.72, 1])),
+          decoration: BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: colours, stops: const [0, 0.38, 0.72, 1])),
           child: LayoutBuilder(
             builder: (context, box) {
               final across = compact ? math.min(box.maxWidth * 0.36, t.lenOf('9rem')) : (wide ? math.min(box.maxWidth * 0.4, 420.0) : box.maxWidth * 0.42);
@@ -76,8 +76,8 @@ class PluginsBand extends StatelessWidget {
                   for (var i = 0; i < tiles.length; i++)
                     Builder(builder: (context) {
                       final size = t.lenOf('${where[i].$3}rem');
-                      return Positioned(
-                        right: end + pad + where[i].$1 * math.max(0.0, roomW - size),
+                      return PositionedDirectional(
+                        end: end + pad + where[i].$1 * math.max(0.0, roomW - size),
                         top: pad + where[i].$2 * math.max(0.0, roomH - size),
                         child: Transform.rotate(angle: where[i].$4, child: PluginTile(plugin: tiles[i], size: size, shadow: true)),
                       );
@@ -107,7 +107,7 @@ class PluginsBand extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (compact) Positioned(right: t.space(3), top: 0, bottom: 0, child: Center(child: AppIcon(Lucide.chevronRight, size: 20, strokeWidth: 2.2, color: on, wash: false))),
+                  if (compact) PositionedDirectional(end: t.space(3), top: 0, bottom: 0, child: Center(child: AppIcon(Lucide.chevronRight, size: 20, strokeWidth: 2.2, color: on, wash: false))),
                 ],
               );
             },
@@ -142,7 +142,7 @@ class PluginsBand extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
                 Row(children: [
-                  for (final p in tiles) Padding(padding: const EdgeInsets.only(right: 4), child: PluginTile(plugin: p, size: 36)),
+                  for (final p in tiles) Padding(padding: const EdgeInsetsDirectional.only(end: 4), child: PluginTile(plugin: p, size: 36)),
                   const Spacer(),
                 ]),
                 if (!compact) ...[

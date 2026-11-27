@@ -141,7 +141,7 @@ class SpecialBadgeMarks extends StatelessWidget {
         final t = context.tokens;
         return Padding(
           key: ValueKey('special-${b.id}-$id'),
-          padding: EdgeInsets.only(left: t.space(1)),
+          padding: EdgeInsetsDirectional.only(start: t.space(1)),
           child: Semantics(label: b.name, child: AppIcon(b.icon, size: size, color: PluginHues.of(t, b.hue).accent)),
         );
       },

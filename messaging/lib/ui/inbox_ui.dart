@@ -513,8 +513,8 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
               dimension: t.lenOf('2.1rem'),
               child: Stack(clipBehavior: Clip.none, children: [
                 Avatar(people: [Person(address: '${_n.id}:${widget.chatId}', name: chat?.title ?? _n.name, photo: chat?.avatar)], size: t.lenOf('2.1rem')),
-                Positioned(
-                  right: -3,
+                PositionedDirectional(
+                  end: -3,
                   bottom: -3,
                   child: Container(
                     padding: const EdgeInsets.all(1.5),
@@ -619,7 +619,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                     child: ConstrainedBox(
                       constraints: BoxConstraints(minHeight: t.lenOf('2.25rem')),
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: t.lenOf('0.3rem')),
                           child: Stack(children: [
@@ -698,7 +698,7 @@ class _InboxChatScreenState extends State<InboxChatScreen> with WidgetsBindingOb
                   child: ChatListView.builder(
                   controller: _scroll,
                   reverse: true,
-                  padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
+                  padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(2), ChatRail.gutter, t.space(2)),
                   chat: _spot,
                   idOf: (i) => list[i].id,
                   itemCount: list.length,
@@ -1083,13 +1083,13 @@ class _InboxBubble extends StatelessWidget {
             key: ValueKey('edited-${m.id}'),
             onTap: onEditedTap,
             child: Padding(
-              padding: EdgeInsets.only(top: 3, left: t.space(2), right: t.space(2)),
+              padding: EdgeInsetsDirectional.only(top: 3, start: t.space(2), end: t.space(2)),
               child: Text('Edited', style: pageText(t, t.fontSize('xs'), weight: 'medium', color: t.color('app-ink-3'))),
             ),
           ),
         if (last || failed)
           Padding(
-            padding: EdgeInsets.only(top: 2, left: t.space(2), right: t.space(2)),
+            padding: EdgeInsetsDirectional.only(top: 2, start: t.space(2), end: t.space(2)),
             child: Text(
               failed ? 'Not sent' : (m.state == 'sending' ? 'Sending…' : clock(m.date)),
               style: pageText(t, t.fontSize('xs'), color: failed ? t.danger : t.color('app-ink-3')),
@@ -1161,7 +1161,7 @@ class _BlueskySignInScreenState extends State<BlueskySignInScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 PaneSection(
@@ -1258,7 +1258,7 @@ class _SignalLinkScreenState extends State<SignalLinkScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               children: [
                 PaneSection(
                   title: 'Scan this with Signal',
@@ -1346,7 +1346,7 @@ class _MastodonSignInScreenState extends State<MastodonSignInScreen> {
         body: SettingsPaneScope(
           finder: SettingsFinder(),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               PaneSection(
@@ -1501,7 +1501,7 @@ class _TelegramSignInScreenState extends State<TelegramSignInScreen> {
           body: SettingsPaneScope(
             finder: SettingsFinder(),
             child: ListView(
-              padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 if (n.state == InboxState.unavailable)
@@ -1751,10 +1751,10 @@ class _FilesStrip extends StatelessWidget {
     final side = t.lenOf('4rem');
     return SizedBox(
       height: side + t.space(2),
-      child: ListView(scrollDirection: Axis.horizontal, padding: EdgeInsets.only(bottom: t.space(2), left: t.space(1)), children: [
+      child: ListView(scrollDirection: Axis.horizontal, padding: EdgeInsetsDirectional.only(bottom: t.space(2), start: t.space(1)), children: [
         for (final f in files)
           Padding(
-            padding: EdgeInsets.only(right: t.space(2)),
+            padding: EdgeInsetsDirectional.only(end: t.space(2)),
             child: Stack(children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(t.radius('md')),
@@ -1772,7 +1772,7 @@ class _FilesStrip extends StatelessWidget {
                         ]),
                       ),
               ),
-              Positioned(top: 0, right: 0, child: IconTap(icon: Lucide.x, label: 'Take off ${f.split('/').last}', size: 14, box: t.lenOf('1.5rem'), onPressed: () => onRemove(f))),
+              PositionedDirectional(top: 0, end: 0, child: IconTap(icon: Lucide.x, label: 'Take off ${f.split('/').last}', size: 14, box: t.lenOf('1.5rem'), onPressed: () => onRemove(f))),
             ]),
           ),
       ]),
@@ -1851,7 +1851,7 @@ class InboxMediaView extends StatelessWidget {
               child: const AppIcon(Lucide.play, size: 22, color: Color(0xFFFFFFFF)),
             ),
             if (media.duration > 0)
-              Positioned(right: t.space(2), bottom: t.space(2), child: Text(_clock(media.duration), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
+              PositionedDirectional(end: t.space(2), bottom: t.space(2), child: Text(_clock(media.duration), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xFFFFFFFF)))),
           ]),
         ),
       _ => card
@@ -1915,7 +1915,7 @@ class InboxReactionRow extends StatelessWidget {
     final t = context.tokens;
     final side = t.lenOf('2.75rem');
     return Padding(
-      padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(3), t.space(3), t.space(1)),
       child: Wrap(spacing: t.space(1), runSpacing: t.space(1), alignment: WrapAlignment.center, children: [
         for (final e in choices)
           GlacierPressable(
@@ -1950,7 +1950,7 @@ class InboxQuote extends StatelessWidget {
     final t = context.tokens;
     return Container(
       margin: EdgeInsets.only(bottom: t.space(2)),
-      padding: EdgeInsets.fromLTRB(t.space(2), t.space(1), t.space(2), t.space(1)),
+      padding: EdgeInsetsDirectional.fromSTEB(t.space(2), t.space(1), t.space(2), t.space(1)),
       decoration: BoxDecoration(
         color: ink.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(t.lenOf('0.5rem')),

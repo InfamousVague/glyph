@@ -38,7 +38,7 @@ class DrawerHead extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Padding(
-      padding: EdgeInsets.fromLTRB(gutter(t), t.space(3), t.space(2), 0),
+      padding: EdgeInsetsDirectional.fromSTEB(gutter(t), t.space(3), t.space(2), 0),
       child: Row(children: [
         if (face != null) ...[face!, SizedBox(width: t.space(3))],
         Expanded(

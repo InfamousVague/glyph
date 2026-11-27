@@ -172,7 +172,7 @@ class CosmeticBanner extends StatelessWidget {
               if (CosmeticArt.instance.has(piece)) return Image.asset(piece.asset, fit: BoxFit.cover, key: ValueKey('banner-${piece.id}'));
               return DecoratedBox(
                 key: ValueKey('banner-${piece.id}'),
-                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [piece.accent, piece.second ?? piece.accent])),
+                decoration: BoxDecoration(gradient: LinearGradient(begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd, colors: [piece.accent, piece.second ?? piece.accent])),
               );
             },
           );

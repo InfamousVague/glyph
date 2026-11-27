@@ -133,7 +133,7 @@ class GhostPage extends StatelessWidget {
               height: t.space(2) + 2 + bar + headerExtra,
               child: Stack(fit: StackFit.expand, children: [
                 headerBackground!,
-                Positioned(top: t.space(2) + 2, left: t.space(2), right: t.space(2), height: bar, child: row),
+                PositionedDirectional(top: t.space(2) + 2, start: t.space(2), end: t.space(2), height: bar, child: row),
               ]),
             ),
             ?top,
@@ -164,7 +164,7 @@ class GhostPage extends StatelessWidget {
           // be told it is on navy: the bar draws [title] and [subtitle] itself.
           WindowDragArea(
             child: Padding(
-            padding: EdgeInsets.only(left: TopBarLights.roomOf(context)),
+            padding: EdgeInsetsDirectional.only(start: TopBarLights.roomOf(context)),
             child: TitleBar(
             title: title,
             subtitle: subtitle,
@@ -689,7 +689,7 @@ class Avatar extends StatelessWidget {
         final dot = (size * 0.3).clamp(8.0, 16.0);
         return Stack(clipBehavior: Clip.none, children: [
           face,
-          Positioned(top: size * 0.02, right: size * 0.02, child: PresenceDot(presence: p, size: dot)),
+          PositionedDirectional(top: size * 0.02, end: size * 0.02, child: PresenceDot(presence: p, size: dot)),
         ]);
       },
     );
@@ -718,8 +718,8 @@ class Avatar extends StatelessWidget {
       return SizedBox.square(
         dimension: size,
         child: Stack(children: [
-          Positioned(left: 0, top: 0, child: _Face(person: people[0], size: small)),
-          Positioned(right: 0, bottom: 0, child: _Ringed(size: small, child: _Face(person: people[1], size: small))),
+          PositionedDirectional(start: 0, top: 0, child: _Face(person: people[0], size: small)),
+          PositionedDirectional(end: 0, bottom: 0, child: _Ringed(size: small, child: _Face(person: people[1], size: small))),
         ]),
       );
     }
@@ -903,7 +903,7 @@ class _ChoiceSheet extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
         // A sheet's width, where the window is wider than a phone: not a band across the whole of it.
         // And no taller than the screen: a long list of choices scrolls inside the sheet.
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)), child: ClipRRect(
@@ -916,7 +916,7 @@ class _ChoiceSheet extends StatelessWidget {
               children: [
                 if (title != null)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(t.space(4), t.space(4), t.space(4), t.space(2)),
+                    padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(4), t.space(4), t.space(2)),
                     // A message's own words are cut short by whoever asks; what a sheet explains is said whole.
                     child: Text(title!.t, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'), height: 1.4)),
                   ),
@@ -966,7 +966,7 @@ class _ChoiceSheet extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(3), 0, t.space(3), pad.bottom + t.space(3)),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: t.lenOf('30rem'), maxHeight: MediaQuery.sizeOf(context).height - pad.top - pad.bottom - t.space(8)),
           child: Bevel(
@@ -975,7 +975,7 @@ class _ChoiceSheet extends StatelessWidget {
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (title != null)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                    padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 10, 6),
                     child: Text(title!.t, maxLines: 14, overflow: TextOverflow.ellipsis, style: pageText(t, 14, color: c.onChrome, height: 1.35)),
                   ),
                 if (title != null) _etch(c),

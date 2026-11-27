@@ -486,7 +486,7 @@ class _AdminPersonScreenState extends State<AdminPersonScreen> {
       body: SettingsPaneScope(
         finder: SettingsFinder(),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(2), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
           children: [
             Row(children: [
               const SoulFlame(size: 26),

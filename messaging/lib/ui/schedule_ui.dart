@@ -126,7 +126,7 @@ class _ScheduleTimePageState extends State<ScheduleTimePage> {
     return GhostPage(
       title: 'Pick a time',
       body: ListView(
-        padding: EdgeInsets.fromLTRB(t.space(4), t.space(3), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(4), t.space(8) + MediaQuery.paddingOf(context).bottom),
         children: [
           Text('Day', style: pageText(t, t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink-3'))),
           SizedBox(height: t.space(2)),
@@ -175,7 +175,7 @@ class ScheduledStrip extends StatelessWidget {
         if (waiting.isEmpty) return const SizedBox.shrink();
         final t = context.tokens;
         return Padding(
-          padding: EdgeInsets.fromLTRB(t.space(3), t.space(1), t.space(3), 0),
+          padding: EdgeInsetsDirectional.fromSTEB(t.space(3), t.space(1), t.space(3), 0),
           child: Column(mainAxisSize: MainAxisSize.min, children: [for (final m in waiting) _ScheduledRow(message: m)]),
         );
       },

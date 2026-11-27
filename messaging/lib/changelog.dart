@@ -25,6 +25,11 @@ class ReleaseNotes {
 
 /// Every release's entry, the newest first.
 const List<ReleaseNotes> changelog = [
+  ReleaseNotes('0.12.47', '2026-11-27', [
+    'Eight more languages: Hebrew, Persian, Italian, Dutch, Polish, Ukrainian, Thai and Greek. Twenty-eight in all, in Settings › Language.',
+    'In Arabic, Hebrew, Persian and Urdu the whole app is mirrored, right to left. A message written in another language keeps its own direction.',
+    'In a voice channel in the sidebar, the face of whoever is talking has a green ring round it as well as the ripples.',
+  ]),
   ReleaseNotes('0.12.46', '2026-11-27', [
     'A chat\'s last line in the list is its newest message again. Since 0.12.44, beside Google Messages, some incoming messages were left out of the list, so a chat could show an older text there, or be missing from it.',
     'Reading a chat doesn\'t move it: one you open from the top of the list stays where it is while you\'re in the app. A new message still takes its chat to the top, and the list is put back in order when you leave the app, switch tabs, search, or pull it down.',
