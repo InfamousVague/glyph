@@ -3,8 +3,11 @@
 #
 # Where this runs. This file is messaging/.github/workflows/relay.yml in the repository the app is developed in, where
 # it does nothing: a repository runs only the workflows at its own root. Each release publishes messaging/ as the whole
-# of github.com/InfamousVague/ghost-messaging (tool/publish-source.mjs), and there it is .github/workflows/relay.yml and
-# runs: whenever a release changed anything of the relay, and by hand (Actions > Relay > Run workflow).
+# of github.com/Satellite-im/Uplink, the app's own repository since 2026-11-27 (Matt, asked "Move the Windows, Linux and
+# relay builds onto Satellite-im/Uplink?": "Yes, move them"), and of github.com/InfamousVague/ghost-messaging, its public
+# copy before that (tool/publish-source.mjs). In each it is .github/workflows/relay.yml and runs: whenever a release
+# changed anything of the relay, and by hand (Actions > Relay > Run workflow). Each publishes under its own name; the
+# docs name the earlier one's until the new one's container has been made public (the last paragraph here).
 #
 # What it makes, for the version in pubspec.yaml (the app's, which a relay built from the same source goes with):
 #
@@ -144,10 +147,14 @@ jobs:
           How to run it, what it needs and what a relay of your own reaches: https://gogho.st/docs/self-hosting/
           EOF
           sed -i 's/^          //' notes.md
+          # Where this repository holds the app's own releases too (v<version>, tool/release-github.mjs), the latest
+          # release stays the app's: a relay's is never marked the latest there.
+          latest=""
+          if gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName --jq '.[].tagName' | grep -q '^v[0-9]'; then latest="--latest=false"; fi
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file notes.md $latest
           else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Relay $VERSION" --notes-file notes.md
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Relay $VERSION" --notes-file notes.md $latest
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber ghost-relay-*.tar.gz ghost-relay-*.tar.gz.sha256
 

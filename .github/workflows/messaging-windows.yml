@@ -7,6 +7,12 @@
 # AZURE_CLIENT_ID, AZURE_CLIENT_SECRET (or none, signing in by GitHub's OIDC token through a federated credential),
 # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE. Without them it builds unsigned as before,
 # and Windows asks before running it the first time.
+#
+# THE COPY THAT IS KEPT FOR NOW. Since 2026-11-27 this build runs in the app's own repository, Satellite-im/Uplink,
+# from messaging/.github/workflows/windows.yml (the same steps without messaging/ before each path). This one is what
+# `--on glyph` on the release script starts, and what messaging/tool/release-windows.mjs starts by itself until that
+# repository has the signing secrets. Change the other first, and this
+# with it for as long as it is kept.
 name: Uplink for Windows
 
 on:

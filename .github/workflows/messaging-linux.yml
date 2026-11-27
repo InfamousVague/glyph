@@ -5,6 +5,11 @@
 #   ghost-messaging_<version>_amd64.deb   for Ubuntu, Debian, Mint, Pop!_OS and the rest of the Debian family
 #   ghost-messaging-linux-x64.tar.gz      the app's folder, for any other distribution (run ./ghost-messaging)
 # messaging/tool/release-linux.mjs fetches it and puts both on gogho.st with linux.json describing them.
+#
+# THE COPY THAT IS KEPT FOR NOW. Since 2026-11-27 this build runs in the app's own repository, Satellite-im/Uplink,
+# from messaging/.github/workflows/linux.yml (the same steps without messaging/ before each path). This one is what
+# `--on glyph` on the release script starts. Change the other first, and this
+# with it for as long as it is kept.
 name: Uplink for Linux
 
 on:
