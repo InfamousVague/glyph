@@ -15,7 +15,7 @@
 /// A screen asks the registry (registry.dart) what its plugins have for a place and draws that; a plugin is handed
 /// facts and a [PluginHost] to ask things of, never a screen or its state. All but the widget slots is data in and
 /// data out ([MessageFacts.toJson] is the shape of the data in), so that a plugin loaded from outside the app one
-/// day, a script or a package, could meet the same contract: the README says what that would still need.
+/// day, a script or a package, could meet the same contract: docs/RECORD.md says what that would still need.
 library;
 
 import '../local_ai.dart' show AiLine;
@@ -691,7 +691,7 @@ final class MoveToSection extends IncomingAction {
 
 /// Asked once for each unread conversation as its newest message is first seen: its facts, its tags, the section it
 /// is in (null: the main list) and the plugin's choices. It is decided here, in Dart, while the app is open: see
-/// the README for what Android's side would have to do for it to hold while the app is closed.
+/// docs/RECORD.md for what Android's side would have to do for it to hold while the app is closed.
 typedef IncomingRule = List<IncomingAction> Function(MessageFacts facts, TagSet tags, String? section, PluginPrefs prefs);
 
 // --- (e) what a message's words are shown as -----------------------------------------------------------------------
