@@ -51,8 +51,16 @@
 .h3-screen[data-screen='cover'] .h3-paper { border-radius: 4px 52px 52px 4px;
   /* The camera is under the glass in the corner away from the hinge: the page stops round it. */
   -webkit-mask: radial-gradient(circle at 369.6px 42.8px, transparent 15.6px, #000 16.4px); mask: radial-gradient(circle at 369.6px 42.8px, transparent 15.6px, #000 16.4px); }
-.h3-screen[data-screen='inner-l'] .h3-paper { border-radius: 48px 0 0 48px; }
-.h3-screen[data-screen='inner-r'] .h3-paper { border-radius: 0 48px 48px 0; box-shadow: inset 1px 0 0 var(--rule, rgba(128, 128, 128, .2)); }
+/* The inner screen's two halves meet at the fold. Each half's page runs two pixels past it, under the other's, so
+   that nothing of the phone under them shows through the join as a hairline, pale on the dark page and dark on the
+   light one (Matt, 2026-11-27: "the middle of the fold has a white hairline that bleeds through (or black) when on
+   the light mode theme"). The line between the list and what is beside it is the app's own, drawn on the join. */
+.h3-screen[data-screen='inner-l'] .h3-paper { right: -2px; border-radius: 48px 0 0 48px; }
+.h3-screen[data-screen='inner-r'] .h3-paper { left: -2px; border-radius: 0 48px 48px 0; }
+.h3-screen[data-screen='inner-r'] .h3-paper::before { content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: var(--rule, rgba(128, 128, 128, .2)); }
+/* What is on the two halves grows and shrinks about the fold, as one page. */
+.h3-screen[data-screen='inner-l'] > .h3-pane { transform-origin: 100% 50%; }
+.h3-screen[data-screen='inner-r'] > .h3-pane { transform-origin: 0 50%; }
 /* The glass answers when the layers land on it. */
 .h3-paper::after { content: ''; position: absolute; inset: 0; background: var(--ink); opacity: calc(var(--thud) * .14); pointer-events: none; }
 .h3-paper .gm-status { height: 26px; padding: 6px 34px 0; font-size: 12.5px; }
@@ -77,15 +85,19 @@
 .h3-live .h3-pane.is-on { visibility: inherit; }
 .h3-live .h3-paper, .h3-live .h3-l, .h3-ghost { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .h3-live .h3-l { will-change: transform; transition: filter .5s ease; }
-/* A screen lighting or going dark: what is on it is blurred and a little large, inside the screen's own shape. Its
-   layers lie on the glass then, so pressing them flat (which a clip and a filter do) changes nothing. */
-.h3-live .h3-screen.is-waking { overflow: hidden; }
-.h3-screen[data-screen='cover'].is-waking { border-radius: 4px 52px 52px 4px; }
-.h3-screen[data-screen='inner-l'].is-waking { border-radius: 48px 0 0 48px; }
-.h3-screen[data-screen='inner-r'].is-waking { border-radius: 0 48px 48px 0; }
+/* A screen lighting or going dark, or changing its page: what is on it is blurred and a little off its size, inside
+   the screen's own shape. Its layers lie on the glass then, so pressing them flat (which a clip and a filter do)
+   changes nothing. */
+.h3-live .h3-screen[data-screen='cover'].is-waking { clip-path: inset(0 round 4px 52px 52px 4px); }
+.h3-live .h3-screen[data-screen='inner-l'].is-waking, .h3-live .h3-screen[data-screen='inner-l'].is-changing { clip-path: inset(0 -2px 0 0 round 48px 0 0 48px); }
+.h3-live .h3-screen[data-screen='inner-r'].is-waking, .h3-live .h3-screen[data-screen='inner-r'].is-changing { clip-path: inset(0 0 0 -2px round 0 48px 48px 0); }
 .h3-live .h3-screen.is-waking > .h3-pane { filter: blur(var(--wake-blur, 0px)); transform: scale(var(--wake-size, 1)); }
 /* Lifted, a layer has an edge of light and a shadow under it. */
 .h3-live .h3-pane.is-out > .h3-l { filter: drop-shadow(0 0 .7px color-mix(in srgb, var(--ink) 50%, transparent)) drop-shadow(0 20px 24px rgba(0, 0, 0, .4)); }
+/* A layer with no ground of its own (the conversation's bar) is given the page's while it is lifted: off the
+   glass its words would be on whatever is behind the phone, dark on dark on the light page. */
+.h3-live .h3-l[data-plate] { border-radius: 16px; transition: filter .5s ease, background-color .5s ease; }
+.h3-live .h3-pane.is-out > .h3-l[data-plate] { background-color: var(--paper); }
 /* And leaves its outline on the glass. */
 .h3-ghost { position: absolute; box-sizing: border-box; border: 1px dashed color-mix(in srgb, var(--ink) 26%, transparent); background: color-mix(in srgb, var(--ink) 3.5%, transparent); opacity: 0; transition: opacity .5s ease; pointer-events: none; }
 .h3-pane.is-out > .h3-ghost { opacity: 1; }

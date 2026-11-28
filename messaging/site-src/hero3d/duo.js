@@ -8,8 +8,9 @@
 // (the camera's score in main.js is written for a phone whose back half stands still), so the left half turns a
 // half turn about it and what bends is carried between its two shapes about the hinge.
 //
-// What it answers to is what ./phone.js answers to: group, anchors, screens, setFold, centre, span, setFinish.
-import { DynamicDrawUsage, Group, Matrix4, Object3D } from 'three';
+// What it answers to is what ./phone.js answers to (group, anchors, screens, dim, setFold, centre, span, setFinish),
+// and showInner besides, which the plain phone has not.
+import { DynamicDrawUsage, Group, Matrix4, MeshBasicMaterial, Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /** The outer screen's width in the app's pixels: everything is scaled so that it is exactly this. */
@@ -39,6 +40,10 @@ export async function loadDuo(url) {
 
   // A finish for the dark page and one for the light: every mesh has both.
   const finishes = [];
+  let display = null, white = true; // the inner display's mesh, and which finish is on
+  // The inner display showing a page: a picture drawn as it is, unlit by the studio and unmoved by its tone curve, so
+  // it is the colours the page's own HTML has.
+  const page = new MeshBasicMaterial({ toneMapped: false });
   const bends = [];
   const jobs = [];
   for (const node of [...gltf.scene.children]) {
@@ -49,8 +54,9 @@ export async function loadDuo(url) {
     const matte = node.name === 'D_Inner_Display_Bezel';
     node.traverse((mesh) => {
       if (!mesh.isMesh) return;
-      const entry = { mesh, light: tune(mesh.material, matte), dark: null };
+      const entry = { mesh, light: tune(mesh.material, matte), dark: null, lit: null };
       entry.dark = entry.light;
+      if (node.name === 'D_Display_Inner_Flexible') display = entry;
       mesh.material = entry.light;
       finishes.push(entry);
       // Its Night Sky material: the file says which on each piece of geometry (extras.night).
@@ -107,8 +113,18 @@ export async function loadDuo(url) {
       const turn = (1 - f) * Math.PI;
       return [PW - Math.min(0, -PW * Math.cos(turn)), PH];
     },
-    setFinish(light) {
-      for (const e of finishes) e.mesh.material = light ? e.light : e.dark;
+    /** The white finish, or the dark one. */
+    setFinish(isWhite) {
+      white = isWhite;
+      for (const e of finishes) e.mesh.material = e.lit || (white ? e.light : e.dark);
+    },
+    /** The inner display showing `picture` (a texture laid out as the display is, left to right and top to bottom),
+     *  which folds with it; or dark again, with null. */
+    showInner(picture) {
+      if (!display) return;
+      if (picture) { page.map = picture; page.needsUpdate = true; }
+      display.lit = picture ? page : null;
+      display.mesh.material = display.lit || (white ? display.light : display.dark);
     },
   };
   phone.setFold(0);

@@ -2,7 +2,8 @@
 
 The landing page's hero (site/index.html) is a foldable phone turning slowly in space with the app on its screens.
 Now and then a screen is lifted apart into its layers and drawn back in: the conversation on the outer screen,
-then, opened, the Marketplace and a plugin's page, then the list beside a voice space.
+then, opened, the Marketplace and a plugin's page, then the list beside a voice space. It shuts with its screen
+lit and turns once round. The phone is the pale finish on the dark page and the dark one on the light page.
 
 Two pictures share one camera:
 
@@ -23,6 +24,18 @@ Everything that moves is a function of one clock: `TRACK` and `SCENES` at the to
 - The motion: `TRACK` and `SCENES` in `main.js`, then build.
 - To look at one moment, open the page with `?h3=<seconds>` (0 to 35); `window.__h3.seek(t)` and `.play()` do the
   same from the console. `?h3plain` draws the plain phone, `?h3flat` what a browser with no WebGL gets.
+
+The conversation on the outer screen plays before it is lifted apart (the reply typed and sent under what it
+answers, then the next message, then the reactions): `site/mock/hero.js` does the playing, told when by `CUE` in
+`main.js`.
+
+The phone shuts with its inner screen still lit. HTML cannot be folded or hidden behind the phone, so for that
+moment the page becomes a picture of itself on the phone's own display: `site/art/hero/space-dark.webp` and
+`-light.webp`, which `tool/hero3d-screens.mjs` draws from the view (it needs Playwright and cwebp; `--check` says
+when they are stale, and needs neither). Run it after changing the `space` view, its styles or the kit's.
+
+`node tool/serve-site.mjs` serves `site/` on this computer, for looking at it in a browser (or the iOS simulator's
+Safari) before it ships.
 
 A callout is a `.h3-tag` in the page: `data-view` and `data-for` name the layer its line runs to, `data-at` its
 place on the stage in percent (`data-at-s` on a narrow stage; without one it is not shown there).

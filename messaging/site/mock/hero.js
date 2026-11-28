@@ -1,88 +1,111 @@
-/* The hero's exploded conversation (site-src/hero3d/views/thread.html), alive across its layers. Needs mock.js (window.GM) first.
-   Each set of layers is found by the stack it sits in (.stack, or anything marked data-hero):
-     - the composer sends: what you send becomes your newest bubble (x-out2), rising in; the heart under the old one
-       leaves, and the receipt under it goes Sent, Delivered, Read. Some seconds later the conversation is as it was.
-     - a chip tapped is typed into the composer and sent.
-     - a bubble double-tapped: its reaction (the heart, the laugh) bounces and is yours or not; the kit's own
-       double-tap (a new reaction row) is kept out, since each reaction is its own layer here.
-     - by itself (not under reduced motion, only on screen, never while someone is using it) the composer now and
-       then types a reply and sends it. */
+/* The hero's conversation (site-src/hero3d/views/thread.html, the phone's outer screen), played in order across its
+   layers. Needs mock.js (window.GM) first.
+
+   It is a short scene (Matt, 2026-11-27: "make it reply then animate in the next message and the reactions"). As it
+   opens, the conversation ends on Maya's "Bring the projector cable if you still have it", with the quick replies
+   under it. Then:
+     - a reply is typed into the composer and sent: it rises in UNDER what it answers (never above it), the quick
+       replies go, your laugh lands on her message and the receipt under yours says Sent;
+     - it is delivered; her next message comes; her heart lands on your reply; it is read.
+   site/hero3d.js, whose clock everything on the phone keeps, says when: it sends this pane `h3:cue` events, with
+   `play` (type the reply and send it), `finish` (the scene's end at once, for a moment held still) and `reset` (as it
+   opened, while the screen is dark). Someone may also do it themself: what they type and send, or a quick reply they
+   tap, is the reply, and the rest follows; a bubble double-tapped has its reaction bounce and be theirs or not. */
 (() => {
   'use strict';
   const GM = window.GM;
   if (!GM) return;
-  const LINES = ["Popcorn's on me 🍿", 'Leaving now, see you soon', 'Found the cable!'];
+  const REPLY = 'Found the cable!';
   const emojiOnly = (s) => /^(\p{Extended_Pictographic}|\p{Emoji_Modifier}|️|‍|\s)+$/u.test(s);
 
   function setUp(root) {
     if (root.__hero) return; root.__hero = 1;
     const q = (name) => root.querySelector(`[data-mock="${name}"]`);
-    const out2 = q('x-out2'), ticks = q('x-ticks'), heart = q('x-heart'), laugh = q('x-laugh'), compose = q('x-compose'), chips = q('x-chips');
-    if (!out2 || !compose) return;
+    const reply = q('x-out2'), ticks = q('x-ticks'), heart = q('x-heart'), laugh = q('x-laugh'), next = q('x-emoji'), chips = q('x-chips'), compose = q('x-compose');
+    if (!reply || !compose) return;
     const form = compose.querySelector('.gm-composer'), input = form.querySelector('.gm-composer__input');
-    const msg = out2.querySelector('.gm-msg');
-    const was = { msg: msg.innerHTML, ticks: ticks && ticks.querySelector('.gm-meta').innerHTML };
-    let typing = false, touched = 0, back = 0, steps = [], showing = false, restoredAt = 0;
-    const later = (fn, ms) => { const t = setTimeout(fn, GM.still.matches ? 0 : ms); steps.push(t); };
-    const clear = () => { steps.forEach(clearTimeout); steps = []; clearTimeout(back); };
+    const msg = reply.querySelector('.gm-msg'), meta = ticks && ticks.querySelector('.gm-meta');
+    const came = next && next.querySelector('.gm-msg'), row = chips && chips.querySelector('.gm-chips');
+    const react = (box) => box && box.querySelector('.gm-react');
+    let state = 'open', run = 0, steps = [];
+    const clear = () => { steps.forEach(clearTimeout); steps = []; };
+    const later = (fn, ms) => steps.push(setTimeout(fn, ms));
 
-    // The receipt under your newest message: words, one tick or two, read or not.
-    function receipt(words, icon, read) {
-      if (!ticks) return;
-      const state = ticks.querySelector('.hero-state'), edited = ticks.querySelector('.hero-edited'), svg = ticks.querySelector('.gm-ticks');
-      if (edited) edited.classList.add('is-fading');
-      state.classList.add('is-fading');
-      setTimeout(() => {
-        state.textContent = words;
+    // The receipt under your reply: words, one tick or two, read or not.
+    function receipt(words, icon, read, now) {
+      if (!meta) return;
+      const line = meta.querySelector('.hero-state'), svg = meta.querySelector('.gm-ticks');
+      const set = () => {
+        line.textContent = words;
         svg.querySelector('use').setAttribute('href', '/mock/icons.svg#' + icon);
         svg.classList.toggle('is-read', !!read);
-        state.classList.remove('is-fading');
-      }, GM.still.matches ? 0 : 180);
+        line.classList.remove('is-fading');
+      };
+      if (now || meta.classList.contains('is-away')) { set(); meta.classList.remove('is-away'); return; }
+      line.classList.add('is-fading');
+      later(set, 180);
     }
-    function arrive(el) { el.classList.remove('is-new'); el.offsetWidth; el.classList.add('is-new'); }
+    const arrive = (el, now) => { el.classList.remove('is-away', 'is-new'); if (!now) { el.offsetWidth; el.classList.add('is-new'); } };
+    const land = (em, now) => { if (!em) return; em.classList.remove('is-gone'); if (!now) GM.pop(em); };
 
-    function sent(text) {
-      clear();
-      showing = true;
-      msg.innerHTML = emojiOnly(text) ? `<div class="gm-jumbo"></div>` : `<div class="gm-bubble"></div>`;
-      msg.firstElementChild.textContent = text;
-      arrive(msg);
-      heart && heart.querySelector('.gm-react').classList.add('is-gone');
-      receipt('Sent · now', 'check');
-      later(() => receipt('Delivered · now', 'check-check'), 900);
-      later(() => receipt('Read · now', 'check-check', true), 2600);
-      back = setTimeout(restore, 9000);
-    }
-    // As it was: the screenshot's conversation, the end state every loop returns to.
-    function restore() {
-      clear();
-      showing = false; restoredAt = Date.now();
-      msg.innerHTML = was.msg;
-      arrive(msg);
-      if (ticks) {
-        const meta = ticks.querySelector('.gm-meta');
-        meta.style.opacity = '0';
-        setTimeout(() => { meta.innerHTML = was.ticks; meta.style.opacity = ''; }, GM.still.matches ? 0 : 200);
-        meta.style.transition = 'opacity 250ms';
-      }
-      if (heart) { const r = heart.querySelector('.gm-react'); if (r.classList.contains('is-gone')) { r.classList.remove('is-gone'); GM.pop(r); } }
-    }
-
-    form.addEventListener('gm:send', (e) => sent(e.detail.text));
-    async function say(text, isOn) {
-      if (typing) return;
-      typing = true;
+    // As the scene opens: nothing sent yet.
+    function reset() {
+      clear(); run++;
+      state = 'open';
+      msg.classList.remove('is-new'); msg.classList.add('is-away');
+      if (came) { came.classList.remove('is-new'); came.classList.add('is-away'); }
+      if (meta) meta.classList.add('is-away');
+      for (const em of [react(heart), react(laugh)]) if (em) { em.classList.add('is-gone'); em.classList.remove('is-mine', 'is-pop'); }
+      if (row) row.classList.remove('is-away');
       input.value = ''; input.dispatchEvent(new Event('input'));
-      try { await GM.type(form, text, { send: true, speed: 50, isOn }); } finally { typing = false; }
     }
 
-    // Someone using it: the loop keeps out of the way for a while.
-    for (const ev of ['pointerdown', 'keydown', 'input']) root.addEventListener(ev, (e) => { if (e.isTrusted) touched = Date.now(); }, true);
+    // The reply is sent, and the rest follows: all at once where `now` is set.
+    function sent(text, now) {
+      clear(); run++;
+      state = 'sent';
+      msg.innerHTML = emojiOnly(text) ? '<div class="gm-jumbo"></div>' : '<div class="gm-bubble"></div>';
+      msg.firstElementChild.textContent = text;
+      arrive(msg, now);
+      if (row) row.classList.add('is-away');
+      receipt('Sent · now', 'check', false, true);
+      const then = (fn, ms) => (now ? fn() : later(fn, ms));
+      then(() => land(react(laugh), now), 380);
+      then(() => receipt('Delivered · now', 'check-check', false, now), 850);
+      then(() => came && arrive(came, now), 1350);
+      then(() => land(react(heart), now), 1950);
+      then(() => receipt('Read · now', 'check-check', true, now), 2500);
+    }
+    form.addEventListener('gm:send', (e) => sent(e.detail.text, false));
 
-    // A chip: typed in, then sent.
+    // Typed into the composer, then sent. Given up if the scene has moved on meanwhile.
+    async function say(text) {
+      if (state !== 'open') return;
+      state = 'typing';
+      const mine = ++run;
+      input.value = ''; input.dispatchEvent(new Event('input'));
+      for (const ch of text) {
+        if (run !== mine) return;
+        input.value += ch; input.dispatchEvent(new Event('input'));
+        await GM.sleep(42 * (ch === ' ' ? 1.6 : 0.6 + Math.random() * 0.8));
+      }
+      await GM.sleep(320);
+      if (run !== mine) return;
+      // Sending it is the form's own doing (mock.js), which says gm:send; `sent` above takes it from there.
+      if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      if (run === mine && state === 'typing') state = 'open';
+    }
+
+    root.addEventListener('h3:cue', (e) => {
+      if (e.detail === 'reset') reset();
+      else if (e.detail === 'finish') { if (state !== 'sent') sent(REPLY, true); }
+      else if (e.detail === 'play') { if (GM.still.matches) sent(REPLY, true); else say(REPLY); }
+    });
+
+    // A quick reply: typed in, then sent.
     if (chips) chips.addEventListener('click', (e) => {
       const chip = e.target.closest('.gm-chip');
-      if (!chip) return;
+      if (!chip || state !== 'open') return;
       GM.pop(chip);
       say(chip.textContent.trim());
     });
@@ -93,21 +116,12 @@
       if (!b || !root.contains(b)) return;
       e.stopPropagation(); e.preventDefault();
       const layer = b.closest('[data-mock]').dataset.mock;
-      const r = (layer === 'x-in' || layer === 'x-emoji' ? laugh : heart);
-      const em = r && r.querySelector('.gm-react');
+      const em = react(layer === 'x-in' ? laugh : layer === 'x-out2' ? heart : null);
       if (!em) return;
       em.classList.remove('is-gone');
       em.classList.toggle('is-mine');
       GM.pop(em);
     }, true);
-
-    // By itself, now and then.
-    let n = 0;
-    GM.loop(compose, async ({ wait, isOn }) => {
-      await wait(3500);
-      if (typing || showing || Date.now() - touched < 8000 || Date.now() - restoredAt < 4000 || input.value) return;
-      await say(LINES[n++ % LINES.length], isOn);
-    }, { gap: 2500 });
   }
 
   function wireHero(doc = document) {

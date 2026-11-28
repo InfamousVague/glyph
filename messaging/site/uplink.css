@@ -47,7 +47,11 @@
   --u-h3: 1.2rem;
   --u-lede: clamp(1.05rem, 2.1vw, 1.2rem);
   /* layout */
-  --u-max: 74rem;
+  /* How much wider than a laptop the window is: nothing up to 1400px across. On a wide screen the page opens a
+     little wider with it, and the landing page's hero grows its words and its phone by it (Matt, 2026-11-27: "allow
+     the website to open a bit wider so we can showcase the phone and text larger on wider screens"). */
+  --u-wide: max(0px, 100vw - 1400px);
+  --u-max: min(96rem, 74rem + var(--u-wide) * .55);
   --u-gutter: 16px;
   --u-shadow: 0 24px 60px -24px rgba(0, 0, 0, .8);
 }
