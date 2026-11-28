@@ -12,7 +12,7 @@
 //
 // Everything that moves is a function of one clock (see TRACK and SCENES), so any moment can be drawn by itself:
 // `?h3=12.5` on the page's address holds the hero at that second, and window.__h3.seek(t) does from the console.
-import { ACESFilmicToneMapping, Group, PerspectiveCamera, PMREMGenerator, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Group, PerspectiveCamera, PMREMGenerator, Scene, SRGBColorSpace, TextureLoader, Vector3, WebGLRenderer } from 'three';
 import { loadDuo } from './duo.js';
 import { makePhone } from './phone.js';
 import { makeStudio } from './studio.js';
@@ -30,33 +30,43 @@ const inBack = (t, s = 1.15) => (s + 1) * t * t * t - s * t * t;
 
 // --- the clock's score -----------------------------------------------------------------------------------------
 /** The loop, in seconds. */
-const L = 35;
+const L = 38.6;
 /** A screen lifted apart: when its layers leave (out), when the camera has come round to them (held), when they are
  *  drawn back (back), and when the last has landed (home). */
 const SCENES = {
-  thread: { screen: 'cover', out: 1.4, held: 2.9, back: 7.9, home: 8.8 },
-  plugins: { screen: 'inner', out: 13.4, held: 15.0, back: 19.8, home: 20.7 },
-  space: { screen: 'inner', out: 22.8, held: 24.4, back: 29.0, home: 29.9 },
+  thread: { screen: 'cover', out: 4.2, held: 5.7, back: 10.7, home: 11.6 },
+  plugins: { screen: 'inner', out: 16.2, held: 17.8, back: 22.6, home: 23.5 },
+  space: { screen: 'inner', out: 25.6, held: 27.2, back: 31.8, home: 32.7 },
 };
+/** The conversation on the outer screen plays before it is lifted apart (site/mock/hero.js): the reply is typed
+ *  from `play` and has been sent by `sent`; it is as it opened again from `reset`, while that screen is dark. */
+const CUE = { play: 0.4, sent: 1.9, reset: 12.9 };
+/** When the phone begins to shut. */
+const SHUT = 33.5;
 /** Each a list of [second, value, ease into it]. Angles in degrees. */
 const TRACK = {
   // 0 shut, 1 open: it opens after the conversation, and shuts as it turns once round at the end.
-  fold: [[0, 0], [9.9, 0], [12.1, 1], [30.6, 1], [33.3, 0], [L, 0]],
+  fold: [[0, 0], [12.7, 0], [14.9, 1], [SHUT, 1], [36.4, 0], [L, 0]],
   // The outer screen and the inner one, lit (1) or dark (0). A screen lights as an iPhone's does: what is on it comes
   // in blurred and a little large and settles sharp (Matt, 2026-11-27: "mimick the iphone blur animation when it
-  // opens"), the inner one while the phone is still opening its last few degrees; it goes dark the same way, quicker.
-  cover: [[0, 1], [9.5, 1], [9.9, 0, 'lin'], [33.4, 0], [34.3, 1, 'out'], [L, 1]],
-  inner: [[0, 0], [11.35, 0], [12.55, 1, 'out'], [30.2, 1], [30.6, 0, 'lin'], [L, 0]],
+  // opens"), the inner one while the phone is still opening its last few degrees.
+  cover: [[0, 1], [12.3, 1], [12.7, 0, 'lin'], [36.9, 0], [37.8, 1, 'out'], [L, 1]],
+  inner: [[0, 0], [14.15, 0], [15.35, 1, 'out'], [SHUT - 0.3, 1], [SHUT - 0.05, 0, 'lin'], [L, 0]],
+  // The inner screen stays lit as the phone shuts and is folded away inside it (Matt, 2026-11-27: "leave the screen
+  // on and fold it inside the phone instead of making the screen go black before it's folded shut"). HTML cannot be
+  // folded, nor hidden behind the phone, so from just before it shuts the page is a picture of itself on the phone's
+  // own display (1 here), under the HTML as that goes; where there is no such picture the screen goes dark instead.
+  glass: [[0, 0], [SHUT - 0.4, 0], [SHUT - 0.35, 1, 'lin'], [36.7, 1], [36.75, 0, 'lin'], [L, 0]],
   // What the inner screen shows: 0 the plugins, 1 the space.
-  swap: [[0, 0], [21.1, 0], [21.8, 1], [30.7, 1], [30.75, 0, 'lin'], [L, 0]],
+  swap: [[0, 0], [23.8, 0], [24.8, 1], [36.8, 1], [36.85, 0, 'lin'], [L, 0]],
   // The phone before the camera: leaning back (tilt), turned in its own plane (spin), turned about the upright
   // (yaw); how large (zoom, 1 fits it to the stage), and moved across the stage (pan, in stage widths and heights).
-  tilt: [[0, 6], [1.4, 7], [2.9, 44], [7.9, 40], [8.8, 8], [9.9, 9], [11.0, 15], [12.3, 8], [13.4, 8], [15.0, 35], [19.8, 31], [20.7, 9], [22.8, 9], [24.4, 37], [29.0, 33], [29.9, 10], [30.6, 10], [32.2, 14], [33.8, 6], [L, 6]],
-  spin: [[0, 0], [1.4, 0], [2.9, 25], [7.9, 19], [8.8, 0], [13.4, 0], [15.0, -13], [19.8, -8], [20.7, 0], [22.8, 0], [24.4, 12], [29.0, 7], [29.9, 0], [L, 0]],
-  yaw: [[0, 16], [1.4, 12], [2.9, -5], [7.9, 8], [8.8, -10], [9.9, -16], [11.0, -34], [12.3, -6], [13.4, -2], [15.0, 7], [19.8, -5], [20.7, 0], [22.8, 4], [24.4, -8], [29.0, 5], [29.9, 3], [30.6, 0], [33.8, -344], [L, -344]],
-  zoom: [[0, 1], [1.4, 1], [2.9, 0.86], [7.9, 0.88], [8.8, 1], [13.4, 1], [15.0, 1.07], [19.8, 1.1], [20.7, 1], [22.8, 1], [24.4, 1.07], [29.0, 1.1], [29.9, 1], [30.6, 1], [32.0, 0.9], [33.8, 1], [L, 1]],
-  panX: [[0, 0], [1.4, 0], [2.9, 0.03], [7.9, 0.03], [8.8, 0], [13.4, 0], [15.0, 0.075], [19.8, 0.075], [20.7, 0], [22.8, 0], [24.4, 0.075], [29.0, 0.075], [29.9, 0], [L, 0]],
-  panY: [[0, 0], [1.4, 0], [2.9, 0.07], [7.9, 0.06], [8.8, 0], [13.4, 0], [15.0, 0.05], [19.8, 0.04], [20.7, 0], [22.8, 0], [24.4, 0.05], [29.0, 0.04], [29.9, 0], [L, 0]],
+  tilt: [[0, 6], [4.2, 7], [5.7, 44], [10.7, 40], [11.6, 8], [12.7, 9], [13.8, 15], [15.1, 8], [16.2, 8], [17.8, 35], [22.6, 31], [23.5, 9], [25.6, 9], [27.2, 37], [31.8, 33], [32.7, 10], [33.4, 10], [35.2, 18], [37.4, 6], [L, 6]],
+  spin: [[0, 0], [4.2, 0], [5.7, 25], [10.7, 19], [11.6, 0], [16.2, 0], [17.8, -13], [22.6, -8], [23.5, 0], [25.6, 0], [27.2, 12], [31.8, 7], [32.7, 0], [L, 0]],
+  yaw: [[0, 16], [4.2, 12], [5.7, -5], [10.7, 8], [11.6, -10], [12.7, -16], [13.8, -34], [15.1, -6], [16.2, -2], [17.8, 7], [22.6, -5], [23.5, 0], [25.6, 4], [27.2, -8], [31.8, 5], [32.7, 3], [33.4, 0], [37.4, -344], [L, -344]],
+  zoom: [[0, 1], [4.2, 1], [5.7, 0.86], [10.7, 0.88], [11.6, 1], [16.2, 1], [17.8, 1.07], [22.6, 1.1], [23.5, 1], [25.6, 1], [27.2, 1.07], [31.8, 1.1], [32.7, 1], [33.4, 1], [35.2, 0.9], [37.4, 1], [L, 1]],
+  panX: [[0, 0], [4.2, 0], [5.7, 0.03], [10.7, 0.03], [11.6, 0], [16.2, 0], [17.8, 0.075], [22.6, 0.075], [23.5, 0], [25.6, 0], [27.2, 0.075], [31.8, 0.075], [32.7, 0], [L, 0]],
+  panY: [[0, 0], [4.2, 0], [5.7, 0.07], [10.7, 0.06], [11.6, 0], [16.2, 0], [17.8, 0.05], [22.6, 0.04], [23.5, 0], [25.6, 0], [27.2, 0.05], [31.8, 0.04], [32.7, 0], [L, 0]],
 };
 function at(keys, t) {
   if (t <= keys[0][0]) return keys[0][1];
@@ -213,34 +223,48 @@ function start(stage, phone) {
     body.position.copy(look).negate();
     rig.position.set(((small ? 0 : at(TRACK.panX, t)) * stageW * k) / zoom, (-at(TRACK.panY, t) * stageH * k) / zoom, 0); // pan is down the page, as CSS counts
     camera.position.set(0, 0, fovPx / zoom);
+    // The inner page as a picture on the phone's own display, for folding: true once it is there. Before the phone
+    // is drawn, since a moment held still is drawn once.
+    const glass = pictured(at(TRACK.glass, t) > 0.5);
     scene.updateMatrixWorld();
     camera.updateMatrixWorld();
     if (gl) gl.render(scene, camera);
 
     cam.style.transform = `perspective(${fovPx}px) translateZ(${fovPx}px) ${camCSS(camera.matrixWorldInverse)} translate(${W / 2}px,${H / 2}px)`;
     const lit = { cover: at(TRACK.cover, t), inner: at(TRACK.inner, t) };
+    const swap = at(TRACK.swap, t), changing = swap > 0.004 && swap < 0.996;
     for (const s of Object.values(screens)) {
       const on = s.inner ? lit.inner : lit.cover;
-      if (on !== s.on) {
-        s.on = on;
+      // With the picture under it, the HTML only has to go: no blur, or the picture would be seen sharp through it.
+      const handed = s.inner && glass, key = on + (handed ? 1000 : 0);
+      if (key !== s.on) {
+        s.on = key;
         s.el.style.visibility = on > 0.004 ? 'visible' : 'hidden';
         // Lighting: the glass comes up at once, and what is on it out of a blur, from a tenth larger.
-        const waking = on > 0.004 && on < 0.996;
+        const waking = !handed && on > 0.004 && on < 0.996;
         s.el.classList.toggle('is-waking', waking);
-        s.el.style.opacity = waking ? Math.min(1, on * 2.6).toFixed(3) : '';
+        s.el.style.opacity = handed ? (on < 0.996 ? on.toFixed(3) : '') : waking ? Math.min(1, on * 2.6).toFixed(3) : '';
         s.el.style.setProperty('--wake-blur', waking ? (24 * Math.pow(1 - on, 1.5)).toFixed(2) + 'px' : '0px');
         s.el.style.setProperty('--wake-size', waking ? (1 + 0.1 * Math.pow(1 - on, 2)).toFixed(4) : '1');
       }
+      if (s.inner && changing !== s.changing) { s.changing = changing; s.el.classList.toggle('is-changing', changing); }
       if (on > 0.004) { const m = objCSS(s.anchor.matrixWorld); if (m !== s.last) s.el.style.transform = s.last = m; }
     }
     // Which view each screen shows, and how far apart its layers are.
-    const swap = at(TRACK.swap, t);
     for (const v of Object.values(views)) {
-      // One page goes before the next comes, as a page changes in the app: never the two seen through each other.
-      const show = v.name === 'thread' ? 1 : v.name === 'plugins' ? clamp01(1 - swap * 2) : clamp01(swap * 2 - 1);
+      // One page gives way to the next as a page changes on the phone: the one leaving falls back into a blur and
+      // the one coming rises out of one, the two meeting only while both are blurred, so neither is read through
+      // the other and the glass is never bare between them.
+      const show = v.name === 'thread' ? 1 : v.name === 'plugins' ? clamp01(1 - swap / 0.62) : clamp01((swap - 0.38) / 0.62);
       if (show !== v.lit) {
         v.lit = show;
-        for (const p of v.panes) { p.classList.toggle('is-on', show > 0.004); p.style.opacity = show > 0.996 || show <= 0.004 ? '' : show.toFixed(3); }
+        const mid = show > 0.004 && show < 0.996, away = 1 - show;
+        for (const p of v.panes) {
+          p.classList.toggle('is-on', show > 0.004);
+          p.style.opacity = mid ? Math.min(1, show * 1.6).toFixed(3) : '';
+          p.style.filter = mid ? `blur(${(16 * away * away).toFixed(2)}px)` : '';
+          p.style.transform = mid ? `scale(${(v.name === 'plugins' ? 1 - 0.05 * away : 1 + 0.06 * away).toFixed(4)})` : '';
+        }
       }
       const sc = v.scene;
       if (!sc || show <= 0.004) continue;
@@ -288,17 +312,57 @@ function start(stage, phone) {
     }
   }
 
+  // --- the inner page as a picture, for the fold ----------------------------------------------------------------
+  // /art/hero/space-<dark|light>.webp is the last inner page as the page's theme draws it (tool/hero3d-screens.mjs
+  // makes both). It is fetched once the phone is up, long before it is wanted; a phone that cannot show it (our own
+  // plain one) or a picture that has not come leaves the screen to go dark before the fold, as it used to.
+  const root = document.documentElement;
+  const pictures = {};
+  let shown = null;
+  const picture = () => {
+    const theme = root.dataset.theme === 'light' ? 'light' : 'dark';
+    if (!gl || !phone.showInner) return null;
+    if (!pictures[theme]) {
+      const entry = (pictures[theme] = { tex: null });
+      new TextureLoader().load(`/art/hero/space-${theme}.webp`, (tex) => {
+        tex.colorSpace = SRGBColorSpace;
+        tex.flipY = false; // laid out as the file's own coordinates are: left to right, top to bottom
+        tex.anisotropy = gl.capabilities.getMaxAnisotropy();
+        entry.tex = tex;
+        wake();
+      }, undefined, () => {});
+    }
+    return pictures[theme].tex;
+  };
+  function pictured(want) {
+    const tex = want ? picture() : null;
+    if (tex !== shown) { phone.showInner(tex); shown = tex; }
+    return !!tex;
+  }
+
   // --- running ---------------------------------------------------------------------------------------------------
+  // The conversation's scene (site/mock/hero.js), told when by this clock.
+  const talk = views.thread && views.thread.panes[0];
+  const say = (what) => talk && talk.dispatchEvent(new CustomEvent('h3:cue', { detail: what }));
+  let told = -1;
   // Still where motion is asked to be reduced: the conversation, lifted apart.
-  const REST = 5.2;
+  const REST = 8;
   let clock = held != null ? parseFloat(held) || 0 : still.matches ? REST : 0, prev = 0, raf = 0, seen = true, frozen = held != null;
   function tick(now) {
     raf = 0;
     const dt = prev ? Math.min(0.1, (now - prev) / 1000) : 0;
     prev = now;
     if (!frozen && !still.matches) {
+      const before = clock + dt >= L ? -1 : clock; // round the loop's end, every cue is ahead again
       clock = (clock + dt) % L;
       if (intro < 1) intro = Math.min(1, intro + dt / 1.3);
+      if (before < CUE.play && clock >= CUE.play) say('play');
+      if (before < CUE.reset && clock >= CUE.reset) say('reset');
+      told = -1;
+    } else if (clock !== told) {
+      // Held at one moment: the conversation as that moment has it, without the playing.
+      told = clock;
+      say(clock >= CUE.sent && clock < CUE.reset ? 'finish' : 'reset');
     }
     lean.x += (lean.tx - lean.x) * Math.min(1, dt * 4);
     lean.y += (lean.ty - lean.y) * Math.min(1, dt * 4);
@@ -315,9 +379,9 @@ function start(stage, phone) {
   if ('IntersectionObserver' in window) new IntersectionObserver((es) => { seen = es[es.length - 1].isIntersecting; if (seen) wake(); }, { rootMargin: '120px' }).observe(stage);
   document.addEventListener('visibilitychange', wake);
   still.addEventListener?.('change', () => { if (still.matches) { clock = REST; intro = 1; } wake(); });
-  // The page's dark and light: the phone's finish follows.
-  const root = document.documentElement;
-  const finish = () => { phone.setFinish(root.dataset.theme === 'light'); wake(); };
+  // The page's dark and light: the phone is the other, white on the dark page and dark on the light one (Matt,
+  // 2026-11-27: "use the white model of the phone on dark mode and the black model of the phone on light mode").
+  const finish = () => { phone.setFinish(root.dataset.theme !== 'light'); picture(); wake(); };
   new MutationObserver(finish).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
   finish();
   // The pointer leans it a little, anywhere over the hero.

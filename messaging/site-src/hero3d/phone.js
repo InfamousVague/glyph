@@ -65,7 +65,7 @@ function pill(w, h, r, depth) {
   return geo;
 }
 
-// The finishes: a dark one for the dark page, a pale one for the light page.
+// The finishes: a pale one, which the dark page shows, and a dark one, which the light page shows.
 const FINISH = {
   dark: { frame: 0x55565c, back: 0x141519, island: 0x0c0d10, ring: 0x3c3d42 },
   light: { frame: 0xdcdcdf, back: 0xeeede9, island: 0xdddcd8, ring: 0xc9c9cc },
@@ -177,8 +177,9 @@ export function makePhone() {
       const left = Math.min(0, -PW * Math.cos(turn));
       return [PW - left, PH];
     },
-    setFinish(light) {
-      const c = light ? FINISH.light : FINISH.dark;
+    /** The pale finish, or the dark one. */
+    setFinish(pale) {
+      const c = pale ? FINISH.light : FINISH.dark;
       m.frame.color.setHex(c.frame); m.spine.color.setHex(c.frame); m.back.color.setHex(c.back); m.island.color.setHex(c.island); m.ring.color.setHex(c.ring);
     },
   };
