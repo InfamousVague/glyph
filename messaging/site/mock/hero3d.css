@@ -77,6 +77,13 @@
 .h3-live .h3-pane.is-on { visibility: inherit; }
 .h3-live .h3-paper, .h3-live .h3-l, .h3-ghost { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .h3-live .h3-l { will-change: transform; transition: filter .5s ease; }
+/* A screen lighting or going dark: what is on it is blurred and a little large, inside the screen's own shape. Its
+   layers lie on the glass then, so pressing them flat (which a clip and a filter do) changes nothing. */
+.h3-live .h3-screen.is-waking { overflow: hidden; }
+.h3-screen[data-screen='cover'].is-waking { border-radius: 4px 52px 52px 4px; }
+.h3-screen[data-screen='inner-l'].is-waking { border-radius: 48px 0 0 48px; }
+.h3-screen[data-screen='inner-r'].is-waking { border-radius: 0 48px 48px 0; }
+.h3-live .h3-screen.is-waking > .h3-pane { filter: blur(var(--wake-blur, 0px)); transform: scale(var(--wake-size, 1)); }
 /* Lifted, a layer has an edge of light and a shadow under it. */
 .h3-live .h3-pane.is-out > .h3-l { filter: drop-shadow(0 0 .7px color-mix(in srgb, var(--ink) 50%, transparent)) drop-shadow(0 20px 24px rgba(0, 0, 0, .4)); }
 /* And leaves its outline on the glass. */

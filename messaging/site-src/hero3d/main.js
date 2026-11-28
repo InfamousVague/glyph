@@ -42,9 +42,11 @@ const SCENES = {
 const TRACK = {
   // 0 shut, 1 open: it opens after the conversation, and shuts as it turns once round at the end.
   fold: [[0, 0], [9.9, 0], [12.1, 1], [30.6, 1], [33.3, 0], [L, 0]],
-  // The outer screen and the inner one, lit or dark.
-  cover: [[0, 1], [9.55, 1], [9.9, 0, 'lin'], [33.5, 0], [34.0, 1, 'lin'], [L, 1]],
-  inner: [[0, 0], [12.0, 0], [12.5, 1, 'lin'], [30.25, 1], [30.6, 0, 'lin'], [L, 0]],
+  // The outer screen and the inner one, lit (1) or dark (0). A screen lights as an iPhone's does: what is on it comes
+  // in blurred and a little large and settles sharp (Matt, 2026-11-27: "mimick the iphone blur animation when it
+  // opens"), the inner one while the phone is still opening its last few degrees; it goes dark the same way, quicker.
+  cover: [[0, 1], [9.5, 1], [9.9, 0, 'lin'], [33.4, 0], [34.3, 1, 'out'], [L, 1]],
+  inner: [[0, 0], [11.35, 0], [12.55, 1, 'out'], [30.2, 1], [30.6, 0, 'lin'], [L, 0]],
   // What the inner screen shows: 0 the plugins, 1 the space.
   swap: [[0, 0], [21.1, 0], [21.8, 1], [30.7, 1], [30.75, 0, 'lin'], [L, 0]],
   // The phone before the camera: leaning back (tilt), turned in its own plane (spin), turned about the upright
@@ -222,7 +224,12 @@ function start(stage, phone) {
       if (on !== s.on) {
         s.on = on;
         s.el.style.visibility = on > 0.004 ? 'visible' : 'hidden';
-        s.el.style.opacity = on > 0.996 ? '' : on.toFixed(3);
+        // Lighting: the glass comes up at once, and what is on it out of a blur, from a tenth larger.
+        const waking = on > 0.004 && on < 0.996;
+        s.el.classList.toggle('is-waking', waking);
+        s.el.style.opacity = waking ? Math.min(1, on * 2.6).toFixed(3) : '';
+        s.el.style.setProperty('--wake-blur', waking ? (24 * Math.pow(1 - on, 1.5)).toFixed(2) + 'px' : '0px');
+        s.el.style.setProperty('--wake-size', waking ? (1 + 0.1 * Math.pow(1 - on, 2)).toFixed(4) : '1');
       }
       if (on > 0.004) { const m = objCSS(s.anchor.matrixWorld); if (m !== s.last) s.el.style.transform = s.last = m; }
     }
