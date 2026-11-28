@@ -27,7 +27,8 @@
   - Every picture of the app is the app, drawn in HTML by the kit in site/mock. The hero is a foldable phone in 3D
     (site/hero3d.js, from site-src/hero3d) with the app on its screens, lifted apart into its layers and drawn back.
   - The space pictures under /art/space/ are Matt's to make; until they are there each slot shows the CSS starfield
-    (every <img> there removes itself on error). The hero's is also a film of itself (hero.webm, hero.mp4).
+    (every <img> there removes itself on error). The hero's is also a film of itself (hero-av1.mp4 where a browser
+    plays AV1, hero.mp4 in H.264 where it does not; both MP4, since the box sends a .webm as audio).
   - Icons are Lucide's (ISC licence), inline. The display face is Saira (OFL), from Google Fonts; no scripts from
     anywhere else.
 -->
@@ -282,8 +283,8 @@
          stop at the last frame"). It is laid over the still once it plays (the script at the foot of the page
          starts it, and never where motion is asked to be reduced or data to be saved). -->
     <video class="u-slot-img hero-film" id="film" muted playsinline preload="none" tabindex="-1" disablepictureinpicture>
-      <source src="/art/space/hero.webm" type='video/webm; codecs="av01.0.05M.08"'>
-      <source src="/art/space/hero.mp4" type="video/mp4">
+      <source src="/art/space/hero-av1.mp4" type='video/mp4; codecs="av01.0.05M.08"'>
+      <source src="/art/space/hero.mp4" type='video/mp4; codecs="avc1.640028"'>
     </video>
   </div>
   <i class="u-needle u-needle--glow" aria-hidden="true"></i>
