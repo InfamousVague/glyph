@@ -33,7 +33,7 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 
 ## What it does
 
-- **The logo turns while the app loads: larger on a computer's splash, and a splash on the phone** (not released;
+- **The logo turns while the app loads: larger on a computer's splash, and a splash on the phone** (0.12.54;
   Matt, 2026-11-27: "update the update screen to use the loading_logo.mp4 and make it larger so it is visible, also
   on the phone add a loading splash screen using the same logo"). His film (`art/loading_logo.mp4`: the white logo
   turning on black, four seconds that come back to where they began) is carried as a picture that moves
