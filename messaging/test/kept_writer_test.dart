@@ -65,4 +65,31 @@ void main() {
     expect(jsonDecode(file.readAsStringSync()), {'a': 1});
     expect(w.waiting, isFalse);
   });
+
+  // Done with (the Files spaces' lists, when everything this device keeps of them is deleted): nothing of it lands
+  // in the folder afterwards, so the folder deleted stays deleted.
+  test('stopped, a change that waits is never written', () async {
+    final file = File('${dir.path}/deep/chats.json');
+    final w = KeptWriter(file: () => file, snapshot: () => {'a': 1}, wait: const Duration(milliseconds: 60));
+    w.save();
+    await w.stop();
+    expect(w.waiting, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    expect(file.parent.existsSync(), isFalse, reason: 'not written, and its folder not made');
+  });
+
+  test('stopped while a write is on its way, the write has landed when stop comes back, and nothing lands after', () async {
+    final file = File('${dir.path}/deep/chats.json');
+    final w = KeptWriter(file: () => file, snapshot: () => {'big': List<String>.filled(200000, 'x')}, wait: Duration.zero);
+    w.save();
+    // The wait is over and the write begun, on another isolate: it can't be called back.
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    expect(w.waiting, isFalse);
+    await w.stop();
+    expect(((jsonDecode(file.readAsStringSync()) as Map)['big'] as List).length, 200000, reason: 'whole, and there already');
+    expect(File('${file.path}.tmp').existsSync(), isFalse);
+    file.parent.deleteSync(recursive: true);
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    expect(file.parent.existsSync(), isFalse, reason: 'deleted, it stays deleted');
+  });
 }

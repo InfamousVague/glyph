@@ -366,12 +366,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     notifyListeners();
   }
 
-  /// For a test: everything forgotten.
+  /// For a test: everything forgotten. And the first half of [wipe].
+  ///
+  /// Done once nothing of the spaces' lists is still on its way to the folder: each list is written by another
+  /// isolate a moment after it changes ([_Space._save]), and one that landed after this had come back was written
+  /// into a folder [wipe], or a test, had just deleted, and made it again.
   @visibleForTesting
   Future<void> clear() async {
-    for (final s in _spaces.values) {
-      s._dispose();
-    }
+    final lists = [for (final s in _spaces.values) s._dispose()];
     _spaces.clear();
     _followed.clear();
     _due.clear();
@@ -385,12 +387,16 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     transfers.clear();
     _started = false;
     notifyListeners();
+    await Future.wait(lists);
   }
 
   /// Everything of the Files spaces this device keeps deleted (lib/account/account.dart: signed out with everything
   /// deleted, or removed from the account): what was going up stopped, the spaces' lists and the queue, and every
-  /// file brought down.
+  /// file brought down. And nothing is followed from here on ([follow]): the spaces are still Voice's for the moments
+  /// before the app starts again, and one taken up again then would have its list read and kept, in the folder this
+  /// has just deleted.
   Future<void> wipe() async {
+    _wiped = true;
     await clear();
     if (browser) {
       for (final url in _held.values) {
@@ -406,10 +412,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     }
   }
 
+  /// Everything was deleted ([wipe]) and the store not started again since: nothing is followed.
+  bool _wiped = false;
+
   /// Picks up what was going up when the app last closed.
   Future<void> start() async {
     if (_started) return;
     _started = true;
+    _wiped = false;
     try {
       // A browser keeps no queue: what it was sending stopped with the tab.
       final f = browser ? null : File('${_data().path}/queue.json');
@@ -565,6 +575,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// step with the space (lib/files/folder_sync.dart) heard of a file added elsewhere at its next look, minutes later,
   /// or when the page was opened.
   void follow(Iterable<VoiceChannel> spaces) {
+    if (_wiped) return;
     final want = {for (final c in spaces) c.seed: c};
     for (final seed in [..._followed.keys]) {
       if (want.containsKey(seed)) continue;
@@ -2102,15 +2113,16 @@ class FilesSpace {
     most: const Duration(seconds: 2),
   );
 
-  /// Has the log written soon ([_writer]).
+  /// Has the log written soon ([_writer]). Not once the space is let go of ([_dispose]): an answer from the relay
+  /// that was on its way then still comes, and what it brings is no longer this device's to keep.
   void _save() {
-    if (!_store.browser) _writer.save();
+    if (!_store.browser && !_gone) _writer.save();
   }
 
   /// Writes the log now (a test that reads the file after).
   @visibleForTesting
   void flushKept() {
-    if (!_store.browser) _writer.flush();
+    if (!_store.browser && !_gone) _writer.flush();
   }
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
@@ -2319,11 +2331,19 @@ class FilesSpace {
     if (info!.cas && _strictAfter == null) _strictAfter = seq;
   }
 
-  void _dispose() {
+  /// Let go of ([FilesStore.clear]): nothing more is asked of the relay or kept. A change to the list that waited to
+  /// be written is not written, and the answer ends once every write of the list already begun has ended
+  /// (KeptWriter.stop), so whoever deletes the folder next doesn't have a list land in it afterwards.
+  Future<void> _dispose() {
+    _gone = true;
     _poller?.cancel();
     _followed = false;
     _holds = 0;
+    return _store.browser ? Future<void>.value() : _writer.stop();
   }
+
+  /// Let go of: [_dispose].
+  bool _gone = false;
 }
 
 /// Where a transfer stands. `waiting` is an upload that is tried again by itself (no relay, or the relay failing);

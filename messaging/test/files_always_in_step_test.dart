@@ -343,6 +343,29 @@ void main() {
       await until(() => b.heldCount(space) == 4);
     });
 
+    // Signed out with everything deleted, the spaces are still the app's for the moments before it starts again
+    // (lib/account/account.dart). One taken up again then would have its list read from the relay and kept, in the
+    // folder just deleted.
+    test('everything deleted stays deleted: nothing is followed, read or kept after it', () async {
+      final a = device(maya, 'Maya'), b = device(sam, 'Sam');
+      await a.start();
+      b.follow([space]);
+      await until(() => b.heldCount(space) == 0);
+      await add(a, space, 'note.txt');
+      await until(() => b.heldCount(space) == 1);
+      final sams = Directory('${dir.path}/Sam');
+      await b.wipe();
+      expect(sams.existsSync(), isFalse);
+      // The app's list of spaces says something once more, as it does while the routes stop.
+      b.follow([space]);
+      routes[b]!.cameBack(space.chatRoom);
+      await add(a, space, 'after.txt');
+      // Well past when a list read then would have been written (0.3 s after it changed).
+      await Future<void>.delayed(const Duration(seconds: 1));
+      expect(b.heldCount(space), isNull);
+      expect(sams.existsSync(), isFalse, reason: 'nothing of it lands after');
+    });
+
     test('with the relay out of reach one followed space finds that out, not each of them; each is read as it comes back', () async {
       final box = HeldBox();
       final a = device(maya, 'Maya');

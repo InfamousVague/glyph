@@ -420,6 +420,26 @@ void main() {
       expect(File('${dir.path}/Maya/queue.json').readAsStringSync(), '[]');
     });
 
+    // What failed these tests' own clean-up on a busy Mac (2026-11-27, the whole run before 0.12.54: "Deletion
+    // failed ... Directory not empty"). Each space's list is written by another isolate a moment after it changes
+    // (lib/inbox/kept_writer.dart), and nothing waited for that: a store was cleared, its folder deleted, and the
+    // list landed in the folder afterwards and made it again. The same in the app, where everything this device
+    // keeps of the Files spaces is deleted with an account (FilesStore.wipe).
+    test('everything deleted stays deleted: a list still to be written is not written afterwards', () async {
+      final a = device(maya, 'Maya'), b = device(sam, 'Sam');
+      await a.open(space);
+      await b.open(space);
+      a.upload(space, [fileOf('note.txt', bytesOf(4000, 3)).path]);
+      // Sam's device reads it into its list: a change to keep, written in a moment and not yet.
+      await until(() => b.of(space).files.isNotEmpty);
+      final sams = Directory('${dir.path}/Sam');
+      await b.wipe();
+      expect(sams.existsSync(), isFalse);
+      // Well past when the list would have been written (0.3 s after it changed).
+      await Future<void>.delayed(const Duration(seconds: 1));
+      expect(sams.existsSync(), isFalse, reason: 'nothing of it lands after');
+    });
+
     // Matt, 2026-11-21: "I need a way to see partially uploaded files, the oddysey uploaded partially but then
     // disconnected when I restarted the app it stopped uploading but kept the space reserved".
     test('an upload left part way that no device can pick up is listed with how far it got, and removing it frees its room', () async {
