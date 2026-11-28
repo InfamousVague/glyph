@@ -96,4 +96,13 @@ class KeptWriter {
     _timer = null;
     _since = null;
   }
+
+  /// Done with: a change that waits is let go of unwritten, and the answer ends once every write already begun has.
+  /// After it nothing of this lands in the folder, so the folder can be deleted and stay deleted. A write begun is
+  /// on another isolate and can't be called back; before this, one landed in a folder just deleted and made it again
+  /// (the Files spaces' lists, after everything was deleted: lib/files/files_store.dart).
+  Future<void> stop() {
+    cancel();
+    return settled;
+  }
 }

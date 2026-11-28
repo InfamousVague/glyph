@@ -364,12 +364,14 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     notifyListeners();
   }
 
-  /// For a test: everything forgotten.
+  /// For a test: everything forgotten. And the first half of [wipe].
+  ///
+  /// Done once nothing of the spaces' lists is still on its way to the folder: each list is written by another
+  /// isolate a moment after it changes ([_Space._save]), and one that landed after this had come back was written
+  /// into a folder [wipe], or a test, had just deleted, and made it again.
   @visibleForTesting
   Future<void> clear() async {
-    for (final s in _spaces.values) {
-      s._dispose();
-    }
+    final lists = [for (final s in _spaces.values) s._dispose()];
     _spaces.clear();
     for (final t in transfers) {
       t._cancel = true;
@@ -377,6 +379,7 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
     transfers.clear();
     _started = false;
     notifyListeners();
+    await Future.wait(lists);
   }
 
   /// Everything of the Files spaces this device keeps deleted (lib/account/account.dart: signed out with everything
@@ -1901,15 +1904,16 @@ class FilesSpace {
     most: const Duration(seconds: 2),
   );
 
-  /// Has the log written soon ([_writer]).
+  /// Has the log written soon ([_writer]). Not once the space is let go of ([_dispose]): an answer from the relay
+  /// that was on its way then still comes, and what it brings is no longer this device's to keep.
   void _save() {
-    if (!_store.browser) _writer.save();
+    if (!_store.browser && !_gone) _writer.save();
   }
 
   /// Writes the log now (a test that reads the file after).
   @visibleForTesting
   void flushKept() {
-    if (!_store.browser) _writer.flush();
+    if (!_store.browser && !_gone) _writer.flush();
   }
 
   /// Reads the list again from the log: each signed entry under the roster it was written under where that is known
@@ -2067,10 +2071,18 @@ class FilesSpace {
     });
   }
 
-  void _dispose() {
+  /// Let go of ([FilesStore.clear]): nothing more is asked of the relay or kept. A change to the list that waited to
+  /// be written is not written, and the answer ends once every write of the list already begun has ended
+  /// (KeptWriter.stop), so whoever deletes the folder next doesn't have a list land in it afterwards.
+  Future<void> _dispose() {
+    _gone = true;
     _poller?.cancel();
     _sub?.cancel();
+    return _store.browser ? Future<void>.value() : _writer.stop();
   }
+
+  /// Let go of: [_dispose].
+  bool _gone = false;
 }
 
 /// Where a transfer stands. `waiting` is an upload that is tried again by itself (no relay, or the relay failing);

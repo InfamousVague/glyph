@@ -33,6 +33,18 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 
 ## What it does
 
+- **Everything deleted of the Files spaces stays deleted** (not released). Each space's list is written by another
+  isolate a moment after it changes (`lib/inbox/kept_writer.dart`: 0.3 s after the last change, 2 s at most), and
+  nothing waited for that when the store was let go of. `FilesStore.wipe` (an account deleted, or signed out with
+  everything deleted) deleted the folder, and a list still waiting, or already on its way, landed afterwards and made
+  the folder again with the space's list in it. `FilesStore.clear`, which `wipe` starts with, now has each space
+  stop its writer (`KeptWriter.stop`: a change that waits is not written, and it comes back once every write already
+  begun has ended), and a space let go of keeps nothing that an answer still on its way from the relay brings.
+  **Found through a test:** on a busy Mac the Files spaces tests' own clean-up failed with "Directory not empty"
+  (once in the whole run before 0.12.54, then two runs in three of the file by itself), and what had appeared in
+  the folder while it was being deleted was `spaces/<room>.json` for each device. `test/files_space_test.dart` now
+  holds "everything deleted stays deleted", which fails every time without this; with it the file passed 20 runs in
+  a row with every core kept busy (load average 28 to 71 on ten cores).
 - **The splash's logo is still again** (not released; Matt, 2026-11-27, of the film 0.12.54 had put there: "actually
   just do the static image, the video doesn't look good"). Both splashes draw one picture, large:
   `assets/art/logo-large.png`, the mark cut from the app icon's art 1200 across by `tool/app_icon.py`, white on black
