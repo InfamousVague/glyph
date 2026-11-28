@@ -33,6 +33,40 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 
 ## What it does
 
+- **A Files space is kept current with no page open, and its folder on a computer is kept in step all the time** (not
+  released; Matt, 2026-11-27: "Files only seem to sync when we click in and out of the files space instead of keeping
+  the folder on the desktop in sync always and showing the correct file counts without having to click a file space
+  to refresh it"). **Why it only happened on opening:** a space's list was read, and listened for, only while its page
+  showed (`FilesStore.open`). The word that a log has grown reached the device all along, since Voice stays in every
+  space's chat room, but nothing listened for it without the page; so the count in a circle's list was what the device
+  last saw, or nothing until the page had been opened once in a run. And a synced folder was looked at when it was
+  chosen, when its page was opened and every four minutes, so going in and out of the page was the quick way to make
+  it sync.
+  - **The store** (`lib/files/files_store.dart`, `FilesStore.follow`): every Files space this device is in is followed
+    for as long as the app runs. It has the list it kept from the start; it is read from the relay once, again each
+    time this device comes back into the space's chat room (what was said while the relay was lost is read then), and
+    whenever the word comes. A word that comes while the log is being read is no longer taken for that reading: the
+    log is read once more. Followed spaces are read one at a time, and one of them, not each, finds out that the relay
+    is away. **A followed space is looked at, never made:** a reading makes the space on the relay where it isn't there,
+    and the relay holds a device to twenty spaces made, so the first app started would have made every space nobody
+    had opened. And nothing is followed after `FilesStore.wipe`, or a list would be kept again in the folder just
+    deleted. `FilesStore.news` says each time a space's list changed on the relay, or the relay is back for it.
+  - **The folder** (`lib/files/folder_sync.dart`, "kept in step all the time"): once started, a folder is looked at
+    again when something in it changes (the system's own watch: everything under it on a Mac and on Windows, folder by
+    folder on Linux), once it has been still for the five seconds a pass leaves a fresh file alone; a second after
+    the store's word for its drive; three seconds after the app starts; a few times soon after where the drive
+    couldn't be reached; and after a pass that left something for the next. The four-minute pass stays for what
+    nothing said. The pass's own writing starts no pass. My files has no room to hear of a change in, so its list is
+    read every minute while a folder is synced with it. A folder with more files than a pass walks, and a file written
+    to without a pause, are not walked again and again for nothing.
+  - **So:** a file put in the folder goes up about six seconds later; one someone adds to the space lands in the
+    folder as it arrives; one added to My files from another device, within a minute; and the count in a circle's list
+    is right from the start and stays right, with no page opened.
+  - **Tests:** `test/files_always_in_step_test.dart` (20): the store against the relay's own files service, over its
+    real hub with the app's own carrier, and on Voice's own list of spaces; the folder against a real temporary folder
+    and the Mac's own watch of it; and the two together, a file each way between two computers with no page opened on
+    either. Five of them were seen to fail with their fix taken out, and the file passes with every core kept busy.
+    **Not run in the app itself**, and Linux's and Windows' watches were not run on either.
 - **Everything deleted of the Files spaces stays deleted** (not released). Each space's list is written by another
   isolate a moment after it changes (`lib/inbox/kept_writer.dart`: 0.3 s after the last change, 2 s at most), and
   nothing waited for that when the store was let go of. `FilesStore.wipe` (an account deleted, or signed out with
