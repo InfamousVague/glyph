@@ -32,12 +32,14 @@ which side.
 | `site/art/space/effects.webp` | 1600×1000 | Landing: effects, reactions, stickers |
 | `site/art/space/join.webp` | 1600×1000 | Behind the invite and join pages |
 
-**On the site since 2026-11-27: Set B, the miniature tilt-shift set** (below; Matt: "update the new assets from the
-new assets folder on the desktop"). His nine pictures were 2048 across (the join one 1152 by 2048), so the files are
-those sizes or smaller, never made larger: `hero.webp` 2048×1152, `og.jpg` 1200×630 (cut to the card's shape about its
-middle), `join.webp` 1152×2048, and the other six 1600×1000, each `cwebp -q 82`. Every slot on the page fills itself
-from whatever shape it is given (`.u-slot-img`, `object-fit: cover`). `networks.webp` is kept up to date with the set
-though no section shows it now. Four pictures of Set A came in the same folder and are not used.
+**On the site: the screen-print set**, Matt's first nine (the retro-futuristic styles below, style 1), at the
+sizes they were made (the hero 2400×1350, the share card 1200×630, the join picture 1200×2133, the desktop 1600×900
+and the rest 1400×1400). Every slot on the page fills itself from whatever shape it is given (`.u-slot-img`,
+`object-fit: cover`), so a set of another shape needs nothing but the files.
+
+Set B, the miniature tilt-shift set (below), was on the site for under an hour on 2026-11-27 and taken off again
+(Matt: "go back to the previous images as well the hyper realistic ones don't hit as hard"). The photographic sets
+stay here as prompts; the site keeps the drawn one.
 
 **hero.webp**: the uplink itself.
 > A lone satellite dish on a dark rocky ridge at night, sending a single thin, bright white beam of light straight up
