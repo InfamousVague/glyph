@@ -203,8 +203,8 @@ Future<void> desktopMain({List<Peer>? peers, String? folder, bool? bonjour, bool
   // on the window with no Files space showing are offered to one (lib/ui/files_space/share_in.dart; Matt, 2026-11-17:
   // "Finish the missing pieces that went unfinished").
   unawaited(FilesStore.instance.start());
-  // The folder this computer keeps in step with My files, looked at every few minutes (lib/files/folder_sync.dart;
-  // GMFB-38). Nothing where none is chosen.
+  // The folders this computer keeps in step with My files and with Files spaces (lib/files/folder_sync.dart; GMFB-38):
+  // each looked at whenever it or its drive changes, and every few minutes besides. Nothing where none is chosen.
   FolderSync.instance.start();
   FilesShareIn.attach();
   SpaceGroups.instance.start(state);

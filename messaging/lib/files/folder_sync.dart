@@ -169,6 +169,14 @@ class SyncReport {
   /// Why the pass did not finish; null where it did.
   String? stopped;
 
+  /// The folders inside the synced one that the pass walked, as paths from its top ("Papers", "Papers/2026"): what a
+  /// watch of the folder takes in where the system's own watch is of one folder alone ([FolderSync]).
+  final List<String> folders = [];
+
+  /// Files left out as still being written: the next pass, a moment on, takes them.
+  bool get unsettled => skipped.containsKey(writing);
+  static const writing = 'still being written';
+
   int get moved => up + down + deletedThere + removedHere;
   void skip(String why) => skipped[why] = (skipped[why] ?? 0) + 1;
 
@@ -187,7 +195,12 @@ class SyncReport {
 
 /// One pass over one folder ([run]); and what may be synced at all ([whyNot]).
 class FolderSyncEngine {
-  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress, this.driveName = Drive.name, this.allow = const {}, this.forget = const {}, this.holdOver = 20}) : now = now ?? DateTime.now;
+  FolderSyncEngine({required this.root, required this.drive, required this.state, DateTime Function()? now, this.most = 2000, this.walkMost = 20000, this.quiet = const Duration(seconds: 5), this.stopped, this.progress, this.wrote, this.driveName = Drive.name, this.allow = const {}, this.forget = const {}, this.holdOver = 20}) : now = now ?? DateTime.now;
+
+  /// Told each path in the folder the pass itself has just written, moved away or made (a file come down, one set
+  /// aside, a folder for one), once it has: whoever watches the folder for changes knows the pass's own from someone
+  /// else's ([FolderSync]).
+  final void Function(String local)? wrote;
 
   /// Paths whose removal the person said yes to: followed however many there are.
   final Set<String> allow;
@@ -319,6 +332,7 @@ class FolderSyncEngine {
             r.skip(depth >= SpaceFile.maxDepth ? 'too deep in folders' : 'with a name $driveName can\'t hold');
             continue;
           }
+          r.folders.add(path);
           into(Directory(e.path), path, depth + 1);
         } else if (type == FileSystemEntityType.file) {
           if (!holdable(name)) {
@@ -329,7 +343,7 @@ class FolderSyncEngine {
             final s = File(e.path).statSync();
             final m = s.modified.millisecondsSinceEpoch;
             if (m > soon) {
-              r.skip('still being written');
+              r.skip(SyncReport.writing);
               continue;
             }
             out[path] = (size: s.size, modified: m);
@@ -365,6 +379,7 @@ class FolderSyncEngine {
       final type = FileSystemEntity.typeSync(at, followLinks: false);
       if (type == FileSystemEntityType.notFound) {
         Directory(at).createSync();
+        wrote?.call(at);
       } else if (type != FileSystemEntityType.directory) {
         return false;
       }
@@ -406,6 +421,7 @@ class FolderSyncEngine {
       } on FileSystemException {
         throw const SyncSkip('in use');
       }
+      wrote?.call(to);
       return _stat(to)!;
     } finally {
       // Only ever the pass's own temporary file.
@@ -454,6 +470,7 @@ class FolderSyncEngine {
     } on FileSystemException {
       throw const SyncSkip('in use');
     }
+    wrote?.call(_local(path));
   }
 
   /// One pass. Never throws.
@@ -820,9 +837,24 @@ class StoreDrive implements SyncDrive {
 }
 
 /// One of this computer's synced folders, My files' or a Files space's: which it is, what its state line says, and
-/// when a pass runs (on choosing, when its page is opened, and every few minutes while the app is open).
+/// when a pass runs: on choosing, when its page is opened, and, once [start]ed, whenever the folder or the drive
+/// changes ("kept in step all the time", below), with one every few minutes besides.
 class FolderSync extends ChangeNotifier {
-  FolderSync({Directory Function()? data, Future<SyncDrive?> Function()? drive, String? Function()? home, List<String> Function()? own, this.every = const Duration(minutes: 4), this.quiet = const Duration(seconds: 5), this.space, this.driveName = Drive.name})
+  FolderSync({
+    Directory Function()? data,
+    Future<SyncDrive?> Function()? drive,
+    String? Function()? home,
+    List<String> Function()? own,
+    this.every = const Duration(minutes: 4),
+    this.quiet = const Duration(seconds: 5),
+    this.settle = const Duration(seconds: 1),
+    this.first = const Duration(seconds: 3),
+    this.look = const Duration(minutes: 1),
+    this.retry = const Duration(seconds: 15),
+    this.walkMost = 20000,
+    this.space,
+    this.driveName = Drive.name,
+  })
       : assert(space == null || RegExp(r'^[0-9A-Za-z_-]{1,128}$').hasMatch(space)),
         _data = data ?? (() => Directory('${DeskStore.defaultDir().path}${PlatformInfo.pathSeparator}folder-sync')),
         _drive = drive ?? (space == null ? _appDrive : () => _spaceDrive(space)),
@@ -848,8 +880,18 @@ class FolderSync extends ChangeNotifier {
   static final Map<String, FolderSync> _spaces = {};
 
   /// The folder of the Files space [c] (GMFB-38: "a Files space or the personal drive"): one for each space, kept
-  /// apart from My files' and from every other space's.
-  static FolderSync forSpace(VoiceChannel c) => _spaces.putIfAbsent(FileSeal.filesRoom(c.seed), () => FolderSync(space: FileSeal.filesRoom(c.seed), driveName: c.name));
+  /// apart from My files' and from every other space's. Looked at by itself from here on where the app's folders are
+  /// ([start]), as those chosen before this run are.
+  static FolderSync forSpace(VoiceChannel c) => _spaces.putIfAbsent(FileSeal.filesRoom(c.seed), () {
+        final s = FolderSync(space: FileSeal.filesRoom(c.seed), driveName: c.name);
+        if (instance._live) s.start();
+        return s;
+      });
+
+  /// For a test: [s] as the folder of the space the relay calls [room], or none where null, so word of that space
+  /// reaches it ([heard]).
+  @visibleForTesting
+  static void putSpace(String room, FolderSync? s) => s == null ? _spaces.remove(room) : _spaces[room] = s;
 
   static Future<SyncDrive?> _appDrive() async {
     final c = await Drive.mine();
@@ -878,7 +920,7 @@ class FolderSync extends ChangeNotifier {
           final j = jsonDecode(e.readAsStringSync());
           if (j is Map && j['name'] is String && (j['name'] as String).isNotEmpty) name = j['name'] as String;
         } catch (_) {}
-        _spaces.putIfAbsent(m.group(1)!, () => FolderSync(space: m.group(1), driveName: name)).load();
+        _spaces.putIfAbsent(m.group(1)!, () => FolderSync(space: m.group(1), driveName: name)).start();
       }
     } catch (_) {}
   }
@@ -887,7 +929,18 @@ class FolderSync extends ChangeNotifier {
   final Future<SyncDrive?> Function() _drive;
   final String? Function() _home;
   final List<String> Function()? _own;
+
+  /// [every]: how often a pass runs whatever was heard, for what nothing said (a disk that tells of no changes).
+  /// [quiet]: a file changed more recently than this is taken to be still being written (the engine's own).
   final Duration every, quiet;
+
+  /// [settle]: how long after word of a change a pass begins, so a few words in a row are one pass. [first]: how long
+  /// after [start] the first pass begins. [look]: how often My files' list is looked at on the relay while a folder is
+  /// synced with it. [retry]: how long after a pass that couldn't reach the drive the first of a few more is tried.
+  final Duration settle, first, look, retry;
+
+  /// The most files one pass looks at ([FolderSyncEngine.walkMost]).
+  final int walkMost;
 
   /// The app's own folders: where it keeps things, and where it keeps what came down.
   List<String> _ownFolders() {
@@ -939,6 +992,236 @@ class FolderSync extends ChangeNotifier {
   bool _loaded = false;
   Timer? _timer;
   int _gen = 0;
+
+  // --- kept in step all the time -----------------------------------------------------------------------------------
+  //
+  // Matt, 2026-11-27: "Files only seem to sync when we click in and out of the files space instead of keeping the
+  // folder on the desktop in sync always". A pass ran when the folder was chosen, when its page was opened, and every
+  // [every]: between those a file put in the folder, or added to the space by someone else, waited minutes, and going
+  // in and out of the page was the quick way to make it go. Once [start]ed, a folder is now looked at again:
+  //
+  // - when something in it changes ([_watch], the system's own word of it), once it has been still for [quiet], since
+  //   a pass leaves out a file changed more recently than that as still being written;
+  // - when the drive's list changes on the relay, or the relay comes back for it ([heard], from the files store):
+  //   someone added, renamed or removed a file. [settle] later;
+  // - [first] after the app starts, and a few times soon after where the drive couldn't be reached ([_after]);
+  // - after a pass that left something for the next one (a file still being written, more than one pass moves);
+  // - and every [every] still, for whatever nothing said.
+  //
+  // A sync that was never started (a test's, mostly) runs a pass only when asked, as before.
+
+  /// Started ([start]): looked at again by itself as things change.
+  bool _live = false;
+
+  /// The pass waiting to begin, and when ([soon]).
+  Timer? _soon;
+  DateTime? _soonAt;
+
+  /// A pass was asked for while one ran: another follows it.
+  bool _again = false;
+
+  /// Has a pass begin [after] from now ([settle] where not said), where none is to begin sooner. Asked for while one
+  /// runs, another follows it: what changed may be something the one running has already looked past.
+  void soon([Duration? after]) {
+    if (_root == null) return;
+    final wait = after ?? settle;
+    final at = DateTime.now().add(wait);
+    if (_soonAt != null && !_soonAt!.isAfter(at)) return;
+    _soon?.cancel();
+    _soonAt = at;
+    _soon = Timer(wait, _begin);
+  }
+
+  void _begin() {
+    _soon?.cancel();
+    _soon = null;
+    _soonAt = null;
+    if (_running) {
+      _again = true;
+      return;
+    }
+    unawaited(pass());
+  }
+
+  /// The relay's name for the drive this folder was last synced with ([SyncDrive.id]): a space's is [space] from the
+  /// start; My files' is known once it has been reached.
+  String? _driveId;
+
+  static StreamSubscription<String>? _news;
+
+  /// Word from the files store ([FilesStore.news]) that the list of the drive the relay calls [room] has changed
+  /// there, or that the relay is back for it: a folder synced with that drive is looked at [settle] later.
+  static void heard(String room) {
+    for (final s in [instance, ..._spaces.values]) {
+      if (s._live && (s.space ?? s._driveId) == room) s.soon();
+    }
+  }
+
+  /// The watches of the folder ([_watch]), by the folder each is of.
+  final Map<String, StreamSubscription<FileSystemEvent>> _watches = {};
+
+  /// The folders inside the synced one that the last pass walked ([SyncReport.folders]).
+  List<String> _folders = const [];
+
+  /// The most folders watched one by one, where the system's watch is of one folder alone.
+  static const watchMost = 512;
+
+  /// Watches the folder for changes: one watch of everything under it on a Mac and on Windows; on Linux, whose watch
+  /// is of one folder alone, one for the folder itself and one for each folder in it the last pass walked (a folder
+  /// made since is seen being made, and watched from the pass that follows). Nothing where the system has no watch:
+  /// the pass every [every] is what is left then.
+  void _watch() {
+    final root = _root;
+    if (!_live || root == null || !FileSystemEntity.isWatchSupported) return _unwatch();
+    final sep = PlatformInfo.pathSeparator;
+    final deep = !PlatformInfo.isLinux;
+    final want = {root, if (!deep) for (final f in _folders.take(watchMost)) '$root$sep${f.replaceAll('/', sep)}'};
+    for (final dir in _watches.keys.where((d) => !want.contains(d)).toList()) {
+      unawaited(_watches.remove(dir)?.cancel());
+    }
+    for (final dir in want) {
+      if (_watches.containsKey(dir)) continue;
+      try {
+        // A watch that ends or fails (the folder gone, more changes at once than the system kept count of) is made
+        // again after the next pass.
+        _watches[dir] = Directory(dir).watch(recursive: deep).listen(
+              _stirred,
+              onError: (Object _) => unawaited(_watches.remove(dir)?.cancel()),
+              onDone: () => _watches.remove(dir),
+              cancelOnError: true,
+            );
+      } catch (_) {}
+    }
+  }
+
+  void _unwatch() {
+    for (final w in _watches.values) {
+      unawaited(w.cancel());
+    }
+    _watches.clear();
+  }
+
+  /// What the pass now running, and the one before it, left at each path they wrote themselves ([_markOf]).
+  Map<String, String> _ownNow = {}, _ownBefore = {};
+
+  /// What is at [path], in a word: gone, a folder, or a file's size and time. Never the same twice where it can't be
+  /// told.
+  static String _markOf(String path) {
+    try {
+      final type = FileSystemEntity.typeSync(path, followLinks: false);
+      if (type == FileSystemEntityType.notFound) return 'gone';
+      if (type == FileSystemEntityType.directory) return 'folder';
+      if (type == FileSystemEntityType.file) {
+        final st = File(path).statSync();
+        return '${st.size}:${st.modified.millisecondsSinceEpoch}';
+      }
+      return 'other';
+    } catch (_) {
+      return '?${DateTime.now().microsecondsSinceEpoch}';
+    }
+  }
+
+  /// Whether a change at [path] is nothing to look at: the folder itself, something hidden (a pass leaves those out;
+  /// its own temporary files and its ".ghost-deleted" are among them), or the pass's own doing, where what is there is
+  /// still what the pass left.
+  bool _nothing(String path) {
+    final root = _root;
+    if (root == null) return true;
+    // The folder itself, still there: a Mac says a folder just made was made as a watch of it begins, which is word
+    // of nothing in it. (Gone or moved, the pass that follows says so.)
+    if (path == root) return _markOf(path) == 'folder';
+    if (path.length > root.length && path.startsWith(root)) {
+      for (final name in path.substring(root.length).split(RegExp(r'[\\/]'))) {
+        if (name.isNotEmpty && FolderSyncEngine.hidden(name)) return true;
+      }
+    }
+    final left = _ownNow[path] ?? _ownBefore[path];
+    return left != null && left == _markOf(path);
+  }
+
+  /// The pass that follows a change in the folder, and when the folder first changed since the last one began.
+  Timer? _still;
+  DateTime? _stirredAt;
+
+  /// A folder written to without a pause is looked at this often all the same, for whatever else is in it; less often,
+  /// down to every [every], while each such look finds nothing it can move ([_patient]).
+  static const stirMost = Duration(seconds: 30);
+
+  /// [wait], twice as long for each pass in a row that moved nothing and left a file out as still being written
+  /// ([_unsettled]), and never longer than [every]: something written to all day (a log, a disk image) costs no more
+  /// passes than the clock's own.
+  Duration _patient(Duration wait) {
+    final longer = wait * (1 << _unsettled.clamp(0, 10));
+    return longer < every ? longer : every;
+  }
+
+  /// Something in the folder changed: a pass, once it has been still for [quiet] (sooner, the pass would leave the
+  /// file out as still being written), and [stirMost] after the first change at the latest.
+  void _stirred(FileSystemEvent e) {
+    // A folder's own change says only that something in it changed, which has a word of its own.
+    if (e is FileSystemModifyEvent && e.isDirectory) return;
+    final to = e is FileSystemMoveEvent ? e.destination : null;
+    if (_nothing(e.path) && (to == null || _nothing(to))) return;
+    final now = DateTime.now();
+    final left = (_stirredAt ??= now).add(_patient(stirMost)).difference(now);
+    var wait = quiet + settle;
+    if (left < wait) wait = left.isNegative ? Duration.zero : left;
+    _still?.cancel();
+    _still = Timer(wait, () {
+      _still = null;
+      _stirredAt = null;
+      _begin();
+    });
+  }
+
+  /// How many passes in a row couldn't reach the drive; and how many in a row moved nothing and left a file out as
+  /// still being written ([_patient]).
+  int _unreached = 0, _unsettled = 0;
+
+  /// What follows a pass by itself, where the folder is looked at by itself at all: the folder watched (again, where
+  /// a watch ended); a few more tries soon where the drive couldn't be reached ([retry], then twice that, four in all,
+  /// before it is left to [every] and to the files store's word that the relay is back); another pass where one was
+  /// asked for while this one ran, or this one moved all one pass moves and has more to go; and one a little later
+  /// where a file was left out as still being written (later each time for one written to for a long while).
+  void _after(SyncReport? r, bool unreached) {
+    if (!_live || _root == null) return;
+    if (r != null) _folders = List.unmodifiable(r.folders);
+    _watch();
+    if (unreached) {
+      _again = false;
+      if (_unreached < 4) soon(retry * (1 << _unreached++));
+      return;
+    }
+    _unreached = 0;
+    final unsettled = r != null && r.unsettled;
+    final moved = r != null && r.moved > 0;
+    if (!unsettled || moved) _unsettled = 0;
+    // Only where this one moved something: a folder with more files than a pass walks says "more" every time, and
+    // would be walked again without a pause for nothing.
+    if (_again || (r != null && r.capped && moved)) {
+      _again = false;
+      soon();
+    } else if (unsettled) {
+      soon(_patient(quiet + settle));
+      _unsettled++;
+    }
+  }
+
+  /// My files' list looked at on the relay ([_peek]).
+  Timer? _looker;
+
+  /// My files has no room to hear of a change in (an account's drive has no chat: lib/files/drive.dart), so while a
+  /// folder is synced with it, its list is read from the relay every [look]: where it has changed, the files store
+  /// says so and a pass follows ([heard]). A Files space's folder needs none: its word comes as it happens.
+  Future<void> _peek() async {
+    if (_root == null || _running) return;
+    try {
+      final d = await _drive();
+      if (d == null) return;
+      _driveId = d.id;
+      if (d is StoreDrive) await d.store.of(d.channel).refresh();
+    } catch (_) {}
+  }
 
   /// The last pass's report, for a test.
   SyncReport? last;
@@ -993,19 +1276,22 @@ class FolderSync extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Reads the choice and runs a pass every few minutes while the app is open. Asked of My files' own, it does the
-  /// same for every space's folder, one after another.
+  /// Reads the choice and keeps the folder in step from here on, for as long as the app is open ("kept in step all
+  /// the time", above): a first pass in a moment, one whenever the folder or the drive changes, and one every few
+  /// minutes besides. Asked of My files' own, it does the same for every space's folder chosen before this run, and
+  /// has the files store's word of a changed list reach them all ([heard]).
   void start() {
-    if (!here) return;
+    if (!here || _live) return;
+    _live = true;
     load();
-    if (identical(this, instance)) _loadSpaces();
-    _timer ??= Timer.periodic(every, (_) => unawaited(() async {
-          await pass();
-          if (!identical(this, instance)) return;
-          for (final s in _spaces.values.toList()) {
-            await s.pass();
-          }
-        }()));
+    if (identical(this, instance)) {
+      _news ??= FilesStore.instance.news.listen(heard);
+      _loadSpaces();
+    }
+    _timer ??= Timer.periodic(every, (_) => unawaited(pass()));
+    if (space == null) _looker ??= Timer.periodic(look, (_) => unawaited(_peek()));
+    _watch();
+    soon(first);
   }
 
   /// Syncs the folder at [path] from now on: why not, in words, or null where it is taken (and a pass begins).
@@ -1022,6 +1308,8 @@ class FolderSync extends ChangeNotifier {
     _line = '';
     _clearHeld();
     _save();
+    _quiet();
+    _watch();
     notifyListeners();
     unawaited(pass());
     return null;
@@ -1034,7 +1322,22 @@ class FolderSync extends ChangeNotifier {
     _line = '';
     _clearHeld();
     _save();
+    _quiet();
+    _unwatch();
     notifyListeners();
+  }
+
+  /// Nothing waits to begin, and what was known of the folder is forgotten: it is another now, or none.
+  void _quiet() {
+    _soon?.cancel();
+    _still?.cancel();
+    _soon = _still = null;
+    _soonAt = _stirredAt = null;
+    _again = false;
+    _unreached = _unsettled = 0;
+    _folders = const [];
+    _ownNow = {};
+    _ownBefore = {};
   }
 
   void _say(String line) {
@@ -1050,6 +1353,16 @@ class FolderSync extends ChangeNotifier {
     if (root == null || _running) return;
     final gen = _gen;
     _running = true;
+    // This one is the pass that waited to begin; and what the one before the last wrote is forgotten ([_nothing]).
+    _soon?.cancel();
+    _soon = null;
+    _soonAt = null;
+    _ownBefore = _ownNow;
+    _ownNow = {};
+    // Whether the drive wasn't there to sync with (not reached, not signed in to, not this device's to add to yet):
+    // tried again soon by itself ([_after]). And what the pass came to, where it ran.
+    var unreached = false;
+    SyncReport? done;
     notifyListeners();
     try {
       // Looked at again each pass: what was fine to sync when chosen may have been moved or become the home folder.
@@ -1057,6 +1370,7 @@ class FolderSync extends ChangeNotifier {
       if (FolderSyncEngine.whyNot(root, home: _home(), own: _ownFolders()) != null) return _say('Stopped: this folder can\'t be synced.');
       // Two drives never share a folder, however the choices came to be (a file put there by hand).
       if (_taken(root) != null) return _say('Stopped: this folder is synced with My files or another space too.');
+      unreached = true;
       final SyncDrive? drive;
       try {
         drive = await _drive();
@@ -1066,6 +1380,7 @@ class FolderSync extends ChangeNotifier {
         return _say('Stopped: $driveName can\'t be reached right now.');
       }
       if (drive == null) return _say(space == null ? 'Stopped: sign in to your Uplink account on this computer.' : 'Stopped: this space isn\'t on this computer any more.');
+      _driveId = drive.id;
       final key = crypto.sha256.convert(utf8.encode('${drive.id}\n$root')).toString().substring(0, 32);
       // What the person said is for this pass alone; anything gone since is asked again.
       final allow = {..._allow}, forget = {..._forget};
@@ -1074,6 +1389,7 @@ class FolderSync extends ChangeNotifier {
         drive: drive,
         state: SyncState(File('${_data().path}${PlatformInfo.pathSeparator}$key.json')),
         quiet: quiet,
+        walkMost: walkMost,
         driveName: driveName,
         allow: allow,
         forget: forget,
@@ -1081,9 +1397,12 @@ class FolderSync extends ChangeNotifier {
         progress: (left) {
           if (_gen == gen && left > 0) _say('Syncing $left ${left == 1 ? 'file' : 'files'}');
         },
+        wrote: (path) => _ownNow[path] = _markOf(path),
       );
       final r = await engine.run();
       last = r;
+      done = r;
+      unreached = r.stopped != null;
       if (_gen == gen) {
         _allow.removeAll(allow);
         _forget.removeAll(forget);
@@ -1096,12 +1415,27 @@ class FolderSync extends ChangeNotifier {
     } finally {
       _running = false;
       notifyListeners();
+      if (_gen == gen) _after(done, unreached);
     }
+  }
+
+  bool _disposed = false;
+
+  /// Nothing is said once it is let go of: a pass under way then still ends, and has nobody to tell.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _live = false;
     _timer?.cancel();
+    _looker?.cancel();
+    _soon?.cancel();
+    _still?.cancel();
+    _unwatch();
     super.dispose();
   }
 }

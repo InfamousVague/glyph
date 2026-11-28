@@ -50,8 +50,9 @@ export 'file_sink.dart' show HeldFiles;
 ///   under the space's roles ([RosterRules]): every device reads the same log under the same roster and gets the same
 ///   list. Someone without the right to rename or remove a file has their entry skipped everywhere.
 /// - **Live.** When a device adds to the log it says `{"t": "files", "seq": n}` in the space's chat room, sealed with
-///   the space's key; everyone with the space open reads the log again. An older build ignores the word. A device that
-///   was away catches up from its last number on opening, and an open space looks again every [poll] besides.
+///   the space's key; everyone in the space reads the log again, its page open or not ([follow]). An older build
+///   ignores the word. A device that was away catches up from its last number as it comes back into the room, and an
+///   open space looks again every [poll] besides.
 /// - **Going up** ([upload]): one file at a time, sealed in chunks (lib/net/file_seal.dart) a few megabytes a request.
 ///   The queue is kept on disk, so a file half sent when the app closes picks up where the relay says it got to.
 ///   On a phone the picked file is first copied into the app's own folder ([FilePlatform.keep]), since Android's
@@ -325,8 +326,9 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// The space [c]'s files as this device has them.
   FilesSpace of(VoiceChannel c) => _spaces.putIfAbsent(c.seed, () => FilesSpace._(c, this).._load());
 
-  /// How many files [c] holds, where its list is already held on this device (opened or read once); null where not.
-  /// Reads nothing from disk, so a circle's list can show it on every rebuild.
+  /// How many files [c] holds, where its list is already held on this device (followed, opened or read once); null
+  /// where not. Reads nothing from disk, so a circle's list can show it on every rebuild; a space this device is in is
+  /// followed ([follow]), so its count is there from the start and stays right with no page opened.
   int? heldCount(VoiceChannel c) {
     final s = _spaces[c.seed];
     return s == null || !s.ready ? null : s.files.length;
@@ -371,6 +373,12 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       s._dispose();
     }
     _spaces.clear();
+    _followed.clear();
+    _due.clear();
+    _forgotten++;
+    _awayAt = null;
+    _byRoom.clear();
+    _unhear();
     for (final t in transfers) {
       t._cancel = true;
     }
@@ -416,21 +424,35 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
       notifyListeners();
       _pump();
     }
-    // The relay coming (or a computer's own hub connecting): what waited for it goes on.
-    if (identical(this, instance)) Voice.instance.addListener(_voiceChanged);
+    // The relay coming (or a computer's own hub connecting): what waited for it goes on. Looked at once now too: the
+    // spaces this device has are followed from here ([follow]), not from whenever Voice next has something to say.
+    if (identical(this, instance)) {
+      Voice.instance.addListener(_voiceChanged);
+      _voiceChanged();
+    }
   }
 
-  /// Voice changed (the relay came, a roster moved): open spaces listen and read again, and uploads that waited for
-  /// the relay go back on the queue.
+  /// Voice changed (the relay came, a roster moved, a space was joined or left): every Files space this device is in is
+  /// followed ([follow]), open and followed spaces listen and read again, and uploads that waited for the relay go back
+  /// on the queue.
   void _voiceChanged() {
+    // Voice's list of spaces is made afresh at each asking: asked once here, for both that follow.
+    final files = [for (final c in Voice.instance.channels) if (c.kind == SpaceKind.files) c];
+    // Before the relay is known too: a followed space shows the list it kept.
+    follow(files);
     if (_base() == null) return;
-    _rosterMoved();
+    _rosterMoved(files);
     _keepDrive();
-    for (final s in _spaces.values.where((s) => s._holds > 0)) {
-      s._listen();
-      // Voice says something changed many times a minute: an unreachable relay is asked again at most every ten seconds.
-      final due = DateTime.now().difference(s._tried) > const Duration(seconds: 10);
-      if (s._waiting || (due && s.error != null && s.error!.offline)) unawaited(s.refresh());
+    _hear();
+    final now = DateTime.now();
+    for (final s in _spaces.values.where((s) => s._live)) {
+      final shows = s._holds > 0;
+      // Voice says something changed many times a minute: an unreachable relay is asked again at most every ten seconds
+      // for a space that shows, and every [followedRetry] for one only followed (there may be many, and nobody is
+      // looking; [_catchUp] holds them all back while the relay was just found away).
+      final due = now.difference(s._tried) > (shows ? const Duration(seconds: 10) : followedRetry);
+      if (!s._waiting && !(due && s.error != null && s.error!.offline)) continue;
+      shows ? unawaited(s.refresh()) : _catchUp(s);
     }
     final waiting = transfers.where((t) => t.up && t.state == TransferState.waiting).toList();
     for (final t in waiting) {
@@ -500,22 +522,188 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   Future<void> open(VoiceChannel c) async {
     final s = of(c);
     s._holds++;
-    s._listen();
+    _listenFor(s);
     s._poller ??= Timer.periodic(poll, (_) => unawaited(s.refresh()));
     await s.refresh();
   }
 
-  /// Ends one [open] of [c]: when the last one goes, the polling and the listening stop.
+  /// Ends one [open] of [c]: when the last one goes, the polling stops, and the listening too but for a space that is
+  /// followed ([follow]).
   void close(VoiceChannel c) {
     final s = _spaces[c.seed];
     if (s == null || s._holds == 0) return;
     if (--s._holds == 0) {
       s._poller?.cancel();
       s._poller = null;
-      s._sub?.cancel();
-      s._sub = null;
+      if (!s._followed) _byRoom.remove(c.chatRoom);
     }
   }
+
+  // --- every Files space, followed while the app runs ---------------------------------------------------------------
+
+  /// The Files spaces followed ([follow]), by seed.
+  final Map<String, VoiceChannel> _followed = {};
+
+  /// How long a followed space the relay couldn't be reached for waits before it is asked again by itself.
+  static const followedRetry = Duration(minutes: 2);
+
+  /// Follows [spaces], and no others, for as long as the app runs, whether or not a page shows them (Matt, 2026-11-27:
+  /// "Files only seem to sync when we click in and out of the files space instead of keeping the folder on the desktop
+  /// in sync always and showing the correct file counts without having to click a file space to refresh it"). The
+  /// app's own store follows every Files space this device is in ([_voiceChanged]).
+  ///
+  /// A followed space has the list kept on disk from the start, so a circle's list shows its count before any page is
+  /// opened ([heldCount]). It is read from the relay once then; again each time this device comes into the space's chat
+  /// room, as it does after the relay was lost and came back, since what was said there meanwhile was missed; and
+  /// whenever someone says in that room that the log has grown. That word reaches this device in every space, open or
+  /// not: Voice stays in each one's chat room for the chats list. Nothing is asked of the relay on a clock for a space
+  /// nobody is looking at: [poll] stays an open page's. And a followed space is looked at, never made: one the relay
+  /// doesn't have yet, since nobody has opened it, is empty until someone does ([FilesSpace.refresh]).
+  ///
+  /// Before, a list was read and listened for only while its page showed ([open]). The count in a circle's list was
+  /// what this device last saw, or nothing at all until the page had been opened once in a run, and a folder kept in
+  /// step with the space (lib/files/folder_sync.dart) heard of a file added elsewhere at its next look, minutes later,
+  /// or when the page was opened.
+  void follow(Iterable<VoiceChannel> spaces) {
+    final want = {for (final c in spaces) c.seed: c};
+    for (final seed in [..._followed.keys]) {
+      if (want.containsKey(seed)) continue;
+      final c = _followed.remove(seed)!;
+      final s = _spaces[seed];
+      if (s == null) continue;
+      s._followed = false;
+      _due.remove(s);
+      if (s._holds == 0) _byRoom.remove(c.chatRoom);
+    }
+    final fresh = [for (final c in want.values) if (!_followed.containsKey(c.seed)) c];
+    if (fresh.isEmpty) return;
+    for (final c in fresh) {
+      _followed[c.seed] = c;
+    }
+    unawaited(_take(fresh));
+  }
+
+  /// Takes up each of [fresh], newly followed: the list it kept, its chat room listened to, and one reading from the
+  /// relay. One at a time, with the thread that draws let go between them: each is a file read and a list made from it,
+  /// and an app with many spaces takes them all up as it starts.
+  Future<void> _take(List<VoiceChannel> fresh) async {
+    for (final c in fresh) {
+      await Future<void>.delayed(Duration.zero);
+      // Let go of meanwhile (the space left, or everything forgotten).
+      if (!identical(_followed[c.seed], c)) continue;
+      final had = _spaces[c.seed];
+      final s = of(c);
+      s._followed = true;
+      // Listened to before it is read: whatever is said from here on is heard, and the reading has the rest.
+      _listenFor(s);
+      // Its count is known now, where it wasn't (a circle's list draws it).
+      if (had == null && s.ready) notifyListeners();
+      _catchUp(s);
+    }
+  }
+
+  /// The followed spaces still to be read from the relay, in turn ([_catchUp]).
+  final List<FilesSpace> _due = [];
+  bool _catching = false;
+
+  /// How many times everything was forgotten ([clear]): a reading that was under way then says nothing of the relay
+  /// to what came after.
+  int _forgotten = 0;
+
+  /// When a followed space last found the relay out of reach; null once one has reached it, or this device has come
+  /// into a room again (the relay is back). Until [followedRetry] has gone by none of them asks again by itself.
+  DateTime? _awayAt;
+
+  /// Reads [s] from the relay in its turn, in the background: one space at a time, so an app with many of them doesn't
+  /// open a connection for each at once as it starts. With no relay yet, or the relay out of reach, the rest wait for
+  /// it ([_voiceChanged] has them read when it comes) rather than each finding that out for itself; and so does one
+  /// asked for while the relay was just found away ([_awayAt]).
+  void _catchUp(FilesSpace s) {
+    final away = _awayAt;
+    if (away != null && DateTime.now().difference(away) < followedRetry) {
+      s._waiting = true;
+      return;
+    }
+    if (!_due.contains(s)) _due.add(s);
+    if (_catching) return;
+    _catching = true;
+    final forgotten = _forgotten;
+    unawaited(() async {
+      try {
+        while (_due.isNotEmpty) {
+          final next = _due.removeAt(0);
+          if (!next._live) continue;
+          // No relay yet (the app just opened): what each kept shows meanwhile.
+          final none = _api(next.channel) == null;
+          if (!none) await next._again();
+          if (forgotten != _forgotten) continue;
+          final away = !none && (next.error?.offline ?? false);
+          if (!none && !away) {
+            _awayAt = null;
+            continue;
+          }
+          if (away) _awayAt = DateTime.now();
+          for (final rest in [if (none) next, ..._due]) {
+            rest._waiting = true;
+          }
+          _due.clear();
+        }
+      } finally {
+        _catching = false;
+      }
+    }());
+  }
+
+  /// The chat rooms listened to, each with its space: those open ([open]) and those followed ([follow]).
+  final Map<String, FilesSpace> _byRoom = {};
+
+  /// The route listened to ([_hear]), and its two listeners.
+  VoiceRoute? _heard;
+  StreamSubscription<Object?>? _packets, _events;
+
+  /// Listens in [s]'s chat room for others saying its log has grown.
+  void _listenFor(FilesSpace s) {
+    _byRoom[s.channel.chatRoom] = s;
+    _hear();
+  }
+
+  /// Listens to the route as it is now: one listener for every room in [_byRoom], moved when the route is another (the
+  /// relay changed, a computer's own hub connected). A packet in one of those rooms may be the word that its log has
+  /// grown ([FilesSpace._packet]). Coming into one, for the first time or again after the relay was lost, means
+  /// whatever was said there before was missed: a followed space is read once more.
+  void _hear() {
+    final route = _route();
+    if (identical(route, _heard)) return;
+    _unhear();
+    _heard = route;
+    if (route == null) return;
+    _packets = route.packets.listen((p) => _byRoom[p.room]?._packet(p.bytes));
+    _events = route.events.listen((e) {
+      if (e.members == null) return;
+      final s = _byRoom[e.room];
+      if (s == null) return;
+      // The relay answered: it is there.
+      _awayAt = null;
+      s._back = true;
+      s._holds > 0 ? s._nudge() : _catchUp(s);
+    });
+  }
+
+  void _unhear() {
+    _packets?.cancel();
+    _events?.cancel();
+    _packets = _events = null;
+    _heard = null;
+  }
+
+  final _news = StreamController<String>.broadcast();
+
+  /// Word of a space, by the relay's name for its files room ([FileSeal.filesRoom]): each time its list is found to
+  /// have changed on the relay (a reading brought entries this device hadn't read, or the list had started again), and
+  /// each time it is read again after this device came back into its chat room, changed or not, since the relay is
+  /// then back in reach for it. A folder kept in step with the space is looked at again at once
+  /// (lib/files/folder_sync.dart): what was added elsewhere comes down, and what waited here for the relay goes up.
+  Stream<String> get news => _news.stream;
 
   /// Looks at [c] on the relay and no more, where it is there: the relay lets a space go that nobody has opened for
   /// ninety days (relay/lib/files.dart), and an account's drive is opened only when its owner thinks of it (GMFB-37).
@@ -646,12 +834,11 @@ class FilesStore extends ChangeNotifier implements ChatUploads {
   /// an admin's): the relay and the log hear of it now, not when someone next opens or writes to the space (Matt,
   /// 2026-11-17: "Finish the missing pieces that went unfinished"). Until then a demoted or banned moderator's device
   /// could sign under the roster from before, and its deletes would be judged by that roster for good.
-  void _rosterMoved() {
+  void _rosterMoved(List<VoiceChannel> files) {
     final v = Voice.instance;
     final me = _me();
     if (me == null || _base() == null) return;
-    for (final c in v.channels) {
-      if (c.kind != SpaceKind.files) continue;
+    for (final c in files) {
       // Only a room already made: a roster changes through its room, and none is made here for every space.
       final r = v.heldHangout(c)?.roster;
       if (r == null || r.sig == null) continue;
@@ -1829,16 +2016,30 @@ class FilesSpace {
   bool _kept = false;
   bool get ready => _kept;
 
-  /// How many [FilesStore.open]s hold this space: the poller and the chat room's listener run while any does.
+  /// How many [FilesStore.open]s hold this space: the poller runs while any does.
   int _holds = 0;
   Timer? _poller;
-  StreamSubscription<Object?>? _sub;
+
+  /// Followed while the app runs, page or no page ([FilesStore.follow]).
+  bool _followed = false;
+
+  /// Kept current: something shows it, or it is followed. Its chat room is listened to while it is.
+  bool get _live => _holds > 0 || _followed;
+
+  /// The relay's name for this space's files.
+  late final String room = FileSeal.filesRoom(channel.seed);
 
   /// The space was made or found on the relay this run ([_ensure]); set back when the relay says it has no such space.
   bool _ensured = false;
 
   /// The reading under way, so two [refresh]es at once are one.
   Future<void>? _refreshing;
+
+  /// The log is to be read once more when the reading under way ends ([_nudge]).
+  bool _more = false;
+
+  /// This device came into the space's chat room, for the first time or again, and the log hasn't been read since.
+  bool _back = false;
 
   /// Read while there was no relay to read from: read again as soon as there is.
   bool _waiting = false;
@@ -1961,9 +2162,59 @@ class FilesSpace {
   }
 
   /// Reads what the log has after [seq], and what the relay says of the space.
-  Future<void> refresh() => _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
+  ///
+  /// [look]: looks, and makes nothing. A reading makes the space on the relay where it isn't there yet ([_ensure]),
+  /// as opening its page always did, and the relay holds each device to a number of spaces made (relay/lib/files.dart,
+  /// spacesPerId: 20, and as many a day from one address). A space only followed ([FilesStore.follow]) is read with no
+  /// page opened, as the app starts, by every device in it: read the making way, whoever started their app first
+  /// would make every space nobody had opened yet, and spend what they may make on spaces that aren't theirs. So a
+  /// followed space is looked at, and one the relay doesn't have is simply empty until someone opens or writes to it.
+  Future<void> refresh({bool look = false}) => _refreshing ??= _refresh(look).whenComplete(() => _refreshing = null);
 
-  Future<void> _refresh() async {
+  /// Reads the log because something said it has grown: the word in the chat room, the room come into again. A
+  /// reading under way is not taken for this one, as [refresh] alone would take it: it may be past where the new entry
+  /// went in, and the entry would then wait for the next word, which for a space nobody has open may be a long time.
+  /// So the log is read once more when that one ends.
+  void _nudge() => unawaited(_again());
+
+  /// [_nudge], waited for.
+  Future<void> _again() async {
+    final under = _refreshing;
+    if (under != null) {
+      if (_more) return;
+      _more = true;
+      try {
+        await under;
+      } catch (_) {
+      } finally {
+        _more = false;
+      }
+    }
+    try {
+      // With no page showing it, looked at and no more ([refresh]).
+      await refresh(look: _holds == 0);
+    } catch (_) {}
+  }
+
+  /// The longest packet that can be the word that the log has grown ([_packet]).
+  static const _wordMost = 96;
+
+  /// A packet in the space's chat room: where it is the word that the log has grown past what this device has read
+  /// (`{"t": "files", "seq": n}`, sealed with the space's key; an older build's had no number), the log is read.
+  void _packet(Uint8List bytes) {
+    // The word is a few dozen bytes sealed (at most 35 and the seal's 28). Anything longer is the chat's own, a message
+    // or a roster, which the chat has opened already: the relay hands a device every message kept for a space as it
+    // comes in, and a followed space would open each a second time for nothing.
+    if (bytes.length > _wordMost) return;
+    final clear = NetCrypto.open(channel.key, bytes);
+    if (clear == null) return;
+    try {
+      final m = jsonDecode(utf8.decode(clear)) as Map;
+      if (m['t'] == 'files' && (m['seq'] is! int || (m['seq'] as int) > seq)) _nudge();
+    } catch (_) {}
+  }
+
+  Future<void> _refresh([bool look = false]) async {
     _tried = DateTime.now();
     final api = _store._api(channel);
     if (api == null) {
@@ -1978,15 +2229,23 @@ class FilesSpace {
     loading = true;
     _waiting = false;
     _store._changed();
+    // The log as it was: another list after the reading means entries came, or it started again ([FilesStore.news]).
+    final had = _log;
     try {
       for (var tries = 0;; tries++) {
         try {
-          await _read(api);
+          await _read(api, look: look);
           break;
         } on FilesError catch (e) {
           // No such space any more (swept as unused while the app ran): opened again, once.
           if (e.status != HttpStatus.notFound || tries > 0) rethrow;
           _ensured = false;
+          if (!look) continue;
+          // Looked at, and not there: nobody has opened it yet, or the relay let it go unused. Nothing is in it, and
+          // what was kept of it is of a list the relay no longer has (as [_ensure] finds of one it makes again).
+          if (seq > 0 || _log.isNotEmpty) _startOver();
+          info = null;
+          break;
         }
       }
       error = null;
@@ -1999,12 +2258,17 @@ class FilesSpace {
     } finally {
       loading = false;
       _store._changed();
+      // Read again after coming back into the room, and the relay answered: said once, changed or not.
+      final back = _back && error == null;
+      if (back) _back = false;
+      if (back || !identical(_log, had)) _store._news.add(room);
     }
   }
 
   /// Reads the log's pages after [seq], opens and checks each entry, and asks the relay how much the space holds.
-  Future<void> _read(FilesApi api) async {
-    await _ensure(api);
+  /// [look]: the space is not made, or told anything, first ([refresh]); a relay that doesn't have it answers 404.
+  Future<void> _read(FilesApi api, {bool look = false}) async {
+    if (!look) await _ensure(api);
     final key = FileSeal.filesKey(channel.seed);
     var fresh = <LoggedOp>[];
     var more = true;
@@ -2047,29 +2311,18 @@ class FilesSpace {
       fresh = checkAll(fresh, room);
     }
     info = await api.info();
+    // As [_ensure] holds a space it opens to: one the relay names another owner for is not this space's.
+    final held = info?.owner ?? '';
+    if (look && held.isNotEmpty && channel.owner.isNotEmpty && held != channel.owner) throw FilesError(HttpStatus.forbidden, 'This space\'s files are held by someone else.');
     if (fresh.isNotEmpty) _log = [..._log, ...fresh];
     // Heard for the first time that this relay takes `?after=`: from here on, a signed entry out of its place was moved.
     if (info!.cas && _strictAfter == null) _strictAfter = seq;
   }
 
-  /// Listens in the space's chat room for others saying the log has grown.
-  void _listen() {
-    if (_sub != null) return;
-    final route = _store._route();
-    if (route == null) return;
-    _sub = route.packets.where((p) => p.room == channel.chatRoom).listen((p) {
-      final clear = NetCrypto.open(channel.key, p.bytes);
-      if (clear == null) return;
-      try {
-        final m = jsonDecode(utf8.decode(clear)) as Map;
-        if (m['t'] == 'files' && (m['seq'] is! int || (m['seq'] as int) > seq)) unawaited(refresh());
-      } catch (_) {}
-    });
-  }
-
   void _dispose() {
     _poller?.cancel();
-    _sub?.cancel();
+    _followed = false;
+    _holds = 0;
   }
 }
 
