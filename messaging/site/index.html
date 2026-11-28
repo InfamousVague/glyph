@@ -27,8 +27,7 @@
   - Every picture of the app is the app, drawn in HTML by the kit in site/mock. The hero is a foldable phone in 3D
     (site/hero3d.js, from site-src/hero3d) with the app on its screens, lifted apart into its layers and drawn back.
   - The space pictures under /art/space/ are Matt's to make; until they are there each slot shows the CSS starfield
-    (every <img> there removes itself on error). The hero's is also a film of itself (hero-av1.mp4 where a browser
-    plays AV1, hero.mp4 in H.264 where it does not; both MP4, since the box sends a .webm as audio).
+    (every <img> there removes itself on error).
   - Icons are Lucide's (ISC licence), inline. The display face is Saira (OFL), from Google Fonts; no scripts from
     anywhere else.
 -->
@@ -63,8 +62,6 @@
     content: ""; position: absolute; inset: 0; z-index: 0;
     background: linear-gradient(90deg, rgba(4,4,6,.92) 0%, rgba(4,4,6,.6) 45%, rgba(4,4,6,.15) 100%), linear-gradient(0deg, rgba(4,4,6,.9), transparent 35%);
   }
-  .hero-film { opacity: 0; transition: opacity 1.4s ease; }
-  .hero-film.on { opacity: 1; }
   .hero .u-wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr .95fr; gap: 1rem; align-items: center; padding-top: 3.5rem; padding-bottom: 4rem; min-height: calc(46rem + var(--u-wide) * .25); }
   @media (max-width: 940px) { .hero .u-wrap { grid-template-columns: minmax(0, 1fr); padding-top: 2.5rem; min-height: 0; } }
   .hero .u-needle { left: 64%; height: 135%; width: 2px; opacity: .55; z-index: 0; }
@@ -275,18 +272,7 @@
 </style>
 
 <div class="hero u-night u-stars" id="top">
-  <div class="u-slot u-slot--bg u-night">
-    <img class="u-slot-img" src="/art/space/hero.webp" alt="" fetchpriority="high" onerror="this.remove()">
-    <!-- The same picture, moving: the dish sends its beam up and the stars turn over (Matt's film, 2026-11-27: "in
-         the header use the animated TRimmed.mp4"). It plays once, at its own speed, and rests on its last frame
-         (first asked for at half speed and looping; then "play the video at normal speed and just don't loop it just
-         stop at the last frame"). It is laid over the still once it plays (the script at the foot of the page
-         starts it, and never where motion is asked to be reduced or data to be saved). -->
-    <video class="u-slot-img hero-film" id="film" muted playsinline preload="none" tabindex="-1" disablepictureinpicture>
-      <source src="/art/space/hero-av1.mp4" type='video/mp4; codecs="av01.0.05M.08"'>
-      <source src="/art/space/hero.mp4" type='video/mp4; codecs="avc1.640028"'>
-    </video>
-  </div>
+  <div class="u-slot u-slot--bg u-night"><img class="u-slot-img" src="/art/space/hero.webp" alt="" fetchpriority="high" onerror="this.remove()"></div>
   <i class="u-needle u-needle--glow" aria-hidden="true"></i>
   <div class="u-wrap">
     <div>
@@ -1292,21 +1278,6 @@
     try { localStorage.setItem('theme', root.dataset.theme === 'light' ? 'light' : 'dark'); } catch (_) {}
     shots();
   });
-
-  // The hero's picture, moving: played once, when it is in sight, over the still it is a film of; held while the
-  // hero is out of sight, and left on its last frame when it has ended. Not at all where motion is to be reduced or
-  // data saved: the still stays.
-  const film = document.getElementById('film');
-  if (film && !matchMedia('(prefers-reduced-motion: reduce)').matches && !(navigator.connection && navigator.connection.saveData)) {
-    let ended = false;
-    film.addEventListener('playing', () => film.classList.add('on'), { once: true });
-    film.addEventListener('ended', () => { ended = true; });
-    const roll = (on) => { if (ended) return; if (on && !document.hidden) film.play().catch(() => {}); else film.pause(); };
-    let seen = false;
-    if ('IntersectionObserver' in window) new IntersectionObserver((es) => { seen = es[es.length - 1].isIntersecting; roll(seen); }).observe(film);
-    else roll((seen = true));
-    document.addEventListener('visibilitychange', () => roll(seen));
-  }
 
   // The hero's phone (site/hero3d.js draws it). Until it has, the page shows the outer screen flat: at the size the
   // phone will first be drawn, so nothing jumps when it arrives.

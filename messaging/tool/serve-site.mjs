@@ -5,7 +5,7 @@
  *   node tool/serve-site.mjs [folder] [port]      site/ and 8792 unless said
  *
  * Byte ranges are answered, which a film needs before Safari will play it (python3 -m http.server does not answer
- * them, and the hero's film stays still there). Nothing is cached and nothing but 127.0.0.1 is listened on.
+ * them). Nothing is cached and nothing but 127.0.0.1 is listened on.
  */
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync } from 'node:fs';

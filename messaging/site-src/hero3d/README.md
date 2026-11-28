@@ -34,8 +34,8 @@ moment the page becomes a picture of itself on the phone's own display: `site/ar
 `-light.webp`, which `tool/hero3d-screens.mjs` draws from the view (it needs Playwright and cwebp; `--check` says
 when they are stale, and needs neither). Run it after changing the `space` view, its styles or the kit's.
 
-`node tool/serve-site.mjs` serves `site/` on this computer with byte ranges answered, which the hero's film needs
-before Safari will play it.
+`node tool/serve-site.mjs` serves `site/` on this computer, for looking at it in a browser (or the iOS simulator's
+Safari) before it ships.
 
 A callout is a `.h3-tag` in the page: `data-view` and `data-for` name the layer its line runs to, `data-at` its
 place on the stage in percent (`data-at-s` on a narrow stage; without one it is not shown there).
