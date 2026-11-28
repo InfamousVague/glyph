@@ -202,6 +202,29 @@ def silhouette(picture, size):
     return out
 
 
+# How wide the logo is in the splash's picture, and the room left round it in the picture: [large_mark].
+LARGE = 1200
+LARGE_ROOM = 20
+
+
+def large_mark(picture):
+    """
+    The mark alone and large, white on black and solid, cut to its own edges with a little room round them: the logo
+    of the splash a computer and a phone open with (lib/art/loading_logo.dart; Matt, 2026-11-27: "actually just do
+    the static image, the video doesn't look good"). The app draws it in the page's ink, taking how bright each dot
+    is for how much of the ink it gets, so the black is whatever page is behind it. Solid and not see-through as
+    [silhouette]'s is: a see-through mark tinted at this size left a faint line along the edges of its place on a
+    phone, and this way of drawing leaves none.
+    """
+    grey = picture.convert('L').point(lambda v: 0 if v < 24 else v)
+    box = grey.point(lambda v: 255 if v > 40 else 0).getbbox()
+    shape = grey.crop(box)
+    mark = shape.resize((LARGE, round(shape.height * LARGE / shape.width)), LANCZOS)
+    out = Image.new('L', (mark.width + 2 * LARGE_ROOM, mark.height + 2 * LARGE_ROOM), 0)
+    out.paste(mark, (LARGE_ROOM, LARGE_ROOM))
+    return out
+
+
 # A "maskable" icon is cut to whatever shape the home screen has, and only a circle four fifths of its width is sure
 # to show: 40% of the icon from its middle. The bubble's lower left corner, the farthest thing from the middle,
 # measures 48.1% of this picture from it; at 0.8 it is 38.5%, inside that circle.
@@ -292,6 +315,8 @@ def main():
     # In the app: the mark on the setup screen.
     os.makedirs(os.path.join(ROOT, 'assets', 'art'), exist_ok=True)
     silhouette(picture, 256).save(os.path.join(ROOT, 'assets', 'art', 'ghost-mark.png'), optimize=True)
+    # And the logo large, for the splash.
+    large_mark(picture).save(os.path.join(ROOT, 'assets', 'art', 'logo-large.png'), optimize=True)
     # The Mac app's icon (macos/, the desktop companion), in the outline macOS draws whole (mac_icon).
     for size in (16, 32, 64, 128, 256, 512, 1024):
         icon = mac_icon(picture, size)

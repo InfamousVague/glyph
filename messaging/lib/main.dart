@@ -137,8 +137,8 @@ Future<void> main() async {
   // computer is (lib/desktop) stays that phone's companion.
   if (PlatformInfo.isIOS && File('${DeskStore.defaultDir().path}/pairing.json').existsSync()) return desktopMain();
   // The loading splash (lib/ui/launch_gate.dart; Matt, 2026-11-27: "on the phone add a loading splash screen using
-  // the same logo"): the logo turning, up as the first frame and before anything below is read; the app goes under
-  // it at the end of this, and the splash comes off it once the logo has been seen for a moment.
+  // the same logo"): the logo, up as the first frame and before anything below is read; the app goes under it at
+  // the end of this, and the splash comes off it once the logo has been seen for a moment.
   final launch = LaunchGate.show();
   if (PlatformInfo.isIOS) {
     // What an iPhone deletes everything of the person's under, when it does (lib/account/account.dart): the folder its

@@ -7,10 +7,12 @@ import 'package:flutter/widgets.dart';
 import '../art/loading_logo.dart';
 
 /// A phone's loading splash (Matt, 2026-11-27: "also on the phone add a loading splash screen using the same logo"):
-/// the logo turning (lib/art/loading_logo.dart) on the page from the app's first frame, the app put under it as soon
-/// as what it starts with has been read (the stylesheets, the person's choices, the language, the plugins, the lock:
+/// the logo (lib/art/loading_logo.dart) on the page from the app's first frame, the app put under it as soon as what
+/// it starts with has been read (the stylesheets, the person's choices, the language, the plugins, the lock:
 /// lib/main.dart), and the splash faded away over it once the logo has been seen for a moment. A computer has had one
 /// since 2026-11-20 (lib/desktop/ui/launch_splash.dart), in a small window of its own, which also looks for an update.
+/// The logo stands still: it turned for one release, and "actually just do the static image, the video doesn't look
+/// good" (Matt, the same day).
 ///
 /// **Before anything is read.** The splash is up before the choices are, so it can't know the look or the theme
 /// chosen: it is black on white or white on black by the phone's own setting, which is also what Android shows
@@ -56,8 +58,8 @@ class PhoneSplash extends StatelessWidget {
         color: c.page,
         child: Center(
           child: LayoutBuilder(builder: (context, box) {
-            // Most of the way across a phone, and no wider than reads as a logo on a tablet or an unfolded one.
-            final width = (box.maxWidth * 0.62).clamp(160.0, 340.0);
+            // Over half the way across a phone, and no wider than reads as a logo on a tablet or an unfolded one.
+            final width = (box.maxWidth * 0.56).clamp(150.0, 300.0);
             return LoadingLogo(key: const ValueKey('launch-logo'), width: width, color: c.ink, onShown: onShown);
           }),
         ),
@@ -72,8 +74,9 @@ class LaunchGate extends StatefulWidget {
   const LaunchGate._(this._launch);
   final LaunchHandle _launch;
 
-  /// The least the logo is seen for, from the frame it is first in.
-  static const least = Duration(milliseconds: 900);
+  /// The least the logo is seen for, from the frame it is first in: long enough to be a splash and not a flicker,
+  /// and no longer, there being nothing in it to watch (0.9 s while the logo turned).
+  static const least = Duration(milliseconds: 600);
 
   /// How long the splash takes to fade away over the app.
   static const fade = Duration(milliseconds: 260);

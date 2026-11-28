@@ -10,9 +10,10 @@ import 'package:ghost_messaging/ui/launch_gate.dart';
 import 'support/drawn_ink.dart';
 
 /// A phone's loading splash (lib/ui/launch_gate.dart; Matt, 2026-11-27: "also on the phone add a loading splash
-/// screen using the same logo"): the logo turning from the app's first frame, the app put under it once what it
-/// starts with has been read (lib/main.dart), and the splash faded away over it when the logo has been seen for its
-/// least. Pictures in build/themes/launch-splash (phone-light, phone-dark).
+/// screen using the same logo"): the logo from the app's first frame, the app put under it once what it starts with
+/// has been read (lib/main.dart), and the splash faded away over it when the logo has been seen for its least. The
+/// logo is still ("actually just do the static image, the video doesn't look good"). Pictures in
+/// build/themes/launch-splash (phone-light, phone-dark).
 void main() {
   void phone(WidgetTester tester, {Size size = const Size(412, 892), bool dark = false}) {
     tester.view.physicalSize = size * 2.0;
@@ -33,14 +34,14 @@ void main() {
   Future<LaunchHandle> up(WidgetTester tester, {Duration least = LaunchGate.least}) async {
     final (gate, launch) = LaunchGate.forTest(least: least);
     await tester.pumpWidget(gate);
-    await filmShown(tester, find.byType(RawImage));
+    await pictureShown(tester, find.byType(RawImage));
     await tester.pump();
     expect(launch.seenAt, isNotNull);
     return launch;
   }
 
   for (final dark in [false, true]) {
-    testWidgets('the logo turning in the middle of the page, by the phone\'s own setting (${dark ? 'dark' : 'light'})', (tester) async {
+    testWidgets('the logo in the middle of the page, by the phone\'s own setting (${dark ? 'dark' : 'light'})', (tester) async {
       phone(tester, dark: dark);
       final (gate, _) = LaunchGate.forTest();
       await tester.pumpWidget(gate);
@@ -52,7 +53,7 @@ void main() {
       expect(tester.widget<ColoredBox>(find.descendant(of: splash, matching: find.byType(ColoredBox))).color, c.page);
       final logo = tester.widget<LoadingLogo>(find.byKey(const ValueKey('launch-logo')));
       expect(logo.color, c.ink);
-      expect(logo.width, closeTo(412 * 0.62, 0.01), reason: 'most of the way across a phone');
+      expect(logo.width, closeTo(412 * 0.56, 0.01), reason: 'over half the way across a phone');
       final box = tester.getRect(find.byType(LoadingLogo));
       expect(box.center.dx, closeTo(206, 0.01));
       expect(box.center.dy, closeTo(446, 0.01));
@@ -62,12 +63,12 @@ void main() {
       expect(bars.systemNavigationBarIconBrightness, dark ? Brightness.light : Brightness.dark);
       expect(bars.statusBarColor, const Color(0x00000000));
       expect(bars.systemNavigationBarColor, const Color(0x00000000));
-      await filmShown(tester, find.byType(RawImage));
+      await pictureShown(tester, find.byType(RawImage));
       final drawn = await Drawn.of(tester, tester.element(find.byType(LaunchGate)));
       drawn.keep('build/themes/launch-splash/phone-${dark ? 'dark' : 'light'}.png');
       final shares = drawn.shares(box, ink: c.ink, page: c.page);
-      expect(shares.ink, inInclusiveRange(0.15, 0.4), reason: '$shares');
-      expect(shares.page, inInclusiveRange(0.5, 0.85), reason: '$shares');
+      expect(shares.ink, inInclusiveRange(0.25, 0.45), reason: '$shares');
+      expect(shares.page, inInclusiveRange(0.5, 0.72), reason: '$shares');
       expect(shares.other, 0, reason: '$shares');
       // The page and nothing else everywhere round the logo.
       expect(drawn.not(Rect.fromLTWH(0, 0, 412, box.top), c.page), 0);
@@ -80,10 +81,10 @@ void main() {
     phone(tester, size: const Size(240, 500));
     final (narrow, _) = LaunchGate.forTest();
     await tester.pumpWidget(narrow);
-    expect(tester.widget<LoadingLogo>(find.byType(LoadingLogo)).width, 160);
+    expect(tester.widget<LoadingLogo>(find.byType(LoadingLogo)).width, 150);
     tester.view.physicalSize = const Size(900, 1000) * 2.0;
     await tester.pump();
-    expect(tester.widget<LoadingLogo>(find.byType(LoadingLogo)).width, 340);
+    expect(tester.widget<LoadingLogo>(find.byType(LoadingLogo)).width, 300);
     expect(tester.takeException(), isNull);
   });
 
@@ -102,8 +103,8 @@ void main() {
     await tester.tapAt(const Offset(206, 446));
     expect(_App.pressed, 0, reason: 'a press on the splash is not a press on what is under it');
     expect(launch.took, isNotNull);
-    // Still the logo most of a second on, though the app has been ready all along.
-    await tester.pump(const Duration(milliseconds: 700));
+    // Still the logo a while on, though the app has been ready all along.
+    await tester.pump(LaunchGate.least - const Duration(milliseconds: 200));
     expect(launch.leaving, isFalse);
     expect(solid(tester), 1);
     // Past its least: it fades away over the app, which can be pressed from the moment it starts to go.
@@ -154,15 +155,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(launch.leaving, isFalse, reason: 'settled long since, but the logo has not been seen');
-    await filmShown(tester, find.byType(RawImage));
+    await pictureShown(tester, find.byType(RawImage));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1000));
     expect(launch.seenAt, isNull, reason: 'in a frame, but no frame is on the screen yet');
     expect(launch.leaving, isFalse);
     launch.screenDrawn();
     expect(launch.seenAt, isNotNull);
-    await tester.pump(const Duration(milliseconds: 700));
-    expect(launch.leaving, isFalse, reason: 'seen for 0.7 s of its 0.9');
+    await tester.pump(LaunchGate.least - const Duration(milliseconds: 200));
+    expect(launch.leaving, isFalse, reason: 'seen for all but a fifth of a second of its least');
     await tester.pump(const Duration(milliseconds: 250));
     expect(launch.leaving, isTrue);
     await tester.pump(LaunchGate.fade);
@@ -180,7 +181,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(launch.leaving, isFalse);
     await tester.pump(const Duration(milliseconds: 120));
-    expect(launch.leaving, isTrue, reason: 'a fifth of a second after the app was there, not most of a second');
+    expect(launch.leaving, isTrue, reason: 'a fifth of a second after the app was there, whatever is left of the logo\'s least');
     await tester.pump(LaunchGate.fade);
     await tester.pump(LaunchGate.fade);
     expect(splash, findsNothing);
@@ -232,13 +233,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a phone asked to move less shows the logo still', (tester) async {
+  testWidgets('the logo is one still picture, and the same where the phone is asked to move less', (tester) async {
     phone(tester);
-    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
-    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     final (gate, _) = LaunchGate.forTest();
     await tester.pumpWidget(gate);
-    expect((tester.widget<Image>(find.byType(Image)).image as AssetImage).assetName, LoadingLogo.still);
+    expect((tester.widget<Image>(find.byType(Image)).image as AssetImage).assetName, LoadingLogo.asset);
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pump();
+    expect((tester.widget<Image>(find.byType(Image)).image as AssetImage).assetName, LoadingLogo.asset);
   });
 
   // lib/main.dart, read as it is written: the splash goes up before anything is read, and every way out of the

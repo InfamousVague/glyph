@@ -33,6 +33,18 @@ github.com/InfamousVague/ghost-gmessages-sidecar).
 
 ## What it does
 
+- **The splash's logo is still again** (not released; Matt, 2026-11-27, of the film 0.12.54 had put there: "actually
+  just do the static image, the video doesn't look good"). Both splashes draw one picture, large:
+  `assets/art/logo-large.png`, the mark cut from the app icon's art 1200 across by `tool/app_icon.py`, white on black
+  and solid, drawn by `LoadingLogo` (`lib/art/loading_logo.dart`) in the page's ink as the film was: how bright a dot
+  is, is how much of the ink it gets. The film, its first frame and their tool are out of the app and the
+  repository, and every download is about a megabyte smaller. **On a computer** the logo is 232 across in the
+  splash's 300, where the mark before the film was 115, and breathes a little while the splash waits, as it did
+  before the film; not where the computer is asked to move less. **On a phone** it stands in the middle of the page
+  for 0.6 s (0.9 while it turned: there is nothing in it to watch), counted as before from the frame it is first
+  seen in, and everything else about the phone's splash is as 0.12.54 made it (the app under it, a press on a
+  notification not kept waiting, never more than 3 s). **Tried** in tests and on the Android emulator, light and
+  dark; not on a real phone, an iPhone, or a computer's own window.
 - **The logo turns while the app loads: larger on a computer's splash, and a splash on the phone** (0.12.54;
   Matt, 2026-11-27: "update the update screen to use the loading_logo.mp4 and make it larger so it is visible, also
   on the phone add a loading splash screen using the same logo"). His film (`art/loading_logo.mp4`: the white logo

@@ -5,15 +5,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Waits until a picture that moves has its first frame on the page: [shown] finds it. Its frames are read in real
-/// time and each is put on the page at a frame of the app's, so neither a wait nor a pump alone brings one, and
-/// `precacheImage` waited on inside `runAsync` never comes back (no frame of the app's is drawn in there).
-Future<void> filmShown(WidgetTester tester, Finder shown) async {
+/// Waits until a picture is on the page: [shown] finds it. A picture is read in real time, which a pump alone
+/// doesn't give it, and a waited-for `precacheImage` inside `runAsync` never comes back for one that moves (each of
+/// its frames is put on the page at a frame of the app's, and none is drawn in there): so a little of each, in turn.
+Future<void> pictureShown(WidgetTester tester, Finder shown) async {
   for (var i = 0; i < 300 && shown.evaluate().isEmpty; i++) {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
     await tester.pump(const Duration(milliseconds: 20));
   }
-  expect(shown, findsOneWidget, reason: 'the film\'s first frame was read and shown');
+  expect(shown, findsOneWidget, reason: 'the picture was read and shown');
 }
 
 /// What was drawn, as a test looks at it: the picture of everything under the nearest boundary above [element]
